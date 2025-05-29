@@ -4,7 +4,9 @@
 
 This package provides the ability to describe RF circuit models in an object-orientated, parametric manner, acting as an extension of the scikit-rf library. It allows for circuit modelling, fitting and sampling in a convenient manner. The library mainly builds on top of packages scikit-rf, scipy, polychord, and, of course, numpy. It is, however, very much still in beta
 
-A test script in `test_scripts/fit_cable.py` demonstrates the fitting of a 10 meter cable's S-parameters using the build in PhysicalCoax model.
+## Examples
+
+Currently there is only one example, demonstrated in the script in `examples/fit_cable.py`, which shows how top fit the 10 meter cable's S-parameters using the built-in PhysicalCoax model and a frequentist SLSQP solver.
 
 
 ## Documentation

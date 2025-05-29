@@ -1,7 +1,7 @@
 [project]
 name = "paramrf"
 version = "0.0.1"
-description = "ParamRf: Parametric Microwave Circuit Modelling, Fitting and Sampling"
+description = "ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling"
 readme = "README.md"
 authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }
