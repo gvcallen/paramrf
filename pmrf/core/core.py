@@ -1,3 +1,4 @@
+import numpy as np
 import skrf as rf
 
 def add_noise(network: rf.Network, sigma_gamma=0.1, sigma_tau=None):

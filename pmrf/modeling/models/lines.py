@@ -1,6 +1,6 @@
 import numpy as np
 import skrf as rf
-from scipy.interpolate import CubicSpline, BPoly
+from scipy.interpolate import CubicSpline, PPoly, BPoly
 from scipy.constants import c, mu_0, epsilon_0
 from scipy.special import iv, kv
 
@@ -22,13 +22,13 @@ class PhysicalCoax(RLGCLine):
         
     For all parameters 'x' above that are functions of frequency, several functional forms exist, specified by passing x_model in kwargs:
         - 'constant': constant function (default), parameters = ['x']
-        - 'polynomialN': polynomial with order N, parameters = ['x_0', 'x_1', ..., 'x_N']. Note that bounds must be set carefully for this.
-        - 'bernsteinN': polynomial with order N in the Bernstein basis, parameters = ['x_0', 'x_1', ..., 'x_N']. Lower bounds are set according to physical constraints.
+        - 'ppolyN': polynomial of order N in the power basis, parameters = ['x_0', 'x_1', ..., 'x_N']. Note that bounds must be set carefully for this.
+        - 'bpolyN': polynomial of order N in the Bernstein basis, parameters = ['x_0', 'x_1', ..., 'x_N']. This allows easier bounding - to bound a parameter in [a, b] simply ensure all coefficients are in [a, b].
         
     Depending on the models above, the parameters for the object will change accordingly.
     """    
     def __init__(self, din = 1.12e-3, dout = 3.2e-3, len = 1.0, freq_bounds = None, neglect_skin_inductance = False, name = 'coax', **kwargs):
-        self.freq_bounds = freq_bounds
+        self._freq_bounds = freq_bounds
         self.neglect_skin_inductance = neglect_skin_inductance
         
         self.epr_model = kwargs.get('epr_model', 'constant')
@@ -63,38 +63,39 @@ class PhysicalCoax(RLGCLine):
             model = getattr(self, f'{param_name}_model')
             if model == 'constant':
                 params[param_name] = kwargs.get(f'{param_name}', param_default)
-            elif model.startswith('polynomial'):
-                k = str.__len__('polynomial')
-                n = int(model[k:])
-                params[f'{param_name}_0'] = kwargs.get(f'{param_name}_0', param_default)
+            elif model.startswith('ppoly') or  model.startswith('bpoly'):
+                n = int(model[5:])
+                coeff0 = params[f'{param_name}_0'] = kwargs.get(f'{param_name}_0', param_default)
+                if model.startswith('ppoly'):
+                    default = 0.0
+                else:
+                    default = coeff0
                 for i in range(1, n+1):
                     key = f'{param_name}_{i}'
-                    params[key] = kwargs.get(key, 0.0)
+                    params[key] = kwargs.get(key, default)
         
         super().__init__(params=params, name=name, **kwargs)
         
     def value_f(self, param_name):
         model = str(getattr(self, f'{param_name}_model'))
-        fn = self.fn
         
         if model == 'constant':
             value = getattr(self, param_name) * np.ones(self.frequency.npoints)
-        elif model.startswith('polynomial'):
-            n = int(model[len('polynomial'):])
-            value = self.params[f'{param_name}_{0}'] * np.ones(self.frequency.npoints)
-            for i in range(1, n+1):
-                coeff = self.params[f'{param_name}_{i}']
-                value += coeff * fn**i
+        else:
+            n = int(model[5:])
+            coeffs = np.array([self.params[f'{param_name}_{i}'] for i in range(n+1)])
+            breakpoints = self.freq_bounds
+            if model.startswith('ppoly'):
+                poly = PPoly(coeffs, breakpoints)
+            else:
+                poly = BPoly(coeffs, breakpoints)
+            value = poly(self.frequency.f)
                 
         return value
             
     @property
-    def fn(self):
-        if not self.freq_bounds is None:
-            f_start, f_stop = self.freq_bounds
-        else:
-            f_start, f_stop = self.frequency.start, self.frequency.stop            
-        return (self.frequency.f - f_start) / (f_stop - f_start)            
+    def freq_bounds(self):
+        return self._freq_bounds or (self.frequency.start, self.frequency.stop)
         
     @property
     def epr_f(self):

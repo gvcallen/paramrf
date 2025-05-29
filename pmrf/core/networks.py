@@ -6,7 +6,7 @@ import skrf as rf
 from skrf.media import DefinedGammaZ0
 from skrf.media import Media
 
-from pmrf.core import add_noise
+from pmrf.core.core import add_noise
 from pmrf.misc.structures import ObservableDict
 from pmrf.misc.inspection import get_properties_and_attributes
 
