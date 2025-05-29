@@ -1,12 +1,12 @@
 from abc import abstractmethod
 from copy import copy, deepcopy
-from typing import Self
 
 import numpy as np
 import skrf as rf
 from skrf.media import DefinedGammaZ0
 from skrf.media import Media
 
+from pmrf.core import add_noise
 from pmrf.misc.structures import ObservableDict
 from pmrf.misc.inspection import get_properties_and_attributes
 
@@ -46,7 +46,7 @@ class ComputableNetwork(rf.Network):
             self.frequency, self.s, self.z0 = frequency, s, z0
             self.update()
             
-    def interpolate(self, frequency: rf.Frequency, **kwargs) -> Self:
+    def interpolate(self, frequency: rf.Frequency, **kwargs):
         if self._fixed:
             return super().interpolate(frequency, **kwargs)
         else:

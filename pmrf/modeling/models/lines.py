@@ -1,6 +1,6 @@
 import numpy as np
 import skrf as rf
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, BPoly
 from scipy.constants import c, mu_0, epsilon_0
 from scipy.special import iv, kv
 
@@ -22,7 +22,8 @@ class PhysicalCoax(RLGCLine):
         
     For all parameters 'x' above that are functions of frequency, several functional forms exist, specified by passing x_model in kwargs:
         - 'constant': constant function (default), parameters = ['x']
-        - 'polynomialN': polynomial with order N, parameters = ['x_0', 'x_1', ..., 'x_N']
+        - 'polynomialN': polynomial with order N, parameters = ['x_0', 'x_1', ..., 'x_N']. Note that bounds must be set carefully for this.
+        - 'bernsteinN': polynomial with order N in the Bernstein basis, parameters = ['x_0', 'x_1', ..., 'x_N']. Lower bounds are set according to physical constraints.
         
     Depending on the models above, the parameters for the object will change accordingly.
     """    
