@@ -15,7 +15,7 @@ The initialize functions for many classes have some introductory docs. This sect
 ### _core_ module
 This module contains the core object-orientated classes. These are modifications of the scikit-rf `Network` class, with the ability for networks to be dependent via the `ObservableNetwork` class; to update based on a set of parameters via the `ParametricNetwork` class; or to be composed by another list of networks via the `CompositeNetwork` class.
 
-### _modelling_ module
+### _modeling_ module
 This module contains various common circuit models and elements, as well as the main `NetworkSystem` class, which represents a collection of these models. 
 In the _elements_ sub-module:
 - _Lumped_ elements that are not already present in scikit-rf itself are in `elements/lumped.py` (e.g. an ideal tranformer).
