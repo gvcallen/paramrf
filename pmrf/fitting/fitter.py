@@ -805,7 +805,7 @@ class NetworkFitter:
 
         # Run polychord. Useful parameters to investigate may be "precision_criterion" and "synchronous"
         kwargs = {
-            'pdf': prior,
+            'prior': prior,
             'paramnames': param_names,
             'read_resume': self._settings.read_resume,
             'base_dir': self.output_polychord_path,
