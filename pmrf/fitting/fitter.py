@@ -800,6 +800,11 @@ class NetworkFitter:
         
         likelihood = lambda theta: self._likelihood_callback(theta, callback_args=callback_args)
         prior = lambda hypercube: self._prior_callback(hypercube)
+
+        # If there is a bug/crash in "likelihood" or "prior" above, we don't get useful error messages.
+        # Uncomment the following code to make debugging easier.
+        # _ = likelihood(self.models.params.value.to_numpy())
+        # _ = prior(0.5 * np.ones(len(param_names)))
                 
         self.models.params.enable_cache()
 
@@ -914,7 +919,7 @@ class NetworkFitter:
     def _prior_callback(self, hypercube):
         num_model_params = self.models.num_free_params
         
-        model_values = [prior(hypercube[i]) for i, prior in enumerate(self.models.params.priors())]
+        model_values = [prior(hypercube[i]) for i, prior in enumerate(self.models.params.pdfs())]
         likelihood_values = [prior(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
         
         return np.array(model_values + likelihood_values)
