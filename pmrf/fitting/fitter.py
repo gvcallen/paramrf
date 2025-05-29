@@ -261,7 +261,7 @@ class NetworkFitter:
             if Path(self.output_settings_path).exists():
                 logger.verbose("Loading fitter settings from file")
                 self.load_settings()
-                self._settings.update(**kwargs)
+                self._settings.update(kwargs)
                 self._settings.read_resume = True
             else:
                 self._settings.append_title = append_title_original
