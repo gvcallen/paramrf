@@ -83,7 +83,7 @@ class PhysicalCoax(RLGCLine):
             value = getattr(self, param_name) * np.ones(self.frequency.npoints)
         else:
             n = int(model[5:])
-            coeffs = np.array([self.params[f'{param_name}_{i}'] for i in range(n+1)])
+            coeffs = np.array([[self.params[f'{param_name}_{i}']] for i in range(n+1)])
             breakpoints = self.freq_bounds
             if model.startswith('ppoly'):
                 poly = PPoly(coeffs, breakpoints)
