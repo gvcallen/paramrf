@@ -17,6 +17,7 @@ This module contains the core object-orientated classes. These are modifications
 
 ### _modeling_ module
 This module contains various common circuit models and elements, as well as the main `NetworkSystem` class, which represents a collection of these models. 
+
 In the _elements_ sub-module:
 - _Lumped_ elements that are not already present in scikit-rf itself are in `elements/lumped.py` (e.g. an ideal tranformer).
 - So-called _topological_ elements (e.g. pi-junctions, T-networks etc.) are present in `elements/topological.py`.
@@ -29,21 +30,21 @@ In the _models_ sub-module:
 
 ### _statistics_ module
 This module contains everything to do with data and statistical model evaluation, such as generating a feature matrix from Networks, evaluating priors and likelihoods, and storing a list of parameters.
-- The `Feature` class in the _evaluation_ sub-module is designed to extract features from a scikit-rf `Network` class, such as S11 magnitude, S21 real, etc. Of importance is the `extract_features` function, which extracts features from multiple networks and creates a "feature matrix" containing all feature values across frequency.
-- The `Prior` and `Likelihood` classes encapsulate statistical prior and likelihood functions. They are used to allow the `NetworkFitter` class to easily sample from the parameter space and compute log-likelihood values (for bayesian solvers).
+- The `ParameterSet` class derives from a pandas `DataFrame` and contains all the parameter read/write code. One cool feature is the ability to have _derived_ parameters, where one parameter can be set equal to another.
+- The `Feature` class is designed to extract features from a scikit-rf `Network` class, such as S11 magnitude, S21 real, etc. Of importance is the `extract_features` function, which extracts features from multiple networks and creates a "feature matrix" containing all feature values across frequency.
 - The `Modifier` and `ModifierChain` classes encapsulate the idea of performing a series of modifications on a numpy array. In practice, this is used on the feature matrix to easily define different types of cost functions (for frequentist solvers) in a modular way.
-- The `ParameterSet` class derives from a pandas `DataFrame` and contains all the parameter read/write code. It also allows for _derived_ parameters, where one parameter can be set equal to another.
+- The `PDF` and `Likelihood` classes encapsulate probability density and likelihood functions. They are used mainly by the `NetworkFitter` class described below, which uses the `PDF` class as fitting bounds/priors, and the `Likelihood` to compute log-likelihood values (for bayesian solvers).
 
 ### _fitting_ module
 This module contains the main _NetworkFitter_ class, as well as various other helper classes:
 - The `NetworkFitter` class is the main coordinator. It contains references to the fitting parameters, the models in the fit (itself represented in the generic `NetworkSystem` class), and various settings. It is the class that ultimately runs the optimization/fit.
-- The `Target` class is the grouping of a circuit model and its measured data. It also allows for computing the target's cost and likelihood function.
+- The `Target` class is the grouping of a circuit model and its measured data. It also allows for easy computing of the target's cost and likelihood functions in one place.
 
 ### _plotting_ module
 This module contains functionality to plot common plots, such as S11 parameters, gains etc. It is encapsulated in a `Plotter` class to de-couple it from the fitting module.
 
 ### _rf_ module
-This module contains RF computations ,such as the actual calculation of available gains, and the concatenation of two-port networks.
+This module contains some RF computations, such as the calculation of available gains, and the concatenation of two-port networks.
 
 ### _misc_ module
 This module contains any misc functionality, such as mathematical functions etc.
