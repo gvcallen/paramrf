@@ -437,20 +437,20 @@ class NetworkFitter:
         return self._settings.data_path
     
     @property
-    def models(self) -> NetworkSystem:
+    def system(self) -> NetworkSystem:
         return self._models
 
     @property
     def frequency(self) -> rf.Frequency:
-        return self.models.frequency
+        return self.system.frequency
     
     @property
     def export_frequency(self) -> rf.Frequency:
-        return self._settings.export_frequency or self.models.frequency
+        return self._settings.export_frequency or self.system.frequency
     
     @property
     def num_model_params(self):
-        return len(self.models.params.names_free)
+        return len(self.system.params.names_free)
     
     @property
     def num_likelihood_params(self):
@@ -467,7 +467,7 @@ class NetworkFitter:
     
     @property
     def samples(self):
-        params = self.models.params.names_free
+        params = self.system.params.names_free
         nested_samples = self.nested_samples
         return nested_samples.loc[:, params].to_numpy()       
     
@@ -523,7 +523,7 @@ class NetworkFitter:
         else:
             output_path = f'{self.output_path}/figures'
         
-        plotter.params = self.models.params
+        plotter.params = self.system.params
         plotter.output_path = output_path
         plotter._nested_samples = nested_samples        
         if self._settings.no_output:
@@ -619,7 +619,7 @@ class NetworkFitter:
     def cost(self, theta=None, reset_params=False, features=None) -> np.float64:
         reset_params = reset_params and not theta is None
         if reset_params:
-            x_before = self.models.params.values()
+            x_before = self.system.params.values()
         if not theta is None:
             self.update_params(theta)
 
@@ -634,7 +634,7 @@ class NetworkFitter:
     def log_likelihood(self, theta=None, reset_params=False) -> np.float64:
         reset_params = reset_params and not theta is None
         if reset_params:
-            x_before = self.models.params.values()
+            x_before = self.system.params.values()
         if not theta is None:
             self.update_params(theta)        
             
@@ -672,11 +672,11 @@ class NetworkFitter:
             self.update_networks()
 
         target_names = [target.name for target in self._targets if not target.fixed]
-        param_names = self.models.params.names_free
+        param_names = self.system.params.names_free
 
         logger.verbose(f'Free Targets: {target_names}')
         logger.verbose(f'Free Parameters: {param_names}\n')
-        logger.verbose(f'Fitting for {self.models.num_free_params} circuit modelo parameter(s)...')
+        logger.verbose(f'Fitting for {self.system.num_free_params} circuit modelo parameter(s)...')
 
         start = time.time()
         
@@ -718,13 +718,13 @@ class NetworkFitter:
             theta_networks = params[0:self.num_model_params]
             self._models.update_params(theta_networks, scaler=scaler)
             for target in self._targets:
-                target.update_params(self.models.params.evaluate(), update_noise=update_noise, update_likelihoods=update_network_likelihoods)
+                target.update_params(self.system.params.evaluate(), update_noise=update_noise, update_likelihoods=update_network_likelihoods)
                 
     def update_params_from_samples(self):
         if not self.is_bayesian:
             raise Exception('Can only update parameters from samples if solver is Bayesian')
 
-        param_names = self.models.params.index[self.models.params.fixed == False]
+        param_names = self.system.params.index[self.system.params.fixed == False]
         param_names_replaced = [name.replace('_', '.') for name in param_names]
         param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])                
 
@@ -735,12 +735,12 @@ class NetworkFitter:
                 # Network params
                 for param in param_names[:,0]:
                     value = nested_samples[param].mean()
-                    self.models.params.loc[param, 'value'] = value
+                    self.system.params.loc[param, 'value'] = value
             elif self._settings.parameter_method == 'likelihood-max':
                 idx = np.argmax(nested_samples.logL.values)
                 for param in param_names[:,0]:
                     value = nested_samples[param].values[idx]
-                    self.models.params.loc[param, 'value'] = value
+                    self.system.params.loc[param, 'value'] = value
             else:
                 raise Exception('Unknown best parameter method')
             
@@ -785,7 +785,7 @@ class NetworkFitter:
         Then, the mean of the posterior's is used as the updated parameter values, as well as the posterior's plotted.
         """
         # Get param names
-        model_param_names = list(self.models.params.index[self.models.params.fixed == False])
+        model_param_names = list(self.system.params.index[self.system.params.fixed == False])
         likelihood_param_names = list(self._likelihood_object.params().keys())
         
         # Populate latex param names
@@ -806,7 +806,7 @@ class NetworkFitter:
         # _ = likelihood(self.models.params.value.to_numpy())
         # _ = prior(0.5 * np.ones(len(param_names)))
                 
-        self.models.params.enable_cache()
+        self.system.params.enable_cache()
 
         # Run polychord. Useful parameters to investigate may be "precision_criterion" and "synchronous"
         kwargs = {
@@ -817,7 +817,7 @@ class NetworkFitter:
             'file_root': self.polychord_file_root,
         }
         
-        num_live_points = self._settings.num_live_points or self.models.num_free_params
+        num_live_points = self._settings.num_live_points or self.system.num_free_params
         kwargs['nlive'] = num_live_points
 
         logger.verbose(f'Fitting for {self._likelihood_object.num_params} likelihood parameter(s)...')
@@ -832,7 +832,7 @@ class NetworkFitter:
             **kwargs
         )
 
-        self.models.params.flush_cache()
+        self.system.params.flush_cache()
 
         self._plotter._nested_samples = self.nested_samples        
         self.update_params_from_samples()
@@ -844,7 +844,7 @@ class NetworkFitter:
         Fit the parameters using a frequentist approach.
         """
         # Get the active parameters and the prefix to use for output files
-        params = self.models.params
+        params = self.system.params
 
         # Populate bounds and options
         x0 = params.loc[params.fixed == False, 'value'].to_numpy()
@@ -911,15 +911,15 @@ class NetworkFitter:
             logL = -np.inf
             filename = f"error_{time_string()}.csv"
             logger.error(f"Likelihood function raised an exception. Active parameters saved to {filename}", exc_info=e)
-            self.models.params.write_csv(f"{self.output_param_path}/{filename}")
+            self.system.params.write_csv(f"{self.output_param_path}/{filename}")
 
         callback_args['i_feval'] = callback_args['i_feval'] + 1
         return logL
 
     def _prior_callback(self, hypercube):
-        num_model_params = self.models.num_free_params
+        num_model_params = self.system.num_free_params
         
-        model_values = [prior(hypercube[i]) for i, prior in enumerate(self.models.params.pdfs())]
+        model_values = [prior(hypercube[i]) for i, prior in enumerate(self.system.params.pdfs())]
         likelihood_values = [prior(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
         
         return np.array(model_values + likelihood_values)

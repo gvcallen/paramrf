@@ -23,6 +23,11 @@ class NetworkSampler:
 
         self._n = None
 
+    def __len__(self) -> int:
+        if self._n is None:
+            raise Exception('Error: to use this class as an iterator, call e.g. enumerate (CircuitSampler.range(n))')
+        return self._n
+
     def range(self, n) -> NetworkSystem:
         """Allows the CircuitSampler to be used as an iterable. To use, call e.g:
             for i, system in enumerate(sampler.range(10)).

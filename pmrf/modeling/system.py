@@ -56,6 +56,7 @@ class NetworkSystem:
         self._params_original: ParameterSet = None
         self._params_active: ParameterSet = None
         self._frequency = self._settings.frequency
+        self._warning_emitted = False
         
         self._init_networks()
         self._subnetworks = get_unique_networks(self._networks, ignore_composite=True, ignore_non_computabe=True)
@@ -207,8 +208,9 @@ class NetworkSystem:
                     if not fixed:
                         self._params_active.loc[param_name, 'fixed'] = False
                         
-        if len(params_not_found) != 0:
-            logger.warning(f'\n\nWARNING: The following parameters were not found and will be fixed: {sorted(list(set(params_not_found)))}\n\n')
+        if len(params_not_found) != 0 and not self._warning_emitted:
+            logger.warning(f'WARNING: The following parameters were not found and will be fixed: {sorted(list(set(params_not_found)))}')
+            self._warning_emitted = True
 
         self.update_networks()
         
