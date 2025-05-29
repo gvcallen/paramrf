@@ -12,8 +12,11 @@ Currently there is only one example, demonstrated in the script in `examples/fit
 ## Documentation
 The initialize functions for many classes have some introductory docs. This section simply explains the organization of the package and its sub-modules, to provide a higher-level overview.
 
+### _core_ module
+This module contains the core object-orientated classes. These are modifications of the scikit-rf `Network` class, with the ability for networks to be dependent via the `ObservableNetwork` class; to update based on a set of parameters via the `ParametricNetwork` class; or to be composed by another list of networks via the `CompositeNetwork` class.
+
 ### _modelling_ module
-This module contains various circuit models and elements, as well as the main `CircuitSystem` class, which represents a collection of these models. All of these model networks derive from the scikit-rf `Network` class, however have been modified to e.g. be dependent on each other via the `ObservableNetwork` class, to update based on a set of parameters via the `ParametricNetwork` class, or to depend on another list of networks via the `CompositeNetwork` class.
+This module contains various common circuit models and elements, as well as the main `NetworkSystem` class, which represents a collection of these models. 
 In the _elements_ sub-module:
 - _Lumped_ elements that are not already present in scikit-rf itself are in `elements/lumped.py` (e.g. an ideal tranformer).
 - So-called _topological_ elements (e.g. pi-junctions, T-networks etc.) are present in `elements/topological.py`.
@@ -27,13 +30,13 @@ In the _models_ sub-module:
 ### _statistics_ module
 This module contains everything to do with data and statistical model evaluation, such as generating a feature matrix from Networks, evaluating priors and likelihoods, and storing a list of parameters.
 - The `Feature` class in the _evaluation_ sub-module is designed to extract features from a scikit-rf `Network` class, such as S11 magnitude, S21 real, etc. Of importance is the `extract_features` function, which extracts features from multiple networks and creates a "feature matrix" containing all feature values across frequency.
-- The `Prior` and `Likelihood` classes encapsulate statistical prior and likelihood functions. They are used to allow the `CircuitFitter` class to easily sample from the parameter space and compute log-likelihood values (for bayesian solvers).
+- The `Prior` and `Likelihood` classes encapsulate statistical prior and likelihood functions. They are used to allow the `NetworkFitter` class to easily sample from the parameter space and compute log-likelihood values (for bayesian solvers).
 - The `Modifier` and `ModifierChain` classes encapsulate the idea of performing a series of modifications on a numpy array. In practice, this is used on the feature matrix to easily define different types of cost functions (for frequentist solvers) in a modular way.
 - The `ParameterSet` class derives from a pandas `DataFrame` and contains all the parameter read/write code. It also allows for _derived_ parameters, where one parameter can be set equal to another.
 
 ### _fitting_ module
-This module contains the main _CircuitFitter_ class, as well as various other helper classes:
-- The `CircuitFitter` class is the main coordinator. It contains references to the fitting parameters, the models in the fit (itself represented in the generic `CircuitSystem` class), and various settings. It is the class that ultimately runs the optimization/fit.
+This module contains the main _NetworkFitter_ class, as well as various other helper classes:
+- The `NetworkFitter` class is the main coordinator. It contains references to the fitting parameters, the models in the fit (itself represented in the generic `NetworkSystem` class), and various settings. It is the class that ultimately runs the optimization/fit.
 - The `Target` class is the grouping of a circuit model and its measured data. It also allows for computing the target's cost and likelihood function.
 
 ### _plotting_ module

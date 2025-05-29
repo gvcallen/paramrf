@@ -4,15 +4,15 @@ from typing import Iterator
 import numpy as np
 from scipy.stats import qmc
 
-from pmrf.modeling import CircuitSystem
+from pmrf.modeling import NetworkSystem
 
-class CircuitSampler:
-    def __init__(self, system: CircuitSystem, engine = 'lhs', **kwargs):
+class NetworkSampler:
+    def __init__(self, system: NetworkSystem, engine = 'lhs', **kwargs):
         self._system = system
         self._engine = engine 
         self._n = None
 
-    def __iter__(self) -> Iterator[CircuitSystem]:
+    def __iter__(self) -> Iterator[NetworkSystem]:
         if self._n is None:
             raise Exception('Error: to use this class as an iterator, call e.g. enumerate (CircuitSampler.range(n))')
 
@@ -23,7 +23,7 @@ class CircuitSampler:
 
         self._n = None
 
-    def range(self, n) -> CircuitSystem:
+    def range(self, n) -> NetworkSystem:
         """Allows the CircuitSampler to be used as an iterable. To use, call e.g:
             for i, system in enumerate(sampler.range(10)).
 
@@ -31,7 +31,7 @@ class CircuitSampler:
             n (int): The number of samples to generate
 
         Returns:
-            CircuitSystem: self
+            NetworkSystem: self
         """
         self._n = n
         return self
@@ -49,7 +49,7 @@ class CircuitSampler:
             inplace (bool, optional): If set to true, new systems are not created. Defaults to False, in which case a list of systems is created and returned.
 
         Returns:
-            _type_: CircuitSystem | None
+            _type_: NetworkSystem | None
         """
         system = self._system
         

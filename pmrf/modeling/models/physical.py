@@ -1,7 +1,7 @@
 import numpy as np
 import skrf as rf
 
-from pmrf.modeling import ParametricNetwork
+from pmrf.core import ParametricNetwork
 from pmrf.modeling.elements.lumped import Resistor
 from pmrf.modeling.elements.topological import PiCLC
 from pmrf.misc.inspection import get_args_of

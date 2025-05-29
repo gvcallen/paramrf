@@ -3,13 +3,14 @@ import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
+import skrf as rf
+
 try: 
     import plotly.graph_objs as go
     plotly_available = True
     from plotly.subplots import make_subplots
 except ImportError:
     plotly_available = False
-import skrf as rf
 
 try:
     from anesthetic import make_2d_axes, NestedSamples
@@ -19,7 +20,7 @@ except ImportError:
 
 from pmrf.statistics.parameters import ParameterSet
 from pmrf.fitting.target import Target
-from pmrf.modeling.networks import get_unique_networks, update_networks_mapped
+from pmrf.core.networks import get_unique_networks, update_networks_mapped
 from pmrf.misc.math import dB20
 from pmrf.rf.passive import available_gain
 from pmrf.plotting import GridFigure

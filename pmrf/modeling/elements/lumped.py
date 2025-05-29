@@ -2,7 +2,7 @@ import numpy as np
 import skrf as rf
 from skrf.media import Media
 
-from pmrf.modeling import ParametricNetwork, ComputableNetwork
+from pmrf.core.networks import ParametricNetwork, ComputableNetwork
 from pmrf.misc.inspection import get_args_of
 
    

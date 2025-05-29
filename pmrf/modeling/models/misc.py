@@ -8,7 +8,7 @@ from pmrf.modeling.models.connectors import SMAEdgeConnector
 
 """
 Misc circuit models for quick testing. Generally it is convenient to all these models to take sub-network arguments to be None in their constructors.
-Then, it is trivial to make use of these networks using the CircuitFitter.
+Then, it is trivial to make use of these networks using the NetworkFitter.
 """
 
 class SMAMicrostripOpen(CompositeNetwork):

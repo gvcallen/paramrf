@@ -2,13 +2,13 @@ import skrf as rf
 
 from pmrf.statistics import UniformPDF, ParameterSet
 from pmrf.modeling.models import PhysicalCoax
-from pmrf.fitting import CircuitFitter
+from pmrf.fitting import NetworkFitter
 
 # This example shows how to setup a model "manually" and fit that model to data. Here we fit the "PhysicalCoax" model to the 10m cable lab measurement.
 # Note that we are also able to define our own models using ParametricNetwork -derived class.
 coax = PhysicalCoax(name='coax')
 
-# Setup parameter priors/bounds. We could also leave this out and let the CircuitFitter generate the bounds.
+# Setup parameter priors/bounds. We could also leave this out and let the NetworkFitter generate the bounds.
 # Parameters follow the model name, then the infix '_' in the fitter settings, and then the parameters of the ParametricNetwork (DatasheetCoax).
 # Note that priors aren't actually used as such for frequentist solvers (only ther min/max is used).
 wa, wb = 0.8, 1.2
@@ -24,7 +24,7 @@ params = ParameterSet(
     ]
 )
 
-fitter = CircuitFitter(
+fitter = NetworkFitter(
     output_path='output_cable',
     param_set=params,
     models=[coax],

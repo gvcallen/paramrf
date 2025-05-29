@@ -1,1 +1,1 @@
-from pmrf.simulation.sampler import CircuitSampler
+from pmrf.simulation.sampler import NetworkSampler

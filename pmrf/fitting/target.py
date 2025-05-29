@@ -5,7 +5,8 @@ from pmrf.statistics.features import Feature, extract_features
 from pmrf.statistics.modifiers import ModifierChain
 from pmrf.statistics.likelihood import GaussianLikelihood
 
-from pmrf.modeling import ParametricNetwork, CompositeNetwork, add_noise
+from pmrf.core.networks import ParametricNetwork, CompositeNetwork
+from pmrf.core.core import add_noise
 
 class Target:
     """

@@ -3,7 +3,7 @@ import skrf as rf
 from pmrf.misc.inspection import get_args_of
 from pmrf.modeling.models.connectors import SMAConnector
 from pmrf.modeling.models.lines import DatasheetCoax
-from pmrf.modeling import ParametricNetwork, CompositeNetwork
+from pmrf.core import ParametricNetwork, CompositeNetwork
 from pmrf.rf.passive import available_gain
 
 class CoaxialCable(CompositeNetwork):

@@ -1,7 +1,7 @@
 import numpy as np
 import skrf as rf
 
-from pmrf.modeling import ParametricNetwork
+from pmrf.core import ParametricNetwork
 from pmrf.misc.inspection import get_args_of
 from pmrf.modeling.elements.lumped import Capacitor, Inductor
            

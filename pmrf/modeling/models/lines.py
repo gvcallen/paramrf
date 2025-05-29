@@ -4,7 +4,7 @@ from scipy.interpolate import CubicSpline
 from scipy.constants import c, mu_0, epsilon_0
 from scipy.special import iv, kv
 
-from pmrf.modeling import ParametricNetwork, CompositeNetwork
+from pmrf.core import ParametricNetwork
 from pmrf.modeling.elements.distributed import RLGCLine
 from pmrf.misc.inspection import get_args_of
 

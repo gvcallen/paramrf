@@ -1,3 +1,3 @@
-from pmrf.fitting.fitter import CircuitFitter, CircuitFitterSettings
+from pmrf.fitting.fitter import NetworkFitter, NetworkFitterSettings
 from pmrf.statistics.parameters import ParameterSet
 from pmrf.fitting.target import Target

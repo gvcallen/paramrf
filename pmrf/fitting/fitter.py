@@ -45,7 +45,8 @@ from pmrf.statistics.pdf import UniformPDF
 from pmrf.fitting.target import Target
 
 from pmrf.plotting import Plotter
-from pmrf.modeling import ParametricNetwork, CircuitSystem
+from pmrf.core import ParametricNetwork
+from pmrf.modeling import NetworkSystem
 
 
 VERBOSE = 15
@@ -59,10 +60,10 @@ logging.Logger.verbose = verbose
 logger = logging.getLogger(__name__)
 
 
-class CircuitFitterSettings:
+class NetworkFitterSettings:
     """
     Settings for a circuit fitter. This includes settings for the solver, the ports of the models to fit against, the frequency range etc.
-    The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "CircuitFitter" class or sub-class.
+    The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "NetworkFitter" class or sub-class.
     """
     def __init__(self, **kwargs):
         # Input settings
@@ -160,35 +161,33 @@ class CircuitFitterSettings:
         return recurse(obj, d)      
 
 
-class CircuitFitter:
+class NetworkFitter:
     """
-    A circuit fitter is a class consisting of some fitting targets that dependent on some parametric network elements
-    as well as some measured data. Ultimately, the main purpose of the Fitter is to fit the circuit model parameters
-    to the measured data.
+    A network fitter is a class consisting of some fitting targets that dependent on some parametric network elements
+    as well as some measured data. Ultimately, the main purpose of the Fitter is to fit RF model parameters
+    to measured data.
 
     It has been designed such that all individual elements and targets can be disabled
     in the fit (i.e. held constant) or replaced by some measured data. It also has various utility functions,
     such as the plotting of parameters and data.
     
-    Although this c
-
     When deriving from a Fitter, one should implement `init_targets()`, which populates self.target with a list of Target objects.
     Otherwise, the default implementation enables fits on a single model and measured network,
     passed in as "model" and "measured" upon creation. If you want to initialize your own models,
     simply don't pass model and measured, and override these functions appropriately.
     """
-    def __init__(self, models: CircuitSystem | list[ParametricNetwork], measured: list[rf.Network] = None, settings = None, load_settings = False, **kwargs):
-        """The initializer for a CircuitFitter.
+    def __init__(self, models: NetworkSystem | list[ParametricNetwork], measured: list[rf.Network] = None, settings = None, load_settings = False, **kwargs):
+        """The initializer for a NetworkFitter.
 
         Args:
-            models (CircuitSystem | list[ParametricNetwork]): The models to fit against. Can be a complex CircuitSystem, or simply a list of parametric networks.
+            models (NetworkSystem | list[ParametricNetwork]): The models to fit against. Can be a complex NetworkSystem, or simply a list of parametric networks.
             measured (list[rf.Network], optional): A list of measured networks. Defaults to None, which is useful for derived classes, where measurements should the n be populated in _init_targets().
             settings (_type_, optional): A setting struct to initialize settings from. Generally key-word arguments are passed instead.
             load_settings (bool, optional): Specifies whether or not to load settings from file, in which case only the key-word argument "output_path" need be passed.
-            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the CircuitFitterSettings class.
+            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkFitterSettings class.
         """
         # Settings
-        self._settings: CircuitFitterSettings = settings or CircuitFitterSettings(**kwargs)
+        self._settings: NetworkFitterSettings = settings or NetworkFitterSettings(**kwargs)
         self._init_settings(load_settings=load_settings, **kwargs)
        
        
@@ -196,11 +195,11 @@ class CircuitFitter:
         if isinstance(models, list):
             if self._settings.use_measured_frequency:
                 kwargs['frequency'] = measured[0].frequency
-            models = CircuitSystem(models, **kwargs)
+            models = NetworkSystem(models, **kwargs)
         else:
             models = models
             
-        self._models: CircuitSystem = models
+        self._models: NetworkSystem = models
         self._measured: list[rf.Network] = measured
         self._targets: list[Target] = []
         
@@ -438,7 +437,7 @@ class CircuitFitter:
         return self._settings.data_path
     
     @property
-    def models(self) -> CircuitSystem:
+    def models(self) -> NetworkSystem:
         return self._models
 
     @property
@@ -764,7 +763,7 @@ class CircuitFitter:
     def load_settings(self):
         with open(self.output_settings_path, 'r') as f:
             settings_dict = json.load(f)
-            settings_created = CircuitFitterSettings.from_dict(settings_dict)
+            settings_created = NetworkFitterSettings.from_dict(settings_dict)
             if self._settings is None:
                 self._settings = settings_created
             else:

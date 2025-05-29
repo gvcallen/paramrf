@@ -1,6 +1,6 @@
 from skrf.media import DefinedGammaZ0, DefinedAEpTandZ0
 
-from pmrf.modeling import ParametricNetwork
+from pmrf.core import ParametricNetwork
 from pmrf.modeling.models.lines import DatasheetCoax
 from pmrf.modeling.elements.lumped import Resistor
 from pmrf.misc.inspection import get_args_of

@@ -4,7 +4,7 @@ from skrf.media import DefinedGammaZ0, DistributedCircuit
 from skrf.constants import c
 from skrf import mu_0
 
-from pmrf.modeling import ParametricNetwork
+from pmrf.core import ParametricNetwork
 from pmrf.misc.inspection import get_args_of
 
 

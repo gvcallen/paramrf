@@ -10,20 +10,6 @@ from skrf.media import Media
 from pmrf.misc.structures import ObservableDict
 from pmrf.misc.inspection import get_properties_and_attributes
 
-def add_noise(network: rf.Network, sigma_gamma=0.1, sigma_tau=None):
-    num_freq = network.frequency.npoints
-    
-    if sigma_tau is None:
-        sigma_tau = sigma_gamma
-    
-    for m, n in network.port_tuples:
-        if m == n:
-            sigma = sigma_gamma
-        else:
-            sigma = sigma_tau
-        noise = sigma * np.random.randn(num_freq) + 1j*sigma * np.random.randn(num_freq)                
-
-        network.s[:, m, n] += noise
 
 class ComputableNetwork(rf.Network):
     """
@@ -530,6 +516,7 @@ def _append_subnetworks(network: CompositeNetwork, subnetworks: list[rf.Network]
                     subnetworks.append(ntwk)
             else:
                 subnetworks.append(ntwk)
+            
                 
 def get_unique_networks(networks: list[rf.Network], ignore_composite=False, ignore_non_computabe=False) -> list[rf.Network]:
     if networks is None:

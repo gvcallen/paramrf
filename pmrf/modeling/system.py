@@ -5,7 +5,7 @@ import os
 import numpy as np
 import skrf as rf
 
-from pmrf.modeling.networks import ParametricNetwork, CompositeNetwork, update_networks_mapped, get_unique_networks
+from pmrf.core.networks import ParametricNetwork, update_networks_mapped, get_unique_networks
 from pmrf.statistics import ParameterSet
 from pmrf.misc.math import round_sig
 
@@ -20,10 +20,10 @@ logging.Logger.verbose = verbose
 logger = logging.getLogger(__name__)
 
 
-class CircuitSystemSettings:
+class NetworkSystemSettings:
     """
-    Settings for a circuit system. This currently only includes the frequency range, but will for for configuring sampling settings for simulations etc.
-    The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "CircuitSystem" class or sub-class.
+    Settings for a NetworkSystem. This currently only includes the frequency range, but will for for configuring sampling settings for simulations etc.
+    The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "NetworkSystem" class or sub-class.
     """
     def __init__(self, frequency=None, **kwargs):       
         self.param_path = None                                                          # The input parameters. Must be a string pointing to the input .csv file. Can be None, in which case a ParameterSet must be passed directly to the system.
@@ -37,21 +37,21 @@ class CircuitSystemSettings:
         self.frequency = frequency                                                      # The frequency shared by all networks
 
 
-class CircuitSystem:
+class NetworkSystem:
     """
-    A circuit system is a collection of dependent parametric networks. It encapsulates all the model parameters and allows updating and sampling the parameters.
-    Used by the CircuitFitter. Also useful for simulating models.
+    A NetworkSystem is a collection of dependent parametric networks. It encapsulates all the model parameters and allows updating and sampling the parameters.
+    Used by the NetworkFitter. Also useful for simulating models.
     """
-    def __init__(self, networks: list[ParametricNetwork] = None, settings: CircuitSystemSettings = None, param_set: ParameterSet = None, **kwargs):
-        """The initializer for a CircuitSystem.
+    def __init__(self, networks: list[ParametricNetwork] = None, settings: NetworkSystemSettings = None, param_set: ParameterSet = None, **kwargs):
+        """The initializer for a NetworkSystem.
 
         Args:
             networks (list[ParametricNetwork], optional): Specifies the networks to use. Defaults to None, which is useful for derived classes, where they should initialize their models in _init_networks().
-            settings (CircuitSystemSettings, optional): A setting struct to initialize settings from. Generally key-word arguments are passed instead. Defaults to None.
+            settings (NetworkSystemSettings, optional): A setting struct to initialize settings from. Generally key-word arguments are passed instead. Defaults to None.
             param_set (ParameterSet, optional): A ParameterSet object to load parameters from. Useful for defining parameters in code as opposed to loading them from a .csv. Defaults to None.
-            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the CircuitSystemSettings classes.
+            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkSystemSettings classes.
         """
-        self._settings = settings or CircuitSystemSettings(**kwargs)
+        self._settings = settings or NetworkSystemSettings(**kwargs)
         self._networks = networks or []
         self._params_original: ParameterSet = None
         self._params_active: ParameterSet = None

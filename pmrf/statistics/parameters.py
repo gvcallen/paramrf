@@ -21,7 +21,7 @@ class ParameterSet(pd.DataFrame):
         - 'fixed': whether or not the parameter should be fixed
         - 'pdf': a value of type <paramrf.statistics.pdf>. To simply bound the value with a min/max, use <paramrf.statistics.Uniform>.
     
-    NB: (for lower-level users e.g. the CircuitFitter sub-classes themselves)
+    NB: (for lower-level users e.g. the NetworkFitter sub-classes themselves)
     This class inherits from a pandas DataFrame. However, DataFrame read/write access is slow.
     In order to solve this, a "value cache" is provided that allows the use of fast,
     repetitive reading and writing, for values with the "fixed" flag set to False.
