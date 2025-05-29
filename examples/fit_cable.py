@@ -1,8 +1,8 @@
 import skrf as rf
 
-from paramrf.statistics import UniformPDF, ParameterSet
-from paramrf.modeling.models import PhysicalCoax
-from paramrf.fitting import CircuitFitter
+from pmrf.statistics import UniformPDF, ParameterSet
+from pmrf.modeling.models import PhysicalCoax
+from pmrf.fitting import CircuitFitter
 
 # This example shows how to setup a model "manually" and fit that model to data. Here we fit the "PhysicalCoax" model to the 10m cable lab measurement.
 # Note that we are also able to define our own models using ParametricNetwork -derived class.
@@ -25,7 +25,7 @@ params = ParameterSet(
 )
 
 fitter = CircuitFitter(
-    output_path='output_c10',
+    output_path='output_cable',
     param_set=params,
     models=[coax],
     measured=[rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')],
