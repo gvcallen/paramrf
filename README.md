@@ -17,6 +17,7 @@ This module contains the core object-orientated classes. These are modifications
 
 ### _modeling_ module
 This module contains various common circuit models and elements, as well as the main `NetworkSystem` class, which represents a collection of these models. 
+
 In the _elements_ sub-module:
 - _Lumped_ elements that are not already present in scikit-rf itself are in `elements/lumped.py` (e.g. an ideal tranformer).
 - So-called _topological_ elements (e.g. pi-junctions, T-networks etc.) are present in `elements/topological.py`.
