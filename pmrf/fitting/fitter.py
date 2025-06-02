@@ -71,10 +71,9 @@ class NetworkFitterSettings:
 
         # Output settings
         self.title = 'test'                                                             # The file prefix to use for output files.
-        self.output_path = 'output'                                                     # The base path that all outputs are relative to.
+        self.output_path = 'output'                                                     # The base path that all outputs are relative to. Set to None to have no output.
         self.append_title = False                                                       # Whether or not to append the above title to the output path i.e. to set output_path = output_path + title
         self.silent = False
-        self.no_output = False
         self.init_logging = True
         self.log_level = 'verbose'                                                      # 'debug', 'verbose', 'info', 'warning' or 'error'
         self.save_every = 1000                                                          # When saving parameters, plots etc. during a fit, save every n function evaluations.
@@ -128,7 +127,7 @@ class NetworkFitterSettings:
                 
         if self.silent == True:
             self.init_logging = False
-            self.no_output = True
+            self.output_path = None
                     
     def to_dict(self):
         def recurse(obj):
@@ -214,9 +213,9 @@ class NetworkFitter:
         self._plotter = None
         
         # All other initialization wrapped in try except
-        output_dir_exists = Path(self.output_path).exists()
+        output_dir_exists = self.output_path is not None and Path(self.output_path).exists()
         try:
-            if not self._settings.no_output:
+            if not self._settings.output_path is None:
                 self._init_output()
 
             if self._settings.init_logging:
@@ -244,7 +243,7 @@ class NetworkFitter:
             
             self._init_plotting()
             
-            if self._settings.save_settings:                
+            if self._settings.save_settings and not self.output_path is None:
                 self.save_settings()
 
         except Exception as e:
@@ -295,7 +294,7 @@ class NetworkFitter:
         elif log_level == 'error':
             level = logging.ERROR
 
-        if not self._settings.no_output:
+        if not self._settings.output_path is None:
             logging.basicConfig(filename=f'{self.output_misc_path}/out.log', level=level)
         else:
             logging.basicConfig(level=level)
@@ -399,6 +398,9 @@ class NetworkFitter:
 
     @property
     def output_path(self) -> str:
+        if self._settings.output_path is None:
+            return None
+
         if self._settings.append_title:
             return f'{self._settings.output_path}/{self._settings.title}'
         else:
@@ -518,7 +520,7 @@ class NetworkFitter:
             except:
                 pass
 
-        if self._settings.no_output:
+        if self._settings.output_path is None:
             output_path = None
         else:
             output_path = f'{self.output_path}/figures'
@@ -526,7 +528,7 @@ class NetworkFitter:
         plotter.params = self.system.params
         plotter.output_path = output_path
         plotter._nested_samples = nested_samples        
-        if self._settings.no_output:
+        if self._settings.output_path is None:
             plotter.save = False
 
     def network_from_target(self, target: Target, theta=None, noise=False) -> rf.Network:
