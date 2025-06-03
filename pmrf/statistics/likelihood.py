@@ -28,6 +28,9 @@ class Likelihood(ABC):
     @abstractmethod
     def params(self) -> dict:
         pass
+    
+    def param_names(self) -> list:
+        return list(self.params().keys())
 
 class GaussianLikelihood(Likelihood):
     """

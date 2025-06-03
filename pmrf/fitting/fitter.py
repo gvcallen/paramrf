@@ -200,11 +200,11 @@ class NetworkFitter:
         if isinstance(models, list):
             if self._settings.use_measured_frequency:
                 kwargs['frequency'] = measured[0].frequency
-            models = NetworkSystem(models, **kwargs)
+            system = NetworkSystem(models, **kwargs)
         else:
-            models = models
+            system = models
             
-        self._models: NetworkSystem = models
+        self._system: NetworkSystem = system
         self._measured: list[rf.Network] = measured
         self._targets: list[Target] = []
         
@@ -348,16 +348,17 @@ class NetworkFitter:
             
             prev_param_path = f'{self.output_param_path}/opt.csv'
             if not loaded and Path(prev_param_path).is_file():
-                self._models.load_params(file=f'{self.output_param_path}/opt.csv')
+                self._system.load_params(file=f'{self.output_param_path}/opt.csv')
         
         # Save the initial params to file
-        self._models.save_params(f'{self.output_param_path}/initial.csv')
+        self._system.save_params(f'{self.output_param_path}/initial.csv')
         
     def _init_plotting(self):
-        logger.verbose("Initializing plotting")
-
-        null_plotter = False if rank == 0 else True
-        self._plotter = self.make_plotter(null_plotter=null_plotter)     
+        if rank == 0:
+            logger.verbose("Initializing plotting")
+            self._plotter = self.make_plotter()
+        else:
+            self._plotter = None
 
     def _init_targets(self):
         """
@@ -392,7 +393,7 @@ class NetworkFitter:
         #         measured.interpolate_self(self.models.frequency)
         
         # Features and target populations
-        for i, model in enumerate(self._models.networks):
+        for i, model in enumerate(self._system.networks):
             features = []
             measured = self._measured[i]
             
@@ -451,7 +452,7 @@ class NetworkFitter:
     
     @property
     def system(self) -> NetworkSystem:
-        return self._models
+        return self._system
 
     @property
     def frequency(self) -> rf.Frequency:
@@ -508,14 +509,13 @@ class NetworkFitter:
         else:
             return False    
     
-    def make_plotter(self, free_only=True, null_plotter=False) -> Plotter:
+    def make_plotter(self, free_only=True) -> Plotter:
         if free_only:
             targets = [target for target in self._targets if not target.fixed]
         else:
             targets = self._targets
         
-        plotter = Plotter(targets)
-        plotter.null_plotter = null_plotter
+        plotter = Plotter(targets, self._system)
         self.update_plotter(plotter)
         return plotter
 
@@ -532,7 +532,8 @@ class NetworkFitter:
                 pass
 
         output_path = f'{self.output_path}/figures'
-        
+        plotter._likelihood_object = self._likelihood_object
+        plotter.is_bayesian = self.is_bayesian
         plotter.no_output = self._settings.no_output
         plotter.params = self.system.params
         plotter.output_path = output_path
@@ -668,7 +669,7 @@ class NetworkFitter:
         return self.nested_samples.logZ()
     
     def update_networks(self):
-        self._models.update_networks()    
+        self._system.update_networks()    
 
     def fit_params(self, plotter='default', reset_params=False):
         """
@@ -711,25 +712,27 @@ class NetworkFitter:
         return retval
 
     def reset_params(self):
-        self._models.reset_params()
+        self._system.reset_params()
 
     def update_params(self, params: np.ndarray | dict, update_networks=True, update_fitter_likelihood=True, update_network_likelihoods=True, update_noise=False, scaler=None):
         if isinstance(params, dict):
             raise Exception('Updating parameters directly from dict not yet supported')
 
+        params_networks = params[0:self.num_model_params]
         if not self.is_bayesian:
             update_fitter_likelihood = False
             update_network_likelihoods = False
+            params_likelihood = None
+        else:
+            params_likelihood = params[-self.num_likelihood_params:]
 
         if update_fitter_likelihood:
-            likelihood_params = params[-self.num_likelihood_params:]
-            self._likelihood_object.update_params(likelihood_params)
+            self._likelihood_object.update_params(params_likelihood)
 
         if update_networks:
-            theta_networks = params[0:self.num_model_params]
-            self._models.update_params(theta_networks, scaler=scaler)
+            self._system.update_params(params_networks, scaler=scaler)
             for target in self._targets:
-                target.update_params(self.system.params.evaluate(), update_noise=update_noise, update_likelihoods=update_network_likelihoods)
+                target.update_params(params_likelihood, update_noise=update_noise, update_likelihoods=update_network_likelihoods)
                 
     def update_params_from_samples(self):
         if not self.is_bayesian:
@@ -764,12 +767,12 @@ class NetworkFitter:
     def save_params(self, title='opt'):
         if rank != 0:
             return
-        self._models.save_params(f'{self.output_param_path}/{title}.csv')
+        self._system.save_params(f'{self.output_param_path}/{title}.csv')
 
     def save_touchstone(self):
         if rank != 0:
             return
-        self._models.save_touchstone(self.output_touchstone_path, networks=True, subnetworks=True, export_frequency=self.export_frequency)
+        self._system.save_touchstone(self.output_touchstone_path, networks=True, subnetworks=True, export_frequency=self.export_frequency)
             
     def load_settings(self):
         with open(self.output_settings_path, 'r') as f:

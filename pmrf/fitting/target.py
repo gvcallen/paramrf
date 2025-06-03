@@ -107,7 +107,12 @@ class Target:
                 self.model.sigma_gamma = 0.0
                 self.model.sigma_tau = 0.0
         else:
-            raise Exception('Updating targets from array not yet catered for')
             if update_likelihoods:
-                likelihood_params = params[-self.likelihood_object.num_params:]
-                self.likelihood_object.update_params(likelihood_params)
+                self.likelihood_object.update_params(params)
+
+            if update_noise:
+                if not update_likelihoods:
+                    raise Exception('Must update network likelihoods when updating noise')
+                sigma = self.likelihood_object.params()['sigma']
+                self.model.sigma_gamma = sigma
+                self.model.sigma_tau = sigma

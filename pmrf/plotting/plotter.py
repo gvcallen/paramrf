@@ -19,7 +19,9 @@ except ImportError:
     anesthetic_available = False
 
 from pmrf.statistics.parameters import ParameterSet
+from pmrf.statistics.likelihood import Likelihood
 from pmrf.fitting.target import Target
+from pmrf.modeling.system import NetworkSystem
 from pmrf.core.networks import get_unique_networks, update_networks_mapped
 from pmrf.misc.math import dB20
 from pmrf.rf.passive import available_gain
@@ -28,7 +30,7 @@ from pmrf.plotting import GridFigure
 logger = logging.getLogger(__name__)
 
 class Plotter():
-    def __init__(self, targets: list[Target], output_path = None, plot_frequency: rf.Frequency = None, fig_size = (16, 10), fig_dpi = 100, framework = 'matplotlib', nested_samples = None, params: ParameterSet = None, bayesian = False, no_output = False):
+    def __init__(self, targets: list[Target], system: NetworkSystem, output_path = None, plot_frequency: rf.Frequency = None, fig_size = (16, 10), fig_dpi = 100, framework = 'matplotlib', nested_samples = None, params: ParameterSet = None, likelihood_object = None, bayesian = False, no_output = False):
         if not output_path is None:
             Path(output_path).mkdir(exist_ok=True, parents=True)
         
@@ -38,6 +40,7 @@ class Plotter():
         
         self._targets_original = targets.copy()
         self._targets_active = self._targets_original.copy()  # TODO should we the actual targets here?
+        self._system = system
         self.elements = get_unique_networks([target.model for target in self._targets_active], ignore_composite=True, ignore_non_computabe=True)
         
         self.output_path = output_path
@@ -47,11 +50,12 @@ class Plotter():
         self.framework = framework
         self.interactive = False
         self.save = True
-        self.bayesian = bayesian
+        self.is_bayesian = bayesian
         
         self._params_original = params.copy() if params is not None else None
         self._params_active = params.copy() if params is not None else None
         self._nested_samples: NestedSamples = nested_samples
+        self._likelihood_object: Likelihood = likelihood_object
 
         self.no_output = no_output
     
@@ -83,9 +87,6 @@ class Plotter():
             self._targets_active = [target for target in self._targets_original if target.name in target_names]
 
     def plot_params(self, param_names=None, title='params', label='posterior', priors=False, fig_size=None, kind='kde', bins=None, fig=None, ax=None):
-        if self.no_output:
-            return
-
         fig_size = fig_size or self.fig_size
         params, nested_samples = self._params_active, self._nested_samples
         
@@ -137,9 +138,6 @@ class Plotter():
         return fig, ax
             
     def plot_available_gain(self, title='Gav', model=True, contours=False, lines=False, R_source=None, source_port=0, fig_size=None):
-        if self.no_output:
-            return
-        
         fig_size = fig_size or self.fig_size
         
         if contours:
@@ -185,9 +183,6 @@ class Plotter():
         self._end_figure(title)  
 
     def plot_S(self, name='s_params', measured=True, current=True, contours=False, lines=False, mag=True, real_imag=True, port_tuples=None, title=None, fig_size=None):
-        if self.no_output:
-            return
-        
         model_color, measured_color = ('red', 'black') if not contours else ('blue', 'black')
         model_linestyle, measured_linestyle = ('-', '--')
         
@@ -224,7 +219,7 @@ class Plotter():
             model_port_tuples = port_tuples or target.model.port_tuples
 
             for m, n in model_port_tuples:
-                if self.bayesian:
+                if self.is_bayesian:
                     value = f'likelihood = {target.likelihood():.2f}'
                 else:
                     value = f'cost = {target.cost():.2f}'
@@ -285,14 +280,25 @@ class Plotter():
         self._end_figure(name)
         self.reset_params()
     
-    def update_params(self, x=None, update_noise=False):
-        if not x is None:
-            self.params.update_values(x)
-        params = self.params.evaluate()
-        update_networks_mapped(self.elements, params)
+    def update_params(self, params: np.ndarray | dict, update_networks=True, update_network_likelihoods=True, update_noise=False, scaler=None):
+        if params is None:
+            return self._system.update_networks()
+        elif isinstance(params, dict):
+            raise Exception('Updating parameters directly from dict not yet supported')
         
-        for target in self._targets_active:
-            target.update_params(params, update_noise=update_noise, update_likelihoods=False)
+        num_model_params = len(self._system.params.names_free)
+        num_likelihood_params = len(params) - num_model_params
+        params_networks = params[0:num_model_params]
+        if not self.is_bayesian:
+            update_network_likelihoods = False
+            params_likelihood = None
+        else:
+            params_likelihood = params[-num_likelihood_params:]
+
+        if update_networks:
+            self._system.update_params(params_networks, scaler=scaler)
+            for target in self._targets_active:
+                target.update_params(params_likelihood, update_noise=update_noise, update_likelihoods=update_network_likelihoods)
     
     def reset_params(self, update_noise=False):
         if self._params_original is not None:
@@ -327,7 +333,7 @@ class Plotter():
         if self._nested_samples is None or self._params_active is None:
             raise Exception('Nested samples and parameters must be passed to plot contours and other Bayesian plots')
         
-        params = self._params_active.names_free
+        params = self._params_active.names_free + self._likelihood_object.param_names()
         nested_samples = self._nested_samples
         
         samples = nested_samples.loc[:, params].to_numpy()
