@@ -337,14 +337,13 @@ class NetworkFitter:
             logger.verbose('Resuming from previous parameters')
             loaded = False
 
-            # Don't do this on init anymore
-            # if self.is_bayesian:
-            #     try:
-            #         _ = self.nested_samples
-            #         self.update_params_from_samples()
-            #         loaded = True
-            #     except:
-            #         pass
+            if self.is_bayesian:
+                try:
+                    _ = self.nested_samples
+                    self.update_params_from_samples()
+                    loaded = True
+                except:
+                    pass
             
             prev_param_path = f'{self.output_param_path}/opt.csv'
             if not loaded and Path(prev_param_path).is_file():
