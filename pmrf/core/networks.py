@@ -24,6 +24,7 @@ class ComputableNetwork(rf.Network):
         self._version = 0
         self._sigma_gamma = sigma_gamma
         self._sigma_tau = sigma_tau
+        self._dirty = False
         
         s = np.zeros((frequency.npoints, nports, nports))
         z0 = z0_port
@@ -65,17 +66,14 @@ class ComputableNetwork(rf.Network):
         if self._initialized and not self._fixed and not self._frozen:
             # Base compute
             self.compute()
-            
-            # Incremenet version number
-            self._version += 1
-            
-    def __setattr__(self, attr_name, attr_value):
-        super().__setattr__(attr_name, attr_value)
-        
-        if hasattr(self, '_initialized') and self._initialized:
-            if (self._sigma_gamma != 0.0 or self._sigma_tau != 0.0) and attr_name in self.PRIMARY_PROPERTIES:
+
+            if self._sigma_gamma != 0.0 or self._sigma_tau != 0.0:
                 add_noise(self, self._sigma_gamma, self._sigma_tau)
             
+            # Increment version number
+            self._version += 1
+            self._dirty = False
+                        
     @property
     def sigma(self):
         if self._sigma_gamma != self._sigma_tau:
@@ -88,7 +86,8 @@ class ComputableNetwork(rf.Network):
         if self._sigma_gamma != value or self._sigma_tau != value:
             self._sigma_gamma = value
             self._sigma_tau = value
-            self.compute()            
+            self._dirty = True
+            self.update()            
             
     @property
     def sigma_gamma(self):
@@ -98,7 +97,8 @@ class ComputableNetwork(rf.Network):
     def sigma_gamma(self, value):
         if self._sigma_gamma != value:
             self._sigma_gamma = value
-            self.compute()
+            self._dirty = True
+            self.update()
 
     @property
     def sigma_tau(self):
@@ -108,7 +108,8 @@ class ComputableNetwork(rf.Network):
     def sigma_tau(self, value):
         if self._sigma_tau != value:
             self._sigma_tau = value
-            self.compute()
+            self._dirty = True
+            self.update()
 
     @property
     def version(self):
@@ -138,6 +139,10 @@ class ComputableNetwork(rf.Network):
 
     @abstractmethod
     def compute(self):
+        """
+        The compute method to be derived by the child class.
+        NB: This should never be called directly.
+        """
         pass
 
 
@@ -387,13 +392,16 @@ class CompositeNetwork(ParametricNetwork):
     def update(self):
         needs_update = False
         new_versions = [network.version for network in self._subnetworks.values() if isinstance(network, ObservableNetwork)]
-        for new_version, prev_version in zip(new_versions, self._subnetwork_versions):
-            if new_version != prev_version:
-                needs_update = True
-                break
+
+        if self._dirty:
+            needs_update = True
+        else:
+            for new_version, prev_version in zip(new_versions, self._subnetwork_versions):
+                if new_version != prev_version:
+                    needs_update = True
+                    break
         
         self._subnetwork_versions = new_versions
-
         if needs_update:
             super().update()
             
