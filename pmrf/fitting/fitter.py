@@ -353,11 +353,8 @@ class NetworkFitter:
         self._system.save_params(f'{self.output_param_path}/initial.csv')
         
     def _init_plotting(self):
-        if rank == 0:
-            logger.verbose("Initializing plotting")
-            self._plotter = self.make_plotter()
-        else:
-            self._plotter = None
+        logger.verbose("Initializing plotting")
+        self._plotter = self.make_plotter()
 
     def _init_targets(self):
         """

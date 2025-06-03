@@ -5,6 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skrf as rf
 
+try:
+    from mpi4py import MPI
+    rank = MPI.COMM_WORLD.Get_rank()
+    mpi_available = True
+except:
+    rank = 0
+    mpi_available = False
+
 try: 
     import plotly.graph_objs as go
     plotly_available = True
@@ -87,6 +95,9 @@ class Plotter():
             self._targets_active = [target for target in self._targets_original if target.name in target_names]
 
     def plot_params(self, param_names=None, title='params', label='posterior', priors=False, fig_size=None, kind='kde', bins=None, fig=None, ax=None):
+        if rank != 0:
+            return
+
         fig_size = fig_size or self.fig_size
         params, nested_samples = self._params_active, self._nested_samples
         
@@ -138,6 +149,9 @@ class Plotter():
         return fig, ax
             
     def plot_available_gain(self, title='Gav', model=True, contours=False, lines=False, R_source=None, source_port=0, fig_size=None):
+        if rank != 0:
+            return
+
         fig_size = fig_size or self.fig_size
         
         if contours:
@@ -183,6 +197,9 @@ class Plotter():
         self._end_figure(title)  
 
     def plot_S(self, name='s_params', measured=True, current=True, contours=False, lines=False, mag=True, real_imag=True, port_tuples=None, title=None, fig_size=None):
+        if rank != 0:
+            return
+
         model_color, measured_color = ('red', 'black') if not contours else ('blue', 'black')
         model_linestyle, measured_linestyle = ('-', '--')
         
