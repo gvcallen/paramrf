@@ -28,7 +28,7 @@ from pmrf.plotting import GridFigure
 logger = logging.getLogger(__name__)
 
 class Plotter():
-    def __init__(self, targets: list[Target], output_path = None, plot_frequency: rf.Frequency = None, fig_size = (16, 10), fig_dpi = 100, framework = 'matplotlib', nested_samples = None, params: ParameterSet = None, bayesian = False, null_plotter = False):
+    def __init__(self, targets: list[Target], output_path = None, plot_frequency: rf.Frequency = None, fig_size = (16, 10), fig_dpi = 100, framework = 'matplotlib', nested_samples = None, params: ParameterSet = None, bayesian = False, no_output = False):
         if not output_path is None:
             Path(output_path).mkdir(exist_ok=True, parents=True)
         
@@ -53,7 +53,7 @@ class Plotter():
         self._params_active = params.copy() if params is not None else None
         self._nested_samples: NestedSamples = nested_samples
 
-        self.null_plotter = null_plotter
+        self.no_output = no_output
     
     @property
     def params(self):
@@ -83,7 +83,7 @@ class Plotter():
             self._targets_active = [target for target in self._targets_original if target.name in target_names]
 
     def plot_params(self, param_names=None, title='params', label='posterior', priors=False, fig_size=None, kind='kde', bins=None, fig=None, ax=None):
-        if self.null_plotter:
+        if self.no_output:
             return
 
         fig_size = fig_size or self.fig_size
@@ -137,7 +137,7 @@ class Plotter():
         return fig, ax
             
     def plot_available_gain(self, title='Gav', model=True, contours=False, lines=False, R_source=None, source_port=0, fig_size=None):
-        if self.null_plotter:
+        if self.no_output:
             return
         
         fig_size = fig_size or self.fig_size
@@ -185,7 +185,7 @@ class Plotter():
         self._end_figure(title)  
 
     def plot_S(self, name='s_params', measured=True, current=True, contours=False, lines=False, mag=True, real_imag=True, port_tuples=None, title=None, fig_size=None):
-        if self.null_plotter:
+        if self.no_output:
             return
         
         model_color, measured_color = ('red', 'black') if not contours else ('blue', 'black')

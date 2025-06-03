@@ -74,6 +74,7 @@ class NetworkFitterSettings:
         self.output_path = 'output'                                                     # The base path that all outputs are relative to. Set to None to have no output.
         self.append_title = False                                                       # Whether or not to append the above title to the output path i.e. to set output_path = output_path + title
         self.silent = False
+        self.no_output = False
         self.init_logging = True
         self.log_level = 'verbose'                                                      # 'debug', 'verbose', 'info', 'warning' or 'error'
         self.save_every = 1000                                                          # When saving parameters, plots etc. during a fit, save every n function evaluations.
@@ -127,12 +128,12 @@ class NetworkFitterSettings:
                 
         if self.silent == True:
             self.init_logging = False
-            self.output_path = None
+            self.no_output = True
                     
     def to_dict(self):
         def recurse(obj):
             if isinstance(obj, rf.Frequency):
-                return frequency_to_dict(self.frequency)
+                return frequency_to_dict(obj)
             if hasattr(obj, '__dict__'):
                 return {k: recurse(v) for k, v in obj.__dict__.items()}
             elif isinstance(obj, list):
@@ -146,7 +147,8 @@ class NetworkFitterSettings:
     def from_dict(cls, d):
         def recurse(cls_or_obj, d):
             for k, v in d.items():
-                if k == 'export_frequency' and not v is None:
+                # if k == 'export_frequency' and not v is None:
+                if isinstance(cls_or_obj.__dict__[k], rf.Frequency) and not v is None:
                     setattr(cls_or_obj, k, dict_to_frequency(v))
                 elif hasattr(getattr(cls_or_obj, k, None), '__dict__'):
                     recurse(getattr(cls_or_obj, k), v)
@@ -397,10 +399,11 @@ class NetworkFitter:
             self._targets.append(target)
 
     @property
-    def output_path(self) -> str:
-        if self._settings.output_path is None:
-            return None
+    def settings(self) -> NetworkFitterSettings:
+        return self._settings
 
+    @property
+    def output_path(self) -> str:
         if self._settings.append_title:
             return f'{self._settings.output_path}/{self._settings.title}'
         else:
@@ -520,15 +523,13 @@ class NetworkFitter:
             except:
                 pass
 
-        if self._settings.output_path is None:
-            output_path = None
-        else:
-            output_path = f'{self.output_path}/figures'
+        output_path = f'{self.output_path}/figures'
         
+        plotter.no_output = self._settings.no_output
         plotter.params = self.system.params
         plotter.output_path = output_path
         plotter._nested_samples = nested_samples        
-        if self._settings.output_path is None:
+        if self._settings.no_output:
             plotter.save = False
 
     def network_from_target(self, target: Target, theta=None, noise=False) -> rf.Network:
@@ -678,7 +679,7 @@ class NetworkFitter:
 
         logger.verbose(f'Free Targets: {target_names}')
         logger.verbose(f'Free Parameters: {param_names}\n')
-        logger.verbose(f'Fitting for {self.system.num_free_params} circuit modelo parameter(s)...')
+        logger.verbose(f'Fitting for {self.system.num_free_params} circuit model parameter(s)...')
 
         start = time.time()
         

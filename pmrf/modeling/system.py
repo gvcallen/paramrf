@@ -96,7 +96,11 @@ class NetworkSystem:
         for network in self._networks:
             network.interpolate_self(self._settings.frequency)
         for network in self._networks:
-            network.notifying = True                
+            network.notifying = True         
+
+    @property
+    def settings(self) -> NetworkSystemSettings:
+        return self._settings
         
     @property
     def networks(self) -> list[rf.Network]:
