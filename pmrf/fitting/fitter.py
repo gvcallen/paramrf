@@ -145,21 +145,24 @@ class NetworkFitterSettings:
 
     @classmethod
     def from_dict(cls, d):
-        def recurse(cls_or_obj, d):
+        def recurse(obj, d):
             for k, v in d.items():
-                # if k == 'export_frequency' and not v is None:
-                if isinstance(cls_or_obj.__dict__[k], rf.Frequency) and not v is None:
-                    setattr(cls_or_obj, k, dict_to_frequency(v))
-                elif hasattr(getattr(cls_or_obj, k, None), '__dict__'):
-                    recurse(getattr(cls_or_obj, k), v)
+                if v is None:
+                    pass
+                elif isinstance(obj.__dict__.get(k, None), rf.Frequency):
+                    v = dict_to_frequency(v)
+                elif hasattr(getattr(obj, k, None), '__dict__'):
+                    v = recurse(getattr(obj, k), v)
                 elif isinstance(v, list):
-                    setattr(cls_or_obj, k, [recurse(type(item)(), item) if isinstance(item, dict) else item for item in v])
-                else:
-                    setattr(cls_or_obj, k, v)
-            return cls_or_obj
+                    v = [recurse(type(item)(), item) for item in v if item is not None]
+                elif isinstance(v, dict):
+                    v = {item_k: recurse(type(item_v)(), item_v) for item_k, item_v in v.items() if item_v is not None}
+                setattr(obj, k, v)
+            
+            return obj
 
         obj = cls()
-        return recurse(obj, d)      
+        return recurse(obj, d)
 
 
 class NetworkFitter:
@@ -188,8 +191,7 @@ class NetworkFitter:
             **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkFitterSettings class.
         """
         # Settings
-        self._settings: NetworkFitterSettings = settings or NetworkFitterSettings(**kwargs)
-        self._init_settings(load_settings=load_settings, **kwargs)
+        self._init_settings(settings=settings, load_settings=load_settings, **kwargs)
        
        
         # Models and measured data
@@ -253,7 +255,9 @@ class NetworkFitter:
                 shutil.rmtree(Path(self.output_path))
             raise e
         
-    def _init_settings(self, load_settings=False, save_settings=False, **kwargs):
+    def _init_settings(self, settings=None, load_settings=False, save_settings=False, **kwargs):
+        self._settings: NetworkFitterSettings = settings or NetworkFitterSettings(**kwargs)        
+        
         if load_settings:
             append_title_original = self._settings.append_title
             if not Path(self.output_settings_path).exists():
