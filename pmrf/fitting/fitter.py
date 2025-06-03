@@ -154,9 +154,12 @@ class NetworkFitterSettings:
                 elif hasattr(getattr(obj, k, None), '__dict__'):
                     v = recurse(getattr(obj, k), v)
                 elif isinstance(v, list):
-                    v = [recurse(type(item)(), item) for item in v if item is not None]
-                elif isinstance(v, dict):
-                    v = {item_k: recurse(type(item_v)(), item_v) for item_k, item_v in v.items() if item_v is not None}
+                    # setattr(cls_or_obj, k, [recurse(type(item)(), item) if isinstance(item, dict) else item for item in v])
+                    # v = [recurse(type(item)(), item) for item in v if item is not None]
+                    v = [recurse(type(item)(), item) if isinstance(item, dict) else item for item in v]
+                # elif isinstance(v, dict):
+                    # v = {item_k: recurse(type(item_v)(), item_v) for item_k, item_v in v.items() if item_v is not None}
+                
                 setattr(obj, k, v)
             
             return obj
@@ -191,8 +194,7 @@ class NetworkFitter:
             **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkFitterSettings class.
         """
         # Settings
-        self._init_settings(settings=settings, load_settings=load_settings, **kwargs)
-       
+        self._init_settings(settings=settings, load_settings=load_settings, **kwargs)       
        
         # Models and measured data
         if isinstance(models, list):
@@ -334,13 +336,15 @@ class NetworkFitter:
         if self._settings.read_resume:
             logger.verbose('Resuming from previous parameters')
             loaded = False
-            if self.is_bayesian:
-                try:
-                    _ = self.nested_samples
-                    self.update_params_from_samples()
-                    loaded = True
-                except:
-                    pass
+
+            # Don't do this on init anymore
+            # if self.is_bayesian:
+            #     try:
+            #         _ = self.nested_samples
+            #         self.update_params_from_samples()
+            #         loaded = True
+            #     except:
+            #         pass
             
             prev_param_path = f'{self.output_param_path}/opt.csv'
             if not loaded and Path(prev_param_path).is_file():
@@ -770,11 +774,22 @@ class NetworkFitter:
     def load_settings(self):
         with open(self.output_settings_path, 'r') as f:
             settings_dict = json.load(f)
-            settings_created = NetworkFitterSettings.from_dict(settings_dict)
+            if self._settings is None:
+                settings_created = NetworkFitterSettings.from_dict(settings_dict)
+            else:
+                settings_created = type(self._settings).from_dict(settings_dict)
+
             if self._settings is None:
                 self._settings = settings_created
             else:
                 self._settings.update(settings_created.__dict__)
+
+            # Old code
+            # settings_created = NetworkFitterSettings.from_dict(settings_dict)
+            # if self._settings is None:
+            #     self._settings = settings_created
+            # else:
+            #     self._settings.update(settings_created.__dict__)
     
     def save_settings(self):
         if rank != 0:
