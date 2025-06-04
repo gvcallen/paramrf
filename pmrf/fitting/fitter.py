@@ -97,6 +97,7 @@ class NetworkFitterSettings:
         self.sigma_prior = UniformPDF(0.0, 0.015)
         self.parameter_method = 'likelihood-max'                                        # The method to choose a single 'best' parameter value. Can be 'likelihood-max' or 'param-mean'.
         self.num_live_points = None                                                     # The number of live points. Leave as None to use the number of circuit model parameters.
+        self.num_live_points_factor = 1                                                 # The number of live points as a multiple of the number of parameters. Only used if self.num_live_points is None.
 
         # Frequentist solver settings (scipy.optimize)
         self.max_iterations = 1000                                                      # The maximum number of iterations before the solver terminates.
@@ -838,7 +839,7 @@ class NetworkFitter:
             'file_root': self.polychord_file_root,
         }
         
-        num_live_points = self._settings.num_live_points or self.system.num_free_params
+        num_live_points = self._settings.num_live_points or self._settings.num_live_points_factor * self.system.num_free_params
         kwargs['nlive'] = num_live_points
 
         logger.verbose(f'Fitting for {self._likelihood_object.num_params} likelihood parameter(s)...')
