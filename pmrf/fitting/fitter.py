@@ -758,7 +758,7 @@ class NetworkFitter:
         except:
             pass
         
-        self.update_params()
+        self._system.update_networks()
        
     def save_params(self, title='opt'):
         if rank != 0:
