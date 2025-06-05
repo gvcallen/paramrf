@@ -23,7 +23,7 @@ class Modifier:
             operation (str): The operation to be performed. Should be one of the following (note that most options accept suffix '-ax<int>' to specify an axis to perform the operation along):
 
                     - None (no-op)
-                    - 'dB', 'abs': maths operations
+                    - 'dB', 'abs', 'sqr': maths operations
                     - 'sum', 'min', 'max': maths operations (default axis == None)
                     - '<norm>': norm with <norm> in ['Linf', 'L1', 'L2'] (default axis == 0)
                     - '<norm>-M': norm with <norm> in ['Linf', 'L1', 'L2'] (axis == None)
@@ -96,6 +96,8 @@ class Modifier:
             y = dB20(y)
         elif mode == 'abs':
             y = np.abs(y)
+        elif mode == 'sqr':
+            y = y**2
         elif mode == 'sum':
             y = np.sum(y, axis=axis)
         elif mode == 'sqr':
