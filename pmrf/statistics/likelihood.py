@@ -8,6 +8,9 @@ This file contains functionality for evaluating log-likelihoods for a probabilis
 For the Gaussian likelihood, for example, the log-likelihood for a number of independently and identically distributed
 Gaussian random variables, with the same standard deviation but centred around an input array x, is calculated.
 """
+# For some reason scipy's log pdf is painfully slow, maybe due to it being more "numerically accurate" (this is 6 times faster for moderately sized datasets)
+def norm_logpdf(x, loc=0.0, scale=1.0):
+    return -0.5 * np.log(2 * np.pi * scale**2) - 0.5 * ((x - loc)**2) / (scale**2)
 
 class Likelihood(ABC):
     def __init__(self):
@@ -41,8 +44,9 @@ class GaussianLikelihood(Likelihood):
         self.sigma = sigma
 
     def __call__(self, x_meas, x_model):
-        # Rather use scipy
-        return np.sum(norm.logpdf(np.real(x_meas), loc=np.real(x_model), scale=self.sigma))
+        # Rather use scipy - UPDATE: actually DON'T! It's slower according to my tests.
+        # return np.sum(norm.logpdf(np.real(x_meas), loc=np.real(x_model), scale=self.sigma))
+        return np.sum(norm_logpdf(np.real(x_meas), np.real(x_model), self.sigma))
         # sigma2 = self.sigma * self.sigma     
         # logL = -np.log(np.sqrt(2 * np.pi * sigma2)) - (np.abs(x)**2 / (2 * sigma2))
         # logL = np.sum(logL)
@@ -79,7 +83,8 @@ class CircularComplexGaussianLikelihood(Likelihood):
             self.sigma_scale = np.sqrt(2)
 
     def __call__(self, x_meas, x_model):
-        return np.sum(norm.logpdf(np.real(x_meas), loc=np.real(x_model), scale=self.sigma_real/self.sigma_scale)) + np.sum(norm.logpdf(np.imag(x_meas), loc=np.imag(x_model), scale=self.sigma_imag/self.sigma_scale))
+        # return np.sum(norm.logpdf(np.real(x_meas), loc=np.real(x_model), scale=self.sigma_real/self.sigma_scale)) + np.sum(norm.logpdf(np.imag(x_meas), loc=np.imag(x_model), scale=self.sigma_imag/self.sigma_scale))
+        return np.sum(norm_logpdf(np.real(x_meas), loc=np.real(x_model), scale=self.sigma_real/self.sigma_scale)) + np.sum(norm_logpdf(np.imag(x_meas), loc=np.imag(x_model), scale=self.sigma_imag/self.sigma_scale))
     
     def kind(self):
         return 'gaussian'
