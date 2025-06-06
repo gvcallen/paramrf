@@ -134,7 +134,7 @@ class Plotter():
         
         if priors:
             prior_samples = nested_samples.prior()
-            prior_samples.plot_2d(ax, label='pdf', **kwargs)
+            prior_samples.plot_2d(ax, label='prior', **kwargs)
         
         nested_samples.plot_2d(ax, label=label, **kwargs)
         

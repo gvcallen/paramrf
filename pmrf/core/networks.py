@@ -68,6 +68,7 @@ class ComputableNetwork(rf.Network):
             self.compute()
 
             if self._sigma_gamma != 0.0 or self._sigma_tau != 0.0:
+                # print(f'Adding noise: {self._sigma_gamma}, {self._sigma_tau}')
                 add_noise(self, self._sigma_gamma, self._sigma_tau)
             
             # Increment version number

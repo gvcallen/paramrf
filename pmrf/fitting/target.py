@@ -114,5 +114,4 @@ class Target:
                 if not update_likelihoods:
                     raise Exception('Must update network likelihoods when updating noise')
                 sigma = self.likelihood_object.params()['sigma']
-                self.model.sigma_gamma = sigma
-                self.model.sigma_tau = sigma
+                self.model.sigma = sigma

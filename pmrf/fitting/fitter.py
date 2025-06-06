@@ -469,6 +469,12 @@ class NetworkFitter:
             return 0
         else:
             return self._likelihood_object.num_params
+
+    @property
+    def param_names(self) -> list[str]:
+        system_params = self.system.params.names_free
+        likelihood_params = self._likelihood_object.param_names()
+        return system_params + likelihood_params
     
     @property
     def nested_samples(self):
@@ -478,14 +484,11 @@ class NetworkFitter:
     
     @property
     def samples(self):
-        params = self.system.params.names_free
-        nested_samples = self.nested_samples
-        return nested_samples.loc[:, params].to_numpy()       
+        return self.nested_samples.loc[:, self.param_names].to_numpy()       
     
     @property
     def weights(self):
-        nested_samples = self.nested_samples
-        return nested_samples.get_weights()
+        return self.nested_samples.get_weights()
     
     @property
     def plotter(self) -> Plotter:
@@ -714,6 +717,10 @@ class NetworkFitter:
     def update_params(self, params: np.ndarray | dict, update_networks=True, update_fitter_likelihood=True, update_network_likelihoods=True, update_noise=False, scaler=None):
         if isinstance(params, dict):
             raise Exception('Updating parameters directly from dict not yet supported')
+        
+        expected_length = self.num_model_params + self.num_likelihood_params
+        if len(params) != expected_length:
+            raise Exception(f'Error: {len(params)} many params passed to fitter.update_params(), but {expected_length} were expected')
 
         params_networks = params[0:self.num_model_params]
         if not self.is_bayesian:
