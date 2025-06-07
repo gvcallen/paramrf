@@ -2,7 +2,7 @@
 
 ## Overview
 
-This package provides the ability to describe RF circuit models in an object-orientated, parametric manner, acting as an extension of the scikit-rf library. It allows for circuit modelling, fitting and sampling in a convenient manner. The library mainly builds on top of packages scikit-rf, scipy, polychord, and, of course, numpy. It is, however, very much still in beta
+This package provides the ability to describe RF circuit models in an object-orientated, parametric manner, acting as an extension of the scikit-rf library. It allows for circuit modelling, fitting and sampling, with any network re-computations (due to changes in parameters or sub-networks) being automatically updated via an internal dependency graph. The library builds on top of a few well-known packages, including scikit-rf, scipy, pypolychord, and, of course, numpy. It is, however, very much still in beta stage, and there are several known (and unknown) bugs and lots of missing function documentations.
 
 ## Examples
 

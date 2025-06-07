@@ -24,7 +24,7 @@ class RLGCLine(ParametricNetwork):
     def dont_calculate_s(self):
         return self._dont_calculate_s
     
-    @property.setter
+    @dont_calculate_s.setter
     def dont_calculate_s(self, value):
         self._dont_calculate_s = value
         self.update()
