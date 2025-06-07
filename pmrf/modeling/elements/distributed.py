@@ -12,13 +12,22 @@ class RLGCLine(ParametricNetwork):
     def __init__(self, params = None, R = 0.0, L = 280e-9, G = 0.0, C = 90e-12, len = 1.0, floating = False, method='exact', **kwargs):
         self.method = method
         self.a_cached = None
-        self.dont_calculate_s = False
+        self._dont_calculate_s = False
         
         nports = 2 if not floating else 4
         params = params if params is not None else get_args_of(float)
         super().__init__(params=params, nports=nports, **kwargs)
         
         self.a_cached = self.a
+        
+    @property
+    def dont_calculate_s(self):
+        return self._dont_calculate_s
+    
+    @property.setter
+    def dont_calculate_s(self, value):
+        self._dont_calculate_s = value
+        self.update()
         
     def compute(self):
         R, L, G, C = self.R, self.L, self.G, self.C
@@ -58,7 +67,7 @@ class RLGCLine(ParametricNetwork):
             a[:, 1, 1] = a[:, 0, 0]
             
             self.a_cached = a
-            if not self.dont_calculate_s:
+            if not self._dont_calculate_s:
                 self.s = rf.network.a2s(a, self.z0_port)
         else:
             # NB TODO: This method using DefinedGammaZ0 is slowwww! Find alternative
