@@ -106,6 +106,10 @@ class PhysicalCoax(RLGCLine):
         return self.value_f('tand')
     
     @property
+    def has_equal_rho(self):
+        return hasattr(self, 'rho')
+    
+    @property
     def rhoin_f(self):
         if hasattr(self, 'rhoin'):
             return self.value_f('rhoin')
@@ -198,21 +202,53 @@ class PhysicalCoax(RLGCLine):
             return Za_skin + Zb_skin
     
     def compute(self):
+        # print(f'PhysicalCoax.compute: {self.name}')
         # All formulae from Frederick M. Tesche - 'A Simple Model for the Line Parameters of a Lossy Coaxial Cable Filled With a Nondispersive Dielectric' as well as Pozar for G
         
-        L = self.L_prime
-        C = self.C_prime
-        G = self.G_diel
+        # Slow version (more readable)
+        # L = self.L_prime
+        # C = self.C_prime
+        # G = self.G_diel
+        # R = np.zeros(G.shape)
+        # if not self.neglect_skin_inductance:
+        #     L += self.L_skin
+        # R = self.R_skin
+        # self.R, self.L, self.G, self.C = R, L, G, C
+        
+        # Optimized version (re-used variables)
+        a, b = self.din / 2, self.dout / 2
+        lnbOvera = np.log(b/a)
+        mu, rho = self.mu_f, self.rhoin_f    
+        w = self.frequency.w
+        invW = 1.0 / w
+        L_prime = self.mu_f / (2 * np.pi) * lnbOvera
+        C_prime = 2 * np.pi * np.real(self.eps_f) / lnbOvera        
+        G_diel = 2 * np.pi * w * -np.imag(self.eps_f) / lnbOvera        
+        if self.use_hf_approx and self.has_equal_rho:
+            L_sqrt_term = np.sqrt((0.5 * rho * mu) * invW)
+            L_skin_a = (1 / (2 * np.pi * a)) * L_sqrt_term
+            L_skin_b = (1 / (2 * np.pi * b)) * L_sqrt_term
+            L_skin = L_skin_a + L_skin_b
+                    
+            R_sqrt_term = np.sqrt(0.5 * rho * w * mu)
+            R_skin_a = (1 / (2 * np.pi * a)) * R_sqrt_term
+            R_skin_b = (1 / (2 * np.pi * b)) * R_sqrt_term
+            R_skin = R_skin_a + R_skin_b
+        else:
+            L_skin = self.L_skin
+            R_skin = self.R_skin
+        
+        L = L_prime
+        C = C_prime
+        G = G_diel
         R = np.zeros(G.shape)
-        
         if not self.neglect_skin_inductance:
-            L += self.L_skin
-        R = self.R_skin
-        
+            L += L_skin
+        R = R_skin
         self.R, self.L, self.G, self.C = R, L, G, C
         
         super().compute() 
-
+        
 class DatasheetCoax(RLGCLine):
     
     """
@@ -265,6 +301,8 @@ class DatasheetCoax(RLGCLine):
         super().__init__(params=params, floating=floating, method=method, name=name, **kwargs)
         
     def compute(self):
+        # print(f'DatasheetCoax.compute: {self.name}')
+        
         zn, k1, k2 = self.zn, self.k1, self.k2
         
         epr = np.ones(self.frequency.npoints) * self.epr

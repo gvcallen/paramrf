@@ -2,6 +2,9 @@ import numpy as np
 import skrf as rf
 
 def get_twoport_a(network: rf.Network, a_buffer=None):
+    if hasattr(network, 'a_cached'):
+        return network.a_cached
+    
     # From Pozar parameter conversion table. Ever slightly faster than the general scikit-rf method
     a = a_buffer if a_buffer is not None else np.zeros((network.s.shape), dtype=np.complex128)
     z0 = network.z0[:,0]

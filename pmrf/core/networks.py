@@ -24,7 +24,7 @@ class ComputableNetwork(rf.Network):
         self._version = 0
         self._sigma_gamma = sigma_gamma
         self._sigma_tau = sigma_tau
-        self._dirty = False
+        self._dirty = True
         
         s = np.zeros((frequency.npoints, nports, nports))
         z0 = z0_port
@@ -63,17 +63,17 @@ class ComputableNetwork(rf.Network):
         return self.uncomputable ** other
         
     def update(self):
-        if self._initialized and not self._fixed and not self._frozen:
-            # Base compute
-            self.compute()
-
-            if self._sigma_gamma != 0.0 or self._sigma_tau != 0.0:
-                # print(f'Adding noise: {self._sigma_gamma}, {self._sigma_tau}')
-                add_noise(self, self._sigma_gamma, self._sigma_tau)
-            
-            # Increment version number
-            self._version += 1
-            self._dirty = False
+        if not self._initialized or self._fixed or self._frozen:
+            return
+        
+        self.compute()
+        if self._sigma_gamma != 0.0 or self._sigma_tau != 0.0:
+            # print(f'Adding noise: {self._sigma_gamma}, {self._sigma_tau}')
+            add_noise(self, self._sigma_gamma, self._sigma_tau)
+        
+        # Increment version number
+        self._version += 1
+        self._dirty = False
                         
     @property
     def sigma(self):
@@ -184,6 +184,9 @@ class ObservableNetwork(ComputableNetwork):
 
     def update(self):
         super().update()
+        
+        for observer in self.observers:
+            observer._dirty = True
         if self._notifying:
             self.notify_observers()
     
@@ -264,22 +267,18 @@ class ParametricNetwork(ObservableNetwork):
         params = self.params
         prefix = self.name + infix
         params_global = {prefix + k: v for k, v in params.items()}
-        return params_global          
+        return params_global     
+    
+    def params_global_to_local(self, params_global: dict, infix='_'):
+        prefix = self.name + infix
+        return {
+            key: params_global.get(prefix + key, self.params[key])
+            for key in self.params
+        }
         
     def update_mapped(self, params_global: dict | np.ndarray, infix='_'):
-        if isinstance(params_global, dict):
-            prefix = self.name + infix
-            
-            # params_local = {k[len(prefix):]: v for k, v in params.items() if k.startswith(prefix) and k[len(prefix):] in self.model.params}
-            # self.model.params.update(params_local)
-            
-            params_local = dict(zip(self.params.keys(), self.params.values()))
-            for key in self.params.keys():
-                try:
-                    params_local[key] = params_global[prefix+key]
-                except:
-                    pass
-
+        if isinstance(params_global, dict):              
+            params_local = self.params_global_to_local(params_global, infix)
             self.params.update(params_local)
         else:
             self.params.update(dict(zip(self.params.keys(), params_global)))      
@@ -388,23 +387,12 @@ class CompositeNetwork(ParametricNetwork):
         
         super().freeze()
 
-    # The following code provides a massive performance boost. Effectively, if dependent networks of this network are updated one-by-one,
-    # then this network will be re-computed an unnecessary amount of times.
     def update(self):
-        needs_update = False
-        new_versions = [network.version for network in self._subnetworks.values() if isinstance(network, ObservableNetwork)]
-
-        if self._dirty:
-            needs_update = True
-        else:
-            for new_version, prev_version in zip(new_versions, self._subnetwork_versions):
-                if new_version != prev_version:
-                    needs_update = True
-                    break
-        
-        self._subnetwork_versions = new_versions
-        if needs_update:
-            super().update()
+        # The following code provides a massive performance boost. Effectively, if dependent networks of this network are updated one-by-one,
+        # then this network would be re-computed an unnecessary amount of times. This prevents this.
+        if not self._dirty:
+            return
+        return super().update()
             
     def detach(self):
         self.fixed = True
@@ -468,7 +456,6 @@ class CompositeNetwork(ParametricNetwork):
         self._subnetworks.update(subnetworks)
         self._subnetworks.add_update_callback(lambda _: self.update())
         self._subnetworks.add_set_callback(lambda _1, _2, _3: self.update())
-        self._subnetwork_versions: list[int] = []
         
         props = get_properties_and_attributes(self.__class__)
         for subnetwork in self._subnetworks.values():
@@ -477,7 +464,6 @@ class CompositeNetwork(ParametricNetwork):
 
             # Add as observed network
             subnetwork.add_observer(self)
-            self._subnetwork_versions.append(subnetwork._version)
             
             # Add name as property
             name = subnetwork.name

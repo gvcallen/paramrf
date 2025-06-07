@@ -19,18 +19,23 @@ class PhysicalResistor(ParametricNetwork):
         super().__init__(get_args_of(float), nports=1, **kwargs)
         
     def compute(self):
+        # print(f'PhysicalResistor.compute: {self.name}')
+        
         # Re-writing the maths explicitly in terms of input admittance results in a 25-30% total speedup
         # self.s = (self.parasitics ** self.ideal).s
         C1, L, C2, R = self.C1, self.L, self.C2, self.R
         w = self.frequency.w
+        
+        if R == 0.0:
+            self.s[:,0,0] = (self.parasitics ** self.ideal).s[:,0,0]
+        else:
+            Y1 = 1j * w * C1
+            Y2 = 1j * w * C2 + (1 / R)
+            Ys = Y2 / ((1j * w * L * Y2) + 1)
+            Yin = Y1 + Ys
 
-        Y1 = 1j * w * C1
-        Y2 = 1j * w * C2 + (1 / R)
-        Ys = Y2 / ((1j * w * L * Y2) + 1)
-        Yin = Y1 + Ys
-
-        Z0 = self.z0_port
-        self.s[:,0,0] = ((1 - Yin * Z0) / (1 + Yin * Z0))
+            Z0 = self.z0_port
+            self.s[:,0,0] = ((1 - Yin * Z0) / (1 + Yin * Z0))
 
     @property
     def ideal(self) -> rf.Network:

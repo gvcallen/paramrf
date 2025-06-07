@@ -95,6 +95,9 @@ class ParameterSet(pd.DataFrame):
         self._pdf_cache = None
         self._total_dict_cache = None
         
+        # TODO re-support derived params
+        self._has_derived_params = False
+        
     def write_csv(self, filename):
         cache_was_enabled = self._cache_enabled
         if cache_was_enabled:
@@ -154,15 +157,8 @@ class ParameterSet(pd.DataFrame):
         if not self._cache_enabled:
             self.loc[self.fixed == False, 'value'] = theta
         else:
-            self._regenerate_id()
             self._value_cache = theta
             
-    def get_state_id(self):
-        if self._cache_enabled:
-            return self._state_uuid
-        else:
-            return uuid.uuid4()
-        
     def update_bounds(self, bounds: dict, update_values=False):
         for param, bound in bounds.items():
             self.loc[param, 'pdf'].value = bound
@@ -170,21 +166,20 @@ class ParameterSet(pd.DataFrame):
                 self.loc[param, 'value'] = (bound[1] + bound[0]) / 2.0
 
     def enable_cache(self):
-        # Currently not working
-        pass
-        # self._key_cache = self.index[self.fixed == False].to_numpy()
-        # self._value_cache = self.loc[self.fixed == False].value.to_numpy()
-        # self._scale_cache = self.loc[self.fixed == False].scale.to_numpy()
-        # self._pdf_cache = self.loc[self.fixed == False].pdf.to_list()
-        # self._total_dict_cache = self.evaluate()
-        # self._cache_enabled = True
-        # self._regenerate_id()
+        if self._has_derived_params:
+            raise Exception('Cannot enable cache when derived parameters are being used')
+        self._key_cache = self.index[self.fixed == False].to_numpy()
+        self._value_cache = self.loc[self.fixed == False].value.to_numpy()
+        self._scale_cache = self.loc[self.fixed == False].scale.to_numpy()
+        self._pdf_cache = self.loc[self.fixed == False].pdf.to_list()
+        self._total_dict_cache = self.evaluate()
+        self._cache_enabled = True
 
     def flush_cache(self):
-        # Currently not working
-        pass
-        # self.loc[self.fixed == False, 'value'] = self._value_cache
-        # self._cache_enabled = False
+        if not self._cache_enabled:
+            return
+        self.loc[self.fixed == False, 'value'] = self._value_cache
+        self._cache_enabled = False
 
     def pdfs(self, free_only=True):
         if not self._cache_enabled:
@@ -229,9 +224,6 @@ class ParameterSet(pd.DataFrame):
     def _constructor_sliced(self):
         return pd.Series
     
-    def _regenerate_id(self):
-        self._state_uuid = uuid.uuid4()
-        
     @property
     def min(self):
         return np.array([pdf.min for pdf in self.pdf])

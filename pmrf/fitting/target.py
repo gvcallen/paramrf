@@ -61,6 +61,10 @@ class Target:
             return self._measured
         else:
             return self._model
+        
+    @property
+    def residual(self) -> rf.Network:
+        return self.model - self.measured
             
     @property
     def frequency(self) -> rf.Frequency:

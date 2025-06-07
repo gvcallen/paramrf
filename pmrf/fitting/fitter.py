@@ -219,6 +219,9 @@ class NetworkFitter:
         self._fit_output = None
         self._plotter = None
         
+        self._num_model_params = None
+        self._num_likelihood_params = None
+        
         # All other initialization wrapped in try except
         output_dir_exists = self.output_path is not None and Path(self.output_path).exists()
         try:
@@ -460,15 +463,19 @@ class NetworkFitter:
         return self._settings.export_frequency or self.system.frequency
     
     @property
+    def num_targets(self):
+        return len(self._targets)
+    
+    @property
     def num_model_params(self):
-        return len(self.system.params.names_free)
+        return self._num_model_params or len(self.system.params.names_free)
     
     @property
     def num_likelihood_params(self):
         if not self.is_bayesian:
             return 0
         else:
-            return self._likelihood_object.num_params
+            return self._num_likelihood_params or self._likelihood_object.num_params
 
     @property
     def param_names(self) -> list[str]:
@@ -496,7 +503,7 @@ class NetworkFitter:
     
     @property
     def targets(self) -> list[Target]:
-        return self.targets.copy()
+        return self._targets.copy()
     
     @property
     def targets_free(self) -> list[Target]:
@@ -682,6 +689,7 @@ class NetworkFitter:
             self.reset_params()
         else:
             self.update_networks()
+            
 
         target_names = [target.name for target in self._targets if not target.fixed]
         param_names = self.system.params.names_free
@@ -690,6 +698,8 @@ class NetworkFitter:
         logger.verbose(f'Free Parameters: {param_names}\n')
         logger.verbose(f'Fitting for {self.system.num_free_params} circuit model parameter(s)...')
 
+        self._num_model_params = self.num_model_params
+        
         start = time.time()
         
         if self.is_bayesian:            
@@ -698,8 +708,11 @@ class NetworkFitter:
         else:
             retval = self._fit_params_frequentist(plotter=plotter)
             success = retval.success
-        
+            
         end = time.time()
+        
+        self._num_model_params = None
+        
         elapsed = timedelta(seconds=end - start)
         if success:
             logger.verbose(f'Fit complete successfully in {elapsed}\n')
@@ -898,7 +911,7 @@ class NetworkFitter:
             callback_args['i_solver'] += 1
 
         # Run the minization routine
-        # self.models.params.enable_cache()
+        self.system.params.enable_cache()
         try:
             if self._settings.solver == 'shgo':
                 self._fit_output = shgo(cost_callback, bounds=bounds, args=(callback_args), options=options, callback=progress_callback)
@@ -906,7 +919,7 @@ class NetworkFitter:
                 self._fit_output = minimize(cost_callback, x0, args=(callback_args), bounds=bounds, method=self._settings.solver, options=options, callback=progress_callback)
         except KeyboardInterrupt:
             pass
-        # self.models.params.flush_cache()
+        self.system.params.flush_cache()
 
         return self._fit_output
 

@@ -131,9 +131,12 @@ class NetworkSystem:
         return self._frequency
     
     def update_networks(self):
-        update_networks_mapped(self._subnetworks, self.params.evaluate())
+        try:
+            update_networks_mapped(self._subnetworks, self.params.evaluate())
+        except:
+            logger.warning('Could not update networks!')
 
-    def update_params(self, params: np.ndarray | dict, scaler = None, hypercube = False):
+    def update_params(self, params: np.ndarray, scaler = None, hypercube = False):
         if isinstance(params, dict):
             raise Exception('Updating parameters directly from dict not yet supported')
 
@@ -160,9 +163,7 @@ class NetworkSystem:
         dir_path = os.path.dirname(file)
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
-
-        self.params.flush_cache()
-
+            
         # We don't save parameter_active directly as it has the fixed flags changed, as well as potentially new parameters/columns.
         # Instead, we just copy its updated values to the original parameters and save that
         parameters_save = self._params_original.copy()
@@ -170,7 +171,6 @@ class NetworkSystem:
         parameters_save.write_csv(f'{file}')
 
         logger.verbose('Parameters saved to file')
-        self.params.enable_cache()        
         
     def reset_params(self):
         self._params_active = self._params_original.copy()
