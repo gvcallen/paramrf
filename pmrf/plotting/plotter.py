@@ -331,6 +331,8 @@ class Plotter():
         fig_size = fig_size or self.fig_size
         
         if not self.interactive or (self.interactive and not self.fig):
+            if self.fig is not None:
+                self.fig.close()
             self.fig = GridFigure(num_items=num_items, item_layout=item_layout, framework=self.framework, interactive=self.interactive, fig_size=fig_size, fig_dpi=self.fig_dpi)
             
         return self.fig.start()
