@@ -93,7 +93,7 @@ class GaussianPDF(PDF):
         self.bounds_sigma = bounds_sigma
 
     def __call__(self, x):
-        return self.mu + self.sigma * numpy.sqrt(2) * erfinv(2*x-1)
+        return self.mu + self.sigma * np.sqrt(2) * erfinv(2*x-1)
     
     @property
     def mean(self):
@@ -137,7 +137,7 @@ class LogUniformPDF(UniformPDF):
 
 def forced_indentifiability_transform(x):
     N = len(x)
-    t = numpy.zeros(N)
+    t = np.zeros(N)
     t[N-1] = x[N-1]**(1./N)
     for n in range(N-2, -1, -1):
         t[n] = x[n]**(1./(n+1)) * t[n+1]
