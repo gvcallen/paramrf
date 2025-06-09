@@ -18,7 +18,10 @@ class RLGCLine(ParametricNetwork):
         params = params if params is not None else get_args_of(float)
         super().__init__(params=params, nports=nports, **kwargs)
         
-        self.a_cached = self.a
+        if nports == 2:
+            self.a_cached = self.a
+        else:
+            self.a_cached = None
         
     @property
     def dont_calculate_s(self):

@@ -1,8 +1,10 @@
 from asteval import Interpreter
 from abc import abstractmethod, ABC
 
-import numpy
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.special import erfinv
+from scipy.stats import norm
 
 """
 A list of priors, which usually will be grouped on a per-parameter basis, allowing for bayesian sampling of that parameter.
@@ -66,6 +68,12 @@ class UniformPDF(PDF):
     @max.setter
     def max(self, value):
         self.b = value
+
+    def plot(self, ax=None, **kwargs):
+        ax = ax or plt.gca()
+        width = self.b - self.a
+        height = 1.0 / width
+        ax.plot([self.a, self.b], [1.0, 1.0], **kwargs)
     
     @staticmethod
     def kind():
@@ -105,6 +113,17 @@ class GaussianPDF(PDF):
 
     def __str__(self):
         return f'gaussian({self.mu}, {self.sigma})'
+    
+    def plot(self, ax=None, **kwargs):
+        ax = ax or plt.gca()
+
+        mu, sigma = self.mu, self.sigma
+        x = np.linspace(mu - 4*sigma, mu + 4*sigma, 500)
+        y = norm.pdf(x, mu, sigma)
+        peak = 1 / (sigma * np.sqrt(2 * np.pi))
+        y_normalized = y / peak        
+        
+        ax.plot(x, y_normalized, **kwargs)
 
 
 class LogUniformPDF(UniformPDF):
