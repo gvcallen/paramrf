@@ -1,3 +1,5 @@
+from functools import reduce
+
 import numpy as np
 import skrf as rf
 
@@ -15,6 +17,9 @@ def get_twoport_a(network: rf.Network, a_buffer=None):
     a[:,1,0] = ((1-s11)*(1-s22) - s12*s21) * inv / z0
     a[:,1,1] = ((1 - s11) * (1 + s22) + s12*s21) * inv
     return a
+
+def concatenate_networks(networks: list[rf.Network]) -> rf.Network:
+    return reduce(lambda x, y: x ** y, networks)
 
 def concatenate_twoports(networks: list[rf.Network], return_a=False):
     # a = networks[0].a

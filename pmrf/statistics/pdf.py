@@ -73,7 +73,8 @@ class UniformPDF(PDF):
         ax = ax or plt.gca()
         width = self.b - self.a
         height = 1.0 / width
-        ax.plot([self.a, self.b], [1.0, 1.0], **kwargs)
+        ax.plot([self.a, self.a, self.b, self.b], [0.0, 1.0, 1.0, 0.0], **kwargs)
+        # ax.plot([self.a, self.b], [1.0, 1.0], **kwargs)
     
     @staticmethod
     def kind():

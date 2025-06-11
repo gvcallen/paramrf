@@ -10,7 +10,7 @@ from datetime import timedelta
 import time
 
 import numpy as np
-from scipy.optimize import minimize, Bounds, shgo
+from scipy.optimize import minimize, Bounds, shgo, dual_annealing
 import skrf as rf
 
 try:
@@ -902,11 +902,11 @@ class NetworkFitter:
             'i_feval': 0,
             'param_suffix': f'opt',
             'save_every': self._settings.save_every,
+            'log': True,
         }
 
         callback_args['plotter'] = plotter
 
-        cost_callback = lambda x, callback_args : self._cost_callback(x, callback_args)
         def progress_callback(xk):
             callback_args['i_solver'] += 1
 
@@ -914,8 +914,17 @@ class NetworkFitter:
         self.system.params.enable_cache()
         try:
             if self._settings.solver == 'shgo':
+                callback_args['save_every'] = None
+                callback_args['log'] = False
+                cost_callback = lambda x, *args : self._cost_callback(x, callback_args)
                 self._fit_output = shgo(cost_callback, bounds=bounds, args=(callback_args), options=options, callback=progress_callback)
+            elif self._settings.solver == 'dual_annealing':
+                callback_args['save_every'] = None
+                callback_args['log'] = False
+                cost_callback = lambda x, *args : self._cost_callback(x, callback_args)
+                self._fit_output = dual_annealing(cost_callback, bounds=bounds, args=(callback_args), maxiter=self._settings.max_iterations, callback=progress_callback)
             else:
+                cost_callback = lambda x, callback_args : self._cost_callback(x, callback_args)
                 self._fit_output = minimize(cost_callback, x0, args=(callback_args), bounds=bounds, method=self._settings.solver, options=options, callback=progress_callback)
         except KeyboardInterrupt:
             pass
@@ -939,7 +948,8 @@ class NetworkFitter:
             if callback_args['plotter'] is not None:
                 callback_args['plotter'].plot_S(name='s_opt')
 
-        logger.verbose(f"i_solver = {callback_args['i_solver']:5d},    i_feval = {callback_args['i_feval']:5d},    cost = {cost:.8f}")
+        if callback_args['log']:
+            logger.verbose(f"i_solver = {callback_args['i_solver']:5d},    i_feval = {callback_args['i_feval']:5d},    cost = {cost:.8f}")
 
         return cost
 

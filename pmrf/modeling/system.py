@@ -25,32 +25,41 @@ class NetworkSystemSettings:
     Settings for a NetworkSystem. This currently only includes the frequency range, but will for for configuring sampling settings for simulations etc.
     The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "NetworkSystem" class or sub-class.
     """
-    def __init__(self, frequency=None, **kwargs):       
-        self.param_path = None                                                          # The input parameters. Must be a string pointing to the input .csv file. Can be None, in which case a ParameterSet must be passed directly to the system.
-        
-        # Parameter settings
-        self.param_deviation = 0.1                                                      # Parameter bounds deviation from nominal values. Only used when parameter path or set is not passed.
-        self.param_sig_fig = 4                                                          # Significant figures for initial parameter values. Only used when parameter path or set is not passed.
-        self.param_infix = '_'                                                          # Infix used to map parameters from global names to model-local names.
-        
-        # Network settings
-        self.frequency = frequency                                                      # The frequency shared by all networks
+    def __init__(self, param_path = None, param_deviation = 0.1, param_sig_fig = 4, param_infix = '_', frequency: rf.Frequency = None):
+        """
+        Settings for a `NetworkSystem`.
+
+        Args:
+            param_path (str, optional): The input parameters. Must be a string pointing to the input .csv file. Can be None, in which case a ParameterSet must be passed directly to the system.. Defaults to None.
+            param_deviation (float, optional): Parameter bounds deviation from nominal values. Only used when parameter path or set is not passed.. Defaults to 0.1.
+            param_sig_fig (int, optional): Significant figures for initial parameter values. Only used when parameter path or set is not passed.. Defaults to 4.
+            param_infix (str, optional): Infix used to map parameters from global names to model-local names.. Defaults to '_'.
+            frequency (rf.Frequency, optional): The frequency shared by all networks. Defaults to None.
+        """
+        self.param_path = None
+        self.param_deviation = 0.1
+        self.param_sig_fig = 4
+        self.param_infix = '_'
+        self.frequency = frequency
 
 
 class NetworkSystem:
     """
-    A NetworkSystem is a collection of dependent parametric networks. It encapsulates all the model parameters and allows updating and sampling the parameters.
-    Used by the NetworkFitter. Also useful for simulating models.
+    A `NetworkSystem` is a collection of dependent parametric networks. It encapsulates all the model parameters and allows updating and sampling the parameters in an organized manner.
+    It is used by both the `NetworkFitter`, for fitting the system against a set of measurements, and the `NetworkSampler`, for simulating the system using e.g. Latin Hypercube sampling.
     """
     def __init__(self, networks: list[ParametricNetwork] = None, settings: NetworkSystemSettings = None, param_set: ParameterSet = None, **kwargs):
-        """The initializer for a NetworkSystem.
+        """The initializer for a `NetworkSystem`.
 
         Args:
-            networks (list[ParametricNetwork], optional): Specifies the networks to use. Defaults to None, which is useful for derived classes, where they should initialize their models in _init_networks().
+            networks (list[ParametricNetwork], optional): Specifies the networks to include in the system. Defaults to `None`: this is useful for derived classes, allowing them to initialize their models in `_init_networks()` e.g. after settings have been loaded.
             settings (NetworkSystemSettings, optional): A setting struct to initialize settings from. Generally key-word arguments are passed instead. Defaults to None.
-            param_set (ParameterSet, optional): A ParameterSet object to load parameters from. Useful for defining parameters in code as opposed to loading them from a .csv. Defaults to None.
-            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkSystemSettings classes.
+            param_set (ParameterSet, optional): A `ParameterSet` object to load initial parameters from. Useful for defining parameters directly in code as opposed to loading them from a .csv. Defaults to `None`.
+            **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the `NetworkSystemSettings` classes.
         """
+        if not networks is None:
+            kwargs.setdefault('frequency', networks[0].frequency)
+
         self._settings = settings or NetworkSystemSettings(**kwargs)
         self._networks = networks or []
         self._params_original: ParameterSet = None

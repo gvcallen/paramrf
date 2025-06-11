@@ -1,6 +1,32 @@
 import inspect
 import sys
 
+def filter_kwargs_for(func, kwargs):
+    sig = inspect.signature(func)
+    accepted = {
+        k: v for k, v in kwargs.items()
+        if k in sig.parameters and sig.parameters[k].kind in (
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+    }
+    return accepted
+
+def pop_kwargs_for(func, kwargs):
+    """Pop only the keyword arguments from `kwargs` that `func` accepts."""
+    sig = inspect.signature(func)
+    accepted_keys = {
+        k for k, param in sig.parameters.items()
+        if param.kind in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    }
+
+    popped = {}
+    for k in accepted_keys:
+        if k in kwargs:
+            popped[k] = kwargs.pop(k)
+
+    return popped
+
 def get_args_of(type_to_fetch=float, depth=1) -> dict:
     """
     Magic function to get parameters in the calling scope of a certain type, and store them in a dictionary,

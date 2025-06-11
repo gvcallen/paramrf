@@ -10,6 +10,12 @@ from pmrf.core.core import add_noise
 from pmrf.misc.structures import ObservableDict
 from pmrf.misc.inspection import get_properties_and_attributes
 
+try:
+    from ipywidgets import interact, FloatSlider
+    ipywidgets_available = True
+except:
+    ipywidgets_available = False
+
 
 class ComputableNetwork(rf.Network):
     """
@@ -145,6 +151,12 @@ class ComputableNetwork(rf.Network):
         NB: This should never be called directly.
         """
         pass
+
+    def plot_s_four(self, ax):
+        self.plot_s_re(ax=ax[0])
+        self.plot_s_im(ax=ax[1])
+        self.plot_s_db(ax=ax[2])
+        self.plot_s_deg(ax=ax[3])
 
 
 class ObservableNetwork(ComputableNetwork):
@@ -282,6 +294,30 @@ class ParametricNetwork(ObservableNetwork):
             self.params.update(params_local)
         else:
             self.params.update(dict(zip(self.params.keys(), params_global)))      
+
+    def sliders(self, variation=0.05, steps=100, bounds=None, readout_format=None, update_values=False) -> dict:
+        if not ipywidgets_available:
+            raise Exception('Sliders can only be used for a parmetric network when ipywidgets is installed')
+        
+        sliders = []
+        for name, value in self.params.items():
+            if bounds and name in bounds:
+                min, max = bounds[name]
+            else:
+                min, max = value * (1.0 - variation), value * (1.0 + variation)
+            
+            if update_values:
+                value = (max + min) / 2.0
+                
+            step = (max - min) / steps
+            
+            if readout_format is None:
+                sliders.append(FloatSlider(min=min, max=max, step=step, value=value, description=name))
+            else:
+                sliders.append(FloatSlider(min=min, max=max, step=step, value=value, description=name, readout_format=readout_format))
+
+        return {slider.description: slider for slider in sliders}
+            
 
 
 class CompositeNetwork(ParametricNetwork):
