@@ -194,7 +194,7 @@ class NetworkSystem:
         for network in self.networks:
             subnetworks: list[ParametricNetwork] = get_unique_networks([network], ignore_composite=True, ignore_non_computabe=True)
             for subnetwork in subnetworks:
-                for param_name in subnetwork.params_mapped().keys():
+                for param_name in subnetwork.params_global(self.settings.param_infix).keys():
                     param_found = False
                     # TODO this is messy and should be cleaned up - the System class (somehow) shouldn't have to deal with derived parameter
                     try:

@@ -84,6 +84,7 @@ class NetworkSampler:
     
     def _generate_hypercube_samples(self, n):
         d = self._system.num_free_params
+        print(d)
 
         if self._engine == 'lhs':
             X = qmc.LatinHypercube(d).random(n)

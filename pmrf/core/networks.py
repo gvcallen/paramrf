@@ -239,12 +239,7 @@ class ParametricNetwork(ObservableNetwork):
             return self._params[attr_name]
         else:
             return super().__getattr__(attr_name)
-        
-    def copy(self, *, shallow_copy = False):
-        if shallow_copy:
-            return copy(self)
-        return deepcopy(self)
-        
+               
     def __deepcopy__(self, memo):
         cls = self.__class__
         result = cls.__new__(cls)
@@ -266,6 +261,18 @@ class ParametricNetwork(ObservableNetwork):
         result._params.add_set_callback(lambda _1, _2, _3: result.update())        
         result._params.update(self._params)
         return result
+    
+    def _convert_global_to_local(self, params_global: dict, infix='_'):
+        prefix = self.name + infix
+        return {
+            key: params_global.get(prefix + key, self.params[key])
+            for key in self.params
+        }    
+    
+    def copy(self, *, shallow_copy = False):
+        if shallow_copy:
+            return copy(self)
+        return deepcopy(self)    
 
     @property
     def params(self):
@@ -275,22 +282,15 @@ class ParametricNetwork(ObservableNetwork):
     def params(self, new_params: dict):
         self._params.update(new_params)        
 
-    def params_mapped(self, infix='_') -> dict[str, float]:
+    def params_global(self, infix='_') -> dict[str, float]:
         params = self.params
         prefix = self.name + infix
         params_global = {prefix + k: v for k, v in params.items()}
         return params_global     
-    
-    def params_global_to_local(self, params_global: dict, infix='_'):
-        prefix = self.name + infix
-        return {
-            key: params_global.get(prefix + key, self.params[key])
-            for key in self.params
-        }
         
-    def update_mapped(self, params_global: dict | np.ndarray, infix='_'):
+    def update_from_global(self, params_global: dict | np.ndarray, infix='_'):
         if isinstance(params_global, dict):              
-            params_local = self.params_global_to_local(params_global, infix)
+            params_local = self._convert_global_to_local(params_global, infix)
             self.params.update(params_local)
         else:
             self.params.update(dict(zip(self.params.keys(), params_global)))      
@@ -570,6 +570,6 @@ def update_networks_mapped(networks: list[ParametricNetwork], params_global: dic
     for network in networks:
         network.notifying = False
     for network in networks:
-        network.update_mapped(params_global, infix=infix)
+        network.update_from_global(params_global, infix=infix)
     for network in networks:
         network.notifying = True

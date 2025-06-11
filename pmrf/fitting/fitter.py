@@ -232,7 +232,7 @@ class NetworkFitter:
                 if rank == 0:
                     self._init_logging()
                 else:
-                    self._init_logging(level='info')
+                    self._init_logging(level=self.settings.log_level)
 
             logger.info(f"Creating Fitter (random ID = {uuid.uuid4()})")
             logger.verbose(f"Python args: {' '.join(sys.argv)}")

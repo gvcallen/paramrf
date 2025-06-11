@@ -4,7 +4,7 @@ import skrf as rf
 from pmrf.core import ParametricNetwork
 from pmrf.modeling.elements.lumped import Resistor
 from pmrf.modeling.elements.topological import PiCLC
-from pmrf.modeling.models.lines import BasicLine
+from pmrf.modeling.models.lines import DatasheetCoax, BasicLine
 from pmrf.misc.inspection import get_args_of
 
 class PhysicalResistor(ParametricNetwork):
@@ -51,11 +51,11 @@ class PhysicalResistor(ParametricNetwork):
     
 
 class TlineResistor(ParametricNetwork):
-    def __init__(self, R=1.0, len=1.0e-3, zn=50.0, **kwargs):
+    def __init__(self, R=1.0, len=1.0e-3, zn=50.0, k1=0.0, **kwargs):
         super().__init__(get_args_of(float), nports=1, **kwargs)
 
     def compute(self):
-        self.s = (BasicLine(self.zn, 1.0, 0.0, 0.0, self.len, frequency=self.frequency) ** Resistor(self.R, terminated=True, frequency=self.frequency)).s
+        self.s = (self.parasitics ** self.ideal).s
 
     @property
     def ideal(self) -> rf.Network:
@@ -63,4 +63,5 @@ class TlineResistor(ParametricNetwork):
     
     @property
     def parasitics(self) -> rf.Network:
-        return BasicLine(self.zn, 1.0, 0.0, 0.0, self.len, frequency=self.frequency)
+        # return BasicLine(self.zn, 1.0, 0.0, 0.0, self.len, frequency=self.frequency)
+        return DatasheetCoax(self.zn, 1.0, self.k1, 0.0, self.len, frequency=self.frequency)
