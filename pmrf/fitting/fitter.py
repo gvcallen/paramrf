@@ -816,9 +816,18 @@ class NetworkFitter:
             return
         
         logger.verbose("Saving fitter settings to file")
+        
+        # From ChatGPT to handle keys of class type
+        def custom_json_encoder(obj):
+            if isinstance(obj, type):
+                return f"{obj.__module__}.{obj.__qualname__}"
+            elif hasattr(obj, '__dict__'):
+                return obj.__dict__
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
         with open(self.output_settings_path, 'w') as f:
-            json.dump(self._settings.to_dict(), f, indent=4, default=lambda o: o.__dict__)                    
+            settings_dict = self._settings.to_dict()
+            json.dump(settings_dict, f, indent=4, default=custom_json_encoder)        
 
     def _fit_params_bayesian(self):
         """
