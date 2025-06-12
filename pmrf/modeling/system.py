@@ -226,7 +226,7 @@ class NetworkSystem:
             self._warning_emitted = True
 
         self.update_networks()
-        
+
     def save_touchstone(self, path, networks=True, subnetworks=False, export_frequency=None):
         dir_path = os.path.dirname(path)
         if dir_path:

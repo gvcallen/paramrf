@@ -4,22 +4,38 @@ import re
 import numpy as np
 import pandas as pd
 from scipy.stats import qmc
+import scipy.stats as stats
 import uuid
+from asteval import Interpreter
 
-from pmrf.statistics.pdf import UniformPDF, from_string
+def dist_from_string(str):
+    if str == "":
+        return None
+
+    try:
+        name, args_str = str.split("(", 1)
+        args_str = args_str.rstrip(")")
+        aeval = Interpreter()
+        args = aeval(f"({args_str})")
+        rv = getattr(stats, name)(*map(float, args))
+    except Exception as e:
+        raise ValueError(f"Failed to create distribution instance: {e}")
+    
+    return rv
+
 
 class ParameterSet(pd.DataFrame):
     """
     A set or list of parameters (values, scales etc.) and utility functions.
     Intended to be used as a higher-level organization scheme for a large number of parameters.
-    Also wraps the "pdfs" into the table itself.
+    Also represents the "distribution" of the parameters into the table itself.
 
-    In general, the following columns should be present:
+    In general, the following columns are present:
         - 'name': the name of a parameter
         - 'value': the un-scaled value of a parameter
-        - 'scale': the scale which should multiply with the parameter's value to yield its true value
-        - 'fixed': whether or not the parameter should be fixed
-        - 'pdf': a value of type <paramrf.statistics.pdf>. To simply bound the value with a min/max, use <paramrf.statistics.Uniform>.
+        - 'scale': the scalar which should multiply with the parameter's value to yield its true value
+        - 'fixed': whether or not the parameter should be viewed fixed
+        - 'dist': a value of class type <scipy.rv_frozen> (which can be passed as a string e.g. "norm(0.0, 1.0)" and will be saved to file as such)
     
     NB: (for lower-level users e.g. the NetworkFitter sub-classes themselves)
     This class inherits from a pandas DataFrame. However, DataFrame read/write access is slow.
@@ -32,7 +48,8 @@ class ParameterSet(pd.DataFrame):
         """
         Method to initialize a parameter set.
 
-        Note that, when initiailizing with "data", using columns 'minimum' and 'maximum' is allowed, in which case uniform pdfs are created.
+        Note that, when initiailizing with "data", using columns 'minimum' and 'maximum' is allowed,
+        in which case all parameters are assumed to have uniform distributions.
         Also note that the column 'fixed' can be missing, in which case all parameters are initialized with fixed == False.
         """
         # Initialize the DataFrame
@@ -40,29 +57,9 @@ class ParameterSet(pd.DataFrame):
 
         if data is not None:
             if columns is None:
-                columns = ['name', 'value', 'scale', 'fixed', 'pdf']
+                columns = ['name', 'value', 'scale', 'fixed', 'dist', 'loc', 'scale']
             df = pd.DataFrame(data, columns=columns)
-            
-            if not 'fixed' in df.columns:
-                df['fixed'] = False
-            
-            if not 'scale' in df.columns:
-                df['scale'] = 1.0
-
-            # For compatibility
-            if 'prior' in df.columns:
-                df['pdf'] = df['prior']
-                df.drop(columns=['prior'], inplace=True)
-
-            if not 'value' in df.columns:
-                df['value'] = [pdf.mean for pdf in df.pdf]
-            
-            # For compatibility
-            if 'minimum' in df.columns and 'maximum' in df.columns:
-                df['pdf'] = [UniformPDF(minimum, maximum) for minimum, maximum in zip(df.minimum, df.maximum)]
-                df.drop(columns=['minimum', 'maximum'], inplace=True)
         elif file:
-            # Use re.sub to replace the patterns
             match = re.match(r"\$\{([^}]+)\}/(.+)", file)
             if match:
                 module = match.group(1)
@@ -70,29 +67,39 @@ class ParameterSet(pd.DataFrame):
 
                 file = str(importlib.resources.files(module).joinpath(filename))
 
-            df = pd.read_csv(file)
+            df = pd.read_csv(file)            
+            
+        # Set index
+        df.set_index('name', inplace=True)
 
-            dists = []
-            for dist_string, fixed in zip(df.pdf, df.fixed):
-                try:
-                    dists.append(from_string(dist_string))
-                except:
-                    if not fixed:
-                        raise Exception("Derived parameters must have Fixed == True")
-                    dists.append(dist_string)
+        # Populate optional columns
+        if not 'fixed' in df.columns:
+            df['fixed'] = False
+        if not 'scale' in df.columns:
+            df['scale'] = 1.0
+        
+        # Set distribution if other methods were used to specify it (mainly for compatibility)
+        if 'prior' in df.columns or 'pdf' in df.columns:
+            replace = 'prior' if 'prior' in df.columns else 'pdf'
+            df['dist'] = [dist_from_string(s) for s in df[replace]]
+            df.drop(columns=[replace], inplace=True)
+        elif 'minimum' in df.columns and 'maximum' in df.columns:
+            df['dist'] = [stats.uniform(minimum, maximum-minimum) for minimum, maximum in zip(df.minimum, df.maximum)]
+            df.drop(columns=['minimum', 'maximum'], inplace=True)
 
-            df['pdf'] = dists
-        
-        if 'name' in df.columns:
-            df.set_index('name', inplace=True)
-        
+        # If value was not passed, set it to the mean value of the distribution specified
+        if not 'value' in df.columns:
+            df['value'] = [dist.mean() for dist in df.dist]
+
         # Overwrite the current DataFrame with the loaded data
         self._update_inplace(df)
         self._cache_enabled = False
         self._key_cache = None
         self._value_cache = None
         self._scale_cache = None
-        self._pdf_cache = None
+        self._dist_cache = None
+        self._loc_cache = None
+        self._scale_cache = None
         self._total_dict_cache = None
         
         # TODO re-support derived params
@@ -159,19 +166,13 @@ class ParameterSet(pd.DataFrame):
         else:
             self._value_cache = theta
             
-    def update_bounds(self, bounds: dict, update_values=False):
-        for param, bound in bounds.items():
-            self.loc[param, 'pdf'].value = bound
-            if update_values:
-                self.loc[param, 'value'] = (bound[1] + bound[0]) / 2.0
-
     def enable_cache(self):
         if self._has_derived_params:
             raise Exception('Cannot enable cache when derived parameters are being used')
         self._key_cache = self.index[self.fixed == False].to_numpy()
         self._value_cache = self.loc[self.fixed == False].value.to_numpy()
         self._scale_cache = self.loc[self.fixed == False].scale.to_numpy()
-        self._pdf_cache = self.loc[self.fixed == False].pdf.to_list()
+        self._dist_cache = self.loc[self.fixed == False].dist.to_list()
         self._total_dict_cache = self.evaluate()
         self._cache_enabled = True
 
@@ -181,13 +182,13 @@ class ParameterSet(pd.DataFrame):
         self.loc[self.fixed == False, 'value'] = self._value_cache
         self._cache_enabled = False
 
-    def pdfs(self, free_only=True):
+    def dists(self, free_only=True):
         if not self._cache_enabled:
-            return self.loc[self.fixed == (not free_only), 'pdf']
+            return self.loc[self.fixed == (not free_only), 'dist']
         else:
             if not free_only:
-                raise Exception("Cannot get pdfs for fixed parameters while ParameterSet cache is active")
-            return self._pdf_cache
+                raise Exception("Cannot get dists for fixed parameters while ParameterSet cache is active")
+            return self._dist_cache
         
     def generate_samples(self, N=100, method='lhs', free_only=True):
         num_samples = N
@@ -223,11 +224,3 @@ class ParameterSet(pd.DataFrame):
     @property
     def _constructor_sliced(self):
         return pd.Series
-    
-    @property
-    def min(self):
-        return np.array([pdf.min for pdf in self.pdf])
-    
-    @property
-    def max(self):
-        return np.array([pdf.max for pdf in self.pdf])
