@@ -3,25 +3,10 @@ import re
 
 import numpy as np
 import pandas as pd
-from scipy.stats import qmc
-import scipy.stats as stats
+from scipy.stats import qmc, uniform
 import uuid
-from asteval import Interpreter
 
-def dist_from_string(str):
-    if str == "":
-        return None
-
-    try:
-        name, args_str = str.split("(", 1)
-        args_str = args_str.rstrip(")")
-        aeval = Interpreter()
-        args = aeval(f"({args_str})")
-        rv = getattr(stats, name)(*map(float, args))
-    except Exception as e:
-        raise ValueError(f"Failed to create distribution instance: {e}")
-    
-    return rv
+from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
 
 
 class ParameterSet(pd.DataFrame):
@@ -55,22 +40,23 @@ class ParameterSet(pd.DataFrame):
         # Initialize the DataFrame
         super().__init__(*args, **kwargs)
 
-        if data is not None:
-            if columns is None:
-                columns = ['name', 'value', 'scale', 'fixed', 'dist', 'loc', 'scale']
-            df = pd.DataFrame(data, columns=columns)
-        elif file:
-            match = re.match(r"\$\{([^}]+)\}/(.+)", file)
-            if match:
-                module = match.group(1)
-                filename = match.group(2)
+        if df is None:
+            if data is not None:
+                if columns is None:
+                    columns = ['name', 'value', 'scale', 'fixed', 'dist', 'loc', 'scale']
+                df = pd.DataFrame(data, columns=columns)
+            elif file:
+                match = re.match(r"\$\{([^}]+)\}/(.+)", file)
+                if match:
+                    module = match.group(1)
+                    filename = match.group(2)
 
-                file = str(importlib.resources.files(module).joinpath(filename))
+                    file = str(importlib.resources.files(module).joinpath(filename))
 
-            df = pd.read_csv(file)            
-            
-        # Set index
-        df.set_index('name', inplace=True)
+                df = pd.read_csv(file)      
+                df['dist'] = [string_to_scipy(s) if isinstance(s, str) else None for s in df['dist']]
+            # Set index
+            df.set_index('name', inplace=True)                
 
         # Populate optional columns
         if not 'fixed' in df.columns:
@@ -81,10 +67,10 @@ class ParameterSet(pd.DataFrame):
         # Set distribution if other methods were used to specify it (mainly for compatibility)
         if 'prior' in df.columns or 'pdf' in df.columns:
             replace = 'prior' if 'prior' in df.columns else 'pdf'
-            df['dist'] = [dist_from_string(s) for s in df[replace]]
+            df['dist'] = [string_to_scipy(s) for s in df[replace]]
             df.drop(columns=[replace], inplace=True)
         elif 'minimum' in df.columns and 'maximum' in df.columns:
-            df['dist'] = [stats.uniform(minimum, maximum-minimum) for minimum, maximum in zip(df.minimum, df.maximum)]
+            df['dist'] = [uniform(minimum, maximum-minimum) for minimum, maximum in zip(df.minimum, df.maximum)]
             df.drop(columns=['minimum', 'maximum'], inplace=True)
 
         # If value was not passed, set it to the mean value of the distribution specified
@@ -92,7 +78,7 @@ class ParameterSet(pd.DataFrame):
             df['value'] = [dist.mean() for dist in df.dist]
 
         # Overwrite the current DataFrame with the loaded data
-        self._update_inplace(df)
+        self._update_inplace(df)        
         self._cache_enabled = False
         self._key_cache = None
         self._value_cache = None

@@ -152,7 +152,7 @@ class NetworkSystem:
         if scaler:
             params = scaler.inverse_transform(params)
         if hypercube:
-            params = np.array([pdf(params[i]) for i, pdf in enumerate(self.params.pdfs())])
+            params = np.array([dist.ppf(params[i]) for i, dist in enumerate(self.params.dists())])
 
         self.params.update_values(params)
         update_networks_mapped(self._subnetworks, self.params.evaluate())

@@ -10,8 +10,10 @@ from datetime import timedelta
 import time
 
 import numpy as np
+from scipy.stats._distn_infrastructure import rv_continuous_frozen
 from scipy.optimize import minimize, Bounds, shgo, dual_annealing
 import skrf as rf
+import scipy.stats as stats
 
 try:
     from mpi4py import MPI
@@ -40,7 +42,7 @@ from pmrf.misc.math import round_sig
 from pmrf.statistics.features import Feature, extract_features
 from pmrf.statistics.modifiers import ModifierChain
 from pmrf.statistics.likelihood import GaussianLikelihood, CircularComplexGaussianLikelihood, RicianLikelihood
-from pmrf.statistics.pdf import UniformPDF
+from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
 
 from pmrf.fitting.target import Target
 
@@ -97,7 +99,7 @@ class NetworkFitterSettings:
         self.save_settings = True                                                       # Whether to write a settings file containing these settings that can then be read later. Saved to the output path misc folder.
 
         # Bayesian solver settings (PolyChord)
-        self.sigma_prior = UniformPDF(0.0, 0.015)
+        self.sigma_prior = stats.uniform(0.0, 0.015)
         self.parameter_method = 'likelihood-max'                                        # The method to choose a single 'best' parameter value. Can be 'likelihood-max' or 'param-mean'.
         self.num_live_points = None                                                     # The number of live points. Leave as None to use the number of circuit model parameters.
         self.live_points_factor = 1                                                     # A factor for the number of live points as a multiple of the number of parameters. Only used if self.num_live_points is None.
@@ -138,7 +140,9 @@ class NetworkFitterSettings:
         def recurse(obj):
             if isinstance(obj, rf.Frequency):
                 return frequency_to_dict(obj)
-            if hasattr(obj, '__dict__'):
+            elif isinstance(obj, rv_continuous_frozen):
+                return scipy_to_string(obj)
+            elif hasattr(obj, '__dict__'):
                 return {k: recurse(v) for k, v in obj.__dict__.items()}
             elif isinstance(obj, list):
                 return [recurse(item) for item in obj]
@@ -155,14 +159,12 @@ class NetworkFitterSettings:
                     pass
                 elif isinstance(obj.__dict__.get(k, None), rf.Frequency):
                     v = dict_to_frequency(v)
+                elif isinstance(obj.__dict__.get(k, None), rv_continuous_frozen):
+                    v = string_to_scipy(v)
                 elif hasattr(getattr(obj, k, None), '__dict__'):
                     v = recurse(getattr(obj, k), v)
                 elif isinstance(v, list):
-                    # setattr(cls_or_obj, k, [recurse(type(item)(), item) if isinstance(item, dict) else item for item in v])
-                    # v = [recurse(type(item)(), item) for item in v if item is not None]
                     v = [recurse(type(item)(), item) if isinstance(item, dict) else item for item in v]
-                # elif isinstance(v, dict):
-                    # v = {item_k: recurse(type(item_v)(), item_v) for item_k, item_v in v.items() if item_v is not None}
                 
                 setattr(obj, k, v)
             
@@ -983,8 +985,8 @@ class NetworkFitter:
     def _prior_callback(self, hypercube):
         num_model_params = self.system.num_free_params
         
-        model_values = [prior(hypercube[i]) for i, prior in enumerate(self.system.params.pdfs())]
-        likelihood_values = [prior(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
+        model_priors = [prior.ppf(hypercube[i]) for i, prior in enumerate(self.system.params.dists())]
+        likelihood_priors = [prior.ppf(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
         
-        return np.array(model_values + likelihood_values)
+        return np.array(model_priors + likelihood_priors)
     
