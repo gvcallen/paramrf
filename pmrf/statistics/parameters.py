@@ -1,5 +1,6 @@
 import importlib
 import re
+import os
 
 import numpy as np
 import pandas as pd
@@ -91,7 +92,14 @@ class ParameterSet(pd.DataFrame):
         # TODO re-support derived params
         self._has_derived_params = False
         
-    def write_csv(self, filename):
+    def write_csv(self, filename, make_dirs=True):
+        dir_path = os.path.dirname(filename)
+        if dir_path:
+            if make_dirs:
+                os.makedirs(dir_path, exist_ok=True)
+            else:
+                raise Exception(f'{dir_path} does not exist')
+
         cache_was_enabled = self._cache_enabled
         if cache_was_enabled:
             self.flush_cache()

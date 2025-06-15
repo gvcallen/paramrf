@@ -2,9 +2,8 @@ from __future__ import annotations
 from copy import deepcopy
 import ast
 
-import numpy as np
-
-from pmrf.misc.math import dB20, norm
+from pmrf._numpy import numpy as np
+from pmrf._math import dB20, norm
 
 """
 This file contains the "Modifier" classes, which essentially encapsulate various functionality to be performed
@@ -21,18 +20,17 @@ class Modifier:
 
         Args:
             operation (str): The operation to be performed. Should be one of the following (note that most options accept suffix '-ax<int>' to specify an axis to perform the operation along):
-
-                    - None (no-op)
-                    - 'dB', 'abs', 'sqr': maths operations
-                    - 'sum', 'min', 'max': maths operations (default axis == None)
-                    - '<norm>': norm with <norm> in ['Linf', 'L1', 'L2'] (default axis == 0)
-                    - '<norm>-M': norm with <norm> in ['Linf', 'L1', 'L2'] (axis == None)
-                    - 'multiply-every-<int>': multiply every group of <int> rows/columns (default axis == 1)
-                    - 'weight-by-<list>': weighting by array (default axis == 1):
-                    - 'sum-every-<int>': sum every group of <int> rows/columns (default axis == 1)
-                    - 'convolve-interleaved' convolve arrays formed by interleaving (default axis == 1)
-                    - 'multiply-by-<list> multiply by array (default axis == 1)
-                    - 'callback' (some )
+                - None (no-op)
+                - 'dB', 'abs', 'sqr': maths operations
+                - 'sum', 'min', 'max': maths operations (default axis == None)
+                - '<norm>': norm with <norm> in ['Linf', 'L1', 'L2'] (default axis == 0)
+                - '<norm>-M': norm with <norm> in ['Linf', 'L1', 'L2'] (axis == None)
+                - 'multiply-every-<int>': multiply every group of <int> rows/columns (default axis == 1)
+                - 'weight-by-<list>': weighting by array (default axis == 1):
+                - 'sum-every-<int>': sum every group of <int> rows/columns (default axis == 1)
+                - 'convolve-interleaved' convolve arrays formed by interleaving (default axis == 1)
+                - 'multiply-by-<list> multiply by array (default axis == 1)
+                - 'callback' (some )
           
         """
         self.mode = mode
@@ -81,7 +79,7 @@ class Modifier:
         self.kwargs.setdefault('n', n_default)
         self.kwargs.setdefault('callback', callback_default) 
 
-    def __call__(self, y) -> np.float64 | np.ndarray:    
+    def __call__(self, y) -> np.ndarray:
         mode = self.mode
         kwargs = self.kwargs
         axis = kwargs['axis']
@@ -119,7 +117,6 @@ class Modifier:
         elif mode.startswith('multiply-by'):
             y = self._multiply_by(y, x, axis)
         elif mode.startswith('weight-by'):
-            nbase = len('weight-by')
             n = len(x)
             y = self._multiply_by(y, x, axis)
             y = self._sum_every(y, n, axis)
@@ -131,7 +128,7 @@ class Modifier:
         return y        
     
 
-    def _multiply_by(self, y, x, axis) -> np.float64 | np.ndarray:
+    def _multiply_by(self, y, x, axis) -> np.ndarray:
         if x.shape == y.shape:
             y *= x
         else:
@@ -155,7 +152,7 @@ class Modifier:
 
         return y
 
-    def _sum_every(self, y, n, axis) -> np.float64 | np.ndarray:
+    def _sum_every(self, y, n, axis) -> np.ndarray:
         if len(y.shape) == 1 and len(y) % n == 0:
             if axis == 0:
                 y = y.reshape(len(y), 1)
@@ -176,7 +173,7 @@ class Modifier:
 
         return y
     
-    def _multiply_every(self, y, n, axis) -> np.float64 | np.ndarray:
+    def _multiply_every(self, y, n, axis) -> np.ndarray:
         if len(y.shape) == 1 and len(y) % n == 0:
             if axis == 0:
                 y = y.reshape(len(y), 1)
@@ -197,7 +194,7 @@ class Modifier:
 
         return y    
     
-    def _convolve_interleaved(self, y, axis) -> np.float64 | np.ndarray:
+    def _convolve_interleaved(self, y, axis) -> np.ndarray:
         # Write code that convolves array y1 with y2, where y1 is every 1st element, and y2 every 2nd, along the specified axis.
         if axis == 1:
             if len(y.shape) == 1:
