@@ -13,9 +13,9 @@ as it is simply the combination of multiple "operations" specified using a list 
 
 class Modifier:
     """
-    A modifier class is used to encapsulate modification on a numpy array of data.
+    A modifier class is used to encapsulate multiple modifications on a numpy array of data.
     """
-    def __init__(self, mode, **kwargs):
+    def __init__(self, mode = 'L2', **kwargs):
         """Initialize a modifier class.
 
         Args:
@@ -211,7 +211,7 @@ class ModifierChain:
     """
     A chain of modifier operations to be performed one after the other.
     """
-    def __init__(self, modifiers: list[Modifier | str | tuple[str, dict]] = None):
+    def __init__(self, modifiers: list[Modifier] | list[str] = None):
         """Initialize a modifier chain using a list of modifiers or the args that would create them.
 
         Args:
@@ -219,7 +219,7 @@ class ModifierChain:
             or just the modifier mode, or pass the arguments used to create the modifier class in (str, dict) format.
         """
         if modifiers is None:
-            modifiers = []
+            modifiers = [Modifier()]
 
         self.modifiers = []
         if modifiers:

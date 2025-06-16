@@ -24,12 +24,16 @@ logging.Logger.verbose = verbose
 logger = logging.getLogger(__name__)
 
 
-class ModelSystem(eqx.Module):
-    """
-    A `ModelSystem` is a collection of models.
-    
-    It is used by both the `NetworkFitter`, for fitting the system models against a set of measurements, and the `NetworkSampler`,
-    for simulating the models using e.g. with Latin Hypercube sampling.
+class SystemModel(Model):
+    """ A `SystemModel` is a collection of models which itself is a model.
+
+    It provides an easy abstract class to be derived that can model a set of related models that logically form a system.
+    For example, one might want to model a high-frequency circuit board with a number of different inputs but with some transmission lines
+    in the path shared. In that case, in might make sense to model these inputs as separate models that each include the same underlying
+    transmission line model.
+
+    The `SystemModel` overrides some of the default model methods with those more tailored towards shared models,
+    making it a useful abstraction for general purposes.
     """
     models: list[Model] = eqx.field(default_factory=lambda: [])
     name: str | None = eqx.field(default=None)
@@ -59,7 +63,7 @@ class ModelSystem(eqx.Module):
         return self.number_of_models
 
     @property
-    def submodels(self) -> 'ModelSystem':
+    def submodels(self) -> 'SystemModel':
         raise Exception('Not yet implemented')
         # for model in self.models:
 

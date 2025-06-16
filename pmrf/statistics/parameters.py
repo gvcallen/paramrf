@@ -78,6 +78,9 @@ class ParameterSet(pd.DataFrame):
         if not 'value' in df.columns:
             df['value'] = [dist.mean() for dist in df.dist]
 
+        if len(df.scale[df.scale == 0.0]):
+            raise Exception("Error: parameter(s) with zero scale")                        
+
         # Overwrite the current DataFrame with the loaded data
         self._update_inplace(df)        
         self._cache_enabled = False

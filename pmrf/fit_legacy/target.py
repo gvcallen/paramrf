@@ -1,7 +1,7 @@
 import numpy as np
 import skrf as rf
 
-from pmrf.statistics.features import Feature, extract_features
+from pmrf.statistics.features import FeatureExtractor, extract_features
 from pmrf.statistics.modifiers import ModifierChain
 from pmrf.statistics.likelihood import GaussianLikelihood
 
@@ -13,7 +13,7 @@ class Target:
     which also contains the reference measured network, which features to extract from the model, and cost function information.
     """
     def __init__(self, model: ParametricNetwork, measured: rf.Network = None, use_measured = False, fixed = False,
-                 features: list[Feature] = [Feature('complex')], cost_chain: ModifierChain = ModifierChain(['L2-M', 'dB']), likelihood_object = GaussianLikelihood()):
+                 features: list[FeatureExtractor] = [FeatureExtractor('complex')], cost_chain: ModifierChain = ModifierChain(['L2-M', 'dB']), likelihood_object = GaussianLikelihood()):
         self._model = model
         self._model.fixed = fixed
         self._measured = measured

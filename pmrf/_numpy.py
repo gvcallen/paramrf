@@ -1,9 +1,9 @@
-# import os
+import os
 
 # use_jax = os.environ.get("JAX_ENABLED") == "1"
-# use_jax = True
+USE_JAX = True
 
-
-
-import jax.numpy as np_module
-numpy = np_module
+if USE_JAX:
+    import jax.numpy as numpy
+else:
+    import numpy as nump

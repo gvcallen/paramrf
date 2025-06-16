@@ -1,4 +1,5 @@
 from pathlib import Path
+from dataclasses import dataclass
 import glob
 import shutil
 import logging
@@ -19,6 +20,8 @@ import jax
 from scipy.stats._distn_infrastructure import rv_continuous_frozen
 import skrf
 import scipy.stats as stats
+
+from pmrf.statistics.parameters import ParameterSet
 
 try:
     from mpi4py import MPI
@@ -44,16 +47,16 @@ from pmrf._structures import frequency_to_dict, dict_to_frequency
 from pmrf._other import time_string
 from pmrf._math import round_sig
 
-from pmrf.statistics.features import Feature, extract_features
+from pmrf.statistics.features import FeatureExtractor, extract_features
 from pmrf.statistics.modifiers import ModifierChain
 from pmrf.statistics.likelihood import GaussianLikelihood, CircularComplexGaussianLikelihood, RicianLikelihood
 from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
 
-from pmrf.fit.target import Target
+from pmrf.fitting.target import Target
 
 from pmrf.plot import Plotter
 from pmrf._model import Model
-from pmrf._system import ModelSystem
+from pmrf._system import SystemModel
 
 
 VERBOSE = 15
@@ -66,60 +69,46 @@ logging.Logger.verbose = verbose
 
 logger = logging.getLogger(__name__)
 
-
+@dataclass
 class ModelFitterSettings:
-    """
-    Settings for a circuit fitter. This includes settings for the solver, the ports of the models to fit against, the frequency range etc.
-    The recommended way to initialize all these settings is simply by passing them as kwargs directly to the "NetworkFitter" class or sub-class.
-    """
-    def __init__(self, **kwargs):
-        # Input settings
-        self.data_path = None                                                           # The absolute path to input data.        
+    # Input settings
+    data_path = None                                                           # The path to input data.
+    param_path = None                                                          # The path to model parameters.
 
-        # Output settings
-        self.title = 'test'                                                             # The file prefix to use for output files.
-        self.output_path = 'output'                                                     # The base path that all outputs are relative to. Set to None to have no output.
-        self.append_title = False                                                       # Whether or not to append the above title to the output path i.e. to set output_path = output_path + title
-        self.silent = False
-        self.no_output = False
-        self.init_logging = True
-        self.log_level = 'verbose'                                                      # 'debug', 'verbose', 'info', 'warning' or 'error'
-        self.save_every = 1000                                                          # When saving parameters, plots etc. during a fit, save every n function evaluations.
+    # Output settings
+    title = 'test'                                                             # The file prefix to use for output files.
+    output_path = 'output'                                                     # The base path that all outputs are relative to. Set to None to have no output.
+    append_title = False                                                       # Whether or not to append the above title to the output path i.e. to set output_path = output_path + title
+    silent = False
+    no_output = False
+    init_logging = True
+    log_level = 'verbose'                                                      # 'debug', 'verbose', 'info', 'warning' or 'error'
+    save_settings = True                                                       # Whether to write a settings file containing these settings that can then be read later. Saved to the output path misc folder.
 
-        # Frequency settings
-        self.use_measured_frequency = False
-        self.export_frequency = None
+    # Frequency settings
+    use_measured_frequency = False
+    export_frequency = None
 
-        # Default fitting settings
-        self.target_ports = None                                                        # Port of the models to fit against, e.g. [(0,0), (1,0)]. The default of "None" means to fit against all the possible measured/model ports.
+    # General solver settings
+    engine = 'scipy'                                                           # The solver/fitting library/framework to use. Currently either 'scipy', 'optimistix', or 'polychord'.
+    method = None                                                              # The method to use for the above engine. Leave blank to leave a default recommendation. Some engines only support one method.
+    features = None                                                            # List of features to extract, namely 'real', 'imaginary', 'complex' or 'magnitude'. Default defined lower down.
+    read_resume = False                                                        # Whether to resume from a previous run or not.
 
-        # General solver settings
-        self.engine = 'scipy'                                                           # The solver/fitting library/framework to use. Currently either 'scipy', 'optimistix', or 'polychord'.
-        self.method = None                                                              # The method to use for the above engine. Leave blank to leave a default recommendation. Some engines only support one method.
-        self.matrix_targets = 'free'                                                    # Either 'free' or 'all'. Defines which targets are used to calculate the feature matrix (and therefore both the cost and the likelihood functions).
-        self.features = None                                                            # List of features to extract, namely 'real', 'imaginary', 'complex' or 'magnitude'. Default defined lower down.
-        self.read_resume = False                                                        # Whether to resume from a previous run or not.
-        self.save_settings = True                                                       # Whether to write a settings file containing these settings that can then be read later. Saved to the output path misc folder.
+    # Bayesian solver settings
+    sigma_prior = stats.uniform(0.0, 0.015)
+    parameter_method = 'likelihood-max'                                        # The method to choose a single 'best' parameter value. Can be 'likelihood-max' or 'param-mean'.
+    num_live_points = None                                                     # The number of live points. Leave as None to use the number of circuit model parameters.
+    live_points_factor = 1                                                     # A factor for the number of live points as a multiple of the number of parameters. Only used if num_live_points is None.
 
-        # Bayesian solver settings (PolyChord)
-        self.sigma_prior = stats.uniform(0.0, 0.015)
-        self.parameter_method = 'likelihood-max'                                        # The method to choose a single 'best' parameter value. Can be 'likelihood-max' or 'param-mean'.
-        self.num_live_points = None                                                     # The number of live points. Leave as None to use the number of circuit model parameters.
-        self.live_points_factor = 1                                                     # A factor for the number of live points as a multiple of the number of parameters. Only used if self.num_live_points is None.
+    # Frequentist solver settings
+    max_iterations = 1000                                                      # The maximum number of iterations before the solver terminates.
+    cost_steps = ['L2', 'convolve-interleaved', 'L2', 'dB']                    # List of steps to perform for the total cost function (all targets e.g for the actual fit). See the Modifier class for options.
 
-        # Frequentist solver settings (scipy.optimize)
-        self.max_iterations = 1000                                                      # The maximum number of iterations before the solver terminates.
-        self.cost_steps = ['L2', 'convolve-interleaved', 'L2', 'dB']                    # List of steps to perform for the total cost function (all targets e.g for the actual fit). See the Modifier class for options.
-        self.cost_steps_individual = None                                               # List of steps to perform for the individual cost function (per target e.g for plot titles). Leave None to use same as self.cost_steps.
-
-        # Target settings
-        self.targets_free = None
-        self.elements_free = None
-        self.params_free = None
-        
-        self.update(kwargs)
-        
-            
+    # Target settings
+    targets_free = None
+    target_ports = None                                                        # Port of the models to fit against, e.g. [(0,0), (1,0)]. The default of "None" means to fit against all the possible measured/model ports.
+                    
     def update(self, d: dict):
         # The following populates settings from kwargs
         d_use = d.copy()
@@ -177,11 +166,11 @@ class ModelFitterSettings:
         return recurse(obj, d)
 
 
-class ModelFitter:
+class Fitter:
     """
-    A model fitter is a class that fits model parameters to measured data.
+    A model fitter is a high-level class that fits model parameters to measured data.
     """
-    def __init__(self, model: Model | list[Model] | ModelSystem, measured: skrf.Network | list[skrf.Network] = None, settings = None, load_settings = False, **kwargs):
+    def __init__(self, model: Model | list[Model] | SystemModel, measured: skrf.Network | list[skrf.Network] = None, settings = None, load_settings = False, **kwargs):
         """The initializer for a ModelFitter.
 
         Args:
@@ -192,21 +181,21 @@ class ModelFitter:
             **kwargs: Key-word arguments. This is the main way to configure the class. Possible arguments are all members of the NetworkFitterSettings class.
         """
         # Settings
-        self._init_settings(settings=settings, load_settings=load_settings, **kwargs)       
+        self._init_settings(settings=settings, load_settings=load_settings, **kwargs)
         
         if self._settings.use_measured_frequency:
             kwargs['frequency'] = measured[0].frequency
         
         # Initialize model system
         if isinstance(model, Model):
-            system = ModelSystem([model])
+            system = SystemModel([model])
         elif isinstance(model, list[Model]):
-            system = ModelSystem(model)
+            system = SystemModel(model)
         else:
             system = model
             
         # Setup model and measured networks
-        self._system = system
+        self._system: SystemModel = system
         self._measured: list[skrf.Network] = measured
         self._targets: list[Target] = []
         
@@ -216,22 +205,17 @@ class ModelFitter:
         self._likelihood_priors = {}
         
         # Other
+        self._params: ParameterSet = None
         self._fit_output = None
         self._plotter = None        
         self._num_model_params = None
         self._num_likelihood_params = None
         
         # All other initialization wrapped in try except
-        output_dir_exists = self.output_path is not None and Path(self.output_path).exists()
+        output_dir_existed = self.output_path is not None and Path(self.output_path).exists()
         try:
-            if not self._settings.output_path is None:
-                self._init_output()
-
-            if self._settings.init_logging:
-                if rank == 0:
-                    self._init_logging()
-                else:
-                    self._init_logging(level=self.settings.log_level)
+            self._init_output()
+            self._init_logging()
 
             logger.info(f"Creating Fitter (random ID = {uuid.uuid4()})")
             logger.verbose(f"Python args: {' '.join(sys.argv)}")
@@ -242,26 +226,27 @@ class ModelFitter:
             logger.verbose("Initializing targets")
             self._init_targets()
             self._init_params()
-            
-            if self._settings.targets_free is not None:
-                self.set_free_targets(self._settings.targets_free)
-            if self._settings.elements_free is not None:
-                self.set_free_elements(self._settings.elements_free)
-            if self._settings.params_free is not None:
-                self.set_free_params(self._settings.params_free)
-            
+
+            if self.is_bayesian:
+                logger.verbose(f'Likelihood type: {self._likelihood_object.kind()}')
+            else:
+                logger.verbose(f'Cost steps: {self._settings.cost_steps}')          
+
             self._init_plotting()
             
             if self._settings.save_settings and not self.output_path is None:
                 self.save_settings()
 
         except Exception as e:
-            if not output_dir_exists:
+            if not output_dir_existed:
                 shutil.rmtree(Path(self.output_path))
             raise e
         
     def _init_settings(self, settings=None, load_settings=False, save_settings=False, **kwargs):
-        self._settings: ModelFitterSettings = settings or ModelFitterSettings(**kwargs)        
+        self._settings: ModelFitterSettings = settings or ModelFitterSettings()        
+        
+        if settings is None:
+            self._settings.update(**kwargs)
         
         if load_settings:
             append_title_original = self._settings.append_title
@@ -282,6 +267,9 @@ class ModelFitter:
             self._settings.save_settings = False        
         
     def _init_output(self):
+        if self._settings.output_path is None:
+            return
+
         if not self._settings.export_frequency is None:
             raise Exception('Currently experiencing errors when exporting to a different frequency due to a bug in ComputableNetwork interpolate_self()')        
             self._export_frequency = self._settings.export_frequency
@@ -292,8 +280,15 @@ class ModelFitter:
         
         np.save(f'{self.output_misc_path}/frequency.npy', self.export_frequency.f)
         
-    def _init_logging(self, level=None):
-        log_level = level or self._settings.log_level
+    def _init_logging(self):
+        if not self._settings.init_logging:
+            return        
+            
+        if rank == 0:
+            log_level = self.settings.log_level
+        else:
+            log_level = 'warning'
+
         if log_level == 'debug':
             level = logging.DEBUG
         elif log_level == 'verbose':
@@ -314,10 +309,10 @@ class ModelFitter:
         stream_handler.setLevel(level)
         logging.getLogger().addHandler(stream_handler)
         
-    def _init_params(self, param_set=None):               
+    def _init_params(self):
         logger.verbose("Initializing parameters")
 
-        # Initialize bayesian likelihood parameters
+        # Initialize any likelihood parameters
         if self.is_bayesian:
             sigma = self._settings.sigma_prior.mean
             if self._settings.features in [['real', 'imaginary'], ['imaginary', 'real'], ['real'], ['imaginary']]:
@@ -330,15 +325,11 @@ class ModelFitter:
                 self._likelihood_priors = {'sigma': self._settings.sigma_prior}
             else:
                 raise Exception(f'No likelihood available for selected features of type {self._settings.features}')
-            
-            logger.verbose(f'Likelihood type: {self._likelihood_object.kind()}')
-        else:
-            logger.verbose(f'Cost steps: {self._settings.cost_steps}')            
         
         # If read resume was passed, and we have params to load from, update the active params
+        loaded = False
         if self._settings.read_resume:
             logger.verbose('Resuming from previous parameters')
-            loaded = False
 
             if self.is_bayesian:
                 try:
@@ -350,10 +341,23 @@ class ModelFitter:
             
             prev_param_path = f'{self.output_param_path}/opt.csv'
             if not loaded and Path(prev_param_path).is_file():
-                self._system.load_params(file=f'{self.output_param_path}/opt.csv')
+                self._params = ParameterSet(file=f'{self.output_param_path}/opt.csv')
+
+        # Otherwise, try to load from the path passed in
+        if not loaded:
+            self._params = ParameterSet(file=self._settings.param_path)
         
-        # Save the initial params to file
-        self._system.save_params(f'{self.output_param_path}/initial.csv')
+        # Save the startup params to file
+        self._params.write_csv(f'{self.output_param_path}/initial.csv')
+
+        if self._settings.targets_free is not None:
+            for target in self._targets:
+                if target.name in self._settings.targets_free:
+                    target.fixed = False
+                else:
+                    target.fixed = True
+
+        self.reset_params()
         
     def _init_plotting(self):
         logger.verbose("Initializing plotting")
@@ -401,7 +405,7 @@ class ModelFitter:
             target_ports = self._settings.target_ports or list(set(model_port_tuples).intersection(measured_port_tuples))
             
             for ports in target_ports:
-                features.extend([Feature(feature, ports=ports) for feature in self._settings.features])
+                features.extend([FeatureExtractor(feature, ports=ports) for feature in self._settings.features])
         
             target = Target(model, measured=measured, features=features, cost_chain=self._cost_chain)
             self._targets.append(target)
@@ -450,7 +454,7 @@ class ModelFitter:
         return self._settings.data_path
     
     @property
-    def system(self) -> ModelSystem:
+    def system(self) -> SystemModel:
         return self._system
 
     @property
@@ -467,7 +471,7 @@ class ModelFitter:
     
     @property
     def num_model_params(self):
-        return self._num_model_params or len(self.system.params.names_free)
+        return self._num_model_params or len(self.params.names_free)
     
     @property
     def num_likelihood_params(self):
@@ -478,7 +482,7 @@ class ModelFitter:
 
     @property
     def param_names(self) -> list[str]:
-        system_params = self.system.params.names_free
+        system_params = self.params.names_free
         likelihood_params = self._likelihood_object.param_names()
         return system_params + likelihood_params
     
@@ -507,6 +511,10 @@ class ModelFitter:
     @property
     def targets_free(self) -> list[Target]:
         return [target for target in self._targets if not target.fixed]
+    
+    @property
+    def params(self) -> ParameterSet:
+        return self._params
     
     @property
     def is_bayesian(self) -> bool:
@@ -541,7 +549,7 @@ class ModelFitter:
         plotter._likelihood_object = self._likelihood_object
         plotter.is_bayesian = self.is_bayesian
         plotter.no_output = self._settings.no_output
-        plotter.params = self.system.params
+        plotter.params = self.params
         plotter.output_path = output_path
         plotter._nested_samples = nested_samples        
         if self._settings.no_output:
@@ -573,47 +581,9 @@ class ModelFitter:
 
         return targets
 
-    def set_free_targets(self, target_names: list[str] = None):
-        if target_names is None:
-            for target in self._targets:
-                target.fixed = False
-        else:
-            for target in self._targets:
-                if target.name in target_names:
-                    target.fixed = False
-                else:
-                    target.fixed = True                    
-        self.reset_params()
-
-    def set_free_elements(self, element_names: list[str] = None):
-        if element_names is None:
-            for element in self.elements:
-                element.fixed = False
-        else:
-            for element in self.elements:
-                if element.name in element_names:
-                    element.fixed = False
-                else:
-                    element.fixed = True
-        self.reset_params()
-
-    def set_free_params(self, param_names: list[str] = None):
-        if param_names is None:
-            self._params_original.fixed = False
-        else:
-            self._params_original.fixed = True
-            self._params_original.loc[self._params_original.index.isin(param_names), 'fixed'] = False        
-        self.reset_params()
-
     def feature_matrix(self, params, features=None, return_separate=False) -> np.ndarray:
-        if self._settings.matrix_targets == 'free':
-            targets = [target for target in self._targets if not target.fixed]
-        elif self._settings.matrix_targets == 'all':
-            targets = self._targets
-        else:
-            raise Exception('Unknown feature targets setting')
-
-        feature_extractors: list[list[Feature]] = []
+        targets = [target for target in self._targets if not target.fixed]
+        feature_extractors: list[list[FeatureExtractor]] = []
         measured: list[skrf.Network] = []
         models: list[Model] = []
 
@@ -623,7 +593,7 @@ class ModelFitter:
             if features is None:
                 features_list = target.features_list
             else:
-                features_list = [Feature(f) for f in features]
+                features_list = [FeatureExtractor(f) for f in features]
             feature_extractors.append(features_list)
 
         y_meas = extract_features(measured, feature_extractors)
@@ -642,7 +612,7 @@ class ModelFitter:
     def log_likelihood(self, theta=None, reset_params=False) -> float:
         reset_params = reset_params and not theta is None
         if reset_params:
-            x_before = self.system.params.values()
+            x_before = self.params.values()
         if not theta is None:
             self.update_params(theta)        
             
@@ -664,7 +634,7 @@ class ModelFitter:
     def log_evidence(self):
         return self.nested_samples.logZ()
     
-    def fit_params(self, plotter='default', reset_params=False):
+    def fit_params(self, plotter='default', reset_params=False, save_every=1000):
         """
         Fit the parameters, meaning find their best values (frequentist solvers) or determine their posteriors (bayesian solvers).
         """
@@ -675,7 +645,7 @@ class ModelFitter:
             self._system.reset_params()
 
         target_names = [target.name for target in self._targets if not target.fixed]
-        param_names = self.system.params.names_free
+        param_names = self.params.names_free
 
         logger.verbose(f'Free Targets: {target_names}')
         logger.verbose(f'Free Parameters: {param_names}\n')
@@ -689,7 +659,7 @@ class ModelFitter:
             retval = self._fit_params_bayesian()
             success = True
         else:
-            retval = self._fit_params_frequentist(plotter=plotter)
+            retval = self._fit_params_frequentist(plotter=plotter, save_every=save_every)
             success = retval.success
             
         end = time.time()
@@ -735,7 +705,7 @@ class ModelFitter:
         if not self.is_bayesian:
             raise Exception('Can only update parameters from samples if solver is Bayesian')
 
-        param_names = self.system.params.index[self.system.params.fixed == False]
+        param_names = self.params.index[self.params.fixed == False]
         param_names_replaced = [name.replace('_', '.') for name in param_names]
         param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])                
 
@@ -746,21 +716,18 @@ class ModelFitter:
                 # Network params
                 for param in param_names[:,0]:
                     value = nested_samples[param].mean()
-                    self.system.params.loc[param, 'value'] = value
+                    self.params.loc[param, 'value'] = value
             elif self._settings.parameter_method == 'likelihood-max':
                 idx = np.argmax(nested_samples.logL.values)
                 for param in param_names[:,0]:
                     value = nested_samples[param].values[idx]
-                    self.system.params.loc[param, 'value'] = value
+                    self.params.loc[param, 'value'] = value
             else:
                 raise Exception('Unknown best parameter method')
-            
-            
+                        
         except:
             pass
         
-        self._system.update_networks()
-       
     def save_params(self, title='opt'):
         if rank != 0:
             return
@@ -809,14 +776,14 @@ class ModelFitter:
             settings_dict = self._settings.to_dict()
             json.dump(settings_dict, f, indent=4, default=custom_json_encoder)        
 
-    def _fit_params_bayesian(self):
+    def _fit_params_bayesian(self, **kwargs):
         """
         Fit the parameters using a bayesian approach.
         Currently this uses polychord, with a uniform prior from the minimum to maximum parameter values.
         Then, the mean of the posterior's is used as the updated parameter values, as well as the posterior's plotted.
         """
         # Get param names
-        model_param_names = list(self.system.params.index[self.system.params.fixed == False])
+        model_param_names = list(self.params.index[self.params.fixed == False])
         likelihood_param_names = list(self._likelihood_object.params().keys())
         
         # Populate latex param names
@@ -837,7 +804,7 @@ class ModelFitter:
         # _ = likelihood(self.models.params.value.to_numpy())
         # _ = prior(0.5 * np.ones(len(param_names)))
                 
-        self.system.params.enable_cache()
+        self.params.enable_cache()
 
         # Run polychord. Useful parameters to investigate may be "precision_criterion" and "synchronous"
         kwargs = {
@@ -863,19 +830,19 @@ class ModelFitter:
             **kwargs
         )
 
-        self.system.params.flush_cache()
+        self.params.flush_cache()
 
         self._plotter._nested_samples = self.nested_samples        
         self.update_params_from_samples()
 
         return self._fit_output
 
-    def _fit_params_frequentist(self, plotter=None):
+    def _fit_params_frequentist(self, plotter=None, **kwargs):
         """
         Fit the parameters using a frequentist approach.
         """
         # Get the active parameters and the prefix to use for output files
-        params = self.system.params
+        params = self.params
 
         # Populate bounds and options
         x0 = params.loc[params.fixed == False, 'value'].to_numpy()
@@ -899,7 +866,7 @@ class ModelFitter:
             callback_args['i_solver'] += 1
 
         # Run the minization routine
-        self.system.params.enable_cache()
+        self.params.enable_cache()
         try:
             bounds = scipy.optimize.Bounds(minimums, maximums)
             if self._settings.engine == 'scipy':
@@ -928,7 +895,7 @@ class ModelFitter:
 
         except KeyboardInterrupt:
             pass
-        self.system.params.flush_cache()
+        self.params.flush_cache()
 
         return self._fit_output
 
@@ -963,7 +930,7 @@ class ModelFitter:
             logL = -np.inf
             filename = f"error_{time_string()}.csv"
             logger.error(f"Likelihood function raised an exception. Active parameters saved to {filename}", exc_info=e)
-            self.system.params.write_csv(f"{self.output_param_path}/{filename}")
+            self.params.write_csv(f"{self.output_param_path}/{filename}")
 
         callback_args['i_feval'] = callback_args['i_feval'] + 1
         return logL
@@ -971,7 +938,7 @@ class ModelFitter:
     def _prior_callback(self, hypercube):
         num_model_params = self.system.num_free_params
         
-        model_priors = [prior.ppf(hypercube[i]) for i, prior in enumerate(self.system.params.dists())]
+        model_priors = [prior.ppf(hypercube[i]) for i, prior in enumerate(self.params.dists())]
         likelihood_priors = [prior.ppf(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
         
         return np.array(model_priors + likelihood_priors)

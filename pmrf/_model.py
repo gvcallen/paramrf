@@ -1,57 +1,90 @@
-import jax
 import equinox as eqx
 import skrf as skrf
 import inspect
 import dataclasses
+from typing import Callable, Any, Optional
 
-from pmrf._parameter import Parameter
+from pmrf._numpy import USE_JAX
+if USE_JAX:
+    import jax
+
+from jaxtyping import Float, Array
+
 from pmrf._numpy import numpy as np
+from pmrf.statistics.modifiers import Modifier, ModifierChain
+from pmrf.statistics.features import FeatureExtractor, FeatureExtractorSet
 
 from numbers import Number
 from typing import Literal, Sequence, Union, get_args
 
 PRIMARY_PROPERTIES = ['s', 'a']
-unit = ['w', 'f']
+FREQUENCY_FORMAT = ['w', 'f']
 
 NumberLike = Union[Number, Sequence[Number], np.ndarray]
 
 jax.config.update("jax_enable_x64", True)
 
-class Model(eqx.Module):
-    _z0: jax.Array = eqx.field(default=50.0, init=False, static=True)
-    _unit: str = eqx.field(default='w', init=False, static=True)
-    s_def: str | None = eqx.field(default='power', init=False, static=True)
-    name: str | None = eqx.field(default=None, static=True)
+Scalar = Float[Array, ""]
+Vector = Float[Array, "dim"]
 
-    def __init_subclass__(cls, unit = 'w', name = None, **kwargs):
+class Model(eqx.Module):
+    """Base class for all models.
+
+    This is an abstract class and should not be instantiated directly.
+
+    Models accept their parameters as input arguments their intitializers, as well as followed by general keyword arguments.
+    Since Model is based on a `dataclass`, the following arguments apply to sub-classes by defualt:
+
+    Args:
+        name (str, optional): A name associated with the model instance.
+    """
+
+    _z0: np.ndarray = eqx.field(default=50.0, init=False, static=True)
+    _frequency_format: str = eqx.field(default='w', init=False, static=True)
+    s_def: str | None = eqx.field(default='power', init=False, static=True)
+    name: str | None = eqx.field(default=None, kw_only=True, static=True)
+
+    def __init_subclass__(cls, frequency_format = 'w', **kwargs):
         super().__init_subclass__(**kwargs)
 
-        # Set the "asarray" converter for fields that are marked as `Parameter` with a default value but haven't been created using "field"
+        # Set the "asarray" converter for fields that are marked as `Scalar` or `Vector` with a default value but haven't been created using "field"
         for field_name, field_type in cls.__annotations__.items():
-            if field_type is Parameter:
+            if field_type is Scalar or field_type is Vector:
                 try:
                     current_value = getattr(cls, field_name, None)
+                    converter = lambda val: jax.numpy.asarray(val, dtype=type(current_value))
                     if current_value.__class__.__hash__ is None:
                         default_factory = lambda: current_value
-                        field = eqx.field(default_factory=default_factory, converter=jax.numpy.asarray)
+                        field = eqx.field(default_factory=default_factory, converter=converter)
                     else:
-                        field = eqx.field(default=current_value, converter=jax.numpy.asarray)
+                        field = eqx.field(default=current_value, converter=converter)
 
                     setattr(cls, field_name, field)
                 except:
                     pass
 
-        if unit is not None and unit not in unit:
-            raise Exception("Only 'f' and 'w' unit are supported")
+        if frequency_format is not None and frequency_format not in FREQUENCY_FORMAT:
+            raise Exception(f"Only frequency formats in {FREQUENCY_FORMAT} are supported")
         
-        cls._unit = unit
-        cls.name = name
+        cls._frequency_format = frequency_format
 
     def __new__(cls, *args, **kwargs):                  
         return eqx.Module.__new__(cls)
     
     def __pow__(self, other: 'Model') -> 'Model':
         return _Cascaded(self, other)
+    
+    def _format_frequency(self, frequency: np.ndarray | skrf.Frequency) -> np.ndarray:
+        if isinstance(frequency, np.ndarray):
+            return frequency
+        else:
+            if self._frequency_format == 'f':
+                x = frequency.f
+            elif self._frequency_format == 'w':
+                x = frequency.w
+            else:
+                raise Exception(f"Bad class base frequency format: {self._frequency_format}")
+            return x
 
     @property    
     def primary_function(self):
@@ -81,33 +114,201 @@ class Model(eqx.Module):
     def z0(self):
         return self._z0
     
-    def a(self, x) -> jax.Array:
-        """ABCD Matrix as a function of frequency.
+    @property
+    def frequency_format(self):
+        return self._frequency_format
+    
+    def a(self, x: np.ndarray) -> np.ndarray:
+        """Calculates the abcd parameter matrix as a function of frequency.
+
+        This is one of the primary property functions that derived classes may implemented.
+        If not implemented, and at least one other primary function has been implemented,
+        then conversion formulae or used dynamically to calculate the resultant matrix.
 
         Args:
-            x: Frequency array. Units are specified by the sub-class.
+            x (np.ndarray): The frequency array. Must be specified in units `self.frequency_format`.
 
         Returns:
-            jax.Array: _description_
+            np.ndarray: The resultant abcd matrix.
         """
-        return s2a(self.s(x), self._z0)
+        raise NotImplementedError("Error: sub-classes currently *have* to implement the 'a' function")
     
-    def s(self, x: jax.Array) -> jax.Array:
-        raise NotImplementedError("Error: sub-classes must implemented the 's' function")
+    def s(self, x: np.ndarray) -> np.ndarray:
+        """Calculates the S parameter matrix as a function of frequency.
+
+        This is one of the primary property functions that derived classes may implemented.
+        If not implemented, and at least one other primary function has been implemented,
+        then conversion formulae or used dynamically to calculate the resultant matrix.
+
+        Args:
+            x (np.ndarray): The frequency array. Must be specified in units `self.frequency_format`.
+
+        Returns:
+            np.ndarray: The resultant S matrix.
+        """        
+        raise NotImplementedError("Error: sub-classes currently *have* to implement the 's' function")
+        
+    def features(
+        self,
+        frequency: np.ndarray | skrf.Frequency,
+        features: list[FeatureExtractor] | FeatureExtractor = None,
+    ) -> np.ndarray:
+        """Returns a feature matrix for the current model.
+
+        Args:
+            x (np.ndarray | skrf.Frequency): Specifies the frequency values, ethier as an array in units `self.frequency_format`, or as an `skrf.Frequency` object.
+            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
+
+        Returns:
+            np.ndarray: The resultant feature matrix.
+        """
+        frequency: np.ndarray = self._format_frequency(frequency)
+        features: list[FeatureExtractor] = features or [FeatureExtractor()]
+        
+        n_frequencies = len(frequency)
+        n_features = len(features)
+
+        F = np.zeros((n_frequencies, n_features), dtype=np.complex128)
+        for d, feature in enumerate(features):
+            if USE_JAX:
+                F = F.at[:, d].set(feature.extract_from_model(self, F)) # TODO optimize jax case
+            else:
+                F[:, d] = feature.extract_from_model(self, F)
+
+        return F
+
+    def feature_residuals(
+        self,
+        measured: skrf.Network,
+        features: list[FeatureExtractor] | FeatureExtractor = None,
+    ) -> np.ndarray:
+        """Returns a feature residuals matrix for the current model and specified measured data.
+
+        Args:
+            measured (skrf.Network): Specifies the measured network to calculate residuals against. The frequency of this network is used.
+            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
+
+        Returns:
+            np.ndarray: The resultant feature matrix.
+        """        
+        frequency: np.ndarray = self._format_frequency(measured.frequency)
+        features: list[FeatureExtractor] = features or [FeatureExtractor()]
+        
+        n_frequencies = len(frequency)
+        n_features = len(features)
+
+        F = np.zeros((n_frequencies, n_features), dtype=np.complex128)
+        for d, feature in enumerate(features):
+            if USE_JAX:
+                F = F.at[:, d].set(feature.extract_from_network(measured) - feature.extract_from_model(self, F)) # TODO optimize jax case
+            else:
+                F[:, d] = feature.extract_from_network(measured) - feature.extract_from_model(self, F)
+        return F
+    
+    def cost(
+        self,
+        measured: skrf.Network,
+        features: list[FeatureExtractor] | FeatureExtractor = None,
+        modifiers: ModifierChain | list[Modifier] | list[str] = None,
+    ) -> np.ndarray:
+        """Returns the cost for the current model and the specified measured data.
+
+        The cost is calculated by extracting the features in `features`, and then applying the resultant modifiers in `modifiers`
+        to arrive at a final cost value. See `self.feature_residuals(..)`, `FeatureExtractor` and `ModifierChain` for more details.
+        If no features or modifiers are passed, this uses calculates the L2 norm of the difference between the complex model and measure S11 parameters.
+
+        Args:
+            measured (skrf.Network): The measured network to evaluate the cost against.
+            features (list[FeatureExtractor] | FeatureExtractor, optional): The features to extract from the model and networks. Defaults to `None`, in which case defaults the default above is used.
+            modifiers (ModifierChain | list[Modifier] | list[str], optional): The modifiers to apply. Defaults to `None`, in which case the default above is used.
+
+        Returns:
+            np.ndarray: _description_
+        """
+        modifiers = ModifierChain(modifiers)
+        feature_residuals = self.feature_residuals(measured, features=features)
+        return modifiers(feature_residuals)
+    
+
+
+    
+    def make_feature_function(self, x, features: list[FeatureExtractor] | FeatureExtractor = None, param_filter: Callable = None) -> callable[np.ndarray, float]:
+        return lambda flat_params: self.with_params(flat_params=flat_params, param_filter=param_filter).features(x, features=features)
+    
+    def make_feature_residual_function(self, x, features: list[FeatureExtractor] | FeatureExtractor = None, param_filter: Callable = None) -> callable[np.ndarray, float]:
+        return lambda flat_params: self.with_params(flat_params=flat_params, param_filter=param_filter).feature_residuals(x, features=features)
+            
+ 
     
     def flipped(self) -> 'Model':
         return _Flipped(self)
     
-    def to_skrf(self, frequency: skrf.Frequency, **kwargs) -> skrf.Network:
-        # Get the frequency argument
-        if self._unit == 'f':
-            x = frequency.f
-        elif self._unit == 'w':
-            x = frequency.w
-        else:
-            raise Exception("Unknown unit")
+    def with_params(
+            self,
+            flat_params: Optional[jax.Array] = None,
+            param_filter: Callable = None,
+            **params: Any
+        ) -> "Model":
+        """
+        Returns a new model with updated parameter values.
+
+        This method supports two calling styles:
+        1. By keyword: `model.with_params(R=50.0, C=1e-9)`
+        2. By flat array: `model.with_params(np.array([50.0, 1e-9]))`
+
+        Args:
+            flat_params: A 1D JAX array containing all dynamic parameter 
+                         values in their flattened tree order.
+            **params: Keyword arguments where keys are the names of the
+                       parameters to update and values are their new values.
+
+        Returns:
+            A new `Model` instance with the specified parameters updated.
+        """
+        has_flat = flat_params is not None
+        if has_flat:
+            flat_params = np.array(flat_params)
+        has_kwargs = bool(params)
+        has_filter = param_filter is not None
+        if not has_filter:
+            param_filter = eqx.is_inexact_array
+
+        if not has_flat and not has_kwargs:
+            return self
         
-        # Evaluate the model
+        if has_flat and has_kwargs:
+            raise ValueError("Cannot provide both `flat_params` and keyword arguments.")
+
+        if has_kwargs and has_filter:
+            raise ValueError("Cannot provide `param_filter` for keyword arguments.")        
+        
+        if has_kwargs:
+            names_to_update = params.keys()
+            for name in names_to_update:
+                if not hasattr(self, name):
+                    raise AttributeError(f"{type(self).__name__} has no attribute {name}")
+
+            # TODO do this once at init() time?
+            field_converters = { field.name: field.metadata['converter'] for field in dataclasses.fields(self) if 'converter' in field.metadata}
+            new_values = tuple((field_converters[name](value) if name in field_converters else value for name, value in params.items()))
+            # new_values = tuple(params.values())
+            where = lambda m: tuple(getattr(m, name) for name in names_to_update)
+            return eqx.tree_at(where, self, new_values)
+
+        if has_flat:
+            params_tree, static = eqx.partition(self, param_filter)
+            flat_leaves, treedef = jax.tree.flatten(params_tree)
+            num_expected_params = sum(p.size for p in flat_leaves)
+            
+            if flat_params.size != num_expected_params:
+                raise ValueError(f"Input `flat_params` has size {flat_params.size}, "
+                                 f"but model requires {num_expected_params}.")
+
+            new_params_tree = jax.tree.unflatten(treedef, flat_params)
+            return eqx.combine(new_params_tree, static)                   
+    
+    def to_skrf(self, frequency: np.ndarray | skrf.Frequency, **kwargs) -> skrf.Network:
+        x = self._format_frequency(frequency)
         f, fname = self.primary_function, self.primary_property
         kwargs = kwargs or {}
         kwargs.update({
@@ -117,20 +318,21 @@ class Model(eqx.Module):
             'z0': self._z0,
         })
 
-        # Return network
         return skrf.Network(**kwargs)
 
 class _Cascaded(Model):
     model1: Model
     model2: Model
 
-    def __init__(self, model1: Model, model2: Model):
+    def __init__(self, model1: Model, model2: Model, **kwargs):
         if model1.n_ports != 2:
             raise Exception('First network must be a two port when cascaded')
         if model2.n_ports != 1 and model2.n_ports != 2:
             raise Exception('Second network must be a one port or two port when cascaded')
         self.model1 = model1
         self.model2 = model2
+
+        Model.__init__(self, **kwargs)
 
     def a(self, x):
         return self.model1.a(x) @ self.model2.a(x)
@@ -148,8 +350,8 @@ class _Cascaded(Model):
     
 class _Renumbered(Model):
     model: Model
-    from_ports: jax.Array
-    to_ports: jax.Array
+    from_ports: np.ndarray
+    to_ports: np.ndarray
 
     def __init__(self, ntwk: Model, from_ports: Sequence[int], to_ports: Sequence[int]):
         self.model = ntwk

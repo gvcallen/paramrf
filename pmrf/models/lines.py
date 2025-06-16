@@ -3,8 +3,9 @@ from abc import abstractmethod
 from pmrf._numpy import numpy as np
 from scipy.constants import c, mu_0, epsilon_0
 
-from pmrf import Model, Parameter
+from pmrf import Model
 from pmrf._math import evaluate_bernstein_basis, evaluate_power_basis
+from pmrf._model import Scalar, Vector
 
 class RLGCLine(Model):
     """
@@ -14,9 +15,9 @@ class RLGCLine(Model):
     A method is provided to calculate the ABCD matrix as a function frequency, which internally calls `self.rlgc(w)`.
 
     Args:
-        length (float): The length of the line.
+        length (Scalar): The length of the line.
     """    
-    length: Parameter = 1.0
+    length: Scalar = 1.0
 
     @abstractmethod
     def rlgc(self, w) -> tuple:
@@ -48,16 +49,16 @@ class ConstantRLGCLine(RLGCLine):
     """An RLGC line with constant per-unit parameters as a function of frequency.
 
     Args:
-        R (float): Per-unit resistance.
-        L (float): Per-unit inductance.
-        C (float): Per-unit capacitance.
-        G (float): Per-unit conductance.
-        length (float, optional): The length of the line. Default to 1.0.
+        R (Scalar): Per-unit resistance.
+        L (Scalar): Per-unit inductance.
+        C (Scalar): Per-unit capacitance.
+        G (Scalar): Per-unit conductance.
+        length (Scalar, optional): The length of the line. Default to 1.0.
     """
-    R: Parameter = 0.0
-    L: Parameter = 280e-9
-    G: Parameter = 0.0
-    C: Parameter = 90e-12,
+    R: Scalar = 0.0
+    L: Scalar = 280e-9
+    G: Scalar = 0.0
+    C: Scalar = 90e-12,
 
     def rlgc(self, w) -> tuple:
         return self.R, self.L, self.G, self.C
@@ -79,11 +80,11 @@ class DatasheetCoaxial(RLGCLine):
         loss_coeffs_normalized (bool, optional): Generally, loss coefficients `k1` and `k2` are in terms of datasheet units (100m and MHz). If True, units should instead be dB/1m/sqrt(rad) and dB/1m/rad. Defaults to False.
         freq_bounds (tuple, optional): The min and max normalizing bounds for the frequency slope. Defaults to None, in which case the minimum and maximum bounds of the frequency are used.
     """
-    zn: Parameter = 50.0
-    epr: Parameter = 1.0
-    epr_slope: Parameter = 0.0
-    k1: Parameter = 0.0
-    k2: Parameter = 0.0
+    zn: Scalar = 50.0
+    epr: Scalar = 1.0
+    epr_slope: Scalar = 0.0
+    k1: Scalar = 0.0
+    k2: Scalar = 0.0
 
     loss_coeffs_normalized: bool = False
     freq_bounds: tuple = None
@@ -134,15 +135,15 @@ class PhysicalCoaxial(RLGCLine):
         'bpoly': The parameter and its coefficients specify a polynomial in the Bernstein basis across frequency.
 
     Args:
-        din (float, optional): Inner diameter. Defaults to 1.12e-3.
-        dout (float, optional): Outer diameter. Defaults to 3.2e-3.
-        epr (float | list[float], optional): Relative dielectric permittivity. Can be a list of coefficients, whose meaning is specified by `epr_model`. Defaults to 1.0.
-        mur (float | list[float], optional): Relative dielectric permeability. Can be a list of coefficients, whose meaning is specified by `mur_model`. Defaults to 1.0.
-        tand (float | list[float], optional): Loss tangent. Can be a list of coefficients, whose meaning is specified by `tand_model`. Defaults to 0.0.
-        rho (float | list[float], optional): Conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Is ignored if `separate_rho == True` is passed, in which case `rhoin` and `rhoout` are used. Defaults to 1.68e-8.
-        rhoin (float | list[float], optional): Inner conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        rhoout (float | list[float], optional): Outer conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        length (float, optional): The length of the line. Default to 1.0.
+        din (Scalar, optional): Inner diameter. Defaults to 1.12e-3.
+        dout (Scalar, optional): Outer diameter. Defaults to 3.2e-3.
+        epr (Scalar | Vector, optional): Relative dielectric permittivity. Can be a list of coefficients, whose meaning is specified by `epr_model`. Defaults to 1.0.
+        mur (Scalar | Vector, optional): Relative dielectric permeability. Can be a list of coefficients, whose meaning is specified by `mur_model`. Defaults to 1.0.
+        tand (Scalar | Vector, optional): Loss tangent. Can be a list of coefficients, whose meaning is specified by `tand_model`. Defaults to 0.0.
+        rho (Scalar | Vector, optional): Conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Is ignored if `separate_rho == True` is passed, in which case `rhoin` and `rhoout` are used. Defaults to 1.68e-8.
+        rhoin (Scalar | Vector, optional): Inner conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
+        rhoout (Scalar | Vector, optional): Outer conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
+        length (Scalar, optional): The length of the line. Default to 1.0.
         epr_model (str, optional): The model for the dielectric permittivity. See the documentation on models above. Defaults to 'constant'.
         mur_model (str, optional): The model for the dielectric permeability. See the documentation on models above. Defaults to 'constant'.
         tand_model (str, optional): The model for the loss tangent. See the documentation on models above. Defaults to 'constant'.
@@ -152,16 +153,16 @@ class PhysicalCoaxial(RLGCLine):
         neglect_skin_inductance (bool, optional): Specifies whether to neglect the incremental skin inductance term internally. Defaults to False.
     """
     # Main parameters
-    din: Parameter = 1.12e-3
-    dout: Parameter = 3.2e-3
-    epr: Parameter = 1.0
-    mur: Parameter = 1.0
-    tand: Parameter = 0.0
-    rho: Parameter = 1.68e-8
+    din: Scalar = 1.12e-3
+    dout: Scalar = 3.2e-3
+    epr: Scalar | Vector = 1.0
+    mur: Scalar | Vector = 1.0
+    tand: Scalar | Vector = 0.0
+    rho: Scalar | Vector = 1.68e-8
     
     # Optional parameters
-    rhoin: Parameter = 1.68e-8
-    rhoout: Parameter = 1.68e-8
+    rhoin: Scalar | Vector = 1.68e-8
+    rhoout: Scalar  | Vector= 1.68e-8
 
     # Hyperparameters
     epr_model: str = 'constant'

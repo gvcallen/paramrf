@@ -1,10 +1,14 @@
-import numpy as np
+from pmrf._numpy import numpy as np
+from pmrf._numpy import USE_JAX
 
-import jax
-import jax.numpy as jnp
-from jax import lax
-from jax.scipy.special import gammaln
-from jax._src.numpy.ufuncs import _constant_like
+if USE_JAX:
+    import jax
+    from jax import lax
+    from jax.scipy.special import gammaln
+    from jax._src.numpy.ufuncs import _constant_like
+else:
+    from scipy.special import gammaln
+
 
 def dB20(values):
     return 20 * np.log10(np.abs(values))
@@ -42,7 +46,7 @@ def round_sig(x, sig=3):
         return 0
     return round(x, sig - int(np.floor(np.log10(abs(x)))) - 1)
 
-def comb(N: jax.Array, k: jax.Array, exact: bool = False, repetition: bool = False):
+def comb(N: np.ndarray, k: np.ndarray, exact: bool = False, repetition: bool = False):
     r"""The number of combinations of N things taken k at a time.
 
     This is often expressed as "N choose k".
@@ -83,21 +87,22 @@ def comb(N: jax.Array, k: jax.Array, exact: bool = False, repetition: bool = Fal
     return lax.exp(lax.sub(gammaln(N_plus_1),lax.add(gammaln(k_plus_1), gammaln(lax.sub(N_plus_1,k)))))
 
 def evaluate_power_basis(x, coeffs, lower_bound, upper_bound):
-    coeffs = jnp.asarray(coeffs)
+    coeffs = np.asarray(coeffs)
     x_norm = (x - lower_bound) / (upper_bound - lower_bound)
-    return jnp.polyval(coeffs[::-1], x_norm)
+    return np.polyval(coeffs[::-1], x_norm)
 
 def evaluate_bernstein_basis(x, coeffs, lower_bound, upper_bound):
-    coeffs = jnp.asarray(coeffs)
+    coeffs = np.asarray(coeffs)
     n = len(coeffs) - 1  # Degree of the polynomial
 
-    i = jnp.arange(n + 1)
+    i = np.arange(n + 1)
     binomial_coeffs = comb(n, i)
 
     t = (x - lower_bound) / (upper_bound - lower_bound)
 
     def _eval_single(t_scalar):
-        basis_values = jnp.power(t_scalar, i) * jnp.power(1 - t_scalar, n - i)
-        return jnp.dot(coeffs, binomial_coeffs * basis_values)
+        basis_values = np.power(t_scalar, i) * np.power(1 - t_scalar, n - i)
+        return np.dot(coeffs, binomial_coeffs * basis_values)
 
-    return jax.vmap(_eval_single)(jnp.atleast_1d(t))
+    if USE_JAX:
+        return jax.vmap(_eval_single)(np.atleast_1d(t))

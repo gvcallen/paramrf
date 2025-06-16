@@ -28,7 +28,7 @@ except ImportError:
 
 from pmrf.statistics.parameters import ParameterSet
 from pmrf.statistics.likelihood import Likelihood
-from pmrf.fit.target import Target
+from pmrf.fitting.target import Target
 from _system import NetworkSystem
 from networksold import get_unique_networks, update_networks_mapped
 from pmrf._math import dB20

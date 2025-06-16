@@ -3,7 +3,7 @@ from scipy.stats import uniform
 
 from pmrf.statistics.parameters import ParameterSet
 from pmrf.models.lines import PhysicalCoaxial
-from pmrf.fit import ModelFitter
+from pmrf.fitting import Fitter
 
 # This example shows how to setup a model "manually" and fit that model to data. Here we fit the "PhysicalCoaxial" model to a 10m cable lab measurement.
 coax = PhysicalCoaxial(name='coax')
@@ -24,7 +24,7 @@ params = ParameterSet(
     ]
 )
 
-fitter = ModelFitter(
+fitter = Fitter(
     output_path='output_cable',
     param_set=params,
     model=[coax],

@@ -39,12 +39,12 @@ from pmrf._misc.structures import frequency_to_dict, dict_to_frequency
 from pmrf._misc.other import time_string
 from pmrf._math import round_sig
 
-from pmrf.statistics.features import Feature, extract_features
+from pmrf.statistics.features import FeatureExtractor, extract_features
 from pmrf.statistics.modifiers import ModifierChain
 from pmrf.statistics.likelihood import GaussianLikelihood, CircularComplexGaussianLikelihood, RicianLikelihood
 from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
 
-from pmrf.fit.target import Target
+from pmrf.fitting.target import Target
 
 from pmrf.plot import Plotter
 from pmrf._core import ParametricNetwork
@@ -407,7 +407,7 @@ class NetworkFitter:
             target_ports = self._settings.target_ports or list(set(model_port_tuples).intersection(measured_port_tuples))
             
             for ports in target_ports:
-                features.extend([Feature(feature, ports=ports) for feature in self._settings.features])
+                features.extend([FeatureExtractor(feature, ports=ports) for feature in self._settings.features])
         
             target = Target(model, measured=measured, features=features, cost_chain=self._cost_chain_individual)
             self._targets.append(target)
@@ -619,7 +619,7 @@ class NetworkFitter:
         else:
             raise Exception('Unknown feature targets setting')
 
-        feature_extractors: list[list[Feature]] = []
+        feature_extractors: list[list[FeatureExtractor]] = []
         measured_networks: list[rf.Network] = []
         target_networks: list[rf.Network] = []
 
@@ -629,7 +629,7 @@ class NetworkFitter:
             if features is None:
                 features_list = target.features_list
             else:
-                features_list = [Feature(f) for f in features]
+                features_list = [FeatureExtractor(f) for f in features]
             feature_extractors.append(features_list)
 
         y_meas = extract_features(measured_networks, feature_extractors, ignore_imaginary=ignore_imag)

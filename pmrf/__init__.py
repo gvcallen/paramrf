@@ -3,16 +3,18 @@
 
 from pmrf._model import (
     Model as Model,
+    Scalar as Scalar,
+    Vector as Vector,
 )
 
 from pmrf._system import (
-    ModelSystem as ModelSystem,
+    SystemModel as SystemModel,
 )
 
-from pmrf._parameter import (
-    Parameter as Parameter,
-    field as field,
-)
+# from pmrf._parameter import (
+#     Parameter as Parameter,
+#     field as field,
+# )
 
 from pmrf._numpy import (
     numpy as numpy
