@@ -19,7 +19,7 @@ params = {
     'rho': uniform(1.6e-8*wa, 1.6e-8*wb),
 }
 
-measured = rf.Network('../examples/data/10m_cable.s2p', f_unit='MHz')
+measured = rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')
 
 # Initialize the fitter
 fitter = ScipyFitter(
@@ -37,3 +37,4 @@ import matplotlib.pyplot as plt
 plt.figure()
 fitter.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
 measured.plot_s_db(m=0, n=0)
+plt.show()

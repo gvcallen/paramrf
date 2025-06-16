@@ -159,7 +159,8 @@ class PhysicalCoaxial(RLGCLine):
     din: Scalar = 1.12e-3
     dout: Scalar = 3.2e-3
     epr: Scalar = 1.0
-    mur: Scalar = 1.0
+    # mur: Scalar = 1.0
+    mur = 1.0
     tand: Scalar = 0.0
     rho: Scalar = 1.68e-8    
     # epr: Scalar | Vector = 1.0
