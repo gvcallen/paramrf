@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Callable
 
+import jax.scipy.optimize
 import scipy
 import scipy.optimize
 import skrf
 import jax
 import optax
 import equinox as eqx
+import jaxopt
 
 from pmrf.model import Model
 from pmrf.parameter import Parameter, fixed
@@ -16,8 +18,8 @@ from pmrf.frequency import Frequency
 from pmrf._numpy import USE_JAX
 from pmrf._numpy import numpy as np
 
-from pmrf.fitting._feature import Feature, features_from_strings, extract_features
-from pmrf.fitting._modifier import Modifier, modifiers_from_strings, apply_modifiers
+from pmrf.fitting._feature import Feature, extract_features
+from pmrf.fitting._modifier import Modifier, apply_modifiers
 
 from dataclasses import dataclass
 
@@ -62,7 +64,7 @@ class BaseFitter(ABC):
                 features = [Feature(mode='complex', property='s', ports=(0, 0), scale='lin'), Feature(mode='magnitude', property='s', ports=(0, 0), scale='lin')]
         
         if isinstance(features[0], str):
-            features = features_from_strings(features)
+            features = [Feature.from_string(f) for f in features]
 
         if isinstance(measured, list) and len(measured) > 1:
             if fit_frequency is None:
@@ -149,7 +151,7 @@ class FrequentistFitter(BaseFitter):
             modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']
 
         if isinstance(modifiers[0], str):
-            modifiers = modifiers_from_strings(modifiers)
+            modifiers = [Modifier.from_string(m) for m in modifiers]
         
         self.modifiers = modifiers
 
@@ -172,19 +174,16 @@ class FrequentistFitter(BaseFitter):
     
     @property
     def param_cost_function(self) -> Callable[[np.ndarray], float]:
-        @jax.jit
-        def cost_fn(theta, *args, **kwargs):
-            self.model = self.model.with_params(flat_params=theta)
-            cost = self.cost(self.model)
-            return cost
+        def cost_fn(theta):
+            model = self.model.with_params(flat_params=theta)
+            return self.cost(model)
         return cost_fn
     
     @property
     def model_cost_function(self) -> Callable[[Model | ModelSystem], float]:
-        @jax.jit
-        def cost_fn(model, *args, **kwargs):
-            cost = self.cost(model)
-            return cost
+        # TODO update this to filter the parameters based on the 'fixed' flag
+        def cost_fn(model):
+            return self.cost(model)
         return cost_fn
 
 
@@ -197,25 +196,23 @@ class ScipyFitter(FrequentistFitter):
         x0 = self.param_values_free
         minimums, maximums = self.param_bounds_free
         bounds = scipy.optimize.Bounds(minimums, maximums)
-        
+
         options = {
             'maxiter': 10000
         }
 
         # Setup the cost function lambda to pass to scipty
-        callback_args = {
-            'i_solver': 0,
-        }
+        # callback_args = {
+        #     'i_solver': 0,
+        # }
 
-        def progress_callback(xk):            
-            callback_args['i_solver'] += 1
-            i = callback_args['i_solver']
-            if i % 10 == 0:
-                cost = self.param_cost_function(xk)
-                print(f'{i} = {cost}')
+        # def progress_callback(xk):            
+        #     callback_args['i_solver'] += 1
+
+        cost_fun = jax.jit(self.param_cost_function)
 
         # Run the minization routine
-        result = scipy.optimize.minimize(self.param_cost_function, x0, args=callback_args, bounds=bounds, method='Nelder-Mead', options=options, callback=progress_callback)
+        result = scipy.optimize.minimize(cost_fun, x0, bounds=bounds, method='Nelder-Mead', options=options)
 
         self.model = self.model.with_params(result.x)
         return result
@@ -223,8 +220,8 @@ class ScipyFitter(FrequentistFitter):
 
 class OptaxFitter(FrequentistFitter):
     def run(self, 
-            num_steps: int = 2000, 
-            learning_rate: float = 0.001, 
+            num_steps: int = 1000, 
+            learning_rate: float = 1e-3, 
             *args, **kwargs):
         
         optim = optax.adam(learning_rate)
@@ -233,9 +230,8 @@ class OptaxFitter(FrequentistFitter):
         # Partition the model to get the initial tree of fittable parameters
         opt_state = optim.init(eqx.filter(model, eqx.is_array))
 
-        # loss = self.model_cost_function
-        loss = lambda model: self.cost(model)
-        print(f'starting loss: {loss(self.model)}')
+        loss = self.model_cost_function
+        # loss = lambda model: self.cost(model)
 
         @eqx.filter_jit
         def make_step(
@@ -265,3 +261,26 @@ class OptaxFitter(FrequentistFitter):
 
         self.model = model
         return result    
+    
+
+class JaxNativeFitter(FrequentistFitter):
+    def run(self, 
+            *args, **kwargs):
+        
+        @eqx.filter_jit
+        @eqx.filter_grad
+        def cost_fn(theta):
+            return self.param_cost_function(theta)
+        
+        # Populate bounds and options
+        x0 = self.param_values_free
+        
+        options = {
+            'maxiter': 10000
+        }
+
+        # Run the minization routine
+        result = jax.scipy.optimize.minimize(cost_fn, x0, method='BFGS', options=options)
+
+        self.model = self.model.with_params(result.x)
+        return result

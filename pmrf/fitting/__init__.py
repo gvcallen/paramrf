@@ -3,5 +3,6 @@ from pmrf.fitting._fitter import (
     FrequentistFitter as FrequentistFitter,
     ScipyFitter as ScipyFitter,
     OptaxFitter as OptaxFitter,
+    JaxNativeFitter as JaxNativeFitter,
     Feature as Feature
 )

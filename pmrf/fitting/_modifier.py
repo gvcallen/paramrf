@@ -127,6 +127,9 @@ class Modifier:
 
         return y        
     
+    @classmethod
+    def from_string(cls, str) -> 'Modifier':
+        return Modifier(str)
 
     def _multiply_by(self, y, x, axis) -> np.ndarray:
         if x.shape == y.shape:
@@ -213,6 +216,3 @@ def apply_modifiers(array: np.ndarray, modifiers: list[Modifier]):
         y = modifier(y)
 
     return y
-
-def modifiers_from_strings(strings: list[str]) -> list[Modifier]:
-    return [Modifier(s) for s in strings]

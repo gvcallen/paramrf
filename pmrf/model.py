@@ -43,7 +43,7 @@ class Model(eqx.Module):
         name (str, optional): A name associated with the model instance.
     """
     _z0: np.ndarray = eqx.field(default=50.0, init=False, static=True)
-    # s_def: str | None = eqx.field(default='power', init=False, static=True)
+    s_def: str | None = eqx.field(default='power', init=False, static=True)
     name: str | None = eqx.field(default=None, kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):

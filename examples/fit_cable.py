@@ -20,12 +20,14 @@ params = {
 
 measured = rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')
 
-features = [
-    Feature(mode='complex', ports=(0, 0)), Feature(mode='magnitude', ports=(0, 0)),
-    Feature(mode='complex', ports=(0, 1)), Feature(mode='magnitude', ports=(0, 1)),
-    Feature(mode='complex', ports=(1, 0)), Feature(mode='magnitude', ports=(1, 0)),
-    Feature(mode='complex', ports=(1, 1)), Feature(mode='magnitude', ports=(1, 1))
-]
+# features = [
+#     Feature(mode='complex', ports=(0, 0)), Feature(mode='magnitude', ports=(0, 0)),
+#     Feature(mode='complex', ports=(0, 1)), Feature(mode='magnitude', ports=(0, 1)),
+#     Feature(mode='complex', ports=(1, 0)), Feature(mode='magnitude', ports=(1, 0)),
+#     Feature(mode='complex', ports=(1, 1)), Feature(mode='magnitude', ports=(1, 1))
+# ]
+
+features = ['s11', 's11_mag', 's12', 's12_mag', 's21', 's21_mag', 's22', 's22_mag']
 
 fitter = ScipyFitter(
     model=model,
