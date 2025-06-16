@@ -1,58 +1,39 @@
 import skrf as rf
 
-from pmrf.models.lines import DatasheetCoaxial
+from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameter import norm, uniform, fixed
 from pmrf.fitting import ScipyFitter
+from pmrf._features import FeatureExtractor
+from pmrf._modifiers import ModifierChain
 
 # Create the model
-coax = DatasheetCoaxial(name='coax')
+coax = PhysicalCoaxial(name='coax')
 
-# Setup the parameters
-parameters = {
-    'length': norm(10.0, 0.5),
-    'zn': norm(50.0, 1.0),
-    'epr': uniform(1.4, 1.5),
-    'epr_slope': uniform(0.0, 0.0),
-    'k1': uniform(0.0, 2.0),
-    'k2': uniform(0.0, 1e-3),
+wa, wb = 0.8, 1.2
+params = {
+    'din': uniform(1.12e-3*wa, 1.12e-3*wb),
+    'dout': uniform(3.2e-3*wa, 3.2e-3*wb),
+    'length': uniform(10*wa, 10*wb),
+    'epr': uniform(1.45*wa, 1.45*wb),
+    'tand': uniform(0.0, 0.1),
+    'rho': uniform(1.6e-8*wa, 1.6e-8*wb),
 }
+
+measured = rf.Network('../examples/data/10m_cable.s2p', f_unit='MHz')
 
 # Initialize the fitter
 fitter = ScipyFitter(
     model=coax,
-    measured=rf.Network('examples/data/10m_cable.s2p', f_unit='MHz'),
-    params=parameters
+    measured=measured,
+    params=params,
+    features=[FeatureExtractor(ports=(0, 0)), FeatureExtractor(ports=(0, 1)), FeatureExtractor(ports=(1, 0)), FeatureExtractor(ports=(1, 1))],
 )
-
-# print(f'Current cost = {fitter.cost()}')
 
 # Run the fit
 fitter.fit()
 
-# a, w = 0.8, 0.4
-# params = ParameterSet(
-#     columns=['name', 'dist'],
-#     data=[
-#         ['coax_din', uniform(1.12e-3*a, 1.12e-3*w)],
-#         ['coax_dout', uniform(3.2e-3*a, 3.2e-3*w)],
-#         ['coax_len', uniform(10*a, 10*w)],
-#         ['coax_epr', uniform(1.45*a, 1.45*w)],
-#         ['coax_tand', uniform(0.0, 0.1)],
-#         ['coax_rho', uniform(1.6e-8*a, 1.6e-8*w)],
-#     ]
-# )
+import matplotlib.pyplot as plt
 
-# fitter = BaseFitter(
-#     output_path='output_cable',
-#     param_set=params,
-#     model=[coax],
-#     measured=[rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')],
-#     use_measured_frequency=True,
-#     ports=[(0, 0), (0, 1), (1, 0), (1, 1)], # We could specify which ports we want to fit on specifically
-#     solver='Nelder-Mead',
-#     max_iterations=10000,
-# )
-
-# fitter.plotter.plot_S('s_initial')
-# fitter.fit_params()
-# fitter.plotter.plot_S('s_opt')
+plt.figure()
+fitter.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
+measured.plot_s_db(m=0, n=0)

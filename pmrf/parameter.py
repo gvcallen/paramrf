@@ -38,7 +38,7 @@ class Parameter:
 
 def uniform(min, max, **kwargs) -> 'Parameter':
     dist = scipy.stats.distributions.uniform(min, max-min)
-    value = kwargs.pop('value', (max - min) / 2.0)
+    value = kwargs.pop('value', (max + min) / 2.0)
     return Parameter(dist=dist, value=value, **kwargs)
 
 def norm(mean, std, **kwargs) -> 'Parameter':

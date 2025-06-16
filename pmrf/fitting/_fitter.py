@@ -12,6 +12,7 @@ from pmrf.parameter import Parameter, fixed
 from pmrf.system import ModelSystem
 from pmrf.fitting._results import BayesianResults, FrequentistResults
 from pmrf._numpy import numpy as np
+from pmrf._features import FeatureExtractor
 
 from pmrf._modifiers import ModifierChain
 
@@ -38,6 +39,7 @@ class BaseFitter(ABC):
         measured: skrf.Network | list[skrf.Network],
         params: dict[str, Parameter] | None = None,
         fit_frequency: skrf.Network | None = None,
+        features: list[FeatureExtractor] | FeatureExtractor | list[str] = None,
         param_infix = '_',
     ) -> None:
         if isinstance(measured, list) and len(measured) > 1:
@@ -53,6 +55,7 @@ class BaseFitter(ABC):
         self.measured: skrf.Network | list[skrf.Network] = measured
         self.params: dict[str, Parameter] = params or {}
         self.param_infix = param_infix
+        self.features = features
 
         self._init_params()
 
@@ -112,7 +115,8 @@ class BaseFitter(ABC):
 
 class FrequentistFitter(BaseFitter):
     def make_cost_function(self) -> Callable:
-        cost_fn = self.model.make_cost_function(self.measured)
+        modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']
+        cost_fn = self.model.make_cost_function(self.measured, features=self.features, modifiers=modifiers)
         def cost_fn_wrapper(x, *args, **kwargs):
             cost = cost_fn(x)
             # print(cost)
@@ -147,8 +151,7 @@ class ScipyFitter(FrequentistFitter):
 
         # Run the minization routine
         cost_fn = jax.jit(cost_fn)
-        
-        result = scipy.optimize.minimize(cost_fn, x0, args=callback_args, bounds=bounds, method='SLSQP', options=options, callback=progress_callback)
+        result = scipy.optimize.minimize(cost_fn, x0, args=callback_args, bounds=bounds, method='Nelder-Mead', options=options, callback=progress_callback)
 
         # print(result)
         self.model = self.model.with_params(result.x)

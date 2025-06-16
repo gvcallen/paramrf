@@ -158,14 +158,18 @@ class PhysicalCoaxial(RLGCLine):
     # Main parameters
     din: Scalar = 1.12e-3
     dout: Scalar = 3.2e-3
-    epr: Scalar | Vector = 1.0
-    mur: Scalar | Vector = 1.0
-    tand: Scalar | Vector = 0.0
-    rho: Scalar | Vector = 1.68e-8
+    epr: Scalar = 1.0
+    mur: Scalar = 1.0
+    tand: Scalar = 0.0
+    rho: Scalar = 1.68e-8    
+    # epr: Scalar | Vector = 1.0
+    # mur: Scalar | Vector = 1.0
+    # tand: Scalar | Vector = 0.0
+    # rho: Scalar | Vector = 1.68e-8
     
     # Optional parameters
-    rhoin: Scalar | Vector = 1.68e-8
-    rhoout: Scalar  | Vector= 1.68e-8
+    # rhoin: Scalar | Vector = 1.68e-8
+    # rhoout: Scalar  | Vector= 1.68e-8
 
     # Hyperparameters
     epr_model: str = 'constant'
@@ -195,7 +199,7 @@ class PhysicalCoaxial(RLGCLine):
                 
         return value
             
-    def epr_f(self, freq: Frequency, x='hello'):
+    def epr_f(self, freq: Frequency):
         return self.interpolated('epr', freq)
     
     def tand_f(self, freq: Frequency):
@@ -232,7 +236,7 @@ class PhysicalCoaxial(RLGCLine):
     def G_diel(self, freq: Frequency):
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
-        return 2 * np.pi * w * -np.imag(self.eps_f(freq)) / lnbOvera
+        return 2 * np.pi * freq.w * -np.imag(self.eps_f(freq)) / lnbOvera
         
     def R_skin(self, freq: Frequency):
         return np.real(self.Z_skin(freq))
@@ -263,12 +267,12 @@ class PhysicalCoaxial(RLGCLine):
         # Formulae from 'Frederick M. Tesche - A Simple Model for the Line Parameters of a Lossy Coaxial Cable Filled With a Nondispersive Dielectric'
         # as well as Pozar for G term
         if not self.neglect_skin_inductance:
-            L = self.L_prime(w) + self.L_skin(w)
+            L = self.L_prime(freq) + self.L_skin(freq)
         else:
-            L = self.L_prime(w)
+            L = self.L_prime(freq)
         
-        C = self.C_prime(w)
-        G = self.G_diel(w)
-        R = self.R_skin(w)
+        C = self.C_prime(freq)
+        G = self.G_diel(freq)
+        R = self.R_skin(freq)
         
         return R, L, G, C
