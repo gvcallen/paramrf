@@ -2,6 +2,7 @@ import equinox as eqx
 import skrf as skrf
 import inspect
 import dataclasses
+from dataclasses import dataclass
 from typing import Callable, Any, Optional, Dict
 
 from pmrf._numpy import USE_JAX
@@ -14,11 +15,9 @@ from numbers import Number
 from typing import Sequence, Union
 
 from pmrf.frequency import Frequency
-
-from pmrf._modifiers import Modifier, ModifierChain
-from pmrf._features import FeatureExtractor
 from pmrf._numpy import numpy as np
 from pmrf._pytree import tree_with_params, tree_params
+from pmrf._math import dB20
 
 
 PRIMARY_PROPERTIES = ['s', 'a']
@@ -29,20 +28,22 @@ jax.config.update("jax_enable_x64", True)
 
 
 class Model(eqx.Module):
-    name: str | None = eqx.field(default=None, kw_only=True, static=True)
-
-    """Base class for all models.
+    """Class for a single network model.
 
     This is an abstract class and should not be instantiated directly.
 
-    Models accept their parameters as input arguments their intitializers, as well as followed by general keyword arguments.
-    Since Model is based on a `dataclass`, the following arguments apply to sub-classes by defualt:
+    Models accept their parameters as input arguments into their intitializers, as well as general keyword arguments.
+    Then, they can be used to calculate their properties as function of frequency (S-matrix, ABCD-matrix etc.)
+    as well as a configurable "feature" matrix, with is their output when called as a function.
+    
+    Since all models derived from `dataclass`, arguments propagate to dervied classes.
+    Therefore, the following arguments apply to sub-classes by default:
 
     Args:
         name (str, optional): A name associated with the model instance.
     """
     _z0: np.ndarray = eqx.field(default=50.0, init=False, static=True)
-    s_def: str | None = eqx.field(default='power', init=False, static=True)
+    # s_def: str | None = eqx.field(default='power', init=False, static=True)
     name: str | None = eqx.field(default=None, kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):
@@ -76,6 +77,18 @@ class Model(eqx.Module):
     
     def __pow__(self, other: 'Model') -> 'Model':
         return _Cascaded(self, other)
+    
+    def __call__(self, freq: Frequency):
+        n_frequencies = len(freq)
+        n_features = len(self.features)
+
+        X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
+        for d, feature in enumerate(self.features):
+            if USE_JAX:
+                X = X.at[:, d].set(feature.extract_from_network(self.measured) - feature.extract_from_model(model, freq))
+            else:
+                X[:, d] = feature.extract_from_network(self.measured) - feature.extract_from_model(model, freq)        
+
     
     @property    
     def primary_function(self):
@@ -142,116 +155,7 @@ class Model(eqx.Module):
         
         a = self.a(freq)
         return a2s(a, self.z0)
-        
-    def features(
-        self,
-        freq: Frequency,
-        features: list[FeatureExtractor] | FeatureExtractor = None,
-    ) -> np.ndarray:
-        """Returns a feature matrix for the current model.
-
-        Args:
-            freq (Frequency): The frequency to evaluate the features at.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
-
-        Returns:
-            np.ndarray: The resultant feature matrix.
-        """
-        features: list[FeatureExtractor] = features or [FeatureExtractor()]
-        
-        n_frequencies = len(freq)
-        n_features = len(features)
-
-        X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
-        for d, feature in enumerate(features):
-            if USE_JAX:
-                X = X.at[:, d].set(feature.extract_from_model(self, freq)) # TODO optimize jax case
-            else:
-                X[:, d] = feature.extract_from_model(self, freq)
-
-        return X
-
-    def residuals(
-        self,
-        measured: skrf.Network,
-        features: list[FeatureExtractor] | FeatureExtractor = None,
-    ) -> np.ndarray:
-        """Returns a feature residuals matrix for the current model and specified measured data.
-
-        Args:
-            measured (skrf.Network): The measured network to calculate residuals against. The frequency of this network is used.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
-
-        Returns:
-            np.ndarray: The resultant feature matrix.
-        """        
-        freq = Frequency(measured.frequency)
-        features: list[FeatureExtractor] = features or [FeatureExtractor()]
-        
-        n_frequencies = len(freq)
-        n_features = len(features)
-
-        F = np.zeros((n_frequencies, n_features), dtype=np.complex128)
-        for d, feature in enumerate(features):
-            if USE_JAX:
-                F = F.at[:, d].set(feature.extract_from_network(measured) - feature.extract_from_model(self, freq)) # TODO optimize jax case
-            else:
-                F[:, d] = feature.extract_from_network(measured) - feature.extract_from_model(self, freq)
-        return F
-    
-    def cost(
-        self,
-        measured: skrf.Network,
-        features: list[FeatureExtractor] | FeatureExtractor | list[str] = None,
-        modifiers: ModifierChain | list[Modifier] | list[str] = None,
-    ) -> np.ndarray:
-        """Returns the cost for the current model and the specified measured data.
-
-        The cost is calculated by first extracting "feature" residuals (such as S11 magnitude) using the `FeatureExtractor` objects in `features`,
-        and then applying "modifiers" (such as by taking the L2 norm) on the resultant matrix using the `Modifier` objects in `modifiers`.
-        See `self.feature_residuals(..)`, `FeatureExtractor` and `ModifierChain` for more details.
-        
-        If no features or modifiers are passed, then the default is to calculate the dB of the L2 norm of the magnitude of the difference
-        between the measured and modelled S11 parameters.
-
-        Args:
-            measured (skrf.Network): The measured network to evaluate the cost against.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): The features to extract from the model and networks. Defaults to `None`, in which case defaults the default above is used.
-            modifiers (ModifierChain | list[Modifier] | list[str], optional): The modifiers to apply. Defaults to `None`, in which case the default above is used.
-
-        Returns:
-            np.ndarray: _description_
-        """
-        # We use explicit defaults because cost is quite a common high-level user requirement
-        features = features or [FeatureExtractor(mode='complex', property='s', ports=(0, 0), scale='lin')]
-        modifiers = ModifierChain(modifiers or ['L2', 'dB'])
-        feature_residuals = self.residuals(measured, features=features)
-        return modifiers(feature_residuals)    
-    
-    def make_feature_function(
-        self,
-        freq: Frequency,
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:    
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).features(freq, **kwargs)
-    
-    def make_residual_function(
-        self,
-        measured: skrf.Network,
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:    
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).residuals(measured, **kwargs)
-    
-    def make_cost_function(
-        self,
-        measured: skrf.Network,
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:    
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).cost(measured, **kwargs)
-    
+           
     def flipped(self) -> 'Model':
         return _Flipped(self)
     

@@ -206,38 +206,13 @@ class Modifier:
             raise Exception("Not yet implemented")
 
         return y    
+    
+def apply_modifiers(array: np.ndarray, modifiers: list[Modifier]):
+    y = array
+    for modifier in modifiers:
+        y = modifier(y)
 
-class ModifierChain:
-    """
-    A chain of modifier operations to be performed one after the other.
-    """
-    def __init__(self, modifiers: list[Modifier] | list[str] = None):
-        """Initialize a modifier chain using a list of modifiers or the args that would create them.
+    return y
 
-        Args:
-            modifiers (list[Modifier | str | tuple[str, dict]]): The list of modifiers. Either pass the Modifier class directly in each list element,
-            or just the modifier mode, or pass the arguments used to create the modifier class in (str, dict) format.
-        """
-        if modifiers is None:
-            modifiers = [Modifier()]
-
-        self.modifiers = []
-        if modifiers:
-            for modifier in modifiers:
-                if type(modifier) == Modifier:
-                    self.modifiers.append(deepcopy(modifier))
-                else:
-                    if type(modifier) == tuple:
-                        operation, kwargs = modifier
-                        self.modifiers.append(Modifier(operation, **kwargs))
-                    else:
-                        self.modifiers.append(Modifier(modifier))
-
-    def __call__(self, y):
-        for modifier in self.modifiers:
-            y = modifier(y)
-
-        if type(y) == np.ndarray and y.size == 1:
-            y = np.float64(y)
-        
-        return y
+def modifiers_from_strings(strings: list[str]) -> list[Modifier]:
+    return [Modifier(s) for s in strings]

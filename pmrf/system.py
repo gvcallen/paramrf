@@ -7,8 +7,6 @@ import skrf
 from pmrf.model import Model
 from pmrf.frequency import Frequency
 
-from pmrf._features import FeatureExtractor
-from pmrf._modifiers import Modifier, ModifierChain
 from pmrf._numpy import numpy as np
 from pmrf._numpy import USE_JAX
 from pmrf._pytree import tree_with_params, tree_params
@@ -48,110 +46,6 @@ class ModelSystem(eqx.Module):
     @property
     def nmodels(self):
         return self.number_of_models
-
-    def features(
-        self,
-        freq: Frequency,
-        features: list[FeatureExtractor] | FeatureExtractor = None,
-    ) -> np.ndarray:
-        """Returns a feature matrix for the model system.
-
-        Args:
-            freq (Frequency): Specifies the frequency to evaluate the features at.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
-
-        Returns:
-            np.ndarray: The resultant feature matrix.
-        """
-        features: list[FeatureExtractor] = features or [FeatureExtractor()]
-        X = np.zeros((freq.npoints, len(features)), dtype=np.complex128)
-        d = 0
-        for model in self.models:
-            for feature in features:
-                if USE_JAX:
-                    X.at[:, d].set(feature.extract_from_model(model, freq)) # TODO optimize for JAX
-                else:
-                    X[:, d] = feature.extract_from_model(model, freq)
-                d += 1
-        return X
-
-    def residuals(
-        self,
-        measured: list[skrf.Network],
-        features: list[FeatureExtractor] | FeatureExtractor = None,
-    ) -> np.ndarray:
-        """Returns a feature residuals matrix for the model system and specified measured data.
-
-        Args:
-            measured (list[skrf.Network]): The measured networks to calculate residuals against. The frequency of these networks are individually used.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): Specifies a list of features to extract. Defaults to `None`, in which case a default-constructed `FeatureExtractor` is used.
-
-        Returns:
-            np.ndarray: The resultant feature matrix.
-        """
-        freq: Frequency = Frequency(measured[0].frequency)
-        features: list[FeatureExtractor] = features or [FeatureExtractor()]
-        
-        X = np.zeros((freq.npoints, len(features)), dtype=np.complex128)
-        for d, feature in enumerate(features):
-            if USE_JAX:
-                X = X.at[:, d].set(feature.extract_from_network(measured) - feature.extract_from_model(self, freq)) # TODO optimize jax case
-            else:
-                X[:, d] = feature.extract_from_network(measured) - feature.extract_from_model(self, freq)
-        return X
-    
-    def cost(
-        self,
-        measured: list[skrf.Network],
-        features: list[FeatureExtractor] | FeatureExtractor | list[str] = None,
-        modifiers: ModifierChain | list[Modifier] | list[str] = None,
-    ) -> np.ndarray:
-        """Returns the cost for the model system and the specified measured data.
-
-        The cost is calculated by first extracting "feature" residuals (such as S11 magnitude) using the `FeatureExtractor` objects in `features`,
-        and then applying "modifiers" (such as by taking the L2 norm) on the resultant matrix using the `Modifier` objects in `modifiers`.
-        See `self.feature_residuals(..)`, `FeatureExtractor` and `ModifierChain` for more details.
-        
-        If no features or modifiers are passed, then the default is to calculate the dB of a convolution-based cost function that combines the L2 norms
-        of both the magnitude and complex differences between the measured and modelled S11 parameters.
-
-        Args:
-            measured (list[skrf.Network]): The measured networks to calculate residuals against. The frequency of these networks are individually used.
-            features (list[FeatureExtractor] | FeatureExtractor, optional): The features to extract from the model and networks. Defaults to `None`, in which case defaults the default above is used.
-            modifiers (ModifierChain | list[Modifier] | list[str], optional): The modifiers to apply. Defaults to `None`, in which case the default above is used.
-
-        Returns:
-            np.ndarray: _description_
-        """
-        # We use explicit defaults because cost is quite a common high-level user requirement
-        features = features | [FeatureExtractor(mode='complex', property='s', ports=(0, 0), scale='lin'), FeatureExtractor(mode='magnitude', property='s', ports=(0, 0), scale='lin')]
-        modifiers = ModifierChain(modifiers or ['L2', 'convolve-interleaved', 'L2', 'dB'])
-        feature_residuals = self.residuals(measured, features=features)
-        return modifiers(feature_residuals)    
-    
-    def make_feature_function(
-        self,
-        freq: Frequency,
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).features(freq, **kwargs)
-    
-    def make_residual_function(
-        self,
-        measured: skrf.Network,
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).residuals(measured, **kwargs)
-    
-    def make_cost_function(
-        self,
-        measured: list[skrf.Network],
-        param_filter: Callable[[Any], bool] | None = None,
-        **kwargs
-    ) -> Callable[[np.ndarray], float]:
-        return lambda flat_params, *_args, **_kwargs: self.with_params(flat_params=flat_params, param_filter=param_filter).cost(measured, **kwargs)
     
     def with_params(
         self,

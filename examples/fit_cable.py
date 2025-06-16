@@ -2,12 +2,11 @@ import skrf as rf
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameter import norm, uniform, fixed
-from pmrf.fitting import ScipyFitter
-from pmrf._features import FeatureExtractor
-from pmrf._modifiers import ModifierChain
+from pmrf.fitting import ScipyFitter, OptaxFitter
+from pmrf.fitting import Feature
 
 # Create the model
-coax = PhysicalCoaxial(name='coax')
+model = PhysicalCoaxial()
 
 wa, wb = 0.8, 1.2
 params = {
@@ -22,26 +21,17 @@ params = {
 measured = rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')
 
 features = [
-    FeatureExtractor(mode='complex', ports=(0, 0)), FeatureExtractor(mode='magnitude', ports=(0, 0)),
-    FeatureExtractor(mode='complex', ports=(0, 1)), FeatureExtractor(mode='magnitude', ports=(0, 1)),
-    FeatureExtractor(mode='complex', ports=(1, 0)), FeatureExtractor(mode='magnitude', ports=(1, 0)),
-    FeatureExtractor(mode='complex', ports=(1, 1)), FeatureExtractor(mode='magnitude', ports=(1, 1))
+    Feature(mode='complex', ports=(0, 0)), Feature(mode='magnitude', ports=(0, 0)),
+    Feature(mode='complex', ports=(0, 1)), Feature(mode='magnitude', ports=(0, 1)),
+    Feature(mode='complex', ports=(1, 0)), Feature(mode='magnitude', ports=(1, 0)),
+    Feature(mode='complex', ports=(1, 1)), Feature(mode='magnitude', ports=(1, 1))
 ]
 
-# Initialize the fitter
 fitter = ScipyFitter(
-    model=coax,
+    model=model,
     measured=measured,
     params=params,
     features=features,
 )
 
-# Run the fit
-fitter.fit()
-
-import matplotlib.pyplot as plt
-
-plt.figure()
-fitter.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
-measured.plot_s_db(m=0, n=0)
-plt.show()
+fitter.run()

@@ -4,17 +4,30 @@ from typing import Callable
 import scipy
 import scipy.optimize
 import skrf
-
 import jax
+import optax
+import equinox as eqx
 
 from pmrf.model import Model
 from pmrf.parameter import Parameter, fixed
 from pmrf.system import ModelSystem
 from pmrf.fitting._results import BayesianResults, FrequentistResults
+from pmrf.frequency import Frequency
+from pmrf._numpy import USE_JAX
 from pmrf._numpy import numpy as np
-from pmrf._features import FeatureExtractor
 
-from pmrf._modifiers import ModifierChain
+from pmrf.fitting._feature import Feature, features_from_strings, extract_features
+from pmrf.fitting._modifier import Modifier, modifiers_from_strings, apply_modifiers
+
+from dataclasses import dataclass
+
+import skrf
+
+from pmrf.frequency import Frequency
+from pmrf.model import Model
+from pmrf.system import ModelSystem
+from pmrf._numpy import numpy as np
+
 
 # def Fitter(
 #     model: Model | list[Model] | ModelSystem,
@@ -39,9 +52,18 @@ class BaseFitter(ABC):
         measured: skrf.Network | list[skrf.Network],
         params: dict[str, Parameter] | None = None,
         fit_frequency: skrf.Network | None = None,
-        features: list[FeatureExtractor] | FeatureExtractor | list[str] = None,
-        param_infix = '_',
+        features: list[Feature] | list[str] = None,
+        param_infix = '_'
     ) -> None:
+        if features is None:
+            if isinstance(model, Model):
+                features = [Feature(mode='complex', property='s', ports=(0, 0), scale='lin')]
+            else:
+                features = [Feature(mode='complex', property='s', ports=(0, 0), scale='lin'), Feature(mode='magnitude', property='s', ports=(0, 0), scale='lin')]
+        
+        if isinstance(features[0], str):
+            features = features_from_strings(features)
+
         if isinstance(measured, list) and len(measured) > 1:
             if fit_frequency is None:
                 raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency) for fitting")
@@ -56,6 +78,7 @@ class BaseFitter(ABC):
         self.params: dict[str, Parameter] = params or {}
         self.param_infix = param_infix
         self.features = features
+        self.measured_features = extract_features(self.measured, self.features)
 
         self._init_params()
 
@@ -72,7 +95,7 @@ class BaseFitter(ABC):
         self.params = final_params
 
     @abstractmethod
-    def fit(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
         pass
 
     @property
@@ -119,23 +142,57 @@ class BaseFitter(ABC):
 
 
 class FrequentistFitter(BaseFitter):
-    def make_cost_function(self) -> Callable:
-        modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']
-        cost_fn = self.model.make_cost_function(self.measured, features=self.features, modifiers=modifiers)
-        def cost_fn_wrapper(x, *args, **kwargs):
-            cost = cost_fn(x)
-            # print(cost)
-            return cost
-        return cost_fn_wrapper
+    def __init__(self, modifiers: list[Modifier] | list[str] = None, *args, **kwargs):
+        BaseFitter.__init__(self, *args, **kwargs)
+        
+        if modifiers is None:
+            modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']
+
+        if isinstance(modifiers[0], str):
+            modifiers = modifiers_from_strings(modifiers)
+        
+        self.modifiers = modifiers
+
+    def cost(self, model: Model | ModelSystem | None = None) -> np.ndarray:
+        """Returns the cost for the model and the specified measured data.
+
+        The cost is calculated by first extracting "feature" matrix from the model (such as S11 magnitude) using the `FeatureExtractor` objects in `self.features`,
+        and then applying "modifiers" (such as by taking the L2 norm) on the resultant matrix using the `Modifier` objects in `self.modifiers`.
+        See `Feature` and `Modifier` for more details.
+        
+        Returns:
+            `np.ndarray`: The cost function value.
+        """
+        model = model or self.model
+        model_features = extract_features(model, self.features, self.measured.frequency)
+        measured_features = self.measured_features
+        
+        residuals = measured_features - model_features
+        return apply_modifiers(residuals, self.modifiers)
     
-    def cost(self) -> float:
-        return self.model.cost(self.measured)
+    @property
+    def param_cost_function(self) -> Callable[[np.ndarray], float]:
+        @jax.jit
+        def cost_fn(theta, *args, **kwargs):
+            self.model = self.model.with_params(flat_params=theta)
+            cost = self.cost(self.model)
+            return cost
+        return cost_fn
+    
+    @property
+    def model_cost_function(self) -> Callable[[Model | ModelSystem], float]:
+        @jax.jit
+        def cost_fn(model, *args, **kwargs):
+            cost = self.cost(model)
+            return cost
+        return cost_fn
 
 
 class ScipyFitter(FrequentistFitter):
-    def fit(self, *args, **kwargs):
-        cost_fn = self.make_cost_function()
-
+    def run(self,
+            *args,
+            **kwargs
+        ):
         # Populate bounds and options
         x0 = self.param_values_free
         minimums, maximums = self.param_bounds_free
@@ -150,41 +207,61 @@ class ScipyFitter(FrequentistFitter):
             'i_solver': 0,
         }
 
-        def progress_callback(xk):
+        def progress_callback(xk):            
             callback_args['i_solver'] += 1
-            # print(callback_args['i_solver'])
+            i = callback_args['i_solver']
+            if i % 10 == 0:
+                cost = self.param_cost_function(xk)
+                print(f'{i} = {cost}')
 
         # Run the minization routine
-        cost_fn = jax.jit(cost_fn)
+        result = scipy.optimize.minimize(self.param_cost_function, x0, args=callback_args, bounds=bounds, method='Nelder-Mead', options=options, callback=progress_callback)
 
-        # Free Parameters: ['coax_din', 'coax_dout', 'coax_len', 'coax_epr', 'coax_tand', 'coax_rho']
-
-        # Fitting for 6 circuit model parameter(s)...
-        # ********
-        # [1.12e-03 3.20e-03 1.00e+01 1.45e+00 5.00e-02 1.60e-08]
-        # ********
-        # Bounds(array([8.96e-04, 2.56e-03, 8.00e+00, 1.16e+00, 0.00e+00, 1.28e-08]), array([1.344e-03, 3.840e-03, 1.200e+01, 1.740e+00, 1.000e-01, 1.920e-08]))
-        # ********
-        print('********')
-        print(x0)
-        print('********')
-        print(bounds)
-        print('********')
-
-        # bounds = scipy.optimize.Bounds(np.array([9.0048e-04, 2.5728e-03, 8.0400e+00, 1.1658e+00, 1.0000e-03, 1.2864e-08]), np.array([1.33952e-03, 3.82720e-03, 1.19600e+01, 1.73420e+00, 9.90000e-02, 1.91360e-08]))
-        # bounds = scipy.optimize.Bounds(np.array([8.96e-04, 2.56e-03, 8.00e+00, 1.16e+00, 0.00e+00, 1.28e-08]), np.array([1.344e-03, 3.840e-03, 1.200e+01, 1.740e+00, 1.000e-01, 1.920e-08]))
-
-        # ********
-        # [1.12e-03 3.20e-03 1.00e+01 1.45e+00 5.00e-02 1.60e-08 1.00e+00]
-        # ********
-        # Bounds(array([9.0048e-04, 2.5728e-03, 8.0400e+00, 1.1658e+00, 1.0000e-03,
-        #        1.2864e-08, 1.0000e+00]), array([1.33952e-03, 3.82720e-03, 1.19600e+01, 1.73420e+00, 9.90000e-02,
-        #        1.91360e-08, 1.00000e+00]))
-        # ********        
-
-        result = scipy.optimize.minimize(cost_fn, x0, args=callback_args, bounds=bounds, method='Nelder-Mead', options=options, callback=progress_callback)
-
-        # print(result)
         self.model = self.model.with_params(result.x)
-
         return result
+
+
+class OptaxFitter(FrequentistFitter):
+    def run(self, 
+            num_steps: int = 2000, 
+            learning_rate: float = 0.001, 
+            *args, **kwargs):
+        
+        optim = optax.adam(learning_rate)
+        model = self.model
+
+        # Partition the model to get the initial tree of fittable parameters
+        opt_state = optim.init(eqx.filter(model, eqx.is_array))
+
+        # loss = self.model_cost_function
+        loss = lambda model: self.cost(model)
+        print(f'starting loss: {loss(self.model)}')
+
+        @eqx.filter_jit
+        def make_step(
+            model: Model,
+            opt_state,
+        ):
+            loss_value, grads = eqx.filter_value_and_grad(loss)(model)
+            updates, opt_state = optim.update(grads, opt_state, eqx.filter(model, eqx.is_array))
+            model = eqx.apply_updates(model, updates)
+            return model, opt_state, loss_value
+
+        print("Starting JAX-native optimization with Optax...")
+        for i in range(num_steps):
+            model, opt_state, train_loss = make_step(model, opt_state)
+            if i % 200 == 0:
+                print(f"Step {i}, Loss: {train_loss:.6f}")
+        
+        print("Optimization finished!")
+
+        # You can create a result object similar to SciPy's
+        result = {
+            "x": list(model.params().values()),
+            "fun": loss,
+            "success": True,
+            "message": "Optimization terminated successfully.",
+        }
+
+        self.model = model
+        return result    
