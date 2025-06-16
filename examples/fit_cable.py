@@ -21,12 +21,19 @@ params = {
 
 measured = rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')
 
+features = [
+    FeatureExtractor(mode='complex', ports=(0, 0)), FeatureExtractor(mode='magnitude', ports=(0, 0)),
+    FeatureExtractor(mode='complex', ports=(0, 1)), FeatureExtractor(mode='magnitude', ports=(0, 1)),
+    FeatureExtractor(mode='complex', ports=(1, 0)), FeatureExtractor(mode='magnitude', ports=(1, 0)),
+    FeatureExtractor(mode='complex', ports=(1, 1)), FeatureExtractor(mode='magnitude', ports=(1, 1))
+]
+
 # Initialize the fitter
 fitter = ScipyFitter(
     model=coax,
     measured=measured,
     params=params,
-    features=[FeatureExtractor(ports=(0, 0)), FeatureExtractor(ports=(0, 1)), FeatureExtractor(ports=(1, 0)), FeatureExtractor(ports=(1, 1))],
+    features=features,
 )
 
 # Run the fit

@@ -60,11 +60,16 @@ class BaseFitter(ABC):
         self._init_params()
 
     def _init_params(self):
+        # The most important part - making sure our model params are in the same order as the model's
+        user_params = self.params
         model_params = self.model.params(separator=self.param_infix)
+        final_params = {}
         for name, value in model_params.items():
-            # TODO add more complicated parameter initialization options e.g. default % width
-            if not name in self.params:
-                self.params[name] = fixed(value)
+            # TODO add more complicated parameter initialization options e.g. default % width.
+            # Also add error check if the user passes a parameter that is NOT in the model
+            final_params[name] = user_params[name] if name in user_params else fixed(value)
+
+        self.params = final_params
 
     @abstractmethod
     def fit(self, *args, **kwargs):
@@ -167,7 +172,7 @@ class ScipyFitter(FrequentistFitter):
         print('********')
 
         # bounds = scipy.optimize.Bounds(np.array([9.0048e-04, 2.5728e-03, 8.0400e+00, 1.1658e+00, 1.0000e-03, 1.2864e-08]), np.array([1.33952e-03, 3.82720e-03, 1.19600e+01, 1.73420e+00, 9.90000e-02, 1.91360e-08]))
-        bounds = scipy.optimize.Bounds(np.array([8.96e-04, 2.56e-03, 8.00e+00, 1.16e+00, 0.00e+00, 1.28e-08]), np.array([1.344e-03, 3.840e-03, 1.200e+01, 1.740e+00, 1.000e-01, 1.920e-08]))
+        # bounds = scipy.optimize.Bounds(np.array([8.96e-04, 2.56e-03, 8.00e+00, 1.16e+00, 0.00e+00, 1.28e-08]), np.array([1.344e-03, 3.840e-03, 1.200e+01, 1.740e+00, 1.000e-01, 1.920e-08]))
 
         # ********
         # [1.12e-03 3.20e-03 1.00e+01 1.45e+00 5.00e-02 1.60e-08 1.00e+00]
