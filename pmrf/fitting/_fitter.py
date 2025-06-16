@@ -133,7 +133,7 @@ class ScipyFitter(FrequentistFitter):
         bounds = scipy.optimize.Bounds(minimums, maximums)
         
         options = {
-            'maxiter': 1000
+            'maxiter': 10000
         }
 
         # Setup the cost function lambda to pass to scipty
