@@ -1,13 +1,13 @@
 from abc import abstractmethod
 from copy import copy, deepcopy
 
-import numpy as np
+import _numpy as np
 import skrf as rf
 from skrf.media import DefinedGammaZ0
 from skrf.media import Media
 
-from pmrf._structures import ObservableDict
-from pmrf._inspection import get_properties_and_attributes
+from _structures_legacy import ObservableDict
+from _inspection_legacy import get_properties_and_attributes
 
 try:
     from ipywidgets import interact, FloatSlider

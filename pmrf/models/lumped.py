@@ -1,11 +1,13 @@
-from pmrf._model import Model
-from pmrf._parameter import Parameter
+from model import Model
+from parameter import Parameter
 from pmrf._numpy import numpy as np
+from frequency import Frequency
   
 class Capacitor(Model):
     C: Parameter = 1.0
 
-    def s(self, w: np.ndarray) -> np.ndarray:
+    def s(self, freq: Frequency) -> np.ndarray:
+        w = freq.w
         C = self.C
 
         z0_0 = z0_1 = self.z0
@@ -24,8 +26,9 @@ class Capacitor(Model):
 class Inductor(Model):
     L: Parameter = 1.0
 
-    def s(self, w: np.ndarray) -> np.ndarray:
+    def s(self, freq: Frequency) -> np.ndarray:
         L = self.L
+        w = freq.w
 
         z0_0 = z0_1 = self.z0
         
@@ -44,10 +47,11 @@ class Inductor(Model):
 class Resistor(Model):
     R: Parameter = 1.0
 
-    def s(self, w: np.ndarray) -> np.ndarray:
+    def s(self, freq: Frequency) -> np.ndarray:
+        w = freq.w
         R = self.R
         z0_0 = z0_1 = self.z0
-        ones = np.ones(w.shape, dtype=np.complex128)
+        ones = np.ones(freq.npoints, dtype=np.complex128)
 
         denom = R + (z0_0 + z0_1)
         s11 = ((R - z0_0.conj() + z0_1) / denom) * ones
@@ -64,8 +68,8 @@ class Resistor(Model):
         
 
 class Transformer(Model):
-    def s(self, w: np.ndarray):
-        s = 0.5 * np.ones((w.shape[0], 4, 4), dtype=np.complex128)
+    def s(self, freq: Frequency):
+        s = 0.5 * np.ones((freq.npoints, 4, 4), dtype=np.complex128)
         s[:, 0, 3] *= -1
         s[:, 1, 2] *= -1
         s[:, 2, 1] *= -1

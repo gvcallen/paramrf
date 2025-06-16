@@ -1,4 +1,4 @@
-import numpy as np
+import _numpy as np
 from scipy.linalg import svd
 from sklearn.decomposition import TruncatedSVD
 

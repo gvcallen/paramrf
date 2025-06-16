@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-import numpy as np
+import _numpy as np
 from scipy.stats import norm, rice
 
 """

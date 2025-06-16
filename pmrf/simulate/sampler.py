@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Iterator
 
-import numpy as np
+import _numpy as np
 from scipy.stats import qmc
 
 from pmrf.models import NetworkSystem

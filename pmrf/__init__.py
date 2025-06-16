@@ -1,15 +1,19 @@
 # from pmrf.core.network import Network
 # from pmrf.core.parameter import Parameter
 
-from pmrf._model import (
+from pmrf.model import (
     Model as Model,
-    Scalar as Scalar,
-    Vector as Vector,
 )
 
-from pmrf._system import (
-    SystemModel as SystemModel,
+from pmrf.system import (
+    ModelSystem as ModelSystem,
 )
+
+from pmrf.frequency import (
+    Frequency as Frequency,
+)
+
+import pmrf._typing as typing
 
 # from pmrf._parameter import (
 #     Parameter as Parameter,

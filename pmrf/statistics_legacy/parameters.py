@@ -2,12 +2,12 @@ import importlib
 import re
 import os
 
-import numpy as np
+import _numpy as np
 import pandas as pd
 from scipy.stats import qmc, uniform
 import uuid
 
-from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
+from pmrf.statistics_legacy.distribution import scipy_to_string, string_to_scipy
 
 
 class ParameterSet(pd.DataFrame):

@@ -1,7 +1,7 @@
 from pathlib import Path
 import logging
 
-import numpy as np
+import _numpy as np
 import matplotlib.pyplot as plt
 import skrf as rf
 
@@ -26,10 +26,10 @@ try:
 except ImportError:
     anesthetic_available = False
 
-from pmrf.statistics.parameters import ParameterSet
-from pmrf.statistics.likelihood import Likelihood
+from pmrf.statistics_legacy.parameters import ParameterSet
+from pmrf.statistics_legacy.likelihood import Likelihood
 from pmrf.fitting.target import Target
-from _system import NetworkSystem
+from system import NetworkSystem
 from networksold import get_unique_networks, update_networks_mapped
 from pmrf._math import dB20
 from pmrf.rf.passive import available_gain

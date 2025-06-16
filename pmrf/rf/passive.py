@@ -1,4 +1,4 @@
-import numpy as np
+import _numpy as np
 import skrf as rf
 
 # The available gain of a two-port network relative to the available power of a source, where port 1 of the two-port is connected to the source

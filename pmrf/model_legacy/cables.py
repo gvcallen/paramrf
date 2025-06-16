@@ -1,6 +1,6 @@
 import skrf as rf
 
-from pmrf._inspection import get_args_of
+from _inspection_legacy import get_args_of
 from pmrf.models.models.connectors import SMAConnector
 from pmrf.models.models.lines import DatasheetCoax
 from pmrf._core import ParametricNetwork, CompositeNetwork

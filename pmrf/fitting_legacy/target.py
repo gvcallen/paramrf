@@ -1,9 +1,9 @@
-import numpy as np
+import _numpy as np
 import skrf as rf
 
-from pmrf.statistics.features import FeatureExtractor, extract_features
-from pmrf.statistics.modifiers import ModifierChain
-from pmrf.statistics.likelihood import GaussianLikelihood
+from pmrf.statistics_legacy.features import FeatureExtractor, extract_features
+from pmrf.statistics_legacy.modifiers import ModifierChain
+from pmrf.statistics_legacy.likelihood import GaussianLikelihood
 
 from pmrf._networks_legacy import ParametricNetwork, CompositeNetwork
 

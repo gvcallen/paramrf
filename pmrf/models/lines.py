@@ -5,7 +5,8 @@ from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf import Model
 from pmrf._math import evaluate_bernstein_basis, evaluate_power_basis
-from pmrf._model import Scalar, Vector
+from pmrf._typing import Scalar, Vector
+from pmrf.frequency import Frequency
 
 class RLGCLine(Model):
     """
@@ -20,18 +21,19 @@ class RLGCLine(Model):
     length: Scalar = 1.0
 
     @abstractmethod
-    def rlgc(self, w) -> tuple:
+    def rlgc(self, freq: Frequency) -> tuple:
         """The RLGC parameters of the line.
         
         Args:
-            w: Angular frequency, specified in radians.
+            freq: Frequency object.
 
         Returns:
             tuple: The R, L, G and C line parameters, in that order.
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")
 
-    def a(self, w):
+    def a(self, freq: Frequency):
+        w = freq.w
         R, L, G, C = self.rlgc(w)
         gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
         Zc = np.sqrt((R + 1j*w*L) / (G + 1j*w*C))
@@ -60,7 +62,7 @@ class ConstantRLGCLine(RLGCLine):
     G: Scalar = 0.0
     C: Scalar = 90e-12,
 
-    def rlgc(self, w) -> tuple:
+    def rlgc(self, _: Frequency) -> tuple:
         return self.R, self.L, self.G, self.C
     
 class DatasheetCoaxial(RLGCLine):
@@ -89,7 +91,8 @@ class DatasheetCoaxial(RLGCLine):
     loss_coeffs_normalized: bool = False
     freq_bounds: tuple = None
 
-    def rlgc(self, w):
+    def rlgc(self, freq: Frequency):
+        w = freq.w
         zn, k1, k2 = self.zn, self.k1, self.k2
 
         if self.epr_slope == 0:
@@ -173,7 +176,8 @@ class PhysicalCoaxial(RLGCLine):
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
         
-    def interpolated(self, param: str, w):
+    def interpolated(self, param: str, freq: Frequency):
+        w = freq.w
         if param.startswith('rho'):
             model = str(getattr(self, f'rho_model'))
         else:
@@ -191,57 +195,58 @@ class PhysicalCoaxial(RLGCLine):
                 
         return value
             
-    def epr_w(self, w, x='hello'):
-        return self.interpolated('epr', w)
+    def epr_f(self, freq: Frequency, x='hello'):
+        return self.interpolated('epr', freq)
     
-    def tand_w(self, w):
-        return self.interpolated('tand', w)
+    def tand_f(self, freq: Frequency):
+        return self.interpolated('tand', freq)
     
-    def mur_w(self, w):
-        return self.interpolated('mur', w)
+    def mur_f(self, freq: Frequency):
+        return self.interpolated('mur', freq)
     
-    def rho_w(self, w):
-        return self.interpolated('rho', w)
+    def rho_f(self, freq: Frequency):
+        return self.interpolated('rho', freq)
     
-    def rhoin_w(self, w):
-        return self.interpolated('rhoin', w) if self.separate_rho else self.rho_w(w)
+    def rhoin_f(self, freq: Frequency):
+        return self.interpolated('rhoin', freq) if self.separate_rho else self.rho_f(freq)
     
-    def rhoout_w(self, w):
-        return self.interpolated('rhout', w) if self.separate_rho else self.rho_w(w)
+    def rhoout_f(self, freq: Frequency):
+        return self.interpolated('rhout', freq) if self.separate_rho else self.rho_f(freq)
     
-    def eps_w(self, w):
-        return epsilon_0 * self.epr_w(w) * (1 - 1j * self.tand_w(w))
+    def eps_f(self, freq: Frequency):
+        return epsilon_0 * self.epr_f(freq) * (1 - 1j * self.tand_f(freq))
     
-    def mu_w(self, w):
-        return mu_0 * self.mur_w(w)
+    def mu_f(self, freq: Frequency):
+        return mu_0 * self.mur_f(freq)
     
-    def L_prime(self, w):
+    def L_prime(self, freq: Frequency):
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
-        return self.mu_w(w) / (2 * np.pi) * lnbOvera
+        return self.mu_f(freq) / (2 * np.pi) * lnbOvera
     
-    def C_prime(self, w):
+    def C_prime(self, freq: Frequency):
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
-        return 2 * np.pi * np.real(self.eps_w(w)) / lnbOvera
+        return 2 * np.pi * np.real(self.eps_f(freq)) / lnbOvera
     
-    def G_diel(self, w):
+    def G_diel(self, freq: Frequency):
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
-        return 2 * np.pi * w * -np.imag(self.eps_w(w)) / lnbOvera
+        return 2 * np.pi * w * -np.imag(self.eps_f(freq)) / lnbOvera
         
-    def R_skin(self, w):
-        return np.real(self.Z_skin(w))
+    def R_skin(self, freq: Frequency):
+        return np.real(self.Z_skin(freq))
     
-    def L_skin(self, w):
-        return np.imag(self.Z_skin(w)) / w
+    def L_skin(self, freq: Frequency):
+        return np.imag(self.Z_skin(freq)) / freq.w
     
-    def Z_skin(self, w):
+    def Z_skin(self, freq: Frequency):
+        w = freq.w
         a = self.din / 2
         b = self.dout / 2
-        mu = self.mu_w(w)
-        sigma_a = 1 / self.rhoin_w(w)
-        sigma_b = 1 / self.rhoout_w(w)
+        mu = self.mu_f(freq)
+        sigma_a = 1 / self.rhoin_f(freq)
+        sigma_b = 1 / self.rhoout_f(freq)
         
         L_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(mu / (2 * w * sigma_a))
         L_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(mu / (2 * w * sigma_b))
@@ -253,7 +258,7 @@ class PhysicalCoaxial(RLGCLine):
         
         return R_skin + 1j * w * L_skin
     
-    def rlgc(self, w):
+    def rlgc(self, freq: Frequency):
         # print(f'PhysicalCoax.compute: {self.name}')
         # Formulae from 'Frederick M. Tesche - A Simple Model for the Line Parameters of a Lossy Coaxial Cable Filled With a Nondispersive Dielectric'
         # as well as Pozar for G term

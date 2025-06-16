@@ -1,6 +1,6 @@
 import os
 
-import numpy as np
+import _numpy as np
 import skrf as rf
 import matplotlib.pyplot as plt
 try: 

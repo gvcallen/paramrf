@@ -9,7 +9,7 @@ import uuid
 from datetime import timedelta
 import time
 
-import numpy as np
+import _numpy as np
 from scipy.stats._distn_infrastructure import rv_continuous_frozen
 from scipy.optimize import minimize, Bounds, shgo, dual_annealing
 import skrf as rf
@@ -39,10 +39,10 @@ from pmrf._misc.structures import frequency_to_dict, dict_to_frequency
 from pmrf._misc.other import time_string
 from pmrf._math import round_sig
 
-from pmrf.statistics.features import FeatureExtractor, extract_features
-from pmrf.statistics.modifiers import ModifierChain
-from pmrf.statistics.likelihood import GaussianLikelihood, CircularComplexGaussianLikelihood, RicianLikelihood
-from pmrf.statistics.distribution import scipy_to_string, string_to_scipy
+from pmrf.statistics_legacy.features import FeatureExtractor, extract_features
+from pmrf.statistics_legacy.modifiers import ModifierChain
+from pmrf.statistics_legacy.likelihood import GaussianLikelihood, CircularComplexGaussianLikelihood, RicianLikelihood
+from pmrf.statistics_legacy.distribution import scipy_to_string, string_to_scipy
 
 from pmrf.fitting.target import Target
 

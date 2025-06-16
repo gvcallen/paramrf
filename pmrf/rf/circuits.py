@@ -1,6 +1,6 @@
 from functools import reduce
 
-import numpy as np
+import _numpy as np
 import skrf as rf
 
 def get_twoport_a(network: rf.Network, a_buffer=None):

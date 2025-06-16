@@ -6,4 +6,4 @@ USE_JAX = True
 if USE_JAX:
     import jax.numpy as numpy
 else:
-    import numpy as nump
+    import _numpy as nump

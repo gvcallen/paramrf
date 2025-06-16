@@ -1,6 +1,6 @@
 import skrf as rf
 
-from pmrf._inspection import get_args_of
+from _inspection_legacy import get_args_of
 from pmrf.models import CompositeNetwork
 from pmrf.models.elements.lumped import Capacitor
 from pmrf.models.models.lines import MicrostripLine

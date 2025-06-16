@@ -1,5 +1,5 @@
 # Old imports to go
-import numpy as np
+import _numpy as np
 import skrf as rf
 from skrf.media import DefinedGammaZ0, DistributedCircuit
 from skrf.constants import c
@@ -8,7 +8,7 @@ from scipy.interpolate import CubicSpline, PPoly, BPoly
 from scipy.constants import c, mu_0, epsilon_0
 from scipy.special import iv, kv
 from pmrf._networks_legacy import ParametricNetwork, CompositeNetwork
-from pmrf._inspection import get_args_of
+from _inspection_legacy import get_args_of
 
 class RLGCLine(ParametricNetwork):
     def __init__(self, params = None, R = 0.0, L = 280e-9, G = 0.0, C = 90e-12, len = 1.0, floating = False, method='exact', **kwargs):

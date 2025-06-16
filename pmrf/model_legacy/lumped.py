@@ -1,9 +1,9 @@
-import numpy as np
+import _numpy as np
 import skrf as rf
 from skrf.media import Media
 
 from pmrf._networks_legacy import ParametricNetwork, ComputableNetwork
-from pmrf._inspection import get_args_of
+from _inspection_legacy import get_args_of
 
    
 class Capacitor(ParametricNetwork):

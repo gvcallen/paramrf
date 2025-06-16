@@ -3,7 +3,7 @@ from skrf.media import DefinedGammaZ0, DefinedAEpTandZ0
 from pmrf._core import ParametricNetwork
 from pmrf.models.models.lines import DatasheetCoax
 from pmrf.models.elements.lumped import Resistor
-from pmrf._inspection import get_args_of
+from _inspection_legacy import get_args_of
 
 class SMAEdgeConnector(ParametricNetwork):
     """

@@ -2,10 +2,10 @@ from pathlib import Path
 import logging
 import os
 
-import numpy as np
+import _numpy as np
 import skrf as rf
 
-from pmrf.statistics.parameters import ParameterSet
+from pmrf.statistics_legacy.parameters import ParameterSet
 from pmrf._math import round_sig
 
 # Old imports to be replaced
