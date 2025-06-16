@@ -2,7 +2,7 @@ import importlib
 import re
 import os
 
-import _numpy as np
+import numpy as np
 import pandas as pd
 from scipy.stats import qmc, uniform
 import uuid

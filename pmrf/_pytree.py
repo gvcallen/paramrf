@@ -1,5 +1,5 @@
 from functools import reduce
-from typing import Any, Callable, Optional, Union, Dict
+from typing import Any, Callable, Dict
 import re
 
 from numpy import ndindex
@@ -11,12 +11,12 @@ from pmrf._numpy import numpy as np
 
 def tree_with_params(
     tree: Any,
-    separator: Optional[str] = '_',
-    subtree_separator: Optional[str] = None,
-    array_separator: Optional[str] = None,
-    index_separator: Optional[str] = None,
-    flat_params: Optional[jax.Array] = None,
-    param_filter: Optional[Callable[[Any], bool]] = None,
+    flat_params: jax.Array | None = None,
+    separator: str | None = '_',
+    subtree_separator: str | None = None,
+    array_separator: str | None = None,
+    index_separator: str | None = None,
+    param_filter: Callable[[Any], bool] | None = None,
     **params: Any
 ) -> Any:
     """
@@ -29,12 +29,12 @@ def tree_with_params(
 
     Args:
         tree: The original, immutable PyTree (e.g., an Equinox model).
+        flat_params: A 1D JAX array containing all dynamic parameter
+                     values in their flattened tree order.
         separator: The default separator used if others are not specified.
         subtree_separator: Separator for nested attribute names.
         array_separator: Separator between attribute path and array index.
         index_separator: Separator for multi-dimensional array indices.
-        flat_params: A 1D JAX array containing all dynamic parameter
-                     values in their flattened tree order.
         param_filter: A function that returns `True` for dynamic parameters.
         **params: Keyword arguments where keys are the string paths of the
                   parameters to update and values are their new values.
@@ -121,12 +121,12 @@ def tree_with_params(
 def tree_params(
     tree: Any,
     flat: bool = False,
-    separator: Optional[str] = '_',
-    subtree_separator: Optional[str] = None,
-    array_separator: Optional[str] = None,
-    index_separator: Optional[str] = None,
-    param_filter: Optional[Callable[[Any], bool]] = None,
-) -> Union[Dict[str, Any], jax.Array]:
+    separator: str | None = '_',
+    subtree_separator: str | None = None,
+    array_separator: str | None = None,
+    index_separator: str | None = None,
+    param_filter: Callable[[Any], bool] | None = None,
+) -> Dict[str, Any] | jax.Array:
     """
     Returns the dynamic parameters of a PyTree as either a dictionary of
     paths and values, or a single flattened JAX array.

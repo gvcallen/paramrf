@@ -184,11 +184,11 @@ class ModelSystem(eqx.Module):
     def params(
         self,
         flat: bool = False,
-        separator: Optional[str] = '_',
-        submodel_separator: Optional[str] = None,
-        array_separator: Optional[str] = None,
-        index_separator: Optional[str] = None,
-        param_filter: Optional[Callable[[Any], bool]] = None,
+        separator: str | None = '_',
+        submodel_separator: str | None = None,
+        array_separator: str | None = None,
+        index_separator: str | None = None,
+        param_filter: Callable[[Any], bool] | None = None,
     ) -> Union[Dict[str, Any], jax.Array]:
         """Returns a dictionary of human-readable string paths and values for every
         scalar value in the model's flattened parameters.

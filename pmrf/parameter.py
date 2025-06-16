@@ -7,7 +7,7 @@ import equinox as eqx
 from equinox import field
 import jax.numpy as jnp
 
-from _typing import Array, Scalar
+from pmrf._typing import Array, Scalar
 
 
 @dataclass
@@ -21,12 +21,20 @@ class Parameter:
 
     @property
     def lower(self):
-        return self.minimum if self.minimum is not None else self.dist.ppf(0.99)
+        if not self.minimum is None:
+            return self.minimum
+        if not self.dist is None:
+            return self.dist.ppf(0.01)
+        return self.value
     
     @property
     def upper(self):
-        return self.maximum if self.maximum is not None else self.dist.ppf(0.99)
-
+        if not self.maximum is None:
+            return self.maximum
+        if not self.dist is None:
+            return self.dist.ppf(0.99)
+        return self.value
+    
 
 def uniform(min, max, **kwargs) -> 'Parameter':
     dist = scipy.stats.distributions.uniform(min, max-min)

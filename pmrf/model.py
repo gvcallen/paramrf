@@ -118,7 +118,11 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant abcd matrix.
         """
-        raise NotImplementedError("Error: sub-classes currently *have* to implement the 'a' function")
+        if self.primary_property != 's':
+            raise NotImplementedError("Error: sub-classes currently *have* to implement the 's' or the 'a' function")
+        
+        s = self.s(freq)
+        return s2a(s, self.z0)
     
     def s(self, freq: Frequency) -> np.ndarray:
         """Calculates the S parameter matrix as a function of frequency.
@@ -132,8 +136,12 @@ class Model(eqx.Module):
 
         Returns:
             np.ndarray: The resultant S matrix.
-        """        
-        raise NotImplementedError("Error: sub-classes currently *have* to implement the 's' function")
+        """
+        if self.primary_property != 'a':
+            raise NotImplementedError("Error: sub-classes currently *have* to implement the 's' or the 'a' function")
+        
+        a = self.a(freq)
+        return a2s(a, self.z0)
         
     def features(
         self,
@@ -157,9 +165,9 @@ class Model(eqx.Module):
         X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
         for d, feature in enumerate(features):
             if USE_JAX:
-                X = X.at[:, d].set(feature.extract_from_model(self, X)) # TODO optimize jax case
+                X = X.at[:, d].set(feature.extract_from_model(self, freq)) # TODO optimize jax case
             else:
-                X[:, d] = feature.extract_from_model(self, X)
+                X[:, d] = feature.extract_from_model(self, freq)
 
         return X
 
@@ -177,18 +185,18 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant feature matrix.
         """        
-        frequency = Frequency(measured.frequency)
+        freq = Frequency(measured.frequency)
         features: list[FeatureExtractor] = features or [FeatureExtractor()]
         
-        n_frequencies = len(frequency)
+        n_frequencies = len(freq)
         n_features = len(features)
 
         F = np.zeros((n_frequencies, n_features), dtype=np.complex128)
         for d, feature in enumerate(features):
             if USE_JAX:
-                F = F.at[:, d].set(feature.extract_from_network(measured) - feature.extract_from_model(self, F)) # TODO optimize jax case
+                F = F.at[:, d].set(feature.extract_from_network(measured) - feature.extract_from_model(self, freq)) # TODO optimize jax case
             else:
-                F[:, d] = feature.extract_from_network(measured) - feature.extract_from_model(self, F)
+                F[:, d] = feature.extract_from_network(measured) - feature.extract_from_model(self, freq)
         return F
     
     def cost(
@@ -215,7 +223,7 @@ class Model(eqx.Module):
             np.ndarray: _description_
         """
         # We use explicit defaults because cost is quite a common high-level user requirement
-        features = features | [FeatureExtractor(mode='complex', property='s', ports=(0, 0), scale='lin')]
+        features = features or [FeatureExtractor(mode='complex', property='s', ports=(0, 0), scale='lin')]
         modifiers = ModifierChain(modifiers or ['L2', 'dB'])
         feature_residuals = self.residuals(measured, features=features)
         return modifiers(feature_residuals)    
@@ -249,12 +257,12 @@ class Model(eqx.Module):
     
     def with_params(
         self,
-        flat_params: Optional[jax.Array] = None,
+        flat_params: jax.Array | None = None,
         separator: str | None = '_',
         submodel_separator: str | None = None,
         array_separator: str | None = None,
         index_separator: str | None = None,
-        param_filter: Callable[[Any], bool] = None,
+        param_filter: Callable[[Any], bool] | None = None,
         **params: Any
     ) -> "Model":
         """
@@ -284,11 +292,11 @@ class Model(eqx.Module):
     def params(
         self,
         flat: bool = False,
-        separator: Optional[str] = '_',
-        submodel_separator: Optional[str] = None,
-        array_separator: Optional[str] = None,
-        index_separator: Optional[str] = None,
-        param_filter: Optional[Callable[[Any], bool]] = None,
+        separator: str | None = '_',
+        submodel_separator: str | None = None,
+        array_separator: str | None = None,
+        index_separator: str | None = None,
+        param_filter: Callable[[Any], bool] | None = None,
     ) -> Union[Dict[str, Any], jax.Array]:
         """Returns an dictionary of human-readable string paths and values for every
         scalar value in the flattened parameters.

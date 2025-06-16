@@ -1,6 +1,5 @@
 import skrf as rf
 
-from pmrf.statistics_legacy.parameters import ParameterSet
 from pmrf.models.lines import DatasheetCoaxial
 from pmrf.parameter import norm, uniform, fixed
 from pmrf.fitting import ScipyFitter
@@ -11,11 +10,11 @@ coax = DatasheetCoaxial(name='coax')
 # Setup the parameters
 parameters = {
     'length': norm(10.0, 0.5),
-    'zn': norm(49.0, 51.0),
-    'epr': fixed(1.0),
-    'epr_slope': fixed(0.0),
+    'zn': norm(50.0, 1.0),
+    'epr': uniform(1.4, 1.5),
+    'epr_slope': uniform(0.0, 0.0),
     'k1': uniform(0.0, 2.0),
-    'k2': fixed(0.0),
+    'k2': uniform(0.0, 1e-3),
 }
 
 # Initialize the fitter
@@ -24,6 +23,8 @@ fitter = ScipyFitter(
     measured=rf.Network('examples/data/10m_cable.s2p', f_unit='MHz'),
     params=parameters
 )
+
+# print(f'Current cost = {fitter.cost()}')
 
 # Run the fit
 fitter.fit()

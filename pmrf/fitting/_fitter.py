@@ -5,10 +5,13 @@ import scipy
 import scipy.optimize
 import skrf
 
+import jax
+
 from pmrf.model import Model
 from pmrf.parameter import Parameter, fixed
 from pmrf.system import ModelSystem
 from pmrf.fitting._results import BayesianResults, FrequentistResults
+from pmrf._numpy import numpy as np
 
 from pmrf._modifiers import ModifierChain
 
@@ -37,40 +40,87 @@ class BaseFitter(ABC):
         fit_frequency: skrf.Network | None = None,
         param_infix = '_',
     ) -> None:
-        if fit_frequency is not None:
+        if isinstance(measured, list) and len(measured) > 1:
+            if fit_frequency is None:
+                raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency) for fitting")
+        
             measured_interp = []
             for ntwk in measured:
                 measured_interp.append(ntwk.interpolate(fit_frequency))
-        else:
-            raise ValueError("Error: Currently `fit_frequency` must be passed (i.e. all networks must be interpolated onto the same frequency) for fitting")
+            measured = measured_interp
         
         self.model: Model | ModelSystem = model
         self.measured: skrf.Network | list[skrf.Network] = measured
         self.params: dict[str, Parameter] = params or {}
         self.param_infix = param_infix
 
+        self._init_params()
+
     def _init_params(self):
-        for name, value in self.model.params(separator=self.param_infix).items():
+        model_params = self.model.params(separator=self.param_infix)
+        for name, value in model_params.items():
             # TODO add more complicated parameter initialization options e.g. default % width
             if not name in self.params:
                 self.params[name] = fixed(value)
-
-    @property
-    def parameter_bounds(self) -> tuple[list, list]:
-        pass
-    
-    @property
-    def parameter_values(self) -> list[float]:
-        pass
 
     @abstractmethod
     def fit(self, *args, **kwargs):
         pass
 
+    @property
+    def param_names(self) -> list[str]:
+        return list(self.params.keys())
+    
+    @property
+    def param_names_free(self) -> list[str]:
+        return list(k for k, v in self.params.items() if not v.fixed)
+    
+    @property
+    def param_names_fixed(self) -> list[str]:
+        return list(k for k, v in self.params.items() if v.fixed)
+    
+    @property
+    def param_values(self) -> np.ndarray:
+        return np.array([v.value for v in self.params.values()])
+    
+    @property
+    def param_values_free(self) -> np.ndarray:
+        return np.array([v.value for v in self.params.values() if not v.fixed])
+    
+    @property
+    def param_values_fixed(self) -> np.ndarray:
+        return np.array([v.value for v in self.params.values() if v.fixed])
+    
+    @property
+    def param_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        lower = np.array([v.lower for v in self.params.values()])
+        upper = np.array([v.upper for v in self.params.values()])
+        return lower, upper
+    
+    @property
+    def param_bounds_free(self) -> tuple[np.ndarray, np.ndarray]:
+        lower = np.array([v.lower for v in self.params.values() if not v.fixed])
+        upper = np.array([v.upper for v in self.params.values() if not v.fixed])
+        return lower, upper    
+    
+    @property
+    def param_bounds_fixed(self) -> tuple[np.ndarray, np.ndarray]:
+        lower = np.array([v.lower for v in self.params.values() if v.fixed])
+        upper = np.array([v.upper for v in self.params.values() if v.fixed])
+        return lower, upper
+
 
 class FrequentistFitter(BaseFitter):
     def make_cost_function(self) -> Callable:
-        return self.model.make_cost_function(self.measured)
+        cost_fn = self.model.make_cost_function(self.measured)
+        def cost_fn_wrapper(x, *args, **kwargs):
+            cost = cost_fn(x)
+            # print(cost)
+            return cost
+        return cost_fn_wrapper
+    
+    def cost(self) -> float:
+        return self.model.cost(self.measured)
 
 
 class ScipyFitter(FrequentistFitter):
@@ -78,8 +128,8 @@ class ScipyFitter(FrequentistFitter):
         cost_fn = self.make_cost_function()
 
         # Populate bounds and options
-        x0 = self.parameter_values
-        minimums, maximums = self.parameter_bounds
+        x0 = self.param_values_free
+        minimums, maximums = self.param_bounds_free
         bounds = scipy.optimize.Bounds(minimums, maximums)
         
         options = {
@@ -93,7 +143,14 @@ class ScipyFitter(FrequentistFitter):
 
         def progress_callback(xk):
             callback_args['i_solver'] += 1
-            print(callback_args['i_solver'])
+            # print(callback_args['i_solver'])
 
         # Run the minization routine
-        return scipy.optimize.minimize(cost_fn, args=callback_args, x0, bounds=bounds, method='SLSQP', options=options, callback=progress_callback)
+        cost_fn = jax.jit(cost_fn)
+        
+        result = scipy.optimize.minimize(cost_fn, x0, args=callback_args, bounds=bounds, method='SLSQP', options=options, callback=progress_callback)
+
+        # print(result)
+        self.model = self.model.with_params(result.x)
+
+        return result

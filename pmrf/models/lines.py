@@ -34,7 +34,7 @@ class RLGCLine(Model):
 
     def a(self, freq: Frequency):
         w = freq.w
-        R, L, G, C = self.rlgc(w)
+        R, L, G, C = self.rlgc(freq)
         gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
         Zc = np.sqrt((R + 1j*w*L) / (G + 1j*w*C))
 
@@ -95,16 +95,16 @@ class DatasheetCoaxial(RLGCLine):
         w = freq.w
         zn, k1, k2 = self.zn, self.k1, self.k2
 
-        if self.epr_slope == 0:
-            epr = np.ones(w.shape[0]) * self.epr
+        # if self.epr_slope == 0.0:
+        #     epr = np.ones(w.shape[0]) * self.epr
+        # else:
+        if not self.freq_bounds is None:
+            w_start, w_stop = self.freq_bounds
         else:
-            if not self.freq_bounds is None:
-                w_start, w_stop = self.freq_bounds
-            else:
-                w_start, w_stop = w[0], w[-1]
+            w_start, w_stop = w[0], w[-1]
 
-            wn = (w - w_start) / (w_stop - w_start)            
-            epr += self.epr_slope * wn
+        wn = (w - w_start) / (w_stop - w_start)            
+        epr = np.ones(w.shape[0]) * self.epr + self.epr_slope * wn
         
         if not self.loss_coeffs_normalized:
             k1_norm = k1 * (1.0 / (100 * np.sqrt(2*np.pi * 10**6)))
