@@ -139,11 +139,11 @@ class Model(eqx.Module, ABC):
         return a2s(a, self.z0)
            
     def flipped(self) -> 'Model':
-        from pmrf.models.compound import FlippedModel
+        from pmrf.models.structural import FlippedModel
         return FlippedModel(self)
     
     def terminated(self) -> 'Model':
-        from pmrf.models.compound import TerminatedModel
+        from pmrf.models.structural import TerminatedModel
         return TerminatedModel(self)
     
     def with_params(
