@@ -2,23 +2,21 @@ from dataclasses import dataclass
 import skrf
 import re
 
-from pmrf.frequency import Frequency
-
+from pmrf._frequency import Frequency
 from pmrf._math import dB20
 from pmrf._numpy import numpy as np
 from pmrf._numpy import USE_JAX
-from pmrf.model import Model
-from pmrf.system import ModelSystem
-
+from pmrf._model import Model
+from pmrf._system import SystemModel
 
 """
 This file contains functions related to extracting "features" from models e.g. S11 magnitude, S21 complex etc.
 """
 @dataclass
 class Feature:
-    mode: str = 'complex'
     property: str = 's'
     ports: tuple[int, int] = (0, 0)
+    mode: str = 'complex'
     scale: str = 'lin'
 
     @classmethod
@@ -94,7 +92,7 @@ class Feature:
             scale=scale
         )    
 
-def extract_features(source: Model | ModelSystem | skrf.Network | list[skrf.Network], features: list[Feature], freq: Frequency = None) -> np.ndarray:
+def extract_features(source: Model | SystemModel | skrf.Network | list[skrf.Network], features: list[Feature], freq: Frequency = None) -> np.ndarray:
     # We use explicit defaults because cost is quite a common high-level user requirement
     # TODO optimize jax cases
     if freq is None:
@@ -107,28 +105,28 @@ def extract_features(source: Model | ModelSystem | skrf.Network | list[skrf.Netw
         X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
         for d, feature in enumerate(features):
             if USE_JAX:
-                X = X.at[:, d].set(_extract_feature(source, feature, freq=freq))
+                X = X.at[:, d].set(extract_feature(source, feature, freq=freq))
             else:
-                X[:, d] = _extract_feature(source, feature, freq=freq)
+                X[:, d] = extract_feature(source, feature, freq=freq)
     else:
         X = np.zeros((freq.npoints, len(features)), dtype=np.complex128)
         d = 0
-        if isinstance(source, ModelSystem):
+        if isinstance(source, SystemModel):
             sources = source.models
         else:
             sources = source
         for source in sources:
             for feature in features:
                 if USE_JAX:
-                    X.at[:, d].set(_extract_feature(source, feature, freq=freq))
+                    X.at[:, d].set(extract_feature(source, feature, freq=freq))
                 else:
-                    X[:, d] = _extract_feature(source, feature, freq=freq)
+                    X[:, d] = extract_feature(source, feature, freq=freq)
                 d += 1
     
     return X
 
     
-def _extract_feature(source: Model | skrf.Network, feature: Feature, freq: Frequency = None) -> np.ndarray:
+def extract_feature(source: Model | skrf.Network, feature: Feature, freq: Frequency = None) -> np.ndarray:
     m, n = feature.ports
     if isinstance(source, Model):
         y = getattr(source, feature.property)(freq)[:, m, n]

@@ -1,10 +1,31 @@
-from model import Model
-from parameter import Parameter
-from pmrf._numpy import numpy as np
-from frequency import Frequency
+import pmrf.numpy as np
+from pmrf._model import Model
+from pmrf._frequency import Frequency
+
+class Load(Model):
+    gamma: float | np.ndarray = 0.0
+    nports: int = 1
+
+    def s(self, freq: Frequency) -> np.ndarray:
+        gamma, nports = self.gamma, self.nports
+        s = np.array(gamma).reshape(-1, 1, 1) * \
+            np.eye(nports, dtype=np.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return s
+    
+class Match(Load):
+    pass
+
+class Short(Load):
+    def __init__(self):
+        self.gamma = -1.0
+
+class Open(Load):
+    def __init__(self):
+        self.gamma = 1.0
   
 class Capacitor(Model):
-    C: Parameter = 1.0
+    C: float = 1.0
 
     def s(self, freq: Frequency) -> np.ndarray:
         w = freq.w
@@ -24,7 +45,7 @@ class Capacitor(Model):
         return s
                 
 class Inductor(Model):
-    L: Parameter = 1.0
+    L: float = 1.0
 
     def s(self, freq: Frequency) -> np.ndarray:
         L = self.L
@@ -45,10 +66,9 @@ class Inductor(Model):
         return s         
 
 class Resistor(Model):
-    R: Parameter = 1.0
+    R: float = 1.0
 
     def s(self, freq: Frequency) -> np.ndarray:
-        w = freq.w
         R = self.R
         z0_0 = z0_1 = self.z0
         ones = np.ones(freq.npoints, dtype=np.complex128)
@@ -66,7 +86,6 @@ class Resistor(Model):
 
         return s
         
-
 class Transformer(Model):
     def s(self, freq: Frequency):
         s = 0.5 * np.ones((freq.npoints, 4, 4), dtype=np.complex128)

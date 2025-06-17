@@ -1,7 +1,0 @@
-name,pdf,fixed,scale,value
-coax_din,"uniform(0.000896, 0.001344)",False,1.0,0.00112
-coax_dout,"uniform(0.00256, 0.00384)",False,1.0,0.0032
-coax_len,"uniform(8.0, 12.0)",False,1.0,10.0
-coax_epr,"uniform(1.16, 1.74)",False,1.0,1.45
-coax_tand,"uniform(0.0, 0.1)",False,1.0,0.05
-coax_rho,"uniform(1.2800000000000002e-08, 1.92e-08)",False,1.0,1.6e-08

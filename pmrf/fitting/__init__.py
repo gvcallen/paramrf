@@ -1,8 +1,17 @@
+from pmrf.fitting._feature import (
+    Feature,
+    extract_features
+)
+
+from pmrf.fitting._modifier import (
+    Modifier,
+    apply_modifiers,
+)
+
 from pmrf.fitting._fitter import (
-    BaseFitter as BaseFitter,
-    FrequentistFitter as FrequentistFitter,
-    ScipyFitter as ScipyFitter,
-    OptaxFitter as OptaxFitter,
-    JaxNativeFitter as JaxNativeFitter,
-    Feature as Feature
+    BaseFitter,
+    FrequentistFitter,
+    ScipyFitter,
+    OptaxFitter,
+    JaxNativeFitter,
 )

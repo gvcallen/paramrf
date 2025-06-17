@@ -1,12 +1,12 @@
 from abc import abstractmethod
 
-from pmrf._numpy import numpy as np
+from pmrf.numpy import numpy as np
 from scipy.constants import c, mu_0, epsilon_0
 
-from pmrf import Model
+from pmrf._frequency import Frequency
+from pmrf._model import Model
 from pmrf._math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf._typing import Scalar, Vector
-from pmrf.frequency import Frequency
 
 class RLGCLine(Model):
     """
@@ -125,7 +125,6 @@ class DatasheetCoaxial(RLGCLine):
         C = (sqrt_epr) / (zn * c)
         return R, L, G, C
         
-
 class PhysicalCoaxial(RLGCLine):
     """
     A coaxial line defined directly by its physical properties (geometric and material).
@@ -277,3 +276,7 @@ class PhysicalCoaxial(RLGCLine):
         R = self.R_skin(freq)
         
         return R, L, G, C
+    
+
+SlopedLine = DatasheetCoaxial
+BasicLine = DatasheetCoaxial

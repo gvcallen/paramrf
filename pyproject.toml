@@ -10,6 +10,8 @@ dependencies = [
     "anesthetic",
     "asteval",
     "fgivenx",
+    "equinox",
+    "jax",
     "h5py",
     "matplotlib < 3.8",
     "mpi4py",

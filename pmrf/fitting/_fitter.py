@@ -12,13 +12,13 @@ import jaxopt
 
 from pmrf.model import Model
 from pmrf.parameter import Parameter, fixed
-from pmrf.system import ModelSystem
+from _system import SystemModel
 from pmrf.fitting._results import BayesianResults, FrequentistResults
 from pmrf.frequency import Frequency
 from pmrf._numpy import USE_JAX
 from pmrf._numpy import numpy as np
 
-from pmrf.fitting._feature import Feature, extract_features
+from fitting._feature import Feature, extract_features
 from pmrf.fitting._modifier import Modifier, apply_modifiers
 
 from dataclasses import dataclass
@@ -27,7 +27,7 @@ import skrf
 
 from pmrf.frequency import Frequency
 from pmrf.model import Model
-from pmrf.system import ModelSystem
+from _system import SystemModel
 from pmrf._numpy import numpy as np
 
 
@@ -50,7 +50,7 @@ from pmrf._numpy import numpy as np
 class BaseFitter(ABC):
     def __init__(
         self,
-        model: Model | ModelSystem,
+        model: Model | SystemModel,
         measured: skrf.Network | list[skrf.Network],
         params: dict[str, Parameter] | None = None,
         fit_frequency: skrf.Network | None = None,
@@ -75,7 +75,7 @@ class BaseFitter(ABC):
                 measured_interp.append(ntwk.interpolate(fit_frequency))
             measured = measured_interp
         
-        self.model: Model | ModelSystem = model
+        self.model: Model | SystemModel = model
         self.measured: skrf.Network | list[skrf.Network] = measured
         self.params: dict[str, Parameter] = params or {}
         self.param_infix = param_infix
@@ -155,7 +155,7 @@ class FrequentistFitter(BaseFitter):
         
         self.modifiers = modifiers
 
-    def cost(self, model: Model | ModelSystem | None = None) -> np.ndarray:
+    def cost(self, model: Model | SystemModel | None = None) -> np.ndarray:
         """Returns the cost for the model and the specified measured data.
 
         The cost is calculated by first extracting "feature" matrix from the model (such as S11 magnitude) using the `FeatureExtractor` objects in `self.features`,
@@ -180,7 +180,7 @@ class FrequentistFitter(BaseFitter):
         return cost_fn
     
     @property
-    def model_cost_function(self) -> Callable[[Model | ModelSystem], float]:
+    def model_cost_function(self) -> Callable[[Model | SystemModel], float]:
         # TODO update this to filter the parameters based on the 'fixed' flag
         def cost_fn(model):
             return self.cost(model)
