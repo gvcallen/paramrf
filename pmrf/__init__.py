@@ -9,7 +9,7 @@ from pmrf._model import (
 )
 
 from pmrf._compound import (
-    CompoundModel as CompoundModel
+    CompoundModel as CompounndModel
 )
 
 from pmrf._circuit import (

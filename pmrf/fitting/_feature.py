@@ -2,10 +2,11 @@ from dataclasses import dataclass
 import skrf
 import re
 
+import pmrf.numpy as np
+from pmrf.numpy import USE_JAX
+
 from pmrf._frequency import Frequency
 from pmrf._math import dB20
-from pmrf._numpy import numpy as np
-from pmrf._numpy import USE_JAX
 from pmrf._model import Model
 from pmrf._system import SystemModel
 
