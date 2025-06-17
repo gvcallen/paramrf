@@ -1,8 +1,4 @@
-import pmrf._typing as typing
-
-from pmrf._numpy import (
-    numpy as numpy,
-)
+from pmrf.parameters import *
 
 from pmrf._frequency import (
     Frequency as Frequency,
@@ -18,15 +14,10 @@ from pmrf._compound import (
 
 from pmrf._circuit import (
     CircuitModel as CircuitModel,
-    CircuitLayout as CircuitLayout,
 )
 
 from pmrf._system import (
     SystemModel as SystemModel,
-)
-
-from parameter import (
-    Parameter as Parameter,
 )
 
 from importlib.metadata import version as _version, PackageNotFoundError

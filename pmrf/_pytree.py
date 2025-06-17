@@ -2,12 +2,12 @@ from functools import reduce
 from typing import Any, Callable, Dict
 import re
 
+import pmrf.numpy as np
 from numpy import ndindex
 import jax
 from jax.tree_util import GetAttrKey
 import equinox as eqx
 
-from pmrf._numpy import numpy as np
 
 def tree_with_params(
     tree: Any,

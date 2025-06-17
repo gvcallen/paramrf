@@ -1,4 +1,4 @@
-import pmrf._numpy as np
+import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 

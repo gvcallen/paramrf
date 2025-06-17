@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from numbers import Number
 
-from pmrf._numpy import numpy as np
+import pmrf.numpy as np
 import skrf
 
 from skrf.constants import FREQ_UNITS, FrequencyUnitT, NumberLike

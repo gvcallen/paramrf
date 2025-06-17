@@ -1,20 +1,16 @@
 from abc import abstractmethod, ABC
-from functools import reduce
 
-import equinox as eqx
 import skrf as skrf
 import inspect
-import dataclasses
-from dataclasses import dataclass
-from typing import Callable, Any, Optional, Dict
+from typing import Callable, Any, Dict
 
-from pmrf._numpy import USE_JAX
+from pmrf.numpy import USE_JAX
 if USE_JAX:
     import jax
-from pmrf._typing import Scalar, Vector
+import equinox as eqx
 
-import pmrf._numpy as np
-from pmrf._math import dB20, a2s, s2a
+import pmrf.numpy as np
+from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf._pytree import tree_with_params, tree_params
 
@@ -24,11 +20,11 @@ PRIMARY_PROPERTIES = ['s', 'a']
 jax.config.update("jax_enable_x64", True)
 
 class Model(eqx.Module, ABC):
-    """Base class representing any RF network that is computable in some form, referred to as a Model.
+    """Base class representing an RF network that is computable, referred to in param-rf as a `Model`.
 
     This is an abstract class and should not be instantiated directly.
 
-    Models accept their parameters and sub-networks as input arguments into their intitializers, as well as general keyword arguments.
+    Model initializers accept their parameters and sub-networks as input arguments, as well as general keyword arguments.
     Then, they can be used to calculate their properties as function of frequency (S-matrix, ABCD-matrix etc.)
     as well as a configurable "feature" matrix, with is their output when called as a function.
     
@@ -45,14 +41,14 @@ class Model(eqx.Module, ABC):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        # Set the "asarray" converter for fields that are marked as `Scalar` or `Vector` with a default value but haven't been created using "field"
+        # Set the "asarray" converter for fields that are marked as `float` or `np.ndarray` with a default value but haven't been created using "field"
         for field_name, field_type in cls.__annotations__.items():
             # TODO type check that a vector value was not used for `Scalar` and vica versa
-            if field_type is Scalar or field_type is Vector:
+            if field_type is float or field_type is np.ndarray:
                 try:
                     current_value = getattr(cls, field_name, None)
 
-                    if field_type is Vector:
+                    if field_type is np.ndarray:
                         dtype = type(current_value[0])
                     else:
                         dtype = type(current_value)
@@ -143,11 +139,11 @@ class Model(eqx.Module, ABC):
         return a2s(a, self.z0)
            
     def flipped(self) -> 'Model':
-        from pmrf._compound import FlippedModel
+        from pmrf.models.compound import FlippedModel
         return FlippedModel(self)
     
     def terminated(self) -> 'Model':
-        from pmrf._compound import TerminatedModel
+        from pmrf.models.compound import TerminatedModel
         return TerminatedModel(self)
     
     def with_params(
@@ -176,7 +172,7 @@ class Model(eqx.Module, ABC):
             submodel_separator (str | None, optional): The separator before submodels. Defaults to `None`, in which case `separator` is used.
             array_separator (str | None, optional): The separator before array-like parameters. Defaults to `None`, in which case `separator` is used.
             index_separator (str | None, optional): The separator between array sub-indices. Defaults to `None`, in which case `separator` is used.
-            param_filter (Callable[[Any], bool], optional): A filter to determine which fields are considered parameters. Defaults to `None`, in which case only the default `Scalar` and `Vector` types are considered.            
+            param_filter (Callable[[Any], bool], optional): A filter to determine which fields are considered parameters. Defaults to `None`, in which case only the model `float` and `np.ndarray` types are considered.
             **params: Keyword arguments, where keys are the names of the parameters to update and values are their new values.
 
         Returns:

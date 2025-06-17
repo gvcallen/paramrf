@@ -1,6 +1,6 @@
-from pmrf._numpy import numpy as np
-from pmrf._numpy import USE_JAX
-from pmrf._typing import NumberLike
+import pmrf.numpy as np
+from pmrf.numpy import USE_JAX
+from pmrf._misc import NumberLike
 
 if USE_JAX:
     import jax
@@ -11,6 +11,7 @@ else:
     from scipy.special import gammaln
 
 def fix_z0_shape(z0: NumberLike, nfreqs: int, nports: int) -> np.ndarray:
+    # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
     if np.shape(z0) == (nfreqs, nports):
         return z0.copy()
     elif np.ndim(z0) == 0:
@@ -23,6 +24,7 @@ def fix_z0_shape(z0: NumberLike, nfreqs: int, nports: int) -> np.ndarray:
         raise IndexError('z0 is not an acceptable shape')
 
 def a2s(a: np.ndarray, z0: NumberLike = 50) -> np.ndarray:
+    # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
     nfreqs, nports, nports = a.shape
 
     if nports != 2:
@@ -50,6 +52,7 @@ def a2s(a: np.ndarray, z0: NumberLike = 50) -> np.ndarray:
     return s
 
 def s2a(s: np.ndarray, z0: NumberLike = 50) -> np.ndarray:
+    # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
     nfreqs, nports, nports = s.shape
 
     if nports != 2:

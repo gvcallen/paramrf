@@ -1,10 +1,8 @@
 from abc import abstractmethod
 
-import pmrf.numpy as np
 from pmrf.models.lumped import Resistor
 from pmrf.models.topological import PiCLC
 
-from pmrf._frequency import Frequency
 from pmrf._model import Model
 
 class NonIdealResistor(Model):

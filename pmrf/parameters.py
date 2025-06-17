@@ -1,18 +1,12 @@
-import jax
 from dataclasses import dataclass
 from scipy.stats import rv_continuous
 import scipy.stats
-import equinox as eqx
 
-from equinox import field
-import jax.numpy as jnp
-
-from pmrf._typing import Array, Scalar
-
+import pmrf.numpy as np
 
 @dataclass
 class Parameter:
-    value: Scalar | Array = 0.0
+    value: float | np.ndarray = 0.0
     scale: float = 1.0
     fixed: bool = False
     minimum: float | None = None
