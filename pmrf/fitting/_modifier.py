@@ -2,7 +2,7 @@ from __future__ import annotations
 from copy import deepcopy
 import ast
 
-from pmrf._numpy import numpy as np
+import pmrf.numpy as np
 from pmrf._math import dB20, norm
 
 """

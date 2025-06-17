@@ -10,26 +10,18 @@ import optax
 import equinox as eqx
 import jaxopt
 
-from pmrf.model import Model
-from pmrf.parameter import Parameter, fixed
-from _system import SystemModel
+import pmrf.numpy as np
+from pmrf._model import Model
+from pmrf.parameters import Parameter, fixed
+from pmrf._system import SystemModel
 from pmrf.fitting._results import BayesianResults, FrequentistResults
-from pmrf.frequency import Frequency
-from pmrf._numpy import USE_JAX
-from pmrf._numpy import numpy as np
+from pmrf._frequency import Frequency
+from pmrf.numpy import USE_JAX
 
 from fitting._feature import Feature, extract_features
 from pmrf.fitting._modifier import Modifier, apply_modifiers
 
 from dataclasses import dataclass
-
-import skrf
-
-from pmrf.frequency import Frequency
-from pmrf.model import Model
-from _system import SystemModel
-from pmrf._numpy import numpy as np
-
 
 # def Fitter(
 #     model: Model | list[Model] | ModelSystem,

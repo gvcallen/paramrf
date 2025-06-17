@@ -9,7 +9,7 @@ from pmrf._model import (
 )
 
 from pmrf._compound import (
-    CompoundModel as CompounndModel
+    CompoundModel as CompoundModel
 )
 
 from pmrf._circuit import (
@@ -18,6 +18,10 @@ from pmrf._circuit import (
 
 from pmrf._system import (
     SystemModel as SystemModel,
+)
+
+from pmrf._misc import (
+    field
 )
 
 from importlib.metadata import version as _version, PackageNotFoundError

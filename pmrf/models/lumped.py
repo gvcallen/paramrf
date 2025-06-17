@@ -54,8 +54,10 @@ class Inductor(Model):
         z0_0 = z0_1 = self.z0
         
         denom = (1j * w * L) + (z0_0 + z0_1)
-        s11 = (1j * w * L - z0_0.conj() + z0_1) / denom
-        s22 = (1j * w * L + z0_0 - z0_1.conj()) / denom
+        s11 = (1j * w * L - np.conj(z0_0) + z0_1) / denom
+        s22 = (1j * w * L + z0_0 - np.conj(z0_1)) / denom
+        # s11 = (1j * w * L - z0_0 + z0_1) / denom
+        # s22 = (1j * w * L + z0_0 - z0_1) / denom
         s12 = s21 = 2 * (z0_0.real * z0_1.real)**0.5 / denom
 
         s = np.array([

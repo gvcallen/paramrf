@@ -1,7 +1,7 @@
 import skrf as rf
 
 from models.lines import PhysicalCoaxial
-from pmrf.parameter import norm, uniform, fixed
+from pmrf.parameters import norm, uniform, fixed
 from pmrf.fitting import ScipyFitter, OptaxFitter
 from pmrf.fitting import Feature
 

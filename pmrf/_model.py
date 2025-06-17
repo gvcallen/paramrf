@@ -10,6 +10,7 @@ if USE_JAX:
 import equinox as eqx
 
 import pmrf.numpy as np
+from pmrf._misc import field
 from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf._pytree import tree_with_params, tree_params
@@ -19,7 +20,7 @@ PRIMARY_PROPERTIES = ['s', 'a']
 
 jax.config.update("jax_enable_x64", True)
 
-class Model(eqx.Module, ABC):
+class Model(eqx.Module):
     """Base class representing an RF network that is computable, referred to in param-rf as a `Model`.
 
     This is an abstract class and should not be instantiated directly.
@@ -34,42 +35,56 @@ class Model(eqx.Module, ABC):
     Args:
         name (str, optional): A name associated with the model instance.
     """
-    _z0: np.ndarray = eqx.field(default=50.0, init=False, static=True)
-    s_def: str | None = eqx.field(default='power', init=False, static=True)
-    name: str | None = eqx.field(default=None, kw_only=True, static=True)
+    _z0: np.ndarray = field(default=50.0 + 0j, init=False, static=True)
+    s_def: str | None = field(default='power', init=False, static=True)
+    name: str | None = field(default=None, kw_only=True, static=True)
+    param_types: tuple = field(default=(float, np.ndarray), kw_only=True, static=True)
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, param_types: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        # Set the "asarray" converter for fields that are marked as `float` or `np.ndarray` with a default value but haven't been created using "field"
+        param_types = param_types or cls.param_types
+
+        # Add metadata and field properties to certain sub-class fields since we have certains constraints for the API.
+        # Currently, we add default, default_factory, converter, and kw_only where necessary
         for field_name, field_type in cls.__annotations__.items():
-            # TODO type check that a vector value was not used for `Scalar` and vica versa
-            if field_type is float or field_type is np.ndarray:
+            # First, try get the default value and setup defaults
+            current_value = getattr(cls, field_name, None)
+            kw_only = False
+            converter = None
+
+            if current_value is None:
+                continue
+
+            if field_type in param_types:
+                # First, inspect types considered parameters and give them jax array converters
                 try:
-                    current_value = getattr(cls, field_name, None)
-
-                    if field_type is np.ndarray:
-                        dtype = type(current_value[0])
-                    else:
-                        dtype = type(current_value)
-
-                    converter = lambda val: jax.numpy.asarray(val, dtype=dtype)
-                    if current_value.__class__.__hash__ is None:
-                        default_factory = lambda: current_value
-                        field = eqx.field(default_factory=default_factory, converter=converter)
-                    else:
-                        field = eqx.field(default=current_value, converter=converter)
-
-                    setattr(cls, field_name, field)
+                    _ = jax.numpy.asarray(current_value)
                 except:
-                    pass
+                    raise Exception(f'Could not convert field {field_name} with value {current_value} specified as type {field_type} to a parameter')
+                else:
+                    converter = lambda val: jax.numpy.asarray(val, dtype=float)
+            # elif issubclass(field_type, Model):
+            #     # Next, inspect any sub-models
+            #     print('found sub-model annotation!')
+            else:
+                # Finally, kw_only we give any non-parameters the kw_only flag so that models can still be derived without causing ordering issues
+                kw_only = True
+                converter = lambda val: field_type(val)
+                    
+            if current_value.__class__.__hash__ is None:
+                default_factory = lambda: current_value
+                new_value = field(default_factory=default_factory, converter=converter, kw_only=kw_only)
+            else:
+                new_value = field(default=current_value, converter=converter, kw_only=kw_only)
+            setattr(cls, field_name, new_value)
 
     def __new__(cls, *args, **kwargs):                  
         return eqx.Module.__new__(cls)
     
     def __pow__(self, other: 'Model') -> 'Model':
-        from pmrf._compound import CascadedModel
-        return CascadedModel(self, other)
+        from pmrf.models.structural import CascadedModel
+        return CascadedModel([self, other])
         
     @property    
     def primary_function(self):
@@ -98,7 +113,6 @@ class Model(eqx.Module, ABC):
     def z0(self):
         return self._z0
        
-    @abstractmethod
     def a(self, freq: Frequency) -> np.ndarray:
         """Calculates the abcd parameter matrix as a function of frequency.
 
@@ -118,7 +132,6 @@ class Model(eqx.Module, ABC):
         s = self.s(freq)
         return s2a(s, self.z0)
     
-    @abstractmethod
     def s(self, freq: Frequency) -> np.ndarray:
         """Calculates the S parameter matrix as a function of frequency.
 

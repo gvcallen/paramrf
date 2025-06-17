@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import pmrf.numpy as np
+from pmrf._misc import field
 from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._compound import CompoundModel
@@ -17,14 +18,14 @@ from pmrf._compound import CompoundModel
 
 class CircuitModel(Model):
     # _layout: CircuitLayout | None = None 
-    _built_model: CompoundModel | None = None
+    _built_model: Model | None = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self):
-        Model.__post_init__(self)
+        # super.__post_init__(self)
         self._built_model = self.build()
 
     @abstractmethod
-    def build(self) -> CompoundModel:
+    def build(self) -> Model:
         raise NotImplementedError("Error: circuit model sub-classes *have* to implement the build() function to build their circuit layout")
     
     def a(self, freq: Frequency) -> np.ndarray:

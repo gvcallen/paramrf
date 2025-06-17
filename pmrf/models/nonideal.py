@@ -4,14 +4,12 @@ from pmrf.models.lumped import Resistor
 from pmrf.models.topological import PiCLC
 
 from pmrf._model import Model
+from pmrf._circuit import CircuitModel
 
-class NonIdealResistor(Model):
-    ideal: Resistor
+class NonIdealResistor(CircuitModel):
+    ideal: Resistor = Resistor()
 
-    def __init__(self):
-        self.ideal = Resistor()
-
-    def combined(self) -> Model:
+    def build(self) -> Model:
         return self.parasitics ** self.ideal
 
     @property
@@ -20,7 +18,7 @@ class NonIdealResistor(Model):
         raise Exception("Base classes must specify the form of the parasitics")
 
 class CLCResistor(NonIdealResistor):
-    clc: PiCLC
+    clc: PiCLC = PiCLC()
 
     @property
     def parasitics(self) -> Model:

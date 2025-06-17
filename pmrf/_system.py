@@ -1,6 +1,7 @@
 import skrf
 
 from pmrf._compound import CompoundModel
+from pmrf._model import Model
 
 class SystemModel(CompoundModel):
     """ A `SystemModel` is a collection of related models.
@@ -19,9 +20,9 @@ class SystemModel(CompoundModel):
     will be conveniently implemented to return large, stacked matrices of the top-level models, but methods such as `to_skrf`
     are overriden to return the networks individually by default, as is usually desired.
     """
-    # @property
-    # def models(self) -> list[Model]:
-    #     raise NotImplementedError("'models' property must be implemented sub-classes for a CompoundModel")
+    @property
+    def models(self) -> list[Model]:
+        raise NotImplementedError("'models' not yet implemented for SystemModel")
 
         
     def to_skrf(self, frequency: skrf.Frequency | list[skrf.Frequency], **kwargs) -> list[skrf.Network]:
