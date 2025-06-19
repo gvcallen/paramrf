@@ -1,8 +1,6 @@
-from abc import abstractmethod, ABC
-
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_args, get_origin, Union, Optional
+from typing import Callable, Any, Dict, get_args, get_origin, Union
 from types import UnionType
 
 from pmrf.numpy import USE_JAX
@@ -21,7 +19,7 @@ PRIMARY_PROPERTIES = ['s', 'a']
 jax.config.update("jax_enable_x64", True)
 
 class Model(eqx.Module):
-    """Base class representing an RF network that is computable, referred to in param-rf as a `Model`.
+    """Base class representing an RF network that is computable, referred to in *paramrf* as a `Model`.
 
     This is an abstract class and should not be instantiated directly.
 
@@ -35,16 +33,19 @@ class Model(eqx.Module):
     Args:
         name (str, optional): A name associated with the model instance.
     """
-    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
     s_def: str | None = field(default='power', init=False, static=True)
     name: str | None = field(default=None, kw_only=True, static=True)
     dynamic: tuple = field(default=(float, np.ndarray), kw_only=True, static=True)
     priority: tuple = field(default=(), kw_only=True, static=True)
+    
+    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
+    _submodel_attrs: list[str] = field(default_factory=lambda: [], init=False, static=True)
 
     def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
         dynamic = dynamic or cls.dynamic
+        cls._submodel_attrs = []
 
         for dynamic_type in dynamic:
             if issubclass(dynamic_type, Model):
@@ -79,14 +80,11 @@ class Model(eqx.Module):
             # Next, populate the jax.array converter for types considered dynamic (even those without defaults).
             if field_type in dynamic:
                 field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
-                # try:
-                #     _ = jax.numpy.asarray(default)
-                # except:
-                #     raise Exception(f"Could not convert field '{field_name}' with default '{default}' specified as type {field_type} in class {cls} to a dynamic field")
-                
 
-            # if issubclass(field_type, Model):
-            #     print(f'Found model subclass! Name = {field_name}')
+            # Finally, add to the list of submodules of this is a Model
+            if field_type is Model:
+                cls._submodel_attrs.append(field_name)
+                print(f'Found model subclass! Name = {field_name}')
                     
             # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
             if len(field_kwargs) != 0:
@@ -98,6 +96,14 @@ class Model(eqx.Module):
     def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.structural import CascadedModel
         return CascadedModel([self, other])
+    
+    @property
+    def submodels(self) -> list['Model']:
+        return [getattr(self, model_attr) for model_attr in self._submodel_attrs]
+    
+    @property
+    def num_submodels(self):
+        return len(self.submodels)    
         
     @property    
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:

@@ -4,7 +4,7 @@ import pmrf.numpy as np
 from pmrf._misc import field
 from pmrf._frequency import Frequency
 from pmrf._model import Model
-from pmrf._compound import CompoundModel
+# from pmrf._compound import CompoundModel
 
 # from skrf import Circuit
 # connections: list[list[tuple[Network, int]]],

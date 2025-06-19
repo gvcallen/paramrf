@@ -4,9 +4,8 @@ import pmrf.numpy as np
 from pmrf.models.lumped import Short
 from pmrf._frequency import Frequency
 from pmrf._model import Model
-from pmrf._compound import CompoundModel
 
-class CascadedModel(CompoundModel):
+class CascadedModel(Model):
     _models: tuple[Model]
     
     def __init__(self, models: tuple[Model], **kwargs):
@@ -22,32 +21,50 @@ class CascadedModel(CompoundModel):
         Model.__init__(self, **kwargs)
 
     @property
-    def models(self) -> tuple[Model]:
-        return self._models
+    def first_model(self) -> Model:
+        return self._models[0]
+    
+    @property
+    def inner_models(self) -> tuple['Model']:
+        return self._models[1:-1]
+    
+    @property
+    def last_model(self) -> Model:
+        return self._models[-1]
 
     def a(self, freq: Frequency):
-        a = self._models[0].a(freq)
-        for model in self._models:
+        a = self.first_model.a(freq)
+        for model in self.inner_models:
             a = a @ model.a(freq)
-        return a
+        if self.last_model.n_ports == 1:
+            raise Exception('Cannot get abcd-matrix for a cascade of models terminated in a one-port')
+        
+        return a @ self.last_model.a(freq)
 
     def s(self, freq: Frequency):
-        if self.num_submodels != 2 or self._models[-1].n_ports != 1:
-            return CompoundModel.s(self, freq)
-
-        # Optimization for when we only have two models and the second is a one-port
-        a0 = self._models[0].a(freq)
-        s1 = self._models[1].s(freq)
+        # We only implement s when we are terminating in a one-port.
+        # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
+        if self.last_model.n_ports != 1:
+            return Model.s(self, freq)
+        
+        # Get abcd matrix of inners
+        a = self.first_model.a(freq)
+        for model in self.inner_models:
+            a = a @ model.a(freq)
+        
+        # Terminated last in s11
+        a = self._models[0].a(freq)
+        s11 = self._models[1].s(freq)
         z0 = self._models[0]._z0
         
-        A, B, C, D = a0[:,0,0], a0[:,0,1], a0[:,1,0], a0[:,1,1]
-        num = z0 * (1 + s1) * (A - z0*C) + (B - D*z0)*(1-s1)
-        den = z0 * (1 + s1) * (A + z0*C) + (B + D*z0)*(1-s1)
-        s11 = num / den        
+        A, B, C, D = a[:,0,0], a[:,0,1], a[:,1,0], a[:,1,1]
+        num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)
+        den = z0 * (1 + s11) * (A + z0*C) + (B + D*z0)*(1-s11)
+        s11_out = num / den        
+        return s11_out
         
-        return s11
     
-class RenumberedModel(CompoundModel):
+class RenumberedModel(Model):
     _model: Model
     _from_ports: np.ndarray
     _to_ports: np.ndarray

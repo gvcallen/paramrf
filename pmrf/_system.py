@@ -1,10 +1,11 @@
 import skrf
 
-from pmrf._compound import CompoundModel
 from pmrf._model import Model
 
-class SystemModel(CompoundModel):
-    """ A `SystemModel` is a collection of related models.
+import equinox as eqx
+
+class SystemModel(Model):
+    """ A `SystemModel` is a collection of related models, with automatic sharing of sub-models with the same names.
 
     Sometimes, it is necessary to combine multiple related models into a single, larger model. The most common use-case for this
     is when lower-level models need to be shared amongst several higher-level models. However, since models in `paramrf`
@@ -20,11 +21,6 @@ class SystemModel(CompoundModel):
     will be conveniently implemented to return large, stacked matrices of the top-level models, but methods such as `to_skrf`
     are overriden to return the networks individually by default, as is usually desired.
     """
-    @property
-    def models(self) -> list[Model]:
-        raise NotImplementedError("'models' not yet implemented for SystemModel")
-
-        
     def to_skrf(self, frequency: skrf.Frequency | list[skrf.Frequency], **kwargs) -> list[skrf.Network]:
         networks = []
 

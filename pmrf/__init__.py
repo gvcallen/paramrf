@@ -8,9 +8,9 @@ from pmrf._model import (
     Model as Model,
 )
 
-from pmrf._compound import (
-    CompoundModel as CompoundModel
-)
+# from pmrf._compound import (
+#     CompoundModel as CompoundModel
+# )
 
 from pmrf._circuit import (
     CircuitModel as CircuitModel,
