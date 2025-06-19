@@ -32,4 +32,4 @@ class CircuitModel(Model):
         return self._built_model.a(freq)
     
     def s(self, freq: Frequency) -> np.ndarray:
-        self._built_model.s(freq)
+        return self._built_model.s(freq)

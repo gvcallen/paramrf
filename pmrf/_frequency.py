@@ -47,15 +47,17 @@ class Frequency:
     Frequency unit multipliers.
     """
 
-    def __init__(self, frequency: skrf.Frequency) -> None:
+    def __init__(self, frequency: skrf.Frequency | None = None) -> None:
         """The main frequency initializer.
         
         This allows to initialize an `pmrf.Frequency` object from an `skrf.Frequency`.
         For more advanced initialization, use the `skrf.Frequency` intializer instead.
 
         Args:
-            frequency (skrf.Frequency): The `skrf.Frequency` object.
+            frequency (skrf.Frequency | None): The `skrf.Frequency` object. Can be `None`, in which case a default-constructed `skrf.Frequency` is used.
         """
+        frequency = frequency or skrf.Frequency()
+
         self._unit = frequency._unit
         self._f = np.array(frequency._f)
 

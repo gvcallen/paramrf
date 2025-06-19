@@ -2,7 +2,8 @@ from abc import abstractmethod, ABC
 
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict
+from typing import Callable, Any, Dict, get_args, get_origin, Union, Optional
+from types import UnionType
 
 from pmrf.numpy import USE_JAX
 if USE_JAX:
@@ -14,7 +15,6 @@ from pmrf._misc import field
 from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf._pytree import tree_with_params, tree_params
-
 
 PRIMARY_PROPERTIES = ['s', 'a']
 
@@ -35,49 +35,62 @@ class Model(eqx.Module):
     Args:
         name (str, optional): A name associated with the model instance.
     """
-    _z0: np.ndarray = field(default=50.0 + 0j, init=False, static=True)
+    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
     s_def: str | None = field(default='power', init=False, static=True)
     name: str | None = field(default=None, kw_only=True, static=True)
-    param_types: tuple = field(default=(float, np.ndarray), kw_only=True, static=True)
+    dynamic: tuple = field(default=(float, np.ndarray), kw_only=True, static=True)
+    priority: tuple = field(default=(), kw_only=True, static=True)
 
-    def __init_subclass__(cls, param_types: tuple | None = None, **kwargs):
+    def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        param_types = param_types or cls.param_types
+        dynamic = dynamic or cls.dynamic
+
+        for dynamic_type in dynamic:
+            if issubclass(dynamic_type, Model):
+                raise Exception("Error: do not set `Model` types as dynamic")
 
         # Add metadata and field properties to certain sub-class fields since we have certains constraints for the API.
         # Currently, we add default, default_factory, converter, and kw_only where necessary
-        for field_name, field_type in cls.__annotations__.items():
-            # First, try get the default value and setup defaults
-            current_value = getattr(cls, field_name, None)
-            kw_only = False
-            converter = None
+        for field_name, field_types in cls.__annotations__.items():
+            # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
+            origin = get_origin(field_types)
+            if origin in (Union, UnionType):
+                field_type = get_args(field_types)[0]
+            else:
+                field_type = field_types
+            
+            # We populate the field kwargs dynamically
+            field_kwargs = {}
 
-            if current_value is None:
-                continue
-
-            if field_type in param_types:
-                # First, inspect types considered parameters and give them jax array converters
-                try:
-                    _ = jax.numpy.asarray(current_value)
-                except:
-                    raise Exception(f'Could not convert field {field_name} with value {current_value} specified as type {field_type} to a parameter')
+            # First, populate the default
+            default = getattr(cls, field_name, None)
+            if not default is None:
+                # We use `default.__class__.__hash__` to guess if the type is mutable
+                if default.__class__.__hash__ is None:
+                    field_kwargs['default_factory'] = lambda: default
                 else:
-                    converter = lambda val: jax.numpy.asarray(val, dtype=float)
-            # elif issubclass(field_type, Model):
-            #     # Next, inspect any sub-models
-            #     print('found sub-model annotation!')
-            else:
-                # Finally, kw_only we give any non-parameters the kw_only flag so that models can still be derived without causing ordering issues
-                kw_only = True
-                converter = lambda val: field_type(val)
+                    field_kwargs['default'] = default
+
+                # If the type is static and has a default, we only allow it to be passed by key-word argument
+                if not field_type in dynamic:
+                    field_kwargs['kw_only'] = True
+
+            # Next, populate the jax.array converter for types considered dynamic (even those without defaults).
+            if field_type in dynamic:
+                field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
+                # try:
+                #     _ = jax.numpy.asarray(default)
+                # except:
+                #     raise Exception(f"Could not convert field '{field_name}' with default '{default}' specified as type {field_type} in class {cls} to a dynamic field")
+                
+
+            # if issubclass(field_type, Model):
+            #     print(f'Found model subclass! Name = {field_name}')
                     
-            if current_value.__class__.__hash__ is None:
-                default_factory = lambda: current_value
-                new_value = field(default_factory=default_factory, converter=converter, kw_only=kw_only)
-            else:
-                new_value = field(default=current_value, converter=converter, kw_only=kw_only)
-            setattr(cls, field_name, new_value)
+            # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
+            if len(field_kwargs) != 0:
+                setattr(cls, field_name, field(**field_kwargs))
 
     def __new__(cls, *args, **kwargs):                  
         return eqx.Module.__new__(cls)
@@ -87,23 +100,28 @@ class Model(eqx.Module):
         return CascadedModel([self, other])
         
     @property    
-    def primary_function(self):
-        for property in PRIMARY_PROPERTIES:
-            if is_overridden(self, Model, property):
-                attr = getattr(self, property)
-                return attr        
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overrided, which are the only ones supported currently")
+    def primary_function(self) -> Callable[[Frequency], np.ndarray]:
+        return getattr(self, self.primary_property)
             
     @property    
-    def primary_property(self):
-        for property in PRIMARY_PROPERTIES:
+    def primary_property(self) -> str:
+        prioritized = self.priority
+        unprioritized = set(PRIMARY_PROPERTIES).difference(set(self.priority))
+
+        for property in prioritized:
+            if is_overridden(self, Model, property):
+                return property
+        for property in unprioritized:
             if is_overridden(self, Model, property):
                 return property
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overrided, which are the only ones supported currently")
 
     @property
     def number_of_ports(self):
-        return jax.eval_shape(self.s, (1))[1]
+        freq = Frequency(skrf.Frequency(1, 1, 1))
+        sf = lambda: self.s(freq)
+        return sf().shape[1]
+        # return jax.eval_shape(sf).shape[1]
     
     @property
     def n_ports(self):
@@ -126,8 +144,8 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant abcd matrix.
         """
-        if self.primary_property != 's':
-            raise NotImplementedError("Error: model sub-classes currently *have* to implement the 's' or the 'a' function")
+        if not is_overridden(self, Model, 's'):
+            raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         s = self.s(freq)
         return s2a(s, self.z0)
@@ -145,8 +163,8 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant S matrix.
         """
-        if self.primary_property != 'a':
-            raise NotImplementedError("Error: model sub-classes currently *have* to implement the 's' or the 'a' function")
+        if not is_overridden(self, Model, 'a'):
+            raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         a = self.a(freq)
         return a2s(a, self.z0)
@@ -155,9 +173,13 @@ class Model(eqx.Module):
         from pmrf.models.structural import FlippedModel
         return FlippedModel(self)
     
-    def terminated(self) -> 'Model':
-        from pmrf.models.structural import TerminatedModel
-        return TerminatedModel(self)
+    def terminated(self, load: 'Model' = None) -> 'Model':
+        from pmrf.models.lumped import Short
+        from pmrf.models.structural import CascadedModel
+        
+        load = load or Short()
+        terminated_model = CascadedModel((self, load))
+        return terminated_model
     
     def with_params(
         self,

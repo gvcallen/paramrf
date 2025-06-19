@@ -7,36 +7,38 @@ from pmrf._model import Model
 from pmrf._compound import CompoundModel
 
 class CascadedModel(CompoundModel):
-    models: list[Model]
+    _models: tuple[Model]
     
-    def __init__(self, models: list[Model], **kwargs):
+    def __init__(self, models: tuple[Model], **kwargs):
         if models[0].n_ports != 2:
             raise Exception('First network must be a two port when cascaded')
         for model in models[1:-1]:
             if model.n_ports != 2:
                 raise Exception('Inner networks must be two ports when cascaded')
-        if models[-1].n_ports != 2 or models[-1].n_ports != 2:
-            raise Exception('First network must be a two port when cascaded')
-
-        Model.__init__(self, models, **kwargs)
+        if models[-1].n_ports not in (1, 2):
+            raise Exception('Last network must either be a one port or a two port when cascaded')
+        
+        self._models = models
+        Model.__init__(self, **kwargs)
 
     @property
-    def models(self) -> list[Model]:
-        return self.models        
+    def models(self) -> tuple[Model]:
+        return self._models
 
     def a(self, freq: Frequency):
-        a = self.models[0].a(freq)
-        for model in self.models:
+        a = self._models[0].a(freq)
+        for model in self._models:
             a = a @ model.a(freq)
+        return a
 
     def s(self, freq: Frequency):
-        if len(self.n_submodels) != 2 or self.models[-1].n_ports != 1:
+        if self.num_submodels != 2 or self._models[-1].n_ports != 1:
             return CompoundModel.s(self, freq)
 
         # Optimization for when we only have two models and the second is a one-port
-        a0 = self.models[0].a(freq)
-        s1 = self.models[1].s(freq)
-        z0 = self.models[0]._z0
+        a0 = self._models[0].a(freq)
+        s1 = self._models[1].s(freq)
+        z0 = self._models[0]._z0
         
         A, B, C, D = a0[:,0,0], a0[:,0,1], a0[:,1,0], a0[:,1,1]
         num = z0 * (1 + s1) * (A - z0*C) + (B - D*z0)*(1-s1)
@@ -46,14 +48,14 @@ class CascadedModel(CompoundModel):
         return s11
     
 class RenumberedModel(CompoundModel):
-    model: Model
-    from_ports: np.ndarray
-    to_ports: np.ndarray
+    _model: Model
+    _from_ports: np.ndarray
+    _to_ports: np.ndarray
 
     def __init__(self, ntwk: Model, from_ports: Sequence[int], to_ports: Sequence[int]):
-        self.model = ntwk
-        self.from_ports = np.array(from_ports)
-        self.to_ports = np.array(to_ports)
+        self._model = ntwk
+        self._from_ports = np.array(from_ports)
+        self._to_ports = np.array(to_ports)
 
         if len(np.unique(from_ports)) != len(from_ports):
             raise ValueError('an index can appear at most once in from_ports or to_ports')
@@ -69,39 +71,21 @@ class RenumberedModel(CompoundModel):
         return self.models                
 
     def renumber(self, p):
-        p[:, self.to_ports, :] = p[:, self.from_ports, :]
-        p[:, :, self.to_ports] = p[:, :, self.from_ports]
+        p[:, self._to_ports, :] = p[:, self._from_ports, :]
+        p[:, :, self._to_ports] = p[:, :, self._from_ports]
         return p
     
     def a(self, x):
-        return self.renumber(self.model.a(x))
+        return self.renumber(self._model.a(x))
 
     def s(self, x):
-        return self.renumber(self.model.s(x)) 
+        return self.renumber(self._model.s(x)) 
 
 class FlippedModel(RenumberedModel):
     def __init__(self, model: Model):
         if self.number_of_ports % 2 != 0:
-            raise ValueError('you can only flip multiple-of-two-port Networks')
+            raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
         old = list(range(0, 2*n))
         new = list(range(n, 2*n)) + list(range(0, n))
         RenumberedModel.__init__(self, model, old, new)
-
-class TerminatedModel(CompoundModel):
-    model: Model
-    short: Short
-
-    @property
-    def models(self) -> list[Model]:
-        return [self.short, self.model]
-
-    def __init__(self, model: Model, termination_port=1):
-        if self.number_of_ports != 2:
-            raise ValueError('you can only terminated two-port Networks')
-
-        self.model = model
-
-    # TODO choose primary property based on sub-networks primary property
-    def a(self, freq: Frequency) -> np.ndarray:
-        return self.model.a(freq) @ self.short.a(freq)
