@@ -1,7 +1,7 @@
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_args, get_origin, Union
-from types import UnionType
+from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List
+from types import GenericAlias, UnionType
 
 from pmrf.numpy import USE_JAX
 if USE_JAX:
@@ -19,7 +19,7 @@ PRIMARY_PROPERTIES = ['s', 'a']
 jax.config.update("jax_enable_x64", True)
 
 class Model(eqx.Module):
-    """Base class representing an RF network that is computable, referred to in *paramrf* as a `Model`.
+    """Base class representing an RF network that is computable, referred to in **paramrf** as a `Model`.
 
     This is an abstract class and should not be instantiated directly.
 
@@ -33,18 +33,22 @@ class Model(eqx.Module):
     Args:
         name (str, optional): A name associated with the model instance.
     """
-    s_def: str | None = field(default='power', init=False, static=True)
-    name: str | None = field(default=None, kw_only=True, static=True)
-    dynamic: tuple = field(default=(float, np.ndarray), kw_only=True, static=True)
-    priority: tuple = field(default=(), kw_only=True, static=True)
-    
+    # Instance fields
     _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
-    _submodel_attrs: list[str] = field(default_factory=lambda: [], init=False, static=True)
+    name: str | None = field(default=None, kw_only=True, static=True)
+
+    # Class fields
+    _submodel_attrs: list[str] = field(init=False, static=True)
+    s_def: str | None = field(default='power', init=False, static=True)
+    priority: tuple = field(default=(), init=False, static=True)
+    dynamic: tuple = field(init=False, static=True)
 
     def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        dynamic = dynamic or cls.dynamic
+        dynamic = dynamic or (float, np.ndarray)
+
+        cls.dynamic = dynamic
         cls._submodel_attrs = []
 
         for dynamic_type in dynamic:
@@ -54,12 +58,9 @@ class Model(eqx.Module):
         # Add metadata and field properties to certain sub-class fields since we have certains constraints for the API.
         # Currently, we add default, default_factory, converter, and kw_only where necessary
         for field_name, field_types in cls.__annotations__.items():
-            # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
-            origin = get_origin(field_types)
-            if origin in (Union, UnionType):
-                field_type = get_args(field_types)[0]
-            else:
-                field_type = field_types
+            field_type = get_underlying_types(field_types)
+            if field_type is None:
+                return
             
             # We populate the field kwargs dynamically
             field_kwargs = {}
@@ -82,20 +83,30 @@ class Model(eqx.Module):
                 field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
 
             # Finally, add to the list of submodules of this is a Model
-            if field_type is Model:
+            if issubclass(field_type, Model):
                 cls._submodel_attrs.append(field_name)
-                print(f'Found model subclass! Name = {field_name}')
                     
             # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, field(**field_kwargs))
-
-    def __new__(cls, *args, **kwargs):                  
+            
+    def __new__(cls, *args, **kwargs):
         return eqx.Module.__new__(cls)
     
     def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.structural import CascadedModel
         return CascadedModel([self, other])
+    
+    @property
+    def nested_submodels(self) -> list['Model']:
+        submodels = []
+        append_nested_submodels(submodels, self)
+        submodels.pop(0)
+        return submodels
+    
+    @property
+    def num_nested_submodels(self) -> int:
+        return len(self.nested_submodels)    
     
     @property
     def submodels(self) -> list['Model']:
@@ -124,10 +135,10 @@ class Model(eqx.Module):
 
     @property
     def number_of_ports(self):
-        freq = Frequency(skrf.Frequency(1, 1, 1))
+        freq = Frequency(1, 1, 1)
         sf = lambda: self.s(freq)
-        return sf().shape[1]
-        # return jax.eval_shape(sf).shape[1]
+        # return sf().shape[1]
+        return jax.eval_shape(sf).shape[1]
     
     @property
     def n_ports(self):
@@ -265,3 +276,44 @@ def is_overridden(self, baseclass, method_name):
         if method_name in cls.__dict__:
             return cls is not baseclass
     return False
+
+def get_underlying_types(tp: type) -> type | None:
+    """
+    Recursively gets the origin of a type annotation until a type that
+    can be used in issubclass is found.
+
+    This function handles generic aliases (like list[int]), unions,
+    and type aliases.
+
+    Args:
+        tp: The type annotation.
+
+    Returns:
+        The underlying, non-generic type that can be used with issubclass,
+        or None if no such type can be determined (e.g., for TypeVar).
+    """
+    # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
+
+    if isinstance(tp, (type,)) and not isinstance(tp, (GenericAlias, UnionType)):
+        return tp
+
+    if isinstance(tp, UnionType):
+        return None
+
+    origin = get_origin(tp)
+
+    if origin is None:
+        return None
+
+    if origin is Union:
+        return None
+
+    # Recursively call to handle nested generics like list[list[int]]
+    return get_underlying_types(origin)
+
+def append_nested_submodels(submodels: list[Model], model: Model | None):
+    submodels.append(model)
+    
+    for submodel in model.submodels:
+        append_nested_submodels(submodels, submodel)
+        

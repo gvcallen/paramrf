@@ -20,7 +20,7 @@ class SystemModel(Model):
     name will shared, independent of where they are used in the model. Further, any necessary abstract methods (e.g. `s`, `y`)
     will be conveniently implemented to return large, stacked matrices of the top-level models, but methods such as `to_skrf`
     are overriden to return the networks individually by default, as is usually desired.
-    """
+    """            
     def to_skrf(self, frequency: skrf.Frequency | list[skrf.Frequency], **kwargs) -> list[skrf.Network]:
         networks = []
 

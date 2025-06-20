@@ -24,42 +24,38 @@ from __future__ import annotations
 
 from numbers import Number
 
-import pmrf.numpy as np
 import skrf
+import equinox as eqx
+
+import pmrf.numpy as np
+from pmrf._misc import field
 
 from skrf.constants import FREQ_UNITS, FrequencyUnitT, NumberLike
+UNIT_DICT: dict[str] = {k.lower(): k for k in FREQ_UNITS}
+MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
-class Frequency:
+class Frequency(eqx.Module):
     """
     A frequency band.
 
     This is a stripped-down version of the `skrf.Frequency` class, mainly designed
     to be used alongside `jax` in `pmrf`.
     """
-    unit_dict = {k.lower(): k for k in FREQ_UNITS}
+    _f: np.array
+    _unit: str = field(static=True)
 
-    """
-    Dictionary to convert unit string with correct capitalization for display.
-    """
-
-    multiplier_dict={k.lower(): v for k,v in FREQ_UNITS.items()}
-    """
-    Frequency unit multipliers.
-    """
-
-    def __init__(self, frequency: skrf.Frequency | None = None) -> None:
+    def __init__(self, *args, frequency=None, **kwargs) -> None:
         """The main frequency initializer.
         
-        This allows to initialize an `pmrf.Frequency` object from an `skrf.Frequency`.
-        For more advanced initialization, use the `skrf.Frequency` intializer instead.
-
-        Args:
-            frequency (skrf.Frequency | None): The `skrf.Frequency` object. Can be `None`, in which case a default-constructed `skrf.Frequency` is used.
+        Arguments are forward to the initializer for `skrf.Frequency`. To initialize directly from `skrf`, use `from_skrf(..)`.
         """
-        frequency = frequency or skrf.Frequency()
-
+        frequency = frequency or skrf.Frequency(*args, **kwargs)
         self._unit = frequency._unit
-        self._f = np.array(frequency._f)
+        self._f = np.asarray(frequency._f)
+        
+    @staticmethod
+    def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
+        return Frequency(frequency=skrf_frequency)
 
     def __len__(self) -> int:
         """
@@ -329,7 +325,7 @@ class Frequency:
         unit : string
             String representing the frequency unit
         """
-        return self.unit_dict[self._unit]
+        return UNIT_DICT[self._unit]
 
     @unit.setter
     def unit(self, unit: FrequencyUnitT) -> None:
@@ -340,15 +336,12 @@ class Frequency:
         """
         Multiplier for formatting axis.
 
-        This accesses the internal dictionary `multiplier_dict` using
-        the value of :attr:`unit`
-
         Returns
         -------
         multiplier : number
             multiplier for this Frequencies unit
         """
-        return self.multiplier_dict[self._unit]
+        return MULTIPLIER_DICT[self._unit]
 
     def _t_padded(self, *, pad: int = 0, n: int | None = None, bandpass: bool | None = None) -> np.ndarray:
         if bandpass is None:
@@ -409,7 +402,7 @@ class Frequency:
 
         """
         if isinstance(val, str):
-            val = self.multiplier_dict[val.lower()]
+            val = MULTIPLIER_DICT[val.lower()]
 
         self.f = np.round(self.f/val)*val
 

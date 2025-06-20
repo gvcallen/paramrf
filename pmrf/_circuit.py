@@ -18,7 +18,7 @@ from pmrf._model import Model
 
 class CircuitModel(Model):
     # _layout: CircuitLayout | None = None 
-    _built_model: Model | None = field(default=None, kw_only=True, static=True)
+    _built_model: Model | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         # super.__post_init__(self)
