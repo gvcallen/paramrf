@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import final
 
 import pmrf.numpy as np
 from pmrf._misc import field
@@ -18,19 +19,18 @@ from pmrf._model import Model
 
 class CircuitModel(Model):
     # _layout: CircuitLayout | None = None 
-    # _built_model: Model | None = field(default=None, kw_only=True)
+    # _built_model: Model | None = field(default=None, init=False, repr=False)
 
-    def __post_init__(self):
-        return
-        super.__post_init__(self)
-        self._built_model = self.build()
+    def combine(self) -> Model:
+        raise Exception("Sub-classes must implemented 'combine' to combine their sub-models into a single model")
 
-    @abstractmethod
-    def build(self) -> Model:
-        raise NotImplementedError("Error: circuit model sub-classes *have* to implement the build() function to build their circuit layout")
-    
+    # @final
+    # def post(self):
+    #     self._built_model = self.combine()
+
     def a(self, freq: Frequency) -> np.ndarray:
-        return self._built_model.a(freq)
+        # TODO call combine once only
+        return self.combine().a(freq)
     
     def s(self, freq: Frequency) -> np.ndarray:
-        return self._built_model.s(freq)
+        return self.combine().s(freq)

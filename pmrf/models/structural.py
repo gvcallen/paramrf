@@ -9,7 +9,7 @@ from pmrf._misc import field
 class CascadedModel(Model):
     _models: tuple[Model]
     
-    def __post_init__(self):
+    def build(self):
         models = self._models
         # First check all the port conditions
         if models[0].nports != 2:
@@ -79,7 +79,7 @@ class RenumberedModel(Model):
     to_ports: tuple[int]
     from_ports: tuple[int]
 
-    def __post_init__(self):
+    def build(self):
         model = self.model
         to_ports, from_ports = to_ports, from_ports
 
@@ -107,11 +107,11 @@ class FlippedModel(RenumberedModel):
     to_ports: str = field(init=False)
     from_ports: str = field(init=False)
 
-    def __post_init__(self):
+    def build(self):
         if self.number_of_ports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
         self.to_ports = list(range(0, 2*n))
         self.from_ports = list(range(n, 2*n)) + list(range(0, n))
         
-        super().__post_init__()
+        super().build()

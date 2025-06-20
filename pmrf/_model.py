@@ -1,7 +1,8 @@
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List
+from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List, final
 from types import GenericAlias, UnionType
+import dataclasses
 
 from pmrf.numpy import USE_JAX
 if USE_JAX:
@@ -9,7 +10,7 @@ if USE_JAX:
 import equinox as eqx
 
 import pmrf.numpy as np
-from pmrf._misc import field
+from pmrf._misc import field, tree_flatten_one_level_with_path
 from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf._pytree import tree_with_params, tree_params
@@ -36,12 +37,11 @@ class Model(eqx.Module):
     # Instance fields
     _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
     name: str | None = field(default=None, kw_only=True, static=True)
-    shared: bool = field(default=False, kw_only=True, static=True)
 
     # Class fields
-    s_def: str | None = field(default='power', init=False, static=True)
-    priority: tuple = field(default=(), init=False, static=True)
-    dynamic: tuple = field(init=False, static=True)
+    s_def: str | None = field(default='power', init=False, static=True, repr=False)
+    priority: tuple = field(default=(), init=False, static=True, repr=False)
+    dynamic: tuple = field(init=False, static=True, repr=False)
 
     def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -61,9 +61,13 @@ class Model(eqx.Module):
             # We populate the field kwargs dynamically
             field_kwargs = {}
 
-            # First, populate the default
+            # First, populate the default.
             default = getattr(cls, field_name, None)
             if not default is None:
+                # We don't automatically assigned a field if the user has already
+                if isinstance(default, dataclasses.Field):
+                    continue
+
                 # We use `default.__class__.__hash__` to guess if the type is mutable
                 if default.__class__.__hash__ is None:
                     field_kwargs['default_factory'] = lambda: default
@@ -82,6 +86,17 @@ class Model(eqx.Module):
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, field(**field_kwargs))
 
+    @final
+    def __post_init__(self):
+        self.build()
+        self.post()
+
+    def build(self) -> Any:
+        pass
+
+    def post(self):
+        pass
+
     def __new__(cls, *args, **kwargs):
         return eqx.Module.__new__(cls)
     
@@ -98,16 +113,20 @@ class Model(eqx.Module):
         return lambda element: not any([isinstance(element, dynamic) for dynamic in self.dynamic])
     
     @property
-    def nested_submodels(self) -> tuple['Model']:
-        return (node for node in jax.tree.flatten(self)[0] if isinstance(node, Model))
+    def nested_submodels(self) -> list['Model']:
+        return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
     
     @property
     def num_nested_submodels(self) -> int:
         return len(self.nested_submodels)    
     
     @property
-    def submodels(self) -> tuple['Model']:
-        return (node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model))
+    def submodels(self) -> list['Model']:
+        return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
+    
+    @property
+    def submodels_with_paths(self) -> list['Model']:
+        return [path_val for path_val in tree_flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
     
     @property
     def num_submodels(self):
@@ -334,12 +353,6 @@ def get_underlying_types(tp: type) -> type | None:
     # Recursively call to handle nested generics like list[list[int]]
     return get_underlying_types(origin)
 
-def append_nested_submodels(submodels: list[Model], model: Model | None):
-    submodels.append(model)
-    
-    for submodel in model.submodels:
-        append_nested_submodels(submodels, submodel)
-        
 def model_check(model: Model) -> None:
     all_nodes = {}
     _model_check(model, all_nodes, model.dynamic_filter)

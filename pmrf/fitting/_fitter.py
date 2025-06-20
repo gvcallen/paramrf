@@ -143,7 +143,7 @@ class BaseFitter(ABC):
 
 class FrequentistFitter(BaseFitter):
     def __init__(self, modifiers: list[Modifier] | list[str] = None, *args, **kwargs):
-        BaseFitter.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         
         if modifiers is None:
             modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']

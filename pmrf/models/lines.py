@@ -179,7 +179,7 @@ class PhysicalCoaxial(RLGCLine):
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
 
-    def __post_init__(self):
+    def build(self):
         poly_params = ['epr', 'mur', 'tand', 'rho']
         # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:

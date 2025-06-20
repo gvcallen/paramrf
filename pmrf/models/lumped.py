@@ -19,17 +19,17 @@ class Load(Model):
 class Match(Load):
     @property
     def gamma(self) -> float | np.ndarray:
-        0.0
+        return 0.0
 
 class Short(Load):
     @property
     def gamma(self) -> float | np.ndarray:
-        -1.0
+        return -1.0
 
 class Open(Load):
     @property
     def gamma(self) -> float | np.ndarray:
-        1.0
+        return 1.0
   
 class Capacitor(Model):
     C: float = 1.0

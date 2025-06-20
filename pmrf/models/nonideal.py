@@ -8,9 +8,9 @@ from pmrf._circuit import CircuitModel
 from pmrf._misc import field
 
 class NonIdealResistor(CircuitModel):
-    ideal: Resistor = field(default_factory=lambda: Resistor())
+    ideal: Resistor = field(default_factory=lambda: PiCLC())
 
-    def build(self) -> Model:
+    def combine(self) -> Model:
         return self.parasitics ** self.ideal
 
     @property
@@ -20,6 +20,8 @@ class NonIdealResistor(CircuitModel):
 
 class CLCResistor(NonIdealResistor):
     clc: PiCLC = field(default_factory=lambda: PiCLC())
+
+    # def __init
 
     @property
     def parasitics(self) -> Model:
