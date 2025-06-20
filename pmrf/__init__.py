@@ -6,6 +6,7 @@ from pmrf._frequency import (
 
 from pmrf._model import (
     Model as Model,
+    model_check as model_check
 )
 
 # from pmrf._compound import (

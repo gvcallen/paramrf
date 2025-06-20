@@ -20,6 +20,7 @@ class Feature:
     mode: str = 'complex'
     scale: str = 'lin'
 
+    # TODO expand this to allow for high-level requests e.g. 'gamma'
     @classmethod
     def from_string(cls, feature_str: str) -> 'Feature':
         """
@@ -93,7 +94,7 @@ class Feature:
             scale=scale
         )    
 
-def extract_features(source: Model | SystemModel | skrf.Network | list[skrf.Network], features: list[Feature], freq: Frequency = None) -> np.ndarray:
+def extract_features(source: Model | skrf.Network, features: list[Feature], freq: Frequency = None) -> np.ndarray:
     # We use explicit defaults because cost is quite a common high-level user requirement
     # TODO optimize jax cases
     if freq is None:

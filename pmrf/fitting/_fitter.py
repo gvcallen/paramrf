@@ -13,7 +13,6 @@ import jaxopt
 import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf.parameters import Parameter, fixed
-from pmrf._system import SystemModel
 from pmrf.fitting._results import BayesianResults, FrequentistResults
 from pmrf._frequency import Frequency
 from pmrf.numpy import USE_JAX
@@ -42,38 +41,47 @@ from dataclasses import dataclass
 class BaseFitter(ABC):
     def __init__(
         self,
-        model: Model | SystemModel,
+        model: Model,
         measured: skrf.Network | list[skrf.Network],
         params: dict[str, Parameter] | None = None,
-        fit_frequency: skrf.Network | None = None,
+        fit_frequency: skrf.Frequency | None = None,
         features: list[Feature] | list[str] = None,
         param_infix = '_'
     ) -> None:
-        if features is None:
-            if isinstance(model, Model):
-                features = [Feature(mode='complex', property='s', ports=(0, 0), scale='lin')]
-            else:
-                features = [Feature(mode='complex', property='s', ports=(0, 0), scale='lin'), Feature(mode='magnitude', property='s', ports=(0, 0), scale='lin')]
-        
-        if isinstance(features[0], str):
-            features = [Feature.from_string(f) for f in features]
+        """The base fitter initialization.
 
-        if isinstance(measured, list) and len(measured) > 1:
-            if fit_frequency is None:
-                raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency) for fitting")
+        Args:
+            model (Model): The model to fit.
+            measured (skrf.Network | list[skrf.Network]): The measured networks to fit against. If a list is passed, the networks are viewed as being part of a large N-port network, with ports sequentially assigned. See `SystemModel` for an example where this might be useful.
+            params (dict[str, Parameter] | None, optional): Parameters for the models, specified in a flattened format. See `param_infix`. Defaults to `None`, in which case all parameters are set as normal with 5% standard deviation.
+            fit_frequency (skrf.Frequency | None, optional): The frequency to fit against. Defaults to `None`.
+            features (list[Feature] | list[str], optional): The "features" to extract from the networks for cost functions, likelihoods etc. e.g. S11 magnitude. Defaults to `None`, in which case all complex reflection coefficients across all ports are used.
+            param_infix (str, optional): The infix between submodels for the flattened parameters in `params`. Parameters are specified as `{model.name}{infix}{submodel1.name}{infix}{submodel2.name}{...}{infix}{param}`. Defaults to '_'.
+        """
+        # By default, we setup the features to extract the complex reflection coefficients
+        if features is None:
+            features = []
+            for i in range(model.nports):
+                features.append(Feature(mode='complex', property='s', ports=(i, i), scale='lin'))
+        elif isinstance(features[0], str):
+            features = [Feature.from_string(f) for f in features]
         
-            measured_interp = []
+        # Currently, all frequencies must be the same across all measurements
+        measured = [measured] if not isinstance(measured, list) else measured
+        if fit_frequency is not None:
+            measured = [ntwk.interpolate(fit_frequency) for ntwk in measured]
+        else:
+            freq = measured[0].frequency
             for ntwk in measured:
-                measured_interp.append(ntwk.interpolate(fit_frequency))
-            measured = measured_interp
+                if ntwk.frequency != freq:
+                    raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency for fitting)")
         
-        self.model: Model | SystemModel = model
-        self.measured: skrf.Network | list[skrf.Network] = measured
+        self.model: Model = model
+        self.measured: list[skrf.Network] = measured
         self.params: dict[str, Parameter] = params or {}
         self.param_infix = param_infix
         self.features = features
         self.measured_features = extract_features(self.measured, self.features)
-
         self._init_params()
 
     def _init_params(self):
@@ -147,11 +155,13 @@ class FrequentistFitter(BaseFitter):
         
         self.modifiers = modifiers
 
-    def cost(self, model: Model | SystemModel | None = None) -> np.ndarray:
+    def cost(self, model: Model | None = None) -> np.ndarray:
         """Returns the cost for the model and the specified measured data.
 
-        The cost is calculated by first extracting "feature" matrix from the model (such as S11 magnitude) using the `FeatureExtractor` objects in `self.features`,
-        and then applying "modifiers" (such as by taking the L2 norm) on the resultant matrix using the `Modifier` objects in `self.modifiers`.
+        The cost is calculated by first extracting the "feature" matrix from the model (such as S11 magnitude)
+        using the `FeatureExtractor` objects in `self.features`. Then, "modifiers" (such as taking the L2 norm)
+        are applied sequentially on the resultant matrix, using the `Modifier` objects in `self.modifiers`.
+        
         See `Feature` and `Modifier` for more details.
         
         Returns:
@@ -172,7 +182,7 @@ class FrequentistFitter(BaseFitter):
         return cost_fn
     
     @property
-    def model_cost_function(self) -> Callable[[Model | SystemModel], float]:
+    def model_cost_function(self) -> Callable[[Model], float]:
         # TODO update this to filter the parameters based on the 'fixed' flag
         def cost_fn(model):
             return self.cost(model)

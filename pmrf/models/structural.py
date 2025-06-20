@@ -8,16 +8,25 @@ from pmrf._model import Model
 class CascadedModel(Model):
     _models: tuple[Model]
     
-    def __init__(self, models: tuple[Model], **kwargs):
-        if models[0].n_ports != 2:
+    def __init__(self, models: Sequence[Model], **kwargs):
+        # First check all the port conditions
+        if models[0].nports != 2:
             raise Exception('First network must be a two port when cascaded')
         for model in models[1:-1]:
-            if model.n_ports != 2:
+            if model.nports != 2:
                 raise Exception('Inner networks must be two ports when cascaded')
-        if models[-1].n_ports not in (1, 2):
+        if models[-1].nports not in (1, 2):
             raise Exception('Last network must either be a one port or a two port when cascaded')
         
-        self._models = models
+        # Next check if any models themselves are of type CascadedModel. We don't nest these - we chain them to avoid very deep, nested models
+        model_reduced = []
+        for model in models:
+            if isinstance(model, CascadedModel):
+                model_reduced.extend(model._models)
+            else:
+                model_reduced.append(model)
+
+        self._models = tuple(model_reduced)
         Model.__init__(self, **kwargs)
 
     @property
@@ -26,7 +35,7 @@ class CascadedModel(Model):
     
     @property
     def inner_models(self) -> tuple['Model']:
-        return self._models[1:-1]
+        return tuple(self._models[1:-1])
     
     @property
     def last_model(self) -> Model:
@@ -36,7 +45,7 @@ class CascadedModel(Model):
         a = self.first_model.a(freq)
         for model in self.inner_models:
             a = a @ model.a(freq)
-        if self.last_model.n_ports == 1:
+        if self.last_model.nports == 1:
             raise Exception('Cannot get abcd-matrix for a cascade of models terminated in a one-port')
         
         return a @ self.last_model.a(freq)
@@ -44,7 +53,7 @@ class CascadedModel(Model):
     def s(self, freq: Frequency):
         # We only implement s when we are terminating in a one-port.
         # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
-        if self.last_model.n_ports != 1:
+        if self.last_model.nports != 1:
             return Model.s(self, freq)
         
         # Get abcd matrix of inners

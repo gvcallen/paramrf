@@ -36,9 +36,9 @@ class Model(eqx.Module):
     # Instance fields
     _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
     name: str | None = field(default=None, kw_only=True, static=True)
+    shared: bool = field(default=False, kw_only=True, static=True)
 
     # Class fields
-    _submodel_attrs: list[str] = field(init=False, static=True)
     s_def: str | None = field(default='power', init=False, static=True)
     priority: tuple = field(default=(), init=False, static=True)
     dynamic: tuple = field(init=False, static=True)
@@ -46,11 +46,7 @@ class Model(eqx.Module):
     def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        dynamic = dynamic or (float, np.ndarray)
-
-        cls.dynamic = dynamic
-        cls._submodel_attrs = []
-
+        cls.dynamic = dynamic = dynamic or (float, np.ndarray)
         for dynamic_type in dynamic:
             if issubclass(dynamic_type, Model):
                 raise Exception("Error: do not set `Model` types as dynamic")
@@ -82,14 +78,10 @@ class Model(eqx.Module):
             if field_type in dynamic:
                 field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
 
-            # Finally, add to the list of submodules of this is a Model
-            if issubclass(field_type, Model):
-                cls._submodel_attrs.append(field_name)
-                    
             # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, field(**field_kwargs))
-            
+
     def __new__(cls, *args, **kwargs):
         return eqx.Module.__new__(cls)
     
@@ -98,19 +90,24 @@ class Model(eqx.Module):
         return CascadedModel([self, other])
     
     @property
-    def nested_submodels(self) -> list['Model']:
-        submodels = []
-        append_nested_submodels(submodels, self)
-        submodels.pop(0)
-        return submodels
+    def dynamic_filter(self) -> Callable[[Any], bool]:
+        return lambda element: any([isinstance(element, dynamic) for dynamic in self.dynamic])
+    
+    @property
+    def static_filter(self) -> Callable[[Any], bool]:
+        return lambda element: not any([isinstance(element, dynamic) for dynamic in self.dynamic])
+    
+    @property
+    def nested_submodels(self) -> tuple['Model']:
+        return (node for node in jax.tree.flatten(self)[0] if isinstance(node, Model))
     
     @property
     def num_nested_submodels(self) -> int:
         return len(self.nested_submodels)    
     
     @property
-    def submodels(self) -> list['Model']:
-        return [getattr(self, model_attr) for model_attr in self._submodel_attrs]
+    def submodels(self) -> tuple['Model']:
+        return (node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model))
     
     @property
     def num_submodels(self):
@@ -141,8 +138,34 @@ class Model(eqx.Module):
         return jax.eval_shape(sf).shape[1]
     
     @property
-    def n_ports(self):
+    def nports(self):
         return self.number_of_ports
+    
+    @property
+    def port_tuples(self) -> list[tuple[int, int]]:
+        """
+        Returns a list of tuples, for each port index pair.
+
+        A convenience function for the common task for iterating over
+        all s-parameters index pairs.
+
+        This just calls::
+
+            [(y,x) for x in range(self.nports) for y in range(self.nports)]
+
+
+        Returns
+        -------
+        ports_ind : list of tuples
+            list of all port index tuples.
+
+        Examples
+        --------
+        >>> ntwk = skrf.data.ring_slot
+        >>> for (idx_i, idx_j) in ntwk.port_tuples: print(idx_i, idx_j)
+
+        """
+        return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
     
     @property
     def z0(self):
@@ -317,3 +340,56 @@ def append_nested_submodels(submodels: list[Model], model: Model | None):
     for submodel in model.submodels:
         append_nested_submodels(submodels, submodel)
         
+def model_check(model: Model) -> None:
+    all_nodes = {}
+    _model_check(model, all_nodes, model.dynamic_filter)
+
+_leaf_treedef = jax.tree.structure(0)
+def _model_check(node, all_nodes: dict, is_dynamic: Callable = None):
+    subnodes, treedef = eqx.tree_flatten_one_level(node)
+
+    # We allow duplicate leaves, empty containers
+    if treedef == _leaf_treedef or treedef.num_leaves == 0:
+        return
+    
+    # We allow duplications for non-dynamic, non-model types
+    dynamic = is_dynamic(node) if is_dynamic is not None else True
+    if not isinstance(node, Model) and not dynamic:
+        return
+
+    try:
+        self_referential, type_string = all_nodes[id(node)]
+    except KeyError:
+        pass
+    else:
+        if self_referential:
+            raise ValueError(
+                f"Model node with value {node} is self-referential; that is "
+                "to say it appears somewhere within its own PyTree structure. This "
+                "is not allowed."
+            )
+        else:
+            model_type = list(all_nodes.values())[0][1]
+            if isinstance(node, Model):
+                raise ValueError(
+                    f"Sub-model with name '{node.name}' appears in model '{model_type}' multiple times. "
+                    "If you would like to use multiple instances of a sub-model type in your model, explicitly create it each time."
+                    "Otherwise, if you do want to share a sub-model across your model, create it with `shared=True`, "
+                    "or pass `sharing=True` as an inheritance parameter in your model class declaration."
+                )
+            else:
+                raise ValueError(
+                    f"Model field with value {node} appears in the Model '{model_type}'"
+                    "multiple times. This is almost always an error, as these nodes "
+                    "will turn into two duplicate copies after "
+                    "flattening/unflattening, e.g. when crossing a JIT boundary."
+                )
+    try:
+        type_string = type(node).__name__
+    except AttributeError:
+        # AttributeError: in case we cannot get __name__ for some weird reason.
+        type_string = "<unknown type>"
+    all_nodes[id(node)] = (True, type_string)
+    for subnode in subnodes:
+        _model_check(subnode, all_nodes, is_dynamic)
+    all_nodes[id(node)] = (False, type_string)

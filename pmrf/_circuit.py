@@ -18,11 +18,12 @@ from pmrf._model import Model
 
 class CircuitModel(Model):
     # _layout: CircuitLayout | None = None 
-    _built_model: Model | None = field(default=None, kw_only=True)
+    # _built_model: Model | None = field(default=None, kw_only=True)
 
-    def __post_init__(self):
+    # def __post_init__(self):
+    #     return
         # super.__post_init__(self)
-        self._built_model = self.build()
+        # self._built_model = self.build()
 
     @abstractmethod
     def build(self) -> Model:

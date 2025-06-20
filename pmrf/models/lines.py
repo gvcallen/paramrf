@@ -5,6 +5,7 @@ from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf._frequency import Frequency
 from pmrf._model import Model
+from pmrf._misc import field
 from pmrf._math import evaluate_bernstein_basis, evaluate_power_basis
 
 class RLGCLine(Model):
@@ -174,7 +175,7 @@ class PhysicalCoaxial(RLGCLine):
     tand_order: int | None = None
     rho_model: str = 'constant'
     rho_order: int | None = None
-    freq_bounds: tuple = None
+    freq_bounds: tuple | None = None
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
 
