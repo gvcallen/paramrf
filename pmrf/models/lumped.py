@@ -3,8 +3,11 @@ from pmrf._model import Model
 from pmrf._frequency import Frequency
 
 class Load(Model):
-    gamma: float | np.ndarray = 0.0
     nports: int = 1
+
+    @property
+    def gamma(self) -> float | np.ndarray:
+        pass
 
     def s(self, freq: Frequency) -> np.ndarray:
         gamma, nports = self.gamma, self.nports
@@ -14,15 +17,19 @@ class Load(Model):
         return s
     
 class Match(Load):
-    pass
+    @property
+    def gamma(self) -> float | np.ndarray:
+        0.0
 
 class Short(Load):
-    def __init__(self):
-        self.gamma = -1.0
+    @property
+    def gamma(self) -> float | np.ndarray:
+        -1.0
 
 class Open(Load):
-    def __init__(self):
-        self.gamma = 1.0
+    @property
+    def gamma(self) -> float | np.ndarray:
+        1.0
   
 class Capacitor(Model):
     C: float = 1.0

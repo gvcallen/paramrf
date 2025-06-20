@@ -17,7 +17,7 @@ from pmrf.fitting._results import BayesianResults, FrequentistResults
 from pmrf._frequency import Frequency
 from pmrf.numpy import USE_JAX
 
-from fitting._feature import Feature, extract_features
+from pmrf.fitting._feature import Feature, extract_features
 from pmrf.fitting._modifier import Modifier, apply_modifiers
 
 from dataclasses import dataclass
@@ -45,17 +45,17 @@ class BaseFitter(ABC):
         measured: skrf.Network | list[skrf.Network],
         params: dict[str, Parameter] | None = None,
         fit_frequency: skrf.Frequency | None = None,
-        features: list[Feature] | list[str] = None,
+        features: list[Feature] = None,
         param_infix = '_'
     ) -> None:
         """The base fitter initialization.
 
         Args:
             model (Model): The model to fit.
-            measured (skrf.Network | list[skrf.Network]): The measured networks to fit against. If a list is passed, the networks are viewed as being part of a large N-port network, with ports sequentially assigned. See `SystemModel` for an example where this might be useful.
+            measured (skrf.Network | list[skrf.Network]): The measured networks to fit against. If a list is passed, the networks are viewed as being part of a large N-port network, with ports sequentially assigned. If a measurement is not available, an empty network can be passed. See `SystemModel` for an example use-case.
             params (dict[str, Parameter] | None, optional): Parameters for the models, specified in a flattened format. See `param_infix`. Defaults to `None`, in which case all parameters are set as normal with 5% standard deviation.
             fit_frequency (skrf.Frequency | None, optional): The frequency to fit against. Defaults to `None`.
-            features (list[Feature] | list[str], optional): The "features" to extract from the networks for cost functions, likelihoods etc. e.g. S11 magnitude. Defaults to `None`, in which case all complex reflection coefficients across all ports are used.
+            features (list[Feature], optional): The "features" to extract from the networks for cost functions, likelihoods etc. e.g. S11 magnitude. Defaults to `None`, in which case all complex reflection coefficients across all ports are used.
             param_infix (str, optional): The infix between submodels for the flattened parameters in `params`. Parameters are specified as `{model.name}{infix}{submodel1.name}{infix}{submodel2.name}{...}{infix}{param}`. Defaults to '_'.
         """
         # By default, we setup the features to extract the complex reflection coefficients
@@ -63,8 +63,6 @@ class BaseFitter(ABC):
             features = []
             for i in range(model.nports):
                 features.append(Feature(mode='complex', property='s', ports=(i, i), scale='lin'))
-        elif isinstance(features[0], str):
-            features = [Feature.from_string(f) for f in features]
         
         # Currently, all frequencies must be the same across all measurements
         measured = [measured] if not isinstance(measured, list) else measured
@@ -73,7 +71,7 @@ class BaseFitter(ABC):
         else:
             freq = measured[0].frequency
             for ntwk in measured:
-                if ntwk.frequency != freq:
+                if ntwk.frequency != freq and not len(ntwk.frequency) == 0:
                     raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency for fitting)")
         
         self.model: Model = model

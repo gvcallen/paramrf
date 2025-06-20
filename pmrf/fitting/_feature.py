@@ -22,7 +22,7 @@ class Feature:
 
     # TODO expand this to allow for high-level requests e.g. 'gamma'
     @classmethod
-    def from_string(cls, feature_str: str) -> 'Feature':
+    def from_string(cls, string: str | list[str]) -> 'Feature | list[Feature]':
         """
         Parses a user-friendly string into a structured Feature object.
 
@@ -37,6 +37,9 @@ class Feature:
         Raises:
             ValueError: If the string format is invalid.
         """
+        if isinstance(string, list):
+            return [Feature.from_string(s) for s in string]
+
         feature_str = feature_str.lower().strip()
 
         # Breakdown of the regex: ^([syza])(\d)(\d)(?:_([a-z]+))?$
@@ -94,46 +97,44 @@ class Feature:
             scale=scale
         )    
 
-def extract_features(source: Model | skrf.Network, features: list[Feature], freq: Frequency = None) -> np.ndarray:
+def extract_features(source: Model | skrf.Network | list[skrf.Network], features: list[Feature], freq: Frequency = None) -> np.ndarray:
     # We use explicit defaults because cost is quite a common high-level user requirement
     # TODO optimize jax cases
     if freq is None:
         freq = source.frequency
 
-    if isinstance(source, Model) or isinstance(source, skrf.Network):
-        n_frequencies = len(freq)
-        n_features = len(features)
+    n_frequencies = len(freq)
+    n_features = len(features)
 
-        X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
-        for d, feature in enumerate(features):
-            if USE_JAX:
-                X = X.at[:, d].set(extract_feature(source, feature, freq=freq))
-            else:
-                X[:, d] = extract_feature(source, feature, freq=freq)
-    else:
-        X = np.zeros((freq.npoints, len(features)), dtype=np.complex128)
-        d = 0
-        if isinstance(source, SystemModel):
-            sources = source.models
+    X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
+    for d, feature in enumerate(features):
+        if USE_JAX:
+            X = X.at[:, d].set(extract_feature(source, feature, freq=freq))
         else:
-            sources = source
-        for source in sources:
-            for feature in features:
-                if USE_JAX:
-                    X.at[:, d].set(extract_feature(source, feature, freq=freq))
-                else:
-                    X[:, d] = extract_feature(source, feature, freq=freq)
-                d += 1
+            X[:, d] = extract_feature(source, feature, freq=freq)
     
     return X
 
     
-def extract_feature(source: Model | skrf.Network, feature: Feature, freq: Frequency = None) -> np.ndarray:
+def extract_feature(source: Model | skrf.Network | list[skrf.Network], feature: Feature, freq: Frequency = None) -> np.ndarray:
     m, n = feature.ports
+    y = None
+    
     if isinstance(source, Model):
         y = getattr(source, feature.property)(freq)[:, m, n]
     elif isinstance(source, skrf.Network):
         y = source.s[:, m, n]
+    elif isinstance(source, list):
+        # TODO optimize this to somehow remove loop (since we will have a nested loop ultimately)? Probably not worth it as only done once for fitter
+        p = 0
+        for ntwk in source:
+            nports = ntwk.nports
+            if m >= p + nports:
+                p += nports
+                continue
+            y = ntwk.s[:, m-p, n-p]
+        if y is None:
+            raise Exception('Error: port of out bounds')
 
     if feature.mode == 'complex':
         pass

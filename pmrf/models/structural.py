@@ -4,11 +4,13 @@ import pmrf.numpy as np
 from pmrf.models.lumped import Short
 from pmrf._frequency import Frequency
 from pmrf._model import Model
+from pmrf._misc import field
 
 class CascadedModel(Model):
     _models: tuple[Model]
     
-    def __init__(self, models: Sequence[Model], **kwargs):
+    def __post_init__(self):
+        models = self._models
         # First check all the port conditions
         if models[0].nports != 2:
             raise Exception('First network must be a two port when cascaded')
@@ -27,7 +29,6 @@ class CascadedModel(Model):
                 model_reduced.append(model)
 
         self._models = tuple(model_reduced)
-        Model.__init__(self, **kwargs)
 
     @property
     def first_model(self) -> Model:
@@ -74,44 +75,43 @@ class CascadedModel(Model):
         
     
 class RenumberedModel(Model):
-    _model: Model
-    _from_ports: np.ndarray
-    _to_ports: np.ndarray
+    model: Model
+    to_ports: tuple[int]
+    from_ports: tuple[int]
 
-    def __init__(self, ntwk: Model, from_ports: Sequence[int], to_ports: Sequence[int]):
-        self._model = ntwk
-        self._from_ports = np.array(from_ports)
-        self._to_ports = np.array(to_ports)
+    def __post_init__(self):
+        model = self.model
+        to_ports, from_ports = to_ports, from_ports
 
         if len(np.unique(from_ports)) != len(from_ports):
             raise ValueError('an index can appear at most once in from_ports or to_ports')
         if any(np.unique(from_ports) != np.unique(to_ports)):
             raise ValueError('from_ports and to_ports must have the same set of indices')
-        if ntwk.primary_function(return_str=True)[1] == 'a' and len(from_ports) != 1 and len(to_ports) != 1:
+        if model.primary_function(return_str=True)[1] == 'a' and len(from_ports) != 1 and len(to_ports) != 1:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")
 
         self.z0[:, to_ports] = self.z0[:, from_ports]
 
-    @property
-    def models(self) -> list[Model]:
-        return self.models                
-
     def renumber(self, p):
-        p[:, self._to_ports, :] = p[:, self._from_ports, :]
-        p[:, :, self._to_ports] = p[:, :, self._from_ports]
+        p[:, self.to_ports, :] = p[:, self.from_ports, :]
+        p[:, :, self.to_ports] = p[:, :, self.from_ports]
         return p
     
     def a(self, x):
-        return self.renumber(self._model.a(x))
+        return self.renumber(self.model.a(x))
 
     def s(self, x):
-        return self.renumber(self._model.s(x)) 
+        return self.renumber(self.model.s(x)) 
 
 class FlippedModel(RenumberedModel):
-    def __init__(self, model: Model):
+    to_ports: str = field(init=False)
+    from_ports: str = field(init=False)
+
+    def __post_init__(self):
         if self.number_of_ports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
-        old = list(range(0, 2*n))
-        new = list(range(n, 2*n)) + list(range(0, n))
-        RenumberedModel.__init__(self, model, old, new)
+        self.to_ports = list(range(0, 2*n))
+        self.from_ports = list(range(n, 2*n)) + list(range(0, n))
+        
+        super().__post_init__()

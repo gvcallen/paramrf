@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import skrf
 import equinox as eqx
 
@@ -25,7 +27,11 @@ class SystemModel(Model):
     name will shared, independent of where they are used in the model. Further, any necessary abstract methods (e.g. `s`, `y`)
     will be conveniently implemented to return large, stacked matrices of the top-level models for ease-of-manipulation, but methods such as `to_skrf`
     are overriden to return the networks individually (by default), as would usually be desired.
-    """            
+    """
+    # @abstractmethod
+    # def build(self):
+    #     raise NotImplementedError("Error: system model sub-classes *have* to implement the build() function to build their sub-models")
+
     def s(self, freq: Frequency) -> np.ndarray:
         nports = 0
         submodels = self.submodels
@@ -40,18 +46,19 @@ class SystemModel(Model):
                 s = s.at[:,i+m,i+n].set(s_sub[m,n])
             i += submodel.nports**2
         return s
-
+    
     def to_skrf(self, frequency: skrf.Frequency | list[skrf.Frequency], **kwargs) -> list[skrf.Network]:
+        models = self.submodels
         networks = []
 
         if not isinstance(frequency, list):
-            frequency = [frequency] * len(self.models)
+            frequency = [frequency] * len(models)
 
         if isinstance(frequency, list):
-            for model, model_frequency in zip(self.models, frequency):
+            for model, model_frequency in zip(models, frequency):
                 networks.append(model.to_skrf(model_frequency, **kwargs))
         else:
             model_frequency = frequency
-            for model in self.models:
+            for model in models:
                 networks.append(model.to_skrf(model_frequency, **kwargs))
         return networks
