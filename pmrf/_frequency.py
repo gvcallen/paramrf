@@ -49,6 +49,9 @@ class Frequency(eqx.Module):
         
         Arguments are forward to the initializer for `skrf.Frequency`. To initialize directly from `skrf`, use `from_skrf(..)`.
         """
+        if len(args) != 0 and isinstance(args[0], skrf.Frequency):
+            raise Exception("Pass frequency using the 'frequency' key-word argument")
+        
         frequency = frequency or skrf.Frequency(*args, **kwargs)
         self._unit = frequency._unit
         self._f = np.asarray(frequency._f)

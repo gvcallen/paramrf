@@ -7,6 +7,14 @@ import equinox as eqx
 import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
+from pmrf._tree import nodes_at_paths
+
+
+class SharedModel:
+    """Placeholder value for models that have been removed."""
+
+    def __repr__(self):
+        return "SharedModel"
 
 class SystemModel(Model):
     """ A `SystemModel` is a collection of related models, grouped together into a single N-port model with some extra functionality.
@@ -29,84 +37,52 @@ class SystemModel(Model):
     will be conveniently implemented to return large, stacked matrices of the top-level models for ease-of-manipulation, but methods such as `to_skrf`
     are overriden to return the networks individually (by default), as would usually be desired.
     """
-    _shared_locations: tuple = eqx.field(static=True, init=False, repr=False)
-    _treedef: Any = eqx.field(static=True, init=False, repr=False)
-    _path_to_idx: dict = eqx.field(static=True, init=False, repr=False)
+    _get: Callable | None = eqx.field(default=None, init=False, repr=False)
+    _where: Callable | None = eqx.field(default=None, init=False, repr=False)
+    # _shared_locations: tuple = eqx.field(static=True, init=False, repr=False)
+    # _treedef: Any = eqx.field(static=True, init=False, repr=False)
+    # _path_to_idx: dict = eqx.field(static=True, init=False, repr=False)
 
     @final
     def post(self):
-        # TODO allow more than one-level sharing
-        model_path_vals = self.submodels_with_paths
+        # TODO raise error or deal with NESTED sharing
+        pass        
+        # First, build a map of the unique model identifier (id + name) to all its paths in the models
+        # models_path_vals = self.nested_submodels_with_paths
+        # id_to_paths = {}
+        # for path, model in models_path_vals:
+        #     key = (id(model), model.name)
+        #     id_to_paths.setdefault(key, [])
+        #     id_to_paths[key].append(path)
+            
+        # # Next, collect the paths in the map that are shared (more than one path per identifier) and choose the first as the "base" and the rest as the "replace".
+        # # We repeat the first however many times we must replace it so we have a one-to-one mapping for each replace
+        # models_paths = [paths for paths in id_to_paths.values() if len(paths) > 1]
+        # models_base_paths = [[model_paths[0]] * len(model_paths[1:]) for model_paths in models_paths]
+        # models_replace_paths = [model_paths[1:] for model_paths in models_paths]
+
+        # # Flatten and store the base/replace paths for all shared models. Really ugly because of all the singular/plurals but gets the job done
+        # base_paths = [base_path for model_base_paths in models_base_paths for base_path in model_base_paths]
+        # replace_paths = [replace_path for model_replace_paths in models_replace_paths for replace_path in model_replace_paths]
         
-        # 2. Group the found modules by their Python `id()` to find shared instances.
-        id_to_paths = {}
-        for path, mod in model_path_vals:
-            id_to_paths.setdefault(id(mod), []).append(path)    
-
-        # These are groups of paths, where each group points to the same module object.
-        shared_module_groups = [
-            tuple(paths) for paths in id_to_paths.values() if len(paths) > 1
-        ]
-
-        # 3. For each group of shared modules, find the paths to their corresponding leaves.
-        # The substitution logic operates on leaves, so we pre-calculate their locations.
-        final_shared_leaf_locations = []
-        if shared_module_groups:
-            # Define a helper to retrieve a module from the model using its path.
-            def get_node(tree, path):
-                for key in path:
-                    tree = key.from_node(tree)
-                return tree
-
-            for module_path_group in shared_module_groups:
-                # Use the first module in the group as the canonical reference.
-                canonical_module_path = module_path_group[0]
-                canonical_module = get_node(self, canonical_module_path)
-                
-                # Flatten the canonical module to find its internal leaf structure.
-                module_leaves_with_paths, _ = jax.tree_util.tree_flatten_with_path(canonical_module)
-
-                # For each leaf inside the module, create a group of its full paths
-                # across all shared module instances.
-                for relative_leaf_path, _ in module_leaves_with_paths:
-                    leaf_path_group = [
-                        module_path + relative_leaf_path for module_path in module_path_group
-                    ]
-                    final_shared_leaf_locations.append(tuple(leaf_path_group))
+        # # Generate the get/where functions for the eqx.tree_at, and remove any duplicate nodes
+        # self._get = lambda model: nodes_at_paths(model, base_paths)
+        # self._where = lambda model: nodes_at_paths(model, replace_paths)
         
-        # 4. Flatten the entire model to get the definitions needed for reconstruction.
-        paths_and_leaves, treedef = jax.tree_util.tree_flatten_with_path(self)
+        # Finally, removed the shared models in-place. They will be reconstructed at call time for s() etc.
+        # self.__dict__.update(self.shared().__dict__)
         
-        # 5. Store the results on the now-frozen Equinox module instance.
-        object.__setattr__(self, '_shared_locations', tuple(final_shared_leaf_locations))
-        object.__setattr__(self, '_treedef', treedef)
-        object.__setattr__(self, '_path_to_idx', {path: i for i, (path, _) in enumerate(paths_and_leaves)})
+    def shared(self) -> 'SystemModel':
+        return self
+        return eqx.tree_at(self._where, self, replace_fn=lambda _: SharedModel())
+    
+    def reconstructed(self) -> 'SystemModel':
+        # return eqx.tree_at(self._where, self, self._get(self))
+        return self
 
     def s(self, freq: Frequency) -> np.ndarray:
-        # If discovery didn't run or found no shared nodes, just call the original
-        if not hasattr(self, '_shared_locations') or not self._shared_locations:
-            return self._s(freq)
-
-        # 1. Get the up-to-date leaves from the current model state
-        leaves = jax.tree_util.tree_leaves(self)
-        mutable_leaves = list(leaves)
-        
-        # 2. Substitute shared values
-        for group in self._shared_locations:
-            canonical_path = group[0]
-            canonical_idx = self._path_to_idx[canonical_path]
-            canonical_value = mutable_leaves[canonical_idx]
-            for path in group[1:]:
-                idx_to_update = self._path_to_idx[path]
-                mutable_leaves[idx_to_update] = canonical_value
-
-        # 3. Reconstruct the model with the corrected leaves and call _s
-        recon_self = self._treedef.unflatten(mutable_leaves)
-        return recon_self._s(freq)
-    
-    def _s(self, freq: Frequency) -> np.ndarray:
         nports = 0
-        submodels = self.submodels
+        submodels = self.reconstructed().submodels
         for submodel in submodels:
             nports += submodel.nports
 
@@ -120,7 +96,7 @@ class SystemModel(Model):
         return s
     
     def to_skrf(self, frequency: skrf.Frequency | list[skrf.Frequency], **kwargs) -> list[skrf.Network]:
-        models = self.submodels
+        models = self.reconstructed().submodels
         networks = []
 
         if not isinstance(frequency, list):

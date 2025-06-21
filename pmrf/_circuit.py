@@ -21,7 +21,7 @@ class CircuitModel(Model):
     # _layout: CircuitLayout | None = None 
     # _built_model: Model | None = field(default=None, init=False, repr=False)
 
-    def combine(self) -> Model:
+    def build(self) -> Model:
         raise Exception("Sub-classes must implemented 'combine' to combine their sub-models into a single model")
 
     # @final
@@ -30,7 +30,7 @@ class CircuitModel(Model):
 
     def a(self, freq: Frequency) -> np.ndarray:
         # TODO call combine once only
-        return self.combine().a(freq)
+        return self.build().a(freq)
     
     def s(self, freq: Frequency) -> np.ndarray:
-        return self.combine().s(freq)
+        return self.build().s(freq)

@@ -5,9 +5,16 @@ import re
 import pmrf.numpy as np
 from numpy import ndindex
 import jax
-from jax.tree_util import GetAttrKey
+from jax.tree_util import SequenceKey, DictKey, GetAttrKey
 import equinox as eqx
 
+from typing import Any, Tuple, List, Type
+from collections.abc import Mapping, Sequence
+from dataclasses import is_dataclass, fields
+
+import jax
+from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
+from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
 def tree_with_params(
     tree: Any,
@@ -184,3 +191,99 @@ def tree_params(
                 parameters[f"{path_str}{array_separator}{index_str}"] = leaf[index]
     
     return parameters
+
+
+def tree_flatten_one_level_with_path(
+    pytree: PyTree,
+) -> tuple[list[PyTree], PyTreeDef]:
+    # See eqx.tree_flatten_one_level
+    seen_pytree = False
+
+    def is_leaf(node):
+        nonlocal seen_pytree
+        if node is pytree:
+            if seen_pytree:
+                try:
+                    type_string = type(pytree).__name__
+                except AttributeError:
+                    type_string = "<unknown>"
+                raise ValueError(
+                    f"PyTree node of type `{type_string}` is immediately "
+                    "self-referential; that is to say it appears within its own PyTree "
+                    "structure as an immediate subnode. (For example "
+                    "`x = []; x.append(x)`.) This is not allowed."
+                )
+            else:
+                seen_pytree = True
+            return False
+        else:
+            return True
+
+    return jax.tree.flatten_with_path(pytree, is_leaf=is_leaf)
+
+def nodes_by_type(tree: Any, match_type: Type) -> List[Tuple[Tuple[Any, ...], Any]]:
+    matches = []
+
+    if isinstance(tree, match_type):
+        matches.append(tree)
+
+    # Handle dataclasses
+    if is_dataclass(tree) and not isinstance(tree, type):
+        for f in fields(tree):
+            value = getattr(tree, f.name)
+            matches.extend(nodes_by_type(value, match_type))
+
+    # Handle dicts
+    elif isinstance(tree, Mapping):
+        for k, v in tree.items():
+            matches.extend(nodes_by_type(v, match_type))
+
+    # Handle lists, tuples, etc.
+    elif isinstance(tree, Sequence) and not isinstance(tree, (str, bytes)):
+        for i, v in enumerate(tree):
+            matches.extend(nodes_by_type(v, match_type))
+
+    return matches
+
+def nodes_by_type_with_path(tree: Any, match_type: Type, path=()) -> List[Tuple[Tuple[Any, ...], Any]]:
+    # TODO upgrade to ENSURE our paths are 100% jax compatible
+    matches = []
+
+    if isinstance(tree, match_type):
+        matches.append((path, tree))
+
+    # Handle dataclasses
+    if is_dataclass(tree) and not isinstance(tree, type):
+        for f in fields(tree):
+            value = getattr(tree, f.name)
+            matches.extend(nodes_by_type_with_path(value, match_type, path + (GetAttrKey(f.name),)))
+
+    elif isinstance(tree, Mapping):
+        for k, v in tree.items():
+            matches.extend(nodes_by_type_with_path(v, match_type, path + (DictKey(k),)))
+
+    elif isinstance(tree, Sequence) and not isinstance(tree, (str, bytes)):
+        for i, v in enumerate(tree):
+            matches.extend(nodes_by_type_with_path(v, match_type, path + (SequenceKey(i),)))
+
+    return matches
+
+def node_at_path(pytree, path):
+    node = pytree
+    for key in path:
+        if isinstance(key, GetAttrKey):
+            k = key.name
+            node = getattr(node, k)
+        elif isinstance(key, DictKey):
+            k = key.name
+            node = node[key]
+        else:
+            raise Exception(f"Only DictKey and GetAttrKey are currently supported in tree_at_path but '{type(key)}' was passed of value {key}")
+        
+    return node
+
+def nodes_at_paths(pytree, paths):
+    nodes = []
+    for path in paths:
+        nodes.append(node_at_path(pytree, path))
+    return nodes

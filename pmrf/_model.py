@@ -10,10 +10,11 @@ if USE_JAX:
 import equinox as eqx
 
 import pmrf.numpy as np
-from pmrf._misc import field, tree_flatten_one_level_with_path
+from pmrf._misc import field
 from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
-from pmrf._pytree import tree_with_params, tree_params
+from pmrf._tree import tree_with_params, tree_params, tree_flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path
+from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
 
 PRIMARY_PROPERTIES = ['s', 'a']
 
@@ -41,12 +42,12 @@ class Model(eqx.Module):
     # Class fields
     s_def: str | None = field(default='power', init=False, static=True, repr=False)
     priority: tuple = field(default=(), init=False, static=True, repr=False)
-    dynamic: tuple = field(init=False, static=True, repr=False)
+    dynamic_types: tuple = field(init=False, static=True, repr=False)
 
     def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        cls.dynamic = dynamic = dynamic or (float, np.ndarray)
+        cls.dynamic_types = dynamic = dynamic or (float, np.ndarray)
         for dynamic_type in dynamic:
             if issubclass(dynamic_type, Model):
                 raise Exception("Error: do not set `Model` types as dynamic")
@@ -88,10 +89,10 @@ class Model(eqx.Module):
 
     @final
     def __post_init__(self):
-        self.build()
+        self.setup()
         self.post()
 
-    def build(self) -> Any:
+    def setup(self) -> Any:
         pass
 
     def post(self):
@@ -105,16 +106,24 @@ class Model(eqx.Module):
         return CascadedModel([self, other])
     
     @property
-    def dynamic_filter(self) -> Callable[[Any], bool]:
-        return lambda element: any([isinstance(element, dynamic) for dynamic in self.dynamic])
+    def dynamic(self) -> 'Model':
+        dynamic_fn = lambda element: any([isinstance(element, dynamic) for dynamic in self.dynamic_types])
+        return eqx.filter(self, dynamic_fn)
     
     @property
-    def static_filter(self) -> Callable[[Any], bool]:
-        return lambda element: not any([isinstance(element, dynamic) for dynamic in self.dynamic])
+    def static(self) -> Callable[[Any], bool]:
+        static_fn = lambda element: not any([isinstance(element, dynamic) for dynamic in self.dynamic_types])
+        return eqx.filter(self, static_fn)
     
     @property
     def nested_submodels(self) -> list['Model']:
-        return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
+        return nodes_by_type(self, Model)[1:]
+        # return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
+    
+    @property
+    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
+        return nodes_by_type_with_path(self, Model)[1:]
+        # return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
     
     @property
     def num_nested_submodels(self) -> int:
@@ -125,7 +134,7 @@ class Model(eqx.Module):
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
     @property
-    def submodels_with_paths(self) -> list['Model']:
+    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
         return [path_val for path_val in tree_flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
     
     @property
@@ -151,10 +160,11 @@ class Model(eqx.Module):
 
     @property
     def number_of_ports(self):
-        freq = Frequency(1, 1, 1)
+        freq = Frequency(1, 10, 10)
         sf = lambda: self.s(freq)
-        # return sf().shape[1]
-        return jax.eval_shape(sf).shape[1]
+        eval = sf()
+        # eval = jax.eval_shape(sf).shape[1]
+        return eval.shape[1]
     
     @property
     def nports(self):
@@ -305,7 +315,7 @@ class Model(eqx.Module):
         f, fname = self.primary_function, self.primary_property
         kwargs = kwargs or {}
         kwargs.update({
-            fname: f(Frequency(freq)),
+            fname: f(Frequency(frequency=freq)),
             'frequency': freq,
             'name': kwargs.get('name', self.name),
             'z0': self._z0,
@@ -355,19 +365,14 @@ def get_underlying_types(tp: type) -> type | None:
 
 def model_check(model: Model) -> None:
     all_nodes = {}
-    _model_check(model, all_nodes, model.dynamic_filter)
+    _model_check(model, all_nodes, model.dynamic)
 
 _leaf_treedef = jax.tree.structure(0)
-def _model_check(node, all_nodes: dict, is_dynamic: Callable = None):
+def _model_check(node, all_nodes: dict):
     subnodes, treedef = eqx.tree_flatten_one_level(node)
 
     # We allow duplicate leaves, empty containers
     if treedef == _leaf_treedef or treedef.num_leaves == 0:
-        return
-    
-    # We allow duplications for non-dynamic, non-model types
-    dynamic = is_dynamic(node) if is_dynamic is not None else True
-    if not isinstance(node, Model) and not dynamic:
         return
 
     try:
@@ -404,5 +409,5 @@ def _model_check(node, all_nodes: dict, is_dynamic: Callable = None):
         type_string = "<unknown type>"
     all_nodes[id(node)] = (True, type_string)
     for subnode in subnodes:
-        _model_check(subnode, all_nodes, is_dynamic)
+        _model_check(subnode, all_nodes)
     all_nodes[id(node)] = (False, type_string)

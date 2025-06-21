@@ -9,7 +9,7 @@ from pmrf._misc import field
 class CascadedModel(Model):
     _models: tuple[Model]
     
-    def build(self):
+    def setup(self):
         models = self._models
         # First check all the port conditions
         if models[0].nports != 2:
@@ -63,15 +63,15 @@ class CascadedModel(Model):
             a = a @ model.a(freq)
         
         # Terminated last in s11
-        a = self._models[0].a(freq)
-        s11 = self._models[1].s(freq)
-        z0 = self._models[0]._z0
+        s11 = self.last_model.s(freq)[:,0,0]
+        z0 = self.first_model._z0
         
+        # TODO generalized for arbitrary z0's
         A, B, C, D = a[:,0,0], a[:,0,1], a[:,1,0], a[:,1,1]
         num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)
         den = z0 * (1 + s11) * (A + z0*C) + (B + D*z0)*(1-s11)
         s11_out = num / den        
-        return s11_out
+        return s11_out.reshape(-1, 1, 1)
         
     
 class RenumberedModel(Model):
@@ -79,7 +79,7 @@ class RenumberedModel(Model):
     to_ports: tuple[int]
     from_ports: tuple[int]
 
-    def build(self):
+    def setup(self):
         model = self.model
         to_ports, from_ports = to_ports, from_ports
 
@@ -107,11 +107,11 @@ class FlippedModel(RenumberedModel):
     to_ports: str = field(init=False)
     from_ports: str = field(init=False)
 
-    def build(self):
+    def setup(self):
         if self.number_of_ports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
         self.to_ports = list(range(0, 2*n))
         self.from_ports = list(range(n, 2*n)) + list(range(0, n))
         
-        super().build()
+        super().setup()
