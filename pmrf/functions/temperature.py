@@ -1,13 +1,13 @@
 import pmrf.numpy as np
-from pmrf._model import Model
 from pmrf._frequency import Frequency
+# from pmrf._model import Model
 from pmrf.functions.gain import available_gain
 
-def effective_temperature(source: Model, passive: Model, freq: Frequency, Tp):
+def effective_temperature(source, passive, freq: Frequency, Tp):
     Gav = available_gain(source, passive, freq)
     return ((1 - Gav) / Gav) * Tp
 
-def output_temperature(source: Model, passive: Model, freq: Frequency, Ts, Tp):
+def output_temperature(source, passive, freq: Frequency, Ts, Tp):
     Gav = available_gain(source, passive, freq)
     return Ts * Gav + (1 - Gav) * Tp
 

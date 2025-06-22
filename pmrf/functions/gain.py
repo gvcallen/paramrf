@@ -1,9 +1,9 @@
 import pmrf.numpy as np
-from pmrf._model import Model
+# from pmrf._model import Model
 from pmrf._frequency import Frequency
 
-# The available gain of a two-port network relative to the available power of a source, where port 1 of the two-port is connected to the source
-def available_gain(source: Model, passive: Model, freq: Frequency, source_port=0):
+# The available gain of a two-port model relative to the available power of a source, where port 1 of the two-port is connected to the source
+def available_gain(source, passive, freq: Frequency, source_port=0):
     if not source_port == 0:
         passive = passive.flipped()
     

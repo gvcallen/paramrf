@@ -1,27 +1,51 @@
 from functools import cached_property
 from copy import deepcopy
+from typing import Callable, Literal
 
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List, final, Literal
+from typing import Callable, Any, Dict, get_origin, Union
 from types import GenericAlias, UnionType
 import dataclasses
+from dataclasses import fields
 
-import pmrf.functions.math as mf
-
+import pmrf.numpy as np
 from pmrf.numpy import USE_JAX
+from pmrf.functions.math import complex_2_db
 if USE_JAX:
     import jax
 import equinox as eqx
+from jaxtyping import PyTree
 
-import pmrf.numpy as np
 from pmrf._misc import field
-from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path
-from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
+import pmrf.functions.math as mf
+from pmrf.functions.parameters import a2s, s2a
 
-from pmrf._constants import ComponentFuncT, PRIMARY_PROPERTIES, FUNC_LOOKUP
+ComponentFuncT = Literal["re", "im", "mag", "db", "db10", "rad", "deg", "arcl", "rad_unwrap", "deg_unwrap",
+                         "arcl_unwrap", "vswr", "time", "time_db", "time_mag", "time_impulse", "time_step"]
+
+PRIMARY_PROPERTIES = ('s', 'a')
+FUNC_LOOKUP: dict[ComponentFuncT, tuple[str, Callable | None]] = {
+    're': ('Real Part', np.real),
+    'im': ('Imag Part', np.imag),
+    'mag': ('Magnitude', np.abs),
+    # 'db': ('Magnitude (dB)', complex_2_db),
+    # 'db10': ('Magnitude (dB)', complex_2_db10),
+    'rad': ('Phase (rad)', np.angle),
+    'deg': ('Phase (deg)', lambda x: np.angle(x, deg=True)),
+    'arcl': ('Arc Length',lambda x: np.angle(x) * np.abs(x)),
+    # 'rad_unwrap': ('Phase (rad)', lambda x: unwrap_rad(np.angle(x))),
+    # 'deg_unwrap': ('Phase (deg)', lambda x: radian_2_degree(unwrap_rad(np.angle(x)))),
+    # 'arcl_unwrap': ('Arc Length', lambda x: unwrap_rad(np.angle(x)) * np.abs(x)),
+    'vswr': ('VSWR', lambda x: (1 + abs(x)) / (1 - abs(x))),
+    # 'time': ('Time (real)', mf.ifft),
+    # 'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
+    # 'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
+    # 'time_impulse': ('Magnitude', None),
+    # 'time_step': ('Magnitude', None),
+}
 
 jax.config.update("jax_enable_x64", True)
 
@@ -132,8 +156,26 @@ class Model(eqx.Module):
         return len(self.submodels)    
     
     @cached_property
-    def param_filter(self) -> Callable[[Any], bool]:
-        return eqx.is_inexact_array
+    def param_filter(self) -> PyTree | Callable[[Any], bool]:
+        dynamic = eqx.filter(self, eqx.is_inexact_array, replace=False)
+        bool_tree = eqx.filter(dynamic, eqx.is_inexact_array, replace=True, inverse=True)
+        
+        is_core = []
+        for field_info in fields(self):
+            derived = field_info.metadata.get('derived', False)
+            if derived:
+                is_core.append(False)
+            else:
+                is_core.append(True)
+        
+        derived_fields = [field.name for field in fields(self) if self.__dataclass_fields__[field.name].metadata.get('derived', False)]
+        bool_tree = eqx.tree_at(
+            lambda m: [getattr(m, name) for name in derived_fields],
+            bool_tree,
+            [False] * len(derived_fields)
+        )
+        
+        return bool_tree
     
     @cached_property
     def param_names(self) -> list[str]:
@@ -166,7 +208,7 @@ class Model(eqx.Module):
 
     @cached_property
     def number_of_ports(self):
-        freq = Frequency(1, 1, 1)
+        freq = Frequency(1, 2, 2)
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
     
@@ -228,10 +270,16 @@ class Model(eqx.Module):
         a = self.a(freq)
         return a2s(a, self.z0)
     
-    def __getattr__(self, name: str) -> Callable[..., Any]:
+    def __getattribute__ (self, name: str) -> Callable[..., Any]:
         # We are only interested in attributes that follow the pattern 's_<suffix>'
-        if not name.startswith(f'{p}_' for p in PRIMARY_PROPERTIES):
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        found = False
+        for p in PRIMARY_PROPERTIES:
+            if name.startswith(f'{p}_'):
+                found = True
+                break
+            
+        if not found:
+            return super().__getattribute__ (name)
 
         param, suffix = name[0], name[2:]
         if suffix in FUNC_LOOKUP:

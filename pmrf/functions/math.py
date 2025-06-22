@@ -1,6 +1,10 @@
+from typing import Callable
+from skrf.constants import INF, LOG_OF_NEG, NumberLike
+
 import pmrf.numpy as np
 from pmrf.numpy import USE_JAX, imag, pi, real, unwrap
 from pmrf._misc import NumberLike
+USE_JAX = True
 
 if USE_JAX:
     import jax
@@ -9,13 +13,6 @@ if USE_JAX:
     from jax._src.numpy.ufuncs import _constant_like
 else:
     from scipy.special import gammaln
-
-from __future__ import annotations
-
-from typing import Callable
-
-from scipy import signal
-from skrf.constants import ALMOST_ZERO, EIG_COND, EIG_MIN, INF, LOG_OF_NEG, NumberLike
 
 def complex_2_magnitude(z: NumberLike):
     """

@@ -3,10 +3,10 @@ from abc import abstractmethod
 import pmrf.numpy as np
 from scipy.constants import c, mu_0, epsilon_0
 
+from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._misc import field
-from pmrf._math import evaluate_bernstein_basis, evaluate_power_basis
 
 class RLGCLine(Model):
     """

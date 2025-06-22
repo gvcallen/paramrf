@@ -22,7 +22,7 @@ def with_params_from_dict(
     subtree_separator: str | None = None,
     array_separator: str | None = None,
     index_separator: str | None = None,
-    param_filter: Callable[[Any], bool] | None = None,
+    param_filter: PyTree | Callable[[Any], bool] | None = None,
     **params: Any
 ) -> Any:
     """
@@ -84,7 +84,7 @@ def with_params_from_dict(
 def with_params_from_array(
     tree: Any,
     params: jax.Array | None = None,
-    param_filter: Callable[[Any], bool] | None = None,
+    param_filter: PyTree | Callable[[Any], bool] | None = None,
 ) -> Any:
     """
     Returns a new tree with updated parameter values.
@@ -128,7 +128,7 @@ def params_dict(
     subtree_separator: str | None = None,
     array_separator: str | None = None,
     index_separator: str | None = None,
-    param_filter: Callable[[Any], bool] | None = None,
+    param_filter: PyTree | Callable[[Any], bool] | None = None,
 ) -> Dict[str, Any]:
     """
     Returns the dynamic parameters of a PyTree as a dictionary of
@@ -179,7 +179,7 @@ def params_dict(
 
 def params_array(
     tree: Any,
-    param_filter: Callable[[Any], bool] | None = None,
+    param_filter: PyTree | Callable[[Any], bool] | None = None,
 ) -> jax.Array:
     """
     Returns the dynamic parameters of a PyTree a single flattened JAX array.
