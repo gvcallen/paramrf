@@ -1,16 +1,13 @@
-from typing import Sequence
-
 import pmrf.numpy as np
-from pmrf.models.lumped import Short
 from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._misc import field
 
-class CascadedModel(Model):
-    _models: tuple[Model]
+class Cascaded(Model):
+    models: tuple[Model]
     
-    def setup(self):
-        models = self._models
+    def __post_init__(self):
+        models = self.models
         # First check all the port conditions
         if models[0].nports != 2:
             raise Exception('First network must be a two port when cascaded')
@@ -23,24 +20,24 @@ class CascadedModel(Model):
         # Next check if any models themselves are of type CascadedModel. We don't nest these - we chain them to avoid very deep, nested models
         model_reduced = []
         for model in models:
-            if isinstance(model, CascadedModel):
-                model_reduced.extend(model._models)
+            if isinstance(model, Cascaded):
+                model_reduced.extend(model.models)
             else:
                 model_reduced.append(model)
 
-        self._models = tuple(model_reduced)
+        self.models = tuple(model_reduced)
 
     @property
     def first_model(self) -> Model:
-        return self._models[0]
+        return self.models[0]
     
     @property
     def inner_models(self) -> tuple['Model']:
-        return tuple(self._models[1:-1])
+        return tuple(self.models[1:-1])
     
     @property
     def last_model(self) -> Model:
-        return self._models[-1]
+        return self.models[-1]
 
     def a(self, freq: Frequency):
         a = self.first_model.a(freq)
@@ -71,15 +68,14 @@ class CascadedModel(Model):
         num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)
         den = z0 * (1 + s11) * (A + z0*C) + (B + D*z0)*(1-s11)
         s11_out = num / den        
-        return s11_out.reshape(-1, 1, 1)
-        
+        return s11_out.reshape(-1, 1, 1)    
     
-class RenumberedModel(Model):
+class Renumbered(Model):
     model: Model
     to_ports: tuple[int]
     from_ports: tuple[int]
 
-    def setup(self):
+    def __post_init__(self):
         model = self.model
         to_ports, from_ports = to_ports, from_ports
 
@@ -102,16 +98,31 @@ class RenumberedModel(Model):
 
     def s(self, x):
         return self.renumber(self.model.s(x)) 
-
-class FlippedModel(RenumberedModel):
+    
+class Flipped(Renumbered):
     to_ports: str = field(init=False)
     from_ports: str = field(init=False)
 
-    def setup(self):
+    def __post_init__(self):
         if self.number_of_ports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
         self.to_ports = list(range(0, 2*n))
         self.from_ports = list(range(n, 2*n)) + list(range(0, n))
         
-        super().setup()
+        super().__post_init__()      
+        
+class Stacked(Model):
+    models: tuple[Model]
+    
+    def s(self, freq: Frequency) -> np.ndarray:
+        nports = self.number_of_ports
+
+        s = np.zeros((freq.npoints, nports, nports), dtype=np.complex128)
+        i = 0
+        for submodel in self.submodels:
+            s_sub = submodel.s(freq)
+            for m, n in submodel.port_tuples:
+                s = s.at[:,i+m,i+n].set(s_sub[m,n])
+            i += submodel.nports**2
+        return s

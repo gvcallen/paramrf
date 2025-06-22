@@ -1,8 +1,13 @@
+from functools import cached_property
+from copy import deepcopy
+
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List, final
+from typing import Callable, Any, Dict, get_args, get_origin, Union, Tuple, List, final, Literal
 from types import GenericAlias, UnionType
 import dataclasses
+
+import pmrf.functions.math as mf
 
 from pmrf.numpy import USE_JAX
 if USE_JAX:
@@ -13,10 +18,10 @@ import pmrf.numpy as np
 from pmrf._misc import field
 from pmrf._math import a2s, s2a
 from pmrf._frequency import Frequency
-from pmrf._tree import tree_with_params, tree_params, tree_flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path
+from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
 
-PRIMARY_PROPERTIES = ['s', 'a']
+from pmrf._constants import ComponentFuncT, PRIMARY_PROPERTIES, FUNC_LOOKUP
 
 jax.config.update("jax_enable_x64", True)
 
@@ -36,26 +41,26 @@ class Model(eqx.Module):
         name (str, optional): A name associated with the model instance.
     """
     # Instance fields
-    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
     name: str | None = field(default=None, kw_only=True, static=True)
+    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
 
     # Class fields
-    s_def: str | None = field(default='power', init=False, static=True, repr=False)
-    priority: tuple = field(default=(), init=False, static=True, repr=False)
-    dynamic_types: tuple = field(init=False, static=True, repr=False)
+    _s_def: str = field(init=False, repr=False, static=True)
+    _priority: tuple = field(init=False, repr=False, static=True)
+    _dynamic_types: tuple = field(init=False, repr=False, static=True)
+    _separator: str = field(init=False, repr=False, static=True)
 
-    def __init_subclass__(cls, dynamic: tuple | None = None, **kwargs):
-        super().__init_subclass__(**kwargs)
+    def __init_subclass__(cls, dynamic_types: tuple = (float, np.ndarray), s_def: str = 'power', separator = '_', **kwargs):
+        super().__init_subclass__(**kwargs)        
 
-        cls.dynamic_types = dynamic = dynamic or (float, np.ndarray)
-        for dynamic_type in dynamic:
+        for dynamic_type in dynamic_types:
             if issubclass(dynamic_type, Model):
                 raise Exception("Error: do not set `Model` types as dynamic")
 
         # Add metadata and field properties to certain sub-class fields since we have certains constraints for the API.
         # Currently, we add default, default_factory, converter, and kw_only where necessary
         for field_name, field_types in cls.__annotations__.items():
-            field_type = get_underlying_types(field_types)
+            field_type = get_underlying_type(field_types)
             if field_type is None:
                 return
             
@@ -71,100 +76,107 @@ class Model(eqx.Module):
 
                 # We use `default.__class__.__hash__` to guess if the type is mutable
                 if default.__class__.__hash__ is None:
-                    field_kwargs['default_factory'] = lambda: default
+                    field_kwargs['default_factory'] = lambda: deepcopy(default)
                 else:
                     field_kwargs['default'] = default
 
-                # If the type is static and has a default, we only allow it to be passed by key-word argument
-                if not field_type in dynamic:
-                    field_kwargs['kw_only'] = True
-
-            # Next, populate the jax.array converter for types considered dynamic (even those without defaults).
-            if field_type in dynamic:
+            # Next, populate the Parameter converter for types considered dynamic (even those without defaults).
+            if field_type in dynamic_types:
                 field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
 
             # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, field(**field_kwargs))
-
-    @final
-    def __post_init__(self):
-        self.setup()
-        self.post()
-
-    def setup(self) -> Any:
-        pass
-
-    def post(self):
-        pass
+                            
+        cls._s_def = s_def
+        cls._priority = ()
+        cls._dynamic_types = dynamic_types
+        cls._separator = separator
 
     def __new__(cls, *args, **kwargs):
         return eqx.Module.__new__(cls)
     
     def __pow__(self, other: 'Model') -> 'Model':
-        from pmrf.models.structural import CascadedModel
-        return CascadedModel([self, other])
+        from pmrf.models.containers import Cascaded
+        return Cascaded([self, other])
     
-    @property
-    def dynamic(self) -> 'Model':
-        dynamic_fn = lambda element: any([isinstance(element, dynamic) for dynamic in self.dynamic_types])
-        return eqx.filter(self, dynamic_fn)
+    def copy(self) -> 'Model':
+        return deepcopy(self)
+        
+    @cached_property
+    def structure(self) -> Any:
+        return jax.tree.structure(self)
     
-    @property
-    def static(self) -> Callable[[Any], bool]:
-        static_fn = lambda element: not any([isinstance(element, dynamic) for dynamic in self.dynamic_types])
-        return eqx.filter(self, static_fn)
-    
-    @property
+    @cached_property
     def nested_submodels(self) -> list['Model']:
         return nodes_by_type(self, Model)[1:]
-        # return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
     
-    @property
+    @cached_property
     def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
         return nodes_by_type_with_path(self, Model)[1:]
-        # return [node for node in jax.tree.flatten(self,)[0] if isinstance(node, Model)]
     
-    @property
+    @cached_property
     def num_nested_submodels(self) -> int:
         return len(self.nested_submodels)    
     
-    @property
+    @cached_property
     def submodels(self) -> list['Model']:
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
-    @property
+    @cached_property
     def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
-        return [path_val for path_val in tree_flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
+        return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
     
-    @property
+    @cached_property
     def num_submodels(self):
         return len(self.submodels)    
+    
+    @cached_property
+    def param_filter(self) -> Callable[[Any], bool]:
+        return eqx.is_inexact_array
+    
+    @cached_property
+    def param_names(self) -> list[str]:
+        return list(self.params.keys())
+    
+    @cached_property
+    def params(self) -> Dict[str, Any] | np.ndarray:
+        return params_dict(self, separator=self._separator, param_filter=self.param_filter)
+    
+    @cached_property
+    def flat_params(self) -> np.ndarray:
+        return params_array(self, self.param_filter)
         
-    @property    
+    @cached_property
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:
         return getattr(self, self.primary_property)
             
-    @property    
+    @cached_property
     def primary_property(self) -> str:
-        prioritized = self.priority
-        unprioritized = set(PRIMARY_PROPERTIES).difference(set(self.priority))
-
+        prioritized = self._priority
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in self._priority)
+        
         for property in prioritized:
-            if is_overridden(self, Model, property):
+            if is_overridden(type(self), Model, property):
                 return property
         for property in unprioritized:
-            if is_overridden(self, Model, property):
+            if is_overridden(type(self), Model, property):
                 return property
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overrided, which are the only ones supported currently")
 
-    @property
+    @cached_property
     def number_of_ports(self):
-        freq = Frequency(1, 10, 10)
-        sf = lambda: self.s(freq)
-        eval = sf()
-        # eval = jax.eval_shape(sf).shape[1]
+        freq = Frequency(1, 1, 1)
+        eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
+    
+    @cached_property
+    def _has_a(self) -> bool:
+        return is_overridden(type(self), Model, 'a')
+    
+    @cached_property
+    def _has_s(self) -> bool:
+        return is_overridden(type(self), Model, 's')    
     
     @property
     def nports(self):
@@ -172,28 +184,6 @@ class Model(eqx.Module):
     
     @property
     def port_tuples(self) -> list[tuple[int, int]]:
-        """
-        Returns a list of tuples, for each port index pair.
-
-        A convenience function for the common task for iterating over
-        all s-parameters index pairs.
-
-        This just calls::
-
-            [(y,x) for x in range(self.nports) for y in range(self.nports)]
-
-
-        Returns
-        -------
-        ports_ind : list of tuples
-            list of all port index tuples.
-
-        Examples
-        --------
-        >>> ntwk = skrf.data.ring_slot
-        >>> for (idx_i, idx_j) in ntwk.port_tuples: print(idx_i, idx_j)
-
-        """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
     
     @property
@@ -213,7 +203,7 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant abcd matrix.
         """
-        if not is_overridden(self, Model, 's'):
+        if not self._has_s:
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         s = self.s(freq)
@@ -232,84 +222,69 @@ class Model(eqx.Module):
         Returns:
             np.ndarray: The resultant S matrix.
         """
-        if not is_overridden(self, Model, 'a'):
+        if not self._has_a:
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         a = self.a(freq)
         return a2s(a, self.z0)
+    
+    def __getattr__(self, name: str) -> Callable[..., Any]:
+        # We are only interested in attributes that follow the pattern 's_<suffix>'
+        if not name.startswith(f'{p}_' for p in PRIMARY_PROPERTIES):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+        param, suffix = name[0], name[2:]
+        if suffix in FUNC_LOOKUP:
+            _description, processing_func = FUNC_LOOKUP[suffix]
+
+            # Handle cases where the function is explicitly None (not implemented)
+            if processing_func is None:
+                def not_implemented_func(*args, **kwargs):
+                    raise NotImplementedError(f"The function for '{name}' is not yet implemented.")
+                return not_implemented_func
+
+            def dynamic_method(*args, **kwargs):
+                matrix = getattr(self, param, *args, **kwargs)
+                return processing_func(matrix)
+            return dynamic_method
+        else:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'. "
+                f"Unknown S-parameter format: '{suffix}'"
+            )    
+    
+    def dynamic(self) -> 'Model':
+        return eqx.filter(self, self.param_filter)
+    
+    def static(self) -> 'Model':
+        return eqx.filter(self, self.param_filter, inverse=True)
+    
+    def partitioned(self) -> 'Model':
+        return eqx.partition(self, self.param_filter)    
            
     def flipped(self) -> 'Model':
-        from pmrf.models.structural import FlippedModel
-        return FlippedModel(self)
+        from models.containers import Flipped
+        return Flipped(self)
     
     def terminated(self, load: 'Model' = None) -> 'Model':
         from pmrf.models.lumped import Short
-        from pmrf.models.structural import CascadedModel
+        from pmrf.models.containers import Cascaded
         
         load = load or Short()
-        terminated_model = CascadedModel((self, load))
+        terminated_model = Cascaded((self, load))
         return terminated_model
     
     def with_params(
         self,
-        flat_params: jax.Array | None = None,
-        separator: str | None = '_',
-        submodel_separator: str | None = None,
-        array_separator: str | None = None,
-        index_separator: str | None = None,
-        param_filter: Callable[[Any], bool] | None = None,
         **params: Any
     ) -> "Model":
-        """
-        Returns a model with the specified parameter values.
+        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.param_filter, **params)
 
-        This method supports two calling styles:
-        1. By keyword: `model.with_params(R=50.0, C=1e-9)`
-        2. By flat array: `model.with_params(np.array([50.0, 1e-9]))`
-
-        For the keyword style, separators are specified using the relavant arguments.
-        In this case, the expected keys are those returned by `self.parameter_paths(..)` used with the same arguments.
-
-        Args:
-            flat_params: A 1D array containing all dynamic parameter values in their flattened tree order.
-            separator (str | None, optional): The separator to use for all dividers that are not passed. Defaults to '_'.
-            submodel_separator (str | None, optional): The separator before submodels. Defaults to `None`, in which case `separator` is used.
-            array_separator (str | None, optional): The separator before array-like parameters. Defaults to `None`, in which case `separator` is used.
-            index_separator (str | None, optional): The separator between array sub-indices. Defaults to `None`, in which case `separator` is used.
-            param_filter (Callable[[Any], bool], optional): A filter to determine which fields are considered parameters. Defaults to `None`, in which case only the model `float` and `np.ndarray` types are considered.
-            **params: Keyword arguments, where keys are the names of the parameters to update and values are their new values.
-
-        Returns:
-            A new `Model` instance with the specified parameters updated.
-        """
-        return tree_with_params(self, flat_params=flat_params, separator=separator, subtree_separator=submodel_separator, array_separator=array_separator, index_separator=index_separator, param_filter=param_filter, **params)
-    
-    def params(
+    def with_flat_params(
         self,
-        flat: bool = False,
-        separator: str | None = '_',
-        submodel_separator: str | None = None,
-        array_separator: str | None = None,
-        index_separator: str | None = None,
-        param_filter: Callable[[Any], bool] | None = None,
-    ) -> Dict[str, Any] | np.ndarray:
-        """Returns an dictionary of human-readable string paths and values for every
-        scalar value in the flattened parameters.
-
-        This is useful for mapping parameter names to values for external
-        solvers, setting bounds, or interpreting results.
-
-        Args:
-            separator (str | None, optional): The separator to use for all dividers that are not passed. Defaults to '_'.
-            submodel_separator (str | None, optional): The separate before submodels. Defaults to `None`, in which case `separator` is used.
-            array_separator (str | None, optional): The separate before array-like parameter. Defaults to `None`, in which case `separator` is used.
-            index_separator (str | None, optional): The separator between array sub-indices_. Defaults to `None`, in which case `separator` is used.
-            param_filter (Callable[[Any], bool], optional): A filter to determine which fields are considered parameters. Defaults to `None`, in which case only the default `Scalar` and `Vector` types are considered.
-
-        Returns:
-            A dictionary of parameter names/paths and values e.g. {'R': 0.0, 'sub_L': 1.0, 'sub.C[0,0]': 2.0, 'sub.C[0,1]': 3.0, ...].
-        """
-        return tree_params(self, flat=flat, separator=separator, subtree_separator=submodel_separator, array_separator=array_separator, index_separator=index_separator, param_filter=param_filter)    
+        params: np.ndarray
+    ) -> "Model":
+        return with_params_from_array(self, params=params, param_filter=self.param_filter)
     
     def to_skrf(self, freq: skrf.Frequency, **kwargs) -> skrf.Network:
         f, fname = self.primary_function, self.primary_property
@@ -323,29 +298,16 @@ class Model(eqx.Module):
 
         return skrf.Network(**kwargs)
 
-def is_overridden(self, baseclass, method_name):
-    for cls in inspect.getmro(self.__class__):
+def is_overridden(cls, baseclass, method_name):
+    result = False
+    for cls in inspect.getmro(cls):
         if method_name in cls.__dict__:
-            return cls is not baseclass
-    return False
+            result = cls is not baseclass
+            break
+    return result
 
-def get_underlying_types(tp: type) -> type | None:
-    """
-    Recursively gets the origin of a type annotation until a type that
-    can be used in issubclass is found.
-
-    This function handles generic aliases (like list[int]), unions,
-    and type aliases.
-
-    Args:
-        tp: The type annotation.
-
-    Returns:
-        The underlying, non-generic type that can be used with issubclass,
-        or None if no such type can be determined (e.g., for TypeVar).
-    """
+def get_underlying_type(tp: type) -> type | None:
     # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
-
     if isinstance(tp, (type,)) and not isinstance(tp, (GenericAlias, UnionType)):
         return tp
 
@@ -353,15 +315,13 @@ def get_underlying_types(tp: type) -> type | None:
         return None
 
     origin = get_origin(tp)
-
     if origin is None:
         return None
-
     if origin is Union:
         return None
 
     # Recursively call to handle nested generics like list[list[int]]
-    return get_underlying_types(origin)
+    return get_underlying_type(origin)
 
 def model_check(model: Model) -> None:
     all_nodes = {}

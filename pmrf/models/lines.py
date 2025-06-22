@@ -175,11 +175,10 @@ class PhysicalCoaxial(RLGCLine):
     tand_order: int | None = None
     rho_model: str = 'constant'
     rho_order: int | None = None
-    freq_bounds: tuple | None = None
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
 
-    def setup(self):
+    def __post_init__(self):
         poly_params = ['epr', 'mur', 'tand', 'rho']
         # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:
@@ -208,11 +207,11 @@ class PhysicalCoaxial(RLGCLine):
             value = getattr(self, param) * np.ones(w.shape[0])
         else:
             coeffs = getattr(self, param)
-            lb, ub = self.freq_bounds or (w[0], w[-1])
+            lb, ub = w[0], w[-1]
             if model.startswith('ppoly'):
-                value = evaluate_power_basis(w, coeffs, lb, ub)
+                value = evaluate_power_basis(w, coeffs, w[0], w[-1])
             else:
-                value = evaluate_bernstein_basis(w, coeffs, lb, ub)
+                value = evaluate_bernstein_basis(w, coeffs, w[0], w[-1])
                 
         return value
             

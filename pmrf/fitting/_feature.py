@@ -8,7 +8,6 @@ from pmrf.numpy import USE_JAX
 from pmrf._frequency import Frequency
 from pmrf._math import dB20
 from pmrf._model import Model
-from pmrf._system import SystemModel
 
 """
 This file contains functions related to extracting "features" from models e.g. S11 magnitude, S21 complex etc.

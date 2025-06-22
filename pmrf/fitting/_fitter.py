@@ -1,3 +1,4 @@
+from functools import partial
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -18,7 +19,7 @@ from pmrf._frequency import Frequency
 from pmrf.numpy import USE_JAX
 
 from pmrf.fitting._feature import Feature, extract_features
-from pmrf.fitting._modifier import Modifier, apply_modifiers
+from pmrf.functions import mag_2_db, convolve_interleaved
 
 from dataclasses import dataclass
 
@@ -142,16 +143,14 @@ class BaseFitter(ABC):
 
 
 class FrequentistFitter(BaseFitter):
-    def __init__(self, modifiers: list[Modifier] | list[str] = None, *args, **kwargs):
+    def __init__(self, cost_fn: list[Callable[[np.ndarray], np.ndarray]] | eqx.Module = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        if modifiers is None:
-            modifiers = ['L2', 'convolve-interleaved', 'L2', 'dB']
+        if cost_fn is None:
+            L2 = partial(np.linalg.norm, order=2)
+            cost_fn = [L2, partial(convolve_interleaved, axis=1), L2, mag_2_db]
 
-        if isinstance(modifiers[0], str):
-            modifiers = [Modifier.from_string(m) for m in modifiers]
-        
-        self.modifiers = modifiers
+        self.cost_fn = eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost_fn])
 
     def cost(self, model: Model | None = None) -> np.ndarray:
         """Returns the cost for the model and the specified measured data.
@@ -169,13 +168,12 @@ class FrequentistFitter(BaseFitter):
         model_features = extract_features(model, self.features, self.measured.frequency)
         measured_features = self.measured_features
         
-        residuals = measured_features - model_features
-        return apply_modifiers(residuals, self.modifiers)
+        return self.cost_fn(measured_features - model_features)
     
     @property
     def param_cost_function(self) -> Callable[[np.ndarray], float]:
         def cost_fn(theta):
-            model = self.model.with_params(flat_params=theta)
+            model = self.model.with_flat_params(theta)
             return self.cost(model)
         return cost_fn
     

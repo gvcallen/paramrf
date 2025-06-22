@@ -4,14 +4,19 @@ from pmrf.models.lumped import Resistor
 from pmrf.models.topological import PiCLC
 
 from pmrf._model import Model
-from pmrf._circuit import CircuitModel
+from pmrf._frequency import Frequency
 from pmrf._misc import field
 
-class NonIdealResistor(CircuitModel):
-    ideal: Resistor = field(default_factory=lambda: Resistor())
+class NonIdealResistor(Model):
+    cascaded: Model = field(derived=True)
+    
+    ideal: Resistor = Resistor()
 
-    def build(self) -> Model:
-        return self.parasitics ** self.ideal
+    def __post_init__(self):
+        self.cascaded = self.parasitics ** self.ideal
+        
+    def a(self, freq: Frequency):
+        return self.cascaded.a(freq)
 
     @property
     @abstractmethod
@@ -19,9 +24,7 @@ class NonIdealResistor(CircuitModel):
         raise Exception("Base classes must specify the form of the parasitics")
 
 class CLCResistor(NonIdealResistor):
-    clc: PiCLC = field(default_factory=lambda: PiCLC())
-
-    # def __init
+    clc: PiCLC = Resistor()
 
     @property
     def parasitics(self) -> Model:
