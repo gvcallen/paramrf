@@ -1,7 +1,5 @@
 from pmrf._model import (
     Model as Model,
-    combine,
-    partition,
     model_check as model_check
 )
 from pmrf.parameters import *
@@ -12,6 +10,11 @@ from pmrf._frequency import (
 
 from pmrf._misc import (
     field,
+)
+
+from pmrf._tree import (
+    partition,
+    combine,
 )
 
 

@@ -19,12 +19,9 @@ from jaxtyping import PyTree
 
 from pmrf._misc import field
 from pmrf._frequency import Frequency
-from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, nodes_at_paths
+from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, value_at_path, values_at_paths, flatten_one_level_with_metadata
 import pmrf.functions.math as mf
 from pmrf.functions.parameters import a2s, s2a
-
-class SharedNode:
-    pass
 
 ComponentFuncT = Literal["re", "im", "mag", "db", "db10", "rad", "deg", "arcl", "rad_unwrap", "deg_unwrap",
                          "arcl_unwrap", "vswr", "time", "time_db", "time_mag", "time_impulse", "time_step"]
@@ -103,11 +100,13 @@ class Model(eqx.Module):
                 if isinstance(default, dataclasses.Field):
                     continue
 
-                # We use `default.__class__.__hash__` to guess if the type is mutable
-                if default.__class__.__hash__ is None:
-                    field_kwargs['default_factory'] = lambda: deepcopy(default)
-                else:
-                    field_kwargs['default'] = default
+                # We use `default.__class__.__hash__` to guess if the type is mutable, or if its a Model (because users should share models explicitly)
+                if default.__class__.__hash__ is None or isinstance(default, Model):
+                    default = deepcopy(default)
+                # if isinstance(default, Model):
+                #     if default.name is None:
+                #         default = eqx.tree_at(lambda default: default.name, default, field_name, is_leaf=lambda x: x is None)
+                field_kwargs['default'] = default
 
             # Next, populate the Parameter converter for types considered dynamic (even those without defaults).
             if field_type in dynamic_types:
@@ -137,6 +136,18 @@ class Model(eqx.Module):
         return jax.tree.structure(self)
     
     @cached_property
+    def filter_spec(self) -> PyTree | Callable[[Any], bool]:
+        return eqx.is_inexact_array    
+    
+    @cached_property
+    def share_spec(self) -> PyTree | Callable[[Any], bool]:
+        filtered = eqx.filter(self, self.filter_spec)
+        metadata_vals, treedef = flatten_one_level_with_metadata(filtered)
+        derived = [metadata_val[0].get("derived", False) for metadata_val in metadata_vals]        
+        share_spec = jax.tree.unflatten(treedef, derived)
+        return share_spec
+    
+    @cached_property
     def nested_submodels(self) -> list['Model']:
         return nodes_by_type(self, Model)[1:]
     
@@ -158,43 +169,7 @@ class Model(eqx.Module):
     
     @cached_property
     def num_submodels(self):
-        return len(self.submodels)
-    
-    @cached_property
-    def replace_functions(self) -> tuple[Callable, Callable]:
-        # First, build a map of the unique model identifiers (ids) to all model paths
-        models_path_vals = self.nested_submodels_with_paths
-        id_to_paths = {}
-        for path, model in models_path_vals:
-            key = (id(model), model.name)
-            id_to_paths.setdefault(key, [])
-            id_to_paths[key].append(path)
-            
-        # Next, collect the paths in the map that are shared (more than one path per identifier) and choose the first as the "base" and the rest as the "replace".
-        # We repeat the first however many times we must replace it so we have a one-to-one mapping for each replace
-        models_paths = [paths for paths in id_to_paths.values() if len(paths) > 1]
-        models_base_paths = [[model_paths[0]] * len(model_paths[1:]) for model_paths in models_paths]
-        models_replace_paths = [model_paths[1:] for model_paths in models_paths]
-
-        # Flatten and store the base/replace paths for all shared models. Really ugly because of all the singular/plurals but gets the job done
-        base_paths = [base_path for model_base_paths in models_base_paths for base_path in model_base_paths]
-        replace_paths = [replace_path for model_replace_paths in models_replace_paths for replace_path in model_replace_paths]
-        
-        # Generate the get/where functions for the eqx.tree_at, and remove any duplicate nodes
-        get = lambda model: nodes_at_paths(model, base_paths)
-        where = lambda model: nodes_at_paths(model, replace_paths)
-        return get, where
-    
-    @cached_property
-    def param_filter(self) -> PyTree | Callable[[Any], bool]:
-        # First, remove the get replacements
-        _, where = self.replace_functions
-        replaced = eqx.tree_at(where, self, replace_fn=lambda _: SharedNode())
-        
-        # Then, form a bool tree that has True at dynamic variables and False at the others
-        dynamic = eqx.filter(replaced, eqx.is_inexact_array, replace=False)
-        bool_tree = eqx.filter(dynamic, eqx.is_inexact_array, replace=True, inverse=True)
-        return bool_tree
+        return len(self.submodels)    
     
     @cached_property
     def param_names(self) -> list[str]:
@@ -202,11 +177,11 @@ class Model(eqx.Module):
     
     @cached_property
     def params(self) -> Dict[str, Any] | np.ndarray:
-        return params_dict(self, separator=self._separator, param_filter=self.param_filter)
+        return params_dict(self, separator=self._separator, param_filter=self.filter_spec)
     
     @cached_property
     def flat_params(self) -> np.ndarray:
-        return params_array(self, self.param_filter)
+        return params_array(self, self.filter_spec)
         
     @cached_property
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:
@@ -289,36 +264,37 @@ class Model(eqx.Module):
         a = self.a(freq)
         return a2s(a, self.z0)
     
-    def __getattr__ (self, name: str) -> Callable[..., Any]:
-        # We are only interested in attributes that follow the pattern 's_<suffix>'
-        found = False
-        for p in PRIMARY_PROPERTIES:
-            if name.startswith(f'{p}_'):
-                found = True
-                break
+    # def __getattr__ (self, name: str) -> Callable[..., Any]:
+    #     # TODO this will be called for every attribute access which is slow. Figure out how to use __getattr__
+    #     # We are only interested in attributes that follow the pattern 's_<suffix>'
+    #     found = False
+    #     for p in PRIMARY_PROPERTIES:
+    #         if name.startswith(f'{p}_'):
+    #             found = True
+    #             break
             
-        if not found:
-            return super().__getattr__ (name)
+    #     if not found:
+    #         raise Exception(f"Could not find attribute {name}")
 
-        param, suffix = name[0], name[2:]
-        if suffix in FUNC_LOOKUP:
-            _description, processing_func = FUNC_LOOKUP[suffix]
+    #     param, suffix = name[0], name[2:]
+    #     if suffix in FUNC_LOOKUP:
+    #         _description, processing_func = FUNC_LOOKUP[suffix]
 
-            # Handle cases where the function is explicitly None (not implemented)
-            if processing_func is None:
-                def not_implemented_func(*args, **kwargs):
-                    raise NotImplementedError(f"The function for '{name}' is not yet implemented.")
-                return not_implemented_func
+    #         # Handle cases where the function is explicitly None (not implemented)
+    #         if processing_func is None:
+    #             def not_implemented_func(*args, **kwargs):
+    #                 raise NotImplementedError(f"The function for '{name}' is not yet implemented.")
+    #             return not_implemented_func
 
-            def dynamic_method(*args, **kwargs):
-                matrix = getattr(self, param, *args, **kwargs)
-                return processing_func(matrix)
-            return dynamic_method
-        else:
-            raise AttributeError(
-                f"'{type(self).__name__}' object has no attribute '{name}'. "
-                f"Unknown S-parameter format: '{suffix}'"
-            )        
+    #         def dynamic_method(*args, **kwargs):
+    #             matrix = getattr(self, param, *args, **kwargs)
+    #             return processing_func(matrix)
+    #         return dynamic_method
+    #     else:
+    #         raise AttributeError(
+    #             f"'{type(self).__name__}' object has no attribute '{name}'. "
+    #             f"Unknown S-parameter format: '{suffix}'"
+    #         )        
            
     def flipped(self) -> 'Model':
         from models.containers import Flipped
@@ -336,13 +312,13 @@ class Model(eqx.Module):
         self,
         **params: Any
     ) -> "Model":
-        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.param_filter, **params)
+        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.filter_spec, **params)
 
     def with_flat_params(
         self,
         params: np.ndarray
     ) -> "Model":
-        return with_params_from_array(self, params=params, param_filter=self.param_filter)
+        return with_params_from_array(self, params=params, param_filter=self.filter_spec)
     
     def to_skrf(self, freq: skrf.Frequency, **kwargs) -> skrf.Network:
         f, fname = self.primary_function, self.primary_property
@@ -356,16 +332,6 @@ class Model(eqx.Module):
 
         return skrf.Network(**kwargs)
     
-def combine(static: ModelT, dynamic: ModelT) -> ModelT:
-    filter, (get, where) = dynamic.param_filter, dynamic.replace_functions
-    combined = eqx.combine(static, dynamic, filter)
-    return eqx.tree_at(where, combined, get(combined))
-    
-def partition(model: ModelT) -> tuple[ModelT, ModelT]:
-    filter, (_, where) = model.param_filter, model.replace_functions
-    replaced = eqx.tree_at(where, model, replace_fn=lambda _: SharedNode())
-    return eqx.partition(replaced, filter)
-
 def is_overridden(cls, baseclass, method_name):
     result = False
     for cls in inspect.getmro(cls):

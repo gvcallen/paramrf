@@ -24,7 +24,7 @@ class NonIdealResistor(Model):
         raise Exception("Base classes must specify the form of the parasitics")
 
 class CLCResistor(NonIdealResistor):
-    clc: PiCLC = Resistor()
+    clc: PiCLC = PiCLC()
 
     @property
     def parasitics(self) -> Model:

@@ -14,14 +14,16 @@ def field(
     *,
     derived: bool = False,
     **kwargs,
-):
+):    
     metadata = dict(kwargs.pop('metadata', {}))
-    init = bool(kwargs.pop('init', (not derived)))
     if 'derived' in metadata:
         raise Exception("Cannot use metadata with `derived` already set.")
     metadata['derived'] = derived
     
-    return base_field(init=init, metadata=metadata, **kwargs)
+    if derived:
+        kwargs['init'] = False
+    
+    return base_field(metadata=metadata, **kwargs)
 
 def time_string(format="%H:%M:%S"):
     return datetime.now().strftime(format)

@@ -29,15 +29,25 @@ class BaseFitter(ABC):
 
         Args:
             model (Model):                                              The model to fit.
-            measured (skrf.Network | list[skrf.Network]):               The measured networks to fit against. If a list is passed, the networks are viewed as being part of a large, stacked N-port network.
-                                                                        If a measurement is not available, an empty network can be passed. See `SystemModel` for an example use-case.
-            params (dict[str, Parameter] | None, optional):             Parameters for the models, specified in a flattened format. See `param_infix`. Defaults to `None`, in which case all parameters are set as normal with 5% standard deviation. (Not yet implemented)
+            measured (skrf.Network | list[skrf.Network]):               The measured networks to fit against. If a list is passed, 
+                                                                        the networks are viewed as being part of a large, stacked N-port network.
+                                                                        If a measurement is not available, an empty network can be passed.
+                                                                        See `SystemModel` for an example use-case.
+            params (dict[str, Parameter] | None, optional):             Parameters for the models, specified in a flattened format.
+                                                                        See `param_infix`. Defaults to `None`, in which case all parameters are set
+                                                                        as normal with 5% standard deviation. (Not yet implemented)
             frequency (skrf.Frequency | None, optional):                The frequency to fit against. Defaults to `None`.
             features (list[str] | list[tuple[str, tuple]], optional):   The features to extract from the models and networks for cost functions, likelihoods etc.
-                                                                        Each string is a function or property of the model or network respectively (e.g. 's_db', 's_mag' etc.), and `ports` are the ports to use as a tuple (e.g. (0, 0)).
-                                                                        If a list of strings is passed, the features are extracted for each port within in each network/model and stacked column-wise into a "feature matrix".
-                                                                        If a list of strings-tuple pairs are passed, then each feature is extracted for each port individually, where port numbers are for the full model (e.g. the stacked network in the case where a list of measurements are passed).
-            param_infix (str, optional):                                The infix between submodels for flattened parameters. Parameters are specified as for `{model}{infix}{submodel1}{infix}{submodel2}{...}{infix}{param}`. Defaults to '_'.
+                                                                        Each string is a function or property of the model or network respectively
+                                                                        (e.g. 's_db', 's_mag' etc.), and `ports` are the ports to use as a tuple (e.g. (0, 0)).
+                                                                        If a list of strings is passed, the features are extracted for each port
+                                                                        within in each network/model and stacked column-wise into a "feature matrix".
+                                                                        If a list of strings-tuple pairs are passed, then each feature is extracted
+                                                                        for each port individually, where port numbers are for the full model
+                                                                        (e.g. the stacked network in the case where a list of measurements are passed).
+            param_infix (str, optional):                                The infix between submodels for flattened parameters.
+                                                                        Parameters are specified as for `{model}{infix}{submodel1}{infix}{submodel2}{...}{infix}{param}`.
+                                                                        Defaults to '_'.
         """
         # Currently, all frequencies must be the same across all measurements
         measured = [measured] if not isinstance(measured, list) else measured

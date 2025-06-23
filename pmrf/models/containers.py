@@ -7,6 +7,8 @@ class Cascaded(Model):
     models: tuple[Model]
     
     def __post_init__(self):
+        self.name = 'cascaded'
+        
         models = self.models
         # First check all the port conditions
         if models[0].nports != 2:
@@ -76,6 +78,8 @@ class Renumbered(Model):
     from_ports: tuple[int]
 
     def __post_init__(self):
+        self.name = 'renumbered'
+        
         model = self.model
         to_ports, from_ports = to_ports, from_ports
 
@@ -104,6 +108,8 @@ class Flipped(Renumbered):
     from_ports: str = field(init=False)
 
     def __post_init__(self):
+        self.name = 'flipped'
+        
         if self.number_of_ports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         n = int(self.number_of_ports / 2)
@@ -114,6 +120,9 @@ class Flipped(Renumbered):
         
 class Stacked(Model):
     models: tuple[Model]
+    
+    def __post_init__(self):
+        self.name = 'stacked'
     
     def s(self, freq: Frequency) -> np.ndarray:
         nports = self.number_of_ports

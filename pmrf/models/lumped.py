@@ -4,6 +4,9 @@ from pmrf._frequency import Frequency
 
 class Load(Model):
     nports: int = 1
+    
+    def __post_init__(self):
+        self.name = 'load'
 
     @property
     def gamma(self) -> float | np.ndarray:
@@ -17,22 +20,34 @@ class Load(Model):
         return s
     
 class Match(Load):
+    def __post_init__(self):
+        self.name = 'match'
+    
     @property
     def gamma(self) -> float | np.ndarray:
         return 0.0
 
 class Short(Load):
+    def __post_init__(self):
+        self.name = 'short'
+    
     @property
     def gamma(self) -> float | np.ndarray:
         return -1.0
 
 class Open(Load):
+    def __post_init__(self):
+        self.name = 'open'
+    
     @property
     def gamma(self) -> float | np.ndarray:
         return 1.0
   
 class Capacitor(Model):
     C: float = 1.0
+    
+    def __post_init__(self):
+        self.name = 'capacitor'
 
     def s(self, freq: Frequency) -> np.ndarray:
         w = freq.w
@@ -53,6 +68,9 @@ class Capacitor(Model):
                 
 class Inductor(Model):
     L: float = 1.0
+    
+    def __post_init__(self):
+        self.name = 'capacitor'
 
     def s(self, freq: Frequency) -> np.ndarray:
         L = self.L
@@ -76,6 +94,9 @@ class Inductor(Model):
 
 class Resistor(Model):
     R: float = 1.0
+    
+    def __post_init__(self):
+        self.name = 'resistor'
 
     def s(self, freq: Frequency) -> np.ndarray:
         R = self.R
@@ -96,6 +117,9 @@ class Resistor(Model):
         return s
         
 class Transformer(Model):
+    def __post_init__(self):
+        self.name = 'transformer'
+    
     def s(self, freq: Frequency):
         s = 0.5 * np.ones((freq.npoints, 4, 4), dtype=np.complex128)
         s[:, 0, 3] *= -1

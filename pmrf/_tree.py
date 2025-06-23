@@ -16,6 +16,18 @@ import jax
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
 from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
+AxisSpec = bool | Callable[[Any], bool]
+
+class SharedNode:
+    """
+    Represents a node that is a shared parameter.
+    The node contains the path to the underlying parameter.
+    """
+    def __init__(self, path):
+        self.path = path
+    def __repr__(self):
+        return f"SharedNode({self.path})"
+
 def with_params_from_dict(
     tree: Any,
     separator: str | None = '_',
@@ -98,7 +110,7 @@ def with_params_from_array(
     # --- Initial argument validation and setup ---
     param_filter = param_filter or eqx.is_array
 
-    params_tree, static = eqx.partition(tree, param_filter)
+    params_tree, static = partition(tree, param_filter)
     flat_leaves, treedef = jax.tree.flatten(params_tree)
     num_expected_params = sum(p.size for p in flat_leaves)
     
@@ -152,7 +164,7 @@ def params_dict(
         A dictionary of parameter names/paths and values.
     """
     param_filter = param_filter or eqx.is_array
-    params_tree, _ = eqx.partition(tree, param_filter)
+    params_tree, _ = partition(tree, param_filter)
 
     # --- Logic Branch 2: Return a dictionary of paths and values ---
     # Set default separators, only needed for the dictionary case
@@ -194,9 +206,7 @@ def params_array(
         A single 1D JAX array of all parameter values.
     """
     param_filter = param_filter or eqx.is_array
-    params_tree, _ = eqx.partition(tree, param_filter)
-
-    # Get the list of JAX arrays (the "leaves" of the PyTree)
+    params_tree, _ = partition(tree, param_filter)
     flat_leaves, _ = jax.tree.flatten(params_tree)
     if not flat_leaves:
         return np.array([]) # Return empty array if no params
@@ -205,7 +215,8 @@ def params_array(
     return np.concatenate([p.ravel() for p in flat_leaves])
 
 def flatten_one_level_with_path(
-    pytree: PyTree,
+    pytree: Any, is_leaf: Callable[..., bool] | None = None,
+    is_leaf_takes_path: bool = False,
 ) -> tuple[list[PyTree], PyTreeDef]:
     # See eqx.tree_flatten_one_level
     seen_pytree = False
@@ -230,7 +241,25 @@ def flatten_one_level_with_path(
         else:
             return True
 
-    return jax.tree.flatten_with_path(pytree, is_leaf=is_leaf)
+    return jax.tree.flatten_with_path(pytree, is_leaf=is_leaf, is_leaf_takes_path=is_leaf_takes_path)
+
+def flatten_one_level_with_metadata(
+    pytree: Any, is_leaf: Callable[..., bool] | None = None,
+    is_leaf_takes_path: bool = False,
+) -> tuple[list[PyTree], PyTreeDef]:
+    path_vals, treedef = flatten_one_level_with_path(pytree, is_leaf=is_leaf, is_leaf_takes_path=is_leaf_takes_path)
+    name_to_metadata = {}
+    for field in fields(pytree):
+        name_to_metadata[field.name] = field.metadata
+    
+    flattened_metadata = []
+    for path, val in path_vals:
+        name = path[0].name
+        if not name in name_to_metadata:
+            raise Exception(f"{name} attribute not in metadata")
+        flattened_metadata.append((name_to_metadata[name], val))
+        
+    return flattened_metadata, treedef
 
 def nodes_by_type(tree: Any, match_type: Type) -> List[Tuple[Tuple[Any, ...], Any]]:
     matches = []
@@ -279,7 +308,7 @@ def nodes_by_type_with_path(tree: Any, match_type: Type, path=()) -> List[Tuple[
 
     return matches
 
-def node_at_path(pytree, path):
+def value_at_path(pytree, path):
     node = pytree
     for key in path:
         if isinstance(key, GetAttrKey):
@@ -296,8 +325,52 @@ def node_at_path(pytree, path):
         
     return node
 
-def nodes_at_paths(pytree, paths):
+def values_at_paths(pytree, paths):
     nodes = []
     for path in paths:
-        nodes.append(node_at_path(pytree, path))
+        nodes.append(value_at_path(pytree, path))
     return nodes
+
+def path_repr(path):
+    repr = ""
+    for key in path:
+        if isinstance(key, GetAttrKey) or isinstance(key, DictKey):
+            repr += f"['{key.name}']"
+        elif isinstance(key, SequenceKey):
+            repr += f"[{key.idx}]"
+        else:
+            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <path_repr> but '{type(key)}' was passed of value {key}")        
+        
+    return repr
+
+def partition(
+    pytree: PyTree,
+    filter_spec: PyTree[AxisSpec],
+    replace: Any = None,
+    is_leaf: Callable[[Any], bool] | None = None,
+    sharing: bool = True,
+    shared_spec: PyTree[AxisSpec] | None = None,
+) -> tuple[PyTree, PyTree]:
+    first, second = eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
+    if sharing:
+        id_to_core_path = {}
+        # if not core_spec is None:
+            # paths = jax.tree.map_with_path(lambda path, node: SharedNode(id_to_core_path.setdefault(id(node), path)), first)
+        paths = jax.tree.map_with_path(lambda path, node: SharedNode(id_to_core_path.setdefault(id(node), path)), first)
+        first = jax.tree.map_with_path(lambda path, node, shared_node: node if shared_node.path == path else replace, first, paths)
+        shared = jax.tree.map_with_path(lambda path, shared_node: shared_node if shared_node.path != path else replace, paths)
+        second = eqx.combine(shared, second)
+    return first, second
+            
+def combine(
+    *pytrees: PyTree,
+    is_leaf: Callable[[Any], bool] | None = None,
+    sharing: bool = True,
+) -> PyTree:
+    if sharing:
+        core = pytrees[0]
+        others = list(pytrees[1:])
+        for i in range(len(others)):
+            others[i] = jax.tree.map(lambda node: value_at_path(core, node.path) if isinstance(node, SharedNode) else node, others[i])
+        pytrees = [core] + others
+    return eqx.combine(*pytrees, is_leaf=is_leaf)
