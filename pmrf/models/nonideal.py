@@ -8,8 +8,7 @@ from pmrf._frequency import Frequency
 from pmrf._misc import field
 
 class NonIdealResistor(Model):
-    cascaded: Model = field(derived=True)
-    
+    cascaded: Model = field(derived=True)    
     ideal: Resistor = Resistor()
 
     def __post_init__(self):

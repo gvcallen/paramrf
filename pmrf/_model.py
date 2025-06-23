@@ -143,8 +143,8 @@ class Model(eqx.Module):
     def share_spec(self) -> PyTree | Callable[[Any], bool]:
         filtered = eqx.filter(self, self.filter_spec)
         metadata_vals, treedef = flatten_one_level_with_metadata(filtered)
-        derived = [metadata_val[0].get("derived", False) for metadata_val in metadata_vals]        
-        share_spec = jax.tree.unflatten(treedef, derived)
+        not_derived = [not metadata_val[0].get("derived", False) for metadata_val in metadata_vals]        
+        share_spec = jax.tree.unflatten(treedef, not_derived)
         return share_spec
     
     @cached_property
