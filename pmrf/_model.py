@@ -162,23 +162,23 @@ class Model(eqx.Module):
     
     @cached_property
     def replace_functions(self) -> tuple[Callable, Callable]:
-        # TODO perhaps more efficient to see if pytrees (other models) are repeated first? Would mean less replacements
-        # First, build a map of unique identifiers (id) to all dynamic variables and their paths
+        # First, build a map of the unique model identifiers (ids) to all model paths
+        models_path_vals = self.nested_submodels_with_paths
         id_to_paths = {}
-        for path, array in jax.tree.leaves_with_path(eqx.filter(self, eqx.is_inexact_array)):
-            key = id(array)
+        for path, model in models_path_vals:
+            key = (id(model), model.name)
             id_to_paths.setdefault(key, [])
             id_to_paths[key].append(path)
-        
+            
         # Next, collect the paths in the map that are shared (more than one path per identifier) and choose the first as the "base" and the rest as the "replace".
-        # We repeat the first however many times we must replace it, so we have a one-to-one mapping for each replace
-        shared_paths = [paths for paths in id_to_paths.values() if len(paths) > 1]
-        base_paths = [[model_paths[0]] * len(model_paths[1:]) for model_paths in shared_paths]
-        replace_paths = [model_paths[1:] for model_paths in shared_paths]
+        # We repeat the first however many times we must replace it so we have a one-to-one mapping for each replace
+        models_paths = [paths for paths in id_to_paths.values() if len(paths) > 1]
+        models_base_paths = [[model_paths[0]] * len(model_paths[1:]) for model_paths in models_paths]
+        models_replace_paths = [model_paths[1:] for model_paths in models_paths]
 
-        # Flatten and store the base/replace paths for all shared models
-        base_paths = [path for shared_base_paths in base_paths for path in shared_base_paths]
-        replace_paths = [path for shared_replace_paths in replace_paths for path in shared_replace_paths]
+        # Flatten and store the base/replace paths for all shared models. Really ugly because of all the singular/plurals but gets the job done
+        base_paths = [base_path for model_base_paths in models_base_paths for base_path in model_base_paths]
+        replace_paths = [replace_path for model_replace_paths in models_replace_paths for replace_path in model_replace_paths]
         
         # Generate the get/where functions for the eqx.tree_at, and remove any duplicate nodes
         get = lambda model: nodes_at_paths(model, base_paths)
@@ -189,10 +189,10 @@ class Model(eqx.Module):
     def param_filter(self) -> PyTree | Callable[[Any], bool]:
         # First, remove the get replacements
         _, where = self.replace_functions
-        eqx.tree_at(where, self, replace_fn=lambda _: SharedNode())
+        replaced = eqx.tree_at(where, self, replace_fn=lambda _: SharedNode())
         
         # Then, form a bool tree that has True at dynamic variables and False at the others
-        dynamic = eqx.filter(self, eqx.is_inexact_array, replace=False)
+        dynamic = eqx.filter(replaced, eqx.is_inexact_array, replace=False)
         bool_tree = eqx.filter(dynamic, eqx.is_inexact_array, replace=True, inverse=True)
         return bool_tree
     
