@@ -1,6 +1,6 @@
 from functools import cached_property
 from copy import deepcopy
-from typing import Callable, Literal
+from typing import Callable, Literal, TypeVar
 
 import skrf as skrf
 import inspect
@@ -19,9 +19,12 @@ from jaxtyping import PyTree
 
 from pmrf._misc import field
 from pmrf._frequency import Frequency
-from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path
+from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, nodes_at_paths
 import pmrf.functions.math as mf
 from pmrf.functions.parameters import a2s, s2a
+
+class SharedNode:
+    pass
 
 ComponentFuncT = Literal["re", "im", "mag", "db", "db10", "rad", "deg", "arcl", "rad_unwrap", "deg_unwrap",
                          "arcl_unwrap", "vswr", "time", "time_db", "time_mag", "time_impulse", "time_step"]
@@ -46,6 +49,8 @@ FUNC_LOOKUP: dict[ComponentFuncT, tuple[str, Callable | None]] = {
     # 'time_impulse': ('Magnitude', None),
     # 'time_step': ('Magnitude', None),
 }
+
+ModelT = TypeVar('ModelT', bound='Model')
 
 jax.config.update("jax_enable_x64", True)
 
@@ -72,7 +77,7 @@ class Model(eqx.Module):
     _s_def: str = field(init=False, repr=False, static=True)
     _priority: tuple = field(init=False, repr=False, static=True)
     _dynamic_types: tuple = field(init=False, repr=False, static=True)
-    _separator: str = field(init=False, repr=False, static=True)
+    _separator: str = field(init=False, repr=False, static=True)    
 
     def __init_subclass__(cls, dynamic_types: tuple = (float, np.ndarray), s_def: str = 'power', separator = '_', **kwargs):
         super().__init_subclass__(**kwargs)        
@@ -153,28 +158,42 @@ class Model(eqx.Module):
     
     @cached_property
     def num_submodels(self):
-        return len(self.submodels)    
+        return len(self.submodels)
+    
+    @cached_property
+    def replace_functions(self) -> tuple[Callable, Callable]:
+        # TODO perhaps more efficient to see if pytrees (other models) are repeated first? Would mean less replacements
+        # First, build a map of unique identifiers (id) to all dynamic variables and their paths
+        id_to_paths = {}
+        for path, array in jax.tree.leaves_with_path(eqx.filter(self, eqx.is_inexact_array)):
+            key = id(array)
+            id_to_paths.setdefault(key, [])
+            id_to_paths[key].append(path)
+        
+        # Next, collect the paths in the map that are shared (more than one path per identifier) and choose the first as the "base" and the rest as the "replace".
+        # We repeat the first however many times we must replace it, so we have a one-to-one mapping for each replace
+        shared_paths = [paths for paths in id_to_paths.values() if len(paths) > 1]
+        base_paths = [[model_paths[0]] * len(model_paths[1:]) for model_paths in shared_paths]
+        replace_paths = [model_paths[1:] for model_paths in shared_paths]
+
+        # Flatten and store the base/replace paths for all shared models
+        base_paths = [path for shared_base_paths in base_paths for path in shared_base_paths]
+        replace_paths = [path for shared_replace_paths in replace_paths for path in shared_replace_paths]
+        
+        # Generate the get/where functions for the eqx.tree_at, and remove any duplicate nodes
+        get = lambda model: nodes_at_paths(model, base_paths)
+        where = lambda model: nodes_at_paths(model, replace_paths)
+        return get, where
     
     @cached_property
     def param_filter(self) -> PyTree | Callable[[Any], bool]:
+        # First, remove the get replacements
+        _, where = self.replace_functions
+        eqx.tree_at(where, self, replace_fn=lambda _: SharedNode())
+        
+        # Then, form a bool tree that has True at dynamic variables and False at the others
         dynamic = eqx.filter(self, eqx.is_inexact_array, replace=False)
         bool_tree = eqx.filter(dynamic, eqx.is_inexact_array, replace=True, inverse=True)
-        
-        is_core = []
-        for field_info in fields(self):
-            derived = field_info.metadata.get('derived', False)
-            if derived:
-                is_core.append(False)
-            else:
-                is_core.append(True)
-        
-        derived_fields = [field.name for field in fields(self) if self.__dataclass_fields__[field.name].metadata.get('derived', False)]
-        bool_tree = eqx.tree_at(
-            lambda m: [getattr(m, name) for name in derived_fields],
-            bool_tree,
-            [False] * len(derived_fields)
-        )
-        
         return bool_tree
     
     @cached_property
@@ -270,7 +289,7 @@ class Model(eqx.Module):
         a = self.a(freq)
         return a2s(a, self.z0)
     
-    def __getattribute__ (self, name: str) -> Callable[..., Any]:
+    def __getattr__ (self, name: str) -> Callable[..., Any]:
         # We are only interested in attributes that follow the pattern 's_<suffix>'
         found = False
         for p in PRIMARY_PROPERTIES:
@@ -279,7 +298,7 @@ class Model(eqx.Module):
                 break
             
         if not found:
-            return super().__getattribute__ (name)
+            return super().__getattr__ (name)
 
         param, suffix = name[0], name[2:]
         if suffix in FUNC_LOOKUP:
@@ -299,16 +318,7 @@ class Model(eqx.Module):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'. "
                 f"Unknown S-parameter format: '{suffix}'"
-            )    
-    
-    def dynamic(self) -> 'Model':
-        return eqx.filter(self, self.param_filter)
-    
-    def static(self) -> 'Model':
-        return eqx.filter(self, self.param_filter, inverse=True)
-    
-    def partitioned(self) -> 'Model':
-        return eqx.partition(self, self.param_filter)    
+            )        
            
     def flipped(self) -> 'Model':
         from models.containers import Flipped
@@ -345,6 +355,16 @@ class Model(eqx.Module):
         })
 
         return skrf.Network(**kwargs)
+    
+def combine(static: ModelT, dynamic: ModelT) -> ModelT:
+    filter, (get, where) = dynamic.param_filter, dynamic.replace_functions
+    combined = eqx.combine(static, dynamic, filter)
+    return eqx.tree_at(where, combined, get(combined))
+    
+def partition(model: ModelT) -> tuple[ModelT, ModelT]:
+    filter, (_, where) = model.param_filter, model.replace_functions
+    replaced = eqx.tree_at(where, model, replace_fn=lambda _: SharedNode())
+    return eqx.partition(replaced, filter)
 
 def is_overridden(cls, baseclass, method_name):
     result = False
@@ -373,7 +393,8 @@ def get_underlying_type(tp: type) -> type | None:
 
 def model_check(model: Model) -> None:
     all_nodes = {}
-    _model_check(model, all_nodes, model.dynamic)
+    dynamic, _ = partition(model)
+    _model_check(model, all_nodes, dynamic)
 
 _leaf_treedef = jax.tree.structure(0)
 def _model_check(node, all_nodes: dict):

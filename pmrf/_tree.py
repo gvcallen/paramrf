@@ -285,11 +285,14 @@ def node_at_path(pytree, path):
         if isinstance(key, GetAttrKey):
             k = key.name
             node = getattr(node, k)
+        elif isinstance(key, SequenceKey):
+            i = key.idx
+            node = node[i]
         elif isinstance(key, DictKey):
             k = key.name
             node = node[key]
         else:
-            raise Exception(f"Only DictKey and GetAttrKey are currently supported in tree_at_path but '{type(key)}' was passed of value {key}")
+            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <node_at_path> but '{type(key)}' was passed of value {key}")
         
     return node
 
