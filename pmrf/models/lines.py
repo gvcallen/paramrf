@@ -84,7 +84,7 @@ class DatasheetCoaxial(RLGCLine):
     """
     zn: float = 50.0
     epr: float = 1.0
-    epr_slope: float = 0.0
+    epr_slope: float | None = None
     k1: float = 0.0
     k2: float = 0.0
 
@@ -95,16 +95,16 @@ class DatasheetCoaxial(RLGCLine):
         w = freq.w
         zn, k1, k2 = self.zn, self.k1, self.k2
 
-        # if self.epr_slope == 0.0:
-        #     epr = np.ones(w.shape[0]) * self.epr
-        # else:
         if not self.freq_bounds is None:
             w_start, w_stop = self.freq_bounds
         else:
             w_start, w_stop = w[0], w[-1]
 
-        wn = (w - w_start) / (w_stop - w_start)            
-        epr = np.ones(w.shape[0]) * self.epr + self.epr_slope * wn
+        wn = (w - w_start) / (w_stop - w_start)
+        if self.epr_slope is None:
+            epr = np.ones(w.shape[0]) * self.epr
+        else:
+            epr = np.ones(w.shape[0]) * self.epr + self.epr_slope * wn
         
         if not self.loss_coeffs_normalized:
             k1_norm = k1 * (1.0 / (100 * np.sqrt(2*np.pi * 10**6)))

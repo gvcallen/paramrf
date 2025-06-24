@@ -20,7 +20,7 @@ from jaxtyping import PyTree
 
 from pmrf._misc import field
 from pmrf._frequency import Frequency
-from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, value_at_path, values_at_paths, flatten_one_level_with_metadata
+from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine
 import pmrf.functions.math as mf
 from pmrf.functions.parameters import a2s, s2a
 
@@ -89,7 +89,7 @@ class Model(eqx.Module):
         for field_name, field_types in cls.__annotations__.items():
             field_type = get_underlying_type(field_types)
             if field_type is None:
-                return
+                continue
             
             # We populate the field kwargs dynamically
             field_kwargs = {}
@@ -111,7 +111,7 @@ class Model(eqx.Module):
 
             # Next, populate the Parameter converter for types considered dynamic (even those without defaults).
             if field_type in dynamic_types:
-                field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=float)
+                field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=np.float64)
 
             # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
             if len(field_kwargs) != 0:
@@ -138,12 +138,12 @@ class Model(eqx.Module):
     
     @cached_property
     def filter_function(self) -> Callable[[Any], bool]:
-        return eqx.is_inexact_array
+        return eqx.is_inexact_array    
     
     @cached_property
-    def filter_spec(self) -> PyTree:
+    def shared_spec(self) -> PyTree:
         filter_fn = self.filter_function
-        return jax.tree.map(lambda node: filter_fn(node), self)
+        return jax.tree.map(lambda node: filter_fn(node), self)        
     
     @cached_property
     def param_spec(self) -> PyTree:
@@ -172,7 +172,7 @@ class Model(eqx.Module):
         def is_core(path, node):
             return node and not path_is_derived[path]
         
-        return jax.tree.map_with_path(is_core, self.filter_spec, is_leaf=is_leaf, is_leaf_takes_path=True)
+        return jax.tree.map_with_path(is_core, self.shared_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
     
     @cached_property
     def nested_submodels(self) -> list['Model']:
@@ -203,12 +203,14 @@ class Model(eqx.Module):
         return list(self.params.keys())
     
     @cached_property
-    def params(self) -> Dict[str, Any] | np.ndarray:
-        return params_dict(self, separator=self._separator, param_filter=self.param_spec)
+    def params(self) -> Dict[str, Any]:
+        param_tree = eqx.filter(self, self.param_spec)
+        return params_dict(param_tree, separator=self._separator)
     
     @cached_property
-    def flat_params(self) -> np.ndarray:
-        return params_array(self, self.param_spec)
+    def params_array(self) -> np.ndarray:
+        param_tree = eqx.filter(self, self.param_spec)
+        return params_array(param_tree)
         
     @cached_property
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:
@@ -337,16 +339,16 @@ class Model(eqx.Module):
     
     def with_params(
         self,
+        flat_params: np.ndarray = None,
         **params: Any
     ) -> "Model":
-        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.param_spec, **params)
+        param_tree, static = partition(self, self.param_spec, self.shared_spec)
+        if not flat_params is None:
+            param_tree = with_params_from_array(param_tree, params=flat_params)
+        else:
+            param_tree = with_params_from_dict(param_tree, separator=self._separator, **params)
+        return combine(param_tree, static)
 
-    def with_flat_params(
-        self,
-        params: np.ndarray
-    ) -> "Model":
-        return with_params_from_array(self, params=params, param_filter=self.param_spec)
-    
     def to_skrf(self, freq: skrf.Frequency, **kwargs) -> skrf.Network:
         f, fname = self.primary_function, self.primary_property
         kwargs = kwargs or {}

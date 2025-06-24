@@ -18,151 +18,27 @@ from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
 AxisSpec = bool | Callable[[Any], bool]
 
-def with_params_from_dict(
+def params_array(
     tree: Any,
-    separator: str | None = '_',
-    subtree_separator: str | None = None,
-    array_separator: str | None = None,
-    index_separator: str | None = None,
-    param_filter: PyTree | Callable[[Any], bool] | None = None,
-    **params: Any
-) -> Any:
-    """
-    Returns a new tree with updated parameter values by key-word.
-
-    Args:
-        tree: The original, immutable PyTree (e.g., an Equinox model).
-        separator: The default separator used if others are not specified.
-        subtree_separator: Separator for nested attribute names.
-        array_separator: Separator between attribute path and array index.
-        index_separator: Separator for multi-dimensional array indices.
-        param_filter: A function that returns `True` for nodes in the tree that are parameters.
-        **params: Keyword arguments where keys are the string paths of the
-                  parameters to update and values are their new values.
-    """
-    # --- Initial argument validation and setup ---
-    param_filter = param_filter or eqx.is_array
+) -> jax.Array:
+    flat_leaves, _ = jax.tree.flatten(tree)
+    if not flat_leaves:
+        return np.array([]) # Return empty array if no params
     
-    # Set default separators for consistency with tree_parameter_paths
-    subtree_separator = subtree_separator if subtree_separator is not None else separator
-    array_separator = array_separator if array_separator is not None else separator
-    index_separator = index_separator if index_separator is not None else separator
-    
-    # We will apply updates sequentially. Start with the original tree.
-    new_tree = tree
+    return np.concatenate([p.ravel() for p in flat_leaves])
 
-    for path_str, value in params.items():
-        # Regex to separate the base path from the array index, e.g., "sub_C" from "[0_0]"
-        # It looks for the array_separator followed by anything.
-        match = re.match(rf"^(.*?){re.escape(array_separator)}(.*)$", path_str)
-
-        if match:
-            base_path_str, index_str = match.groups()
-            # Parse index string "0_0" into a tuple of ints (0, 0)
-            index = tuple(map(int, index_str.split(index_separator)))
-        else:
-            base_path_str = path_str
-            index = None # This is a scalar or full-array update
-
-        # Parse base path "sub_R" into a list of attribute names ['sub', 'R']
-        attr_names = base_path_str.split(subtree_separator)
-
-        # Create the `where` function to navigate to the target attribute
-        # `reduce` applies `getattr` sequentially to walk the path
-        where = lambda m: reduce(getattr, attr_names, m)
-
-        # If there's an index, the `where` function must also apply it
-        if index is not None:
-            # We need a new lambda to capture the current `where` and `index`
-            # This is safer than modifying the lambda in-place
-            base_where = where
-            where = lambda m: base_where(m)[index]
-
-        # Apply the single update and reassign the tree for the next loop iteration
-        new_tree = eqx.tree_at(where, new_tree, value)
-
-    return new_tree
-    
-def with_params_from_array(
-    tree: Any,
-    params: jax.Array | None = None,
-    param_filter: PyTree | Callable[[Any], bool] | None = None,
-) -> Any:
-    """
-    Returns a new tree with updated parameter values.
-
-    Args:
-        tree: The original, immutable PyTree (e.g., an Equinox model).
-        params: A 1D JAX array containing all dynamic parameter
-                     values in their flattened tree order.
-        param_filter: A function that returns `True` for nodes in the tree that are parameters.
-    """
-    # --- Initial argument validation and setup ---
-    param_filter = param_filter or eqx.is_array
-
-    params_tree, static = partition(tree, param_filter)
-    flat_leaves, treedef = jax.tree.flatten(params_tree)
-    num_expected_params = sum(p.size for p in flat_leaves)
-    
-    # Ensure input is a JAX array for consistency
-    params = np.asarray(params)
-
-    if params.size != num_expected_params:
-        raise ValueError(f"Input `flat_params` has size {params.size}, "
-                            f"but model requires {num_expected_params}.")
-
-    # Unflatten the leaves into a PyTree with the original structure.
-    # Note: JAX can unflatten a 1D array into leaves of various shapes.
-    leaves = []
-    offset = 0
-    for leaf in flat_leaves:
-        end = offset + leaf.size
-        leaves.append(params[offset:end].reshape(leaf.shape))
-        offset = end
-
-    new_params_tree = jax.tree.unflatten(treedef, leaves)
-    return eqx.combine(new_params_tree, static)
-    
-    
 def params_dict(
     tree: Any,
     separator: str | None = '_',
     subtree_separator: str | None = None,
     array_separator: str | None = None,
     index_separator: str | None = None,
-    param_filter: PyTree | Callable[[Any], bool] | None = None,
 ) -> Dict[str, Any]:
-    """
-    Returns the dynamic parameters of a PyTree as a dictionary of
-    paths and values.
-
-    The order of the returned paths and values precisely matches the order
-    from `jax.tree_util.tree_flatten`.
-
-    Args:
-        tree: The PyTree (e.g., an Equinox model) to inspect.
-        flat: If `True`, returns a single 1D JAX array of all scalar parameter
-              values. If `False` (default), returns a dictionary mapping
-              human-readable string paths to their scalar values.
-        separator: The default separator used if others are not specified.
-        subtree_separator: Separator for nested attribute names.
-        array_separator: Separator between attribute path and array index.
-        index_separator: Separator for multi-dimensional array indices.
-        param_filter: A function that returns `True` for nodes in the tree that are parameters.
-
-    Returns:
-        A dictionary of parameter names/paths and values.
-    """
-    param_filter = param_filter or eqx.is_array
-    params_tree, _ = partition(tree, param_filter)
-
-    # --- Logic Branch 2: Return a dictionary of paths and values ---
-    # Set default separators, only needed for the dictionary case
     subtree_separator: str = subtree_separator if subtree_separator is not None else separator
     array_separator: str = array_separator if array_separator is not None else separator
     index_separator: str = index_separator if index_separator is not None else separator
     
-    paths_and_leaves = jax.tree.leaves_with_path(params_tree)
+    paths_and_leaves = jax.tree.leaves_with_path(tree)
 
     parameters = {}
     for path, leaf in paths_and_leaves:
@@ -176,33 +52,47 @@ def params_dict(
             for index in ndindex(leaf.shape):
                 index_str = index_separator.join(map(str, index))
                 parameters[f"{path_str}{array_separator}{index_str}"] = leaf[index]
-    
     return parameters
-
-def params_array(
-    tree: Any,
-    param_filter: PyTree | Callable[[Any], bool] | None = None,
-) -> jax.Array:
-    """
-    Returns the dynamic parameters of a PyTree a single flattened JAX array.
-
-    The order of the returned paths and values precisely matches the order
-    from `jax.tree_util.tree_flatten`.
-
-    Args:
-        tree: The PyTree (e.g., an Equinox model) to inspect.
-        param_filter: A function that returns `True` for nodes in the tree that are parameters.
-    Returns:
-        A single 1D JAX array of all parameter values.
-    """
-    param_filter = param_filter or eqx.is_array
-    params_tree, _ = partition(tree, param_filter)
-    flat_leaves, _ = jax.tree.flatten(params_tree)
-    if not flat_leaves:
-        return np.array([]) # Return empty array if no params
     
-    # Concatenate all leaves into a single 1D vector
-    return np.concatenate([p.ravel() for p in flat_leaves])
+def with_params_from_array(
+    tree: Any,
+    params: jax.Array | None = None,
+) -> Any:
+    flat_leaves, treedef = jax.tree.flatten(tree)
+    num_expected_params = sum(p.size for p in flat_leaves)
+    
+    # Ensure input is a JAX array for consistency
+    params = np.asarray(params)
+
+    if params.size != num_expected_params:
+        raise ValueError(f"Input `flat_params` has size {params.size}, "
+                            f"but model requires {num_expected_params}.")
+
+    # Unflatten the leaves into a PyTree with the original structure.
+    leaves = []
+    offset = 0
+    for leaf in flat_leaves:
+        end = offset + leaf.size
+        leaves.append(params[offset:end].reshape(leaf.shape))
+        offset = end
+
+    new_tree = jax.tree.unflatten(treedef, leaves)
+    return new_tree
+
+def with_params_from_dict(
+    tree: Any,
+    separator: str | None = '_',
+    subtree_separator: str | None = None,
+    array_separator: str | None = None,
+    index_separator: str | None = None,
+    **params: Any
+) -> Any:
+    prev_params = params_dict(tree, separator=separator, subtree_separator=subtree_separator, array_separator=array_separator, index_separator=index_separator)
+    missing_keys = params.keys() - prev_params.keys()
+    if missing_keys:
+        raise KeyError(f"The following key(s) do not existing in the model: {missing_keys}")
+    prev_params.update(params)
+    return with_params_from_array(tree, list(prev_params.values()))
 
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
@@ -421,14 +311,15 @@ def restore(
 def partition(
     pytree: PyTree,
     filter_spec: PyTree[AxisSpec],
-    core_spec: PyTree[AxisSpec] | None = None,
+    shared_spec: PyTree[AxisSpec] | None = None,
     replace: Any = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
-    first, second = eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
-    if core_spec is None:
-        return first, second
-    first_core, first_ref = dealias(first, core_spec, is_leaf)
+    if shared_spec is None:
+        return eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
+
+    first, second = eqx.partition(pytree, shared_spec, replace=replace, is_leaf=is_leaf)
+    first_core, first_ref = dealias(first, filter_spec, is_leaf)
     return first_core, eqx.combine(first_ref, second)
 
 def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
