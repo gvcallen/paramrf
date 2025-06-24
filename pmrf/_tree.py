@@ -393,22 +393,47 @@ class RefNode:
         
 def dealias(
     tree: PyTree,
-    base_spec: PyTree[AxisSpec],
+    core_spec: PyTree[AxisSpec],
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
-    base, aliased = eqx.partition(tree, base_spec)
+    core, alias = eqx.partition(tree, core_spec)
     
-    base_ids = jax.tree.map(lambda node: id(node), base, is_leaf=is_leaf)
+    base_ids = jax.tree.map(lambda node: id(node), core, is_leaf=is_leaf)
     paths, ids = zip(*jax.tree.leaves_with_path(base_ids))
     id_to_path = dict(zip(ids, paths))
+    ref = jax.tree.map(lambda node: RefNode(id_to_path[id(node)]), alias, is_leaf=is_leaf)
     
-    ref = jax.tree.map(lambda node: RefNode(id_to_path[id(node)]), aliased, is_leaf=is_leaf)
-    return base, ref
+    return core, ref
     
 def restore(
-    core: PyTree,
     ref: PyTree,
+    core: PyTree | None = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> PyTree:
-    aliased = jax.tree.map(lambda ref_node: value_at_path(core, ref_node.path), ref, is_leaf=lambda node: is_leaf(node) or isinstance(node, RefNode))
-    return core, aliased
+    core = core if not core is None else ref
+    def _is_leaf(node):
+        is_leaf_val = False if is_leaf is None else is_leaf(node)
+        return is_leaf_val or isinstance(node, RefNode)
+
+    deref = jax.tree.map(lambda node: value_at_path(core, node.path) if isinstance(node, RefNode) else node, ref, is_leaf=_is_leaf)
+    return deref
+
+def partition(
+    pytree: PyTree,
+    filter_spec: PyTree[AxisSpec],
+    core_spec: PyTree[AxisSpec] | None = None,
+    replace: Any = None,
+    is_leaf: Callable[[Any], bool] | None = None,
+) -> tuple[PyTree, PyTree]:
+    first, second = eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
+    if core_spec is None:
+        return first, second
+    first_core, first_ref = dealias(first, core_spec, is_leaf)
+    return first_core, eqx.combine(first_ref, second)
+
+def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
+    combined = eqx.combine(*pytrees)
+    from pmrf import _tree
+    if restore:
+        combined = _tree.restore(combined, is_leaf=is_leaf)
+    return combined

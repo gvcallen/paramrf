@@ -13,6 +13,8 @@ from pmrf._misc import (
 )
 
 from pmrf._tree import (
+    dealias,
+    restore,
     partition,
     combine,
 )

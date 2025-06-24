@@ -7,7 +7,8 @@ import inspect
 from typing import Callable, Any, Dict, get_origin, Union
 from types import GenericAlias, UnionType
 import dataclasses
-from dataclasses import fields
+from dataclasses import fields, is_dataclass
+from jax.tree_util import GetAttrKey
 
 import pmrf.numpy as np
 from pmrf.numpy import USE_JAX
@@ -136,16 +137,42 @@ class Model(eqx.Module):
         return jax.tree.structure(self)
     
     @cached_property
-    def filter_spec(self) -> PyTree | Callable[[Any], bool]:
-        return eqx.is_inexact_array    
+    def filter_function(self) -> Callable[[Any], bool]:
+        return eqx.is_inexact_array
     
     @cached_property
-    def share_spec(self) -> PyTree | Callable[[Any], bool]:
-        filtered = eqx.filter(self, self.filter_spec)
-        metadata_vals, treedef = flatten_one_level_with_metadata(filtered)
-        not_derived = [not metadata_val[0].get("derived", False) for metadata_val in metadata_vals]        
-        share_spec = jax.tree.unflatten(treedef, not_derived)
-        return share_spec
+    def filter_spec(self) -> PyTree:
+        filter_fn = self.filter_function
+        return jax.tree.map(lambda node: filter_fn(node), self)
+    
+    @cached_property
+    def param_spec(self) -> PyTree:
+        # We create a spec that has False for derived and True for non-derived parameters.
+        # A parameter is derived if any of its parent dataclasses have 'derived' set to True in its field metadata.
+        path_is_derived = {}
+        def is_leaf(path, node):
+            # If a dataclass, populate path_is_derived for all children that are derived
+            if is_dataclass(node):
+                for field in fields(node):
+                    if field.metadata.get('derived', False):
+                        field_path = path + (GetAttrKey(field.name),)
+                        path_is_derived[field_path] = True
+            
+            # Set base path as not being derived, and this path's derived as equal to the parents if not already set
+            if len(path) == 0:
+                path_is_derived[path] = False
+            else:
+                path_is_derived.setdefault(path, path_is_derived[path[0:-1]])
+            
+            if isinstance(node, bool):
+                return True
+            else:
+                return False
+        
+        def is_core(path, node):
+            return node and not path_is_derived[path]
+        
+        return jax.tree.map_with_path(is_core, self.filter_spec, is_leaf=is_leaf, is_leaf_takes_path=True)
     
     @cached_property
     def nested_submodels(self) -> list['Model']:
@@ -177,11 +204,11 @@ class Model(eqx.Module):
     
     @cached_property
     def params(self) -> Dict[str, Any] | np.ndarray:
-        return params_dict(self, separator=self._separator, param_filter=self.filter_spec)
+        return params_dict(self, separator=self._separator, param_filter=self.param_spec)
     
     @cached_property
     def flat_params(self) -> np.ndarray:
-        return params_array(self, self.filter_spec)
+        return params_array(self, self.param_spec)
         
     @cached_property
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:
@@ -312,13 +339,13 @@ class Model(eqx.Module):
         self,
         **params: Any
     ) -> "Model":
-        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.filter_spec, **params)
+        return with_params_from_dict(self, separator=self._separator, subtree_separator=self._separator, array_separator=self._separator, index_separator=self._separator, param_filter=self.param_spec, **params)
 
     def with_flat_params(
         self,
         params: np.ndarray
     ) -> "Model":
-        return with_params_from_array(self, params=params, param_filter=self.filter_spec)
+        return with_params_from_array(self, params=params, param_filter=self.param_spec)
     
     def to_skrf(self, freq: skrf.Frequency, **kwargs) -> skrf.Network:
         f, fname = self.primary_function, self.primary_property
