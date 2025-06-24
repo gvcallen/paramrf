@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict
 import re
 
 import pmrf.numpy as np
+from pmrf._misc import update_dict_with_alias
 from numpy import ndindex
 import jax
 from jax.tree_util import SequenceKey, DictKey, GetAttrKey
@@ -17,6 +18,27 @@ from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
 from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
 AxisSpec = bool | Callable[[Any], bool]
+
+def path_to_param_name(
+    path,
+    leaf,
+    subtree_separator: str,
+    array_separator: str,
+    index_separator: str,
+) -> str | list[str]:
+    path_str = subtree_separator.join(key.name for key in path if isinstance(key, GetAttrKey))
+
+    param_names = None
+    if np.isscalar(leaf):
+        param_names = path_str
+    else:
+        # For array parameters, create an entry for each scalar element
+        param_names = []
+        for index in ndindex(leaf.shape):
+            index_str = index_separator.join(map(str, index))
+            param_names.append(f"{path_str}{array_separator}{index_str}")
+
+    return param_names
 
 def params_array(
     tree: Any,
@@ -33,6 +55,7 @@ def params_dict(
     subtree_separator: str | None = None,
     array_separator: str | None = None,
     index_separator: str | None = None,
+    param_aliases: dict[str, str] | list[str] | None = None,
 ) -> Dict[str, Any]:
     subtree_separator: str = subtree_separator if subtree_separator is not None else separator
     array_separator: str = array_separator if array_separator is not None else separator
@@ -42,17 +65,40 @@ def params_dict(
 
     parameters = {}
     for path, leaf in paths_and_leaves:
-        # Convert path tuple to a human-readable string, e.g., "sub.R"
-        path_str = subtree_separator.join(key.name for key in path if isinstance(key, GetAttrKey))
+        param_name = path_to_param_name(path, leaf, subtree_separator, array_separator, index_separator)
 
-        if leaf.ndim == 0:
-            parameters[path_str] = leaf
+        if np.isscalar(leaf):
+            parameters[param_name] = leaf
         else:
-            # For array parameters, create an entry for each scalar element
-            for index in ndindex(leaf.shape):
-                index_str = index_separator.join(map(str, index))
-                parameters[f"{path_str}{array_separator}{index_str}"] = leaf[index]
+            for name, index in zip(param_name, ndindex(leaf.shape)):
+                parameters[name] = leaf[index]
+
+    if not param_aliases is None:
+        if isinstance(param_aliases, list):
+            parameters = dict(zip(param_aliases, parameters.values()))
+        else:
+            raise Exception("Dict parameter aliases not yet supported")
+
     return parameters
+
+def param_names_tree(
+    tree: Any,
+    separator: str | None = '_',
+    subtree_separator: str | None = None,
+    array_separator: str | None = None,
+    index_separator: str | None = None,
+) -> Any:
+    subtree_separator: str = subtree_separator if subtree_separator is not None else separator
+    array_separator: str = array_separator if array_separator is not None else separator
+    index_separator: str = index_separator if index_separator is not None else separator
+    
+    paths_and_leaves, treedef = jax.tree.flatten_with_path(tree)
+    param_names = []
+    for path, leaf in paths_and_leaves:
+        param_name = path_to_param_name(path, leaf, subtree_separator, array_separator, index_separator)
+        param_names.append(param_name)
+
+    return jax.tree.unflatten(treedef, param_names)
     
 def with_params_from_array(
     tree: Any,
@@ -85,13 +131,17 @@ def with_params_from_dict(
     subtree_separator: str | None = None,
     array_separator: str | None = None,
     index_separator: str | None = None,
+    param_aliases: dict[str, str] | list[str] | None = None,
     **params: Any
 ) -> Any:
     prev_params = params_dict(tree, separator=separator, subtree_separator=subtree_separator, array_separator=array_separator, index_separator=index_separator)
-    missing_keys = params.keys() - prev_params.keys()
-    if missing_keys:
-        raise KeyError(f"The following key(s) do not existing in the model: {missing_keys}")
-    prev_params.update(params)
+    
+    if not param_aliases is None:
+        if isinstance(param_aliases, list):
+            param_aliases = {original: alias for original, alias in zip(prev_params.keys(), param_aliases)}
+        update_dict_with_alias(prev_params, params, param_aliases)
+    else:
+        prev_params.update(params)
     return with_params_from_array(tree, list(prev_params.values()))
 
 def flatten_one_level_with_path(

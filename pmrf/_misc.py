@@ -9,6 +9,22 @@ if USE_JAX:
     from equinox import field as base_field
 else:
     from dataclasses import field as base_field    
+
+def update_dict_with_alias(original: dict, updates: dict, alias_map: dict) -> None:
+    # Build prefix lookup trie (flattened since prefixes are strings)
+    # Sort prefixes by length (longest first) to match the most specific prefix first
+    sorted_aliases = sorted(alias_map.items(), key=lambda x: -len(x[0]))
+
+    print(updates)
+    
+    for key in original:
+        for orig_prefix, update_prefix in sorted_aliases:
+            if key.startswith(orig_prefix):
+                aliased_key = update_prefix + key[len(orig_prefix):]
+                if aliased_key in updates:
+                    original[key] = updates[aliased_key]
+                break
+        # if no prefix matched, keep the original value
     
 def field(
     *,

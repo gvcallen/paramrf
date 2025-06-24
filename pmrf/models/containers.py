@@ -3,26 +3,26 @@ from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._misc import field
 
-class Cascaded(Model):
+class Cascade(Model):
     models: tuple[Model]
     
     def __post_init__(self):
-        self.name = 'cascaded'
+        self.name = 'cascade'
         
         models = self.models
         # First check all the port conditions
         if models[0].nports != 2:
-            raise Exception('First network must be a two port when cascaded')
+            raise Exception('First network must be a two port when cascade')
         for model in models[1:-1]:
             if model.nports != 2:
-                raise Exception('Inner networks must be two ports when cascaded')
+                raise Exception('Inner networks must be two ports when cascade')
         if models[-1].nports not in (1, 2):
-            raise Exception('Last network must either be a one port or a two port when cascaded')
+            raise Exception('Last network must either be a one port or a two port when cascade')
         
-        # Next check if any models themselves are of type CascadedModel. We don't nest these - we chain them to avoid very deep, nested models
+        # Next check if any models themselves are of type Cascade. We don't nest these - we chain them to avoid very deep, nested models
         model_reduced = []
         for model in models:
-            if isinstance(model, Cascaded):
+            if isinstance(model, Cascade):
                 model_reduced.extend(model.models)
             else:
                 model_reduced.append(model)
