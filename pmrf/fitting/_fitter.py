@@ -119,7 +119,7 @@ class BaseFitter(ABC):
         self.measured_features = extract_features(features, measured)
 
     def model_features(self):
-        return extract_features(self.features, self.model. self.model_frequency)
+        return extract_features(self.features, self.model, self.model_frequency)
 
     def feature_residuals(self):
         return self.measured_features - self.model_features()
