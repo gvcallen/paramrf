@@ -1,6 +1,6 @@
 from functools import partial
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Sequence
 
 import scipy.optimize
 import skrf
@@ -16,13 +16,19 @@ from pmrf.parameters import Parameter, ParameterSet, Fixed
 from pmrf.numpy import USE_JAX
 from pmrf.functions import mag_2_db, convolve_interleaved
 
-def extract_features(source: Model | skrf.Network | list[skrf.Network], features, freq: Frequency = None) -> np.ndarray:
+def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], features, freq: Frequency = None) -> np.ndarray:
     if isinstance(source, skrf.Network):
+        freq = source.frequency
         source = [source]
-    if freq is None:
-        if isinstance(source, Model):
-            raise Exception("Frequency must be passed when extracting features from a model")
+    elif isinstance(source, Sequence) and isinstance(source[0], skrf.Network):
         freq = source[0].frequency
+    elif isinstance(source, Model):
+        if freq is None:
+            raise Exception("Frequency must be passed when extracting features from a model")
+        if isinstance(freq, skrf.Frequency):
+            freq = Frequency.from_skrf(freq)
+    else:
+        raise TypeError("Invalid type to extract_features")
 
     n_frequencies = len(freq)
     n_features = len(features)

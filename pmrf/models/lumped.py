@@ -100,6 +100,29 @@ class Resistor(Model):
         self.name = 'resistor'
 
     def s(self, freq: Frequency) -> np.ndarray:
+        # s_def = kwargs.pop('s_def', S_DEF_DEFAULT)
+        # result = self.match(nports=2, s_def='power', **kwargs)
+        # s = np.zeros(shape=result.s.shape, dtype=complex)
+        # R = np.array(R)
+        # # Convert Y-parameters resistor to S-parameters in power wave to accommodate any R value.
+        # # y[:, 0, 0] = 1.0 / R
+        # # y[:, 1, 1] = 1.0 / R
+        # # y[:, 0, 1] = -1.0 / R
+        # # y[:, 1, 0] = -1.0 / R
+        # z0_0, z0_1 = result.z0[:, 0], result.z0[:, 1]
+        # denom = R + (z0_0 + z0_1)
+        # s[:, 0, 0] = (R - z0_0.conj() + z0_1) / denom
+        # s[:, 1, 1] = (R + z0_0 - z0_1.conj()) / denom
+        # s[:, 0, 1] = 2 * (z0_0.real * z0_1.real)**0.5 / denom
+        # s[:, 1, 0] = 2 * (z0_0.real * z0_1.real)**0.5 / denom
+        # result.s = s
+
+        # # Renormalize into s_def if required
+        # if s_def != 'power':
+        #     result.renormalize(z_new=result.z0, s_def=s_def)
+
+        # return result        
+        
         R = self.R
         z0_0 = z0_1 = self.z0
         ones = np.ones(freq.npoints, dtype=np.complex128)

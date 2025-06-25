@@ -4,7 +4,7 @@ from typing import Callable, Literal, TypeVar
 
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_type_hints, get_origin, get_args, Union
+from typing import Callable, Any, Dict, get_type_hints, get_origin, get_args, Union, TypeVar, Type
 from types import GenericAlias, UnionType
 import dataclasses
 from dataclasses import fields, is_dataclass
@@ -19,8 +19,8 @@ if USE_JAX:
     import jax
 import equinox as eqx
 from jaxtyping import PyTree
-from pmrf._misc import update_dict_with_alias
 
+from pmrf._misc import update_dict_with_alias
 from pmrf._misc import field
 from pmrf._frequency import Frequency
 from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
@@ -109,11 +109,11 @@ class Model(eqx.Module):
         cls._priority = ()
         cls._separator = separator
 
-    def __pow__(self, other: 'Model') -> 'Model':
+    def __pow__(self, other: ModelT) -> ModelT:
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
     
-    def copy(self) -> 'Model':
+    def copy(self) -> ModelT:
         return deepcopy(self)
         
     @property
@@ -121,11 +121,11 @@ class Model(eqx.Module):
         return jax.tree.structure(self)
        
     @property
-    def nested_submodels(self) -> list['Model']:
+    def nested_submodels(self) -> list[ModelT]:
         return nodes_by_type(self, Model)[1:]
     
     @property
-    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
+    def nested_submodels_with_paths(self) -> list[tuple[PyTree, ModelT]]:
         return nodes_by_type_with_path(self, Model)[1:]
     
     @property
@@ -133,11 +133,11 @@ class Model(eqx.Module):
         return len(self.nested_submodels)    
     
     @property
-    def submodels(self) -> list['Model']:
+    def submodels(self) -> list[ModelT]:
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
     @property
-    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
+    def submodels_with_paths(self) -> list[tuple[PyTree, ModelT]]:
         return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
     
     @property
@@ -146,7 +146,20 @@ class Model(eqx.Module):
     
     @property
     def param_spec(self) -> PyTree:
-        return jax.tree.map(lambda node: True if is_param(node) else False, self, is_leaf=lambda node: is_param(node))
+        def is_param(path, node):
+            if len(path) == 0:
+                return False
+            is_array = eqx.is_inexact_array(node)
+            param = value_at_path(self, path[0:-1])
+            if is_array and not isinstance(param, Parameter):
+                raise Exception(f"Error: found jax/numpy array outside of a Parameter at path ({path})")
+            return is_array and path[-1].name == 'value'
+        
+        return jax.tree.map_with_path(
+            is_param,
+            self,
+            is_leaf=lambda node: eqx.is_inexact_array(node)
+        )
     
     @property
     def core_param_spec(self) -> PyTree:
@@ -175,13 +188,18 @@ class Model(eqx.Module):
         return jax.tree.map_with_path(lambda path, node: node and not path_is_derived[path], self.param_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
 
     @property
-    def free_param_spec(self) -> PyTree:
-        def is_free_param(path, is_param, node):
-            if not is_param:
+    def fit_param_spec(self) -> PyTree:
+        def is_varying_value(path, is_param, node):
+            if not is_param or not eqx.is_inexact_array(node):
                 return False
-            return not node.fixed
+            
+            # Here we check that the array is within a parameter and that the parameter is varying
+            param = value_at_path(path[0:-1])
+            if not isinstance(param, Parameter):
+                raise Exception(f"Found an array in a model not within a parameter: this is not allowed (at path {path})")
+            return not param.fixed and path[-1].name == 'value'
         
-        return jax.tree.map_with_path(is_free_param, self.core_param_spec, self)
+        return jax.tree.map_with_path(is_varying_value, self.core_param_spec, self)
     
     @property
     def core_params_tree(self) -> Any:
@@ -352,11 +370,11 @@ class Model(eqx.Module):
                 f"Unknown S-parameter format: '{suffix}'"
             )        
            
-    def flipped(self) -> 'Model':
+    def flipped(self) -> ModelT:
         from models.containers import Flipped
         return Flipped(self)
     
-    def terminated(self, load: 'Model' = None) -> 'Model':
+    def terminated(self, load: ModelT = None) -> ModelT:
         from pmrf.models.lumped import Short
         from pmrf.models.containers import Cascade
         
@@ -364,26 +382,27 @@ class Model(eqx.Module):
         terminated_model = Cascade((self, load))
         return terminated_model
     
-    def partitioned(self) -> tuple['Model', 'Model']:
+    def partitioned(self) -> tuple[ModelT, ModelT]:
         return partition(self, self.core_param_spec, self.param_spec)
     
     def with_params(
         self,
-        params: ParameterSet | dict | np.ndarray | None = None,
-        **param_kwargs: Any
-    ) -> "Model":
+        params: ParameterSet | dict[str, Parameter] | dict[str, float] | np.ndarray | None = None,
+        **param_kwargs: dict[str, Parameter] | dict[str, float]
+    ) -> ModelT:
         if isinstance(params, ParameterSet):
             return self._with_params_from_set(params=params)
         if not params is None and isinstance(params, np.ndarray):
             return self._with_params_from_array(params=params)
         else:
             params = params if params is not None else {}
-            return self._with_params_from_dict(params=params, **param_kwargs)
+            params.update(param_kwargs)
+            return self._with_params_from_dict(params=params)
 
     def _with_params_from_set(
         self,
         params: ParameterSet,
-    ) -> 'Model':
+    ) -> ModelT:
         param_tree, static = partition(self, self.core_param_spec, self.param_spec)
         flat_params, treedef = jax.tree.flatten(param_tree, is_leaf=lambda p: is_param(p) and not p.value is None)
         
@@ -395,13 +414,16 @@ class Model(eqx.Module):
         
     def _with_params_from_dict(
         self,
-        params: dict,
-        **param_kwargs: Any
-    ) -> 'Model':
+        params: dict[str, Parameter] | dict[str, float],
+    ) -> ModelT:
         # First, generate an ordered, input flat params array
         new_params = self.params
-        new_params.update(params)
-        new_flat_params = list(new_params.values())        
+        
+        if all(isinstance(v, float) for v in params.values()):
+            for name, value in params.items():
+                # TODO create specs for the full parameter objects such that we can get and use the built-in scales
+                new_params[name] = dataclasses.replace(new_params[name], value=np.array(value), scale=1.0)
+        new_flat_params = list(new_params.values())
         
         # Then, get the current flate parameters
         params_tree, static = partition(self, self.core_param_spec, self.param_spec)
@@ -419,7 +441,7 @@ class Model(eqx.Module):
     def _with_params_from_array(
         self,
         params: np.ndarray,
-    ) -> 'Model':
+    ) -> ModelT:
         param_tree, static = partition(self, self.core_param_spec, self.param_spec)
         flat_leaves, treedef = jax.tree.flatten(param_tree)
         num_expected_params = sum(p.size for p in flat_leaves)

@@ -9,7 +9,7 @@ from pmrf._misc import field
 class Parameter(eqx.Module):
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
-    value: np.ndarray = field(converter=np.asarray)
+    value: np.ndarray = field(converter=lambda x: np.asarray(x, dtype=np.float64))
     dist: rv_continuous | list[rv_continuous] | None = field(default=None)
     fixed: bool = field(default=False)
     scale: np.ndarray = field(default=1.0, converter=np.asarray)
@@ -44,28 +44,28 @@ class Parameter(eqx.Module):
         return len(self.value)
     
     def __add__(self, other):
-        return np.add(self, other)
+        return np.add(np.array(self), np.array(other))
     
     def __sub__(self, other):
-        return np.subtract(self, other)
+        return np.subtract(np.array(self), np.array(other))
     
     def __mul__(self, other):
-        return np.multiply(self, other)
+        return np.multiply(np.array(self), np.array(other))
 
     def __truediv__(self, other):
-        return np.divide(self, other)
+        return np.divide(np.array(self), np.array(other))
 
     def __radd__(self, other):
-        return np.add(other, self)
+        return np.add(np.array(other), np.array(self))
     
     def __rsub__(self, other):
-        return np.subtract(other, self)
+        return np.subtract(np.array(other), np.array(self))
 
     def __rmul__(self, other):
-        return np.multiply(other, self)
+        return np.multiply(np.array(other), np.array(self))
     
     def __rtruediv__(self, other):
-        return np.divide(other, self)
+        return np.divide(np.array(other), np.array(self))
 
 class ParameterSet:
     def __init__(self, parameters: list[Parameter] | None = None):
