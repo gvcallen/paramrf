@@ -4,23 +4,26 @@ from typing import Callable, Literal, TypeVar
 
 import skrf as skrf
 import inspect
-from typing import Callable, Any, Dict, get_origin, Union
+from typing import Callable, Any, Dict, get_type_hints, get_origin, get_args, Union
 from types import GenericAlias, UnionType
 import dataclasses
 from dataclasses import fields, is_dataclass
 from jax.tree_util import GetAttrKey
 
 import pmrf.numpy as np
+from numpy import ndindex
+from pmrf.parameters import Parameter, ParameterSet, is_param, is_free_param, asparam
 from pmrf.numpy import USE_JAX
 from pmrf.functions.math import complex_2_db
 if USE_JAX:
     import jax
 import equinox as eqx
 from jaxtyping import PyTree
+from pmrf._misc import update_dict_with_alias
 
 from pmrf._misc import field
 from pmrf._frequency import Frequency
-from pmrf._tree import with_params_from_dict, with_params_from_array, params_dict, params_array, flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, param_names_tree, dealias, restore
+from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
 import pmrf.functions.math as mf
 from pmrf.functions.parameters import a2s, s2a
 
@@ -69,72 +72,43 @@ class Model(eqx.Module):
     """
     # Instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
-    aliases: dict[str, str] | list[str] | None = field(default=None, kw_only=True, static=True)
     _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
 
     # Class fields
     _s_def: str = field(init=False, repr=False, static=True)
     _priority: tuple = field(init=False, repr=False, static=True)
-    _dynamic_types: tuple = field(init=False, repr=False, static=True)
     _separator: str = field(init=False, repr=False, static=True)    
 
-    def __init_subclass__(cls, dynamic_types: tuple = (float, np.ndarray), s_def: str = 'power', separator = '_', **kwargs):
+    def __init_subclass__(cls, s_def: str = 'power', separator = '_', **kwargs):
         super().__init_subclass__(**kwargs)        
 
-        for dynamic_type in dynamic_types:
-            if issubclass(dynamic_type, Model):
-                raise Exception("Error: do not set `Model` types as dynamic")
-
-        # Add metadata and field properties to certain sub-class fields since we have certains constraints for the API.
-        # Currently, we add default, default_factory, converter, and kw_only where necessary
-        found_model, found_dynamic = False, False
         for field_name, field_types in cls.__annotations__.items():
-            field_type = get_underlying_type(field_types)
-            if field_type is None:
-                continue
+            # First, we clone any defaults that are either Models, Parameters, Python built-ins, or numpy arrays
+            if hasattr(cls, field_name):
+                default = getattr(cls, field_name)
+                new_default = None
+                if isinstance(default, list) or isinstance(default, dict) or isinstance(default, tuple):
+                    new_default = deepcopy(default)    
+                elif isinstance(default, Parameter) or isinstance(default, Model):
+                    new_default = deepcopy(default)
+                elif isinstance(default, np.ndarray):
+                    new_default = default.copy()            
+                if new_default is not None:
+                    setattr(cls, field_name, new_default)
+                    
+            # Then, we allow auto-conversion of Parameter annotations structures
+            field_type = get_first_underlying_type(field_types)
+            if issubclass(field_type, Parameter):
+                default = getattr(cls, field_name, None)
+                if default is not None:
+                    param = asparam(default, name=field_name)
+                    setattr(cls, field_name, eqx.field(default=param, converter=asparam))                     
 
-            if field_type in dynamic_types:
-                found_dynamic = True
-            if issubclass(field_type, Model):
-                found_model = True
-            
-            # We populate the field kwargs dynamically
-            field_kwargs = {}
-
-            # First, populate the default.
-            default = getattr(cls, field_name, None)
-            if not default is None:
-                # We don't automatically assigned a field if the user has already
-                if isinstance(default, dataclasses.Field):
-                    continue
-
-                # We use `default.__class__.__hash__` to guess if the type is mutable, or if its a Model (because users should share models explicitly)
-                if default.__class__.__hash__ is None or isinstance(default, Model):
-                    default = deepcopy(default)
-                field_kwargs['default'] = default
-
-            # Next, populate the Parameter converter for types considered dynamic (even those without defaults).
-            if field_type in dynamic_types:
-                field_kwargs['converter'] = lambda val: jax.numpy.asarray(val, dtype=np.float64)
-
-            # Finally, create the field and replace the class's value (but only if we need to - no need if kwargs is ultimately empty)
-            if len(field_kwargs) != 0:
-                setattr(cls, field_name, field(**field_kwargs))
-
-        if found_model and found_dynamic:
-            # TODO We cannot support this currently because the user expects to be able to use parameters in __post_init__
-            # but the references will be messed up because float have not yet been converted etc.
-            # We will have to enforce them creating np.ndarray 's but still that won't work right now because of mutability, I think
-            raise Exception("Error: currently compound models with parameters are not supported. To build such model, first wrap your parameters in a sub-model.")
-                            
+        # Then initialize our own parameters        
         cls._s_def = s_def
         cls._priority = ()
-        cls._dynamic_types = dynamic_types
         cls._separator = separator
 
-    def __new__(cls, *args, **kwargs):
-        return eqx.Module.__new__(cls)
-    
     def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
@@ -142,21 +116,40 @@ class Model(eqx.Module):
     def copy(self) -> 'Model':
         return deepcopy(self)
         
-    @cached_property
+    @property
     def structure(self) -> Any:
         return jax.tree.structure(self)
+       
+    @property
+    def nested_submodels(self) -> list['Model']:
+        return nodes_by_type(self, Model)[1:]
     
-    @cached_property
-    def filter_function(self) -> Callable[[Any], bool]:
-        return eqx.is_inexact_array    
+    @property
+    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
+        return nodes_by_type_with_path(self, Model)[1:]
     
-    @cached_property
-    def shared_spec(self) -> PyTree:
-        filter_fn = self.filter_function
-        return jax.tree.map(lambda node: filter_fn(node), self)        
+    @property
+    def num_nested_submodels(self) -> int:
+        return len(self.nested_submodels)    
     
-    @cached_property
+    @property
+    def submodels(self) -> list['Model']:
+        return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
+    
+    @property
+    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
+        return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
+    
+    @property
+    def num_submodels(self):
+        return len(self.submodels)
+    
+    @property
     def param_spec(self) -> PyTree:
+        return jax.tree.map(lambda node: True if is_param(node) else False, self, is_leaf=lambda node: is_param(node))
+    
+    @property
+    def core_param_spec(self) -> PyTree:
         # We create a spec that has False for derived and True for non-derived parameters.
         # A parameter is derived if any of its parent dataclasses have 'derived' set to True in its field metadata.
         path_is_derived = {}
@@ -179,41 +172,51 @@ class Model(eqx.Module):
             else:
                 return False
         
-        def is_core(path, node):
-            return node and not path_is_derived[path]
-        
-        return jax.tree.map_with_path(is_core, self.shared_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
-    
-    @cached_property
-    def nested_submodels(self) -> list['Model']:
-        return nodes_by_type(self, Model)[1:]
-    
-    @cached_property
-    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
-        return nodes_by_type_with_path(self, Model)[1:]
-    
-    @cached_property
-    def num_nested_submodels(self) -> int:
-        return len(self.nested_submodels)    
-    
-    @cached_property
-    def submodels(self) -> list['Model']:
-        return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
-    
-    @cached_property
-    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
-        return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
-    
-    @cached_property
-    def num_submodels(self):
-        return len(self.submodels)
-    
-    @cached_property
-    def param_names_tree(self):
-        params, static = partition(self, self.param_spec, self.shared_spec)
-        params = param_names_tree(params, self._separator)
-        return combine(params, static)
+        return jax.tree.map_with_path(lambda path, node: node and not path_is_derived[path], self.param_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
 
+    @property
+    def free_param_spec(self) -> PyTree:
+        def is_free_param(path, is_param, node):
+            if not is_param:
+                return False
+            return not node.fixed
+        
+        return jax.tree.map_with_path(is_free_param, self.core_param_spec, self)
+    
+    @property
+    def core_params_tree(self) -> Any:
+        return eqx.filter(self, self.core_param_spec)
+    
+    @property
+    def params(self) -> Dict[str, Parameter]:
+        paths_and_params = jax.tree.leaves_with_path(self.core_params_tree, is_leaf=lambda p: is_param(p) and not p.value is None)
+
+        parameters = {}
+        for path, param in paths_and_params:
+            param_name = self._path_to_param_name(path, param)
+            parameters[param_name] = param
+        return parameters
+    
+    @property
+    def param_set(self) -> ParameterSet:
+        flat_params, _ = jax.tree.flatten(self.core_params_tree, is_leaf=lambda p: is_param(p) and not p.value is None)
+        param_names = self.param_names
+        for i, name in enumerate(param_names):
+            flat_params[i] = dataclasses.replace(flat_params[i], long_name=name)
+        return ParameterSet(flat_params)    
+    
+    @property
+    def params_array(self) -> np.ndarray:
+        flat_params, _ = jax.tree.flatten(self.param_tree)
+        if not flat_params:
+            return np.array([]) # Return empty array if no params
+        
+        return np.concatenate([p.ravel() for p in flat_params])
+    
+    @property
+    def param_names(self) -> list[str]:
+        return list(self.params.keys())    
+        
     def submodel_param_names(self, submodel_name: str | list[str]):
         submodel_names = submodel_name if isinstance(submodel_name, list) else [submodel_name]
         param_names_tree = self.param_names_tree
@@ -223,36 +226,16 @@ class Model(eqx.Module):
             return node if in_submodel else None
 
         names_unordered = list(dict.fromkeys(jax.tree.flatten(jax.tree.map_with_path(none_if_not_in_submodel, param_names_tree))[0]))
-        return [name for name in self.param_names if name in names_unordered]
-
-    @cached_property
-    def params(self) -> Dict[str, Any]:
-        param_tree = eqx.filter(self, self.param_spec)
-        return params_dict(param_tree, separator=self._separator, param_aliases=self.aliases)
+        return [name for name in self.param_names if name in names_unordered]    
     
-    @cached_property
-    def params_array(self) -> np.ndarray:
-        param_tree = eqx.filter(self, self.param_spec)
-        return params_array(param_tree)
-    
-    @cached_property
-    def param_names(self) -> list[str]:
-        return list(self.params.keys())
-    
-    @cached_property
-    def param_names_tree(self) -> PyTree:
-        shared, _ = eqx.partition(self, self.shared_spec)
-        core, ref = dealias(shared, self.param_spec)
-        core_names = param_names_tree(core, self._separator)
-        ref_names = restore(ref, core_names)
-        is_leaf = lambda node: node is None or isinstance(node, str) or isinstance(node, list)
-        return jax.tree.map(lambda x, y: x or y, ref_names, core_names, is_leaf=is_leaf)    
+    def _path_to_param_name(self, path, param: Parameter) -> str | list[str]:
+        return self._separator.join(key.name for key in path if isinstance(key, GetAttrKey))
         
-    @cached_property
+    @property
     def primary_function(self) -> Callable[[Frequency], np.ndarray]:
         return getattr(self, self.primary_property)
             
-    @cached_property
+    @property
     def primary_property(self) -> str:
         prioritized = self._priority
         unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in self._priority)
@@ -271,11 +254,11 @@ class Model(eqx.Module):
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
     
-    @cached_property
+    @property
     def _has_a(self) -> bool:
         return is_overridden(type(self), Model, 'a')
     
-    @cached_property
+    @property
     def _has_s(self) -> bool:
         return is_overridden(type(self), Model, 's')    
     
@@ -337,7 +320,10 @@ class Model(eqx.Module):
                 break
             
         if not found:
+            # try:
             return super().__getattr__(name)
+            # except:
+            #     raise Exception(f"Failed trying to get attribute {name} for class type {type(self)}")
 
         param, suffix = name[0], name[2:]
         if suffix in FUNC_LOOKUP:
@@ -378,17 +364,83 @@ class Model(eqx.Module):
         terminated_model = Cascade((self, load))
         return terminated_model
     
+    def partitioned(self) -> tuple['Model', 'Model']:
+        return partition(self, self.core_param_spec, self.param_spec)
+    
     def with_params(
         self,
-        flat_params: np.ndarray = None,
-        **params: Any
+        params: ParameterSet | dict | np.ndarray | None = None,
+        **param_kwargs: Any
     ) -> "Model":
-        param_tree, static = partition(self, self.param_spec, self.shared_spec)
-        if not flat_params is None:
-            param_tree = with_params_from_array(param_tree, params=flat_params)
+        if isinstance(params, ParameterSet):
+            return self._with_params_from_set(params=params)
+        if not params is None and isinstance(params, np.ndarray):
+            return self._with_params_from_array(params=params)
         else:
-            param_tree = with_params_from_dict(param_tree, separator=self._separator, param_aliases=self.aliases, **params)
+            params = params if params is not None else {}
+            return self._with_params_from_dict(params=params, **param_kwargs)
+
+    def _with_params_from_set(
+        self,
+        params: ParameterSet,
+    ) -> 'Model':
+        param_tree, static = partition(self, self.core_param_spec, self.param_spec)
+        flat_params, treedef = jax.tree.flatten(param_tree, is_leaf=lambda p: is_param(p) and not p.value is None)
+        
+        if len(params) != len(flat_params):
+            raise Exception('Currently the full parameter set must be passed when initializing parameters')
+        
+        param_tree = jax.tree.unflatten(treedef, params)
         return combine(param_tree, static)
+        
+    def _with_params_from_dict(
+        self,
+        params: dict,
+        **param_kwargs: Any
+    ) -> 'Model':
+        # First, generate an ordered, input flat params array
+        new_params = self.params
+        new_params.update(params)
+        new_flat_params = list(new_params.values())        
+        
+        # Then, get the current flate parameters
+        params_tree, static = partition(self, self.core_param_spec, self.param_spec)
+        flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=lambda p: isinstance(p, Parameter) and not p.value is None)
+        
+        # We allow the caller to pass None for name and then we update the name. Otherwise names should match
+        for i, param in enumerate(flat_params):
+            if new_flat_params[i].name == None:
+                new_flat_params[i] = dataclasses.replace(new_flat_params[i], name=param.name)
+        
+        # Finally create the update tree and return
+        new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
+        return combine(new_params_tree, static)        
+    
+    def _with_params_from_array(
+        self,
+        params: np.ndarray,
+    ) -> 'Model':
+        param_tree, static = partition(self, self.core_param_spec, self.param_spec)
+        flat_leaves, treedef = jax.tree.flatten(param_tree)
+        num_expected_params = sum(p.size for p in flat_leaves)
+        
+        # Ensure input is a JAX array for consistency
+        params = np.asarray(params)
+
+        if params.size != num_expected_params:
+            raise ValueError(f"Input `flat_params` has size {params.size}, "
+                                f"but model requires {num_expected_params}.")
+
+        # Unflatten the leaves into a PyTree with the original structure.
+        leaves = []
+        offset = 0
+        for leaf in flat_leaves:
+            end = offset + leaf.size
+            leaves.append(params[offset:end].reshape(leaf.shape))
+            offset = end
+
+        new_tree = jax.tree.unflatten(treedef, leaves)
+        return combine(new_tree, static)
 
     def to_skrf(self, freq: skrf.Frequency, **kwargs) -> skrf.Network:
         f, fname = self.primary_function, self.primary_property
@@ -410,69 +462,31 @@ def is_overridden(cls, baseclass, method_name):
             break
     return result
 
-def get_underlying_type(tp: type) -> type | None:
+def is_instance_of_annotated_type(instance, annotated_type) -> bool:
+    origin = get_origin(annotated_type)
+    args = get_args(annotated_type)
+
+    if origin is UnionType:
+        # Union or Optional
+        return any(is_instance_of_annotated_type(instance, arg) for arg in args)
+
+    elif origin is not None:
+        # Handles e.g. Annotated[T, ...], Literal[T], etc.
+        return is_instance_of_annotated_type(instance, args[0])
+
+    else:
+        return isinstance(instance, annotated_type)
+
+def get_first_underlying_type(tp: type) -> type | None:
     # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
+    if isinstance(tp, UnionType):
+        return get_first_underlying_type(tp.__args__[0])
     if isinstance(tp, (type,)) and not isinstance(tp, (GenericAlias, UnionType)):
         return tp
-
-    if isinstance(tp, UnionType):
-        return None
 
     origin = get_origin(tp)
     if origin is None:
         return None
     if origin is Union:
         return None
-
-    # Recursively call to handle nested generics like list[list[int]]
-    return get_underlying_type(origin)
-
-# def model_check(model: Model) -> None:
-#     all_nodes = {}
-#     dynamic, _ = partition(model)
-#     _model_check(model, all_nodes, dynamic)
-
-# _leaf_treedef = jax.tree.structure(0)
-# def _model_check(node, all_nodes: dict):
-#     subnodes, treedef = eqx.tree_flatten_one_level(node)
-
-#     # We allow duplicate leaves, empty containers
-#     if treedef == _leaf_treedef or treedef.num_leaves == 0:
-#         return
-
-#     try:
-#         self_referential, type_string = all_nodes[id(node)]
-#     except KeyError:
-#         pass
-#     else:
-#         if self_referential:
-#             raise ValueError(
-#                 f"Model node with value {node} is self-referential; that is "
-#                 "to say it appears somewhere within its own PyTree structure. This "
-#                 "is not allowed."
-#             )
-#         else:
-#             model_type = list(all_nodes.values())[0][1]
-#             if isinstance(node, Model):
-#                 raise ValueError(
-#                     f"Sub-model with name '{node.name}' appears in model '{model_type}' multiple times. "
-#                     "If you would like to use multiple instances of a sub-model type in your model, explicitly create it each time."
-#                     "Otherwise, if you do want to share a sub-model across your model, create it with `shared=True`, "
-#                     "or pass `sharing=True` as an inheritance parameter in your model class declaration."
-#                 )
-#             else:
-#                 raise ValueError(
-#                     f"Model field with value {node} appears in the Model '{model_type}'"
-#                     "multiple times. This is almost always an error, as these nodes "
-#                     "will turn into two duplicate copies after "
-#                     "flattening/unflattening, e.g. when crossing a JIT boundary."
-#                 )
-#     try:
-#         type_string = type(node).__name__
-#     except AttributeError:
-#         # AttributeError: in case we cannot get __name__ for some weird reason.
-#         type_string = "<unknown type>"
-#     all_nodes[id(node)] = (True, type_string)
-#     for subnode in subnodes:
-#         _model_check(subnode, all_nodes)
-#     all_nodes[id(node)] = (False, type_string)
+    return get_first_underlying_type(origin)

@@ -1,7 +1,7 @@
 import skrf as rf
 
 from models.lines import PhysicalCoaxial
-from pmrf.parameters import norm, uniform, fixed
+from pmrf.parameters import Normal, Uniform, Fixed
 from pmrf.fitting import ScipyFitter, OptaxFitter
 from pmrf.fitting import Feature
 
@@ -10,12 +10,12 @@ model = PhysicalCoaxial()
 
 wa, wb = 0.8, 1.2
 params = {
-    'din': uniform(1.12e-3*wa, 1.12e-3*wb),
-    'dout': uniform(3.2e-3*wa, 3.2e-3*wb),
-    'length': uniform(10*wa, 10*wb),
-    'epr': uniform(1.45*wa, 1.45*wb),
-    'tand': uniform(0.0, 0.1),
-    'rho': uniform(1.6e-8*wa, 1.6e-8*wb),
+    'din': Uniform(1.12e-3*wa, 1.12e-3*wb),
+    'dout': Uniform(3.2e-3*wa, 3.2e-3*wb),
+    'length': Uniform(10*wa, 10*wb),
+    'epr': Uniform(1.45*wa, 1.45*wb),
+    'tand': Uniform(0.0, 0.1),
+    'rho': Uniform(1.6e-8*wa, 1.6e-8*wb),
 }
 
 measured = rf.Network('examples/data/10m_cable.s2p', f_unit='MHz')

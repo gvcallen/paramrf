@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict
 import re
 
 import pmrf.numpy as np
-from pmrf._misc import update_dict_with_alias
 from numpy import ndindex
 import jax
 from jax.tree_util import SequenceKey, DictKey, GetAttrKey
@@ -19,130 +18,6 @@ from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
 AxisSpec = bool | Callable[[Any], bool]
 
-def path_to_param_name(
-    path,
-    leaf,
-    subtree_separator: str,
-    array_separator: str,
-    index_separator: str,
-) -> str | list[str]:
-    path_str = subtree_separator.join(key.name for key in path if isinstance(key, GetAttrKey))
-
-    param_names = None
-    if np.isscalar(leaf):
-        param_names = path_str
-    else:
-        # For array parameters, create an entry for each scalar element
-        param_names = []
-        for index in ndindex(leaf.shape):
-            index_str = index_separator.join(map(str, index))
-            param_names.append(f"{path_str}{array_separator}{index_str}")
-
-    return param_names
-
-def params_array(
-    tree: Any,
-) -> jax.Array:
-    flat_leaves, _ = jax.tree.flatten(tree)
-    if not flat_leaves:
-        return np.array([]) # Return empty array if no params
-    
-    return np.concatenate([p.ravel() for p in flat_leaves])
-
-def params_dict(
-    tree: Any,
-    separator: str | None = '_',
-    subtree_separator: str | None = None,
-    array_separator: str | None = None,
-    index_separator: str | None = None,
-    param_aliases: dict[str, str] | list[str] | None = None,
-) -> Dict[str, Any]:
-    subtree_separator: str = subtree_separator if subtree_separator is not None else separator
-    array_separator: str = array_separator if array_separator is not None else separator
-    index_separator: str = index_separator if index_separator is not None else separator
-    
-    paths_and_leaves = jax.tree.leaves_with_path(tree)
-
-    parameters = {}
-    for path, leaf in paths_and_leaves:
-        param_name = path_to_param_name(path, leaf, subtree_separator, array_separator, index_separator)
-
-        if np.isscalar(leaf):
-            parameters[param_name] = leaf
-        else:
-            for name, index in zip(param_name, ndindex(leaf.shape)):
-                parameters[name] = leaf[index]
-
-    if not param_aliases is None:
-        if isinstance(param_aliases, list):
-            parameters = dict(zip(param_aliases, parameters.values()))
-        else:
-            raise Exception("Dict parameter aliases not yet supported")
-
-    return parameters
-
-def param_names_tree(
-    tree: Any,
-    separator: str | None = '_',
-    subtree_separator: str | None = None,
-    array_separator: str | None = None,
-    index_separator: str | None = None,
-) -> Any:
-    subtree_separator: str = subtree_separator if subtree_separator is not None else separator
-    array_separator: str = array_separator if array_separator is not None else separator
-    index_separator: str = index_separator if index_separator is not None else separator
-    
-    paths_and_leaves, treedef = jax.tree.flatten_with_path(tree)
-    param_names = []
-    for path, leaf in paths_and_leaves:
-        param_name = path_to_param_name(path, leaf, subtree_separator, array_separator, index_separator)
-        param_names.append(param_name)
-
-    return jax.tree.unflatten(treedef, param_names)
-    
-def with_params_from_array(
-    tree: Any,
-    params: jax.Array | None = None,
-) -> Any:
-    flat_leaves, treedef = jax.tree.flatten(tree)
-    num_expected_params = sum(p.size for p in flat_leaves)
-    
-    # Ensure input is a JAX array for consistency
-    params = np.asarray(params)
-
-    if params.size != num_expected_params:
-        raise ValueError(f"Input `flat_params` has size {params.size}, "
-                            f"but model requires {num_expected_params}.")
-
-    # Unflatten the leaves into a PyTree with the original structure.
-    leaves = []
-    offset = 0
-    for leaf in flat_leaves:
-        end = offset + leaf.size
-        leaves.append(params[offset:end].reshape(leaf.shape))
-        offset = end
-
-    new_tree = jax.tree.unflatten(treedef, leaves)
-    return new_tree
-
-def with_params_from_dict(
-    tree: Any,
-    separator: str | None = '_',
-    subtree_separator: str | None = None,
-    array_separator: str | None = None,
-    index_separator: str | None = None,
-    param_aliases: dict[str, str] | list[str] | None = None,
-    **params: Any
-) -> Any:
-    prev_params = params_dict(tree, separator=separator, subtree_separator=subtree_separator, array_separator=array_separator, index_separator=index_separator)
-    
-    if not param_aliases is None:
-        if isinstance(param_aliases, list):
-            param_aliases = {original: alias for original, alias in zip(prev_params.keys(), param_aliases)}
-        update_dict_with_alias(prev_params, params, param_aliases)
-    else:
-        prev_params.update(params)
-    return with_params_from_array(tree, list(prev_params.values()))
 
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
@@ -329,8 +204,8 @@ class RefNode:
     def __init__(self, path):
         self.path = path
     def __repr__(self):
-        return f"RefNode({self.path})"        
-        
+        return f"RefNode({self.path})"
+    
 def dealias(
     tree: PyTree,
     core_spec: PyTree[AxisSpec],
@@ -370,6 +245,7 @@ def partition(
 
     first, second = eqx.partition(pytree, shared_spec, replace=replace, is_leaf=is_leaf)
     first_core, first_ref = dealias(first, filter_spec, is_leaf)
+    
     return first_core, eqx.combine(first_ref, second)
 
 def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:

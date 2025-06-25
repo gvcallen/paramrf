@@ -19,7 +19,7 @@ class NonIdealResistor(Model):
         raise Exception("Base classes must specify the form of the parasitics")
 
 class CLCResistor(NonIdealResistor):
-    cascaded: Model = field(derived=True)    
+    cascaded: Model = field(derived=True)
     res: Resistor = Resistor()
     clc: PiCLC = PiCLC()
 

@@ -2,6 +2,7 @@ from typing import Callable
 from skrf.constants import INF, LOG_OF_NEG, NumberLike
 
 import pmrf.numpy as np
+import pmrf.scipy as scipy
 from pmrf.numpy import USE_JAX, imag, pi, real, unwrap
 from pmrf._misc import NumberLike
 USE_JAX = True
@@ -837,7 +838,13 @@ def multiply_every(x: np.ndarray, n: int, axis=None) -> np.ndarray:
 
     return x
 
-def convolve_interleaved(x, axis=None) -> np.ndarray:
+def L1(x, axis=1) -> np.ndarray:
+    return np.linalg.norm(x, ord=1)
+
+def L2(x, axis=1) -> np.ndarray:
+    return np.linalg.norm(x, ord=2)
+
+def convolve_interleaved(x, axis=1) -> np.ndarray:
     if axis == 1:
         if len(x.shape) == 1:
             y1, y2 = x[0::2], x[1::2]
@@ -847,10 +854,16 @@ def convolve_interleaved(x, axis=None) -> np.ndarray:
     else:
         raise Exception("Not yet implemented")
 
-    return x    
+    return x
+
+def rms(x):
+    return np.sqrt(np.mean(x**2))
 
 def mag_2_db(x):
     return 20 * np.log10(np.abs(x))
+
+def dB20(x):
+    return mag_2_db(x)
 
 def db_2_mag(x):
     return 10 ** (x / 20)
@@ -862,9 +875,6 @@ def polar_2_rect(radii, angles, deg=False):
 
 def rect_2_polar(x, deg=False):
     return abs(x), np.angle(x, deg=deg)
-
-def rms(values):
-    return np.sqrt(np.mean(values**2))
 
 def round_sig(x, sig=3):
     if x == 0:

@@ -1,6 +1,7 @@
 import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
+from pmrf.parameters import Parameter
 
 class Load(Model):
     nports: int = 1
@@ -44,7 +45,7 @@ class Open(Load):
         return 1.0
   
 class Capacitor(Model):
-    C: float = 1.0
+    C: Parameter = 1.0
     
     def __post_init__(self):
         self.name = 'capacitor'
@@ -67,7 +68,7 @@ class Capacitor(Model):
         return s
                 
 class Inductor(Model):
-    L: float = 1.0
+    L: Parameter = 1.0
     
     def __post_init__(self):
         self.name = 'capacitor'
@@ -93,7 +94,7 @@ class Inductor(Model):
         return s         
 
 class Resistor(Model):
-    R: float = 1.0
+    R: Parameter = 1.0
     
     def __post_init__(self):
         self.name = 'resistor'

@@ -2,6 +2,11 @@ from pmrf._frequency import (
     Frequency as Frequency,
 )
 
+from pmrf.parameters import (
+    Parameter as Parameter,
+    ParameterSet as ParameterSet
+)
+
 from pmrf._model import (
     Model as Model,
 )

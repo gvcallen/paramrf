@@ -1,13 +1,14 @@
 import pmrf.numpy as np
 from pmrf._frequency import Frequency
+from pmrf.parameters import Parameter
 from pmrf._model import Model
 
 import jax
 
 class PiCLC(Model):
-    C1: float = 1.0e-12
-    L: float = 1.0e-9
-    C2: float = 1.0e-12
+    C1: Parameter = 1.0e-12
+    L: Parameter = 1.0e-9
+    C2: Parameter = 1.0e-12
 
     def a(self, freq: Frequency) -> np.ndarray:
         return jax.lax.cond(

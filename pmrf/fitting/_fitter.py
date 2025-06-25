@@ -12,11 +12,13 @@ import optax
 import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf.parameters import Parameter, fixed
+from pmrf.parameters import Parameter, ParameterSet, Fixed
 from pmrf.numpy import USE_JAX
 from pmrf.functions import mag_2_db, convolve_interleaved
 
-def extract_features(features, source: Model | list[skrf.Network], freq: Frequency = None) -> np.ndarray:
+def extract_features(source: Model | skrf.Network | list[skrf.Network], features, freq: Frequency = None) -> np.ndarray:
+    if isinstance(source, skrf.Network):
+        source = [source]
     if freq is None:
         if isinstance(source, Model):
             raise Exception("Frequency must be passed when extracting features from a model")
@@ -24,7 +26,7 @@ def extract_features(features, source: Model | list[skrf.Network], freq: Frequen
 
     n_frequencies = len(freq)
     n_features = len(features)
-
+    
     X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
     for d, feature in enumerate(features):
         prop = feature[0]
@@ -33,16 +35,14 @@ def extract_features(features, source: Model | list[skrf.Network], freq: Frequen
         
         if isinstance(source, Model):
             x = getattr(source, prop)(freq)[:,m,n]
-        elif isinstance(source, skrf.Network):
-            x = getattr(source, prop)[:,m,n]
-        elif isinstance(source, list):
+        else: # isinstance(source, list[Network])
             p = 0
             for ntwk in source:
                 nports = ntwk.nports
                 if m >= p + nports:
                     p += nports
                     continue
-                x = ntwk.s[:, m-p, n-p]
+                x = getattr(ntwk, prop)[:,m,n]
             if x is None:
                 raise Exception('Error: port of out bounds')
             
@@ -57,7 +57,6 @@ class BaseFitter(ABC):
         self,
         model: Model,
         measured: skrf.Network | list[skrf.Network],
-        params: dict[str, Parameter] | None = None,
         frequency: skrf.Frequency | None = None,
         features: list[str] | list[tuple[str, tuple]] = ['s'],
     ) -> None:
@@ -68,9 +67,7 @@ class BaseFitter(ABC):
             measured (skrf.Network | list[skrf.Network]):               The measured networks to fit against. If a list is passed, 
                                                                         the networks are viewed as being part of a large, stacked N-port network.
                                                                         If a measurement is not available, an empty network can be passed.
-            params (dict[str, Parameter] | None, optional):             Initial parameters for the fit, with names in `model.param_names`.
-                                                                        Defaults to `None`, in which case the parameter initialization is fitter-specific.
-            frequency (skrf.Frequency | None, optional):                The frequency to fit against. Defaults to `None`, in which case
+            frequency (skrf.Frequency | None, optional):                The frequency to fit at. Defaults to `None`, in which case
                                                                         the measured frequencies are used (which must be equal).
             features (list[str] | list[tuple[str, tuple]], optional):   The features to extract from the models and networks for cost functions, likelihoods etc.
                                                                         Each string is a function or property of the model or network respectively
@@ -103,32 +100,24 @@ class BaseFitter(ABC):
                     p += 1
         features = features_new
         
-        # Initialize parameters. We make sure to go in the order of model_params so "flat parameter" optimizers can just use `fit_params`
-        model_params = model.params
-        user_params = params
-        fit_params = {}
-        for name, value in model_params.items():
-            fit_params[name] = user_params[name] if name in user_params else fixed(value)
-
+        # Initialize model parameters from user and store in flat array
         self.model: Model = model
         self.measured: list[skrf.Network] = measured
         self.model_frequency = Frequency.from_skrf(measured_freq)
         self.measured_frequency = measured_freq
-        self.params: dict[str, Parameter] = fit_params
         self.features = features
-        self.measured_features = extract_features(features, measured)
+        self.measured_features = extract_features(measured, features)
 
     def model_features(self):
-        return extract_features(self.features, self.model, self.model_frequency)
+        return extract_features(self.model, self.features, self.model_frequency)
 
-    def feature_residuals(self):
-        return self.measured_features - self.model_features()
-        
-    @property
-    def bounds(self) -> tuple[np.ndarray, np.ndarray]:
-        lower = np.array([v.lower for v in self.params.values()])
-        upper = np.array([v.upper for v in self.params.values()])
-        return lower, upper
+    def residuals(self):
+        model_features = self.model_features()
+        return self.measured_features - model_features
+    
+    def update(self, free_params: np.ndarray):
+        self.free_params.update(free_params)
+        self.model = self.model.with_params(self.free_params.to_dict(scaled=True))
     
     @abstractmethod
     def run(self, *args, **kwargs):
@@ -139,52 +128,46 @@ class FrequentistFitter(BaseFitter):
         self,
         model: Model,
         measured: skrf.Network | list[skrf.Network],
-        params: dict[str, Parameter] | None = None,
         frequency: skrf.Frequency | None = None,
         features: list[str] | list[tuple[str, tuple]] = ['s'],
         cost: list[Callable[[np.ndarray], np.ndarray]] | eqx.Module = None,
         *args, **kwargs
     ) -> None:
-        super().__init__(model=model, measured=measured, params=params, frequency=frequency, features=features, *args, **kwargs)
+        super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
         
         if cost is None:
-            L2 = partial(np.linalg.norm, ord=2, axis=1)
-            cost = [L2, partial(convolve_interleaved, axis=1), L2, mag_2_db]
+            L2 = partial(np.linalg.norm, ord=2, axis=0)
+            cost = [L2]
+            # cost = [L2, partial(convolve_interleaved, axis=1), L2, mag_2_db]
 
         self.cost_fn = eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
 
     def cost(self) -> np.ndarray:
-        return self.cost_fn(self.feature_residuals())
-    
-    # @property
-    # def param_cost_function(self) -> Callable[[np.ndarray], float]:
-    #     def cost_fn(theta):
-    #         model = self.model.with_flat_params(theta)
-    #         return self.cost(model)
-    #     return cost_fn
-    
-    # def model_cost_function(self) -> Callable[[Model], float]:
-    #     # TODO update this to filter the parameters based on the 'fixed' flag
-    #     def cost_fn(model):
-    #         return self.cost(model)
-    #     return cost_fn
-
+        residuals = self.residuals()
+        return self.cost_fn(residuals)[0]
 
 class ScipyFitter(FrequentistFitter):
     def run(self, *args, **kwargs):
         # Populate bounds and options
-        x0 = np.array(self.params.values())
-        minimums, maximums = self.bounds
-        bounds = scipy.optimize.Bounds(minimums, maximums)
+        # import numpy as nnp
+        x0 = np.array(self.free_params.values())
+        # minimums, maximums = [nnp.array(self.free_params.lowers()), nnp.array(self.free_params.uppers())]
+        # bounds = scipy.optimize.Bounds(minimums, maximums)
 
         # Generate the cost function
         def cost_fn(theta):
-            self.model = self.model.with_params(theta)
+            self.update(theta)
             return self.cost()
-        cost_fn = jax.jit(cost_fn)
-
-        # Run the minization routine
-        return scipy.optimize.minimize(cost_fn, x0, bounds=bounds, *args, **kwargs)
+        cost_fn_jax = jax.jit(cost_fn)
+        
+        from jax.scipy.optimize import minimize
+        return minimize(cost_fn_jax, x0, method="BFGS")
+        # def cost_fn_scipy(theta):
+        #     cost_val = nnp.array(cost_fn_jax(np.array(theta, dtype=np.float64)), dtype=nnp.float64)
+        #     return cost_val
+        
+        # # Run the minization routine
+        # return scipy.optimize.minimize(cost_fn_scipy, x0, bounds=bounds, *args, **kwargs)
 
 
 # class OptaxFitter(FrequentistFitter):

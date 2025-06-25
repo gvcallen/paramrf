@@ -5,6 +5,7 @@ from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf._frequency import Frequency
+from pmrf.parameters import Parameter
 from pmrf._model import Model
 from pmrf._misc import field
 
@@ -16,9 +17,9 @@ class RLGCLine(Model):
     A method is provided to calculate the ABCD matrix as a function frequency, which internally calls `self.rlgc(w)`.
 
     Args:
-        length (float): The length of the line.
+        length (Parameter): The length of the line.
     """    
-    length: float = 1.0
+    length: Parameter = 1.0
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple:
@@ -57,10 +58,10 @@ class ConstantRLGCLine(RLGCLine):
         G (float): Per-unit conductance.
         length (float, optional): The length of the line. Default to 1.0.
     """
-    R: float = 0.0
-    L: float = 280e-9
-    G: float = 0.0
-    C: float = 90e-12,
+    R: Parameter = 0.0
+    L: Parameter = 280e-9
+    G: Parameter = 0.0
+    C: Parameter = 90e-12,
 
     def rlgc(self, _: Frequency) -> tuple:
         return self.R, self.L, self.G, self.C
@@ -82,14 +83,14 @@ class DatasheetCoaxial(RLGCLine):
         loss_coeffs_normalized (bool, optional): Generally, loss coefficients `k1` and `k2` are in terms of datasheet units (100m and MHz). If True, units should instead be dB/1m/sqrt(rad) and dB/1m/rad. Defaults to False.
         freq_bounds (tuple, optional): The min and max normalizing bounds for the frequency slope. Defaults to None, in which case the minimum and maximum bounds of the frequency are used.
     """
-    zn: float = 50.0
-    epr: float = 1.0
-    epr_slope: float | None = None
-    k1: float = 0.0
-    k2: float = 0.0
+    zn: Parameter = 50.0
+    epr: Parameter = 1.0
+    epr_slope: Parameter | None = None
+    k1: Parameter = 0.0
+    k2: Parameter = 0.0
 
     loss_coeffs_normalized: bool = False
-    freq_bounds: tuple = None
+    freq_bounds: tuple | None = None
 
     def rlgc(self, freq: Frequency):
         w = freq.w
@@ -133,19 +134,21 @@ class PhysicalCoaxial(RLGCLine):
     In this case, for some models, the parameter may be a list of coefficients as opposed to a single value. Currently, the following models are provided:
 
     * **'constant'** (default): The parameter is represented by a single value across frequency.
-    * **'ppoly'**: The parameter coefficients specify a frequency-dependent polynomial in the power basis. Either the number of coefficients, or the argument '{param}_order', sets the order.
-    * **'bpoly'**: The parameter coefficients specify a frequency-dependent polynomial in the Bernstein basis. Either the number of coefficients, or the argument '{param}_order', sets the order.
+    * **'ppoly'**:  The parameter coefficients specify a frequency-dependent polynomial in the power basis.
+                    Either the number of coefficients, or the argument '{param}_order' passed to **kwargs, sets the order.
+    * **'bpoly'**:  The parameter coefficients specify a frequency-dependent polynomial in the Bernstein basis.
+                    Either the number of coefficients, or the argument '{param}_order' passed to **kwargs, sets the order.
 
     Args:
-        din (float, optional): Inner diameter. Defaults to 1.12e-3.
-        dout (float, optional): Outer diameter. Defaults to 3.2e-3.
-        epr (float | Vector, optional): Relative dielectric permittivity. Can be a list of coefficients, whose meaning is specified by `epr_model`. Defaults to 1.0.
-        mur (float | Vector, optional): Relative dielectric permeability. Can be a list of coefficients, whose meaning is specified by `mur_model`. Defaults to 1.0.
-        tand (float | Vector, optional): Loss tangent. Can be a list of coefficients, whose meaning is specified by `tand_model`. Defaults to 0.0.
-        rho (float | Vector, optional): Conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Is ignored if `separate_rho == True` is passed, in which case `rhoin` and `rhoout` are used. Defaults to 1.68e-8.
-        rhoin (float | Vector, optional): Inner conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        rhoout (float | Vector, optional): Outer conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        length (float, optional): The length of the line. Default to 1.0.
+        din (Parameter, optional): Inner diameter. Defaults to 1.12e-3.
+        dout (Parameter, optional): Outer diameter. Defaults to 3.2e-3.
+        epr (Parameter | Vector, optional): Relative dielectric permittivity. Can be a list of coefficients, whose meaning is specified by `epr_model`. Defaults to 1.0.
+        mur (Parameter | Vector, optional): Relative dielectric permeability. Can be a list of coefficients, whose meaning is specified by `mur_model`. Defaults to 1.0.
+        tand (Parameter | Vector, optional): Loss tangent. Can be a list of coefficients, whose meaning is specified by `tand_model`. Defaults to 0.0.
+        rho (Parameter | Vector, optional): Conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Is ignored if `separate_rho == True` is passed, in which case `rhoin` and `rhoout` are used. Defaults to 1.68e-8.
+        rhoin (Parameter | Vector, optional): Inner conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
+        rhoout (Parameter | Vector, optional): Outer conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
+        length (Parameter, optional): The length of the line. Default to 1.0.
         epr_model (str, optional): The model for the dielectric permittivity. See the documentation on frequency models above. Defaults to 'constant'.
         mur_model (str, optional): The model for the dielectric permeability. See the documentation on frequency models above. Defaults to 'constant'.
         tand_model (str, optional): The model for the loss tangent. See the documentation on frequency models above. Defaults to 'constant'.
@@ -154,13 +157,12 @@ class PhysicalCoaxial(RLGCLine):
         separate_rho (bool, optional): Whether or not the conductor resistivity should be modelled as seprate values for the inner and outer conductors. Defaults to False.
         neglect_skin_inductance (bool, optional): Specifies whether to neglect the incremental skin inductance term internally. Defaults to False.
     """
-    # Main parameters. TODO Support for array parameter coefficients
-    din: float = 1.12e-3
-    dout: float = 3.2e-3
-    epr: float | np.ndarray = 1.0
-    mur: float | np.ndarray = 1.0
-    tand: float | np.ndarray = 0.0
-    rho: float | np.ndarray = 1.68e-8    
+    din: Parameter = 1.12e-3
+    dout: Parameter = 3.2e-3
+    epr: Parameter = 1.0
+    mur: Parameter = 1.0
+    tand: Parameter = 0.0
+    rho: Parameter = 1.68e-8    
     
     # Optional parameters
     # rhoin: float | Vector = 1.68e-8
@@ -168,32 +170,30 @@ class PhysicalCoaxial(RLGCLine):
 
     # Hyperparameters
     epr_model: str = 'constant'
-    epr_order: int | None = None
     mur_model: str = 'constant'
-    mur_order: int | None = None
     tand_model: str = 'constant'
-    tand_order: int | None = None
     rho_model: str = 'constant'
-    rho_order: int | None = None
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
 
-    def __post_init__(self):
+    def __init__(self, **kwargs):
         poly_params = ['epr', 'mur', 'tand', 'rho']
         # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:
             model = getattr(self, f'{param}_model')
             if model != 'constant':
-                default_value = getattr(self, param)
-                order = int(getattr(self, f'{param}_order') or 1)
-                setattr(self, f'{param}_order', order)
-                if model == 'bpoly':
-                    coeffs = [default_value] * (order+1)
-                elif model == 'ppoly':
-                    coeffs = [default_value] + [0.0]*order
-                else:
-                    raise Exception(f"Unknown frequency model for parameter {param}")
-                setattr(self, param, np.asarray(coeffs))
+                current = getattr(self, param)
+                order = kwargs.pop(f'{param}_order', 1)
+                # Set the coefficients if the user has not already
+                if isinstance(current, float):
+                    order = 1
+                    if model == 'bpoly':
+                        coeffs = [current] * (order+1)
+                    elif model == 'ppoly':
+                        coeffs = [current] + [0.0]*order
+                    else:
+                        raise Exception(f"Unknown frequency model for parameter {param}")
+                    setattr(self, param, coeffs)
 
 
     def interpolated(self, param: str, freq: Frequency):
@@ -207,7 +207,7 @@ class PhysicalCoaxial(RLGCLine):
             value = getattr(self, param) * np.ones(w.shape[0])
         else:
             coeffs = getattr(self, param)
-            lb, ub = w[0], w[-1]
+            # lb, ub = w[0], w[-1]
             if model.startswith('ppoly'):
                 value = evaluate_power_basis(w, coeffs, w[0], w[-1])
             else:
