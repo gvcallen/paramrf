@@ -71,28 +71,34 @@ class Parameter(eqx.Module):
                 self.dist = [None] * len(self.value)
     
     @property
-    def min_unscaled(self) -> float | None:
+    def min(self) -> float:
         """The unscaled minimum value of the parameter's distribution (0.01 quantile).
 
         Returns:
-            float | None: The minimum value, or None if no distribution is set.
+            float | None: The minimum value, or -np.inf if no distribution is set.
         """
         if self.dist is not None:
-            return self.ppf_unscaled(0.01)
-        return None
+            if self.dist.dist.name == "uniform":
+                return self.dist.args[0]
+            else:
+                return self.ppf(0.01)
+        return -np.inf
     
     @property
-    def max_unscaled(self) -> float | None:
+    def max(self) -> float:
         """The unscaled maximum value of the parameter's distribution (0.99 quantile).
 
         Returns:
-            float | None: The maximum value, or None if no distribution is set.
+            float: The maximum value, or np.inf if no distribution is set.
         """
         if self.dist is not None:
-            return self.ppf_unscaled(0.99)
-        return None
+            if self.dist.dist.name == "uniform":
+                return self.dist.args[0] + self.dist.args[1]
+            else:
+                return self.ppf(0.99)
+        return np.inf
     
-    def ppf_unscaled(self, q) -> float:
+    def ppf(self, q) -> float:
         """The unscaled percent point function (inverse CDF) of the distribution.
 
         Args:
@@ -102,6 +108,18 @@ class Parameter(eqx.Module):
             float: The value at the specified quantile.
         """
         return self.dist.ppf(q)
+    
+    def ravel(self):
+        """Flattens self, either returning a single Parameter
+        if the internal parameter is scalar, or a list.
+        
+        Returns:
+            'Parameter' | list['Parameter']: The raveled parameters.
+        """
+        if np.isscalar(self.value):
+            return self
+        else:
+            return [Parameter(value=val, dist=dst, fixed=self.fixed, scale=self.scale, name=f"{self.name}_{i}") for i, (val, dst) in enumerate(zip(self.value, self.dist))]
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):
@@ -137,52 +155,7 @@ class Parameter(eqx.Module):
         return np.multiply(np.array(other), np.array(self))
     
     def __rtruediv__(self, other):
-        return np.divide(np.array(other), np.array(self))
-
-class ParameterSet:
-    """A container class for managing a sequence of `Parameter` objects."""
-    def __init__(self, parameters: list[Parameter] | None = None):
-        self._parameters = parameters if parameters is not None else []
-        
-    def __len__(self):
-        return len(self._parameters)
-    
-    def __iter__(self):
-        return iter(self._parameters)      
-        
-    def append(self, parameter: Parameter):
-        """Appends a Parameter to the set.
-
-        Args:
-            parameter (Parameter): The parameter to add.
-        """
-        self._parameters.append(parameter)
-        
-    def values_unscaled(self) -> list:
-        """Gets the unscaled values of all parameters in the set.
-
-        Returns:
-            list: A list of the unscaled parameter values.
-        """
-        # param.value is unscaled
-        return [param.value for param in self._parameters]
-    
-    def minimums_unscaled(self) -> list:
-        """Gets the unscaled minimums of all parameters in the set.
-
-        Returns:
-            list: A list of the unscaled parameter minimums.
-        """
-        return [param.min_unscaled for param in self._parameters]
-    
-    def maximums_unscaled(self) -> list:
-        """Gets the unscaled maximums of all parameters in the set.
-
-        Returns:
-            list: A list of the unscaled parameter maximums.
-        """
-        return [param.max_unscaled for param in self._parameters]    
-    
+        return np.divide(np.array(other), np.array(self))  
     
 def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` with a uniform distribution.
@@ -262,6 +235,18 @@ def is_param(x) -> bool:
         bool: `True` if the object is a Parameter, `False` otherwise.
     """
     return isinstance(x, Parameter)
+
+def is_valid_param(x) -> bool:
+    """Checks if an object is an instance of a `Parameter`,
+    and if its value is not None.
+
+    Args:
+        x: The object to check.
+
+    Returns:
+        bool: `True` if the object is a valid Parameter, `False` otherwise.
+    """
+    return isinstance(x, Parameter) and x.value is not None
 
 def is_free_param(x) -> bool:
     """Checks if an object is a non-fixed `Parameter`.

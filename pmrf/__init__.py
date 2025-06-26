@@ -15,7 +15,6 @@ from pmrf._frequency import (
 
 from pmrf.parameters import (
     Parameter as Parameter,
-    ParameterSet as ParameterSet
 )
 
 from pmrf._model import (

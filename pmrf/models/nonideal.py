@@ -75,7 +75,6 @@ class CLCResistor(NonIdealResistor):
     print(f"S11 at 10 GHz: {s[freq.center_idx, 0, 0]:.2f}")
     ```
     """
-    cascaded: Model = field(derived=True)
     res: Resistor = Resistor()
     clc: PiCLC = PiCLC()
 
@@ -97,10 +96,6 @@ class CLCResistor(NonIdealResistor):
         """
         return self.clc
     
-    def __post_init__(self):
-        # The physical model is a cascade of the parasitics and the ideal resistor
-        self.cascaded = self.clc ** self.res
-        
     def a(self, freq: Frequency) -> np.ndarray:
         """Calculates the ABCD-matrix of the complete non-ideal resistor model.
 
@@ -110,4 +105,5 @@ class CLCResistor(NonIdealResistor):
         Returns:
             np.ndarray: The resultant ABCD-matrix.
         """
-        return self.cascaded.a(freq)
+        cascaded = self.clc ** self.res
+        return cascaded.a(freq)

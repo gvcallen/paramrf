@@ -2,8 +2,8 @@ from functools import partial
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
 
-import scipy.optimize
 import skrf
+import scipy.optimize
 import scipy
 import jax
 import equinox as eqx
@@ -12,7 +12,6 @@ import optax
 import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf.parameters import Parameter, ParameterSet, Fixed
 from pmrf.numpy import USE_JAX
 from pmrf.functions import mag_2_db, convolve_interleaved
 
