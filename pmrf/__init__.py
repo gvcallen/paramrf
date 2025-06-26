@@ -1,3 +1,14 @@
+from pmrf._misc import (
+    field,
+)
+
+from pmrf._tree import (
+    partition,
+    combine,
+    restore,
+    dealias
+)
+
 from pmrf._frequency import (
     Frequency as Frequency,
 )
@@ -9,18 +20,6 @@ from pmrf.parameters import (
 
 from pmrf._model import (
     Model as Model,
-)
-
-
-from pmrf._misc import (
-    field,
-)
-
-from pmrf._tree import (
-    partition,
-    combine,
-    restore,
-    dealias
 )
 
 from importlib.metadata import version as _version, PackageNotFoundError

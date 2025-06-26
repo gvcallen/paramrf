@@ -2,19 +2,22 @@ from functools import cached_property, partial
 from copy import deepcopy
 from typing import Callable, get_origin, get_args, Union, TypeVar
 import inspect
+import dataclasses
 from dataclasses import dataclass, fields, is_dataclass
 from types import GenericAlias, UnionType
 
 import skrf as skrf
-import pmrf.numpy as np
-from pmrf.numpy import USE_JAX
-if USE_JAX:
-    import jax
-    import equinox as eqx
-    from jaxtyping import PyTree
-    from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
+# import pmrf.numpy as np
+# from pmrf.numpy import USE_JAX
+# if USE_JAX:
+import jax.numpy as np
+import jax
+import equinox as eqx
+from jaxtyping import PyTree
+from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 
-import pmrf.functions.math as mf
+# import pmrf.functions.math as mf
+# from pmrf.functions.math import complex_2_db, complex_2_db10
 from pmrf.functions.parameters import a2s, s2a
 from pmrf._frequency import Frequency
 from pmrf.parameters import Parameter, is_param, asparam
@@ -26,15 +29,15 @@ FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
     're': ('Real Part', np.real),
     'im': ('Imag Part', np.imag),
     'mag': ('Magnitude', np.abs),
-    'db': ('Magnitude (dB)', mf.complex_2_db),
-    'db10': ('Magnitude (dB)', mf.complex_2_db10),
+    # 'db': ('Magnitude (dB)', complex_2_db),
+    # 'db10': ('Magnitude (dB)', complex_2_db10),
     'rad': ('Phase (rad)', np.angle),
     'deg': ('Phase (deg)', lambda x: np.angle(x, deg=True)),
-    'arcl': ('Arc Length',lambda x: np.angle(x) * np.abs(x)),
-    'rad_unwrap': ('Phase (rad)', lambda x: mf.unwrap_rad(np.angle(x))),
-    'deg_unwrap': ('Phase (deg)', lambda x: mf.radian_2_degree(mf.unwrap_rad(np.angle(x)))),
-    'arcl_unwrap': ('Arc Length', lambda x: mf.unwrap_rad(np.angle(x)) * np.abs(x)),
-    'vswr': ('VSWR', lambda x: (1 + abs(x)) / (1 - abs(x))),
+    # 'arcl': ('Arc Length',lambda x: np.angle(x) * np.abs(x)),
+    # 'rad_unwrap': ('Phase (rad)', lambda x: mf.unwrap_rad(np.angle(x))),
+    # 'deg_unwrap': ('Phase (deg)', lambda x: mf.radian_2_degree(mf.unwrap_rad(np.angle(x)))),
+    # 'arcl_unwrap': ('Arc Length', lambda x: mf.unwrap_rad(np.angle(x)) * np.abs(x)),
+    # 'vswr': ('VSWR', lambda x: (1 + abs(x)) / (1 - abs(x))),
     # 'time': ('Time (real)', mf.ifft),
     # 'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
     # 'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
@@ -643,7 +646,7 @@ class Model(eqx.Module):
         params = eqx.filter(self, filter_spec)
         return jax.flatten_util.ravel_pytree(params)[0]
     
-    def to_skrf(self, freq: pmrf.Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
+    def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
         
         The internal primary property in `self.primary_property` is used for the conversion.
