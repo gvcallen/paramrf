@@ -204,19 +204,30 @@ class RefNode:
     def __init__(self, path):
         self.path = path
     def __repr__(self):
-        return f"RefNode({self.path})"
+        return f"RefNode({tuple(self.path)})"
     
 def dealias(
     tree: PyTree,
     core_spec: PyTree[AxisSpec],
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
-    core, alias = eqx.partition(tree, core_spec)
+    core, alias = eqx.partition(tree, core_spec, is_leaf=is_leaf)
     
     base_ids = jax.tree.map(lambda node: id(node), core, is_leaf=is_leaf)
     paths, ids = zip(*jax.tree.leaves_with_path(base_ids))
     id_to_path = dict(zip(ids, paths))
-    ref = jax.tree.map(lambda node: RefNode(id_to_path[id(node)]), alias, is_leaf=is_leaf)
+    
+    def node_to_path(node):
+        node_id = id(node)
+        
+        # If we find no aliases in the core, we simply return the node.
+        # This was previously an error, however the function spec
+        # is actually that we only dealias a node if it is *in* the core spec at all
+        # (i.e. it can have aliases in the non-core spec)
+        if not node_id in id_to_path:
+            return node
+        return RefNode(id_to_path[node_id])
+    ref = jax.tree.map(node_to_path, alias, is_leaf=is_leaf)
     
     return core, ref
     
@@ -249,7 +260,7 @@ def partition(
     return first_core, eqx.combine(first_ref, second)
 
 def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
-    combined = eqx.combine(*pytrees)
+    combined = eqx.combine(*pytrees, is_leaf=is_leaf)
     from pmrf import _tree
     if restore:
         combined = _tree.restore(combined, is_leaf=is_leaf)

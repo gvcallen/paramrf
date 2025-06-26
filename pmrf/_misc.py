@@ -23,7 +23,7 @@ def update_dict_with_alias(original: dict, updates: dict, alias_map: dict) -> No
                     original[key] = updates[aliased_key]
                 break
         # if no prefix matched, keep the original value
-    
+        
 def field(
     *,
     derived: bool = False,

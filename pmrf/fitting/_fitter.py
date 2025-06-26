@@ -40,7 +40,8 @@ def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], feat
         x = None
         
         if isinstance(source, Model):
-            x = getattr(source, prop)(freq)[:,m,n]
+            xfn = getattr(source, prop)
+            x = xfn(freq)[:,m,n]
         else: # isinstance(source, list[Network])
             p = 0
             for ntwk in source:

@@ -10,11 +10,16 @@ class Parameter(eqx.Module):
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
     value: np.ndarray = field(converter=lambda x: np.asarray(x, dtype=np.float64))
-    dist: rv_continuous | list[rv_continuous] | None = field(default=None)
+    dist: rv_continuous | None | list[rv_continuous | None] = field(default=None)
     fixed: bool = field(default=False)
-    scale: np.ndarray = field(default=1.0, converter=np.asarray)
+    scale: float = field(default=1.0)
     # TODO add bounds?
     name: str | None = field(default=None, static=True)
+    
+    def __post_init__(self):
+        if self.dist is None:
+            if not np.isscalar(self.value):
+                self.dist = [None] * len(self.value)
     
     @property
     def min_unscaled(self) -> float | None:
@@ -101,21 +106,23 @@ class ParameterSet:
     #         self.parameters[i].value = value
     
     
-def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, **kwargs) -> 'Parameter':
+def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     if isinstance(min, Sequence):
         dists = [scipy.stats.distributions.uniform(mini, maxi-mini) for mini, maxi in zip(min, max)]
         values = [(maxi + mini) / 2.0 for mini, maxi in zip(min, max)]
         return Parameter(value=values, dist=dists, **kwargs)
     else:
-        return _make_n((max + min) / 2.0, dist=scipy.stats.distributions.uniform(min, max-min), n=n, **kwargs)
+        value = value if not value is None else (max + min) / 2.0
+        return _make_n(value, dist=scipy.stats.distributions.uniform(min, max-min), n=n, **kwargs)
 
-def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, **kwargs) -> 'Parameter':
-    if isinstance(min, Sequence):
+def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
+    if isinstance(mean, Sequence):
         dists = [scipy.stats.distributions.norm(meani, stdi) for meani, stdi in zip(mean, std)]
         values = [meani for meani in mean]
         return Parameter(value=values, dist=dists, **kwargs)
     else:
-        return _make_n(mean, dist=scipy.stats.distributions.norm(mean, std), n=n, **kwargs)
+        value = value or mean
+        return _make_n(value, dist=scipy.stats.distributions.norm(mean, std), n=n, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     return _make_n(value=value, fixed=True, n=n, **kwargs)

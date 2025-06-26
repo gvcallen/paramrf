@@ -104,8 +104,8 @@ class Renumbered(Model):
         return self.renumber(self.model.s(x)) 
     
 class Flipped(Renumbered):
-    to_ports: str = field(init=False)
-    from_ports: str = field(init=False)
+    to_ports: list = field(init=False)
+    from_ports: list = field(init=False)
 
     def __post_init__(self):
         self.name = 'flipped'
@@ -123,15 +123,22 @@ class Stacked(Model):
     
     def __post_init__(self):
         self.name = 'stacked'
-    
+        
     def s(self, freq: Frequency) -> np.ndarray:
-        nports = self.number_of_ports
+        num_ports = 0
+        for model in self.models:
+            num_ports += model.nports
 
-        s = np.zeros((freq.npoints, nports, nports), dtype=np.complex128)
+        s = np.zeros((freq.npoints, num_ports, num_ports), dtype=np.complex128)
         i = 0
-        for submodel in self.submodels:
+        for submodel in self.models:
             s_sub = submodel.s(freq)
-            for m, n in submodel.port_tuples:
-                s = s.at[:,i+m,i+n].set(s_sub[m,n])
-            i += submodel.nports**2
+            n_sub = submodel.nports
+            
+            # Should be equivalent
+            s = s.at[:,i:i+n_sub,i:i+n_sub].set(s_sub[:,0:n_sub,0:n_sub])
+            # for m, n in submodel.port_tuples:
+            #     s = s.at[:,i+m,i+n].set(s_sub[m,n])
+            
+            i += n_sub**2
         return s

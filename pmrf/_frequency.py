@@ -47,10 +47,10 @@ class Frequency(eqx.Module):
     def __init__(self, *args, frequency=None, **kwargs) -> None:
         """The main frequency initializer.
         
-        Arguments are forward to the initializer for `skrf.Frequency`. To initialize directly from `skrf`, use `from_skrf(..)`.
+        Arguments are forward to the initializer for `skrf.Frequency`.
         """
         if len(args) != 0 and isinstance(args[0], skrf.Frequency):
-            raise Exception("Pass frequency using the 'frequency' key-word argument")
+            frequency = args[0]
         
         frequency = frequency or skrf.Frequency(*args, **kwargs)
         self._unit = frequency._unit
@@ -59,6 +59,10 @@ class Frequency(eqx.Module):
     @staticmethod
     def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
         return Frequency(frequency=skrf_frequency)
+    
+    def to_skrf(self) -> skrf.Frequency:
+        import numpy as np
+        return skrf.Frequency.from_f(np.array(self._f), self._unit)
 
     def __len__(self) -> int:
         """

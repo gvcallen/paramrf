@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 import pmrf.numpy as np
 from scipy.constants import c, mu_0, epsilon_0
+from dataclasses import fields
 
 from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf._frequency import Frequency
@@ -177,16 +178,19 @@ class PhysicalCoaxial(RLGCLine):
     neglect_skin_inductance: bool = False
 
     def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            if k in {f.name for f in fields(self)}:
+                setattr(self, k, v)
+        
         poly_params = ['epr', 'mur', 'tand', 'rho']
         # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:
             model = getattr(self, f'{param}_model')
             if model != 'constant':
-                current = getattr(self, param)
+                current = np.array(getattr(self, param))
                 order = kwargs.pop(f'{param}_order', 1)
                 # Set the coefficients if the user has not already
-                if isinstance(current, float):
-                    order = 1
+                if np.isscalar(current):
                     if model == 'bpoly':
                         coeffs = [current] * (order+1)
                     elif model == 'ppoly':
