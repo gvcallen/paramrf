@@ -59,9 +59,8 @@ class PiCLC(Model):
         # during JAX transformations if L becomes zero.
         return jax.lax.cond(
             self.L == 0.0,
-            self.a_zero_inductance,
-            self.a_general,
-            freq, # operand passed to both branches
+            lambda: self.a_zero_inductance(freq),
+            lambda: self.a_general(freq),
         )
 
     def a_general(self, freq: Frequency):
