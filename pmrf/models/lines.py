@@ -18,8 +18,8 @@ class RLGCLine(Model):
     RLGC (Resistance, Inductance, G, Conductance) parameters.
 
     This class provides the fundamental equations to calculate the ABCD-matrix
-    of a transmission line given its propagation constant ($\gamma$) and
-    characteristic impedance ($Z_c$), which are derived from the RLGC values.
+    of a transmission line given its propagation constant (gamma) and
+    characteristic impedance (Z_c), which are derived from the RLGC values.
 
     Derived classes must implement the `rlgc` method, which defines how the
     four distributed parameters (R, L, G, C) behave as a function of frequency.
@@ -152,8 +152,8 @@ class DatasheetCoaxial(RLGCLine):
     k1: Parameter = 0.0
     k2: Parameter = 0.0
 
-    loss_coeffs_normalized: bool = field(default=False, static=True)
-    freq_bounds: tuple | None = field(default=None, static=True)
+    loss_coeffs_normalized: bool = False
+    freq_bounds: tuple | None = None
 
     def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Calculates RLGC parameters from datasheet values.
@@ -250,7 +250,7 @@ class PhysicalCoaxial(RLGCLine):
     tand_model: str = 'constant'
     rho_model: str = 'constant'
     separate_rho: bool = False
-    neglect_skin_inductance: False
+    neglect_skin_inductance: bool = False
 
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -302,19 +302,19 @@ class PhysicalCoaxial(RLGCLine):
         return value
             
     def epr_f(self, freq: Frequency) -> np.ndarray:
-        """The relative permittivity ($\epsilon_r$) as a function of frequency."""
+        """The relative permittivity (epsilon_r) as a function of frequency."""
         return self.interpolated('epr', freq)
     
     def tand_f(self, freq: Frequency) -> np.ndarray:
-        """The loss tangent (tan$\delta$) as a function of frequency."""
+        """The loss tangent (tan_delta) as a function of frequency."""
         return self.interpolated('tand', freq)
     
     def mur_f(self, freq: Frequency) -> np.ndarray:
-        """The relative permeability ($\mu_r$) as a function of frequency."""
+        """The relative permeability (mu_r) as a function of frequency."""
         return self.interpolated('mur', freq)
     
     def rho_f(self, freq: Frequency) -> np.ndarray:
-        """The conductor resistivity ($\rho$) as a function of frequency."""
+        """The conductor resistivity (rho) as a function of frequency."""
         return self.interpolated('rho', freq)
     
     def rhoin_f(self, freq: Frequency) -> np.ndarray:
@@ -326,11 +326,11 @@ class PhysicalCoaxial(RLGCLine):
         return self.interpolated('rhoout', freq) if self.separate_rho else self.rho_f(freq)
     
     def eps_f(self, freq: Frequency) -> np.ndarray:
-        """The complex permittivity ($\epsilon$) as a function of frequency."""
+        """The complex permittivity (epsilon) as a function of frequency."""
         return epsilon_0 * self.epr_f(freq) * (1 - 1j * self.tand_f(freq))
     
     def mu_f(self, freq: Frequency) -> np.ndarray:
-        """The complex permeability ($\mu$) as a function of frequency."""
+        """The complex permeability (mu) as a function of frequency."""
         return mu_0 * self.mur_f(freq)
     
     def L_prime(self, freq: Frequency) -> np.ndarray:

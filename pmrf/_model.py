@@ -169,7 +169,7 @@ class Model(eqx.Module):
                     
             # Allow auto-conversion of Parameter-annotated structures
             field_type = _get_first_underlying_type(field_types)
-            if issubclass(field_type, Parameter):
+            if field_type is not None and issubclass(field_type, Parameter):
                 default = getattr(cls, field_name, None)
                 if default is not None:
                     param = asparam(default, name=field_name)

@@ -20,7 +20,7 @@ class Load(Model):
 
     @property
     def gamma(self) -> float | np.ndarray:
-        """The complex reflection coefficient ($\Gamma$) of the load."""
+        """The complex reflection coefficient (Gamma) of the load."""
         raise NotImplementedError("Subclasses of Load must implement the 'gamma' property.")
 
     def s(self, freq: Frequency) -> np.ndarray:
