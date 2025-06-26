@@ -198,6 +198,25 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
     else:
         value = value or mean
         return _make_n(value, dist=scipy.stats.distributions.norm(mean, std), n=n, **kwargs)
+    
+def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
+    """Creates a `Parameter` with a normal (Gaussian) distribution and a percentage standard deviation.
+
+    Args:
+        mean (float | Sequence[float]): The mean of the distribution. Can be a sequence for a multi-valued Parameter.
+        perc (float | Sequence[float]): The percentage width to initialize the standard deviation with (e.g. `5.0` for `std = 0.025*mean`). Can be a sequence for a multi-valued Parameter.
+        **kwargs: Additional keyword arguments passed to the `Normal` factory function.
+
+    Returns:
+        Parameter: The created Parameter object.
+    """
+    if isinstance(perc, Sequence):
+        std = []
+        for i, p in enumerate(perc):
+            std.append(p * mean[i] / 200.0)
+    else:
+        std = perc * mean / 200.0
+    return Normal(mean=mean, std=std, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` that is marked as fixed.

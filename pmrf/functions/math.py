@@ -841,11 +841,11 @@ def multiply_every(x: np.ndarray, n: int, axis=None) -> np.ndarray:
 
     return x
 
-def L1(x, axis=1) -> np.ndarray:
-    return np.linalg.norm(x, ord=1)
+def L1(x, axis=0) -> np.ndarray:
+    return np.linalg.norm(x, axis=axis, ord=1)
 
-def L2(x, axis=1) -> np.ndarray:
-    return np.linalg.norm(x, ord=2)
+def L2(x, axis=0) -> np.ndarray:
+    return np.linalg.norm(x, axis=axis, ord=2)
 
 def convolve_interleaved(x, axis=1) -> np.ndarray:
     if axis == 1:

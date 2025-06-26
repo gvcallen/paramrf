@@ -1,6 +1,6 @@
 from functools import partial
 from abc import ABC, abstractmethod
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Union
 
 import skrf
 import scipy.optimize
@@ -9,54 +9,13 @@ import jax
 import equinox as eqx
 import optax
 
+import pmrf as prf
 import pmrf.numpy as np
+from pmrf.fitting._features import extract_features
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf.numpy import USE_JAX
 from pmrf.functions import mag_2_db, convolve_interleaved
-
-def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], features, freq: Frequency = None) -> np.ndarray:
-    if isinstance(source, skrf.Network):
-        freq = source.frequency
-        source = [source]
-    elif isinstance(source, Sequence) and isinstance(source[0], skrf.Network):
-        freq = source[0].frequency
-    elif isinstance(source, Model):
-        if freq is None:
-            raise Exception("Frequency must be passed when extracting features from a model")
-        if isinstance(freq, skrf.Frequency):
-            freq = Frequency.from_skrf(freq)
-    else:
-        raise TypeError("Invalid type to extract_features")
-
-    n_frequencies = len(freq)
-    n_features = len(features)
-    
-    X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
-    for d, feature in enumerate(features):
-        prop = feature[0]
-        m, n = feature[1]
-        x = None
-        
-        if isinstance(source, Model):
-            xfn = getattr(source, prop)
-            x = xfn(freq)[:,m,n]
-        else: # isinstance(source, list[Network])
-            p = 0
-            for ntwk in source:
-                nports = ntwk.nports
-                if m >= p + nports:
-                    p += nports
-                    continue
-                x = getattr(ntwk, prop)[:,m,n]
-            if x is None:
-                raise Exception('Error: port of out bounds')
-            
-        if USE_JAX:
-            X = X.at[:, d].set(x)
-        else:
-            X[:, d] = x
-    return X
 
 class BaseFitter(ABC):
     def __init__(

@@ -520,18 +520,34 @@ class Model(eqx.Module):
         Returns:
             PyTree: The resultant filter tree.
         """                 
-        return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self.free_value_spec, is_leaf=lambda node: is_valid_param(node))        
+        return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self.free_value_spec, is_leaf=lambda node: is_valid_param(node))       
     
-    def partitioned(self, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:
+    @classmethod
+    def from_combined(params: 'Model', static: 'Model') -> 'Model':
+        """Returns the combine model retreiving previously from partitioning.
+        
+        This is equivalent to `pmrf.combine(..)` but is perhaps a friendlier API.
+        See `model.partition(..)` for more information.
+        
+        Args:
+            params ('Model'): The dynamic part of the model.
+            static ('Model'): The static part of the model.
+
+        Returns:
+            'Model': The combined, full model.
+        """
+        return combine(params, static)  
+    
+    def partition(self, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:
         """Returns the model partitioned into parameters and a static part.
         
         This is useful for use with `jax` or `Equinox`, or for inspecting the model
         and its parameters.
         
         Note that, to combine the model again (e.g. after changing the parameters),
-        note that `pmrf.combine(..)` and not `eqx.combiner(...)` should be used,
-        since `pmrf` implements and extention the partitioning step that allows
-        parameters to be referenced more than once, and then de-referenced on combining.
+        note that either `Model.from_combined(..)` or `pmrf.combine(..)` should be used,
+        as opposed to `eqx.combiner(...)` . This is due to the fact that `pmrf` implements
+        an extention the partitioning step that allows parameters to be referenced more than once.
 
         Args:
             include_fixed (bool, optional): Whether or not to include fixed parameters in the first part. Defaults to `False`.
