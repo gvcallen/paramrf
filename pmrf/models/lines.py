@@ -245,31 +245,26 @@ class PhysicalCoaxial(RLGCLine):
     tand: Parameter = 0.0
     rho: Parameter = 1.68e-8
     
-    epr_model: str = field(default='constant', static=True)
-    mur_model: str = field(default='constant', static=True)
-    tand_model: str = field(default='constant', static=True)
-    rho_model: str = field(default='constant', static=True)
-    separate_rho: bool = field(default=False, static=True)
-    neglect_skin_inductance: bool = field(default=False, static=True)
+    epr_model: str = 'constant'
+    mur_model: str = 'constant'
+    tand_model: str = 'constant'
+    rho_model: str = 'constant'
+    separate_rho: bool = False
+    neglect_skin_inductance: False
 
     def __init__(self, **kwargs):
-        # This custom initializer allows setting polynomial orders via kwargs
-        # like `epr_order=1`, and correctly initializes coefficient arrays if needed.
-        init_fields = {f.name for f in fields(self)}
-        
-        # Separate kwargs for fields vs other options
-        field_kwargs = {k: v for k, v in kwargs.items() if k in init_fields}
-        order_kwargs = {k: v for k, v in kwargs.items() if k not in init_fields}
-
-        super().__init__(**field_kwargs)
+        for k, v in kwargs.items():
+            if k in {f.name for f in fields(self)}:
+                setattr(self, k, v)
         
         poly_params = ['epr', 'mur', 'tand', 'rho']
+        # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:
             model = getattr(self, f'{param}_model')
             if model != 'constant':
                 current = np.array(getattr(self, param))
-                order = order_kwargs.get(f'{param}_order', 1)
-                
+                order = kwargs.pop(f'{param}_order', 1)
+                # Set the coefficients if the user has not already
                 if np.isscalar(current):
                     if model == 'bpoly':
                         coeffs = [current] * (order+1)
@@ -277,8 +272,7 @@ class PhysicalCoaxial(RLGCLine):
                         coeffs = [current] + [0.0]*order
                     else:
                         raise Exception(f"Unknown frequency model for parameter {param}")
-                    # Use object.__setattr__ to modify the frozen dataclass field
-                    object.__setattr__(self, param, coeffs)
+                    setattr(self, param, coeffs)
 
     def interpolated(self, param: str, freq: Frequency) -> np.ndarray:
         """Evaluates a potentially frequency-dependent parameter.
@@ -365,20 +359,20 @@ class PhysicalCoaxial(RLGCLine):
         """The per-unit-length internal inductance due to skin effect."""
         return np.imag(self.Z_skin(freq)) / freq.w
     
-    def Z_skin(self, freq: Frequency) -> np.ndarray:
+    def Z_skin(self, freq: Frequency):
         """The per-unit-length internal impedance due to skin effect."""
-        w = freq.w
-        a = self.din / 2
-        b = self.dout / 2
-        mu = self.mu_f(freq)
-        sigma_a = 1 / self.rhoin_f(freq)
-        sigma_b = 1 / self.rhoout_f(freq)
+        w, a, b, mu = freq.w, self.din / 2, self.dout / 2, self.mu_f(freq)
+        sigma_a, sigma_b = 1 / self.rhoin_f(freq), 1 / self.rhoout_f(freq)
         
-        # Using the simplified formula for Z_surface
-        Z_s_a = (1 + 1j) / (sigma_a * (np.sqrt(2 / (w * mu * sigma_a))))
-        Z_s_b = (1 + 1j) / (sigma_b * (np.sqrt(2 / (w * mu * sigma_b))))
-
-        return (1 / (2*np.pi)) * ((Z_s_a / a) + (Z_s_b / b))
+        L_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(mu / (2 * w * sigma_a))
+        L_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(mu / (2 * w * sigma_b))
+        L_skin = L_skin_a + L_skin_b
+                
+        R_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(w * mu / (2 * sigma_a))
+        R_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(w * mu / (2 * sigma_b))
+        R_skin = R_skin_a + R_skin_b            
+        
+        return R_skin + 1j * w * L_skin
 
     def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Calculates RLGC parameters from physical and material properties.

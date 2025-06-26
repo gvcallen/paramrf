@@ -70,7 +70,7 @@ class Cascade(Model):
             else:
                 model_reduced.append(model)
 
-        object.__setattr__(self, 'models', tuple(model_reduced))
+        self.models = tuple(model_reduced)
 
     @property
     def first_model(self) -> Model:
@@ -128,20 +128,14 @@ class Cascade(Model):
             a = a @ model.a(freq)
         
         # Terminated last in s11
-        s11_load = self.last_model.s(freq)[:,0,0]
-        z0 = self.first_model.z0
+        s11 = self.last_model.s(freq)[:,0,0]
+        z0 = self.first_model._z0
         
         A, B, C, D = a[:,0,0], a[:,0,1], a[:,1,0], a[:,1,1]
-        
-        # Convert load reflection coefficient to impedance
-        zl = z0 * (1 + s11_load) / (1 - s11_load)
-        
-        # Calculate input impedance of the cascaded network
-        zin = (A * zl + B) / (C * zl + D)
-        
-        # Convert input impedance back to reflection coefficient
-        s11_out = (zin - z0) / (zin + z0)
-        return s11_out.reshape(-1, 1, 1)      
+        num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)
+        den = z0 * (1 + s11) * (A + z0*C) + (B + D*z0)*(1-s11)
+        s11_out = num / den        
+        return s11_out.reshape(-1, 1, 1) 
     
 class Renumbered(Model):
     """
@@ -223,20 +217,20 @@ class Flipped(Renumbered):
     to_ports: tuple[int] = field(init=False)
     from_ports: tuple[int] = field(init=False)
 
-    def __init__(self, model: Model):
+    def __post_init__(self):
         """Initializes the Flipped model container.
 
         Args:
             model (Model): The model whose ports are to be flipped.
         """
-        if model.nports % 2 != 0:
+        if self.model.nports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         
-        n = int(model.nports / 2)
+        n = int(self.model.nports / 2)
         to_ports = tuple(range(0, 2 * n))
         from_ports = tuple(range(n, 2 * n)) + tuple(range(0, n))
 
-        super().__init__(model=model, to_ports=to_ports, from_ports=from_ports, name='flipped')
+        super().__init__(model=self.model, to_ports=to_ports, from_ports=from_ports, name='flipped')
         
 class Stacked(Model):
     """

@@ -1,7 +1,9 @@
 from abc import abstractmethod
 
 from pmrf.models.lumped import Resistor
+from pmrf.models.topological import PiCLC
 
+import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf._misc import field
@@ -97,7 +99,7 @@ class CLCResistor(NonIdealResistor):
     
     def __post_init__(self):
         # The physical model is a cascade of the parasitics and the ideal resistor
-        object.__setattr__(self, 'cascaded', self.clc ** self.res)
+        self.cascaded = self.clc ** self.res
         
     def a(self, freq: Frequency) -> np.ndarray:
         """Calculates the ABCD-matrix of the complete non-ideal resistor model.

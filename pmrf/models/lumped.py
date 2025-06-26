@@ -121,16 +121,15 @@ class Capacitor(Model):
         w = freq.w
         C = self.C
 
-        z0 = self.z0
-        Zc = 1 / (1j * w * C) # Impedance of the capacitor
+        z0_0 = z0_1 = self.z0
+        denom = 1.0 + 1j * w * C * (z0_0 + z0_1)
+        s11 = (1.0 - 1j * w * C * (z0_0.conj() - z0_1) ) / denom
+        s22 = (1.0 - 1j * w * C * (z0_1.conj() - z0_0) ) / denom
+        s12 = s21 = (2j * w * C * (z0_0.real * z0_1.real)**0.5) / denom
 
-        denom = 2*z0 + Zc
-        s11 = Zc / denom
-        s21 = (2 * z0) / denom
-        
         s = np.array([
-            [s11, s21],
-            [s21, s11]
+            [s11, s12],
+            [s21, s22]
         ]).transpose(2, 0, 1)
 
         return s
@@ -171,19 +170,20 @@ class Inductor(Model):
         """
         L = self.L
         w = freq.w
-        z0 = self.z0
-        Zl = 1j * w * L # Impedance of the inductor
 
-        denom = 2*z0 + Zl
-        s11 = Zl / denom
-        s21 = (2 * z0) / denom
+        z0_0 = z0_1 = self.z0
+        
+        denom = (1j * w * L) + (z0_0 + z0_1)
+        s11 = (1j * w * L - np.conj(z0_0) + z0_1) / denom
+        s22 = (1j * w * L + z0_0 - np.conj(z0_1)) / denom
+        s12 = s21 = 2 * (z0_0.real * z0_1.real)**0.5 / denom
 
         s = np.array([
-            [s11, s21],
-            [s21, s11]
+            [s11, s12],
+            [s21, s22]
         ]).transpose(2, 0, 1)
 
-        return s
+        return s   
 
 class Resistor(Model):
     """
@@ -220,16 +220,18 @@ class Resistor(Model):
             np.ndarray: The resultant 2x2 S-parameter matrix.
         """
         R = self.R
-        z0 = self.z0
+        z0_0 = z0_1 = self.z0
         ones = np.ones(freq.npoints, dtype=np.complex128)
 
-        denom = 2*z0 + R
-        s11 = (R / denom) * ones
-        s21 = ((2 * z0) / denom) * ones
+        denom = R + (z0_0 + z0_1)
+        s11 = ((R - np.conj(z0_0) + z0_1) / denom) * ones
+        s22 = ((R + z0_0 - np.conj(z0_1)) / denom) * ones
+        s12 = (2 * (z0_0.real * z0_1.real)**0.5 / denom) * ones
+        s21 = s12
 
         s = np.array([
-            [s11, s21],
-            [s21, s11]
+            [s11, s12],
+            [s21, s22]
         ]).transpose(2, 0, 1)
 
         return s
