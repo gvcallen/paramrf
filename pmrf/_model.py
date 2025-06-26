@@ -2,9 +2,8 @@ from functools import cached_property, partial
 from copy import deepcopy
 from typing import Callable, get_origin, get_args, Union, TypeVar
 import inspect
-import dataclasses, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from types import GenericAlias, UnionType
-from dataclasses import 
 
 import skrf as skrf
 import pmrf.numpy as np
@@ -36,9 +35,9 @@ FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
     'deg_unwrap': ('Phase (deg)', lambda x: mf.radian_2_degree(mf.unwrap_rad(np.angle(x)))),
     'arcl_unwrap': ('Arc Length', lambda x: mf.unwrap_rad(np.angle(x)) * np.abs(x)),
     'vswr': ('VSWR', lambda x: (1 + abs(x)) / (1 - abs(x))),
-    'time': ('Time (real)', mf.ifft),
-    'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
-    'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
+    # 'time': ('Time (real)', mf.ifft),
+    # 'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
+    # 'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
 }
 
 ModelT = TypeVar('ModelT', bound='Model')

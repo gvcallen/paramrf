@@ -36,18 +36,58 @@ MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
 class Frequency(eqx.Module):
     """
-    A frequency band.
+    **Overview**
 
-    This is a stripped-down version of the `skrf.Frequency` class, mainly designed
-    to be used alongside `jax` in `pmrf`.
+    Represents a frequency axis for **paramrf** models.
+
+    This class provides a container for a frequency band, defining the points
+    at which network parameters are evaluated. It is a simplified,
+    JAX-compatible version of the `skrf.Frequency` class, designed for use
+    within the **paramrf** ecosystem.
+
+    The primary purpose is to hold a vector of frequency points (`f`) and the
+    corresponding frequency unit (`unit`). It provides numerous properties
+    for accessing different representations of the frequency axis, such as
+    angular frequency (`w`) and scaled frequency (`f_scaled`).
+
+    **Example:**
+
+    Creating and using a `Frequency` object is straightforward.
+
+    ```python
+    import pmrf as prf
+    import skrf as rf
+
+    # Create a frequency axis from 1 to 2 GHz with 101 points
+    freq = prf.Frequency(start=1, stop=2, npoints=101, unit='ghz')
+
+    # Access properties like the frequency vector in Hz or radians/sec
+    print(f"Frequency points in Hz: {freq.f[:5]}...")
+    print(f"Angular frequency in rad/s: {freq.w[:5]}...")
+
+    # Convert to a scikit-rf Frequency object
+    skrf_freq = freq.to_skrf()
+    print(f"Type after conversion: {type(skrf_freq)}")
+
+    # Create from a scikit-rf Frequency object
+    freq_from_skrf = prf.Frequency.from_skrf(skrf_freq)
+    ```
     """
     _f: np.array
     _unit: str = field(static=True)
 
     def __init__(self, *args, frequency=None, **kwargs) -> None:
-        """The main frequency initializer.
-        
-        Arguments are forward to the initializer for `skrf.Frequency`.
+        """Initializes the Frequency object.
+
+        This initializer is a wrapper around the `skrf.Frequency` initializer.
+        Arguments are forwarded directly, allowing for flexible creation from
+        start/stop/npoints, a frequency vector, or an existing object.
+
+        Args:
+            *args: Positional arguments passed to `skrf.Frequency`.
+            frequency (skrf.Frequency, optional): An existing `skrf.Frequency`
+                object to use as the source. Defaults to None.
+            **kwargs: Keyword arguments passed to `skrf.Frequency`.
         """
         if len(args) != 0 and isinstance(args[0], skrf.Frequency):
             frequency = args[0]
@@ -58,16 +98,27 @@ class Frequency(eqx.Module):
         
     @staticmethod
     def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
+        """Creates a `pmrf.Frequency` from a `skrf.Frequency` object.
+
+        Args:
+            skrf_frequency (skrf.Frequency): The scikit-rf Frequency object.
+
+        Returns:
+            Frequency: The equivalent pmrf Frequency object.
+        """
         return Frequency(frequency=skrf_frequency)
     
     def to_skrf(self) -> skrf.Frequency:
+        """Converts this `pmrf.Frequency` object to a `skrf.Frequency` object.
+
+        Returns:
+            skrf.Frequency: The equivalent scikit-rf Frequency object.
+        """
         import numpy as np
         return skrf.Frequency.from_f(np.array(self._f), self._unit)
 
     def __len__(self) -> int:
-        """
-        The number of frequency points
-        """
+        """The number of frequency points."""
         return self.npoints
 
     def __add__(self, other: Frequency | NumberLike) -> Frequency:
@@ -112,79 +163,54 @@ class Frequency(eqx.Module):
 
     @property
     def start(self) -> float:
-        """
-        Starting frequency in Hz.
-        """
+        """The starting frequency in Hz."""
         return self.f[0]
 
     @property
     def start_scaled(self) -> float:
-        """
-        Starting frequency in :attr:`unit`'s.
-        """
+        """The starting frequency in the specified `unit`."""
         return self.f_scaled[0]
     @property
     def stop_scaled(self) -> float:
-        """
-        Stop frequency in :attr:`unit`'s.
-        """
+        """The stop frequency in the specified `unit`."""
         return self.f_scaled[-1]
 
     @property
     def stop(self) -> float:
-        """
-        Stop frequency in Hz.
-        """
+        """The stop frequency in Hz."""
         return self.f[-1]
 
     @property
     def npoints(self) -> int:
-        """
-        Number of points in the frequency.
-        """
+        """The number of points in the frequency axis."""
         return len(self.f)
 
     @property
     def center(self) -> float:
-        """
-        Center frequency in Hz.
+        """The center frequency in Hz.
 
-        Returns
-        -------
-        center : number
-            the exact center frequency in units of Hz
+        Returns:
+            float: The exact center frequency in Hz.
         """
         return self.start + (self.stop-self.start)/2.
 
     @property
     def center_idx(self) -> int:
-        """
-        Closes idx of :attr:`f` to the center frequency.
-        """
+        """The index of the frequency point closest to the center."""
         return self.npoints // 2
 
     @property
     def center_scaled(self) -> float:
-        """
-        Center frequency in :attr:`unit`'s.
+        """The center frequency in the specified `unit`.
 
-        Returns
-        -------
-        center : number
-            the exact center frequency in units of :attr:`unit`'s
+        Returns:
+            float: The exact center frequency in the specified `unit`.
         """
         return self.start_scaled + (self.stop_scaled-self.start_scaled)/2.
 
     @property
     def step(self) -> float:
-        """
-        The inter-frequency step size (in Hz) for evenly-spaced
-        frequency sweeps
-
-        See Also
-        --------
-        df : for general case
-        """
+        """The frequency step size in Hz for evenly spaced sweeps."""
         if self.span == 0:
             return 0.
         else:
@@ -192,14 +218,7 @@ class Frequency(eqx.Module):
 
     @property
     def step_scaled(self) -> float:
-        """
-        The inter-frequency step size (in :attr:`unit`) for evenly-spaced
-        frequency sweeps.
-
-        See Also
-        --------
-        df : for general case
-        """
+        """The frequency step size in the specified `unit` for evenly spaced sweeps."""
         if self.span_scaled == 0:
             return 0.
         else:
@@ -207,130 +226,67 @@ class Frequency(eqx.Module):
 
     @property
     def span(self) -> float:
-        """
-        The frequency span.
-        """
+        """The frequency span (stop - start) in Hz."""
         return abs(self.stop-self.start)
 
     @property
     def span_scaled(self) -> float:
-        """
-        The frequency span.
-        """
+        """The frequency span (stop - start) in the specified `unit`."""
         return abs(self.stop_scaled-self.start_scaled)
 
     @property
     def f(self) -> np.ndarray:
+        """The frequency vector in Hz.
+
+        Returns:
+            np.ndarray: The frequency vector in Hz.
         """
-        Frequency vector in Hz.
-
-        Returns
-        ----------
-        f : :class:`numpy.ndarray`
-            The frequency vector  in Hz
-
-        See Also
-        ----------
-        f_scaled : frequency vector in units of :attr:`unit`
-        w : angular frequency vector in rad/s
-        """
-
         return self._f
 
     @property
     def f_scaled(self) -> np.ndarray:
-        """
-        Frequency vector in units of :attr:`unit`.
+        """The frequency vector in the specified `unit`.
 
-        Returns
-        -------
-        f_scaled : numpy.ndarray
-            A frequency vector in units of :attr:`unit`
-
-        See Also
-        --------
-        f : frequency vector in Hz
-        w : frequency vector in rad/s
+        Returns:
+            np.ndarray: A frequency vector in the specified `unit`.
         """
         return self.f/self.multiplier
 
     @property
     def w(self) -> np.ndarray:
-        r"""
-        Angular frequency in radians/s.
+        r"""The angular frequency vector in radians/s.
 
-        Angular frequency is defined as :math:`\omega=2\pi f` [#]_
+        Angular frequency is defined as $\omega=2\pi f$.
 
-        Returns
-        -------
-        w : :class:`numpy.ndarray`
-            Angular frequency in rad/s
-
-        References
-        ----------
-        .. [#] https://en.wikipedia.org/wiki/Angular_frequency
-
-        See Also
-        --------
-        f_scaled : frequency vector in units of :attr:`unit`
-        f : frequency vector in Hz
+        Returns:
+            np.ndarray: Angular frequency in rad/s.
         """
         return 2*np.pi*self.f
 
     @property
     def df(self) -> np.ndarray:
-        """
-        The gradient of the frequency vector.
-
-        Note
-        ----
-        The gradient is calculated using::
-
-            `np.gradient(self.f)`
-
-        """
+        """The gradient of the frequency vector, in Hz."""
         return np.gradient(self.f)
 
     @property
     def df_scaled(self) -> np.ndarray:
-        """
-        The gradient of the frequency vector (in unit of :attr:`unit`).
-
-        Note
-        ----
-        The gradient is calculated using::
-
-            `np.gradient(self.f_scaled)`
-        """
+        """The gradient of the scaled frequency vector."""
         return np.gradient(self.f_scaled)
 
     @property
     def dw(self) -> np.ndarray:
-        """
-        The gradient of the frequency vector (in radians).
-
-        Note
-        ----
-        The gradient is calculated using::
-
-            `np.gradient(self.w)`
-        """
+        """The gradient of the angular frequency vector, in rad/s."""
         return np.gradient(self.w)
 
     @property
     def unit(self) -> FrequencyUnitT:
-        """
-        Unit of this frequency band.
+        """The frequency unit.
 
-        Possible strings for this attribute are:
-        'Hz', 'kHz', 'MHz', 'GHz', 'THz'
+        Possible values are 'Hz', 'kHz', 'MHz', 'GHz', 'THz'.
+        Setting this attribute is not case-sensitive.
 
-        Setting this attribute is not case sensitive.
-
-        Returns
-        -------
-        unit : string
-            String representing the frequency unit
+        Returns:
+            str: String representing the frequency unit.
         """
         return UNIT_DICT[self._unit]
 
@@ -340,13 +296,10 @@ class Frequency(eqx.Module):
 
     @property
     def multiplier(self) -> float:
-        """
-        Multiplier for formatting axis.
+        """The multiplier to convert from the specified `unit` back to Hz.
 
-        Returns
-        -------
-        multiplier : number
-            multiplier for this Frequencies unit
+        Returns:
+            float: Multiplier for this frequency's unit.
         """
         return MULTIPLIER_DICT[self._unit]
 
@@ -372,41 +325,32 @@ class Frequency(eqx.Module):
 
     @property
     def t(self) -> np.ndarray:
-        """
-        Time vector in s.
-
-        t_period = 2*(n-1)/f_step
-        """
+        """The time vector in seconds, for use in Fourier Transforms."""
         return self._t_padded(bandpass=True)
 
     @property
     def t_ns(self) -> np.ndarray:
-        """
-        Time vector in ns.
-
-        t_period = 2*(n-1)/f_step
-        """
+        """The time vector in nanoseconds."""
         return self.t*1e9
 
     def round_to(self, val: FrequencyUnitT | Number = 'Hz') -> None:
-        """
-        Round off frequency values to a specified precision.
+        """Rounds frequency points to a specified precision.
 
         This is useful for dealing with finite precision limitations of
-        VNA's and/or other software
+        measurement devices or other software.
 
-        Parameters
-        ----------
-        val : string or number
-            if val is a string it should be a frequency :attr:`unit`
-            (ie 'Hz', 'MHz',etc). if its a number, then this returns
-            f = f-f%val
+        For example:
+        ```python
+        import pmrf as prf
+        freq = prf.Frequency.from_f([1.1, 2.2, 3.5], unit='GHz')
+        freq.round_to('GHz')
+        # freq.f is now array([1.e+09, 2.e+09, 4.e+09])
+        ```
 
-        Examples
-        --------
-        >>> f = pmrf.Frequency.from_f([.1,1.2,3.5],unit='Hz')
-        >>> f.round_to('Hz')
-
+        Args:
+            val (FrequencyUnitT | Number): If a string, it must be a valid frequency
+                unit (e.g., 'Hz', 'MHz'). If a number, the frequency will be
+                rounded to the nearest multiple of that number (in Hz).
         """
         if isinstance(val, str):
             val = MULTIPLIER_DICT[val.lower()]
@@ -414,26 +358,24 @@ class Frequency(eqx.Module):
         self.f = np.round(self.f/val)*val
 
     def overlap(self,f2: Frequency) -> Frequency:
-        """
-        Calculates overlapping frequency  between self and f2.
+        """Calculates the overlapping frequency range with another `Frequency` object.
 
-        See Also
-        --------
-        overlap_freq
+        This returns the subset of this frequency axis that is also covered by `f2`.
 
+        Args:
+            f2 (Frequency): The other frequency object.
+
+        Returns:
+            Frequency: A new Frequency object representing the overlapping range.
         """
         return overlap_freq(self, f2)
 
     @property
     def sweep_type(self) -> str:
-        """
-        Frequency sweep type.
+        """Determines the frequency sweep type.
 
-        Returns
-        -------
-        sweep_type: str
-            'lin' if linearly increasing, 'log' or 'unknown'.
-
+        Returns:
+            str: 'lin' for linear, 'log' for logarithmic, or 'unknown'.
         """
         if np.allclose(self.f, np.linspace(self.f[0], self.f[-1], self.npoints), rtol=0.05):
             sweep_type = 'lin'
@@ -444,29 +386,19 @@ class Frequency(eqx.Module):
         return sweep_type
 
 def overlap_freq(f1: Frequency,f2: Frequency) -> Frequency:
-    """
-    Calculates overlapping frequency between f1 and f2.
+    """Calculates the overlapping frequency between two `Frequency` objects.
 
-    Or, put more accurately, this returns a Frequency that is the part
-    of f1 that is overlapped by f2. The resultant start frequency is
-    the smallest f1.f that is greater than f2.f.start, and the stop
-    frequency is the largest f1.f that is smaller than f2.f.stop.
+    Returns the part of `f1` that is overlapped by `f2`. The new
+    frequency axis will start at the smallest frequency in `f1.f` that is
+    greater than `f2.start`, and stop at the largest frequency in `f1.f`
+    that is smaller than `f2.stop`.
 
-    This way the new frequency overlays onto f1.
+    Args:
+        f1 (Frequency): The base frequency object.
+        f2 (Frequency): The frequency object to check for overlap.
 
-
-    Parameters
-    ----------
-    f1 : :class:`Frequency`
-        a frequency object
-    f2 : :class:`Frequency`
-        a frequency object
-
-    Returns
-    -------
-    f3 : :class:`Frequency`
-        part of f1 that is overlapped by f2
-
+    Returns:
+        Frequency: A new Frequency object for the overlapping part of `f1`.
     """
     if f1.start > f2.stop:
         raise ValueError('Out of bounds. f1.start > f2.stop')

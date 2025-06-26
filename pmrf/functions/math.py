@@ -2,10 +2,13 @@ from typing import Callable
 from skrf.constants import INF, LOG_OF_NEG, NumberLike
 
 import pmrf.numpy as np
-import pmrf.scipy as scipy
+from pmrf.numpy import USE_JAX
+if USE_JAX:
+    import jax.scipy as scipy
+else:
+    import scipy
 from pmrf.numpy import USE_JAX, imag, pi, real, unwrap
 from pmrf._misc import NumberLike
-USE_JAX = True
 
 if USE_JAX:
     import jax

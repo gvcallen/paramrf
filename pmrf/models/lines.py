@@ -12,29 +12,43 @@ from pmrf._misc import field
 
 class RLGCLine(Model):
     """
-    Abstract base class for a foundational RLGC line model.
+    **Overview**
 
-    This class models an RLGC line, while allowing derived classes to specify the forms of the per-unit parameters R, L, G and C.
-    A method is provided to calculate the ABCD matrix as a function frequency, which internally calls `self.rlgc(w)`.
+    An abstract base class for a transmission line defined by its per-unit-length
+    RLGC (Resistance, Inductance, G, Conductance) parameters.
 
-    Args:
-        length (Parameter): The length of the line.
-    """    
+    This class provides the fundamental equations to calculate the ABCD-matrix
+    of a transmission line given its propagation constant ($\gamma$) and
+    characteristic impedance ($Z_c$), which are derived from the RLGC values.
+
+    Derived classes must implement the `rlgc` method, which defines how the
+    four distributed parameters (R, L, G, C) behave as a function of frequency.
+    """
     length: Parameter = 1.0
 
     @abstractmethod
-    def rlgc(self, freq: Frequency) -> tuple:
-        """The RLGC parameters of the line.
-        
+    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Calculates the frequency-dependent RLGC parameters of the line.
+
+        This method must be implemented by any derived concrete class.
+
         Args:
-            freq: Frequency object.
+            freq (Frequency): The frequency axis at which to evaluate the parameters.
 
         Returns:
-            tuple: The R, L, G and C line parameters, in that order.
+            tuple: A tuple containing the R, L, G, and C parameter vectors, in that order.
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")
 
-    def a(self, freq: Frequency):
+    def a(self, freq: Frequency) -> np.ndarray:
+        """Calculates the ABCD-matrix from the line's RLGC parameters.
+
+        Args:
+            freq (Frequency): The frequency axis for the calculation.
+
+        Returns:
+            np.ndarray: The resultant ABCD-matrix.
+        """
         w = freq.w
         R, L, G, C = self.rlgc(freq)
         gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
@@ -50,39 +64,87 @@ class RLGCLine(Model):
         return a
     
 class ConstantRLGCLine(RLGCLine):
-    """An RLGC line with constant per-unit parameters as a function of frequency.
+    """
+    **Overview**
 
-    Args:
-        R (float): Per-unit resistance.
-        L (float): Per-unit inductance.
-        C (float): Per-unit capacitance.
-        G (float): Per-unit conductance.
-        length (float, optional): The length of the line. Default to 1.0.
+    An RLGC line with constant, frequency-independent per-unit-length parameters.
+
+    This is the simplest transmission line model, where R, L, G, and C
+    are single scalar values.
+
+    **Example**
+
+    ```python
+    import pmrf as prf
+
+    # Create a lossless 50-ohm line model
+    # L and C are chosen to produce Z0=50 and epr=2.2
+    lossless_line = prf.models.ConstantRLGCLine(
+        L=368.8e-9, # nH/m
+        C=147.5e-12, # pF/m
+        length=0.1 # 10 cm
+    )
+
+    # Calculate its S-parameters over a frequency range
+    freq = prf.Frequency(start=1, stop=5, npoints=101, unit='ghz')
+    s = lossless_line.s(freq)
+
+    print(f"S21 magnitude at center frequency: {abs(s[freq.center_idx, 1, 0]):.3f}")
+    ```
     """
     R: Parameter = 0.0
     L: Parameter = 280e-9
     G: Parameter = 0.0
-    C: Parameter = 90e-12,
+    C: Parameter = 90e-12
 
-    def rlgc(self, _: Frequency) -> tuple:
+    def rlgc(self, _: Frequency) -> tuple[Parameter, Parameter, Parameter, Parameter]:
+        """Returns the constant RLGC parameters.
+
+        Args:
+            _ (Frequency): The frequency axis (ignored).
+
+        Returns:
+            tuple: The constant R, L, G, and C parameters.
+        """
         return self.R, self.L, self.G, self.C
     
 class DatasheetCoaxial(RLGCLine):
     """
-    A coaxial line defined by constants typically found on datasheets.
+    **Overview**
 
-    Additionally, the dielectric constant can be sloped if `epr_slope` is passed, with `freq_bounds` allowing
-    to specify frequency bounds different to the model's bounds for this slope.
+    A coaxial line defined by parameters typically found on a datasheet.
 
-    Args:
-        zn (float, optional): Nominal characteristic impedance. Defaults to 50.0.
-        epr (float, optional): Dielectric constant (1 / vf**2). Defaults to 1.0.
-        epr_slope (float, optional): Slope of the dielectric constant. Defaults to 0.0.
-        k1 (float, optional): Skin effect loss (~ sqrt(w)). Defaults to 0.0.
-        k2 (float, optional): Dielectric loss (~ w). Defaults to 0.0.
-        length (float, optional): The length of the line. Default to 1.0.
-        loss_coeffs_normalized (bool, optional): Generally, loss coefficients `k1` and `k2` are in terms of datasheet units (100m and MHz). If True, units should instead be dB/1m/sqrt(rad) and dB/1m/rad. Defaults to False.
-        freq_bounds (tuple, optional): The min and max normalizing bounds for the frequency slope. Defaults to None, in which case the minimum and maximum bounds of the frequency are used.
+    This model provides a convenient way to define a coaxial cable from its
+    nominal impedance, dielectric constant, and loss factors, rather than
+    from the fundamental RLGC values directly. It includes terms for both
+    skin effect loss (`k1`) and dielectric loss (`k2`).
+
+    **Example**
+
+    ```python
+    import pmrf as prf
+    import numpy as np
+
+    # Define a 1m coaxial cable from typical datasheet values
+    cable = prf.models.DatasheetCoaxial(
+        zn=50.0,
+        epr=2.1,
+        k1=0.2, # Skin effect loss factor
+        k2=0.01, # Dielectric loss factor
+        length=1.0
+    )
+
+    freq = prf.Frequency(start=0.1, stop=10, npoints=201, unit='ghz')
+    s = cable.s(freq)
+
+    # Plot the insertion loss
+    # import matplotlib.pyplot as plt
+    # plt.plot(freq.f_scaled, 20*np.log10(abs(s[:,1,0])))
+    # plt.xlabel(f"Frequency ({freq.unit})")
+    # plt.ylabel("Insertion Loss (dB)")
+    # plt.grid(True)
+    # plt.show()
+    ```
     """
     zn: Parameter = 50.0
     epr: Parameter = 1.0
@@ -90,14 +152,22 @@ class DatasheetCoaxial(RLGCLine):
     k1: Parameter = 0.0
     k2: Parameter = 0.0
 
-    loss_coeffs_normalized: bool = False
-    freq_bounds: tuple | None = None
+    loss_coeffs_normalized: bool = field(default=False, static=True)
+    freq_bounds: tuple | None = field(default=None, static=True)
 
-    def rlgc(self, freq: Frequency):
+    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Calculates RLGC parameters from datasheet values.
+
+        Args:
+            freq (Frequency): The frequency axis for the calculation.
+
+        Returns:
+            tuple: The calculated R, L, G, and C parameter vectors.
+        """
         w = freq.w
         zn, k1, k2 = self.zn, self.k1, self.k2
 
-        if not self.freq_bounds is None:
+        if self.freq_bounds is not None:
             w_start, w_stop = self.freq_bounds
         else:
             w_start, w_stop = w[0], w[-1]
@@ -129,67 +199,77 @@ class DatasheetCoaxial(RLGCLine):
         
 class PhysicalCoaxial(RLGCLine):
     """
-    A coaxial line defined directly by its physical properties (geometric and material).
+    **Overview**
 
-    A number of the parameters allow a `<xxx>_model` flag alongside, which specifies the form of the parameter as a function of frequency.
-    In this case, for some models, the parameter may be a list of coefficients as opposed to a single value. Currently, the following models are provided:
+    A coaxial line defined directly by its physical and material properties.
 
-    * **'constant'** (default): The parameter is represented by a single value across frequency.
-    * **'ppoly'**:  The parameter coefficients specify a frequency-dependent polynomial in the power basis.
-                    Either the number of coefficients, or the argument '{param}_order' passed to **kwargs, sets the order.
-    * **'bpoly'**:  The parameter coefficients specify a frequency-dependent polynomial in the Bernstein basis.
-                    Either the number of coefficients, or the argument '{param}_order' passed to **kwargs, sets the order.
+    This model calculates the RLGC parameters from the geometry (inner/outer
+    diameters) and material properties (permittivity, permeability, loss tangent,
+    resistivity). It provides a high-fidelity model that accounts for the skin
+    effect in the conductors and frequency-dependent material properties.
 
-    Args:
-        din (Parameter, optional): Inner diameter. Defaults to 1.12e-3.
-        dout (Parameter, optional): Outer diameter. Defaults to 3.2e-3.
-        epr (Parameter | Vector, optional): Relative dielectric permittivity. Can be a list of coefficients, whose meaning is specified by `epr_model`. Defaults to 1.0.
-        mur (Parameter | Vector, optional): Relative dielectric permeability. Can be a list of coefficients, whose meaning is specified by `mur_model`. Defaults to 1.0.
-        tand (Parameter | Vector, optional): Loss tangent. Can be a list of coefficients, whose meaning is specified by `tand_model`. Defaults to 0.0.
-        rho (Parameter | Vector, optional): Conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Is ignored if `separate_rho == True` is passed, in which case `rhoin` and `rhoout` are used. Defaults to 1.68e-8.
-        rhoin (Parameter | Vector, optional): Inner conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        rhoout (Parameter | Vector, optional): Outer conductor resistivity. Can be a list of coefficients, whose meaning is specified by `rho_model`. Only used if `separate_rho == True` is passed. Defaults to 1.68e-8.
-        length (Parameter, optional): The length of the line. Default to 1.0.
-        epr_model (str, optional): The model for the dielectric permittivity. See the documentation on frequency models above. Defaults to 'constant'.
-        mur_model (str, optional): The model for the dielectric permeability. See the documentation on frequency models above. Defaults to 'constant'.
-        tand_model (str, optional): The model for the loss tangent. See the documentation on frequency models above. Defaults to 'constant'.
-        rho_model (str, optional): The model for the conductor resistivity. See the documentation on frequency models above. Defaults to 'constant'.
-        freq_bounds (tuple, optional): The min and max normalizing bounds for the frequency slope. Defaults to None, in which case the minimum and maximum bounds of the frequency are used.
-        separate_rho (bool, optional): Whether or not the conductor resistivity should be modelled as seprate values for the inner and outer conductors. Defaults to False.
-        neglect_skin_inductance (bool, optional): Specifies whether to neglect the incremental skin inductance term internally. Defaults to False.
+    Several material properties can be defined as frequency-dependent polynomials
+    using the `_model` arguments (e.g., `epr_model`). The available models are:
+    - **'constant'**: (Default) The parameter is a single scalar value.
+    - **'ppoly'**: The parameter is a polynomial in the power basis. The `Parameter`
+      value should be a list of coefficients.
+    - **'bpoly'**: The parameter is a polynomial in the Bernstein basis. The `Parameter`
+      value should be a list of coefficients.
+
+    **Example**
+
+    ```python
+    import pmrf as prf
+
+    # A coaxial cable where the dielectric constant (epr) varies with frequency
+    # We model epr as a 1st-order Bernstein polynomial (a line)
+    # The coefficients are the start and end values of the line.
+    phys_cable = prf.models.PhysicalCoaxial(
+        din=0.9e-3,
+        dout=2.95e-3,
+        epr=[2.1, 2.05], # epr goes from 2.1 to 2.05 over the freq range
+        epr_model='bpoly',
+        tand=0.0004,
+        rho=1.72e-8, # Copper resistivity
+        length=0.5
+    )
+
+    freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
+    s_phys = phys_cable.s(freq)
+    ```
     """
     din: Parameter = 1.12e-3
     dout: Parameter = 3.2e-3
     epr: Parameter = 1.0
     mur: Parameter = 1.0
     tand: Parameter = 0.0
-    rho: Parameter = 1.68e-8    
+    rho: Parameter = 1.68e-8
     
-    # Optional parameters
-    # rhoin: float | Vector = 1.68e-8
-    # rhoout: float  | Vector= 1.68e-8
-
-    # Hyperparameters
-    epr_model: str = 'constant'
-    mur_model: str = 'constant'
-    tand_model: str = 'constant'
-    rho_model: str = 'constant'
-    separate_rho: bool = False
-    neglect_skin_inductance: bool = False
+    epr_model: str = field(default='constant', static=True)
+    mur_model: str = field(default='constant', static=True)
+    tand_model: str = field(default='constant', static=True)
+    rho_model: str = field(default='constant', static=True)
+    separate_rho: bool = field(default=False, static=True)
+    neglect_skin_inductance: bool = field(default=False, static=True)
 
     def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            if k in {f.name for f in fields(self)}:
-                setattr(self, k, v)
+        # This custom initializer allows setting polynomial orders via kwargs
+        # like `epr_order=1`, and correctly initializes coefficient arrays if needed.
+        init_fields = {f.name for f in fields(self)}
+        
+        # Separate kwargs for fields vs other options
+        field_kwargs = {k: v for k, v in kwargs.items() if k in init_fields}
+        order_kwargs = {k: v for k, v in kwargs.items() if k not in init_fields}
+
+        super().__init__(**field_kwargs)
         
         poly_params = ['epr', 'mur', 'tand', 'rho']
-        # If a polynomial model is specified we default to linear, unless {param}_order has been passed
         for param in poly_params:
             model = getattr(self, f'{param}_model')
             if model != 'constant':
                 current = np.array(getattr(self, param))
-                order = kwargs.pop(f'{param}_order', 1)
-                # Set the coefficients if the user has not already
+                order = order_kwargs.get(f'{param}_order', 1)
+                
                 if np.isscalar(current):
                     if model == 'bpoly':
                         coeffs = [current] * (order+1)
@@ -197,13 +277,22 @@ class PhysicalCoaxial(RLGCLine):
                         coeffs = [current] + [0.0]*order
                     else:
                         raise Exception(f"Unknown frequency model for parameter {param}")
-                    setattr(self, param, coeffs)
+                    # Use object.__setattr__ to modify the frozen dataclass field
+                    object.__setattr__(self, param, coeffs)
 
+    def interpolated(self, param: str, freq: Frequency) -> np.ndarray:
+        """Evaluates a potentially frequency-dependent parameter.
 
-    def interpolated(self, param: str, freq: Frequency):
+        Args:
+            param (str): The name of the parameter to evaluate (e.g., 'epr').
+            freq (Frequency): The frequency axis for the evaluation.
+
+        Returns:
+            np.ndarray: The parameter's value across the frequency axis.
+        """
         w = freq.w
         if param.startswith('rho'):
-            model = str(getattr(self, f'rho_model'))
+            model = str(getattr(self, 'rho_model'))
         else:
             model = str(getattr(self, f'{param}_model'))
         
@@ -211,7 +300,6 @@ class PhysicalCoaxial(RLGCLine):
             value = getattr(self, param) * np.ones(w.shape[0])
         else:
             coeffs = getattr(self, param)
-            # lb, ub = w[0], w[-1]
             if model.startswith('ppoly'):
                 value = evaluate_power_basis(w, coeffs, w[0], w[-1])
             else:
@@ -219,52 +307,66 @@ class PhysicalCoaxial(RLGCLine):
                 
         return value
             
-    def epr_f(self, freq: Frequency):
+    def epr_f(self, freq: Frequency) -> np.ndarray:
+        """The relative permittivity ($\epsilon_r$) as a function of frequency."""
         return self.interpolated('epr', freq)
     
-    def tand_f(self, freq: Frequency):
+    def tand_f(self, freq: Frequency) -> np.ndarray:
+        """The loss tangent (tan$\delta$) as a function of frequency."""
         return self.interpolated('tand', freq)
     
-    def mur_f(self, freq: Frequency):
+    def mur_f(self, freq: Frequency) -> np.ndarray:
+        """The relative permeability ($\mu_r$) as a function of frequency."""
         return self.interpolated('mur', freq)
     
-    def rho_f(self, freq: Frequency):
+    def rho_f(self, freq: Frequency) -> np.ndarray:
+        """The conductor resistivity ($\rho$) as a function of frequency."""
         return self.interpolated('rho', freq)
     
-    def rhoin_f(self, freq: Frequency):
+    def rhoin_f(self, freq: Frequency) -> np.ndarray:
+        """The inner conductor resistivity as a function of frequency."""
         return self.interpolated('rhoin', freq) if self.separate_rho else self.rho_f(freq)
     
-    def rhoout_f(self, freq: Frequency):
-        return self.interpolated('rhout', freq) if self.separate_rho else self.rho_f(freq)
+    def rhoout_f(self, freq: Frequency) -> np.ndarray:
+        """The outer conductor resistivity as a function of frequency."""
+        return self.interpolated('rhoout', freq) if self.separate_rho else self.rho_f(freq)
     
-    def eps_f(self, freq: Frequency):
+    def eps_f(self, freq: Frequency) -> np.ndarray:
+        """The complex permittivity ($\epsilon$) as a function of frequency."""
         return epsilon_0 * self.epr_f(freq) * (1 - 1j * self.tand_f(freq))
     
-    def mu_f(self, freq: Frequency):
+    def mu_f(self, freq: Frequency) -> np.ndarray:
+        """The complex permeability ($\mu$) as a function of frequency."""
         return mu_0 * self.mur_f(freq)
     
-    def L_prime(self, freq: Frequency):
+    def L_prime(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length external inductance."""
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
         return self.mu_f(freq) / (2 * np.pi) * lnbOvera
     
-    def C_prime(self, freq: Frequency):
+    def C_prime(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length capacitance."""
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
         return 2 * np.pi * np.real(self.eps_f(freq)) / lnbOvera
     
-    def G_diel(self, freq: Frequency):
+    def G_diel(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length dielectric conductance."""
         a, b = self.din / 2, self.dout / 2
         lnbOvera = np.log(b/a)
         return 2 * np.pi * freq.w * -np.imag(self.eps_f(freq)) / lnbOvera
         
-    def R_skin(self, freq: Frequency):
+    def R_skin(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length resistance due to skin effect."""
         return np.real(self.Z_skin(freq))
     
-    def L_skin(self, freq: Frequency):
+    def L_skin(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length internal inductance due to skin effect."""
         return np.imag(self.Z_skin(freq)) / freq.w
     
-    def Z_skin(self, freq: Frequency):
+    def Z_skin(self, freq: Frequency) -> np.ndarray:
+        """The per-unit-length internal impedance due to skin effect."""
         w = freq.w
         a = self.din / 2
         b = self.dout / 2
@@ -272,19 +374,21 @@ class PhysicalCoaxial(RLGCLine):
         sigma_a = 1 / self.rhoin_f(freq)
         sigma_b = 1 / self.rhoout_f(freq)
         
-        L_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(mu / (2 * w * sigma_a))
-        L_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(mu / (2 * w * sigma_b))
-        L_skin = L_skin_a + L_skin_b
-                
-        R_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(w * mu / (2 * sigma_a))
-        R_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(w * mu / (2 * sigma_b))
-        R_skin = R_skin_a + R_skin_b            
-        
-        return R_skin + 1j * w * L_skin
-    
-    def rlgc(self, freq: Frequency):
-        # Formulae from 'Frederick M. Tesche - A Simple Model for the Line Parameters of a Lossy Coaxial Cable Filled With a Nondispersive Dielectric'
-        # as well as Pozar for G term
+        # Using the simplified formula for Z_surface
+        Z_s_a = (1 + 1j) / (sigma_a * (np.sqrt(2 / (w * mu * sigma_a))))
+        Z_s_b = (1 + 1j) / (sigma_b * (np.sqrt(2 / (w * mu * sigma_b))))
+
+        return (1 / (2*np.pi)) * ((Z_s_a / a) + (Z_s_b / b))
+
+    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Calculates RLGC parameters from physical and material properties.
+
+        Args:
+            freq (Frequency): The frequency axis for the calculation.
+
+        Returns:
+            tuple: The calculated R, L, G, and C parameter vectors.
+        """
         if not self.neglect_skin_inductance:
             L = self.L_prime(freq) + self.L_skin(freq)
         else:
@@ -295,7 +399,3 @@ class PhysicalCoaxial(RLGCLine):
         R = self.R_skin(freq)
         
         return R, L, G, C
-    
-
-SlopedLine = DatasheetCoaxial
-BasicLine = DatasheetCoaxial

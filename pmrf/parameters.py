@@ -7,6 +7,55 @@ import pmrf.numpy as np
 from pmrf._misc import field
 
 class Parameter(eqx.Module):
+    """
+    **Overview**
+
+    A container for a numerical parameter of a `Model`.
+
+    This class serves as the fundamental building block for defining the
+    tunable or fixed parameters within a **paramrf** `Model`. It is designed
+    to be a flexible container that behaves like a standard numerical type
+    (e.g., a `numpy.ndarray`) while holding additional metadata for model
+    fitting and analysis.
+
+    Key features include:
+    - **Array-like Behavior**: A `Parameter` can be used in mathematical
+      operations just like a numpy array.
+    - **JAX and Equinox Compatibility**: As an `equinox.Module`, `Parameter`
+      objects are JAX PyTrees, making them seamlessly compatible with JAX's
+      transformations (`jit`, `grad`, etc.).
+    - **Fit Control**: A parameter can be marked as `fixed`, which prevents
+      it from being updated during a fitting process.
+    - **Statistical Priors**: A `scipy.stats` distribution can be associated
+      with a parameter to define a prior for Bayesian analyses or to set
+      optimization bounds.
+
+    **Example:**
+
+    The following demonstrates how to create and use `Parameter` objects.
+
+    ```python
+    import pmrf as prf
+    import numpy as np
+
+    # A simple, single-valued parameter, initialized with a float
+    p1 = prf.Parameter(value=1.0e-12, name='C1')
+
+    # This parameter can be used in calculations directly
+    impedance = 1 / (2j * np.pi * 1e9 * p1)
+    print(f"Impedance: {impedance}")
+
+    # A parameter that is fixed and will not be optimized during a fit
+    p2 = prf.Parameter(value=50.0, fixed=True, name='Z0')
+
+    # A parameter with a uniform distribution prior
+    # Factory functions are a convenient way to create these
+    p3 = prf.Uniform(min=0.9e-9, max=1.1e-9, name='L1')
+
+    # The parameter's value is initialized to the mean of the distribution
+    print(f"Initial value of L1: {p3.value}")
+    ```
+    """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
     value: np.ndarray = field(converter=lambda x: np.asarray(x, dtype=np.float64))
@@ -23,17 +72,35 @@ class Parameter(eqx.Module):
     
     @property
     def min_unscaled(self) -> float | None:
-        if not self.dist is None:
+        """The unscaled minimum value of the parameter's distribution (0.01 quantile).
+
+        Returns:
+            float | None: The minimum value, or None if no distribution is set.
+        """
+        if self.dist is not None:
             return self.ppf_unscaled(0.01)
         return None
     
     @property
     def max_unscaled(self) -> float | None:
-        if not self.dist is None:
+        """The unscaled maximum value of the parameter's distribution (0.99 quantile).
+
+        Returns:
+            float | None: The maximum value, or None if no distribution is set.
+        """
+        if self.dist is not None:
             return self.ppf_unscaled(0.99)
         return None
     
     def ppf_unscaled(self, q) -> float:
+        """The unscaled percent point function (inverse CDF) of the distribution.
+
+        Args:
+            q (float): The quantile to compute the value for.
+
+        Returns:
+            float: The value at the specified quantile.
+        """
         return self.dist.ppf(q)
     
     # Arithmetic and array conversions
@@ -73,49 +140,84 @@ class Parameter(eqx.Module):
         return np.divide(np.array(other), np.array(self))
 
 class ParameterSet:
+    """A container class for managing a sequence of `Parameter` objects."""
     def __init__(self, parameters: list[Parameter] | None = None):
-        self._parameters = parameters if not parameters is None else []
+        self._parameters = parameters if parameters is not None else []
         
     def __len__(self):
         return len(self._parameters)
     
     def __iter__(self):
-        return iter(self._parameters)    
+        return iter(self._parameters)      
         
     def append(self, parameter: Parameter):
+        """Appends a Parameter to the set.
+
+        Args:
+            parameter (Parameter): The parameter to add.
+        """
         self._parameters.append(parameter)
         
     def values_unscaled(self) -> list:
+        """Gets the unscaled values of all parameters in the set.
+
+        Returns:
+            list: A list of the unscaled parameter values.
+        """
         # param.value is unscaled
         return [param.value for param in self._parameters]
     
     def minimums_unscaled(self) -> list:
+        """Gets the unscaled minimums of all parameters in the set.
+
+        Returns:
+            list: A list of the unscaled parameter minimums.
+        """
         return [param.min_unscaled for param in self._parameters]
     
     def maximums_unscaled(self) -> list:
+        """Gets the unscaled maximums of all parameters in the set.
+
+        Returns:
+            list: A list of the unscaled parameter maximums.
+        """
         return [param.max_unscaled for param in self._parameters]    
-        
-    # def to_dict(self, scaled=False) -> dict:
-    #     if scaled:
-    #         return {param.name: param.value_scaled for param in self.parameters}
-    #     else:
-    #         return {param.name: param.value for param in self.parameters}
-        
-    # def update(self, values):
-    #     for i, value in enumerate(values):
-    #         self.parameters[i].value = value
     
     
 def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
+    """Creates a `Parameter` with a uniform distribution.
+
+    Args:
+        min (float | Sequence[float]): The minimum value of the distribution. Can be a sequence for a multi-valued Parameter.
+        max (float | Sequence[float]): The maximum value of the distribution. Can be a sequence for a multi-valued Parameter.
+        n (int, optional): The number of identical parameters to create in an array. Defaults to None.
+        value (optional): The initial value. If None, the midpoint of the distribution is used. Defaults to None.
+        **kwargs: Additional keyword arguments passed to the `Parameter` constructor.
+
+    Returns:
+        Parameter: The created Parameter object.
+    """
     if isinstance(min, Sequence):
         dists = [scipy.stats.distributions.uniform(mini, maxi-mini) for mini, maxi in zip(min, max)]
         values = [(maxi + mini) / 2.0 for mini, maxi in zip(min, max)]
         return Parameter(value=values, dist=dists, **kwargs)
     else:
-        value = value if not value is None else (max + min) / 2.0
+        value = value if value is not None else (max + min) / 2.0
         return _make_n(value, dist=scipy.stats.distributions.uniform(min, max-min), n=n, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
+    """Creates a `Parameter` with a normal (Gaussian) distribution.
+
+    Args:
+        mean (float | Sequence[float]): The mean of the distribution. Can be a sequence for a multi-valued Parameter.
+        std (float | Sequence[float]): The standard deviation of the distribution. Can be a sequence for a multi-valued Parameter.
+        n (int, optional): The number of identical parameters to create in an array. Defaults to None.
+        value (optional): The initial value. If None, the mean of the distribution is used. Defaults to None.
+        **kwargs: Additional keyword arguments passed to the `Parameter` constructor.
+
+    Returns:
+        Parameter: The created Parameter object.
+    """
     if isinstance(mean, Sequence):
         dists = [scipy.stats.distributions.norm(meani, stdi) for meani, stdi in zip(mean, std)]
         values = [meani for meani in mean]
@@ -125,21 +227,77 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
         return _make_n(value, dist=scipy.stats.distributions.norm(mean, std), n=n, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
+    """Creates a `Parameter` that is marked as fixed.
+
+    Args:
+        value: The value of the parameter.
+        n (int, optional): The number of identical parameters to create in an array. Defaults to None.
+        **kwargs: Additional keyword arguments passed to the `Parameter` constructor.
+
+    Returns:
+        Parameter: The created fixed Parameter object.
+    """
     return _make_n(value=value, fixed=True, n=n, **kwargs)
 
 def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
+    """Creates a `Parameter` that is marked as not fixed (i.e., free to vary).
+
+    Args:
+        value: The value of the parameter.
+        n (int, optional): The number of identical parameters to create in an array. Defaults to None.
+        **kwargs: Additional keyword arguments passed to the `Parameter` constructor.
+
+    Returns:
+        Parameter: The created free Parameter object.
+    """
     return _make_n(value=value, fixed=False, n=n, **kwargs)
 
-def is_param(x):
+def is_param(x) -> bool:
+    """Checks if an object is an instance of a `Parameter`.
+
+    Args:
+        x: The object to check.
+
+    Returns:
+        bool: `True` if the object is a Parameter, `False` otherwise.
+    """
     return isinstance(x, Parameter)
 
-def is_free_param(x):
+def is_free_param(x) -> bool:
+    """Checks if an object is a non-fixed `Parameter`.
+
+    Args:
+        x: The object to check.
+
+    Returns:
+        bool: `True` if the object is a non-fixed Parameter, `False` otherwise.
+    """
     return isinstance(x, Parameter) and not x.fixed
 
-def is_fixed_param(x):
+def is_fixed_param(x) -> bool:
+    """Checks if an object is a fixed `Parameter`.
+
+    Args:
+        x: The object to check.
+
+    Returns:
+        bool: `True` if the object is a fixed Parameter, `False` otherwise.
+    """
     return isinstance(x, Parameter) and x.fixed
 
 def asparam(x, name=None) -> Parameter:
+    """Ensures an object is a `Parameter`.
+
+    If the object is already a `Parameter`, it is returned unchanged.
+    Otherwise, the object is converted into a new `Parameter`.
+
+    Args:
+        x: The object to convert.
+        name (str, optional): The name to assign to a newly created `Parameter`. Defaults to None.
+
+    Returns:
+        Parameter: The object as a `Parameter`.
+    """
     if isinstance(x, Parameter):
         return x
     return Parameter(value=x, name=name)

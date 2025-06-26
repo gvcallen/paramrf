@@ -18,7 +18,6 @@ from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 
 AxisSpec = bool | Callable[[Any], bool]
 
-
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
     is_leaf_takes_path: bool = False,
@@ -65,58 +64,6 @@ def flatten_one_level_with_metadata(
         flattened_metadata.append((name_to_metadata[name], val))
         
     return flattened_metadata, treedef
-
-# def metadata(
-#     pytree: Any, is_leaf: Callable[..., bool] | None = None,
-#     is_leaf_takes_path: bool = False,
-# ) -> PyTree:
-#     parent_path_to_name_to_metadata = {}
-#     def populate_metadata(path, node):
-#         if is_dataclass(node) and len(path) < 2:
-#             return (node, {})
-#         parent_path = path[0:-1]
-#         name = path[-1]
-#         if not parent_path in parent_path_to_name_to_metadata:
-#             name_to_metadata = {}
-#             parent = value_at_path(parent, parent_path)
-#             for field in fields(parent):
-#                 name_to_metadata[field.name] = field.matadata
-#             parent_path_to_name_to_metadata[parent_path] = name_to_metadata
-#         return parent_path_to_name_to_metadata[parent_path][name]
-    
-#     return jax.tree.map_with_path(populate_metadata, pytree, is_leaf=is_leaf, is_leaf_takes_path=is_leaf_takes_path)
-
-# def flatten_with_metadata(
-#     pytree: Any, is_leaf: Callable[..., bool] | None = None,
-#     is_leaf_takes_path: bool = False,
-# ) -> tuple[list[PyTree], PyTreeDef]:
-#     path_vals, treedef = jax.tree.flatten_with_path(pytree, is_leaf=is_leaf, is_leaf_takes_path=is_leaf_takes_path)
-    
-#     flattened_metadata = []
-#     parent_path_to_name_to_metadata = {}
-#     for path, _ in path_vals:
-#         parent_path = path[0:-1]
-#         if not parent_path in parent_path_to_name_to_metadata:                    
-#             parent = value_at_path(pytree, parent_path)
-#             name_to_metadata = {}
-#             for field in fields(parent):
-#                 name_to_metadata[field.name] = field.matadata
-#             parent_path_to_name_to_metadata[parent_path] = name_to_metadata
-#         metadata = parent_path_to_name_to_metadata[parent_path][path[-1].name]
-#         name = path[-1].name
-    
-#     name_to_metadata = {}
-#     for field in fields(pytree):
-#         name_to_metadata[field.name] = field.metadata
-    
-#     flattened_metadata = []
-#     for path, val in path_vals:
-#         name = path[0].name
-#         if not name in name_to_metadata:
-#             raise Exception(f"{name} attribute not in metadata")
-#         flattened_metadata.append((name_to_metadata[name], val))
-        
-#     return flattened_metadata, treedef
 
 def nodes_by_type(tree: Any, match_type: Type) -> List[Tuple[Tuple[Any, ...], Any]]:
     matches = []
