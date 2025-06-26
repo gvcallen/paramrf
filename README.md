@@ -2,49 +2,137 @@
 
 ## Overview
 
-This package provides the ability to describe RF circuit models in an object-orientated, parametric manner, acting as an extension of the scikit-rf library. It allows for circuit modelling, fitting and sampling, with any network re-computations (due to changes in parameters or sub-networks) being automatically updated via an internal dependency graph. The library builds on top of a few well-known packages, including scikit-rf, scipy, pypolychord, and, of course, numpy. It is, however, very much still in beta stage, and there are several known (and unknown) bugs and lots of missing function documentations.
+ParamRF, or `pmrf`, is an easy-to-use, efficient framework for describing microwave circuit models in an object-orientated, parametric manner.
 
-## Examples
+Several principles from existing framework have been integrated into one package, such as `scikit-rf` for foundational RF concepts, `equinox` for powerful model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation. The long-term goal is to allow the building of full, complex circuit topologies, however currently only simplified models are available. `pmrf` provides a declarative interface that easily compiles models into an efficient linear algebra graph using `jax`, and also provides the ability to optimize these models using commonly available or custom-defined fitting algorithms.
 
-Currently there is only one example, demonstrated in the script in `examples/fit_cable.py`, which shows how top fit the 10 meter cable's S-parameters using the built-in PhysicalCoax model and a frequentist SLSQP solver.
+## Core Concepts
+
+The library revolves around a few key building blocks:
+
+* **`pmrf.Model`**: This represents the base class for any computable RF component, such as foundational models (resistors, transmission lines etc.) or complex circuit models. Compared to `skrf.Network`, models are *functional* in nature, meaning that they only store their representation (parameters and computation) as opposed to their *data*. Therefore, all model properties such as `s`, `a` etc. accept frequency as an input. Models are composable, meaning you can connect them together using simple operators (`**` for cascade/series, for example) to create more complex models.
+* **`pmrf.Parameter`**: A `Parameter` is `pmrf`'s representation of a circuit component parameter with additional metadata. It allows for bounds, can be marked as `fixed`, and can have a statistical prior associated with it for Bayesian fitting. Any attribute of a `Model` can be a `Parameter`, alongside other sub-models.
+* **`pmrf.Frequency`**: This represents a JAX-compatible object that defines the frequency axis over which your models are evaluated. As mentioned, this is one of the main differences compared to `scikit-rf` i.e. the frequency object is an *input* to the model as opposed to an attribute of the model itself. This allows for the decoupling of model evaluations and parameterization, and also provides the ability to automatically differentiate with respect to frequency.
+* **`pmrf.fitting`**: This is the fitting module, which contain various "Fitter" classes that each take a model and `skrf.Network` measurement data as input, as well as some fitting hyperparameters (such as the features and a definition for the cost function, if desired), and fits the model parameters.
+
+## Model Definition and Composition
+
+Models are defined declaratively by inheriting from `pmrf.Model` and specifying parameters and sub-models as class attributes. The framework's compositional nature allows for complex systems to be constructed from simpler, validated components.
+
+The following example demonstrates the definition of a non-ideal resistor model, composed of an ideal resistor and a parasitic Pi-network.
+
+```python
+import pmrf as prf
+from pmrf.models import Resistor, PiCLC
+
+# Define a new model class inheriting from prf.Model.
+# Its attributes are sub-models and parameters that constitute its structure.
+class MyNonIdealResistor(prf.Model):
+    # Define sub-components. Default values can be provided.
+    # `res` represents the ideal resistive element.
+    res: Resistor = Resistor(R=100.0)
+    
+    # `parasitics` represents the unwanted capacitive and inductive effects.
+    parasitics: PiCLC = PiCLC(C1=0.05e-12, L=0.1e-9, C2=0.05e-12)
+
+    # The model's behavior is defined by implementing a primary network matrix 
+    # function, such as `a` for the ABCD-matrix.
+    def a(self, freq: prf.Frequency):
+        # The `__pow__` (**) operator is overloaded to represent a `Cascade` of models,
+        # which is mathematically equivalent to a chain-multiplication of their 
+        # respective ABCD matrices.
+        combined_model = self.parasitics ** self.res
+        return combined_model.a(freq)
+
+# --- Using the model ---
+
+# Instantiate the composite model.
+my_resistor = MyNonIdealResistor()
+
+# The `with_params` method returns a new, updated model without mutating the original.
+# Parameters can be addressed by their hierarchical names.
+my_resistor = my_resistor.with_params(parasitics_C1=0.08e-12)
+
+# Define a frequency axis for evaluation.
+freq = prf.Frequency(start=1, stop=18, npoints=201, unit='ghz')
+
+# Evaluate the model's S-parameters.
+s_params = my_resistor.s(freq)
+
+print(f"Evaluated S-parameter matrix shape: {s_params.shape}")
+
+# For analysis and plotting, convert the evaluated model to a scikit-rf Network.
+ntwk = my_resistor.to_skrf(freq)
+# ntwk.plot_s_db(...)
+```
 
 
-## Documentation
-The initialize functions for many classes have some introductory docs. This section simply explains the organization of the package and its sub-modules, to provide a higher-level overview.
+## Model Fitting
 
-### _core_ module
-This module contains the core object-orientated classes. These are modifications of the scikit-rf `Network` class, with the ability for networks to be dependent via the `ObservableNetwork` class; to update based on a set of parameters via the `ParametricNetwork` class; or to be composed by another list of networks via the `CompositeNetwork` class.
+A primary application of `pmrf` is the optimization of model parameters to align with measured data. The fitting module provides a unified interface to perform this task using various numerical methods.
 
-### _modeling_ module
-This module contains various common circuit models and elements, as well as the main `NetworkSystem` class, which represents a collection of these models. 
+The general workflow consists of defining a parametric model, loading empirical data, configuring a fitter, and executing the optimization routine.
 
-In the _elements_ sub-module:
-- _Lumped_ elements that are not already present in scikit-rf itself are in `elements/lumped.py` (e.g. an ideal tranformer).
-- So-called _topological_ elements (e.g. pi-junctions, T-networks etc.) are present in `elements/topological.py`.
-- _Distributed_ elements, currently only the foundational RLGC transmission line, are found in `elements/distributed.py`.
+#### Available Fitters:
 
-In the _models_ sub-module:
-- General transmission line models (e.g. for coaxial and microstrip lines) are found in `models/lines.py`.
-- Physical/non-ideal element models (e.g. for a physical resistor) are in `models/physical.py`
-- Models for connectors are in `models/connectors.py`.
+* **`FrequentistFitter` / `ScipyFitter`**: Provides access to gradient-based and gradient-free optimization algorithms from the `scipy.optimize` library. These are used to find a single point estimate of the parameter values that best minimizes a given cost function.
+* **`BayesianFitter` / `PolyChordFitter`**: Enables Bayesian inference through dynamic nested sampling. This approach yields not only optimized parameter values but also their full posterior probability distributions and the Bayesian evidence, which is crucial for model comparison and uncertainty quantification.
 
-### _statistics_ module
-This module contains everything to do with data and statistical model evaluation, such as generating a feature matrix from Networks, evaluating priors and likelihoods, and storing a list of parameters.
-- The `ParameterSet` class derives from a pandas `DataFrame` and contains all the parameter read/write code. One cool feature is the ability to have _derived_ parameters, where one parameter can be set equal to another.
-- The `Feature` class is designed to extract features from a scikit-rf `Network` class, such as S11 magnitude, S21 real, etc. Of importance is the `extract_features` function, which extracts features from multiple networks and creates a "feature matrix" containing all feature values across frequency.
-- The `Modifier` and `ModifierChain` classes encapsulate the idea of performing a series of modifications on a numpy array. In practice, this is used on the feature matrix to easily define different types of cost functions (for frequentist solvers) in a modular way.
-- The `PDF` and `Likelihood` classes encapsulate probability density and likelihood functions. They are used mainly by the `NetworkFitter` class described below, which uses the `PDF` class as fitting bounds/priors, and the `Likelihood` to compute log-likelihood values (for bayesian solvers).
+#### Fitting Example
 
-### _fitting_ module
-This module contains the main _NetworkFitter_ class, as well as various other helper classes:
-- The `NetworkFitter` class is the main coordinator. It contains references to the fitting parameters, the models in the fit (itself represented in the generic `NetworkSystem` class), and various settings. It is the class that ultimately runs the optimization/fit.
-- The `Target` class is the grouping of a circuit model and its measured data. It also allows for easy computing of the target's cost and likelihood functions in one place.
+The following provides a template for a typical fitting process.
 
-### _plotting_ module
-This module contains functionality to plot common plots, such as S11 parameters, gains etc. It is encapsulated in a `Plotter` class to de-couple it from the fitting module.
+```python
+import skrf as rf
+import pmrf as prf
+from pmrf.models import CLCResistor, Resistor, PiCLC
 
-### _rf_ module
-This module contains some RF computations, such as the calculation of available gains, and the concatenation of two-port networks.
+# 1. Load empirical measurement data into a scikit-rf Network object.
+try:
+    measured_ntwk = rf.Network('my_device_measurement.s2p')
+except FileNotFoundError:
+    print("Skipping fitting example: data file not found.")
+    # In a real scenario, you would handle this error.
+    measured_ntwk = None
 
-### _misc_ module
-This module contains any misc functionality, such as mathematical functions etc.
+if measured_ntwk:
+    # 2. Instantiate the parametric model to be fitted.
+    # Initial values serve as the starting point for the optimization.
+    model_to_fit = CLCResistor(
+        res=Resistor(R=50.0),
+        clc=PiCLC(C1=0.1e-12, L=0.2e-9, C2=0.1e-12)
+    )
+
+    # Parameters can be excluded from optimization by marking them as `fixed`.
+    # For this example, we will fit all default (non-fixed) parameters.
+    # See the documentation for more details.
+
+    # 3. Configure the fitter, which encapsulates the model, data, and cost function.
+    fitter = prf.fitting.ScipyFitter(
+        model=model_to_fit,
+        measured=measured_ntwk
+        # Users can optionally provide a custom cost function and specify which
+        # S-parameter features (e.g., 's_db', 'a') to use for fitting.
+        # 
+    )
+
+    # 4. Execute the fitting routine, passing parameters along to scipy.
+    fit_result = fitter.run(method='SLSQP')
+
+    # The result object contains the optimized model and detailed fit metrics.
+    print("Optimization Complete.")
+    print("Optimized Parameters:")
+    for name, param in fit_result.optimized_model.params.items():
+        print(f"  {name}: {param.value:.3e}")
+
+    # The result object includes methods for visualizing the fit quality.
+    # fit_result.plot_comparison()
+```
+
+## Key Features
+
+* **JAX Backend**: Leverages `JAX` for Just-In-Time (JIT) compilation of models to high-performance hardware (CPU, GPU, TPU). It provides automatic differentiation through the entire model structure, enabling efficient gradient-based optimization.
+* **Parametric & Composable Design**: Models are defined declaratively as `Equinox` modules, allowing for the natural composition of complex systems from simpler sub-models. Any model attribute can be a `Parameter`, facilitating flexible and granular control over the optimization space.
+* **`scikit-rf` Integration**: Designed for seamless interoperability with `scikit-rf`. `pmrf` models can be evaluated and converted to `skrf.Network` objects, providing access to `scikit-rf`'s extensive library of analysis and plotting tools.
+* **Advanced Fitting Engine**: Offers a unified interface for both frequentist optimization and advanced Bayesian inference, allowing users to select the appropriate method for their analysis—from simple parameter estimation to rigorous model selection and uncertainty quantification.
+* **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can be easily implemented.
