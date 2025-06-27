@@ -1,6 +1,6 @@
 from pmrf.fitting._features import (
     extract_features,
-    generate_feature_function,
+    make_feature_function,
     create_stacked_features,
 )
 

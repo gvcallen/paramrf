@@ -133,4 +133,3 @@ def get_fitter_class(engine: str):
         return getattr(bayesian, class_name)
     except (ImportError, AttributeError):
         return None
-    return globals().get(class_name)

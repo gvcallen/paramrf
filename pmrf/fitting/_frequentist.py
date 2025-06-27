@@ -8,7 +8,7 @@ from pmrf._model import Model
 from pmrf._constants import FeatureT, FeatureListT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
-from pmrf.fitting._features import generate_feature_function
+from pmrf.fitting._features import make_feature_function
 
 class FrequentistResults(FitResults):
     pass
@@ -58,25 +58,26 @@ class FrequentistFitter(BaseFitter):
                 cost = [mag_2_db, l2_norm_ax0, l2_norm_ax0]
             else:
                 cost = [mag_2_db, l2_norm_ax0]
-        self.cost_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
         
-    def _generate_numpy_cost_function(self, dont_jit=False):
+        self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
+        
+    def _make_cost_fn(self, dont_jit=False):
         # Generate JAX-compatible functions for feature extraction and model reconstruction
-        feature_fn, x0, recon_fn = generate_feature_function(self.model, self.feature_list, self.model_frequency, flat=True)
+        feature_fn, x0, recon_fn = make_feature_function(self.model, self.feature_list, self.model_frequency, flat=True)
+        self._cached_numpy_cost = feature_fn, x0, recon_fn
 
         # Define the JAX cost function to be minimized
         def cost_jax(flat_params) -> jnp.ndarray:
             model_features = feature_fn(flat_params)
             error = self.measured_features - model_features
-            return self.cost_fn(error)
+            return self.cost_metric_fn(error)
 
         if not dont_jit:
-            self.logger.info("Compiling cost function...")
+            self.logger.info("Compiling model and cost function...")
             cost_jax = jax.jit(cost_jax)
+            _ = cost_jax(x0)
         
-        def cost_numpy(x):
-            flat_params_jax = jnp.array(x)
-            return float(cost_jax(flat_params_jax))
+        cost_numpy = lambda x: float(cost_jax(jnp.array(x)))
             
         return cost_numpy, recon_fn, x0
 
@@ -143,7 +144,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         maximums = [p.max for p in params_list]
         bounds = Bounds(minimums, maximums)
 
-        cost_fn, recon_fn, x0 = self._generate_numpy_cost_function()
+        cost_fn, recon_fn, x0 = self._make_cost_fn()
         
         # Define a wrapper function compatible with SciPy's interface
         def cost_wrapper(x, callback_args):
@@ -155,6 +156,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
             return cost
 
         callback_args = {'fevel': 0}
+        self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")
         scipy_result = minimize(cost_wrapper, x0, args=(callback_args,), bounds=bounds, *args, **kwargs)
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         

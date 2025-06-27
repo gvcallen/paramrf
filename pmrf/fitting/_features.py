@@ -98,7 +98,7 @@ def create_stacked_features(base: FeatureT | FeatureListT, ntwks: list[skrf.Netw
 
     return stacked_features
 
-def generate_feature_function(
+def make_feature_function(
     model: Model,
     features: FeatureT | FeatureListT,
     freq: Frequency | skrf.Frequency,

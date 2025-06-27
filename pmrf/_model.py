@@ -440,9 +440,7 @@ class Model(eqx.Module):
         def is_param_value(path, node):
             if len(path) == 0 or not eqx.is_inexact_array(node):
                 return False
-            if not hasattr(path[-1], 'name') or path[-1].name != 'value':
-                raise Exception(f"Error: found jax/numpy array outside of a Parameter value at path ({path})")
-            return path[-1].name == 'value'
+            return hasattr(path[-1], 'name') and path[-1].name == 'value'
         
         return jax.tree.map_with_path(is_param_value, self, is_leaf=lambda node: eqx.is_inexact_array(node))
         
@@ -727,13 +725,17 @@ class Model(eqx.Module):
             skrf.Network: The resultant skrf Network.
         """
         if isinstance(freq, Frequency):
-            freq = freq.to_skrf()
+            model_freq = freq
+            measured_freq = freq.to_skrf()
+        else:
+            model_freq = Frequency.from_skrf(freq)
+            measured_freq = freq
         
         f, fname = self.primary_function, self.primary_property
         kwargs = kwargs or {}
         kwargs.update({
-            fname: f(Frequency(frequency=freq)),
-            'frequency': freq,
+            fname: f(model_freq),
+            'frequency': measured_freq,
             'name': kwargs.get('name', self.name),
             'z0': self._z0,
         })

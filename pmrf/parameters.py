@@ -1,5 +1,7 @@
-from scipy.stats import rv_continuous
-import scipy.stats
+# from scipy.stats import rv_continuous
+# import scipy.stats
+import numpyro.distributions as dist
+from numpyro.distributions.distribution import Distribution
 
 from typing import Sequence
 import equinox as eqx
@@ -59,55 +61,50 @@ class Parameter(eqx.Module):
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
     value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
-    dist: rv_continuous | None | list[rv_continuous | None] = field(default=None)
+    prior: Distribution | None = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
     # TODO add bounds?
     name: str | None = field(default=None, static=True)
     
     def __post_init__(self):
-        if self.dist is None:
+        if self.prior is None:
             if not jnp.isscalar(self.value):
-                self.dist = [None] * len(self.value)
+                self.prior = [None] * len(self.value)
     
     @property
-    def min(self) -> float:
+    def min(self) -> jnp.array:
         """The unscaled minimum value of the parameter's distribution (0.01 quantile).
 
         Returns:
-            float | None: The minimum value, or -np.inf if no distribution is set.
+            jnp.array: The minimum value, or -np.inf if no distribution is set.
         """
-        if self.dist is not None:
-            if self.dist.dist.name == "uniform":
-                return self.dist.args[0]
+        if self.prior is not None:
+            if isinstance(self.prior, dist.Uniform):
+                return self.prior.low
             else:
-                return self.ppf(0.01)
-        return -jnp.inf
+                return self.prior.icdf(0.01)
+            
+        if jnp.isscalar(self.value):
+            return -jnp.inf
+        return jnp.array([-jnp.inf] * self.value.shape[0])
     
     @property
-    def max(self) -> float:
+    def max(self) -> jnp.array:
         """The unscaled maximum value of the parameter's distribution (0.99 quantile).
 
         Returns:
-            float: The maximum value, or np.inf if no distribution is set.
+            jnp.array: The maximum value, or np.inf if no distribution is set.
         """
-        if self.dist is not None:
-            if self.dist.dist.name == "uniform":
-                return self.dist.args[0] + self.dist.args[1]
+        if self.prior is not None:
+            if isinstance(self.prior, dist.Uniform):
+                return self.prior.high
             else:
-                return self.ppf(0.99)
-        return jnp.inf
-    
-    def ppf(self, q) -> float:
-        """The unscaled percent point function (inverse CDF) of the distribution.
-
-        Args:
-            q (float): The quantile to compute the value for.
-
-        Returns:
-            float: The value at the specified quantile.
-        """
-        return self.dist.ppf(q)
+                return self.prior.icdf(0.99)
+            
+        if jnp.isscalar(self.value):
+            return -jnp.inf
+        return jnp.array([-jnp.inf] * self.value.shape[0])    
     
     def ravel(self):
         """Flattens self, either returning a single Parameter
@@ -119,7 +116,8 @@ class Parameter(eqx.Module):
         if jnp.isscalar(self.value):
             return self
         else:
-            return [Parameter(value=val, dist=dst, fixed=self.fixed, scale=self.scale, name=f"{self.name}_{i}") for i, (val, dst) in enumerate(zip(self.value, self.dist))]
+            priors_split = split_vectorized_distribution(self.prior)
+            return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}_{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):
@@ -157,12 +155,12 @@ class Parameter(eqx.Module):
     def __rtruediv__(self, other):
         return jnp.divide(jnp.array(other), jnp.array(self))  
     
-def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    """Creates a `Parameter` with a uniform distribution.
+def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
+    """Creates a `Parameter` with a uniform prior distribution.
 
     Args:
-        min (float | Sequence[float]): The minimum value of the distribution. Can be a sequence for a multi-valued Parameter.
-        max (float | Sequence[float]): The maximum value of the distribution. Can be a sequence for a multi-valued Parameter.
+        low (float | Sequence[float]): The lower value of the distribution. Can be a sequence for a multi-valued Parameter.
+        upper (float | Sequence[float]): The upper value of the distribution. Can be a sequence for a multi-valued Parameter.
         n (int, optional): The number of identical parameters to create in an array. Defaults to None.
         value (optional): The initial value. If None, the midpoint of the distribution is used. Defaults to None.
         **kwargs: Additional keyword arguments passed to the `Parameter` constructor.
@@ -170,16 +168,20 @@ def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int |
     Returns:
         Parameter: The created Parameter object.
     """
-    if isinstance(min, Sequence):
-        dists = [scipy.stats.distributions.uniform(mini, maxi-mini) for mini, maxi in zip(min, max)]
-        values = [(maxi + mini) / 2.0 for mini, maxi in zip(min, max)]
-        return Parameter(value=values, dist=dists, **kwargs)
+    
+    if n is not None and n != 1:
+        low, high = jnp.array([low] * n), jnp.array([high] * n)
+        if value is not None:
+            value = jnp.array([value] * n)
     else:
-        value = value if value is not None else (max + min) / 2.0
-        return _make_n(value, dist=scipy.stats.distributions.uniform(min, max-min), n=n, **kwargs)
+        low, high = jnp.array(low), jnp.array(high)
+    
+    priors = dist.Uniform(low, high)
+    values = (low + high) / 2.0 if value is None else value
+    return Parameter(value=values, prior=priors, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    """Creates a `Parameter` with a normal (Gaussian) distribution.
+    """Creates a `Parameter` with a normal (Gaussian) prior distribution.
 
     Args:
         mean (float | Sequence[float]): The mean of the distribution. Can be a sequence for a multi-valued Parameter.
@@ -191,13 +193,16 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
     Returns:
         Parameter: The created Parameter object.
     """
-    if isinstance(mean, Sequence):
-        dists = [scipy.stats.distributions.norm(meani, stdi) for meani, stdi in zip(mean, std)]
-        values = [meani for meani in mean]
-        return Parameter(value=values, dist=dists, **kwargs)
+    if n is not None and n != 1:
+        mean, std = jnp.array([mean] * n), jnp.array([std] * n)
+        if value is not None:
+            value = jnp.array([value] * n)
     else:
-        value = value or mean
-        return _make_n(value, dist=scipy.stats.distributions.norm(mean, std), n=n, **kwargs)
+        mean, std = jnp.array(mean), jnp.array(std)
+    
+    priors = dist.Normal(mean, std)
+    values = jnp.array(mean) if value is None else value
+    return Parameter(value=values, prior=priors, **kwargs)
     
 def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
     """Creates a `Parameter` with a normal (Gaussian) distribution and a percentage standard deviation.
@@ -211,9 +216,7 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
         Parameter: The created Parameter object.
     """
     if isinstance(perc, Sequence):
-        std = []
-        for i, p in enumerate(perc):
-            std.append(p * mean[i] / 200.0)
+        std = [p * mean[i] / 200.0 for i, p in enumerate(perc)]
     else:
         std = perc * mean / 200.0
     return Normal(mean=mean, std=std, **kwargs)
@@ -229,7 +232,11 @@ def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     Returns:
         Parameter: The created fixed Parameter object.
     """
-    return _make_n(value=value, fixed=True, n=n, **kwargs)
+    if n is not None and n != 1:
+        value = jnp.array([value] * n)
+    else:
+        value = jnp.array(value)
+    return Parameter(value=value, fixed=True, **kwargs)
 
 def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` that is marked as not fixed (i.e., free to vary).
@@ -242,7 +249,11 @@ def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
     Returns:
         Parameter: The created free Parameter object.
     """
-    return _make_n(value=value, fixed=False, n=n, **kwargs)
+    if n is not None and n != 1:
+        value = jnp.array([value] * n)
+    else:
+        value = jnp.array(value)
+    return Parameter(value=value, **kwargs)
 
 def is_param(x) -> bool:
     """Checks if an object is an instance of a `Parameter`.
@@ -306,8 +317,24 @@ def asparam(x, name=None) -> Parameter:
         return x
     return Parameter(value=x, name=name)
 
-def _make_n(value, dist=None, n: int | None = None, **kwargs) -> 'Parameter':
-    if n == 1 or n is None:
-        return Parameter(value=value, dist=dist, **kwargs)
-    else:
-        return Parameter(value=[value]*n, dist=[dist]*n, **kwargs)
+def split_vectorized_distribution(dist):
+    if dist.event_shape != ():
+        raise ValueError(f"Cannot split distribution with event_shape={dist.event_shape} (likely an Independent)")
+
+    batch_size = dist.batch_shape[0] if len(dist.batch_shape) == 1 else None
+    if batch_size is None:
+        raise ValueError("Distribution is not a 1D batch of univariate distributions")
+
+    # Get all init params used to construct the distribution
+    dist_class = dist.__class__
+    param_names = dist.arg_constraints.keys()
+    param_values = {name: getattr(dist, name) for name in param_names}
+
+    # Split each parameter
+    split_params = [
+        {name: param[i] if isinstance(param, jnp.ndarray) else param
+         for name, param in param_values.items()}
+        for i in range(batch_size)
+    ]
+
+    return [dist_class(**params) for params in split_params]
