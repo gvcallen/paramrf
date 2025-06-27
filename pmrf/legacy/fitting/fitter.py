@@ -289,9 +289,9 @@ class NetworkFitter:
         
         Path(self.output_path).mkdir(exist_ok=True, parents=True)
         Path(self.output_param_path).mkdir(exist_ok=True, parents=True)
-        Path(self.output_misc_path).mkdir(exist_ok=True, parents=True)
+        Path(self.output_util_path).mkdir(exist_ok=True, parents=True)
         
-        jnp.save(f'{self.output_misc_path}/frequency.npy', self.export_frequency.f)
+        jnp.save(f'{self.output_util_path}/frequency.npy', self.export_frequency.f)
         
     def _init_logging(self, level=None):
         log_level = level or self._settings.log_level
@@ -307,7 +307,7 @@ class NetworkFitter:
             level = logging.ERROR
 
         if not self._settings.output_path is None:
-            logging.basicConfig(filename=f'{self.output_misc_path}/out.log', level=level)
+            logging.basicConfig(filename=f'{self.output_util_path}/out.log', level=level)
         else:
             logging.basicConfig(level=level)
 
@@ -419,12 +419,12 @@ class NetworkFitter:
             return f'{self._settings.output_path}'
 
     @property
-    def output_misc_path(self) -> str:
+    def output_util_path(self) -> str:
         return f'{self.output_path}/misc'
     
     @property
     def output_settings_path(self) -> str:
-        return f'{self.output_misc_path}/settings.json'
+        return f'{self.output_util_path}/settings.json'
 
     @property
     def output_touchstone_path(self) -> str:

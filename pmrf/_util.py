@@ -37,3 +37,10 @@ def update_dict_with_alias(original: dict, updates: dict, alias_map: dict) -> No
                     original[key] = updates[aliased_key]
                 break
         # if no prefix matched, keep the original value
+        
+class classproperty:
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, obj, cls):
+        return self.func(cls)

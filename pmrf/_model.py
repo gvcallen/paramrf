@@ -1,9 +1,9 @@
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, get_origin, get_args, Union, TypeVar
+from typing import Callable, get_origin, get_args, Union
 import inspect
 import dataclasses
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import fields, is_dataclass
 from types import GenericAlias, UnionType
 
 import skrf as skrf
@@ -13,12 +13,12 @@ import equinox as eqx
 from jaxtyping import PyTree
 from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 
-from pmrf._constants import PRIMARY_PROPERTIES
+from pmrf._constants import PRIMARY_PROPERTIES, IndexArray
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, is_valid_param, asparam
 from pmrf._frequency import Frequency
-from pmrf._misc import field
+from pmrf._util import field, classproperty
 from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
 
 jax.config.update("jax_enable_x64", True)
@@ -154,18 +154,23 @@ class Model(eqx.Module):
                     
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
-            for prefix, lookup in FUNC_LOOKUP.items():
-                func_name = f"{prop}_{prefix}"
-                func = lookup[1]
-
+            for suffix, lookup in FUNC_LOOKUP.items():
                 def make_dynamic_method(prop, func):
                     def dynamic_method(self, *args, **kwargs):
                         prop_fn = getattr(self, prop)
                         matrix = prop_fn(*args, **kwargs)
                         return func(matrix)
                     return dynamic_method
-
-                setattr(cls, func_name, make_dynamic_method(prop, func))
+                
+                # First the regular (non-indexed) function e.g. s_mag
+                func_name = f"{prop}_{suffix}"
+                func = lookup[1]
+                setattr(cls, func_name, make_dynamic_method(prop, func))                
+                
+                # Then the index function function e.g. s_mn_mag
+                func_name = f"{prop}_mn_{suffix}"
+                func = lookup[1]
+                setattr(cls, func_name, make_dynamic_method(f"{prop}_mn", func))                
 
         # Initialize class parameters
         cls._s_def = s_def
@@ -184,6 +189,11 @@ class Model(eqx.Module):
     def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
+    
+    @classproperty
+    def PARAM_NAMES(cls) -> list[str]:
+        instance = cls()
+        return instance.param_names
     
     @property
     def _has_a(self) -> bool:
@@ -254,6 +264,28 @@ class Model(eqx.Module):
         
         a = self.a(freq)
         return a2s(a, self.z0)    
+    
+    def s_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
+        """Calculates the S parameter matrix as a function of frequency at specified ports.
+
+        This is a secondary method that can be operated by a sub-class if
+        a more-efficient implementation is available for a subset of ports.
+        This method will also have dynamic sub-functions generated e.g. 's_mag_mn' etc.
+
+        Args:
+            freq (Frequency): Specifies the frequency to calculate the S-parameters at.
+            m (IndexArray): Specifies the first port indices, just as would be retrieved using `self.s(freq)[:,m,:]`. Defaults to `None` to specify a slice.
+            n (IndexArray): Specifies the second port indices, just as would be retrieved using `self.s(freq)[:,:,m]`.  Defaults to `None` to specify a slice.
+
+        Returns:
+            jnp.ndarray: The resultant S matrix.
+        """
+        if m is None:
+            return self.s(freq)[:, :, n]
+        elif n is None:
+            return self.s(freq)[:, m, :]
+
+        return self.s(freq)
             
     @property
     def submodels(self) -> list['Model']:

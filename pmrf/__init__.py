@@ -1,7 +1,7 @@
 from pmrf._model import (
     Model as Model,
 )
-from pmrf._misc import (
+from pmrf._util import (
     field,
 )
 

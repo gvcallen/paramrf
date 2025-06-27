@@ -4,7 +4,7 @@ from jax import vmap
 import jax.numpy as jnp
 from pmrf._frequency import Frequency
 from pmrf._model import Model
-from pmrf._misc import field
+from pmrf._util import field
 
 class Cascade(Model):
     """
