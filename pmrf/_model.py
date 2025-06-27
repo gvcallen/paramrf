@@ -219,11 +219,20 @@ class Model(eqx.Module):
         return {self._path_to_param_name(path): param for path, param in path_and_params[0]}
     
     @property
+    def num_params(self) -> int:
+        """Returns the number of core model parameters.
+
+        Returns:
+            int: The number of core params.
+        """
+        return len(self.param_names)
+    
+    @property
     def param_names(self) -> list[str]:
         """A list of the core model parameter names.
         
         Returns:
-            dict[str, Parameter]: The parameter dictionary.
+            list[str]: The core parameter names.
         """        
         return list(self.params.keys())    
       
@@ -613,7 +622,7 @@ class Model(eqx.Module):
         if all_check:
             missing_params = set(new_params.keys() - params.keys())
             if len(missing_params) != 0:
-                raise Exception(f"Error: the following parameters were missing: {missing_params}")
+                raise Exception(f"Error: the following model parameters were missing: {missing_params}")
             
         
         # Convert to an array of parameters instead of floats

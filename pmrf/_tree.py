@@ -10,6 +10,13 @@ import equinox as eqx
 
 from pmrf._constants import TreeAxisSpec
 
+# Dummy node used for array sharing in a model. See partition(..)
+class RefNode:
+    def __init__(self, path):
+        self.path = path
+    def __repr__(self):
+        return f"RefNode({tuple(self.path)})"
+
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
     is_leaf_takes_path: bool = False,
@@ -138,12 +145,6 @@ def path_repr(path):
             raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <path_repr> but '{type(key)}' was passed of value {key}")        
         
     return repr
-
-class RefNode:
-    def __init__(self, path):
-        self.path = path
-    def __repr__(self):
-        return f"RefNode({tuple(self.path)})"
     
 def dealias(
     tree: PyTree,

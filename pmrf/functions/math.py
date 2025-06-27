@@ -936,6 +936,7 @@ l1_norm_ax1 = partial(jnp.linalg.norm, ord=1, axis=1)
 l2_norm = partial(jnp.linalg.norm, ord=2)
 l2_norm_ax0 = partial(jnp.linalg.norm, ord=2, axis=0)
 l2_norm_ax1 = partial(jnp.linalg.norm, ord=2, axis=1)
+conv_cost = lambda x: dB20(l2_norm_ax0(conv_inter(l2_norm_ax0(x))))
     
 FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
     're': ('Real Part', jnp.real),

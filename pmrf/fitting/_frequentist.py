@@ -1,3 +1,4 @@
+import numpy as np
 import skrf
 import jax
 import jax.numpy as jnp
@@ -70,7 +71,11 @@ class FrequentistFitter(BaseFitter):
         def cost_jax(flat_params) -> jnp.ndarray:
             model_features = feature_fn(flat_params)
             error = self.measured_features - model_features
-            return self.cost_metric_fn(error)
+            cost_val = self.cost_metric_fn(error)
+            if jnp.isscalar(self.cost_metric_fn(error)):
+                return cost_val
+            else:
+                return cost_val[0]
 
         if not dont_jit:
             self.logger.info("Compiling model and cost function...")
@@ -79,7 +84,7 @@ class FrequentistFitter(BaseFitter):
         
         cost_numpy = lambda x: float(cost_jax(jnp.array(x)))
             
-        return cost_numpy, recon_fn, x0
+        return cost_numpy, recon_fn, np.array(x0)
 
 class ScipyMinimizeFitter(FrequentistFitter):
     """

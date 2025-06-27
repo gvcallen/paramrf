@@ -105,7 +105,7 @@ def make_feature_function(
     flat = False,
     jit = False,
 ) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
-    """Generate a feature function to easily extract model features.
+    """Generate a feature function to parametrically extract model features.
     
     This function returns a callable feature function to extract model features,
     alongside model parameters. The function can be just-in-time compiled using jax,

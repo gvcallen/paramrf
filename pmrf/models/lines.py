@@ -8,7 +8,6 @@ from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf._frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf._model import Model
-from pmrf._util import field
 
 class RLGCLine(Model):
     """
