@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 from scipy.interpolate import CubicSpline, PPoly, BPoly
 from scipy.constants import c, mu_0, epsilon_0
@@ -80,10 +80,10 @@ class PhysicalCoax(RLGCLine):
         model = str(getattr(self, f'{param_name}_model'))
         
         if model == 'constant':
-            value = getattr(self, param_name) * np.ones(self.frequency.npoints)
+            value = getattr(self, param_name) * jnp.ones(self.frequency.npoints)
         else:
             n = int(model[5:])
-            coeffs = np.array([[self.params[f'{param_name}_{i}']] for i in range(n+1)])
+            coeffs = jnp.array([[self.params[f'{param_name}_{i}']] for i in range(n+1)])
             breakpoints = self.freq_bounds
             if model.startswith('ppoly'):
                 poly = PPoly(coeffs, breakpoints)
@@ -141,29 +141,29 @@ class PhysicalCoax(RLGCLine):
     @property
     def L_prime(self):
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
-        return self.mu_f / (2 * np.pi) * lnbOvera
+        lnbOvera = jnp.log(b/a)
+        return self.mu_f / (2 * jnp.pi) * lnbOvera
     
     @property
     def C_prime(self):
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
-        return 2 * np.pi * np.real(self.eps_f) / lnbOvera
+        lnbOvera = jnp.log(b/a)
+        return 2 * jnp.pi * jnp.real(self.eps_f) / lnbOvera
     
     @property
     def G_diel(self):
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
+        lnbOvera = jnp.log(b/a)
         w = self.frequency.w
-        return 2 * np.pi * w * -np.imag(self.eps_f) / lnbOvera
+        return 2 * jnp.pi * w * -jnp.imag(self.eps_f) / lnbOvera
         
     @property
     def R_skin(self):
-        return np.real(self.Z_skin)
+        return jnp.real(self.Z_skin)
     
     @property
     def L_skin(self):
-        return np.imag(self.Z_skin) / self.frequency.w
+        return jnp.imag(self.Z_skin) / self.frequency.w
     
     @property
     def Z_skin(self):
@@ -171,12 +171,12 @@ class PhysicalCoax(RLGCLine):
             a, b, mu, sigma_a, sigma_b = self.din / 2, self.dout / 2, self.mu_f, 1 / self.rhoin_f, 1 / self.rhoout_f
             w = self.frequency.w
             
-            L_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(mu / (2 * w * sigma_a))
-            L_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(mu / (2 * w * sigma_b))
+            L_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(mu / (2 * w * sigma_a))
+            L_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(mu / (2 * w * sigma_b))
             L_skin = L_skin_a + L_skin_b
                     
-            R_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(w * mu / (2 * sigma_a))
-            R_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(w * mu / (2 * sigma_b))
+            R_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(w * mu / (2 * sigma_a))
+            R_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(w * mu / (2 * sigma_b))
             R_skin = R_skin_a + R_skin_b            
             
             return R_skin + 1j * self.frequency.w * L_skin
@@ -186,18 +186,18 @@ class PhysicalCoax(RLGCLine):
             w = self.frequency.w
 
             # Za
-            eta_a = np.sqrt((1j * w * mu) / sigma_a)
-            gamma_a = np.sqrt(1j * w * sigma_a * mu)
+            eta_a = jnp.sqrt((1j * w * mu) / sigma_a)
+            gamma_a = jnp.sqrt(1j * w * sigma_a * mu)
             num = eta_a * iv(0, gamma_a * a)
-            den = 2 * np.pi * a * iv(1, gamma_a * a)
+            den = 2 * jnp.pi * a * iv(1, gamma_a * a)
             Za_skin = num / den
         
             # Zb
-            eta_b = np.sqrt((1j * w * mu) / sigma_b)
-            gamma_b = np.sqrt(1j * w * sigma_b * mu)
+            eta_b = jnp.sqrt((1j * w * mu) / sigma_b)
+            gamma_b = jnp.sqrt(1j * w * sigma_b * mu)
             num = iv(0, gamma_b * b) * kv(1, gamma_b * c) + kv(0, gamma_b * b) * iv(1, gamma_b * c)
             den = iv(1, gamma_b * c) * kv(1, gamma_b * b) - iv(1, gamma_b * b) * kv(1, gamma_b * c)
-            Zb_skin = (eta_b * num) / (2*np.pi*b*den)
+            Zb_skin = (eta_b * num) / (2*jnp.pi*b*den)
             
             return Za_skin + Zb_skin
     
@@ -217,22 +217,22 @@ class PhysicalCoax(RLGCLine):
         
         # Optimized version (re-used variables)
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
+        lnbOvera = jnp.log(b/a)
         mu, rho = self.mu_f, self.rhoin_f    
         w = self.frequency.w
         invW = 1.0 / w
-        L_prime = self.mu_f / (2 * np.pi) * lnbOvera
-        C_prime = 2 * np.pi * np.real(self.eps_f) / lnbOvera        
-        G_diel = 2 * np.pi * w * -np.imag(self.eps_f) / lnbOvera        
+        L_prime = self.mu_f / (2 * jnp.pi) * lnbOvera
+        C_prime = 2 * jnp.pi * jnp.real(self.eps_f) / lnbOvera        
+        G_diel = 2 * jnp.pi * w * -jnp.imag(self.eps_f) / lnbOvera        
         if self.use_hf_approx and self.has_equal_rho:
-            L_sqrt_term = np.sqrt((0.5 * rho * mu) * invW)
-            L_skin_a = (1 / (2 * np.pi * a)) * L_sqrt_term
-            L_skin_b = (1 / (2 * np.pi * b)) * L_sqrt_term
+            L_sqrt_term = jnp.sqrt((0.5 * rho * mu) * invW)
+            L_skin_a = (1 / (2 * jnp.pi * a)) * L_sqrt_term
+            L_skin_b = (1 / (2 * jnp.pi * b)) * L_sqrt_term
             L_skin = L_skin_a + L_skin_b
                     
-            R_sqrt_term = np.sqrt(0.5 * rho * w * mu)
-            R_skin_a = (1 / (2 * np.pi * a)) * R_sqrt_term
-            R_skin_b = (1 / (2 * np.pi * b)) * R_sqrt_term
+            R_sqrt_term = jnp.sqrt(0.5 * rho * w * mu)
+            R_skin_a = (1 / (2 * jnp.pi * a)) * R_sqrt_term
+            R_skin_b = (1 / (2 * jnp.pi * b)) * R_sqrt_term
             R_skin = R_skin_a + R_skin_b
         else:
             L_skin = self.L_skin
@@ -241,7 +241,7 @@ class PhysicalCoax(RLGCLine):
         L = L_prime
         C = C_prime
         G = G_diel
-        R = np.zeros(G.shape)
+        R = jnp.zeros(G.shape)
         if not self.neglect_skin_inductance:
             L += L_skin
         R = R_skin
@@ -279,9 +279,9 @@ class DatasheetCoax(RLGCLine):
         self.floating = floating
         self.loss_coeffs_normalized = loss_coeffs_normalized
         self.use_kc = separate_connector_loss
-        self.log10 = np.log(10)
-        self.k1_norm_inv = 1.0 / (100 * np.sqrt(2*np.pi * 10**6)) # note that these optimizations do add up, although not much
-        self.k2_norm_inv = 1.0 / (100 * 2*np.pi * 10**6)
+        self.log10 = jnp.log(10)
+        self.k1_norm_inv = 1.0 / (100 * jnp.sqrt(2*jnp.pi * 10**6)) # note that these optimizations do add up, although not much
+        self.k2_norm_inv = 1.0 / (100 * 2*jnp.pi * 10**6)
 
         self.sloped_epr = sloped_epr
         self.slope_freq_bounds = slope_freq_bounds
@@ -305,7 +305,7 @@ class DatasheetCoax(RLGCLine):
         
         zn, k1, k2 = self.zn, self.k1, self.k2
         
-        epr = np.ones(self.frequency.npoints) * self.epr
+        epr = jnp.ones(self.frequency.npoints) * self.epr
 
         frequency = self.frequency
         f = frequency.f
@@ -331,7 +331,7 @@ class DatasheetCoax(RLGCLine):
                 kc_norm = self.kc
 
         w = self.frequency.w
-        sqrt_w = np.sqrt(w)
+        sqrt_w = jnp.sqrt(w)
 
         dBtoNeper = self.log10 / 20
         alpha_c = k1_norm * dBtoNeper * sqrt_w
@@ -340,7 +340,7 @@ class DatasheetCoax(RLGCLine):
         if self.use_kc:
             alpha_c += (kc_norm * dBtoNeper * sqrt_w) / self.len
         
-        sqrt_epr = np.sqrt(epr)
+        sqrt_epr = jnp.sqrt(epr)
         self.L = (zn * sqrt_epr) / c
         self.C = (sqrt_epr) / (zn * c)
         self.R = 2*zn * alpha_c
@@ -374,15 +374,15 @@ class MicrostripLine(RLGCLine):
 
         t1 = ((epr + 1) / 2)
         t2 = ((epr - 1) / 2)
-        t3 = 1 / np.sqrt(1 + 12 / u)
-        epe = (t1 + t2*t3) * np.ones(self.frequency.npoints)
+        t3 = 1 / jnp.sqrt(1 + 12 / u)
+        epe = (t1 + t2*t3) * jnp.ones(self.frequency.npoints)
         
-        Za = (120 * np.pi) / (u + 1.393 + 0.667 * np.log(u + 1.444))
-        Ze = Za / np.sqrt(epe)
+        Za = (120 * jnp.pi) / (u + 1.393 + 0.667 * jnp.log(u + 1.444))
+        Ze = Za / jnp.sqrt(epe)
 
-        self.L = (Ze * np.sqrt(epe)) / c
-        self.C = (np.sqrt(epe)) / (Ze * c)
-        self.R = (1 / W) * np.sqrt(2 * mu_0 * rho) * np.sqrt(omega)
+        self.L = (Ze * jnp.sqrt(epe)) / c
+        self.C = (jnp.sqrt(epe)) / (Ze * c)
+        self.R = (1 / W) * jnp.sqrt(2 * mu_0 * rho) * jnp.sqrt(omega)
         self.G = (1 / (Za * c)) * (epr * (epe - 1) / (epr - 1)) * tand * omega
         
         super().compute()
@@ -445,7 +445,7 @@ class SmoothCoaxialLine(ParametricNetwork):
         epr_f = self.epr_f
         
         # Create a list of CoaxialLine objects
-        x_vals = np.linspace(0, self.len, self.num_lines)
+        x_vals = jnp.linspace(0, self.len, self.num_lines)
         for x in x_vals:
             zn = zn_f(x)
             epr = epr_f(x)
@@ -457,44 +457,44 @@ class SmoothCoaxialLine(ParametricNetwork):
         self.a = a
         
     def get_abcd(self, zn, epr, k1, k2, len):
-        k1_norm = k1 / (100 * np.sqrt(2*np.pi * 10**6))
-        k2_norm = k2 / (100 * 2*np.pi * 10**6)
+        k1_norm = k1 / (100 * jnp.sqrt(2*jnp.pi * 10**6))
+        k2_norm = k2 / (100 * 2*jnp.pi * 10**6)
 
         w = self.frequency.w
 
-        epr = epr * np.ones(self.frequency.npoints)
+        epr = epr * jnp.ones(self.frequency.npoints)
         
-        dBtoNeper = np.log(10) / 20
-        alpha_c = k1_norm * dBtoNeper * np.sqrt(w)
+        dBtoNeper = jnp.log(10) / 20
+        alpha_c = k1_norm * dBtoNeper * jnp.sqrt(w)
         alpha_d = k2_norm * dBtoNeper * w
 
-        L = (zn * np.sqrt(epr)) / c
-        C = (np.sqrt(epr)) / (zn * c)
+        L = (zn * jnp.sqrt(epr)) / c
+        C = (jnp.sqrt(epr)) / (zn * c)
         R = 2*zn * alpha_c
         G = 2/zn * alpha_d
         
-        gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-        z0 = np.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+        gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+        z0 = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
         
-        a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
-        a[:, 0, 0] = np.cosh(gamma * len)
-        a[:, 0, 1] = z0 * np.sinh(gamma * len)
-        a[:, 1, 0] = (1/z0) * np.sinh(gamma * len)
-        a[:, 1, 1] = np.cosh(gamma * len)
+        a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+        a[:, 0, 0] = jnp.cosh(gamma * len)
+        a[:, 0, 1] = z0 * jnp.sinh(gamma * len)
+        a[:, 1, 0] = (1/z0) * jnp.sinh(gamma * len)
+        a[:, 1, 1] = jnp.cosh(gamma * len)
         return a
         
     # Return the characteristic impedance functional object
     @property
     def zn_f(self):
-        y = np.array([self.params[f'zn{i}'] for i in range(self.num_vertices)])
-        x = np.linspace(0, self.len, self.num_vertices)        
+        y = jnp.array([self.params[f'zn{i}'] for i in range(self.num_vertices)])
+        x = jnp.linspace(0, self.len, self.num_vertices)        
         return CubicSpline(x, y)
     
     # Return the dielectric constant functional object
     @property
     def epr_f(self):
-        y = np.array([self.params[f'epr{i}'] for i in range(self.num_vertices)])
-        x = np.linspace(0, self.len, self.num_vertices)        
+        y = jnp.array([self.params[f'epr{i}'] for i in range(self.num_vertices)])
+        x = jnp.linspace(0, self.len, self.num_vertices)        
         return CubicSpline(x, y)
     
     
@@ -525,17 +525,17 @@ class SlopedLine(ParametricNetwork):
         tan_d = tan_d_slope * fn + tan_d_const
         r_prime = r_prime_slope * fn + r_prime_const
 
-        sqrt_eps_r = np.sqrt(eps_r)
+        sqrt_eps_r = jnp.sqrt(eps_r)
         alpha_c = r_prime / (2 * zn)
-        alpha_d = np.pi * sqrt_eps_r * tan_d * f / c
+        alpha_d = jnp.pi * sqrt_eps_r * tan_d * f / c
 
-        beta = 2*np.pi * f / c * sqrt_eps_r
+        beta = 2*jnp.pi * f / c * sqrt_eps_r
         
         gamma = alpha_c + alpha_d + 1j * beta
 
         gL = gamma * len
-        sinh_gL, cosh_gL = np.sinh(gL), np.cosh(gL)
-        a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+        sinh_gL, cosh_gL = jnp.sinh(gL), jnp.cosh(gL)
+        a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
         a[:, 0, 0] = cosh_gL
         a[:, 0, 1] = zn * sinh_gL
         a[:, 1, 0] = 1 / zn * sinh_gL
@@ -566,17 +566,17 @@ class BasicLine(ParametricNetwork):
         f = frequency.f
 
         alpha_c = r_prime / (2 * zn)
-        alpha_d = np.pi * np.sqrt(eps_r) * tan_d * f / c
+        alpha_d = jnp.pi * jnp.sqrt(eps_r) * tan_d * f / c
 
-        beta = 2*np.pi * f / c * np.sqrt(eps_r)
+        beta = 2*jnp.pi * f / c * jnp.sqrt(eps_r)
         
         gamma = alpha_c + alpha_d + 1j * beta
 
         gL = gamma * len
-        a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
-        a[:, 0, 0] = np.cosh(gL)
-        a[:, 0, 1] = zn * np.sinh(gL)
-        a[:, 1, 0] = 1 / zn * np.sinh(gL)
+        a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+        a[:, 0, 0] = jnp.cosh(gL)
+        a[:, 0, 1] = zn * jnp.sinh(gL)
+        a[:, 1, 0] = 1 / zn * jnp.sinh(gL)
         a[:, 1, 1] = a[:, 0, 0]
 
         self.a = a    

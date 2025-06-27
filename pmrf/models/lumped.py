@@ -1,7 +1,8 @@
-import pmrf.numpy as np
+import jax.numpy as jnp
+
+from pmrf.parameters import Parameter
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf.parameters import Parameter
 
 class Load(Model):
     """
@@ -19,11 +20,11 @@ class Load(Model):
         self.name = 'load'
 
     @property
-    def gamma(self) -> float | np.ndarray:
+    def gamma(self) -> float | jnp.ndarray:
         """The complex reflection coefficient (Gamma) of the load."""
         raise NotImplementedError("Subclasses of Load must implement the 'gamma' property.")
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the 1-port S-parameter matrix.
 
         Args:
@@ -34,8 +35,8 @@ class Load(Model):
         """
         gamma, nports = self.gamma, self.nports
         # Create a frequency-dependent 1x1 matrix from the scalar gamma
-        s = np.array(gamma).reshape(-1, 1, 1) * \
-            np.eye(nports, dtype=np.complex128).reshape((-1, nports, nports)).\
+        s = jnp.array(gamma).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
             repeat(freq.npoints, 0)
         return s
     
@@ -49,7 +50,7 @@ class Match(Load):
         self.name = 'match'
     
     @property
-    def gamma(self) -> float | np.ndarray:
+    def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of a matched load, which is always 0."""
         return 0.0
 
@@ -63,7 +64,7 @@ class Short(Load):
         self.name = 'short'
     
     @property
-    def gamma(self) -> float | np.ndarray:
+    def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of a short circuit, which is always -1."""
         return -1.0
 
@@ -77,7 +78,7 @@ class Open(Load):
         self.name = 'open'
     
     @property
-    def gamma(self) -> float | np.ndarray:
+    def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of an open circuit, which is always +1."""
         return 1.0
  
@@ -109,7 +110,7 @@ class Capacitor(Model):
     def __post_init__(self):
         self.name = 'capacitor'
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series capacitor.
 
         Args:
@@ -123,11 +124,11 @@ class Capacitor(Model):
 
         z0_0 = z0_1 = self.z0
         denom = 1.0 + 1j * w * C * (z0_0 + z0_1)
-        s11 = (1.0 - 1j * w * C * (np.conj(z0_0) - z0_1) ) / denom
-        s22 = (1.0 - 1j * w * C * (np.conj(z0_1) - z0_0) ) / denom
+        s11 = (1.0 - 1j * w * C * (jnp.conj(z0_0) - z0_1) ) / denom
+        s22 = (1.0 - 1j * w * C * (jnp.conj(z0_1) - z0_0) ) / denom
         s12 = s21 = (2j * w * C * (z0_0.real * z0_1.real)**0.5) / denom
 
-        s = np.array([
+        s = jnp.array([
             [s11, s12],
             [s21, s22]
         ]).transpose(2, 0, 1)
@@ -159,7 +160,7 @@ class Inductor(Model):
     def __post_init__(self):
         self.name = 'inductor'
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series inductor.
 
         Args:
@@ -174,11 +175,11 @@ class Inductor(Model):
         z0_0 = z0_1 = self.z0
         
         denom = (1j * w * L) + (z0_0 + z0_1)
-        s11 = (1j * w * L - np.conj(z0_0) + z0_1) / denom
-        s22 = (1j * w * L + z0_0 - np.conj(z0_1)) / denom
+        s11 = (1j * w * L - jnp.conj(z0_0) + z0_1) / denom
+        s22 = (1j * w * L + z0_0 - jnp.conj(z0_1)) / denom
         s12 = s21 = 2 * (z0_0.real * z0_1.real)**0.5 / denom
 
-        s = np.array([
+        s = jnp.array([
             [s11, s12],
             [s21, s22]
         ]).transpose(2, 0, 1)
@@ -210,7 +211,7 @@ class Resistor(Model):
     def __post_init__(self):
         self.name = 'resistor'
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series resistor.
 
         Args:
@@ -221,15 +222,15 @@ class Resistor(Model):
         """
         R = self.R
         z0_0 = z0_1 = self.z0
-        ones = np.ones(freq.npoints, dtype=np.complex128)
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
         denom = R + (z0_0 + z0_1)
-        s11 = ((R - np.conj(z0_0) + z0_1) / denom) * ones
-        s22 = ((R + z0_0 - np.conj(z0_1)) / denom) * ones
+        s11 = ((R - jnp.conj(z0_0) + z0_1) / denom) * ones
+        s22 = ((R + z0_0 - jnp.conj(z0_1)) / denom) * ones
         s12 = (2 * (z0_0.real * z0_1.real)**0.5 / denom) * ones
         s21 = s12
 
-        s = np.array([
+        s = jnp.array([
             [s11, s12],
             [s21, s22]
         ]).transpose(2, 0, 1)
@@ -245,7 +246,7 @@ class Transformer(Model):
     def __post_init__(self):
         self.name = 'transformer'
     
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Returns the fixed S-parameter matrix for the transformer.
 
         Args:
@@ -254,7 +255,7 @@ class Transformer(Model):
         Returns:
             np.ndarray: The 4x4 S-parameter matrix, constant across frequency.
         """
-        s = 0.5 * np.ones((freq.npoints, 4, 4), dtype=np.complex128)
+        s = 0.5 * jnp.ones((freq.npoints, 4, 4), dtype=jnp.complex128)
         s = s.at[:, 0, 3].set(-0.5)
         s = s.at[:, 1, 2].set(-0.5)
         s = s.at[:, 2, 1].set(-0.5)

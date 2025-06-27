@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 from scipy.linalg import svd
 from sklearn.decomposition import TruncatedSVD
 
@@ -23,8 +23,8 @@ class ThresholdedSVD:
             
             X_transformed = self.transform(X)
 
-            self.explained_variance_ = exp_var = np.var(X_transformed, axis=0)
-            full_var = np.var(X, axis=0).sum()
+            self.explained_variance_ = exp_var = jnp.var(X_transformed, axis=0)
+            full_var = jnp.var(X, axis=0).sum()
             self.explained_variance_ratio_ = exp_var / full_var
             if self.explained_variance_ratio_[-1] < self.threshold:
                 break
@@ -35,7 +35,7 @@ class ThresholdedSVD:
         return self
         
     def transform(self, X):
-        return np.dot(X, self.components_.T)
+        return jnp.dot(X, self.components_.T)
     
     def fit_transform(self, X):
         self.fit(X)
@@ -48,12 +48,12 @@ class ArcsinhScaler():
         self.k = k
         
     def fit(self, X):
-        self.A = np.max(X)
+        self.A = jnp.max(X)
         return self
         
     def transform(self, X):
         X_offset = X - self.A
-        return np.arcsinh(X_offset / self.k)
+        return jnp.arcsinh(X_offset / self.k)
     
     def fit_transform(self, X):
         self.fit(X)

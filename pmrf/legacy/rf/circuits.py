@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 def get_twoport_a(network: rf.Network, a_buffer=None):
@@ -6,7 +6,7 @@ def get_twoport_a(network: rf.Network, a_buffer=None):
         return network.a_cached
     
     # From Pozar parameter conversion table. Ever slightly faster than the general scikit-rf method
-    a = a_buffer if a_buffer is not None else np.zeros((network.s.shape), dtype=np.complex128)
+    a = a_buffer if a_buffer is not None else jnp.zeros((network.s.shape), dtype=jnp.complex128)
     z0 = network.z0[:,0]
     s11, s12, s21, s22 = network.s[:,0,0], network.s[:,0,1], network.s[:,1,0], network.s[:,1,1]
     inv = 1 / (2.0*s21)

@@ -1,25 +1,3 @@
-"""
-The following file is immediate derivative work of the scikit-rf library. The scikit-rf copyright license is attached.
-
----------------------------------------------------------------
-
-Copyright (c) 2010, Alexander Arsenovic All rights reserved.
-
-Copyright (c) 2017, scikit-rf Developers All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-Neither the name of the scikit-rf nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
----------------------------------------------------------------
-"""
-
 from __future__ import annotations
 
 from numbers import Number
@@ -27,12 +5,9 @@ from numbers import Number
 import skrf
 import equinox as eqx
 
-import pmrf.numpy as np
+import jax.numpy as jnp
 from pmrf._misc import field
-
-from skrf.constants import FREQ_UNITS, FrequencyUnitT, NumberLike
-UNIT_DICT: dict[str] = {k.lower(): k for k in FREQ_UNITS}
-MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
+from pmrf._constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
 
 class Frequency(eqx.Module):
     """
@@ -73,28 +48,64 @@ class Frequency(eqx.Module):
     freq_from_skrf = prf.Frequency.from_skrf(skrf_freq)
     ```
     """
-    _f: np.array
+    _f: jnp.array
     _unit: str = field(static=True)
 
-    def __init__(self, *args, frequency=None, **kwargs) -> None:
-        """Initializes the Frequency object.
-
-        This initializer is a wrapper around the `skrf.Frequency` initializer.
-        Arguments are forwarded directly, allowing for flexible creation from
-        start/stop/npoints, a frequency vector, or an existing object.
-
-        Args:
-            *args: Positional arguments passed to `skrf.Frequency`.
-            frequency (skrf.Frequency, optional): An existing `skrf.Frequency`
-                object to use as the source. Defaults to None.
-            **kwargs: Keyword arguments passed to `skrf.Frequency`.
+    def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, f = None,
+        unit: FrequencyUnitT | None = 'Hz') -> None:
         """
-        if len(args) != 0 and isinstance(args[0], skrf.Frequency):
-            frequency = args[0]
-        
-        frequency = frequency or skrf.Frequency(*args, **kwargs)
-        self._unit = frequency._unit
-        self._f = np.asarray(frequency._f)
+        Frequency initializer.
+
+        Creates a Frequency object from start/stop/npoints and a unit.
+        Alternatively, the class method :func:`from_f` can be used to
+        create a Frequency object from a frequency vector instead.
+
+        Parameters
+        ----------
+        start : number, optional
+            start frequency in  units of `unit`. Default is 0.
+        stop : number, optional
+            stop frequency in  units of `unit`. Default is 0.
+        npoints : int, optional
+            number of points in the band. Default is 0.
+        unit : string, optional
+            Frequency unit of the band: 'Hz', 'kHz', 'MHz', 'GHz', 'THz'.
+            This is used to create the attribute :attr:`f_scaled`.
+            It is also used by the :class:`~skrf.network.Network` class
+            for plots vs. frequency. Default is 'Hz'.
+        sweep_type : string, optional
+            Type of the sweep: 'lin' or 'log'.
+            'lin' for linear and 'log' for logarithmic. Default is 'lin'.
+
+        Note
+        ----
+        The attribute `unit` sets the frequency multiplier, which is used
+        to scale the frequency when `f_scaled` is referenced.
+
+        Note
+        ----
+        The attribute `unit` is not case sensitive.
+        Hence, for example, 'GHz' or 'ghz' is the same.
+
+        See Also
+        --------
+        from_f : constructs a Frequency object from a frequency
+            vector instead of start/stop/npoints.
+        :attr:`unit` : frequency unit of the band
+
+        Examples
+        --------
+        >>> wr1p5band = Frequency(start=500, stop=750, npoints=401, unit='ghz')
+        >>> logband = Frequency(1, 1e9, 301, sweep_type='log')
+
+        """
+        self._unit = unit.lower()
+        if not f is None:
+            self._f = jnp.array(f)
+        else:        
+            start =  self.multiplier * start
+            stop = self.multiplier * stop
+            self._f = jnp.linspace(start, stop, npoints)
         
     @staticmethod
     def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
@@ -106,7 +117,7 @@ class Frequency(eqx.Module):
         Returns:
             Frequency: The equivalent pmrf Frequency object.
         """
-        return Frequency(frequency=skrf_frequency)
+        return Frequency(f=skrf_frequency.f, unit=skrf_frequency.unit)
     
     def to_skrf(self) -> skrf.Frequency:
         """Converts this `pmrf.Frequency` object to a `skrf.Frequency` object.
@@ -114,8 +125,8 @@ class Frequency(eqx.Module):
         Returns:
             skrf.Frequency: The equivalent scikit-rf Frequency object.
         """
-        import numpy as np
-        return skrf.Frequency.from_f(np.array(self._f), self._unit)
+        import numpy as jnp
+        return skrf.Frequency.from_f(jnp.array(self._f), self._unit)
 
     def __len__(self) -> int:
         """The number of frequency points."""
@@ -235,7 +246,7 @@ class Frequency(eqx.Module):
         return abs(self.stop_scaled-self.start_scaled)
 
     @property
-    def f(self) -> np.ndarray:
+    def f(self) -> jnp.ndarray:
         """The frequency vector in Hz.
 
         Returns:
@@ -244,7 +255,7 @@ class Frequency(eqx.Module):
         return self._f
 
     @property
-    def f_scaled(self) -> np.ndarray:
+    def f_scaled(self) -> jnp.ndarray:
         """The frequency vector in the specified `unit`.
 
         Returns:
@@ -253,7 +264,7 @@ class Frequency(eqx.Module):
         return self.f/self.multiplier
 
     @property
-    def w(self) -> np.ndarray:
+    def w(self) -> jnp.ndarray:
         r"""The angular frequency vector in radians/s.
 
         Angular frequency is defined as $\omega=2\pi f$.
@@ -261,22 +272,22 @@ class Frequency(eqx.Module):
         Returns:
             np.ndarray: Angular frequency in rad/s.
         """
-        return 2*np.pi*self.f
+        return 2*jnp.pi*self.f
 
     @property
-    def df(self) -> np.ndarray:
+    def df(self) -> jnp.ndarray:
         """The gradient of the frequency vector, in Hz."""
-        return np.gradient(self.f)
+        return jnp.gradient(self.f)
 
     @property
-    def df_scaled(self) -> np.ndarray:
+    def df_scaled(self) -> jnp.ndarray:
         """The gradient of the scaled frequency vector."""
-        return np.gradient(self.f_scaled)
+        return jnp.gradient(self.f_scaled)
 
     @property
-    def dw(self) -> np.ndarray:
+    def dw(self) -> jnp.ndarray:
         """The gradient of the angular frequency vector, in rad/s."""
-        return np.gradient(self.w)
+        return jnp.gradient(self.w)
 
     @property
     def unit(self) -> FrequencyUnitT:
@@ -303,7 +314,7 @@ class Frequency(eqx.Module):
         """
         return MULTIPLIER_DICT[self._unit]
 
-    def _t_padded(self, *, pad: int = 0, n: int | None = None, bandpass: bool | None = None) -> np.ndarray:
+    def _t_padded(self, *, pad: int = 0, n: int | None = None, bandpass: bool | None = None) -> jnp.ndarray:
         if bandpass is None:
             bandpass = self.f[0] != 0
 
@@ -316,20 +327,20 @@ class Frequency(eqx.Module):
             t_stop = (n - 1) // 2 * dt
             t_start = -t_stop - dt if n % 2 == 0 else (-n // 2 + 1) * dt
 
-            t = np.linspace(t_start, t_stop, num=n, endpoint=True)
+            t = jnp.linspace(t_start, t_stop, num=n, endpoint=True)
         else:
             dt = 1 / (n * self.step)
-            t = np.linspace(-dt * (n // 2), dt * (n // 2), num=n, endpoint=True)
+            t = jnp.linspace(-dt * (n // 2), dt * (n // 2), num=n, endpoint=True)
 
         return t
 
     @property
-    def t(self) -> np.ndarray:
+    def t(self) -> jnp.ndarray:
         """The time vector in seconds, for use in Fourier Transforms."""
         return self._t_padded(bandpass=True)
 
     @property
-    def t_ns(self) -> np.ndarray:
+    def t_ns(self) -> jnp.ndarray:
         """The time vector in nanoseconds."""
         return self.t*1e9
 
@@ -355,7 +366,7 @@ class Frequency(eqx.Module):
         if isinstance(val, str):
             val = MULTIPLIER_DICT[val.lower()]
 
-        self.f = np.round(self.f/val)*val
+        self.f = jnp.round(self.f/val)*val
 
     def overlap(self,f2: Frequency) -> Frequency:
         """Calculates the overlapping frequency range with another `Frequency` object.
@@ -377,9 +388,9 @@ class Frequency(eqx.Module):
         Returns:
             str: 'lin' for linear, 'log' for logarithmic, or 'unknown'.
         """
-        if np.allclose(self.f, np.linspace(self.f[0], self.f[-1], self.npoints), rtol=0.05):
+        if jnp.allclose(self.f, jnp.linspace(self.f[0], self.f[-1], self.npoints), rtol=0.05):
             sweep_type = 'lin'
-        elif self.f[0] and np.allclose(self.f, np.geomspace(self.f[0], self.f[-1], self.npoints), rtol=0.05):
+        elif self.f[0] and jnp.allclose(self.f, jnp.geomspace(self.f[0], self.f[-1], self.npoints), rtol=0.05):
             sweep_type = 'log'
         else:
             sweep_type = 'unknown'

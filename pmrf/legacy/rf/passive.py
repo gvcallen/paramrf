@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 # The available gain of a two-port network relative to the available power of a source, where port 1 of the two-port is connected to the source
@@ -14,8 +14,8 @@ def available_gain(source: rf.Network, passive: rf.Network, source_port=0):
     gamma_out = ntwk_back.s[:, 0, 0]
     s21, s11 = passive.s[:, 1, 0], passive.s[:, 0, 0]
     
-    num = np.abs(s21)**2 * (1 - np.abs(gamma_S)**2)
-    den = np.abs(1 - s11*gamma_S)**2 * (1 - np.abs(gamma_out)**2)
+    num = jnp.abs(s21)**2 * (1 - jnp.abs(gamma_S)**2)
+    den = jnp.abs(1 - s11*gamma_S)**2 * (1 - jnp.abs(gamma_out)**2)
     Gav = num / den
 
     return Gav
@@ -33,7 +33,7 @@ def output_temperature_alternative(source: rf.Network, passive: rf.Network, Ts, 
     gamma_2 = rf.connect(source, 0, passive, 0).s[:,0,0]
         
     # We want to calculate an effective output temperature (independent of the load) so we assume the load is a conjugate match i.e. gamma_L = gamma_2*
-    load = rf.Network(frequency=source.frequency, s=np.conj(gamma_2), z0=passive.z0[:,1])
+    load = rf.Network(frequency=source.frequency, s=jnp.conj(gamma_2), z0=passive.z0[:,1])
     gamma_L = load.s[:,0,0]
     
     # Calculate other gammas
@@ -41,16 +41,16 @@ def output_temperature_alternative(source: rf.Network, passive: rf.Network, Ts, 
     gamma_G = source.s[:,0,0]
     gamma_3 = gamma_L
     
-    tau_1 = np.abs(passive.s[:,1,0])**2
+    tau_1 = jnp.abs(passive.s[:,1,0])**2
     s22 = passive.s[:,1,1]
     
-    num = (1 - np.abs(gamma_G)**2) * tau_1
-    den = np.abs(1 - gamma_G * gamma_1)**2 * np.abs(1 - s22*gamma_3)**2
+    num = (1 - jnp.abs(gamma_G)**2) * tau_1
+    den = jnp.abs(1 - gamma_G * gamma_1)**2 * jnp.abs(1 - s22*gamma_3)**2
     tau_m1 = num / den
-    tau_M1 = tau_m1 * (1 - np.abs(gamma_L)**2)
+    tau_M1 = tau_m1 * (1 - jnp.abs(gamma_L)**2)
     
-    I1p = (1 - np.abs(gamma_2)**2) / (np.abs(1 - gamma_2 * gamma_3))**2
-    I1 = I1p * (1 - np.abs(gamma_L)**2)
+    I1p = (1 - jnp.abs(gamma_2)**2) / (jnp.abs(1 - gamma_2 * gamma_3))**2
+    I1 = I1p * (1 - jnp.abs(gamma_L)**2)
     
     T2d = Ts*tau_M1 + Tp*(I1 - tau_M1)
     return T2d
@@ -66,7 +66,7 @@ def cascaded_output_temperature(source: rf.Network, passives: list[rf.Network], 
         gamma_backwards.append(source_cascaded.s[:,0,0])
         
     # We want to calculate an effective output temperature (independent of the load) so we assume the load is a conjugate match i.e. gamma_L = gamma_back*
-    load = rf.Network(frequency=source.frequency, s=np.conj(gamma_backwards[-1]), z0=passive.z0[:,1])
+    load = rf.Network(frequency=source.frequency, s=jnp.conj(gamma_backwards[-1]), z0=passive.z0[:,1])
     gamma_L = load.s[:,0,0]
         
     # gamma_forwards[n-1] is the forward reflection coefficient just before network n towards the load
@@ -82,7 +82,7 @@ def cascaded_output_temperature(source: rf.Network, passives: list[rf.Network], 
     
     def tau(k):
         s21 = networks[k].s[:,1,0]
-        return np.abs(s21)**2
+        return jnp.abs(s21)**2
     
     def gamma(k):
         if k % 2 == 0:
@@ -98,27 +98,27 @@ def cascaded_output_temperature(source: rf.Network, passives: list[rf.Network], 
     def tau_m(i):
         gamma_2iMinus2 = gamma(2*i - 2)
         gamma_2iMinus1 = gamma(2*i - 1)
-        num = 1 - np.abs(gamma_2iMinus2)**2
-        den = np.abs(1 - gamma_2iMinus2 * gamma_2iMinus1)**2
+        num = 1 - jnp.abs(gamma_2iMinus2)**2
+        den = jnp.abs(1 - gamma_2iMinus2 * gamma_2iMinus1)**2
         coeff = num / den
 
         product = 1
         for j in range(i, N+1):
             s22 = networks[j].s[:,1,1]
             num = tau(j)
-            den = np.abs(1 - s22 * gamma(2*j + 1))**2
+            den = jnp.abs(1 - s22 * gamma(2*j + 1))**2
             product *= num / den
 
         return coeff * product
     
     def tau_M(i):
-        return tau_m(i) * (1 - np.abs(gamma_L)**2)
+        return tau_m(i) * (1 - jnp.abs(gamma_L)**2)
     
     def M(i):
         return tau_m(i+1)
     
     def M_id(i):
-        return M(i) * (1 - np.abs(gamma_L)**2)
+        return M(i) * (1 - jnp.abs(gamma_L)**2)
     
     T_Td = Ts * tau_M(1)
     for i in range(1, N+1):

@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 from skrf.media import DefinedGammaZ0, DistributedCircuit
 from skrf.constants import c
@@ -40,21 +40,21 @@ class RLGCLine(ParametricNetwork):
             media = DistributedCircuit(self.frequency, z0_port=self.z0_port, C=C, L=L, R=R, G=G)
         else:
             if self.method == 'exact':
-                gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-                Zc = np.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+                gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+                Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
             elif self.method == 'semiapprox':
-                Zn = np.sqrt(L/C)
+                Zn = jnp.sqrt(L/C)
                 
-                beta = w * np.sqrt(L*C)
+                beta = w * jnp.sqrt(L*C)
                 alpha_c = R / (2*Zn)
                 alpha_d = (G*Zn)/2
 
                 Zc = Zn
                 gamma = 1j*beta + alpha_c + alpha_d                
             elif self.method == 'approx':
-                Zn = np.sqrt(L/C)
+                Zn = jnp.sqrt(L/C)
                 
-                beta = w * np.sqrt(L*C)
+                beta = w * jnp.sqrt(L*C)
                 alpha_c = R / (2*Zn)
                 alpha_d = (G*Zn)/2
 
@@ -62,11 +62,11 @@ class RLGCLine(ParametricNetwork):
                 Zc = Zn
                         
         if self.number_of_ports == 2:
-            a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+            a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
             gL = gamma*self.len
-            a[:, 0, 0] = np.cosh(gL)
-            a[:, 0, 1] = Zc * np.sinh(gL)
-            a[:, 1, 0] = 1 / Zc * np.sinh(gL)
+            a[:, 0, 0] = jnp.cosh(gL)
+            a[:, 0, 1] = Zc * jnp.sinh(gL)
+            a[:, 1, 0] = 1 / Zc * jnp.sinh(gL)
             a[:, 1, 1] = a[:, 0, 0]
             
             self.a_cached = a

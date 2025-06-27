@@ -1,7 +1,7 @@
 from pathlib import Path
 import logging
 
-import numpy as np
+import numpy as jnp
 import matplotlib.pyplot as plt
 import skrf as rf
 
@@ -218,7 +218,7 @@ class Plotter():
         if port_tuples:
             num_port_plots = len(port_tuples) * len(self._targets_active)
         else:
-            num_port_plots = np.sum([target.number_of_ports**2 for target in self._targets_active])
+            num_port_plots = jnp.sum([target.number_of_ports**2 for target in self._targets_active])
         
         if contours or lines:
             samples, weights = self.samples, self.weights
@@ -264,8 +264,8 @@ class Plotter():
                         
                 # Plot real and imaginary
                 if real_imag:
-                    func_real = lambda _, theta: np.real(self.network_from_target(target, theta, update_noise=True).s[:, m, n])
-                    func_imag = lambda _, theta: np.imag(self.network_from_target(target, theta, update_noise=True).s[:, m, n])
+                    func_real = lambda _, theta: jnp.real(self.network_from_target(target, theta, update_noise=True).s[:, m, n])
+                    func_imag = lambda _, theta: jnp.imag(self.network_from_target(target, theta, update_noise=True).s[:, m, n])
                     
                     if mag:
                         row = row + 1
@@ -297,7 +297,7 @@ class Plotter():
         self._end_figure(name)
         self.reset_params()
     
-    def update_params(self, params: np.ndarray | dict, update_networks=True, update_network_likelihoods=True, update_noise=False, scaler=None):
+    def update_params(self, params: jnp.ndarray | dict, update_networks=True, update_network_likelihoods=True, update_noise=False, scaler=None):
         if params is None:
             return self._system.update_networks()
         elif isinstance(params, dict):

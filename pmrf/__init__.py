@@ -1,5 +1,12 @@
+from pmrf._model import (
+    Model as Model,
+)
 from pmrf._misc import (
     field,
+)
+
+from pmrf._frequency import (
+    Frequency as Frequency,
 )
 
 from pmrf._tree import (
@@ -9,17 +16,10 @@ from pmrf._tree import (
     dealias
 )
 
-from pmrf._frequency import (
-    Frequency as Frequency,
-)
-
 from pmrf.parameters import (
     Parameter as Parameter,
 )
 
-from pmrf._model import (
-    Model as Model,
-)
 
 from importlib.metadata import version as _version, PackageNotFoundError
 try:

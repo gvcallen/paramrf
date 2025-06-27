@@ -1,12 +1,11 @@
 from abc import abstractmethod
 
+import jax.numpy as jnp
+
 from pmrf.models.lumped import Resistor
 from pmrf.models.topological import PiCLC
-
-import pmrf.numpy as np
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf._misc import field
 
 class NonIdealResistor(Model):
     """
@@ -96,7 +95,7 @@ class CLCResistor(NonIdealResistor):
         """
         return self.clc
     
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix of the complete non-ideal resistor model.
 
         Args:

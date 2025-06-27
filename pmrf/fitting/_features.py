@@ -1,15 +1,82 @@
-from typing import Sequence
+from typing import Sequence, Callable, Union
 
 import skrf
-import pmrf as prf
-import pmrf.numpy as np
+import jax
+import jax.numpy as jnp
+from jax import flatten_util
+
+from pmrf._constants import FeatureT, FeatureListT
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf.numpy import USE_JAX
+from pmrf._tree import combine
 
-Feature = tuple[str, tuple[int, int]]
+FeatureFunctionT = Callable[[Model | jnp.ndarray], jnp.ndarray]
+ModelParametersT = Union[Model | jnp.ndarray]
 
-def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], features: list[Feature] | list[list[Feature]], freq: prf.Frequency | skrf.Frequency = None) -> np.ndarray:
+def generate_feature_function(
+    model: Model,
+    features: FeatureListT,
+    freq: Frequency | skrf.Frequency,
+    flat=False,
+    return_unravel_fn=False,
+    jit=False,
+) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
+    """Generate a feature function to easily extract model features.
+    
+    This function returns a callable feature function to extract model features,
+    alongside model parameters. The function can be just-in-time compiled using jax,
+    to enable its efficient, machine-code level computation.
+    
+    The function generated accepts the model parameters, in either Pytree
+    or flattened (raveled) formated, and returns the resultant model feature matrix
+    to be used in fitting procedures.
+
+    Args:
+        model (Model): The model to generate the feature functions for.
+        features (list[Feature] | list[list[Feature]]): The list of features. See `extract_features` for more information.
+        freq (pmrf.Frequency): The frequency to extract the features at, treated as a static argument.
+        flat (bool): Whether the feature function should accept a flat array as input.
+                     If True, a third argument will be returned, which is a "reconstruct" function
+                     that transforms the flat array back into the full (unraveled-combined) model.
+        jit (bool): Whether or not to just-in-time compile the function.
+
+    Returns:
+        tuple[FeatureFunction, ModelParameters]: The feature function, alongside the partitioned or flattened model parameters.
+    """
+    if isinstance(freq, skrf.Frequency):
+        freq = Frequency.from_skrf(freq)
+    
+    features = _process_features(features)
+    params_tree, static = model.partition()
+    
+    if flat:
+        params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
+        def reconstruct_fn(flat_params) -> Model:
+            params_tree_recon = unravel_fn(flat_params)
+            return combine(params_tree_recon, static)
+            
+        def feature_fn(flat_params) -> jnp.ndarray:
+            model_recon = reconstruct_fn(flat_params)
+            return extract_features(model_recon, features, freq)
+    else:
+        params_out = params_tree
+        def feature_fn(tree_params) -> jnp.ndarray:
+            model_recon = combine(tree_params, static)
+            return extract_features(model_recon, features, freq)
+    
+    if jit:
+        feature_fn = jax.jit(feature_fn)
+        
+    if flat:
+        return feature_fn, params_out, reconstruct_fn
+
+    return feature_fn, params_out
+
+def extract_features(
+    source: Model | skrf.Network | Sequence[skrf.Network],
+    features: list[FeatureT] | list[list[FeatureT]],
+    freq: Frequency | skrf.Frequency = None,
+) -> jnp.ndarray:
     """Extracts features from a model or a network.
     
     This function allows for an arbitrary number of features (e.g. 's', 's_db')
@@ -35,9 +102,8 @@ def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], feat
 
     Returns:
         np.ndarray: The feature matrix.
-    """
-    if isinstance(features[0], list):
-        features = [feature for features_inner in features for feature in features_inner]
+    """    
+    features = _process_features(features)
     if isinstance(source, skrf.Network):
         freq = source.frequency
         source = [source]
@@ -50,41 +116,61 @@ def extract_features(source: Model | skrf.Network | Sequence[skrf.Network], feat
             freq = Frequency.from_skrf(freq)
     else:
         raise TypeError("Invalid type to extract_features")
-
+    if isinstance(source, Model):
+        return _extract_model_features(source, features, freq)
+    else:
+        return _extract_measured_features(source, features, freq)
+    
+def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
-    
-    X = np.zeros((n_frequencies, n_features), dtype=np.complex128)
+
+    X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
     for d, feature in enumerate(features):
         prop = feature[0]
         m, n = feature[1]
         x = None
         
-        if isinstance(source, Model):
-            if prop[-2:] == 'mn' and hasattr(source, prop):
-                xfn = getattr(source, prop)
-                x = xfn(freq,m,n)
-            else:
-                xfn = getattr(source, prop)
-                x = xfn(freq)[:,m,n]
-        else: # isinstance(source, list[Network])
-            x = None
-            offset = 0 # of the full stacked network
-            for ntwk in source:
-                nports = ntwk.nports
-                if m >= offset + nports:
-                    offset += nports
-                    continue
-                
-                if prop[-2:] == 'mn':
-                    prop = prop[0:-3]
-                x = getattr(ntwk, prop)[:,m-offset,n-offset]
-                break
-            if x is None:
-                raise Exception('Error: port of out bounds')
-            
-        if USE_JAX:
-            X = X.at[:, d].set(x)
+        if prop[-2:] == 'mn' and hasattr(model, prop):
+            xfn = getattr(model, prop)
+            x = xfn(freq,m,n)
         else:
-            X[:, d] = x
+            xfn = getattr(model, prop)
+            x = xfn(freq)[:,m,n]    
+            
+        X = X.at[:, d].set(x)
+        
     return X
+
+def _extract_measured_features(networks: list[skrf.Network], features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
+    n_frequencies = len(freq)
+    n_features = len(features)
+
+    X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
+    for d, feature in enumerate(features):
+        prop = feature[0]
+        m, n = feature[1]
+        x = None
+        
+        x = None
+        offset = 0 # of the full stacked network
+        for ntwk in networks:
+            nports = ntwk.nports
+            if m >= offset + nports:
+                offset += nports
+                continue
+            
+            if prop[-2:] == 'mn':
+                prop = prop[0:-3]
+            x = getattr(ntwk, prop)[:,m-offset,n-offset]
+            break
+        if x is None:
+            raise Exception('Error: port of out bounds')
+        
+        X = X.at[:, d].set(x)
+    return X    
+
+def _process_features(features: list[FeatureT] | list[list[FeatureT]]) -> list[FeatureT]:
+    if isinstance(features[0], list):
+        features = [feature for features_inner in features for feature in features_inner]
+    return features

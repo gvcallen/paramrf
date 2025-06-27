@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 from pmrf.legacy.statistics.features import Feature, extract_features
@@ -70,7 +70,7 @@ class Target:
     def frequency(self) -> rf.Frequency:
         return self._model.frequency
     
-    def features(self, measured = False, ignore_imag=False) -> np.ndarray:
+    def features(self, measured = False, ignore_imag=False) -> jnp.ndarray:
         # Extracts "features" from the model (S11 real, S21 complex etc.) and returns as a F x D array,
         # where F is the number of frequencies, and D is the number of features
         if measured:
@@ -91,7 +91,7 @@ class Target:
         y_model = self.features()
         return self.likelihood_object(y_meas, y_model)
     
-    def update_params(self, params: np.ndarray | dict, update_likelihoods=False, update_noise=False):
+    def update_params(self, params: jnp.ndarray | dict, update_likelihoods=False, update_noise=False):
         if self.fixed:
             return
         

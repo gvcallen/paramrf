@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 from pmrf.legacy.misc.math import dB20
@@ -15,7 +15,7 @@ class Feature:
         self.scale = scale
         self.weight = weight
 
-    def __call__(self, network: rf.Network) -> np.ndarray:
+    def __call__(self, network: rf.Network) -> jnp.ndarray:
         """
         Returns a single feature column vector of dimension F,
         where F is the number of network frequencies.
@@ -26,13 +26,13 @@ class Feature:
         if self.mode == 'complex':
             pass
         elif self.mode == 'magnitude':
-            y = np.abs(y)
+            y = jnp.abs(y)
         elif self.mode == 'real':
-            y = np.real(y)
+            y = jnp.real(y)
         elif self.mode == 'imaginary':
-            y = np.imag(y)
+            y = jnp.imag(y)
         elif self.mode == 'phase':
-            y = np.angle(y)
+            y = jnp.angle(y)
         else:
             raise Exception('Unknown network feature type')
 
@@ -42,7 +42,7 @@ class Feature:
         return self.weight * y
     
 # def extract_features(networks: rf.Network | list[rf.Network], features: list[Feature] | list[list[Feature]]) -> np.ndarray:
-def extract_features(networks, features, ignore_imag=False) -> np.ndarray:
+def extract_features(networks, features, ignore_imag=False) -> jnp.ndarray:
     """
     Returns a feature matrix of a given network with shape (F, D),
     where F is the number of network frequencies, and D is the number of features.
@@ -50,9 +50,9 @@ def extract_features(networks, features, ignore_imag=False) -> np.ndarray:
     and it is assumed that all networks have the same number of frequencies.
     """
     if ignore_imag:
-        data_type = np.float64
+        data_type = jnp.float64
     else:
-        data_type = np.complex128
+        data_type = jnp.complex128
     
     if type(networks) == list:
         F = networks[0].frequency.npoints
@@ -62,7 +62,7 @@ def extract_features(networks, features, ignore_imag=False) -> np.ndarray:
             for network_features in features:
                 D += len(network_features)
             
-            x = np.zeros((F, D), dtype=data_type)
+            x = jnp.zeros((F, D), dtype=data_type)
             d = 0
             for network_features, network in zip(features, networks):
                 for feature in network_features:
@@ -71,7 +71,7 @@ def extract_features(networks, features, ignore_imag=False) -> np.ndarray:
         else:
             D += len(features)
         
-            x = np.zeros((F, D), dtype=data_type)
+            x = jnp.zeros((F, D), dtype=data_type)
             d = 0
             for network in networks:
                 for feature in features:
@@ -83,7 +83,7 @@ def extract_features(networks, features, ignore_imag=False) -> np.ndarray:
         network = networks
         F = network.frequency.npoints
         D = len(features)
-        x = np.zeros((F, D), dtype=data_type)
+        x = jnp.zeros((F, D), dtype=data_type)
         for d, feature in enumerate(features):
             x[:, d] = feature(network)
 

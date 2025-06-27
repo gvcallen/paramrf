@@ -7,43 +7,19 @@ from dataclasses import dataclass, fields, is_dataclass
 from types import GenericAlias, UnionType
 
 import skrf as skrf
-# import pmrf.numpy as np
-# from pmrf.numpy import USE_JAX
-# if USE_JAX:
-import jax.numpy as np
+import jax.numpy as jnp
 import jax
 import equinox as eqx
 from jaxtyping import PyTree
 from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 
-# import pmrf.functions.math as mf
-from pmrf.functions.math import complex_2_db, complex_2_db10
-from pmrf.functions.parameters import a2s, s2a
-from pmrf._frequency import Frequency
+from pmrf._constants import PRIMARY_PROPERTIES
+from pmrf.functions.conversions import a2s, s2a
+from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, is_valid_param, asparam
+from pmrf._frequency import Frequency
 from pmrf._misc import field
 from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
-
-PRIMARY_PROPERTIES = ('s', 'a')
-FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
-    're': ('Real Part', np.real),
-    'im': ('Imag Part', np.imag),
-    'mag': ('Magnitude', np.abs),
-    'db': ('Magnitude (dB)', complex_2_db),
-    'db10': ('Magnitude (dB)', complex_2_db10),
-    'rad': ('Phase (rad)', np.angle),
-    'deg': ('Phase (deg)', lambda x: np.angle(x, deg=True)),
-    # 'arcl': ('Arc Length',lambda x: np.angle(x) * np.abs(x)),
-    # 'rad_unwrap': ('Phase (rad)', lambda x: mf.unwrap_rad(np.angle(x))),
-    # 'deg_unwrap': ('Phase (deg)', lambda x: mf.radian_2_degree(mf.unwrap_rad(np.angle(x)))),
-    # 'arcl_unwrap': ('Arc Length', lambda x: mf.unwrap_rad(np.angle(x)) * np.abs(x)),
-    # 'vswr': ('VSWR', lambda x: (1 + abs(x)) / (1 - abs(x))),
-    # 'time': ('Time (real)', mf.ifft),
-    # 'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
-    # 'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
-}
-
-ModelT = TypeVar('ModelT', bound='Model')
 
 jax.config.update("jax_enable_x64", True)
 
@@ -94,14 +70,14 @@ class Model(eqx.Module):
         L: Parameter = 1.0e-9
         C2: Parameter = 1.0e-12
 
-        def a(self, freq: prf.Frequency) -> jnp.ndarray:
+        def a(self, freq: prf.Frequency) -> jjnp.ndarray:
             # "freq" being passed in is very similar to skrf.Frequency, but can contain jax arrays
             C1, C2, L, w = self.C1, self.C2, self.L, freq.w
             Y1 = 1j * w * C1
             Y2 = 1j * w * C2
             Y3 = 1 / (1j * w * L)
 
-            return jnp.array([
+            return jjnp.array([
                 [1 + Y2 / Y3,           1 / Y3      ],
                 [Y1 + Y2 + Y1*Y2/Y3,    1 + Y1 / Y3 ],
             ]).transpose(2, 0, 1)  
@@ -135,14 +111,14 @@ class Model(eqx.Module):
             
             self.cascade = res ** ind ** cap            # similar syntax to scikit-rf
 
-        def a(self, freq: prf.Frequency) -> np.ndarray:
+        def a(self, freq: prf.Frequency) -> jnp.ndarray:
             return self.cascade.a(freq)                 # just return cascade's abcd implementation
     ```
     
     """
     # Instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
-    _z0: np.ndarray = field(default=50.0+0j, init=False, static=True)
+    _z0: jnp.ndarray = field(default=50.0+0j, init=False, static=True)
 
     # Class fields
     _s_def: str = field(init=False, repr=False, static=True)
@@ -163,7 +139,7 @@ class Model(eqx.Module):
                     new_default = deepcopy(default)
                     if isinstance(default, Model) and default.name is None:
                         new_default = dataclasses.replace(new_default, name=field_name)
-                elif isinstance(default, np.ndarray):
+                elif isinstance(default, jnp.ndarray):
                     new_default = default.copy()            
                 if new_default is not None:
                     setattr(cls, field_name, new_default)
@@ -205,7 +181,7 @@ class Model(eqx.Module):
                 fields.append(str(key.idx))
         return self._separator.join(fields)
 
-    def __pow__(self, other: ModelT) -> ModelT:
+    def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
     
@@ -241,7 +217,7 @@ class Model(eqx.Module):
         """        
         return list(self.params.keys())    
       
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the abcd parameter matrix as a function of frequency.
 
         This is one of the primary property functions that derived classes may implemented.
@@ -252,7 +228,7 @@ class Model(eqx.Module):
             freq (Frequency): Specifies the frequency to calculate the abcd-parameters at.
 
         Returns:
-            np.ndarray: The resultant abcd matrix.
+            jnp.ndarray: The resultant abcd matrix.
         """
         if not self._has_s:
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
@@ -260,7 +236,7 @@ class Model(eqx.Module):
         s = self.s(freq)
         return s2a(s, self.z0)
     
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S parameter matrix as a function of frequency.
 
         This is one of the primary property functions that derived classes may implemented.
@@ -271,7 +247,7 @@ class Model(eqx.Module):
             freq (Frequency): Specifies the frequency to calculate the S-parameters at.
 
         Returns:
-            np.ndarray: The resultant S matrix.
+            jnp.ndarray: The resultant S matrix.
         """
         if not self._has_a:
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
@@ -280,53 +256,53 @@ class Model(eqx.Module):
         return a2s(a, self.z0)    
             
     @property
-    def submodels(self) -> list[ModelT]:
+    def submodels(self) -> list['Model']:
         """Returns a list of immediate submodels.
 
         Returns:
-            list[ModelT]: The submodels.
+            list['Model']: The submodels.
         """
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
     @property
-    def submodels_with_paths(self) -> list[tuple[PyTree, ModelT]]:
+    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
         """Return a list of immedate submodels, as well as their jax paths.
 
         Returns:
-            list[tuple[PyTree, ModelT]]: A list of path-submodels.
+            list[tuple[PyTree, 'Model']]: A list of path-submodels.
         """
         return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
     
     @property
-    def nested_submodels(self) -> list[ModelT]:
+    def nested_submodels(self) -> list['Model']:
         """Returns a list of nested submodels.
         
         This contains all immediate sub-models, as well as their sub-models.
 
         Returns:
-            list[ModelT]: A list of nested submodels.
+            list['Model']: A list of nested submodels.
         """
         return nodes_by_type(self, Model)[1:]
     
     @property
-    def nested_submodels_with_paths(self) -> list[tuple[PyTree, ModelT]]:
+    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
         """Returns a list of nested submodels, as well as their jax paths.
         
         See `nested_submodels`.
 
         Returns:
-            list[ModelT]: A list of nested path-submodels.
+            list['Model']: A list of nested path-submodels.
         """        
         return nodes_by_type_with_path(self, Model)[1:]
     
     @property
-    def primary_function(self) -> Callable[[Frequency], np.ndarray]:
+    def primary_function(self) -> Callable[[Frequency], jnp.ndarray]:
         """A callable of the primary function e.g. 's', 'a' etc.
         
         See `self.primary_property` for more details..
 
         Returns:
-            Callable[[Frequency], np.ndarray]: The primary function.
+            Callable[[Frequency], jnp.ndarray]: The primary function.
         """
         return getattr(self, self.primary_property)
             
@@ -384,7 +360,7 @@ class Model(eqx.Module):
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
     
     @property
-    def z0(self) -> np.ndarray:
+    def z0(self) -> jnp.ndarray:
         """The internal characteristic impedance matrix.
 
         Returns:
@@ -392,7 +368,7 @@ class Model(eqx.Module):
         """
         return self._z0
            
-    def flipped(self) -> ModelT:
+    def flipped(self) -> 'Model':
         """Returns a version of the model with its ports flipped.
 
         Returns:
@@ -401,7 +377,7 @@ class Model(eqx.Module):
         from models.containers import Flipped
         return Flipped(self)
     
-    def terminated(self, load: ModelT = None) -> ModelT:
+    def terminated(self, load: 'Model' = None) -> 'Model':
         """Returns the model terminated in a one-port load.
         
         May only be called for two-port models.
@@ -410,7 +386,7 @@ class Model(eqx.Module):
             load (Model, optional): The load to terminate in. Defaults to None, in which case a short is used.
 
         Returns:
-            ModelT: The terminated model.
+            'Model': The terminated model.
         """
         from pmrf.models.lumped import Short
         from pmrf.models.containers import Cascade
@@ -538,7 +514,7 @@ class Model(eqx.Module):
         """
         return combine(params, static)  
     
-    def partition(self, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:
+    def partition(self, include_fixed=False, param_objects=False) -> tuple['Model', 'Model']:
         """Returns the model partitioned into parameters and a static part.
         
         This is useful for use with `jax` or `Equinox`, or for inspecting the model
@@ -555,7 +531,7 @@ class Model(eqx.Module):
                                             or to filter out all non-`value` fields. Defaults to `False`.
 
         Returns:
-            tuple[ModelT, ModelT]: The partitioned model.
+            tuple['Model', 'Model']: The partitioned model.
         """
         if param_objects:
             shared_spec = self.param_object_spec
@@ -571,7 +547,12 @@ class Model(eqx.Module):
                 filter_spec = self.free_value_spec
         return partition(self, filter_spec, shared_spec)
     
-    def with_params(self, params: dict[str, Parameter] | dict[str, float] | None = None, **param_kwargs: dict[str, Parameter] | dict[str, float]) -> 'Model':
+    def with_params(
+        self,
+        params: dict[str, Parameter] | dict[str, float] | None = None,
+        all_check: bool = False,
+        **param_kwargs: dict[str, Parameter] | dict[str, float],
+    ) -> 'Model':
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
         
         This is the most common way to initialize the parameters of a model.
@@ -579,12 +560,14 @@ class Model(eqx.Module):
         convert it to an array using `self.to_array(..)` and use the resultant unravel function.
 
         Args:
-            params (dict[str, Parameter] | dict[str, float] | None, optional): The parameter dictionary to updated from.
-                                                                               Parameters can also be specified with key-word arguments.
-                                                                               Defaults to `None`.
+            params (dict[str, Parameter] | dict[str, float] | None, optional):      The parameter dictionary to updated from.
+                                                                                    Parameters can also be specified with key-word arguments.
+                                                                                    Defaults to `None`.
+            all_check (bool):                                                       Whether to add a check the requires that all parameters have been specified. Defaults to `False`.
+                                                                               
 
         Returns:
-            ModelT: The model with the specific parameter changes.
+            'Model': The model with the specific parameter changes.
         """
         params = params if params is not None else {}
         params.update(param_kwargs)
@@ -595,13 +578,19 @@ class Model(eqx.Module):
         # Validate the callers's input
         unknown_params = set(params.keys() - new_params.keys())
         if len(unknown_params) != 0:
-            raise Exception(f"Error: unknown parameters {unknown_params} passed in")
+            raise Exception(f"Error: the following parameters are not in the model: {unknown_params}")
+        
+        if all_check:
+            missing_params = set(new_params.keys() - params.keys())
+            if len(missing_params) != 0:
+                raise Exception(f"Error: the following parameters were missing: {missing_params}")
+            
         
         # Convert to an array of parameters instead of floats
         if all(isinstance(v, float) for v in params.values()):
             for name, value in params.items():
                 # TODO create specs for the full parameter objects such that we can get and use the built-in scales
-                new_params[name] = dataclasses.replace(new_params[name], value=np.array(value), scale=1.0)
+                new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value), scale=1.0)
         else:
             new_params.update(params)
         new_flat_params = list(new_params.values())
@@ -619,17 +608,17 @@ class Model(eqx.Module):
         new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
         return combine(new_params_tree, static, is_leaf=is_valid_param)
     
-    def with_params_array(self, array: np.ndarray, include_fixed=False) -> ModelT:
+    def with_params_array(self, array: jnp.ndarray, include_fixed=False) -> 'Model':
         """Returns the current model with the parameters specified in the array.
         
         See `to_array` for more details.
 
         Args:
-            array (np.ndarray): The array of parameters
+            array (jnp.ndarray): The array of parameters
             with_fixed (bool, optional): Whether or not the array also contains fixed parameters. Defaults to `False`.
 
         Returns:
-            ModelT: The model with the parameters set.
+            'Model': The model with the parameters set.
         """
         filter_spec = self.core_value_spec if include_fixed else self.free_value_spec
         params, static = partition(self, filter_spec, self.param_value_spec)
@@ -637,22 +626,22 @@ class Model(eqx.Module):
         new_params = unravel_fn(array)
         return combine(new_params, static)
 
-    def with_params_list(self, array: np.ndarray, include_fixed=False) -> ModelT:
+    def with_params_list(self, array: jnp.ndarray, include_fixed=False) -> 'Model':
         """Returns the current model with the parameters specified in the array.
         
         See `to_array` for more details.
 
         Args:
-            array (np.ndarray): The array of parameters
+            array (jnp.ndarray): The array of parameters
             with_fixed (bool, optional): Whether or not the array also contains fixed parameters. Defaults to `False`.
 
         Returns:
-            ModelT: The model with the parameters set.
+            'Model': The model with the parameters set.
         """
         # TODO
         raise Exception("Not yet implemented")
 
-    def to_params_array(self, include_fixed=False) -> np.ndarray | tuple[np.ndarray, Callable]:
+    def to_params_array(self, include_fixed=False) -> jnp.ndarray | tuple[jnp.ndarray, Callable]:
         """Returns a raveled array of the model parameter value.
         
         By default, all non-fixed parameters are returned,
@@ -667,7 +656,7 @@ class Model(eqx.Module):
             include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
 
         Returns:
-            np.ndarray: The resultant parameters, raveled into a 1D array.
+            jnp.ndarray: The resultant parameters, raveled into a 1D array.
         """
         filter_spec = self.core_value_spec if include_fixed else self.free_value_spec
         params = eqx.filter(self, filter_spec)

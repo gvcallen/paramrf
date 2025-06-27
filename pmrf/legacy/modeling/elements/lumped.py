@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 from skrf.media import Media
 
@@ -44,7 +44,7 @@ class Transformer(ParametricNetwork):
         super().__init__(params=get_args_of(float), nports=2, name=name, **kwargs)
         
     def compute(self):
-        self.s = 0.5 * np.ones((self.frequency.npoints, 4, 4), dtype=complex)
+        self.s = 0.5 * jnp.ones((self.frequency.npoints, 4, 4), dtype=complex)
         self.s[:, 0, 3] *= -1
         self.s[:, 1, 2] *= -1
         self.s[:, 2, 1] *= -1
@@ -95,13 +95,13 @@ def transformer(media: Media, N = 1, **kwargs) -> rf.Network:
     result = rf.Network(**kwargs)
     result.frequency = media.frequency
     
-    result.s = 0.5 * np.ones((media.frequency.npoints, 4, 4), dtype=complex)
+    result.s = 0.5 * jnp.ones((media.frequency.npoints, 4, 4), dtype=complex)
     result.s[:, 0, 3] *= -1
     result.s[:, 1, 2] *= -1
     result.s[:, 2, 1] *= -1
     result.s[:, 3, 0] *= -1
     
-    result.port_modes = np.array(["S"] * result.nports)
+    result.port_modes = jnp.array(["S"] * result.nports)
     if media.z0_port is None:
         z0 = media.z0
     else:

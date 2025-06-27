@@ -1,22 +1,14 @@
-from functools import reduce
-from typing import Any, Callable, Dict
-import re
-
-import pmrf.numpy as np
-from numpy import ndindex
-import jax
-from jax.tree_util import SequenceKey, DictKey, GetAttrKey
-import equinox as eqx
-
-from typing import Any, Tuple, List, Type
+from typing import Any, Callable, Tuple, List, Type
 from collections.abc import Mapping, Sequence
 from dataclasses import is_dataclass, fields
 
 import jax
-from jaxtyping import Array, ArrayLike, Bool, Float, PyTree, PyTreeDef
+from jax.tree_util import SequenceKey, DictKey, GetAttrKey
+from jaxtyping import PyTree, PyTreeDef
 from jax.tree_util import DictKey, SequenceKey, GetAttrKey
+import equinox as eqx
 
-AxisSpec = bool | Callable[[Any], bool]
+from pmrf._constants import TreeAxisSpec
 
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
@@ -155,7 +147,7 @@ class RefNode:
     
 def dealias(
     tree: PyTree,
-    core_spec: PyTree[AxisSpec],
+    core_spec: PyTree[TreeAxisSpec],
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
     core, alias = eqx.partition(tree, core_spec, is_leaf=is_leaf)
@@ -193,8 +185,8 @@ def restore(
 
 def partition(
     pytree: PyTree,
-    filter_spec: PyTree[AxisSpec],
-    shared_spec: PyTree[AxisSpec] | None = None,
+    filter_spec: PyTree[TreeAxisSpec],
+    shared_spec: PyTree[TreeAxisSpec] | None = None,
     replace: Any = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:

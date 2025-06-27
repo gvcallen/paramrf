@@ -3,7 +3,7 @@ import scipy.stats
 
 from typing import Sequence
 import equinox as eqx
-import pmrf.numpy as np
+import jax.numpy as jnp
 from pmrf._misc import field
 
 class Parameter(eqx.Module):
@@ -58,7 +58,7 @@ class Parameter(eqx.Module):
     """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
-    value: np.ndarray = field(converter=lambda x: np.asarray(x, dtype=np.float64))
+    value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
     dist: rv_continuous | None | list[rv_continuous | None] = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
@@ -67,7 +67,7 @@ class Parameter(eqx.Module):
     
     def __post_init__(self):
         if self.dist is None:
-            if not np.isscalar(self.value):
+            if not jnp.isscalar(self.value):
                 self.dist = [None] * len(self.value)
     
     @property
@@ -82,7 +82,7 @@ class Parameter(eqx.Module):
                 return self.dist.args[0]
             else:
                 return self.ppf(0.01)
-        return -np.inf
+        return -jnp.inf
     
     @property
     def max(self) -> float:
@@ -96,7 +96,7 @@ class Parameter(eqx.Module):
                 return self.dist.args[0] + self.dist.args[1]
             else:
                 return self.ppf(0.99)
-        return np.inf
+        return jnp.inf
     
     def ppf(self, q) -> float:
         """The unscaled percent point function (inverse CDF) of the distribution.
@@ -116,17 +116,17 @@ class Parameter(eqx.Module):
         Returns:
             'Parameter' | list['Parameter']: The raveled parameters.
         """
-        if np.isscalar(self.value):
+        if jnp.isscalar(self.value):
             return self
         else:
             return [Parameter(value=val, dist=dst, fixed=self.fixed, scale=self.scale, name=f"{self.name}_{i}") for i, (val, dst) in enumerate(zip(self.value, self.dist))]
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):
-        return np.asarray(self.value * self.scale, dtype=dtype)
+        return jnp.asarray(self.value * self.scale, dtype=dtype)
     
     def __jax_array__(self, dtype=None):
-        return np.asarray(self.value * self.scale, dtype=dtype)
+        return jnp.asarray(self.value * self.scale, dtype=dtype)
     
     def __len__(self):
         if len(self.value.shape) == 0:
@@ -134,28 +134,28 @@ class Parameter(eqx.Module):
         return len(self.value)
     
     def __add__(self, other):
-        return np.add(np.array(self), np.array(other))
+        return jnp.add(jnp.array(self), jnp.array(other))
     
     def __sub__(self, other):
-        return np.subtract(np.array(self), np.array(other))
+        return jnp.subtract(jnp.array(self), jnp.array(other))
     
     def __mul__(self, other):
-        return np.multiply(np.array(self), np.array(other))
+        return jnp.multiply(jnp.array(self), jnp.array(other))
 
     def __truediv__(self, other):
-        return np.divide(np.array(self), np.array(other))
+        return jnp.divide(jnp.array(self), jnp.array(other))
 
     def __radd__(self, other):
-        return np.add(np.array(other), np.array(self))
+        return jnp.add(jnp.array(other), jnp.array(self))
     
     def __rsub__(self, other):
-        return np.subtract(np.array(other), np.array(self))
+        return jnp.subtract(jnp.array(other), jnp.array(self))
 
     def __rmul__(self, other):
-        return np.multiply(np.array(other), np.array(self))
+        return jnp.multiply(jnp.array(other), jnp.array(self))
     
     def __rtruediv__(self, other):
-        return np.divide(np.array(other), np.array(self))  
+        return jnp.divide(jnp.array(other), jnp.array(self))  
     
 def Uniform(min: float | Sequence[float], max: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` with a uniform distribution.

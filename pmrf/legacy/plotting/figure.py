@@ -1,6 +1,6 @@
 import os
 
-import numpy as np
+import numpy as jnp
 import skrf as rf
 import matplotlib.pyplot as plt
 try: 
@@ -52,9 +52,9 @@ class GridFigure():
         if num_items == 1:
             self._num_item_cols = 1
         else:
-            self._num_item_cols = min(int(np.ceil(np.sqrt(num_items))), 4)
+            self._num_item_cols = min(int(jnp.ceil(jnp.sqrt(num_items))), 4)
         
-        self._num_item_rows = int(np.ceil(num_items / self._num_item_cols))
+        self._num_item_rows = int(jnp.ceil(num_items / self._num_item_cols))
 
         num_cols = self._num_item_cols * self.cols_per_item
         num_rows = self._num_item_rows * self.rows_per_item

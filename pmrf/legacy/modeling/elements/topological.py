@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 from pmrf.legacy.core import ParametricNetwork
@@ -37,7 +37,7 @@ class PiCLC(ParametricNetwork):
 
                 self.s = rf.Circuit(cnx).network.s
             else:
-                a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+                a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
             
                 C = C1 + C2
                 wC = w * C
@@ -54,7 +54,7 @@ class PiCLC(ParametricNetwork):
             Y3 = 1 / (1j * w * L)
             
             if self.nports == 2:
-                a = np.zeros((self.frequency.npoints, 2, 2), dtype=complex)
+                a = jnp.zeros((self.frequency.npoints, 2, 2), dtype=complex)
                 a[:,0,0] = 1 + Y2 / Y3
                 a[:,0,1] = 1 / Y3
                 a[:,1,0] = Y1 + Y2 + Y1 * Y2 / Y3
@@ -62,7 +62,7 @@ class PiCLC(ParametricNetwork):
 
                 self.a = a
             else:
-                y = np.zeros((self.frequency.npoints, 3, 3), dtype=complex)
+                y = jnp.zeros((self.frequency.npoints, 3, 3), dtype=complex)
 
                 y[:,0,0] = Y1 + Y3
                 y[:,0,1] = -Y3

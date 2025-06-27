@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-import pmrf.numpy as np
+import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
 from dataclasses import fields
 
@@ -27,7 +27,7 @@ class RLGCLine(Model):
     length: Parameter = 1.0
 
     @abstractmethod
-    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Calculates the frequency-dependent RLGC parameters of the line.
 
         This method must be implemented by any derived concrete class.
@@ -40,7 +40,7 @@ class RLGCLine(Model):
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")
 
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix from the line's RLGC parameters.
 
         Args:
@@ -51,14 +51,14 @@ class RLGCLine(Model):
         """
         w = freq.w
         R, L, G, C = self.rlgc(freq)
-        gamma = np.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-        Zc = np.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+        gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+        Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
 
         gL = gamma*self.length
         
-        a = np.array([
-            [np.cosh(gL), Zc * np.sinh(gL)],
-            [1 / Zc * np.sinh(gL), np.cosh(gL)]
+        a = jnp.array([
+            [jnp.cosh(gL), Zc * jnp.sinh(gL)],
+            [1 / Zc * jnp.sinh(gL), jnp.cosh(gL)]
         ]).transpose(2, 0, 1)
 
         return a
@@ -155,7 +155,7 @@ class DatasheetCoaxial(RLGCLine):
     loss_coeffs_normalized: bool = False
     freq_bounds: tuple | None = None
 
-    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Calculates RLGC parameters from datasheet values.
 
         Args:
@@ -174,22 +174,22 @@ class DatasheetCoaxial(RLGCLine):
 
         wn = (w - w_start) / (w_stop - w_start)
         if self.epr_slope is None:
-            epr = np.ones(w.shape[0]) * self.epr
+            epr = jnp.ones(w.shape[0]) * self.epr
         else:
-            epr = np.ones(w.shape[0]) * self.epr + self.epr_slope * wn
+            epr = jnp.ones(w.shape[0]) * self.epr + self.epr_slope * wn
         
         if not self.loss_coeffs_normalized:
-            k1_norm = k1 * (1.0 / (100 * np.sqrt(2*np.pi * 10**6)))
-            k2_norm = k2 * (1.0 / (100 * 2*np.pi * 10**6))
+            k1_norm = k1 * (1.0 / (100 * jnp.sqrt(2*jnp.pi * 10**6)))
+            k2_norm = k2 * (1.0 / (100 * 2*jnp.pi * 10**6))
         else:
             k1_norm = k1
             k2_norm = k2
 
-        sqrt_w = np.sqrt(w)
-        dBtoNeper = np.log(10) / 20
+        sqrt_w = jnp.sqrt(w)
+        dBtoNeper = jnp.log(10) / 20
         alpha_c = k1_norm * dBtoNeper * sqrt_w
         alpha_d = k2_norm * dBtoNeper * w
-        sqrt_epr = np.sqrt(epr)
+        sqrt_epr = jnp.sqrt(epr)
         
         R = 2*zn * alpha_c
         L = (zn * sqrt_epr) / c
@@ -262,10 +262,10 @@ class PhysicalCoaxial(RLGCLine):
         for param in poly_params:
             model = getattr(self, f'{param}_model')
             if model != 'constant':
-                current = np.array(getattr(self, param))
+                current = jnp.array(getattr(self, param))
                 order = kwargs.pop(f'{param}_order', 1)
                 # Set the coefficients if the user has not already
-                if np.isscalar(current):
+                if jnp.isscalar(current):
                     if model == 'bpoly':
                         coeffs = [current] * (order+1)
                     elif model == 'ppoly':
@@ -274,7 +274,7 @@ class PhysicalCoaxial(RLGCLine):
                         raise Exception(f"Unknown frequency model for parameter {param}")
                     setattr(self, param, coeffs)
 
-    def interpolated(self, param: str, freq: Frequency) -> np.ndarray:
+    def interpolated(self, param: str, freq: Frequency) -> jnp.ndarray:
         """Evaluates a potentially frequency-dependent parameter.
 
         Args:
@@ -291,7 +291,7 @@ class PhysicalCoaxial(RLGCLine):
             model = str(getattr(self, f'{param}_model'))
         
         if model == 'constant':
-            value = getattr(self, param) * np.ones(w.shape[0])
+            value = getattr(self, param) * jnp.ones(w.shape[0])
         else:
             coeffs = getattr(self, param)
             if model.startswith('ppoly'):
@@ -301,80 +301,80 @@ class PhysicalCoaxial(RLGCLine):
                 
         return value
             
-    def epr_f(self, freq: Frequency) -> np.ndarray:
+    def epr_f(self, freq: Frequency) -> jnp.ndarray:
         """The relative permittivity (epsilon_r) as a function of frequency."""
         return self.interpolated('epr', freq)
     
-    def tand_f(self, freq: Frequency) -> np.ndarray:
+    def tand_f(self, freq: Frequency) -> jnp.ndarray:
         """The loss tangent (tan_delta) as a function of frequency."""
         return self.interpolated('tand', freq)
     
-    def mur_f(self, freq: Frequency) -> np.ndarray:
+    def mur_f(self, freq: Frequency) -> jnp.ndarray:
         """The relative permeability (mu_r) as a function of frequency."""
         return self.interpolated('mur', freq)
     
-    def rho_f(self, freq: Frequency) -> np.ndarray:
+    def rho_f(self, freq: Frequency) -> jnp.ndarray:
         """The conductor resistivity (rho) as a function of frequency."""
         return self.interpolated('rho', freq)
     
-    def rhoin_f(self, freq: Frequency) -> np.ndarray:
+    def rhoin_f(self, freq: Frequency) -> jnp.ndarray:
         """The inner conductor resistivity as a function of frequency."""
         return self.interpolated('rhoin', freq) if self.separate_rho else self.rho_f(freq)
     
-    def rhoout_f(self, freq: Frequency) -> np.ndarray:
+    def rhoout_f(self, freq: Frequency) -> jnp.ndarray:
         """The outer conductor resistivity as a function of frequency."""
         return self.interpolated('rhoout', freq) if self.separate_rho else self.rho_f(freq)
     
-    def eps_f(self, freq: Frequency) -> np.ndarray:
+    def eps_f(self, freq: Frequency) -> jnp.ndarray:
         """The complex permittivity (epsilon) as a function of frequency."""
         return epsilon_0 * self.epr_f(freq) * (1 - 1j * self.tand_f(freq))
     
-    def mu_f(self, freq: Frequency) -> np.ndarray:
+    def mu_f(self, freq: Frequency) -> jnp.ndarray:
         """The complex permeability (mu) as a function of frequency."""
         return mu_0 * self.mur_f(freq)
     
-    def L_prime(self, freq: Frequency) -> np.ndarray:
+    def L_prime(self, freq: Frequency) -> jnp.ndarray:
         """The per-unit-length external inductance."""
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
-        return self.mu_f(freq) / (2 * np.pi) * lnbOvera
+        lnbOvera = jnp.log(b/a)
+        return self.mu_f(freq) / (2 * jnp.pi) * lnbOvera
     
-    def C_prime(self, freq: Frequency) -> np.ndarray:
+    def C_prime(self, freq: Frequency) -> jnp.ndarray:
         """The per-unit-length capacitance."""
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
-        return 2 * np.pi * np.real(self.eps_f(freq)) / lnbOvera
+        lnbOvera = jnp.log(b/a)
+        return 2 * jnp.pi * jnp.real(self.eps_f(freq)) / lnbOvera
     
-    def G_diel(self, freq: Frequency) -> np.ndarray:
+    def G_diel(self, freq: Frequency) -> jnp.ndarray:
         """The per-unit-length dielectric conductance."""
         a, b = self.din / 2, self.dout / 2
-        lnbOvera = np.log(b/a)
-        return 2 * np.pi * freq.w * -np.imag(self.eps_f(freq)) / lnbOvera
+        lnbOvera = jnp.log(b/a)
+        return 2 * jnp.pi * freq.w * -jnp.imag(self.eps_f(freq)) / lnbOvera
         
-    def R_skin(self, freq: Frequency) -> np.ndarray:
+    def R_skin(self, freq: Frequency) -> jnp.ndarray:
         """The per-unit-length resistance due to skin effect."""
-        return np.real(self.Z_skin(freq))
+        return jnp.real(self.Z_skin(freq))
     
-    def L_skin(self, freq: Frequency) -> np.ndarray:
+    def L_skin(self, freq: Frequency) -> jnp.ndarray:
         """The per-unit-length internal inductance due to skin effect."""
-        return np.imag(self.Z_skin(freq)) / freq.w
+        return jnp.imag(self.Z_skin(freq)) / freq.w
     
     def Z_skin(self, freq: Frequency):
         """The per-unit-length internal impedance due to skin effect."""
         w, a, b, mu = freq.w, self.din / 2, self.dout / 2, self.mu_f(freq)
         sigma_a, sigma_b = 1 / self.rhoin_f(freq), 1 / self.rhoout_f(freq)
         
-        L_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(mu / (2 * w * sigma_a))
-        L_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(mu / (2 * w * sigma_b))
+        L_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(mu / (2 * w * sigma_a))
+        L_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(mu / (2 * w * sigma_b))
         L_skin = L_skin_a + L_skin_b
                 
-        R_skin_a = (1 / (2 * np.pi * a)) * np.sqrt(w * mu / (2 * sigma_a))
-        R_skin_b = (1 / (2 * np.pi * b)) * np.sqrt(w * mu / (2 * sigma_b))
+        R_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(w * mu / (2 * sigma_a))
+        R_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(w * mu / (2 * sigma_b))
         R_skin = R_skin_a + R_skin_b            
         
         return R_skin + 1j * w * L_skin
 
-    def rlgc(self, freq: Frequency) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Calculates RLGC parameters from physical and material properties.
 
         Args:

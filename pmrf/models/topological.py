@@ -1,9 +1,9 @@
-import pmrf.numpy as np
-from pmrf._frequency import Frequency
-from pmrf.parameters import Parameter
-from pmrf._model import Model
-
 import jax
+import jax.numpy as jnp
+
+from pmrf.parameters import Parameter
+from pmrf._frequency import Frequency
+from pmrf._model import Model
 
 class PiCLC(Model):
     """
@@ -43,7 +43,7 @@ class PiCLC(Model):
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
 
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix of the Pi-network.
 
         This method dynamically chooses an appropriate calculation based on whether
@@ -71,7 +71,7 @@ class PiCLC(Model):
         Y2 = 1j * w * C2
         Y3 = 1 / (1j * w * L)
 
-        return np.array([
+        return jnp.array([
             [1 + Y2 / Y3,           1 / Y3          ],
             [Y1 + Y2 + Y1*Y2/Y3,    1 + Y1 / Y3     ],
         ]).transpose(2, 0, 1)
@@ -84,10 +84,10 @@ class PiCLC(Model):
         
         C = C1 + C2
         Y = 1j * w * C
-        ones = np.ones_like(Y)
-        zeros = np.zeros_like(Y)
+        ones = jnp.ones_like(Y)
+        zeros = jnp.zeros_like(Y)
         
-        return np.array([
+        return jnp.array([
             [ones,  zeros],
             [Y,     ones]
         ]).transpose(2, 0, 1)

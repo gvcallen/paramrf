@@ -1,4 +1,7 @@
-import pmrf.numpy as np
+import jax
+from jax import vmap
+
+import jax.numpy as jnp
 from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._misc import field
@@ -87,14 +90,14 @@ class Cascade(Model):
         """The last model in the cascade chain."""
         return self.models[-1]
 
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the cascaded ABCD-parameter matrix.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the parameters at.
 
         Returns:
-            np.ndarray: The resultant ABCD-parameter matrix.
+            jnp.ndarray: The resultant ABCD-parameter matrix.
         """
         a = self.first_model.a(freq)
         for model in self.models[1:]:
@@ -104,7 +107,7 @@ class Cascade(Model):
         
         return a
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameter matrix.
 
         If the cascade is terminated in a one-port, this computes the
@@ -115,7 +118,7 @@ class Cascade(Model):
             freq (Frequency): Specifies the frequency to calculate the parameters at.
 
         Returns:
-            np.ndarray: The resultant S-parameter matrix.
+            jnp.ndarray: The resultant S-parameter matrix.
         """
         # We only implement s when we are terminating in a one-port.
         # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
@@ -156,9 +159,9 @@ class Renumbered(Model):
         model = self.model
         to_ports, from_ports = self.to_ports, self.from_ports
 
-        if len(np.unique(from_ports)) != len(from_ports):
+        if len(jnp.unique(from_ports)) != len(from_ports):
             raise ValueError('an index can appear at most once in from_ports or to_ports')
-        if any(np.unique(from_ports) != np.unique(to_ports)):
+        if any(jnp.unique(from_ports) != jnp.unique(to_ports)):
             raise ValueError('from_ports and to_ports must have the same set of indices')
         if model.primary_property == 'a' and len(from_ports) != 1 and len(to_ports) != 1:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")
@@ -168,39 +171,39 @@ class Renumbered(Model):
         object.__setattr__(self, '_z0', new_z0)
 
 
-    def renumber(self, p: np.ndarray) -> np.ndarray:
+    def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
         """Applies the port renumbering to a parameter matrix.
 
         Args:
-            p (np.ndarray): The parameter matrix to renumber (e.g., S-parameters).
+            p (jnp.ndarray): The parameter matrix to renumber (e.g., S-parameters).
 
         Returns:
-            np.ndarray: The renumbered parameter matrix.
+            jnp.ndarray: The renumbered parameter matrix.
         """
         p_new = p.copy()
         p_new = p_new.at[:, self.to_ports, :].set(p[:, self.from_ports, :])
         p_new = p_new.at[:, :, self.to_ports].set(p_new[:, :, self.from_ports])
         return p_new
     
-    def a(self, freq: Frequency) -> np.ndarray:
+    def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the renumbered ABCD-parameter matrix.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the parameters at.
 
         Returns:
-            np.ndarray: The resultant renumbered ABCD-parameter matrix.
+            jnp.ndarray: The resultant renumbered ABCD-parameter matrix.
         """
         return self.renumber(self.model.a(freq))
 
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the renumbered S-parameter matrix.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the parameters at.
 
         Returns:
-            np.ndarray: The resultant renumbered S-parameter matrix.
+            jnp.ndarray: The resultant renumbered S-parameter matrix.
         """
         return self.renumber(self.model.s(freq))
     
@@ -243,23 +246,23 @@ class Stacked(Model):
     combined S-parameter matrix. This represents a set of unconnected
     networks treated as a single component.
     """
-    models: tuple[Model]
+    models: tuple[Model, ...]
     
     def __post_init__(self):
         self.name = 'stacked'
         
-    def s(self, freq: Frequency) -> np.ndarray:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the stacked S-parameter matrix.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the parameters at.
 
         Returns:
-            np.ndarray: The resultant block-diagonal S-parameter matrix.
+            jnp.ndarray: The resultant block-diagonal S-parameter matrix.
         """
         num_ports = sum(model.nports for model in self.models)
 
-        s = np.zeros((freq.npoints, num_ports, num_ports), dtype=np.complex128)
+        s = jnp.zeros((freq.npoints, num_ports, num_ports), dtype=jnp.complex128)
         i = 0
         for submodel in self.models:
             s_sub = submodel.s(freq)

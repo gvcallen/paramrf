@@ -2,7 +2,7 @@ from asteval import Interpreter
 from abc import abstractmethod, ABC
 
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy as jnp
 from scipy.special import erfinv
 from scipy.stats import norm
 
@@ -93,7 +93,7 @@ class GaussianPDF(PDF):
         self.bounds_sigma = bounds_sigma
 
     def __call__(self, x):
-        return self.mu + self.sigma * np.sqrt(2) * erfinv(2*x-1)
+        return self.mu + self.sigma * jnp.sqrt(2) * erfinv(2*x-1)
     
     @property
     def mean(self):
@@ -118,9 +118,9 @@ class GaussianPDF(PDF):
         ax = ax or plt.gca()
 
         mu, sigma = self.mu, self.sigma
-        x = np.linspace(mu - 4*sigma, mu + 4*sigma, 500)
+        x = jnp.linspace(mu - 4*sigma, mu + 4*sigma, 500)
         y = norm.pdf(x, mu, sigma)
-        peak = 1 / (sigma * np.sqrt(2 * np.pi))
+        peak = 1 / (sigma * jnp.sqrt(2 * jnp.pi))
         y_normalized = y / peak        
         
         ax.plot(x, y_normalized, **kwargs)
@@ -137,7 +137,7 @@ class LogUniformPDF(UniformPDF):
 
 def forced_indentifiability_transform(x):
     N = len(x)
-    t = np.zeros(N)
+    t = jnp.zeros(N)
     t[N-1] = x[N-1]**(1./N)
     for n in range(N-2, -1, -1):
         t[n] = x[n]**(1./(n+1)) * t[n+1]

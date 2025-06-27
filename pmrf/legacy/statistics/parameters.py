@@ -1,7 +1,7 @@
 import importlib
 import re
 
-import numpy as np
+import numpy as jnp
 import pandas as pd
 from scipy.stats import qmc
 import uuid
@@ -121,7 +121,7 @@ class ParameterSet(pd.DataFrame):
                 self._total_dict_cache[key] = value * scale 
             return self._total_dict_cache
         else:
-            vectorized_evaluate = np.vectorize(self.evaluate_param)
+            vectorized_evaluate = jnp.vectorize(self.evaluate_param)
             values = vectorized_evaluate(self.value.to_numpy())
             
             return {k: v for k, v in zip(self.index, values * self.scale)}
@@ -144,7 +144,7 @@ class ParameterSet(pd.DataFrame):
             if free_only:
                 return self.loc[self.fixed == False, 'value']
             else:
-                vectorized_evaluate = np.vectorize(self.evaluate_param)
+                vectorized_evaluate = jnp.vectorize(self.evaluate_param)
                 return vectorized_evaluate(self.value.to_numpy())
         else:
             if free_only:
@@ -153,7 +153,7 @@ class ParameterSet(pd.DataFrame):
                 raise Exception("Cannot get fixed values while ParameterSet cache is active")
 
     
-    def update_values(self, theta: np.ndarray):
+    def update_values(self, theta: jnp.ndarray):
         if not self._cache_enabled:
             self.loc[self.fixed == False, 'value'] = theta
         else:
@@ -226,8 +226,8 @@ class ParameterSet(pd.DataFrame):
     
     @property
     def min(self):
-        return np.array([pdf.min for pdf in self.pdf])
+        return jnp.array([pdf.min for pdf in self.pdf])
     
     @property
     def max(self):
-        return np.array([pdf.max for pdf in self.pdf])
+        return jnp.array([pdf.max for pdf in self.pdf])

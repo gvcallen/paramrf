@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 def add_noise(network: rf.Network, sigma_gamma=0.1, sigma_tau=None):
@@ -12,6 +12,6 @@ def add_noise(network: rf.Network, sigma_gamma=0.1, sigma_tau=None):
             sigma = sigma_gamma
         else:
             sigma = sigma_tau
-        noise = sigma * np.random.randn(num_freq) + 1j*sigma * np.random.randn(num_freq)        
+        noise = sigma * jnp.random.randn(num_freq) + 1j*sigma * jnp.random.randn(num_freq)        
 
         network.s[:, m, n] = network.s[:, m, n] + noise   

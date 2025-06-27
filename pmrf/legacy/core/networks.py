@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from copy import copy, deepcopy
 
-import numpy as np
+import numpy as jnp
 import skrf as rf
 from skrf.media import DefinedGammaZ0
 from skrf.media import Media
@@ -26,7 +26,7 @@ class ComputableNetwork(rf.Network):
         self._sigma_tau = sigma_tau
         self._dirty = True
         
-        s = np.zeros((frequency.npoints, nports, nports))
+        s = jnp.zeros((frequency.npoints, nports, nports))
         z0 = z0_port
         super().__init__(frequency=frequency, s=s, z0=z0, *args, **kwargs)
 
@@ -40,8 +40,8 @@ class ComputableNetwork(rf.Network):
             return super().interpolate_self(frequency, **kwargs)
         else:        
             nports = self.nports        
-            s = np.zeros((frequency.npoints, nports, nports))
-            z0 = np.ones((frequency.npoints, nports))
+            s = jnp.zeros((frequency.npoints, nports, nports))
+            z0 = jnp.ones((frequency.npoints, nports))
             z0 = z0 * self.z0[0,:]
         
             self.frequency, self.s, self.z0 = frequency, s, z0
@@ -276,7 +276,7 @@ class ParametricNetwork(ObservableNetwork):
             for key in self.params
         }
         
-    def update_mapped(self, params_global: dict | np.ndarray, infix='_'):
+    def update_mapped(self, params_global: dict | jnp.ndarray, infix='_'):
         if isinstance(params_global, dict):              
             params_local = self.params_global_to_local(params_global, infix)
             self.params.update(params_local)

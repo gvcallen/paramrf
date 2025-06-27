@@ -9,7 +9,7 @@ import uuid
 from datetime import timedelta
 import time
 
-import numpy as np
+import numpy as jnp
 from scipy.optimize import minimize, Bounds, shgo
 import skrf as rf
 
@@ -291,7 +291,7 @@ class NetworkFitter:
         Path(self.output_param_path).mkdir(exist_ok=True, parents=True)
         Path(self.output_misc_path).mkdir(exist_ok=True, parents=True)
         
-        np.save(f'{self.output_misc_path}/frequency.npy', self.export_frequency.f)
+        jnp.save(f'{self.output_misc_path}/frequency.npy', self.export_frequency.f)
         
     def _init_logging(self, level=None):
         log_level = level or self._settings.log_level
@@ -606,7 +606,7 @@ class NetworkFitter:
             self._params_original.loc[self._params_original.index.isin(param_names), 'fixed'] = False        
         self.reset_params()
 
-    def feature_matrix(self, features=None, separate=False, ignore_imag=False) -> np.ndarray:
+    def feature_matrix(self, features=None, separate=False, ignore_imag=False) -> jnp.ndarray:
         if self._settings.matrix_targets == 'free':
             targets = [target for target in self._targets if not target.fixed]
         elif self._settings.matrix_targets == 'all':
@@ -635,7 +635,7 @@ class NetworkFitter:
         else:
             return y_meas - y_target
 
-    def cost(self, theta=None, reset_params=False, features=None) -> np.float64:
+    def cost(self, theta=None, reset_params=False, features=None) -> jnp.float64:
         reset_params = reset_params and not theta is None
         if reset_params:
             x_before = self.system.params.values()
@@ -650,7 +650,7 @@ class NetworkFitter:
             
         return cost
     
-    def log_likelihood(self, theta=None, reset_params=False) -> np.float64:
+    def log_likelihood(self, theta=None, reset_params=False) -> jnp.float64:
         reset_params = reset_params and not theta is None
         if reset_params:
             x_before = self.system.params.values()
@@ -727,7 +727,7 @@ class NetworkFitter:
     def reset_params(self):
         self._system.reset_params()
 
-    def update_params(self, params: np.ndarray | dict, update_networks=True, update_fitter_likelihood=True, update_network_likelihoods=True, update_noise=False, scaler=None):
+    def update_params(self, params: jnp.ndarray | dict, update_networks=True, update_fitter_likelihood=True, update_network_likelihoods=True, update_noise=False, scaler=None):
         if isinstance(params, dict):
             raise Exception('Updating parameters directly from dict not yet supported')
         
@@ -757,7 +757,7 @@ class NetworkFitter:
 
         param_names = self.system.params.index[self.system.params.fixed == False]
         param_names_replaced = [name.replace('_', '.') for name in param_names]
-        param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])                
+        param_names = jnp.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])                
 
         # Update the active parameters based on the desired method.
         try:
@@ -768,7 +768,7 @@ class NetworkFitter:
                     value = nested_samples[param].mean()
                     self.system.params.loc[param, 'value'] = value
             elif self._settings.parameter_method == 'likelihood-max':
-                idx = np.argmax(nested_samples.logL.values)
+                idx = jnp.argmax(nested_samples.logL.values)
                 for param in param_names[:,0]:
                     value = nested_samples[param].values[idx]
                     self.system.params.loc[param, 'value'] = value
@@ -833,7 +833,7 @@ class NetworkFitter:
         # Populate latex param names
         param_names = model_param_names + likelihood_param_names
         param_names_replaced = [name.replace('_', '.') for name in param_names]
-        param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])
+        param_names = jnp.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, param_names_replaced)])
 
         # Setup likelihood and prior lambdas to pass to PolyChord
         callback_args = {
@@ -928,7 +928,7 @@ class NetworkFitter:
             self.update_params(x)
             cost = self.cost()
         except:
-            cost = np.inf
+            cost = jnp.inf
 
         # The cost callback for frequentists. Update's self's parameters, calculates the cost, does some logging and then returns the cost
         callback_args['i_feval'] = callback_args['i_feval'] + 1
@@ -950,7 +950,7 @@ class NetworkFitter:
         try:
             logL = self.log_likelihood()
         except Exception as e:
-            logL = -np.inf
+            logL = -jnp.inf
             filename = f"error_{time_string()}.csv"
             logger.error(f"Likelihood function raised an exception. Active parameters saved to {filename}", exc_info=e)
             self.system.params.write_csv(f"{self.output_param_path}/{filename}")
@@ -964,5 +964,5 @@ class NetworkFitter:
         model_values = [prior(hypercube[i]) for i, prior in enumerate(self.system.params.pdfs())]
         likelihood_values = [prior(hypercube[num_model_params + i]) for i, prior in enumerate(self._likelihood_priors.values())]
         
-        return np.array(model_values + likelihood_values)
+        return jnp.array(model_values + likelihood_values)
     

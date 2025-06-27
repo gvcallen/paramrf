@@ -1,7 +1,11 @@
-import pmrf.numpy as np
+from typing import TYPE_CHECKING
+
+import jax.numpy as jnp
 from pmrf._frequency import Frequency
-# from pmrf._model import Model
 from pmrf.functions.gain import available_gain
+
+if TYPE_CHECKING:
+    from pmrf._model import Model
 
 def effective_temperature(source, passive, freq: Frequency, Tp):
     Gav = available_gain(source, passive, freq)

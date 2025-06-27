@@ -2,9 +2,9 @@
 
 ## Overview
 
-ParamRF, or `pmrf`, is an easy-to-use, efficient framework for describing microwave circuit models in an object-orientated, parametric manner.
+ParamRF, or `pmrf`, is an easy-to-use framework built on top of `jax`, used for describing general microwave circuit models in an efficient, parametric, object-orientated manner.
 
-Several principles from existing framework have been integrated into one package, such as `scikit-rf` for foundational RF concepts, `equinox` for powerful model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation. The long-term goal is to allow the building of full, complex circuit topologies, however currently only simplified models are available. `pmrf` provides a declarative interface that easily compiles models into an efficient linear algebra graph using `jax`, and also provides the ability to optimize these models using commonly available or custom-defined fitting algorithms.
+The framework integrates concepts from several pacakages into one, such as `scikit-rf` for general syntax and RF concepts, `equinox` for model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation. The long-term goal is to allow the building of full, complex circuit topologies, however currently only simplified models are available. `pmrf` provides a declarative interface that easily compiles models into an efficient linear algebra graph using `jax`, and also provides the ability to optimize these models using commonly available or custom-defined fitting algorithms.
 
 ## Core Concepts
 

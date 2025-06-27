@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 from pmrf.legacy.core import ParametricNetwork

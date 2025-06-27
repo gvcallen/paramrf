@@ -2,7 +2,7 @@ from pathlib import Path
 import logging
 import os
 
-import numpy as np
+import numpy as jnp
 import skrf as rf
 
 from pmrf.legacy.core.networks import ParametricNetwork, update_networks_mapped, get_unique_networks
@@ -136,14 +136,14 @@ class NetworkSystem:
         except:
             logger.warning('Could not update networks!')
 
-    def update_params(self, params: np.ndarray, scaler = None, hypercube = False):
+    def update_params(self, params: jnp.ndarray, scaler = None, hypercube = False):
         if isinstance(params, dict):
             raise Exception('Updating parameters directly from dict not yet supported')
 
         if scaler:
             params = scaler.inverse_transform(params)
         if hypercube:
-            params = np.array([pdf(params[i]) for i, pdf in enumerate(self.params.pdfs())])
+            params = jnp.array([pdf(params[i]) for i, pdf in enumerate(self.params.pdfs())])
 
         self.params.update_values(params)
         update_networks_mapped(self._subnetworks, self.params.evaluate())

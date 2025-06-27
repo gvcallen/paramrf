@@ -2,7 +2,7 @@ from __future__ import annotations
 from copy import deepcopy
 import ast
 
-import numpy as np
+import numpy as jnp
 
 from pmrf.legacy.misc.math import dB20, norm
 
@@ -66,12 +66,12 @@ class Modifier:
             axis_default = 1
             nbase = len('multiply-by')
             if len(mode) > nbase:
-                x_default = np.array(ast.literal_eval(mode[nbase+1:]), dtype=np.float64)
+                x_default = jnp.array(ast.literal_eval(mode[nbase+1:]), dtype=jnp.float64)
         elif self.mode.startswith('weight-by'):
             axis_default = 1
             nbase = len('weight-by')
             if len(mode) > nbase:
-                x_default = np.array(ast.literal_eval(mode[nbase+1:]), dtype=np.float64)
+                x_default = jnp.array(ast.literal_eval(mode[nbase+1:]), dtype=jnp.float64)
 
         if '-ax' in self.mode:
             axis_default = int(self.mode[self.mode.rindex('-ax')+3:])
@@ -81,7 +81,7 @@ class Modifier:
         self.kwargs.setdefault('n', n_default)
         self.kwargs.setdefault('callback', callback_default) 
 
-    def __call__(self, y) -> np.float64 | np.ndarray:    
+    def __call__(self, y) -> jnp.float64 | jnp.ndarray:    
         mode = self.mode
         kwargs = self.kwargs
         axis = kwargs['axis']
@@ -95,19 +95,19 @@ class Modifier:
         elif mode == 'dB':
             y = dB20(y)
         elif mode == 'abs':
-            y = np.abs(y)
+            y = jnp.abs(y)
         elif mode == 'sqr':
             y = y**2
         elif mode == 'sum':
-            y = np.sum(y, axis=axis)
+            y = jnp.sum(y, axis=axis)
         elif mode == 'sqr':
             y = y**2
         elif mode == 'min':
-            y = np.min(y, axis=axis)
+            y = jnp.min(y, axis=axis)
         elif mode == 'max':
-            y = np.max(y, axis=axis)
+            y = jnp.max(y, axis=axis)
         elif mode == 'mean':
-            y = np.mean(y, axis=axis)
+            y = jnp.mean(y, axis=axis)
         elif mode[0] == 'L':
             y = norm(y, mode=mode, axis=axis)
         elif mode.startswith('convolve-interleaved'):
@@ -131,7 +131,7 @@ class Modifier:
         return y        
     
 
-    def _multiply_by(self, y, x, axis) -> np.float64 | np.ndarray:
+    def _multiply_by(self, y, x, axis) -> jnp.float64 | jnp.ndarray:
         if x.shape == y.shape:
             y *= x
         else:
@@ -147,15 +147,15 @@ class Modifier:
                 raise ValueError(f"The length of the specified axis ({y.shape[axis]}) is not divisible by {n}.")
 
             if axis == 0:
-                x = np.tile(x, (int(y.shape[0] / n), y.shape[1]))
+                x = jnp.tile(x, (int(y.shape[0] / n), y.shape[1]))
             elif axis == 1:
-                x = np.tile(x, (y.shape[0], int(y.shape[1] / n)))
+                x = jnp.tile(x, (y.shape[0], int(y.shape[1] / n)))
 
             y *= x
 
         return y
 
-    def _sum_every(self, y, n, axis) -> np.float64 | np.ndarray:
+    def _sum_every(self, y, n, axis) -> jnp.float64 | jnp.ndarray:
         if len(y.shape) == 1 and len(y) % n == 0:
             if axis == 0:
                 y = y.reshape(len(y), 1)
@@ -176,7 +176,7 @@ class Modifier:
 
         return y
     
-    def _multiply_every(self, y, n, axis) -> np.float64 | np.ndarray:
+    def _multiply_every(self, y, n, axis) -> jnp.float64 | jnp.ndarray:
         if len(y.shape) == 1 and len(y) % n == 0:
             if axis == 0:
                 y = y.reshape(len(y), 1)
@@ -197,12 +197,12 @@ class Modifier:
 
         return y    
     
-    def _convolve_interleaved(self, y, axis) -> np.float64 | np.ndarray:
+    def _convolve_interleaved(self, y, axis) -> jnp.float64 | jnp.ndarray:
         # Write code that convolves array y1 with y2, where y1 is every 1st element, and y2 every 2nd, along the specified axis.
         if axis == 1:
             if len(y.shape) == 1:
                 y1, y2 = y[0::2], y[1::2]
-                y = np.convolve(y1, y2)
+                y = jnp.convolve(y1, y2)
             else:
                 raise Exception("Not yet implemented")
         else:
@@ -240,7 +240,7 @@ class ModifierChain:
         for modifier in self.modifiers:
             y = modifier(y)
 
-        if type(y) == np.ndarray and y.size == 1:
-            y = np.float64(y)
+        if type(y) == jnp.ndarray and y.size == 1:
+            y = jnp.float64(y)
         
         return y

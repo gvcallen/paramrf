@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Iterator
 
-import numpy as np
+import numpy as jnp
 from scipy.stats import qmc
 
 from pmrf.legacy.modeling import NetworkSystem
@@ -88,7 +88,7 @@ class NetworkSampler:
         if self._engine == 'lhs':
             X = qmc.LatinHypercube(d).random(n)
         elif self._engine == 'uniform':
-            X = np.random.uniform(0.0, 1.0, size=(n, d))
+            X = jnp.random.uniform(0.0, 1.0, size=(n, d))
         else:
             raise Exception('Unknown sampler type')        
         
