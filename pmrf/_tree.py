@@ -191,7 +191,7 @@ def partition(
     replace: Any = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
-    if shared_spec is None:
+    if shared_spec is None or filter_spec == shared_spec:
         return eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
 
     first, second = eqx.partition(pytree, shared_spec, replace=replace, is_leaf=is_leaf)

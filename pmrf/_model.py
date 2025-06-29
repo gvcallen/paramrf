@@ -1,24 +1,23 @@
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, get_origin, get_args, Union
-import inspect
+from typing import Callable
 import dataclasses
 from dataclasses import fields, is_dataclass
-from types import GenericAlias, UnionType
 
 import skrf as skrf
 import jax.numpy as jnp
 import jax
-import equinox as eqx
 from jaxtyping import PyTree
+from jax import flatten_util
 from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
+import equinox as eqx
 
 from pmrf._constants import PRIMARY_PROPERTIES, IndexArray
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, is_valid_param, asparam
 from pmrf._frequency import Frequency
-from pmrf._util import field, classproperty
+from pmrf._util import field, classproperty, is_instance_of_annotated_type, is_overridden, get_first_underlying_type
 from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
 
 jax.config.update("jax_enable_x64", True)
@@ -38,14 +37,17 @@ class Model(eqx.Module):
     done using the same dataclass format and typing. Since models are dataclasses,
     initializers accept any immediate parameters and sub-networks as input arguments.
     To change the model's parameters in a more flat manner, one can use the `with_params(...)`
-    function to specify a dictionary of model parameters. To inspect which parameters a model supports,
-    use `model.params` or `model.param_names`. If updating via fully flat array is desired,
-    use `model.to_array(..)` with the resultant unravel function.
+    function to specify a dictionary of model parameters. 
+    To get the current parameters of a model instance, or just the names,
+    use model.params() or model.param_names(). To get the names or values for the default configuration
+    of the model, use model.DEFAULT_PARAMS or model.DEFAULT_PARAM_NAMES. These may be different
+    to the instance parameters, if the model depends on some hyperparemeters, for example.
+    If a flattened version of the parameters is desired, use model.flat_params().
     
     Note that Model's internally derive from the `Equinox` `Module` class,
-    and are immutable. This allows for the models to be used with `jax`
-    (if enabled), with the whole model being treated as a pytree.
-    To partition the model into a part that represents its core parameters,
+    and are immutable. This allows for the models to be used with `jax` JIT compilation,
+    with the whole model being treated as a pytree. For lower-level use, to partition the model into a part
+    that represents its core parameters for use with e.g. jax-compatible optimizers,
     use e.g. `params, static = model.partition(..)`. To re-combine the model,
     use `pmrf.combine(params, static)`.
     
@@ -70,14 +72,14 @@ class Model(eqx.Module):
         L: Parameter = 1.0e-9
         C2: Parameter = 1.0e-12
 
-        def a(self, freq: prf.Frequency) -> jjnp.ndarray:
-            # "freq" being passed in is very similar to skrf.Frequency, but can contain jax arrays
+        def a(self, freq: prf.Frequency) -> jnp.ndarray:
+            # "freq" being passed in is very similar to skrf.Frequency, but contains jax arrays
             C1, C2, L, w = self.C1, self.C2, self.L, freq.w
             Y1 = 1j * w * C1
             Y2 = 1j * w * C2
             Y3 = 1 / (1j * w * L)
 
-            return jjnp.array([
+            return jnp.array([
                 [1 + Y2 / Y3,           1 / Y3      ],
                 [Y1 + Y2 + Y1*Y2/Y3,    1 + Y1 / Y3 ],
             ]).transpose(2, 0, 1)  
@@ -89,30 +91,35 @@ class Model(eqx.Module):
     We utilize some of the built-in foundational models available in `pmrf.models`, and also a more
     complicated initialization with `__init__`. Note that if you do not need any input model settings,
     then `__post_init__` should be prefered (see the python documentation on dataclasses for more information).
+    Also note the "property" syntax below, which makes it easy to define derived models that
+    can both be used in forward property functions (e.g. a(..) below), or as a regular property e.g. after fitting.
     
-    Note that, if we want to store any intermediate networks, we mark those fields as *derived*.
-    This is how to tell `pmrf` that thet "core" model parameters are those within `res`, `ind` and `cap`,
-    and not `cascade` (which are ultimately references to the same underlying parameters).
-        
     ```python
     import pmrf as prf
     from pmrf.models import Resistor, Capacitor, Inductor, Cascade
     
     class RLC(prf.Model):
-        cascade: Cascade = field(derived=True)
-        res: Resistor = Resistor(1.0)                   # note that, unlike with usual dataclasses, models can be constructed without "default_factory=..."
-        ind: Inductor = Inductor(1.0e-9)
-        cap: Capacitor = Capacitor(1.0e-12)
+        # Note that, unlike with usual dataclasses, Model instances can be constructed without "default_factory=..." as below
+        res: Resistor =                 Resistor(1.0)
+        ind: Inductor | Cascade =       Inductor(1.0e-9)
+        cap: Capacitor =                Capacitor(1.0e-12)
+        
+        @property
+        # We define a cascade derived (note the familiar scikit-rf syntax)
+        def cas(self) -> Cascade:       return self.res ** self.ind ** self.cap
+        
+        # And a one-line version of the above, but explicitly calling the Cascade constructor:
+        # cas =                         property(lambda self: Cascade((self.res, self.ind, self.cap)))
         
         def __init__(self, terminated=False):
             res, ind, cap = self.res, self.ind, self.cap
             if terminated:
-                self.ind = self.ind.terminated()        # terminate in a short
-            
-            self.cascade = res ** ind ** cap            # similar syntax to scikit-rf
+                # Terminate in a short, which creates a Cascade instance internally
+                self.ind = self.ind.terminated()
 
         def a(self, freq: prf.Frequency) -> jnp.ndarray:
-            return self.cascade.a(freq)                 # just return cascade's abcd implementation
+            # Just return the cascade's abcd implementation (we could also define 's' depending on the use case)
+            return self.cas.a(freq)
     ```
     
     """
@@ -120,12 +127,7 @@ class Model(eqx.Module):
     name: str | None = field(default=None, kw_only=True, static=True)
     _z0: jnp.ndarray = field(default=50.0+0j, init=False, static=True)
 
-    # Class fields
-    _s_def: str = field(init=False, repr=False, static=True)
-    _priority: tuple = field(init=False, repr=False, static=True)
-    _separator: str = field(init=False, repr=False, static=True)    
-
-    def __init_subclass__(cls, s_def: str = 'power', separator = '_', **kwargs):
+    def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
 
         for field_name, field_types in cls.__annotations__.items():
@@ -145,7 +147,7 @@ class Model(eqx.Module):
                     setattr(cls, field_name, new_default)
                     
             # Allow auto-conversion of Parameter-annotated structures
-            field_type = _get_first_underlying_type(field_types)
+            field_type = get_first_underlying_type(field_types)
             if field_type is not None and issubclass(field_type, Parameter):
                 default = getattr(cls, field_name, None)
                 if default is not None:
@@ -172,70 +174,182 @@ class Model(eqx.Module):
                 func = lookup[1]
                 setattr(cls, func_name, make_dynamic_method(f"{prop}_mn", func))                
 
-        # Initialize class parameters
-        cls._s_def = s_def
-        cls._priority = ()
-        cls._separator = separator
+    @property
+    def _param_value_spec(self) -> PyTree:
+        # A Pytree filter for *all* Model parameter values.
+        def is_param_value(path, node):
+            if len(path) == 0 or not eqx.is_inexact_array(node):
+                return False
+            return hasattr(path[-1], 'name') and path[-1].name == 'value'
         
-    def _path_to_param_name(self, path) -> str | list[str]:
+        return jax.tree.map_with_path(is_param_value, self, is_leaf=lambda node: eqx.is_inexact_array(node))
+        
+    @property
+    def _param_object_spec(self) -> PyTree:
+        # A Pytree filter for all Model `Parameter` objects.
+        return jax.tree.map(is_valid_param, self, is_leaf=lambda node: is_valid_param(node))
+    
+    @property
+    def _core_value_spec(self) -> PyTree:
+        # A Pytree filter for all core Model parameter values.
+        # Temporarily no longer supporting derived parameters i.e. core parameters = parameters
+        # return self._param_value_spec
+        # A parameter is derived if any of its parent dataclasses have 'derived' set to True in its field metadata.
+        path_is_derived = {}
+        def is_leaf(path, node):
+            if is_dataclass(node):
+                for field in fields(node):
+                    if field.metadata.get('derived', False):
+                        field_path = path + (GetAttrKey(field.name),)
+                        path_is_derived[field_path] = True
+            
+            # Set base path as not being derived, and this path's derived as equal to the parents if not already set
+            if len(path) == 0:
+                path_is_derived[path] = False
+            else:
+                path_is_derived.setdefault(path, path_is_derived[path[0:-1]])
+            return isinstance(node, bool)
+        return jax.tree.map_with_path(lambda path, node: node and not path_is_derived[path], self._param_value_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
+    
+    @property
+    def _core_object_spec(self) -> PyTree:
+        # A Pytree filter for all core Model `Parameter` objects.
+        return self._param_object_spec
+        # return jax.tree.map(lambda param, core_spec: is_valid_param(param) and core_spec.value, self, self.core_value_spec, is_leaf=lambda node: is_valid_param(node))
+
+    @property
+    def _free_value_spec(self) -> PyTree:
+        # A Pytree filter for all free Model parameter values.
+        def is_not_fixed(path, is_core):
+            if not is_core:
+                return False
+            # Here we check that the array is within a parameter and that the parameter is varying
+            param = value_at_path(self, path[0:-1])
+            if not isinstance(param, Parameter):
+                raise Exception(f"Found an array in a model not within a parameter: this is not allowed (at path {path})")
+            return not param.fixed
+        return jax.tree.map_with_path(is_not_fixed, self._core_value_spec)
+
+    @property
+    def _free_object_spec(self) -> PyTree:
+        # A Pytree filter for all free Model `Parameter` objects.
+        return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
+    
+    @property
+    def _has_a(self) -> bool:
+        return is_overridden(type(self), Model, 'a')
+    
+    @property
+    def _has_s(self) -> bool:
+        return is_overridden(type(self), Model, 's')          
+        
+    def _path_to_param_name(self, path, separator: str = '_') -> str | list[str]:
+        # Converts a path to its vector parameter name
         fields = []
         for key in path:
             if isinstance(key, GetAttrKey) or isinstance(key, DictKey):
                 fields.append(key.name)
             elif isinstance(key, SequenceKey) or isinstance(key, FlattenedIndexKey):
                 fields.append(str(key.idx))
-        return self._separator.join(fields)
+        return separator.join(fields)
 
     def __pow__(self, other: 'Model') -> 'Model':
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
     
     @classproperty
-    def PARAM_NAMES(cls) -> list[str]:
+    def DEFAULT_PARAMS(cls) -> dict[str, Parameter]:
+        """The default parameters for the model.
+
+        Returns:
+            dict[str, Parameter]: The parameters.
+        """
         instance = cls()
-        return instance.param_names
+        return instance.params()
     
-    @property
-    def _has_a(self) -> bool:
-        return _is_overridden(type(self), Model, 'a')
-    
-    @property
-    def _has_s(self) -> bool:
-        return _is_overridden(type(self), Model, 's')        
-    
-    @property
-    def params(self) -> dict[str, Parameter]:
-        """A dictionary of the core model parameters.
-        
-        Keys are returned as long parameter names, and values are
-        `Parameter` structures as they currently are in the model.
-        The dictionary order matches the underlying, raveled array order.
+    @classproperty
+    def DEFAULT_PARAM_NAMES(cls) -> list[str]:
+        """The default parameter names for the model.
 
         Returns:
-            dict[str, Parameter]: The parameter dictionary.
+            list[str]: The parameter names.
         """
-        core_params_tree = eqx.filter(self, self.core_object_spec, is_leaf=is_valid_param)
-        path_and_params = jax.tree.flatten_with_path(core_params_tree, is_leaf=is_valid_param)
-        return {self._path_to_param_name(path): param for path, param in path_and_params[0]}
+        instance = cls()
+        return instance.param_names()
     
     @property
-    def num_params(self) -> int:
-        """Returns the number of core model parameters.
+    def primary_function(self) -> Callable[[Frequency], jnp.ndarray]:
+        """A callable of the primary function e.g. 's', 'a' etc.
+        
+        See `self.primary_property` for more details..
 
         Returns:
-            int: The number of core params.
+            Callable[[Frequency], jnp.ndarray]: The primary function.
         """
-        return len(self.param_names)
+        return getattr(self, self.primary_property)
+            
+    @property
+    def primary_property(self) -> str:
+        """The primary property e.g. 's', 'a' etc.
+        
+        This property will be equal to the function that has been overriden
+        by the derived class. If multiple functions are overriden,
+        then the priority tuple specified upon model creation is used.
+
+        Returns:
+            str: A string for the primary property.
+        """
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        
+        for property in prioritized:
+            if is_overridden(type(self), Model, property):
+                return property
+        for property in unprioritized:
+            if is_overridden(type(self), Model, property):
+                return property
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+
+    @cached_property
+    def number_of_ports(self) -> int:
+        """The number of ports in the model
+
+        Returns:
+            int: The port count.
+        """
+        freq = Frequency(1, 2, 2)
+        eval = jax.eval_shape(lambda: self.s(freq))
+        return eval.shape[1]
     
     @property
-    def param_names(self) -> list[str]:
-        """A list of the core model parameter names.
-        
+    def nports(self) -> int:
+        """The number of ports in the model
+
         Returns:
-            list[str]: The core parameter names.
-        """        
-        return list(self.params.keys())    
-      
+            int: The port count.
+        """
+        return self.number_of_ports
+    
+    @property
+    def port_tuples(self) -> list[tuple[int, int]]:
+        """Tuples for the ports
+        
+        This returns a list of tuple combinations for all ports.
+
+        Returns:
+            list[tuple[int, int]]: The port tuples.
+        """
+        return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
+    
+    @property
+    def z0(self) -> jnp.ndarray:
+        """The internal characteristic impedance matrix.
+
+        Returns:
+            float: Z0.
+        """
+        return self._z0                    
+    
     def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the abcd parameter matrix as a function of frequency.
 
@@ -295,120 +409,74 @@ class Model(eqx.Module):
             return self.s(freq)[:, m, :]
 
         return self.s(freq)
+    
+    def params(self, include_fixed=False, separator='_') -> dict[str, Parameter]:
+        """A dictionary of the core model parameters.
+        
+        Keys are returned as long parameter names, and values are the
+        `Parameter` structures as they currently are in the model.
+        The dictionary order matches the underlying, flattened array order,
+        excluding any additional flattening per parameter.
+        
+        Args:
+            include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
+            separator (str): The separator between models for the parameter names. Defaults to '_'.
+
+        Returns:
+            dict[str, Parameter]: The parameter dictionary.
+        """
+        # TODO makes this more efficient so we dont first create the space i.e. just filter once
+        spec = self._core_object_spec if include_fixed else self._free_object_spec
+        params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
+        path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
+        return {self._path_to_param_name(path, separator=separator): param for path, param in path_and_params[0]}    
+    
+    def flat_params(self, return_array=False, include_fixed=False, separator='_') -> list[Parameter] | jnp.ndarray:
+        """Returns a flattened list/array of the model parameter objects.
+        
+        This is a parallel function to `model.with_flat_params(...)`,
+        allowing retreival of all parameter metadata.
+        The long names are populated within the `Parameter` objects.
+                    
+        Args:
+            return_array (bool): Whether to return a flat array of parameters, or a list. Defaults to `False`, in which case a list is returned.
+            include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
+            separator (str): The separator between models and vector parameter fields for the parameter names. Defaults to '_'.
+
+        Returns:
+            list[Parameter]: The list of model parameters.
+        """
+        if return_array:
+            spec = self._core_value_spec if include_fixed else self._free_value_spec
+            params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
+            return flatten_util.ravel_pytree(params_tree)[0]
+        
+        params = self.params(include_fixed=include_fixed, separator=separator)
+        _flat_params = list(params.values())
+        for i, name in zip(range(len(_flat_params)), params.keys()):
+            _flat_params[i] = dataclasses.replace(_flat_params[i], name=name)
+
+        _flat_params_devectorized = [p.flattened(separator=separator) if isinstance(p, Parameter) else p for p in _flat_params]
+        return [param for sublist in _flat_params_devectorized for param in (sublist if isinstance(sublist, list) else [sublist])]    
             
-    @property
-    def submodels(self) -> list['Model']:
-        """Returns a list of immediate submodels.
+    def children(self) -> list['Model']:
+        """Returns a list of immediate submodels (children).
 
         Returns:
             list['Model']: The submodels.
         """
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
-    @property
-    def submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
-        """Return a list of immedate submodels, as well as their jax paths.
-
-        Returns:
-            list[tuple[PyTree, 'Model']]: A list of path-submodels.
-        """
-        return [path_val for path_val in flatten_one_level_with_path(self)[0] if isinstance(path_val[1], Model)]
-    
-    @property
-    def nested_submodels(self) -> list['Model']:
-        """Returns a list of nested submodels.
+    def submodels(self) -> list['Model']:
+        """Returns a list of all submodels.
         
         This contains all immediate sub-models, as well as their sub-models.
 
         Returns:
-            list['Model']: A list of nested submodels.
+            list['Model']: A list of all nested submodels.
         """
         return nodes_by_type(self, Model)[1:]
-    
-    @property
-    def nested_submodels_with_paths(self) -> list[tuple[PyTree, 'Model']]:
-        """Returns a list of nested submodels, as well as their jax paths.
-        
-        See `nested_submodels`.
 
-        Returns:
-            list['Model']: A list of nested path-submodels.
-        """        
-        return nodes_by_type_with_path(self, Model)[1:]
-    
-    @property
-    def primary_function(self) -> Callable[[Frequency], jnp.ndarray]:
-        """A callable of the primary function e.g. 's', 'a' etc.
-        
-        See `self.primary_property` for more details..
-
-        Returns:
-            Callable[[Frequency], jnp.ndarray]: The primary function.
-        """
-        return getattr(self, self.primary_property)
-            
-    @property
-    def primary_property(self) -> str:
-        """The primary property e.g. 's', 'a' etc.
-        
-        This property will be equal to the function that has been overriden
-        by the derived class. If multiple functions are overriden,
-        then the priority tuple specified upon model creation is used.
-
-        Returns:
-            str: A string for the primary property.
-        """
-        prioritized = self._priority
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in self._priority)
-        
-        for property in prioritized:
-            if _is_overridden(type(self), Model, property):
-                return property
-        for property in unprioritized:
-            if _is_overridden(type(self), Model, property):
-                return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
-
-    @cached_property
-    def number_of_ports(self) -> int:
-        """The number of ports in the model
-
-        Returns:
-            int: The port count.
-        """
-        freq = Frequency(1, 2, 2)
-        eval = jax.eval_shape(lambda: self.s(freq))
-        return eval.shape[1]
-    
-    @property
-    def nports(self) -> int:
-        """The number of ports in the model
-
-        Returns:
-            int: The port count.
-        """
-        return self.number_of_ports
-    
-    @property
-    def port_tuples(self) -> list[tuple[int, int]]:
-        """Tuples for the ports
-        
-        This returns a list of tuple combinations for all ports.
-
-        Returns:
-            list[tuple[int, int]]: The port tuples.
-        """
-        return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
-    
-    @property
-    def z0(self) -> jnp.ndarray:
-        """The internal characteristic impedance matrix.
-
-        Returns:
-            float: Z0.
-        """
-        return self._z0
-           
     def flipped(self) -> 'Model':
         """Returns a version of the model with its ports flipped.
 
@@ -433,125 +501,10 @@ class Model(eqx.Module):
         from pmrf.models.containers import Cascade
         load = load or Short()
         terminated_model = Cascade((self, load))
-        return terminated_model    
+        return terminated_model
     
-    @property
-    def param_value_spec(self) -> PyTree:
-        """A Pytree filter for all Model parameter values.
-        
-        The resultant dataclass contains `True` for all parameter values in
-        `Parameter` structures within the `Model`, and `False` otherwise.
-        Useful for `jax` and `Equinox` tree and filtering operations.
-
-        Returns:
-            PyTree: The resultant filter tree.
-        """
-        def is_param_value(path, node):
-            if len(path) == 0 or not eqx.is_inexact_array(node):
-                return False
-            return hasattr(path[-1], 'name') and path[-1].name == 'value'
-        
-        return jax.tree.map_with_path(is_param_value, self, is_leaf=lambda node: eqx.is_inexact_array(node))
-        
-    @property
-    def param_object_spec(self) -> PyTree:
-        """A Pytree filter for all Model `Parameter` objects.
-        
-        The resultant dataclass contains `True` for in place of all
-        `Parameter` structures within the `Model`, and `False` otherwise.
-        Useful for `jax` and `Equinox` tree and filtering operations.
-
-        Returns:
-            PyTree: The resultant filter tree.
-        """        
-        return jax.tree.map(is_valid_param, self, is_leaf=lambda node: is_valid_param(node))
-    
-    @property
-    def core_value_spec(self) -> PyTree:
-        """A Pytree filter for all core Model parameter values.
-        
-        This filter is the same as `self.param_value_spec`,
-        except excludes derived parameters.
-        
-        Returns:
-            PyTree: The resultant filter tree.
-        """        
-        # A parameter is derived if any of its parent dataclasses have 'derived' set to True in its field metadata.
-        path_is_derived = {}
-        def is_leaf(path, node):
-            if is_dataclass(node):
-                for field in fields(node):
-                    if field.metadata.get('derived', False):
-                        field_path = path + (GetAttrKey(field.name),)
-                        path_is_derived[field_path] = True
-            
-            # Set base path as not being derived, and this path's derived as equal to the parents if not already set
-            if len(path) == 0:
-                path_is_derived[path] = False
-            else:
-                path_is_derived.setdefault(path, path_is_derived[path[0:-1]])
-            return isinstance(node, bool)
-        return jax.tree.map_with_path(lambda path, node: node and not path_is_derived[path], self.param_value_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
-    
-    @property
-    def core_object_spec(self) -> PyTree:
-        """A Pytree filter for all core Model `Parameter` objects.
-        
-        This filter is the same as `self.param_object_spec`,
-        except excludes derived parameters.
-        
-        Returns:
-            PyTree: The resultant filter tree.
-        """           
-        return jax.tree.map(lambda param, core_spec: is_valid_param(param) and core_spec.value, self, self.core_value_spec, is_leaf=lambda node: is_valid_param(node))
-
-    @property
-    def free_value_spec(self) -> PyTree:
-        """A Pytree filter for all free Model parameter values.
-        
-        This filter is the same as `self.core_value_spec`,
-        except excludes fixed parameters.
-        
-        Returns:
-            PyTree: The resultant filter tree.
-        """              
-        def is_not_fixed(path, is_core):
-            if not is_core:
-                return False
-            # Here we check that the array is within a parameter and that the parameter is varying
-            param = value_at_path(self, path[0:-1])
-            if not isinstance(param, Parameter):
-                raise Exception(f"Found an array in a model not within a parameter: this is not allowed (at path {path})")
-            return not param.fixed
-        return jax.tree.map_with_path(is_not_fixed, self.core_value_spec)
-
-    @property
-    def free_object_spec(self) -> PyTree:
-        """A Pytree filter for all free Model `Parameter` objects.
-        
-        This filter is the same as `self.core_object_spec`,
-        except excludes fixed parameters.
-        
-        Returns:
-            PyTree: The resultant filter tree.
-        """                 
-        return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self.free_value_spec, is_leaf=lambda node: is_valid_param(node))       
-    
-    @classmethod
-    def from_combined(params: 'Model', static: 'Model') -> 'Model':
-        """Returns the combine model retreiving previously from partitioning.
-        
-        This is equivalent to `pmrf.combine(..)` but is perhaps a friendlier API.
-        See `model.partition(..)` for more information.
-        
-        Args:
-            params ('Model'): The dynamic part of the model.
-            static ('Model'): The static part of the model.
-
-        Returns:
-            'Model': The combined, full model.
-        """
-        return combine(params, static)  
+    def copy(self) -> 'Model':
+        return deepcopy(self)
     
     def partition(self, include_fixed=False, param_objects=False) -> tuple['Model', 'Model']:
         """Returns the model partitioned into parameters and a static part.
@@ -573,23 +526,24 @@ class Model(eqx.Module):
             tuple['Model', 'Model']: The partitioned model.
         """
         if param_objects:
-            shared_spec = self.param_object_spec
+            shared_spec = self._param_object_spec
             if include_fixed:
-                filter_spec = self.core_object_spec
+                filter_spec = self._core_object_spec
             else:
-                filter_spec = self.free_object_spec
+                filter_spec = self._free_object_spec
         else:
-            shared_spec = self.param_value_spec
+            shared_spec = self._param_value_spec
             if include_fixed:
-                filter_spec = self.core_value_spec
+                filter_spec = self._core_value_spec
             else:
-                filter_spec = self.free_value_spec
+                filter_spec = self._free_value_spec
         return partition(self, filter_spec, shared_spec)
     
     def with_params(
         self,
         params: dict[str, Parameter] | dict[str, float] | None = None,
         all_check: bool = False,
+        separator: str = '_',
         **param_kwargs: dict[str, Parameter] | dict[str, float],
     ) -> 'Model':
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
@@ -603,6 +557,7 @@ class Model(eqx.Module):
                                                                                     Parameters can also be specified with key-word arguments.
                                                                                     Defaults to `None`.
             all_check (bool):                                                       Whether to add a check the requires that all parameters have been specified. Defaults to `False`.
+            separator (str): The separator between models for the parameter names.  Defaults to '_'.
                                                                                
 
         Returns:
@@ -612,7 +567,7 @@ class Model(eqx.Module):
         params.update(param_kwargs)
         
         # First, generate an ordered, input flat params array
-        new_params = self.params
+        new_params = self.params(include_fixed=True, separator=separator)
         
         # Validate the callers's input
         unknown_params = set(params.keys() - new_params.keys())
@@ -635,7 +590,7 @@ class Model(eqx.Module):
         new_flat_params = list(new_params.values())
         
         # Get the current flat parameter object
-        params_tree, static = partition(self, self.core_object_spec, self.param_object_spec, is_leaf=is_valid_param)
+        params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
         flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
         
         # We allow the caller to pass None for name and then we update the name. Otherwise names should match
@@ -647,80 +602,25 @@ class Model(eqx.Module):
         new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
         return combine(new_params_tree, static, is_leaf=is_valid_param)
     
-    def with_params_array(self, array: jnp.ndarray, include_fixed=False) -> 'Model':
+    def with_flat_params(self, flat_params: list[Parameter] | jnp.ndarray, include_fixed=False) -> 'Model':
         """Returns the current model with the parameters specified in the array.
         
-        See `to_array` for more details.
+        See `Model.flat_params(...)` for more details.
 
         Args:
             array (jnp.ndarray): The array of parameters
-            with_fixed (bool, optional): Whether or not the array also contains fixed parameters. Defaults to `False`.
+            include_fixed (bool, optional): Whether or not the array also contains fixed parameters. Defaults to `False`.
 
         Returns:
             'Model': The model with the parameters set.
         """
-        filter_spec = self.core_value_spec if include_fixed else self.free_value_spec
-        params, static = partition(self, filter_spec, self.param_value_spec)
+        filter_spec = self._core_value_spec if include_fixed else self._free_value_spec
+        params, static = partition(self, filter_spec, self._param_value_spec)
         _, unravel_fn = jax.flatten_util.ravel_pytree(params)
-        new_params = unravel_fn(array)
-        return combine(new_params, static)
-
-    def with_params_list(self, array: jnp.ndarray, include_fixed=False) -> 'Model':
-        """Returns the current model with the parameters specified in the array.
         
-        See `to_array` for more details.
-
-        Args:
-            array (jnp.ndarray): The array of parameters
-            with_fixed (bool, optional): Whether or not the array also contains fixed parameters. Defaults to `False`.
-
-        Returns:
-            'Model': The model with the parameters set.
-        """
-        # TODO
-        raise Exception("Not yet implemented")
-
-    def to_params_array(self, include_fixed=False) -> jnp.ndarray | tuple[jnp.ndarray, Callable]:
-        """Returns a raveled array of the model parameter value.
-        
-        By default, all non-fixed parameters are returned,
-        but fixed parameters can be included by passing `with_fixed=True`.
-        
-        In order to update an existing model with a raveled
-        array (in other words, to unravel), use `model.with_array(..)`.
-        Note that this uses any static ("hyperparameters") for that
-        current `model` instance.
-        
-        Args:
-            include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
-
-        Returns:
-            jnp.ndarray: The resultant parameters, raveled into a 1D array.
-        """
-        filter_spec = self.core_value_spec if include_fixed else self.free_value_spec
-        params = eqx.filter(self, filter_spec)
-        return jax.flatten_util.ravel_pytree(params)[0]
-    
-    def to_params_list(self, include_fixed=False) -> list[Parameter]:
-        """Returns a raveled array of the model parameter objects.
-        
-        This is a parallel function to `model.to_array(...)`,
-        allowing retreival of all parameter metadata.
-                    
-        Args:
-            include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
-
-        Returns:
-            list[Parameter]: The list of model parameters.
-        """
-        # Get the flat parameters
-        filter_spec = self.core_object_spec if include_fixed else self.free_object_spec
-        params_tree = eqx.filter(self, filter_spec, is_leaf=is_valid_param)
-        params_flat: list[Parameter] = jax.tree.flatten(params_tree, is_leaf=is_valid_param)[0]
-
-        # Ravel the parameters such that there are no vector parameters
-        raveled_internal = [p.ravel() if isinstance(p, Parameter) else p for p in params_flat]
-        return [param for sublist in raveled_internal for param in (sublist if isinstance(sublist, list) else [sublist])]
+        if not isinstance(flat_params, jnp.ndarray):
+            flat_params = jnp.array([param.value for param in flat_params])
+        return combine(unravel_fn(flat_params), static)
     
     def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
@@ -750,40 +650,3 @@ class Model(eqx.Module):
         })
 
         return skrf.Network(**kwargs)    
-    
-def _is_overridden(cls, baseclass, method_name):
-    result = False
-    for cls in inspect.getmro(cls):
-        if method_name in cls.__dict__:
-            result = cls is not baseclass
-            break
-    return result
-
-def _is_instance_of_annotated_type(instance, annotated_type) -> bool:
-    origin = get_origin(annotated_type)
-    args = get_args(annotated_type)
-
-    if origin is UnionType:
-        # Union or Optional
-        return any(_is_instance_of_annotated_type(instance, arg) for arg in args)
-
-    elif origin is not None:
-        # Handles e.g. Annotated[T, ...], Literal[T], etc.
-        return _is_instance_of_annotated_type(instance, args[0])
-
-    else:
-        return isinstance(instance, annotated_type)
-
-def _get_first_underlying_type(tp: type) -> type | None:
-    # The annotations could be unions - in this case we just take the first one TODO upgrade this to do more in-depth inspection?
-    if isinstance(tp, UnionType):
-        return _get_first_underlying_type(tp.__args__[0])
-    if isinstance(tp, (type,)) and not isinstance(tp, (GenericAlias, UnionType)):
-        return tp
-
-    origin = get_origin(tp)
-    if origin is None:
-        return None
-    if origin is Union:
-        return None
-    return _get_first_underlying_type(origin)

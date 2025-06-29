@@ -1,5 +1,7 @@
 # from scipy.stats import rv_continuous
 # import scipy.stats
+import json
+
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
@@ -67,11 +69,6 @@ class Parameter(eqx.Module):
     # TODO add bounds?
     name: str | None = field(default=None, static=True)
     
-    def __post_init__(self):
-        if self.prior is None:
-            if not jnp.isscalar(self.value):
-                self.prior = [None] * len(self.value)
-    
     @property
     def min(self) -> jnp.array:
         """The unscaled minimum value of the parameter's distribution (0.01 quantile).
@@ -106,7 +103,7 @@ class Parameter(eqx.Module):
             return -jnp.inf
         return jnp.array([-jnp.inf] * self.value.shape[0])    
     
-    def ravel(self):
+    def flattened(self, separator='_') -> 'Parameter | list[Parameter]':
         """Flattens self, either returning a single Parameter
         if the internal parameter is scalar, or a list.
         
@@ -116,8 +113,11 @@ class Parameter(eqx.Module):
         if jnp.isscalar(self.value):
             return self
         else:
-            priors_split = split_vectorized_distribution(self.prior)
-            return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}_{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
+            if self.prior is not None:
+                priors_split = split_vectorized_distribution(self.prior)
+            else:
+                priors_split = [None] * len(self.value)
+            return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):
@@ -154,6 +154,28 @@ class Parameter(eqx.Module):
     
     def __rtruediv__(self, other):
         return jnp.divide(jnp.array(other), jnp.array(self))  
+    
+    # Serialization
+    def to_json(self) -> str:
+        d = {
+            "value": self.value.tolist(),
+            "prior": serialize_distribution(self.prior),
+            "fixed": self.fixed,
+            "scale": self.scale,
+            "name": self.name
+        }
+        return json.dumps(d, indent=2)
+
+    @classmethod
+    def from_json(cls, s: str) -> "Parameter":
+        d = json.loads(s)
+        return cls(
+            value=jnp.asarray(d["value"]),
+            prior=deserialize_distribution(d["prior"]),
+            fixed=d["fixed"],
+            scale=d["scale"],
+            name=d["name"]
+        )    
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` with a uniform prior distribution.
@@ -338,3 +360,20 @@ def split_vectorized_distribution(dist):
     ]
 
     return [dist_class(**params) for params in split_params]
+
+def serialize_distribution(d: Distribution | None) -> dict | None:
+    if d is None:
+        return None
+    return {
+        "class": d.__class__.__name__,
+        "params": {k: v.tolist() if isinstance(v, jnp.ndarray) else v for k, v in d.__dict__.items() if not k.startswith("_")}
+    }
+
+# Helper to deserialize a numpyro Distribution
+def deserialize_distribution(dct: dict | None) -> Distribution | None:
+    if dct is None:
+        return None
+    cls = getattr(dist, dct["class"], None)
+    if cls is None:
+        raise ValueError(f"Unknown distribution class: {dct['class']}")
+    return cls(**dct["params"])

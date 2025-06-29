@@ -15,11 +15,19 @@ from pmrf.fitting._base import (
 from pmrf.fitting._frequentist import (
     FrequentistFitter,
     FrequentistResults,
-    ScipyMinimizeFitter,
 )
 
 from pmrf.fitting._bayesian import (
     BayesianFitter,
     BayesianResults,
+)
+
+from pmrf.fitting.fitters._polychord import (
     PolychordFitter,
+    PolychordResults,
+)
+
+from pmrf.fitting.fitters._scipy import (
+    ScipyMinimizeFitter,
+    ScipyMinimizeResults,
 )
