@@ -293,6 +293,9 @@ class FitResults:
             if 'measured' in input_grp:
                 measured_grp = input_grp['measured']
                 if 'name' in measured_grp:
+                    net_grp = measured_grp
+                    name = net_grp['name'][()]
+                    name = name.decode('utf-8') if isinstance(name, bytes) else name
                     s = net_grp['s'][()]
                     f_data = net_grp['f'][()]
                     z0 = net_grp['z0'][()]

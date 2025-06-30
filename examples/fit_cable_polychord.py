@@ -7,7 +7,7 @@ rank = MPI.COMM_WORLD.Get_rank()
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed
-from pmrf.fitting import PolychordFitter
+from pmrf.fitting import PolychordFitter, FitResults
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 measured = rf.Network('paramrf/examples/data/10m_cable.s2p', f_unit='MHz')
 
 # Define parameters/bounds and initialize the model
-wa, wb = 0.8, 1.2
+wa, wb = 0.7, 1.3
 params = {
     'din': Uniform(1.12e-3*wa, 1.12e-3*wb),
     'dout': Uniform(3.2e-3*wa, 3.2e-3*wb),
@@ -35,9 +35,9 @@ fitter = PolychordFitter(
 )
 
 # Run the fit and plot the results. We use 10x the number of parameters for the live fit
-result = fitter.run(nlive=60)
+result = fitter.run(base_dir='output/fit_cable/chains')
 if rank == 0:
-    result.to_hdf5('polychord_10m.hdf5')
+    result.to_hdf5('output/fit_cable/defaultnlive.hdf5')
     result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
     measured.plot_s_db(m=0, n=0)
     plt.show()

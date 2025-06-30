@@ -1,8 +1,9 @@
-import jax
 from typing import Any
+import jax
 import jax.numpy as jnp
+import io   
 import h5py
-import pandas as pd
+import numpy as np
 
 from pmrf.fitting._features import make_feature_function
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
@@ -17,25 +18,23 @@ def gaussian_log_likelihood(y_meas, y_model, sigma):
 
 class PolychordResults(BayesianResults):
     def encode_solver_results(self, group: h5py.Group):
-        pass
-        # from anesthetic import NestedSamples
-        # nested_samples: NestedSamples = self.solver_results
-        # store = pd.HDFStore('temp.h5')
-        # nested_samples.to_hdf()
+        samples = self.solver_results
+        group['samples'] = samples.to_csv()
         
     @classmethod
     def decode_solver_results(cls, group: h5py.Group) -> Any:
-        return None
+        from anesthetic import NestedSamples, read_csv
+        
+        csv_str = group['samples'][()]
+        csv_str = csv_str.decode('utf-8') if isinstance(csv_str, bytes) else csv_str
+        samples = NestedSamples(read_csv(io.StringIO(csv_str)))
+        return samples
     
     def plot_params(self, param_names=None, title='params', label='posterior', priors=False, fig_size=None, fig=None, ax=None, **kwargs):
         from anesthetic import make_2d_axes
         
         nested_samples = self.solver_results
-        if params is None or nested_samples is None:
-            raise Exception('Params and nested samples must be passed when initializing a plotter in order to plotting the corner plot')
-        
         params = param_names or list(self.model.params().keys())
-        self.logger.info('Creating corner plot axes')
 
         if ax is None:
             fig, ax = make_2d_axes(params, figsize=fig_size)
@@ -45,8 +44,6 @@ class PolychordResults(BayesianResults):
                 axi = ax.iloc[i, j]
                 axi.set_ylabel(axi.get_ylabel(), rotation='horizontal')
 
-        self.logger.info('Plotting data')
-        
         if priors:
             prior_samples = nested_samples.prior()
             prior_samples.plot_2d(ax, label='prior', **kwargs)
