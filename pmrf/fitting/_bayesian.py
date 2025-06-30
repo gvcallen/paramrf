@@ -2,7 +2,7 @@ import skrf
 
 from pmrf.parameters import Parameter, Uniform
 from pmrf._model import Model
-from pmrf._constants import FeatureT, FeatureListT
+from pmrf._constants import FeatureInputT
 from pmrf.fitting._base import BaseFitter, FitResults
 
 
@@ -21,9 +21,9 @@ class BayesianFitter(BaseFitter):
     def __init__(
         self,
         model: Model,
-        measured: skrf.Network | list[skrf.Network],
+        measured: skrf.Network | dict[str, skrf.Network],
         frequency: skrf.Frequency | None = None,
-        features: FeatureT | FeatureListT | None = None,
+        features: FeatureInputT | None = None,
         likelihood: str | None = "gaussian",
         likelihood_params: dict[str, Parameter] = None,
         *args, **kwargs

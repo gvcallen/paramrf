@@ -7,7 +7,7 @@ rank = MPI.COMM_WORLD.Get_rank()
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed
-from pmrf.fitting import PolychordFitter, FitResults
+from pmrf.fitting import PolychordFitter
 
 logging.basicConfig(level=logging.INFO)
 

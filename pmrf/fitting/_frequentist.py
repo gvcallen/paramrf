@@ -6,7 +6,7 @@ import equinox as eqx
 
 from pmrf.functions import l2_norm_ax0, mag_2_db
 from pmrf._model import Model
-from pmrf._constants import FeatureT, FeatureListT, ArrayFuncT
+from pmrf._constants import FeatureInputT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
 from pmrf.fitting._features import make_feature_function
@@ -28,9 +28,9 @@ class FrequentistFitter(BaseFitter):
     def __init__(
         self,
         model: Model,
-        measured: skrf.Network | list[skrf.Network],
+        measured: skrf.Network | dict[str, skrf.Network],
         frequency: skrf.Frequency | None = None,
-        features: FeatureT | FeatureListT | None = None,
+        features: FeatureInputT | None = None,
         cost: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
         *args, **kwargs
     ) -> None:
@@ -64,7 +64,7 @@ class FrequentistFitter(BaseFitter):
         
     def _make_cost_fn(self, dont_jit=False):
         # Generate JAX-compatible functions for feature extraction and model reconstruction
-        feature_fn, x0, recon_fn = make_feature_function(self.model, self.feature_list, self.model_frequency, flat=True)
+        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True)
         self._cached_numpy_cost = feature_fn, x0, recon_fn
 
         # Define the JAX cost function to be minimized

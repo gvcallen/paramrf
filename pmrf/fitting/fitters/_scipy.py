@@ -84,7 +84,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
-        params_list = list(self.model.flat_params())
+        params_list = list(self.initial_model.flat_params())
         minimums = [p.min for p in params_list]
         maximums = [p.max for p in params_list]
         bounds = Bounds(minimums, maximums)
@@ -110,6 +110,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         
         return ScipyMinimizeResults(
             model=model_opt,
+            initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,
             features=self.feature_list,

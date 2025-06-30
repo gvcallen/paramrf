@@ -16,7 +16,14 @@ MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
 PRIMARY_PROPERTIES = ('s', 'a')
 
-FeatureT = str | tuple[str, tuple[int, int]]
+# Flat, structured feature type
+FeatureT = tuple[str, str, tuple[int, int]]
+
+# Alias/input feature types
+FeatureInputScalarT = str | tuple[str, str] | FeatureT
+FeatureInputSequenceT = Sequence[FeatureInputScalarT]
+FeatureInputDictT = dict[str, FeatureInputScalarT | FeatureInputSequenceT]
+FeatureInputT = FeatureInputScalarT | FeatureInputSequenceT | FeatureInputDictT
+
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
-FeatureListT = list[FeatureT] | list[list[FeatureT]]
 TreeAxisSpec = bool | Callable[[Any], bool]

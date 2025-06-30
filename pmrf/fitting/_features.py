@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 from jax import flatten_util
 
-from pmrf._constants import FeatureT, FeatureListT
+from pmrf._constants import FeatureT, FeatureInputT
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf._tree import combine
@@ -15,42 +15,49 @@ FeatureFunctionT = Callable[[Model | jnp.ndarray], jnp.ndarray]
 ModelParametersT = Union[Model | jnp.ndarray]
 
 def extract_features(
-    source: Model | skrf.Network | Sequence[skrf.Network],
-    features: FeatureT | FeatureListT,
+    source: Model | skrf.Network | dict[str, skrf.Network],
+    features: FeatureInputT,
     freq: Frequency | skrf.Frequency = None,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
     
     This function allows for an arbitrary number of features (e.g. ['s11', 'a21_mag'])
-    to be easily extracted from a model or a measured network.
-    The resultant features are combined column-by-column into a matrix
-    with frequency in the row dimensions that can easily be used in optimization schemes.
+    to be easily extracted from a model or a measured network. The resultant features
+    are combined column-by-column into a matrix with frequency in the row dimension.
     
-    For example, to extract S11 magnitude, specify either the alias 's11_db' or the full feature `('s_db', (0, 0))`.
-    Similarly, to extract the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
-    Finally, to extract multiple ports and features, specify a list e.g. `[('y', (0, 0)), ('s_db', (1, 0))]`.
-    
-    This function also allows a list of lists to be passed, in which case the list is simply flattened.
-    This is useful when you want to use the same feature for all networks, in which case you
-    can easily use a list comprehension to define the features.
+    Features can either be specified by convenient aliases using strings, or by their full structure.
+    As some examples to demonstrate the possibilities:
+    - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db' (0, 0))`.
+      Note that, for the tuple, the empty string at the beginning represents the base model (explained below).
+    - To extract e.g. the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
+    - To extract features from a submodel or specific network, specify a dictionary with features source "label" as keys
+      e.g. {'src_label': s11_db'}. For models, this extracts a feature from a submodel that must be retrievable via `getattr`.
+      For measured networks, this extract a feature from the corresponding network with that label in the dictionary.
+      This is internally converted to the feature tuple ('src_name', 's_db', (0, 0)').
+    - For a list of features, specify a list of any of the above, (or equivalently a dictionary of lists).
 
     Args:
-        source (Model | skrf.Network | Sequence[skrf.Network]): The source model or network(s) to extract the features from.
-                                                                Lists of networks are treated as forming one, stack network with isolated ports.
-        features (list[Feature] | list[list[Feature]]):         The features to extract, `[('s', (0, 0))]`, as described in detail above.
-        freq (pmrf.Frequency | skrf.Frequency, optional):       The frequency to extract the features at. This will become the row dimension of the resultant matrix.
-                                                                This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
-                                                                in which case the network's internal frequency is used. Otherwise, the network is interpolated.
+        source (Model | skrf.Network | dict[str, skrf.Network]):        The source model or network(s) to extract the features from,
+                                                                        with missing networks specified using integers for the number of ports at that index.
+                                                                        Lists of networks are treated as forming one, stack network with isolated ports.
+        features (FeatureInputT):                                       The features to extract, as described in detail above.
+        freq (pmrf.Frequency | skrf.Frequency, optional):               The frequency to extract the features at. This will become the row dimension of the resultant matrix.
+                                                                        This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
+                                                                        in which case the network's internal frequency is used. Otherwise, the network is interpolated.
 
     Returns:
         np.ndarray: The feature matrix.
     """    
+    # We format the features to be flat (and parse them in the process)
     features = _format_features(features)
+    
+    # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
         freq = source.frequency
-        source = [source]
-    elif isinstance(source, Sequence) and isinstance(source[0], skrf.Network):
-        freq = source[0].frequency
+        source = {'': source}
+    elif isinstance(source, dict):
+        # Currently only support a single frequency across networks
+        freq = list(source.values())[0].frequency
     elif isinstance(source, Model):
         if freq is None:
             raise Exception("Frequency must be passed when extracting features from a model")
@@ -58,49 +65,16 @@ def extract_features(
             freq = Frequency.from_skrf(freq)
     else:
         raise TypeError("Invalid type to extract_features")
+    
+    # Return the extracted features
     if isinstance(source, Model):
         return _extract_model_features(source, features, freq)
     else:
         return _extract_measured_features(source, features, freq)
 
-def create_stacked_features(base: FeatureT | FeatureListT, ntwks: list[skrf.Network | None]) -> list[FeatureT]:
-    """Helper function to generate stacked feature descriptors with port indices offset by network port counts.
-
-    Args:
-        base (FeatureT | FeatureListT): Formatted or unformatted base feature or list of base features. See `extract_features` for more information.
-        ntwks (list[Network | None]): List of scikit-rf networks. All `None` networks are assumed to have the same number of ports as the first network.
-
-    Returns:
-        list[FeatureT]: List of new features with updated port indices.
-    """    
-    base_features = _format_features(base)
-    stacked_features = []
-
-    port_offset = 0
-    default_num_ports = None
-    for ntwk in ntwks:
-        if not ntwk is None:
-            default_num_ports = ntwk.number_of_ports
-            break
-        
-    if default_num_ports is None:
-        raise Exception("All networks were found to be None")
-
-    for ntwk in ntwks:
-        if ntwk is None:
-            port_offset += default_num_ports
-            continue
-        
-        for base_type, (m, n) in base_features:
-            stacked_features.append((base_type, (m + port_offset, n + port_offset)))
-        
-        port_offset += ntwk.number_of_ports
-
-    return stacked_features
-
 def make_feature_function(
     model: Model,
-    features: FeatureT | FeatureListT,
+    features: FeatureInputT,
     freq: Frequency | skrf.Frequency,
     flat = False,
     jit = False,
@@ -156,6 +130,37 @@ def make_feature_function(
 
     return feature_fn, params_out
 
+def _format_features(features: FeatureInputT) -> list[FeatureT]:
+    if isinstance(features, dict):
+        raw_features = []
+        for label, value in features.items():
+            bodies = [value] if not isinstance(value[0], Sequence) else value
+            raw_features.extend([(label, body) if isinstance(body, str) else (label, *body) for body in bodies])
+    elif not isinstance(features, Sequence):
+        raw_features = [features]
+    else:
+        raw_features = features
+
+    features_out = []
+    for raw_feature in raw_features:
+        # Options now are 'alias', ('label', 'alias'), ('feature', ports), ('label', 'feature', ports)
+        if isinstance(raw_feature, str) == 1:
+            label = ''
+            feature, ports = _parse_feature_alias(raw_feature)
+        elif len(raw_feature) == 2:
+            if isinstance(raw_feature[1], str):
+                label = raw_feature[0]
+                feature, ports = _parse_feature_alias(raw_feature[1])
+            else:
+                label = ''
+                feature, ports = raw_feature
+        else:
+            label, feature, ports = raw_feature
+        
+        features_out.append((label, feature, ports))
+
+    return features_out
+
 def _parse_feature_alias(alias: str) -> FeatureT:
     # Converts a feature alias like 's11_mag' to a feature tuple like ('s', (0, 0)).
     # Supports arbitrary feature types (e.g., 's', 't'), two-digit port numbers,
@@ -170,17 +175,6 @@ def _parse_feature_alias(alias: str) -> FeatureT:
     suffix = match.group(4) or ''
 
     return (prefix + suffix, (port1, port2))
-
-def _format_features(features: FeatureT | FeatureListT) -> list[FeatureT]:
-    if not isinstance(features, list):
-        features = [features]
-    elif isinstance(features[0], list):
-        features = [feature for features_inner in features for feature in features_inner]
-    
-    for i in range(len(features)):
-        if isinstance(features[i], str):
-            features[i] = _parse_feature_alias(features[i])
-    return features
     
 def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
     n_frequencies = len(freq)
@@ -188,49 +182,40 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
 
     X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
     for d, feature in enumerate(features):
-        prop = feature[0]
-        m, n = feature[1]
-        x = None
+        label, prop, (m, n) = feature[0], feature[1], feature[2]
         
+        feature_model = model
+        if label != '':
+            feature_model = getattr(model, feature[0])
+
         if prop[2:4] == 'mn':
-            xfn = getattr(model, prop)
+            xfn = getattr(feature_model, prop)
             x = xfn(freq,m,n)
         else:
-            xfn = getattr(model, prop)
+            xfn = getattr(feature_model, prop)
             x = xfn(freq)[:,m,n]    
             
         X = X.at[:, d].set(x)
         
     return X
 
-def _extract_measured_features(networks: list[skrf.Network], features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
+def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
 
     X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
     for d, feature in enumerate(features):
-        prop = feature[0]
-        m, n = feature[1]
+        label, prop, (m, n) = feature[0], feature[1], feature[2]
         x = None
         
-        x = None
-        offset = 0 # of the full stacked network
-        for ntwk in networks:
-            nports = ntwk.nports
-            if m >= offset + nports:
-                offset += nports
-                continue          
-                        
-            if prop[2:4] == 'mn':
-                i = prop.index('_')
-                prop_new = prop[0:i]
-                if len(prop) > i + 3:
-                    prop_new += prop[i+3:]
-                prop = prop_new
-            x = getattr(ntwk, prop)[:,m-offset,n-offset]
-            break
-        if x is None:
-            raise Exception('Error: port of out bounds')
+        ntwk = networks[label]
+        if prop[2:4] == 'mn':
+            i = prop.index('_')
+            prop_new = prop[0:i]
+            if len(prop) > i + 3:
+                prop_new += prop[i+3:]
+            prop = prop_new
         
+        x = getattr(ntwk, prop)[:,m,n]
         X = X.at[:, d].set(x)
     return X    

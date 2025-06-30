@@ -16,9 +16,6 @@ class Load(Model):
     """
     nports: int = 1
     
-    def __post_init__(self):
-        self.name = 'load'
-
     @property
     def gamma(self) -> float | jnp.ndarray:
         """The complex reflection coefficient (Gamma) of the load."""
@@ -46,9 +43,6 @@ class Match(Load):
 
     An ideal matched load (perfect termination).
     """
-    def __post_init__(self):
-        self.name = 'match'
-    
     @property
     def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of a matched load, which is always 0."""
@@ -60,9 +54,6 @@ class Short(Load):
 
     An ideal short circuit.
     """
-    def __post_init__(self):
-        self.name = 'short'
-    
     @property
     def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of a short circuit, which is always -1."""
@@ -74,9 +65,6 @@ class Open(Load):
 
     An ideal open circuit.
     """
-    def __post_init__(self):
-        self.name = 'open'
-    
     @property
     def gamma(self) -> float | jnp.ndarray:
         """The reflection coefficient of an open circuit, which is always +1."""
@@ -106,9 +94,6 @@ class Capacitor(Model):
     ```
     """
     C: Parameter = 1.0
-    
-    def __post_init__(self):
-        self.name = 'capacitor'
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series capacitor.
@@ -208,9 +193,6 @@ class Resistor(Model):
     """
     R: Parameter = 1.0
     
-    def __post_init__(self):
-        self.name = 'resistor'
-
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series resistor.
 
@@ -243,9 +225,6 @@ class Transformer(Model):
 
     An ideal, lossless, frequency-independent 4-port 1:1 transformer.
     """
-    def __post_init__(self):
-        self.name = 'transformer'
-    
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Returns the fixed S-parameter matrix for the transformer.
 

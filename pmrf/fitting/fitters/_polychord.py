@@ -2,6 +2,7 @@ import jax
 from typing import Any
 import jax.numpy as jnp
 import h5py
+import pandas as pd
 
 from pmrf.fitting._features import make_feature_function
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
@@ -17,6 +18,10 @@ def gaussian_log_likelihood(y_meas, y_model, sigma):
 class PolychordResults(BayesianResults):
     def encode_solver_results(self, group: h5py.Group):
         pass
+        # from anesthetic import NestedSamples
+        # nested_samples: NestedSamples = self.solver_results
+        # store = pd.HDFStore('temp.h5')
+        # nested_samples.to_hdf()
         
     @classmethod
     def decode_solver_results(cls, group: h5py.Group) -> Any:
@@ -58,25 +63,22 @@ class PolychordFitter(BayesianFitter):
         import numpy as np
         import pypolychord
         
-        kwargs_save = kwargs.copy()
-        kwargs_save['best_param_method'] = best_param_method
-        
         # Get the model parameters
-        flat_params = self.model.flat_params()
+        flat_params = self.initial_model.flat_params()
         param_names = [p.name for p in flat_params] + [k for k in self.likelihood_params.keys()]
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
         self.logger.info("Compiling model and likelihood function...")
-        feature_fn, x0, recon_fn = make_feature_function(self.model, self.feature_list, self.model_frequency, flat=True)        
+        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True)        
         x0_with_likelihood = list(x0) + [self.likelihood_params['sigma'].prior.mean]
         def jax_likelihood(flat_params_with_sigma) -> jnp.ndarray:
             sigma = flat_params_with_sigma[-1]
             model_features = feature_fn(flat_params_with_sigma[0:-1])
             return gaussian_log_likelihood(self.measured_features, model_features, sigma)
         
-        priors = [param.prior for param in self.model.flat_params()] + [self.likelihood_params['sigma'].prior]
+        priors = [param.prior for param in self.initial_model.flat_params()] + [self.likelihood_params['sigma'].prior]
         if any(x is None for x in priors):
             raise Exception("Found free parameter without a prior")
         
@@ -116,11 +118,13 @@ class PolychordFitter(BayesianFitter):
                 
         return PolychordResults(
             model=recon_fn(x0),
+            initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,
             features=self.feature_list,
             logger=self.logger,
             solver_results=nested_samples,
             solver_args=(),
-            solver_kwargs=kwargs_save,
+            solver_kwargs=kwargs,
+            fit_kwargs={'best_param_method': best_param_method}
         )    
