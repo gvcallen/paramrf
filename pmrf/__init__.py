@@ -20,7 +20,6 @@ from pmrf.parameters import (
     Parameter as Parameter,
 )
 
-
 from importlib.metadata import version as _version, PackageNotFoundError
 try:
     __version__ = _version(__name__)

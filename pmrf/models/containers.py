@@ -159,16 +159,13 @@ class Renumbered(Model):
         model = self.model
         to_ports, from_ports = self.to_ports, self.from_ports
 
-        if len(jnp.unique(from_ports)) != len(from_ports):
-            raise ValueError('an index can appear at most once in from_ports or to_ports')
-        if any(jnp.unique(from_ports) != jnp.unique(to_ports)):
-            raise ValueError('from_ports and to_ports must have the same set of indices')
         if model.primary_property == 'a' and len(from_ports) != 1 and len(to_ports) != 1:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")
         
-        new_z0 = self.z0.copy()
-        new_z0 = new_z0.at[:, to_ports].set(new_z0[:, from_ports])
-        object.__setattr__(self, '_z0', new_z0)
+        # TODO upgrade for matrix z0
+        # new_z0 = jnp.copy(self.z0)
+        # new_z0 = new_z0.at[:, to_ports].set(new_z0[:, from_ports])
+        object.__setattr__(self, '_z0', self.z0)
 
 
     def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
@@ -230,10 +227,12 @@ class Flipped(Renumbered):
             raise ValueError("You can only flip multiple-of-two-port Networks")
         
         n = int(self.model.nports / 2)
-        to_ports = tuple(range(0, 2 * n))
-        from_ports = tuple(range(n, 2 * n)) + tuple(range(0, n))
+        self.to_ports = tuple(range(0, 2 * n))
+        self.from_ports = tuple(range(n, 2 * n)) + tuple(range(0, n))
 
-        super().__init__(model=self.model, to_ports=to_ports, from_ports=from_ports, name='flipped')
+        super().__post_init__()
+
+        self.name = 'flipped'
         
 class Stacked(Model):
     """

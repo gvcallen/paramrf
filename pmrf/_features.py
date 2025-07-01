@@ -18,6 +18,7 @@ def extract_features(
     source: Model | skrf.Network | dict[str, skrf.Network],
     features: FeatureInputT,
     freq: Frequency | skrf.Frequency = None,
+    dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
     
@@ -30,8 +31,10 @@ def extract_features(
     - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db' (0, 0))`.
       Note that, for the tuple, the empty string at the beginning represents the base model (explained below).
     - To extract e.g. the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
+    - To extract any other feature this is a function of frequency (e.g. a custom user function), simply use 'myfeature' instead of 's11'.
     - To extract features from a submodel or specific network, specify a dictionary with features source "label" as keys
       e.g. {'src_label': s11_db'}. For models, this extracts a feature from a submodel that must be retrievable via `getattr`.
+      For models, this can be nested e.g. {'src1.submodel1.submodel2': s11_db'}.
       For measured networks, this extract a feature from the corresponding network with that label in the dictionary.
       This is internally converted to the feature tuple ('src_name', 's_db', (0, 0)').
     - For a list of features, specify a list of any of the above, (or equivalently a dictionary of lists).
@@ -43,7 +46,8 @@ def extract_features(
         features (FeatureInputT):                                       The features to extract, as described in detail above.
         freq (pmrf.Frequency | skrf.Frequency, optional):               The frequency to extract the features at. This will become the row dimension of the resultant matrix.
                                                                         This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
-                                                                        in which case the network's internal frequency is used. Otherwise, the network is interpolated.
+                                                                        in which case the network's internal frequency is used. Otherwise, the network is i508e76ad-05af-4e71-8c22-053f37e3a62dnterpolated.
+        dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
 
     Returns:
         np.ndarray: The feature matrix.
@@ -68,14 +72,15 @@ def extract_features(
     
     # Return the extracted features
     if isinstance(source, Model):
-        return _extract_model_features(source, features, freq)
+        return _extract_model_features(source, features, freq, dtype=dtype)
     else:
-        return _extract_measured_features(source, features, freq)
+        return _extract_measured_features(source, features, freq, dtype=dtype)
 
 def make_feature_function(
     model: Model,
     features: FeatureInputT,
     freq: Frequency | skrf.Frequency,
+    dtype: jnp.dtype = jnp.complex128,
     flat = False,
     jit = False,
 ) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
@@ -90,16 +95,17 @@ def make_feature_function(
     to be used in fitting procedures.
 
     Args:
-        model (Model):                          The model to generate the feature functions for.
-        features (FeatureT | FeatureList):      The list of features. See `extract_features` for more information.
-        freq (pmrf.Frequency):                  The frequency to extract the features at, treated as a static argument.
-        flat (bool):                            Whether the feature function should accept a flat array as input.
-                                                If True, a third argument will be returned, which is a "reconstruct" function
-                                                that transforms the flat array back into the full (unraveled-combined) model.
-        jit (bool):                             Whether or not to just-in-time compile the function.
+        model (Model):                              The model to generate the feature functions for.
+        features (FeatureT | FeatureList):          The list of features. See `extract_features` for more information.
+        freq (pmrf.Frequency):                      The frequency to extract the features at, treated as a static argument.
+        dtype (jnp.dtype, optional):                The data type of the final out feature matrix.        
+        flat (bool):                                Whether the feature function should accept a flat array as input.
+                                                    If True, a third argument will be returned, which is a "reconstruct" function
+                                                    that transforms the flat array back into the full (unraveled-combined) model.
+        jit (bool):                                 Whether or not to just-in-time compile the function.
 
     Returns:
-        tuple[FeatureFunction, ModelParameters]: The feature function, alongside the partitioned or flattened model parameters.
+        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
     """
     if isinstance(freq, skrf.Frequency):
         freq = Frequency.from_skrf(freq)
@@ -115,12 +121,12 @@ def make_feature_function(
             
         def feature_fn(flat_params) -> jnp.ndarray:
             model_recon = reconstruct_fn(flat_params)
-            return extract_features(model_recon, features, freq)
+            return extract_features(model_recon, features, freq, dtype=dtype)
     else:
         params_out = params_tree
         def feature_fn(tree_params) -> jnp.ndarray:
             model_recon = combine(tree_params, static)
-            return extract_features(model_recon, features, freq)
+            return extract_features(model_recon, features, freq, dtype=dtype)
     
     if jit:
         feature_fn = jax.jit(feature_fn)
@@ -134,8 +140,10 @@ def _format_features(features: FeatureInputT) -> list[FeatureT]:
     if isinstance(features, dict):
         raw_features = []
         for label, value in features.items():
-            bodies = [value] if not isinstance(value[0], Sequence) else value
+            bodies = [value] if isinstance(value[0], str) and not isinstance(value[0], Sequence) else value
             raw_features.extend([(label, body) if isinstance(body, str) else (label, *body) for body in bodies])
+    elif isinstance(features, str):
+        raw_features = [features]
     elif not isinstance(features, Sequence):
         raw_features = [features]
     else:
@@ -162,48 +170,62 @@ def _format_features(features: FeatureInputT) -> list[FeatureT]:
     return features_out
 
 def _parse_feature_alias(alias: str) -> FeatureT:
-    # Converts a feature alias like 's11_mag' to a feature tuple like ('s', (0, 0)).
-    # Supports arbitrary feature types (e.g., 's', 't'), two-digit port numbers,
-    # and optional suffixes (e.g., '_mag', '_db').
-    match = re.match(r'^([a-zA-Z]+)(\d)(\d)(_.+)?$', alias)
+    """
+    Converts a feature alias like 's11_mag' to a feature tuple like ('s_mag', (0, 0)).
+    Supports:
+      - Feature names with or without two-digit port numbers
+      - Optional suffixes (e.g., '_mag', '_db')
+      - Returns (-1, -1) for features without ports
+    """
+    match = re.match(r'^([a-zA-Z]+)(\d)?(\d)?(.*)$', alias)
     if not match:
         raise ValueError(f"Invalid feature alias format: '{alias}'")
 
     prefix = match.group(1)
-    port1 = int(match.group(2)) - 1
-    port2 = int(match.group(3)) - 1
-    suffix = match.group(4) or ''
+    port1 = match.group(2)
+    port2 = match.group(3)
+    suffix = match.group(4)
 
-    return (prefix + suffix, (port1, port2))
+    if port1 is not None and port2 is not None:
+        ports = (int(port1) - 1, int(port2) - 1)
+    else:
+        ports = (-1, -1)
+
+    return (prefix + suffix, ports)
     
-def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
+def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
 
-    X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
+    X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
     for d, feature in enumerate(features):
         label, prop, (m, n) = feature[0], feature[1], feature[2]
         
         feature_model = model
         if label != '':
-            feature_model = getattr(model, feature[0])
+            sublabels = label.split('.')
+            for sublabel in sublabels:
+                feature_model = getattr(feature_model, sublabel)
 
         if prop[2:4] == 'mn':
             xfn = getattr(feature_model, prop)
             x = xfn(freq,m,n)
+        elif m != -1 and n != -1:
+            xfn = getattr(feature_model, prop)
+            x = xfn(freq)[:,m,n]
         else:
             xfn = getattr(feature_model, prop)
-            x = xfn(freq)[:,m,n]    
+            x = xfn(freq)
             
         X = X.at[:, d].set(x)
         
     return X
 
-def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency) -> jnp.ndarray:
+def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
 
-    X = jnp.zeros((n_frequencies, n_features), dtype=jnp.complex128)
+    X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
     for d, feature in enumerate(features):
         label, prop, (m, n) = feature[0], feature[1], feature[2]
         x = None

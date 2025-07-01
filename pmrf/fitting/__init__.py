@@ -1,4 +1,4 @@
-from pmrf.fitting._features import (
+from pmrf._features import (
     extract_features,
     make_feature_function,
 )

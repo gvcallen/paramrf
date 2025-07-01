@@ -9,7 +9,7 @@ from pmrf._model import Model
 from pmrf._constants import FeatureInputT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
-from pmrf.fitting._features import make_feature_function
+from pmrf._features import make_feature_function
 
 class FrequentistResults(FitResults):
     pass

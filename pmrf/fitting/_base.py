@@ -27,7 +27,7 @@ from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_str
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf._constants import FeatureInputT
-from pmrf.fitting._features import extract_features
+from pmrf._features import extract_features
 
 def Fitter(
     solver: str,

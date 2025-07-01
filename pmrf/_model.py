@@ -493,7 +493,7 @@ class Model(eqx.Module):
         Returns:
             Model: The resultant model.
         """
-        from models.containers import Flipped
+        from pmrf.models.containers import Flipped
         return Flipped(self)
     
     def terminated(self, load: ModelT = None) -> ModelT:

@@ -5,9 +5,9 @@ import io
 import h5py
 import numpy as np
 
-from pmrf.fitting._features import make_feature_function
+from pmrf._features import make_feature_function
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
-from pmrf.fitting._features import make_feature_function
+from pmrf._features import make_feature_function
 from pmrf._util import time_string
 
 def norm_logpdf(x, loc=0.0, scale=1.0):

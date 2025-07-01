@@ -7,11 +7,8 @@ from pmrf._frequency import Frequency
 if TYPE_CHECKING:
     from pmrf._model import Model
 
-# The available gain of a two-port model relative to the available power of a source, where port 1 of the two-port is connected to the source
-def available_gain(source: 'Model', passive: 'Model', freq: Frequency, source_port=0):
-    if not source_port == 0:
-        passive = passive.flipped()
-    
+# The available gain of a two-port model relative to the available power of a source, where port 1 (m=0) of the two-port is connected to the source
+def available_gain(source: 'Model', passive: 'Model', freq: Frequency):
     # Note: Equation 10.25 on page 507 of Pozar, using the references variable names from Pozar
     ntwk_back = passive.flipped() ** source
     
