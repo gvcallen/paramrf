@@ -82,7 +82,8 @@ The general workflow consists of defining a parametric model, loading empirical 
 
 #### Fitting Example
 
-The following provides a template for a typical fitting process.
+The following provides a toy template for a typical fitting process.
+See the "examples" folder in this reposistory for a more realistic script.
 
 ```python
 import skrf as rf
