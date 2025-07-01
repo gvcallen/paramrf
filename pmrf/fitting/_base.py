@@ -214,7 +214,7 @@ class FitResults:
             ## Setup
             input_grp = f.create_group('input')
             if self.initial_model is not None:
-                encode_model(self.initial_model, input_grp.create_group('initial_model'))
+                encode_model(self.initial_model, input_grp.create_group('model'))
                     
             ## Measured data
             if self.measured is not None:
@@ -286,7 +286,7 @@ class FitResults:
             input_grp = f['input']
             
             ## Initial model
-            initial_model = decode_model(input_grp['initial_model']) if 'initial_model' in input_grp else None
+            initial_model = decode_model(input_grp['model']) if 'model' in input_grp else None
 
             ## Measured networks
             measured = None
