@@ -2,10 +2,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from collections import Counter
 import importlib
-import pkgutil
 import logging
 from typing import Any, Sequence
+from io import BytesIO
 
+import numpy as np
+import dill
 import json
 import skrf
 import h5py
@@ -177,12 +179,13 @@ class FitResults:
         return None
     
     def to_hdf5(self, path: str, metadata: dict | None = None):
-        def encode_model(model: Model, group: h5py.Group):
+        def encode_model(model: Model, group: h5py.Group, save_instance=False):
             params_tree, static_tree = model.partition(include_fixed=True, param_objects=True)
             params = model.params()
-            model_tree_grp = group.create_group('raw')
-            model_tree_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
-            model_tree_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
+            model_raw_grp = group.create_group('raw')
+            model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
+            model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
+            
             params_grp = group.create_group('params')
             for name, initial_param in params.items():
                 params_grp[name] = initial_param.to_json()
@@ -214,7 +217,7 @@ class FitResults:
             ## Setup
             input_grp = f.create_group('input')
             if self.initial_model is not None:
-                encode_model(self.initial_model, input_grp.create_group('model'))
+                encode_model(self.initial_model, input_grp.create_group('model'), save_instance=True)
                     
             ## Measured data
             if self.measured is not None:
@@ -253,14 +256,16 @@ class FitResults:
         def decode_model(group: h5py.Group) -> Model:
             model_raw_grp = group['raw']
             params_json = model_raw_grp['params'][()]
+            params_json = params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json
             static_json = model_raw_grp['static'][()]
-            if isinstance(params_json, bytes):
-                params_json = params_json.decode('utf-8')
-            if isinstance(static_json, bytes):
-                static_json = static_json.decode('utf-8')
-            params_tree = jsonpickle.decode(params_json)
-            static_tree = jsonpickle.decode(static_json)
-            return eqx.combine(params_tree, static_tree)                
+            static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
+            
+            try:
+                params_tree = jsonpickle.decode(params_json)
+                static_tree = jsonpickle.decode(static_json)
+                return eqx.combine(params_tree, static_tree)
+            except:
+                return None
 
         with h5py.File(path, 'r') as f:
             # Metadata
