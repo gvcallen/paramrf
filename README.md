@@ -1,7 +1,5 @@
 # ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 
-NB: This main branch is currently dedicated to the REACH project and should only be updated incremently. Any development should happen on the `dev` branch.
-
 ## Overview
 
 ParamRF, or `pmrf`, is an easy-to-use framework built on top of `jax`, used for describing general microwave circuit models in an efficient, parametric, object-orientated manner.
