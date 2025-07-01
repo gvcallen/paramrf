@@ -128,8 +128,8 @@ if measured_ntwk:
 
 ## Key Features
 
-* **JAX Backend**: Leverages `JAX` for Just-In-Time (JIT) compilation of models to high-performance hardware (CPU, GPU, TPU). It provides automatic differentiation through the entire model structure, enabling efficient gradient-based optimization.
-* **Parametric & Composable Design**: Models are defined declaratively as `Equinox` modules, allowing for the natural composition of complex systems from simpler sub-models. Any model attribute can be a `Parameter`, facilitating flexible and granular control over the optimization space.
-* **`scikit-rf` Integration**: Designed for seamless interoperability with `scikit-rf`. `pmrf` models can be evaluated and converted to `skrf.Network` objects, providing access to `scikit-rf`'s extensive library of analysis and plotting tools.
-* **Advanced Fitting Engine**: Offers a unified interface for both frequentist optimization and advanced Bayesian inference, allowing users to select the appropriate method for their analysis—from simple parameter estimation to rigorous model selection and uncertainty quantification.
-* **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can be easily implemented.
+* **JAX Backend**: Leverages `JAX` for Just-In-Time (JIT) compilation of models to high-performance hardware (CPU, GPU, TPU). This removes python overhead from context switch, enables better vectorization an parallelization, and provides automatic differentiation through the entire model structure, enabling more effective gradient-based optimization.
+* **Parametric & Composable Design**: Models are defined declaratively as `Equinox` modules, allowing for the natural composition of complex systems from simpler sub-models. Any model attribute can be either a `Parameter` or another `Model`, allowing flexible, hierarchial model building.
+* **`scikit-rf` Integration**: Designed for seamless interoperability with `scikit-rf`. `pmrf` models can be evaluated and converted to `skrf.Network` objects, providing access to `scikit-rf`'s library of analysis and plotting tools.
+* **Advanced Fitting Engine**: Offers a unified interface for both frequentist optimization and advanced Bayesian inference.
+* **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
