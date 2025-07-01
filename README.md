@@ -40,9 +40,8 @@ class MyNonIdealResistor(prf.Model):
     # The model's behavior is defined by implementing a primary network matrix 
     # function, such as `a` for the ABCD-matrix.
     def a(self, freq: prf.Frequency):
-        # The `__pow__` (**) operator is overloaded to represent a `Cascade` of models,
-        # which is mathematically equivalent to a chain-multiplication of their 
-        # respective ABCD matrices.
+        # The `__pow__` (**) operator is overloaded to represent a `Cascade` of models.
+        # `combined_model` below will be of type `pmrf.models.containers.Cascade`.
         combined_model = self.parasitics ** self.res
         return combined_model.a(freq)
 
