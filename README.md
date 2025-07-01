@@ -72,12 +72,12 @@ ntwk = my_resistor.to_skrf(freq)
 
 A primary application of `pmrf` is the optimization of model parameters to align with measured data. The fitting module provides a unified interface to perform this task using various numerical methods.
 
-The general workflow consists of defining a parametric model, loading empirical data, configuring a fitter, and executing the optimization routine.
+The general workflow consists of defining a model, loading data, and configuring and running the fitter with the specified settings.
 
 #### Available Fitters:
 
 * **`FrequentistFitter` / `ScipyFitter`**: Provides access to gradient-based and gradient-free optimization algorithms from the `scipy.optimize` library. These are used to find a single point estimate of the parameter values that best minimizes a given cost function.
-* **`BayesianFitter` / `PolyChordFitter`**: Enables Bayesian inference through dynamic nested sampling. This approach yields not only optimized parameter values but also their full posterior probability distributions and the Bayesian evidence, which is crucial for model comparison and uncertainty quantification.
+* **`BayesianFitter` / `PolyChordFitter`**: Enables Bayesian inference through dynamic nested sampling. This approach yields not only maximum likelihood parameter values, but also their full posterior probability distributions and Bayesian evidence, which is good for model comparison/uncertainty quantification.
 
 #### Fitting Example
 
