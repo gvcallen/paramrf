@@ -24,7 +24,7 @@ params = {
     'rho': Uniform(1.0e-9, 1.6e-7),
     'mur': Fixed(1.0),
 }
-model = PhysicalCoaxial(name='model').with_params(params, all_check=True)
+model = PhysicalCoaxial(name='model').with_params(params, checking_missing=True)
 
 # Initialize the fitter. We fit on the real and imaginary and combine their results
 fitter = ScipyMinimizeFitter(

@@ -35,7 +35,7 @@ params = {
 #     'rho': Uniform(1.0e-9, 1.6e-7),
 #     'mur': Fixed(1.0),
 # }
-model = PhysicalCoaxial(epr_model='bpoly', epr_order=2, tand_model='bpoly', tand_order=2).with_params(params, all_check=True)
+model = PhysicalCoaxial(epr_model='bpoly', epr_order=2, tand_model='bpoly', tand_order=2).with_params(params, checking_missing=True)
 
 # Initialize the fitter. Note that the features need to align with the likelihood
 fitter = PolychordFitter(

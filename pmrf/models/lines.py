@@ -105,7 +105,7 @@ class ConstantRLGCLine(RLGCLine):
         Returns:
             tuple: The constant R, L, G, and C parameters.
         """
-        return self.R, self.L, self.G, self.C
+        return self.R, self.L, self.G, self.C   
     
 class DatasheetCoaxial(RLGCLine):
     """

@@ -231,8 +231,11 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
 
     Args:
         mean (float | Sequence[float]): The mean of the distribution. Can be a sequence for a multi-valued Parameter.
-        perc (float | Sequence[float]): The percentage width to initialize the standard deviation with (e.g. `5.0` for `std = 0.025*mean`). Can be a sequence for a multi-valued Parameter.
-        **kwargs: Additional keyword arguments passed to the `Normal` factory function.
+        perc (float | Sequence[float]): The percentage width to use to initialize the standard deviation,
+                                        assuming the percentage represents +-2*sigma (95% coverage).
+                                        As an example, passing `5.0` results in `std = 0.025*mean`.
+                                        Can be a sequence for a multi-valued Parameter.
+        **kwargs:                       Additional keyword arguments passed to the `Normal` factory function.
 
     Returns:
         Parameter: The created Parameter object.

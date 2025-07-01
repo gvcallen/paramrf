@@ -91,6 +91,7 @@ class PolychordFitter(BayesianFitter):
         })
         
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s)...')
+        self.logger.info(f'Parameter names: {param_names}')
         self.logger.info(f'PolyChord started at {time_string()}')
         
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
