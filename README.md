@@ -122,11 +122,8 @@ if measured_ntwk:
     # The result object contains the optimized model and detailed fit metrics.
     print("Optimization Complete.")
     print("Optimized Parameters:")
-    for name, param in fit_result.optimized_model.params.items():
+    for name, param in fit_result.model.params.items():
         print(f"  {name}: {param.value:.3e}")
-
-    # The result object includes methods for visualizing the fit quality.
-    # fit_result.plot_comparison()
 ```
 
 ## Key Features
