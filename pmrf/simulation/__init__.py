@@ -1,1 +1,0 @@
-from pmrf.simulation.sampler import NetworkSampler

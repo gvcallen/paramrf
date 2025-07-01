@@ -1,32 +1,43 @@
 [project]
 name = "paramrf"
-version = "0.1.2"
+version = "0.3.0"
 description = "ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling"
 readme = "README.md"
 authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }
 ]
 dependencies = [
-    "anesthetic",
-    "asteval",
-    "fgivenx",
+    "equinox",
+    "jax",
+    "jaxtyping",
     "h5py",
     "matplotlib < 3.8",
-    "mpi4py",
     "numpy",
-    "pandas",
-    "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
-    "PyYAML",
-    "scikit-learn",
+    "numpyro",
+    "jaxopt",
+    "jsonpickle",
     "scikit-rf",
     "scipy",
+]
+
+[project.optional-dependencies]
+polychord = [
+    "anesthetic",
+    "fgivenx",
+    "mpi4py",
+    "pandas",
+    "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
 ]
 
 [project.urls]
 homepage = "https://github.com/gvcallen/paramrf"
 
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = [
+    "setuptools>=45",
+    "wheel",
+    "setuptools_scm[toml]>=6.2",
+]
 build-backend = 'setuptools.build_meta'
 
 [tool.setuptools.packages.find]
