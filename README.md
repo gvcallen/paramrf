@@ -113,9 +113,9 @@ if measured_ntwk:
     fitter = prf.fitting.ScipyFitter(
         model=model_to_fit,
         measured=measured_ntwk
-        # Users can optionally provide a custom cost function and specify which
-        # S-parameter features (e.g., 's_db', 'a') to use for fitting.
-        # 
+        # A custom cost function and features can optional be provided
+        # (e.g., 's21_db', 'a11_deg' etc.) to use for fitting.
+        # The default is 's11' with an L2 norm in dB
     )
 
     # 4. Execute the fitting routine, passing parameters along to scipy.
