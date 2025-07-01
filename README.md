@@ -77,7 +77,7 @@ The general workflow consists of defining a model, loading data, and configuring
 #### Available Fitters:
 
 * **`FrequentistFitter` / `ScipyFitter`**: Provides access to gradient-based and gradient-free optimization algorithms from the `scipy.optimize` library. These are used to find a single point estimate of the parameter values that best minimizes a given cost function.
-* **`BayesianFitter` / `PolyChordFitter`**: Enables Bayesian inference through dynamic nested sampling. This approach yields not only maximum likelihood parameter values, but also their full posterior probability distributions and Bayesian evidence, which is good for model comparison/uncertainty quantification.
+* **`BayesianFitter` / `PolychordFitter`**: Enables Bayesian inference through dynamic nested sampling. This approach yields not only maximum likelihood parameter values, but also their full posterior probability distributions and Bayesian evidence, which is good for model comparison/uncertainty quantification.
 
 #### Fitting Example
 
