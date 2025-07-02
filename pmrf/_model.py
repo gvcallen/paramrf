@@ -562,7 +562,7 @@ class Model(eqx.Module):
     def with_params(
         self: ModelT,
         params: dict[str, Parameter] | dict[str, float] | None = None,
-        checking_missing: bool = False,
+        check_missing: bool = False,
         check_unknown: bool = False,
         fix_others = False,
         separator: str = '_',
@@ -579,8 +579,8 @@ class Model(eqx.Module):
                                                                                     Parameters can also be specified with key-word arguments.
                                                                                     Defaults to `None`.
             fix_others (bool):                                                      Whether or not to fix any parameters in the model that were not passed. Defaults to `False`.
-            checking_missing (bool):                                                Specifies to check that all model parameters are passed. Defaults to `False`.
-            checking_unknown (bool):                                                Specifies to check that no unknown parameters were passed. Defaults to `False`.
+            check_missing (bool):                                                   Specifies to check that all model parameters are passed. Defaults to `False`.
+            check_unknown (bool):                                                   Specifies to check that no unknown parameters were passed. Defaults to `False`.
             separator (str): The separator between models for the parameter names.  Defaults to '_'.
                                                                                
 
@@ -599,9 +599,9 @@ class Model(eqx.Module):
             raise Exception(f"Error: the following parameters were passed but are not in the model: {unknown_params}")
         params = {k: v for k, v in params.items() if k not in unknown_params}
         
-        if checking_missing or fix_others:
+        if check_missing or fix_others:
             missing_params = set(new_params.keys() - params.keys())
-            if checking_missing and len(missing_params) != 0:
+            if check_missing and len(missing_params) != 0:
                 raise Exception(f"Error: the following model parameters were missing: {missing_params}")
             if fix_others:
                 for missing_param_name in missing_params:
