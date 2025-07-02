@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 import logging
 
 import numpy as np
+import skrf
 import jax
 from jax import flatten_util
 import jax.numpy as jnp
@@ -73,7 +74,10 @@ class BaseSampler(ABC):
             models.append(eqx.combine(ravel_fn(params_matrix[i,:]), static))
         return models
 
-    def generate_features(self, N, features: FeatureInputT, frequency: Frequency, dtype: jnp.dtype = np.complex128, dont_jit=False) -> jnp.array:
+    def generate_features(self, N, features: FeatureInputT, frequency: Frequency | skrf.Frequency, dtype: jnp.dtype | np.dtype = jnp.complex128, dont_jit=False) -> jnp.array:
+        if isinstance(frequency, skrf.Frequency):
+            frequency = Frequency.from_skrf(frequency)
+        
         params_matrix = jnp.array(self._generate_param_matrix(N))
         feature_fn, params_out, _reconstruct_fn = make_feature_function(self.model, features, frequency, dtype=dtype, flat=True, jit=not dont_jit)
         self.logger.info('Compiling feature function...')

@@ -85,6 +85,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         
         # Extract parameter values and bounds from the model
         params_list = list(self.initial_model.flat_params())
+        param_names = list(self.initial_model.params().keys())
         minimums = [p.min for p in params_list]
         maximums = [p.max for p in params_list]
         bounds = Bounds(minimums, maximums)
@@ -102,6 +103,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
 
         callback_args = {'fevel': 0}
         self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")
+        self.logger.info(f"Parameter names: {param_names}")
         scipy_result = minimize(cost_wrapper, x0, args=(callback_args,), bounds=bounds, *args, **kwargs)
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         

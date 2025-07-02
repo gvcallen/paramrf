@@ -153,8 +153,13 @@ def _format_features(features: FeatureInputT) -> list[FeatureT]:
     features_out = []
     for raw_feature in raw_features:
         # Options now are 'alias', ('label', 'alias'), ('feature', ports), ('label', 'feature', ports)
-        if isinstance(raw_feature, str) == 1:
-            label = ''
+        if isinstance(raw_feature, str):
+            raw_feature_split = raw_feature.split('.')
+            if len(raw_feature_split) > 1:
+                label = ''.join(raw_feature_split[0:-1])
+                raw_feature = raw_feature_split[-1]
+            else:
+                label = ''
             feature, ports = _parse_feature_alias(raw_feature)
         elif len(raw_feature) == 2:
             if isinstance(raw_feature[1], str):
