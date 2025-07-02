@@ -141,7 +141,12 @@ def _format_features(features: FeatureInputT) -> list[FeatureT]:
     if isinstance(features, dict):
         raw_features = []
         for label, value in features.items():
-            bodies = [value] if isinstance(value[0], str) and not isinstance(value[0], Sequence) else value
+            if isinstance(value, str):
+                bodies = [value]
+            elif isinstance(value, tuple):
+                bodies = [value]
+            else: # Sequence
+                bodies = value
             raw_features.extend([(label, body) if isinstance(body, str) else (label, *body) for body in bodies])
     elif isinstance(features, str):
         raw_features = [features]
@@ -227,9 +232,12 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
         
     return X
 
-def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
+def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency | skrf.Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
+    
+    if isinstance(freq, Frequency):
+        freq = freq.to_skrf()
 
     X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
     for d, feature in enumerate(features):
@@ -237,6 +245,9 @@ def _extract_measured_features(networks: dict[str, skrf.Network], features: list
         x = None
         
         ntwk = networks[label]
+        if ntwk.frequency != freq:
+            ntwk = ntwk.interpolate(freq)
+        
         if prop[2:4] == 'mn':
             i = prop.index('_')
             prop_new = prop[0:i]
