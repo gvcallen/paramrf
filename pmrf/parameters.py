@@ -1,6 +1,7 @@
 # from scipy.stats import rv_continuous
 # import scipy.stats
 import json
+import dataclasses
 
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
@@ -153,7 +154,10 @@ class Parameter(eqx.Module):
         return jnp.multiply(jnp.array(other), jnp.array(self))
     
     def __rtruediv__(self, other):
-        return jnp.divide(jnp.array(other), jnp.array(self))  
+        return jnp.divide(jnp.array(other), jnp.array(self))
+    
+    def copy(self):
+        return dataclasses.replace(self)
     
     # Serialization
     def to_json(self) -> str:
