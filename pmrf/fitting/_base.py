@@ -7,7 +7,6 @@ from typing import Any, Sequence
 from io import BytesIO
 
 import numpy as np
-import dill
 import json
 import skrf
 import h5py
