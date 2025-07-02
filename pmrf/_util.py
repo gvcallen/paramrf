@@ -36,7 +36,7 @@ def iter_submodules(package_name: str):
     if not hasattr(package, '__path__'):
         raise ValueError(f"{package_name} is not a package")
 
-    for finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+    for _finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
         yield name, ispkg
 
 def time_string(format="%H:%M:%S"):

@@ -114,7 +114,7 @@ class Parameter(eqx.Module):
             return self
         else:
             if self.prior is not None:
-                priors_split = split_vectorized_distribution(self.prior)
+                priors_split = _split_vectorized_distribution(self.prior)
             else:
                 priors_split = [None] * len(self.value)
             return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
@@ -159,7 +159,7 @@ class Parameter(eqx.Module):
     def to_json(self) -> str:
         d = {
             "value": self.value.tolist(),
-            "prior": serialize_distribution(self.prior),
+            "prior": _serialize_distribution(self.prior),
             "fixed": self.fixed,
             "scale": self.scale,
             "name": self.name
@@ -171,7 +171,7 @@ class Parameter(eqx.Module):
         d = json.loads(s)
         return cls(
             value=jnp.asarray(d["value"]),
-            prior=deserialize_distribution(d["prior"]),
+            prior=_deserialize_distribution(d["prior"]),
             fixed=d["fixed"],
             scale=d["scale"],
             name=d["name"]
@@ -342,7 +342,7 @@ def asparam(x, name=None) -> Parameter:
         return x
     return Parameter(value=x, name=name)
 
-def split_vectorized_distribution(dist):
+def _split_vectorized_distribution(dist):
     if dist.event_shape != ():
         raise ValueError(f"Cannot split distribution with event_shape={dist.event_shape} (likely an Independent)")
 
@@ -364,7 +364,7 @@ def split_vectorized_distribution(dist):
 
     return [dist_class(**params) for params in split_params]
 
-def serialize_distribution(d: Distribution | None) -> dict | None:
+def _serialize_distribution(d: Distribution | None) -> dict | None:
     if d is None:
         return None
     return {
@@ -373,7 +373,7 @@ def serialize_distribution(d: Distribution | None) -> dict | None:
     }
 
 # Helper to deserialize a numpyro Distribution
-def deserialize_distribution(dct: dict | None) -> Distribution | None:
+def _deserialize_distribution(dct: dict | None) -> Distribution | None:
     if dct is None:
         return None
     cls = getattr(dist, dct["class"], None)

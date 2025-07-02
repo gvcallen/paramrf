@@ -17,8 +17,8 @@ from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, is_valid_param, asparam
 from pmrf._frequency import Frequency
-from pmrf._util import field, classproperty, is_instance_of_annotated_type, is_overridden, get_first_underlying_type
-from pmrf._tree import flatten_one_level_with_path, nodes_by_type, nodes_by_type_with_path, partition, combine, value_at_path
+from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
+from pmrf._tree import nodes_by_type, partition, combine, value_at_path
 
 jax.config.update("jax_enable_x64", True)
 
@@ -353,15 +353,10 @@ class Model(eqx.Module):
         return self._z0                    
     
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the abcd parameter matrix as a function of frequency.
-
-        This is one of the primary property functions that derived classes may implemented.
-        If not implemented, and at least one other primary function has been implemented,
-        then conversion formulae are used dynamically to calculate the resultant matrix.
+        """Calculates the abcd parameter matrix, to be derived by sub-classes.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the abcd-parameters at.
-
         Returns:
             jnp.ndarray: The resultant abcd matrix.
         """
@@ -372,45 +367,60 @@ class Model(eqx.Module):
         return s2a(s, self.z0)
     
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the S parameter matrix as a function of frequency.
-
-        This is one of the primary property functions that derived classes may implemented.
-        If not implemented, and at least one other primary function has been implemented,
-        then conversion formulae are used dynamically to calculate the resultant matrix.
+        """Calculates the S parameter matrix, to be derived by sub-classes.
 
         Args:
-            freq (Frequency): Specifies the frequency to calculate the S-parameters at.
-
+            freq (Frequency): Specifies the frequency to calculate the abcd-parameters at.
         Returns:
-            jnp.ndarray: The resultant S matrix.
+            jnp.ndarray: The resultant abcd matrix.
         """
         if not self._has_a:
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         a = self.a(freq)
-        return a2s(a, self.z0)    
+        return a2s(a, self.z0)
     
     def s_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
-        """Calculates the S parameter matrix as a function of frequency at specified ports.
-
-        This is a secondary method that can be operated by a sub-class if
-        a more-efficient implementation is available for a subset of ports.
-        This method will also have dynamic sub-functions generated e.g. 's_mag_mn' etc.
+        """Calculates the ABCD parameter matrix at specific ports.
+        
+        This can be overriden for performance reasons.
 
         Args:
             freq (Frequency): Specifies the frequency to calculate the S-parameters at.
             m (IndexArray): Specifies the first port indices, just as would be retrieved using `self.s(freq)[:,m,:]`. Defaults to `None` to specify a slice.
             n (IndexArray): Specifies the second port indices, just as would be retrieved using `self.s(freq)[:,:,m]`.  Defaults to `None` to specify a slice.
-
         Returns:
             jnp.ndarray: The resultant S matrix.
         """
         if m is None:
+            if n is None:
+                return self.a(freq)    
+            return self.a(freq)[:, :, n]
+        elif n is None:
+            return self.a(freq)[:, m, :]
+
+        return self.a(freq)[:, m, n]
+    
+    def s_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
+        """Calculates the S parameter matrix at specific ports.
+        
+        This can be overriden for performance reasons.
+
+        Args:
+            freq (Frequency): Specifies the frequency to calculate the S-parameters at.
+            m (IndexArray): Specifies the first port indices, just as would be retrieved using `self.s(freq)[:,m,:]`. Defaults to `None` to specify a slice.
+            n (IndexArray): Specifies the second port indices, just as would be retrieved using `self.s(freq)[:,:,m]`.  Defaults to `None` to specify a slice.
+        Returns:
+            jnp.ndarray: The resultant S matrix.
+        """
+        if m is None:
+            if n is None:
+                return self.s(freq)    
             return self.s(freq)[:, :, n]
         elif n is None:
             return self.s(freq)[:, m, :]
 
-        return self.s(freq)
+        return self.s(freq)[:, m, n]
     
     def params(self, include_fixed=False, separator='_') -> dict[str, Parameter]:
         """A dictionary of the core model parameters.
@@ -658,7 +668,7 @@ class Model(eqx.Module):
         Returns:
             ModelT: A new model with the parameters not in `free_submodels` fixed.
         """
-        if isinstance(free_submodels[0], str):
+        if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
             free_submodels = [getattr(self, name) for name in free_submodels]
 
         free_param_values = [param for source in free_submodels for param in source.params().values()]

@@ -925,7 +925,9 @@ def evaluate_bernstein_basis(x, coeffs, lower_bound, upper_bound):
         basis_values = jnp.power(t_scalar, i) * jnp.power(1 - t_scalar, n - i)
         return jnp.dot(coeffs, binomial_coeffs * basis_values)
 
-    return jax.vmap(_eval_single)(jnp.atleast_1d(t))
+    
+    result = jax.vmap(_eval_single)(jnp.atleast_1d(t))
+    return result
 
 # Aliases, lookups and partials
 conv_inter = convolve_interleaved

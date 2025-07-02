@@ -194,6 +194,7 @@ class DatasheetCoaxial(RLGCLine):
         L = (zn * sqrt_epr) / c
         G = 2/zn * alpha_d
         C = (sqrt_epr) / (zn * c)
+        
         return R, L, G, C
         
 class PhysicalCoaxial(RLGCLine):
@@ -382,6 +383,7 @@ class PhysicalCoaxial(RLGCLine):
         Returns:
             tuple: The calculated R, L, G, and C parameter vectors.
         """
+        
         if not self.neglect_skin_inductance:
             L = self.L_prime(freq) + self.L_skin(freq)
         else:

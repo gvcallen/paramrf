@@ -29,15 +29,15 @@ def extract_features(
     Features can either be specified by convenient aliases using strings, or by their full structure.
     As some examples to demonstrate the possibilities:
     - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db' (0, 0))`.
-      Note that, for the tuple, the empty string at the beginning represents the base model (explained below).
+      Note that, for the tuple, the empty string at the beginning represents the base model (expanded on below).
     - To extract e.g. the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
-    - To extract any other feature this is a function of frequency (e.g. a custom user function), simply use 'myfeature' instead of 's11'.
-    - To extract features from a submodel or specific network, specify a dictionary with features source "label" as keys
-      e.g. {'src_label': s11_db'}. For models, this extracts a feature from a submodel that must be retrievable via `getattr`.
-      For models, this can be nested e.g. {'src1.submodel1.submodel2': s11_db'}.
-      For measured networks, this extract a feature from the corresponding network with that label in the dictionary.
-      This is internally converted to the feature tuple ('src_name', 's_db', (0, 0)').
-    - For a list of features, specify a list of any of the above, (or equivalently a dictionary of lists).
+    - To extract any other feature in the model that is a function of frequency (e.g. a custom user function), simply use 'myfeature' instead of 's11'.
+    - To extract features from a submodel or specific network, specify a dictionary with the submodel as a key
+      e.g. {'submodel': 's11_db'}. For models, this extracts a feature from a submodel that must be retrievable via `getattr`.
+      Submodels can also be nested e.g. {'src1.submodel1.submodel2': 's11_db'}. For measured networks,
+      this extracts a feature from the corresponding network with that label in the dictionary.
+      For the above example, is is converted to the feature tuple ('src_name', 's_db', (0, 0)').
+    - For a list of features, specify a list of any of the above (or, equivalently, a dictionary of lists).
 
     Args:
         source (Model | skrf.Network | dict[str, skrf.Network]):        The source model or network(s) to extract the features from,
@@ -91,8 +91,9 @@ def make_feature_function(
     to enable its efficient, machine-code level computation.
     
     The function generated accepts the model parameters, in either Pytree
-    or flattened (raveled) formated, and returns the resultant model feature matrix
-    to be used in fitting procedures.
+    or flattened (raveled) formated, and returns the resultant model feature matrix.
+    This function is convenient for lower-level use in order to remove close over any details of the model,
+    and make use of a purely parametric function (e.g. for fitting or sampling).
 
     Args:
         model (Model):                              The model to generate the feature functions for.
