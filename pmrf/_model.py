@@ -571,8 +571,8 @@ class Model(eqx.Module):
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
         
         This is the most common way to initialize the parameters of a model.
-        However, if you would like to populate the model with a flat array instead,
-        convert it to an array using `self.to_array(..)` and use the resultant unravel function.
+        However, if you would like to populate the model with a flat array-like structure instead,
+        use `with_flat_params(...)`.
 
         Args:
             params (dict[str, Parameter] | dict[str, float] | None, optional):      The parameter dictionary to updated from.
@@ -631,6 +631,73 @@ class Model(eqx.Module):
         combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
         return combined
     
+    def with_fixed_params(self: ModelT, *params) -> ModelT:
+        """Returns a version of self with the specified parameters fixed.
+
+        Args:
+            params (str | Sequence[str]): The parameter names, specified as string arguments
+
+        Returns:
+            ModelT: The new model with the fixed parameters.
+        """
+        if isinstance(params, str):
+            params = [params]
+            
+        params = set(params)
+        current_params = self.params()        
+        new_params = current_params.copy()
+        for name, param in current_params.items():
+            if name in params:
+                new_params[name] = param.as_fixed()
+        return self.with_params(new_params)
+    
+    def with_free_params(self: ModelT, *params, fix_others=True) -> ModelT:
+        """Returns a version of self with the specified parameters free.
+
+        Args:
+            *params (str):                  The parameter names, specified as string arguments.
+            fix_others (bool):              Specifies that other parameters not specified should be explicitly fixed. Defaults to `True`.
+
+        Returns:
+            ModelT: The new model with the free parameters.
+        """        
+        if isinstance(params, str):
+            params = [params]
+        params = set(params)
+        
+        current_params = self.params()        
+        new_params = current_params.copy()
+        for name, param in current_params.items():
+            if name in params:
+                new_params[name] = param.as_free()
+            elif fix_others:
+                new_params[name] = param.as_fixed()
+        return self.with_params(new_params)    
+    
+    def with_free_submodels(self: ModelT, free_submodels: Sequence['Model'] | Sequence[str]) -> ModelT:
+        """Returns the current model with all parameters fixed except those in the specified submodels.
+
+        The submodels can be any models that reference the parameters in this model.
+        Specifically, `free_submodels` can consist of direct children of this model,
+        submodels of those direct children, and any models that are built using the
+        parameters of this model. Then, only the parameters that are found in both
+        the submodels and this model are set to be free, and all others are fixed.
+
+        Args:
+            free_submodels (Sequence[Model] | Sequence[str]):   The submodels to set this model's free parameters by.
+                                                                If a sequence of strings is passed, `getattr`
+                                                                is simply called on `self` to retrieve the model instances.
+
+        Returns:
+            ModelT: A new model with the parameters not in `free_submodels` fixed.
+        """
+        if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
+            free_submodels = [getattr(self, name) for name in free_submodels]
+
+        free_param_values = [param for source in free_submodels for param in source.params().values()]
+        free_params = {k: v for k, v in self.params().items() if any(v is p for p in free_param_values)}
+        return self.with_params(free_params, fix_others=True)
+    
     def with_flat_params(self: ModelT, flat_params: list[Parameter] | jnp.ndarray, include_fixed=False) -> ModelT:
         """Returns the current model with the parameters specified in the array.
         
@@ -649,31 +716,7 @@ class Model(eqx.Module):
         
         if not isinstance(flat_params, jnp.ndarray):
             flat_params = jnp.array([param.value for param in flat_params])
-        return combine(unravel_fn(flat_params), static)
-    
-    def with_free_submodels(self: ModelT, free_submodels: Sequence['Model'] | Sequence[str]) -> ModelT:
-        """Returns the current model with all parameters fixed except those in the specified submodels.
-
-        Th submodels can be any models that reference the parameters in this model.
-        Specifically, `free_submodels` can consist of direct children of this model,
-        submodels of those direct children, and any models that are built using the
-        parameters of this model. Then, only the parameters that are free in
-        the submodels are set to be free in this model, and all others are fixed.
-
-        Args:
-            free_submodels (Sequence[Model] | Sequence[str]):   The submodels to set this model's free parameters by.
-                                                                If a sequence of strings is passed, `getattr`
-                                                                is simply called on `self` to retrieve the model instances.
-
-        Returns:
-            ModelT: A new model with the parameters not in `free_submodels` fixed.
-        """
-        if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
-            free_submodels = [getattr(self, name) for name in free_submodels]
-
-        free_param_values = [param for source in free_submodels for param in source.params().values()]
-        free_params = {k: v for k, v in self.params().items() if any(v is p for p in free_param_values)}
-        return self.with_params(free_params, fix_others=True)
+        return combine(unravel_fn(flat_params), static)    
     
     def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.

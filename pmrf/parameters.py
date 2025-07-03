@@ -119,6 +119,22 @@ class Parameter(eqx.Module):
             else:
                 priors_split = [None] * len(self.value)
             return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
+        
+    def as_fixed(self) -> 'Parameter':
+        """Returns a fixed copy of self.
+
+        Returns:
+            Parameter: The new, fixed parameter.
+        """
+        return dataclasses.replace(self, fixed=True)
+    
+    def as_free(self) -> 'Parameter':
+        """Returns a copy of self with fixed set to False.
+
+        Returns:
+            Parameter: The new, fixed parameter.
+        """
+        return dataclasses.replace(self, fixed=False)
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):

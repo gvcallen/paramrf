@@ -116,6 +116,10 @@ def make_feature_function(
     
     if flat:
         params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
+        
+        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
+            raise Exception("Error: no free model parameters found to make feature function")
+        
         def reconstruct_fn(flat_params) -> Model:
             params_tree_recon = unravel_fn(flat_params)
             return combine(params_tree_recon, static)
