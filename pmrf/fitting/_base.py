@@ -5,6 +5,7 @@ import importlib
 import logging
 from typing import Any, Sequence
 from io import BytesIO
+import dataclasses
 
 import numpy as np
 import json
@@ -262,6 +263,12 @@ class FitResults:
             try:
                 params_tree = jsonpickle.decode(params_json)
                 static_tree = jsonpickle.decode(static_json)
+                
+                # The following fixes some quirks when e.g. the original model contains lambdas.
+                # Not sure 100% why but some fields seem to be in a "bad" state when jsonpickle cant deserialize them
+                params_tree = dataclasses.replace(params_tree)
+                static_tree = dataclasses.replace(static_tree)
+                
                 return eqx.combine(params_tree, static_tree)
             except:
                 return None

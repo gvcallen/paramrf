@@ -7,7 +7,6 @@ import numpy as np
 
 from pmrf._features import make_feature_function
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
-from pmrf._features import make_feature_function
 from pmrf._util import time_string
 
 def norm_logpdf(x, loc=0.0, scale=1.0):
@@ -68,7 +67,7 @@ class PolychordFitter(BayesianFitter):
         
         # Generate prior and likelihood functions
         self.logger.info("Compiling model and likelihood function...")
-        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True)        
+        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True, return_params=True, return_recon_fn=True)
         x0_with_likelihood = list(x0) + [self.likelihood_params['sigma'].prior.mean]
         def jax_likelihood(flat_params_with_sigma) -> jnp.ndarray:
             sigma = flat_params_with_sigma[-1]

@@ -26,7 +26,6 @@ class BaseSampler(ABC):
 
         N = self.N
         params_matrix = self._generate_param_matrix(N)
-        models = []
         params, static = self.model.params()
         _, ravel_fn = flatten_util.ravel_pytree(params)
         for i in N:
@@ -79,7 +78,7 @@ class BaseSampler(ABC):
             frequency = Frequency.from_skrf(frequency)
         
         params_matrix = jnp.array(self._generate_param_matrix(N))
-        feature_fn, params_out, _reconstruct_fn = make_feature_function(self.model, features, frequency, dtype=dtype, flat=True, jit=not dont_jit)
+        feature_fn, params_out = make_feature_function(self.model, features, frequency, dtype=dtype, jit=not dont_jit, flat=True, return_params=True)
         self.logger.info('Compiling feature function...')
         _features0 = feature_fn(params_out)
 

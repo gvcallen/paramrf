@@ -64,7 +64,7 @@ class FrequentistFitter(BaseFitter):
         
     def _make_cost_fn(self, dont_jit=False):
         # Generate JAX-compatible functions for feature extraction and model reconstruction
-        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True)
+        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True, return_params=True, return_recon_fn=True)
         self._cached_numpy_cost = feature_fn, x0, recon_fn
 
         # Define the JAX cost function to be minimized

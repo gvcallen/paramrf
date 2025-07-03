@@ -51,8 +51,7 @@ class Frequency(eqx.Module):
     _f: jnp.array
     _unit: str = field(static=True)
 
-    def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, f = None,
-        unit: FrequencyUnitT | None = 'Hz') -> None:
+    def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, unit: FrequencyUnitT | None = 'Hz', f = None) -> None:
         """
         Frequency initializer.
 

@@ -689,7 +689,7 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)    
     
-    def with_free_submodels(self: ModelT, free_submodels: Sequence['Model'] | Sequence[str]) -> ModelT:
+    def with_free_submodels(self: ModelT, free_submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> ModelT:
         """Returns the current model with all parameters fixed except those in the specified submodels.
 
         The submodels can be any models that reference the parameters in this model.
@@ -699,13 +699,17 @@ class Model(eqx.Module):
         the submodels and this model are set to be free, and all others are fixed.
 
         Args:
-            free_submodels (Sequence[Model] | Sequence[str]):   The submodels to set this model's free parameters by.
-                                                                If a sequence of strings is passed, `getattr`
-                                                                is simply called on `self` to retrieve the model instances.
+            free_submodels (Model | Sequence[Model] | str | Sequence[str]):
+                The submodels to set this model's free parameters by.
+                If a string or sequence of strings is passed, `getattr`
+                is simply called on `self` to retrieve the model instances.
 
         Returns:
             ModelT: A new model with the parameters not in `free_submodels` fixed.
         """
+        if isinstance(free_submodels, Model) or isinstance(free_submodels, str):
+            free_submodels = [free_submodels]
+        
         if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
             free_submodels = [getattr(self, name) for name in free_submodels]
 
