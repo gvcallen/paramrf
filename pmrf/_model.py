@@ -631,32 +631,41 @@ class Model(eqx.Module):
         combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
         return combined
     
-    def with_fixed_params(self: ModelT, *params) -> ModelT:
+    def with_fixed_params(self: ModelT, *params, check_unknown=True) -> ModelT:
         """Returns a version of self with the specified parameters fixed.
 
         Args:
             params (str | Sequence[str]): The parameter names, specified as string arguments
+            check_unknown (bool):           Specifies to check that no unknown parameters were passed. Defaults to `True`.
 
         Returns:
             ModelT: The new model with the fixed parameters.
         """
         if isinstance(params, str):
             params = [params]
-            
         params = set(params)
+            
         current_params = self.params()        
+        current_param_names = set(current_params.keys())
+        
+        if check_unknown:
+            for param_name in params:
+                if param_name not in current_param_names:
+                    raise Exception(f"Specified parameter '{param_name}'' not found in model")
+        
         new_params = current_params.copy()
         for name, param in current_params.items():
             if name in params:
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: ModelT, *params, fix_others=True) -> ModelT:
+    def with_free_params(self: ModelT, *params, fix_others=True, check_unknown=True) -> ModelT:
         """Returns a version of self with the specified parameters free.
 
         Args:
             *params (str):                  The parameter names, specified as string arguments.
             fix_others (bool):              Specifies that other parameters not specified should be explicitly fixed. Defaults to `True`.
+            check_unknown (bool):           Specifies to check that no unknown parameters were passed. Defaults to `True`.
 
         Returns:
             ModelT: The new model with the free parameters.
@@ -664,8 +673,14 @@ class Model(eqx.Module):
         if isinstance(params, str):
             params = [params]
         params = set(params)
-        
         current_params = self.params()        
+        current_param_names = set(current_params.keys())
+        
+        if check_unknown:
+            for param_name in params:
+                if param_name not in current_param_names:
+                    raise Exception(f"Specified parameter '{param_name}'' not found in model")
+        
         new_params = current_params.copy()
         for name, param in current_params.items():
             if name in params:
