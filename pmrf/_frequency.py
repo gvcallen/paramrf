@@ -124,8 +124,8 @@ class Frequency(eqx.Module):
         Returns:
             skrf.Frequency: The equivalent scikit-rf Frequency object.
         """
-        import numpy as jnp
-        return skrf.Frequency.from_f(jnp.array(self._f), self._unit)
+        import numpy as np
+        return skrf.Frequency.from_f(np.array(self.f_scaled), self._unit)
 
     def __len__(self) -> int:
         """The number of frequency points."""

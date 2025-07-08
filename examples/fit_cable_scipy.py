@@ -34,9 +34,20 @@ fitter = ScipyMinimizeFitter(
     cost=[l2_norm_ax0, jnp.sum, mag_2_db],
 )
 
-# Run the fit and plot the results
+# Run the fit
 result = fitter.run(method='Nelder-Mead')
-result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
-measured.plot_s_db(m=0, n=0)
+model_ntwk = result.model.to_skrf(measured.frequency)
+
+# Plot some results
+fig, axes = plt.subplots(2, 2)
+axes = axes.flatten()
+model_ntwk.plot_s_db(m=0, n=0, ax=axes[0])
+measured.plot_s_db(m=0, n=0, ax=axes[0])
+model_ntwk.plot_s_deg(m=0, n=0, ax=axes[1])
+measured.plot_s_deg(m=0, n=0, ax=axes[1])
+model_ntwk.plot_s_re(m=0, n=0, ax=axes[2])
+measured.plot_s_re(m=0, n=0, ax=axes[2])
+model_ntwk.plot_s_im(m=0, n=0, ax=axes[3])
+measured.plot_s_im(m=0, n=0, ax=axes[3])
 
 plt.show()

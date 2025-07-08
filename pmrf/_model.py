@@ -322,7 +322,7 @@ class Model(eqx.Module):
         freq = Frequency(1, 2, 2)
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
-    
+
     @property
     def nports(self) -> int:
         """The number of ports in the model
