@@ -105,6 +105,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")
         self.logger.info(f"Parameter names: {param_names}")
         scipy_result = minimize(cost_wrapper, x0, args=(callback_args,), bounds=bounds, *args, **kwargs)
+        self.logger.info(f"fevel = {callback_args['fevel']}, cost = {scipy_result.fun:.2f}")
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         
         # Reconstruct the final model with optimized parameters
