@@ -610,9 +610,15 @@ class Model(eqx.Module):
                 for missing_param_name in missing_params:
                     new_params[missing_param_name] = dataclasses.replace(new_params[missing_param_name], fixed=True)
                         
-            
+        def is_convertible_to_float(x):
+            try:
+                float(x)
+                return True
+            except (ValueError, TypeError):
+                return False
+
         # Convert to an array of parameters instead of floats
-        if all(isinstance(v, float) for v in params.values()):
+        if all(is_convertible_to_float(v) for v in params.values()):            
             for name, value in params.items():
                 # TODO create specs for the full parameter objects such that we can get and use the built-in scales
                 new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value), scale=1.0)
