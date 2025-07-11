@@ -676,7 +676,7 @@ class Model(eqx.Module):
         if isinstance(params, str):
             params = [params]
         params = set(params)
-        current_params = self.params()        
+        current_params = self.params(include_fixed=True)
         current_param_names = set(current_params.keys())
         
         if check_unknown:

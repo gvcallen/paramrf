@@ -264,10 +264,11 @@ class FitResults:
                 params_tree = jsonpickle.decode(params_json)
                 static_tree = jsonpickle.decode(static_json)
                 
+                # NB the following hack actually also BREAKS some model loading... we need to investigate further
                 # The following fixes some quirks when e.g. the original model contains lambdas.
                 # Not sure 100% why but some fields seem to be in a "bad" state when jsonpickle cant deserialize them
-                params_tree = dataclasses.replace(params_tree)
-                static_tree = dataclasses.replace(static_tree)
+                # params_tree = dataclasses.replace(params_tree)
+                # static_tree = dataclasses.replace(static_tree)
                 
                 return eqx.combine(params_tree, static_tree)
             except:
