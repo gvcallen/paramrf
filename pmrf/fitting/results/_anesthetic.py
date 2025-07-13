@@ -12,10 +12,12 @@ class AnestheticResults(BayesianResults):
     @classmethod
     def decode_solver_results(cls, group: h5py.Group) -> Any:
         from anesthetic import NestedSamples, read_csv
+        import pandas as pd
         
         csv_str = group['samples'][()]
         csv_str = csv_str.decode('utf-8') if isinstance(csv_str, bytes) else csv_str
         samples = NestedSamples(read_csv(io.StringIO(csv_str)))
+        # samples = NestedSamples(pd.read_csv(io.StringIO(csv_str), index_col=0))
         return samples
     
     def plot_params(self, param_names=None, title='params', label='posterior', priors=False, fig_size=None, fig=None, ax=None, **kwargs):

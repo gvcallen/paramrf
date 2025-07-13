@@ -59,7 +59,7 @@ class BayesianFitter(BaseFitter):
         sigma_param = dataclasses.replace(self.likelihood_params['sigma'], name='sigma')
         return self.initial_model.flat_params() + [sigma_param]
     
-    def _make_prior_function(self, flat=False, numpy_input=False):
+    def _make_prior_transform_function(self, flat=False, numpy_input=False):
         flat = flat or numpy_input
         
         priors = [param.prior for param in self._flat_params()]

@@ -22,6 +22,8 @@ class BlackjaxNSFitter(BayesianFitter):
 
         params = self._flat_params()
         param_names = [param.name for param in params]
+        dot_param_names = [name.replace('_', '.') for name in param_names]
+        labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         priors = [param.prior for param in params]
         
         recon_fn, x0 = self._make_reconstruct_function(flat=True, return_params=True)
@@ -69,8 +71,10 @@ class BlackjaxNSFitter(BayesianFitter):
         # Use anesthetic to easily calculate logZ and its error
         nested_samples = NestedSamples(
             data=final_dead_points.particles,
+            columns=param_names,
             logL=final_dead_points.loglikelihood,
-            logL_birth=final_dead_points.loglikelihood_birth
+            logL_birth=final_dead_points.loglikelihood_birth,
+            labels=labeled_param_names,
         )
 
         end_time = time.time()
@@ -78,14 +82,15 @@ class BlackjaxNSFitter(BayesianFitter):
         self.logger.info(f"Sampling finished in {total_time:.2f} seconds.")
         self.logger.info(f"Final logZ = {nested_samples.logZ()}")
         
-        # for i, param_name in enumerate(param_names[0:-1]):
-        #     if best_param_method == 'mean':
-        #         x0[i] = nested_samples[param_name].mean()
-        #     elif best_param_method == 'maximum-likelihood':
-        #         idx = jnp.argmax(nested_samples.logL.values)
-        #         x0[i] = nested_samples[param_name].values[idx]
-        #     else:
-        #         self.logger.warning("Unknown best parameter method. Skipping")
+        model_param_names = [param.name for param in self.initial_model.flat_params()]
+        for i, param_name in enumerate(model_param_names):
+            if best_param_method == 'mean':
+                x0[i] = nested_samples[param_name].mean()
+            elif best_param_method == 'maximum-likelihood':
+                idx = jnp.argmax(nested_samples.logL.values)
+                x0[i] = nested_samples[param_name].values[idx]
+            else:
+                self.logger.warning("Unknown best parameter method. Skipping")
                 
         return AnestheticResults(
             model=None,
@@ -97,4 +102,4 @@ class BlackjaxNSFitter(BayesianFitter):
             solver_results=nested_samples,
             solver_args=(),
             fit_kwargs={'best_param_method': best_param_method}
-        )     
+        )
