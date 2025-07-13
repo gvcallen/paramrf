@@ -1,5 +1,7 @@
 from pmrf._model import (
     Model as Model,
+    make_reconstruct_function,
+    make_feature_function,
 )
 from pmrf._util import (
     field,
@@ -18,7 +20,6 @@ from pmrf._tree import (
 
 from pmrf._features import (
     extract_features,
-    make_feature_function,
 )
 
 from pmrf.parameters import (

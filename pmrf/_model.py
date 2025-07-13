@@ -1,18 +1,22 @@
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, TypeVar, Sequence
+from typing import Callable, Sequence
 import dataclasses
 from dataclasses import fields, is_dataclass
 
+from typing import Sequence, Callable
+
 import skrf as skrf
-import jax.numpy as jnp
+import numpy as np
 import jax
+import jax.numpy as jnp
+from jax import flatten_util
 from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
 
-from pmrf._constants import PRIMARY_PROPERTIES, IndexArray
+from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, FeatureFunctionT, ModelParametersT, ModelT
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, is_valid_param, asparam
@@ -21,8 +25,6 @@ from pmrf._util import field, classproperty, is_overridden, get_first_underlying
 from pmrf._tree import nodes_by_type, partition, combine, value_at_path
 
 jax.config.update("jax_enable_x64", True)
-
-ModelT = TypeVar('ModelT', bound='Model')
 
 class Model(eqx.Module):
     """
@@ -744,7 +746,7 @@ class Model(eqx.Module):
         
         if not isinstance(flat_params, jnp.ndarray):
             flat_params = jnp.array([param.value for param in flat_params])
-        return combine(unravel_fn(flat_params), static)    
+        return combine(unravel_fn(flat_params), static)                
     
     def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
@@ -774,3 +776,122 @@ class Model(eqx.Module):
         })
 
         return skrf.Network(**kwargs)    
+    
+def make_reconstruct_function(
+    model: Model,
+    flat = False,
+    return_params = False,
+    numpy_input = False,
+) -> tuple[Callable, ModelParametersT]:
+    """Generate a reconstruct function to parametrically reconstruct a model, either from flat parameters or from the dynamic component of the model.
+    
+    Args:
+        model (Model):                              The model to generate the feature functions for.
+        flat (bool):                                Whether the feature function should accept a flat array as input.
+        return_params (bool):                       Specifies that the parameters should be returned alongside the feature function.
+                                                    For the flat case, the parameters are returned as an array. Defaults to `False`.
+        numpy_input (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
+                                                    Mutually exclusive with `flat` since `numpy_input` implies it.
+
+    Returns:
+        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
+    """    
+    flat = flat or numpy_input
+    params_tree, static = model.partition()
+    
+    if flat:
+        params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
+        
+        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
+            raise Exception("Error: no free model parameters found to make feature function")
+        
+        def reconstruct_fn_jax(flat_params) -> Model:
+            params_tree_recon = unravel_fn(flat_params)
+            return combine(params_tree_recon, static)
+    else:
+        params_out = params_tree
+        def reconstruct_fn_jax(params_tree) -> Model:
+            return combine(params_tree, static)
+        
+    if numpy_input:
+        params_out = np.array(params_out)
+        reconstruct_fn = lambda x: reconstruct_fn_jax(jnp.array(x))
+    else:
+        reconstruct_fn = reconstruct_fn_jax
+        
+    if return_params:
+        return reconstruct_fn, params_out
+    else:
+        reconstruct_fn
+        
+def make_feature_function(
+    model: Model,
+    features: FeatureInputT,
+    freq: Frequency | skrf.Frequency,
+    dtype: jnp.dtype = jnp.complex128,
+    flat = False,
+    return_params = False,
+    numpy_input = False,
+    nderiv = 0,
+) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
+    """Generate a feature function to parametrically extract model features.
+    
+    This function returns a callable feature function to extract model features,
+    alongside model parameters. The function can be just-in-time compiled using jax,
+    to enable its efficient, machine-code level computation.
+    
+    The function generated accepts the model parameters, in either Pytree
+    or flattened (raveled) formated, and returns the resultant model feature matrix.
+    This function is convenient for lower-level use in order to remove close over any details of the model,
+    and make use of a purely parametric function (e.g. for fitting or sampling).
+
+    Args:
+        model (Model):                              The model to generate the feature functions for.
+        features (FeatureT | FeatureList):          The list of features. See `extract_features` for more information.
+        freq (pmrf.Frequency):                      The frequency to extract the features at, treated as a static argument.
+        dtype (jnp.dtype, optional):                The data type of the final out feature matrix.        
+        flat (bool):                                Whether the feature function should accept a flat array as input.
+        return_params (bool):                       Specifies that the parameters should be returned alongside the feature function.
+                                                    For the flat case, the parameters are returned as an array. Defaults to `False`.
+        numpy_input (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
+                                                    Only for the flat case.        
+        nderiv (int):                               The number of derives to take of the feature function. Default to 0 for the original function.
+
+    Returns:
+        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
+    """
+    from pmrf._features import extract_features
+    
+    flat = flat or numpy_input
+    if isinstance(freq, skrf.Frequency):
+        freq = Frequency.from_skrf(freq)
+    
+    reconstruct_fn, params_out = make_reconstruct_function(model, flat=flat, return_params=True)
+    
+    if flat:
+        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
+            raise Exception("Error: no free model parameters found to make feature function")
+        
+        def feature_fn_jax(flat_params) -> jnp.ndarray:
+            model_recon = reconstruct_fn(flat_params)
+            return extract_features(model_recon, features, freq, dtype=dtype)
+    else:
+        def feature_fn_jax(tree_params) -> jnp.ndarray:
+            model_recon = reconstruct_fn(tree_params)
+            return extract_features(model_recon, features, freq, dtype=dtype)
+
+    for _ in range(nderiv):
+        feature_fn_jax = jax.jacfwd(feature_fn_jax)
+        
+    feature_fn_jax = jax.jit(feature_fn_jax)
+        
+    if numpy_input:
+        params_out = np.array(params_out)
+        feature_fn = lambda x: feature_fn_jax(jnp.array(x))
+    else:
+        feature_fn = feature_fn_jax        
+    
+    if return_params:
+        return feature_fn, params_out
+    else:
+        return feature_fn    

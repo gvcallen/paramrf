@@ -5,8 +5,8 @@ import importlib
 import logging
 from typing import Any, Sequence
 from io import BytesIO
-import dataclasses
 
+import jax.numpy as jnp
 import numpy as np
 import json
 import skrf
@@ -20,7 +20,7 @@ try:
 except ImportError:
     rank = 0
 
-from pmrf._model import Model
+from pmrf._model import Model, make_reconstruct_function, make_feature_function
 from pmrf._frequency import Frequency
 from pmrf._constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
@@ -140,7 +140,14 @@ class BaseFitter(ABC):
         Returns:
             FitResults: An object containing the results of the fit.
         """
-        pass    
+        pass
+    
+    def _make_reconstruct_function(self, flat=False, return_params=False, numpy_input=False):
+        return make_reconstruct_function(self.initial_model, flat=flat, return_params=return_params, numpy_input=numpy_input)
+    
+    def _make_feature_function(self, flat=False, return_params=False, numpy_input=False):
+        return make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=flat, return_params=return_params, numpy_input=numpy_input)    
+
     
 @dataclass
 class FitResults:

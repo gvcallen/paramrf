@@ -5,27 +5,6 @@ import h5py
 
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
 
-class ScipyMinimizeResults(FrequentistResults):
-    def encode_solver_results(self, grp: h5py.Group):
-        for key, val in self.solver_results.items():
-            if isinstance(val, (int, float, str, np.number)):
-                grp.attrs[key] = val
-            elif isinstance(val, np.ndarray):
-                grp.create_dataset(key, data=val)
-            elif val is None:
-                grp.attrs[key] = "None"
-            else:
-                grp.attrs[key] = str(val)  # fallback for e.g. status messages
-    
-    @classmethod
-    def decode_solver_results(cls, grp: h5py.Group) -> Any:
-        result_dict = dict(grp.attrs)
-        for key in grp:
-            result_dict[key] = grp[key][()]
-            
-        from scipy.optimize import OptimizeResult
-        return OptimizeResult(result_dict)
-
 class ScipyMinimizeFitter(FrequentistFitter):
     """
     **Overview**
@@ -84,16 +63,17 @@ class ScipyMinimizeFitter(FrequentistFitter):
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
-        params_list = list(self.initial_model.flat_params())
+        params = list(self.initial_model.flat_params())
         param_names = list(self.initial_model.params().keys())
-        minimums = [p.min for p in params_list]
-        maximums = [p.max for p in params_list]
+        minimums = [p.min for p in params]
+        maximums = [p.max for p in params]
         bounds = Bounds(minimums, maximums)
 
-        cost_fn, recon_fn, x0 = self._make_cost_fn()
+        recon_fn, x0 = self._make_reconstruct_function(numpy_input=True, return_params=True)
+        cost_fn = self._make_cost_function(numpy_input=True)
         
         # Define a wrapper function compatible with SciPy's interface
-        def cost_wrapper(x, callback_args):
+        def cost_scipy_fn(x, callback_args):
             cost = cost_fn(x)
             i = callback_args['fevel']
             if i % 500 == 0:
@@ -104,7 +84,7 @@ class ScipyMinimizeFitter(FrequentistFitter):
         callback_args = {'fevel': 0}
         self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")
         self.logger.info(f"Parameter names: {param_names}")
-        scipy_result = minimize(cost_wrapper, x0, args=(callback_args,), bounds=bounds, *args, **kwargs)
+        scipy_result = minimize(cost_scipy_fn, x0, args=(callback_args,), bounds=bounds, *args, **kwargs)
         self.logger.info(f"fevel = {callback_args['fevel']}, cost = {scipy_result.fun:.2f}")
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         

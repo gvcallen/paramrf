@@ -1,4 +1,4 @@
-from typing import Callable, Literal, Union, Sequence, Any, Tuple
+from typing import TypeVar, Callable, Literal, Union, Sequence, Any, Tuple
 from numbers import Number
 import jax.numpy as jnp
 
@@ -24,6 +24,10 @@ FeatureInputScalarT = str | tuple[str, str] | FeatureT
 FeatureInputSequenceT = Sequence[FeatureInputScalarT]
 FeatureInputDictT = dict[str, FeatureInputScalarT | FeatureInputSequenceT]
 FeatureInputT = FeatureInputScalarT | FeatureInputSequenceT | FeatureInputDictT
+
+ModelT = TypeVar('ModelT', bound='Model')
+FeatureFunctionT = Callable[[ModelT | jnp.ndarray], jnp.ndarray]
+ModelParametersT = Union[ModelT | jnp.ndarray]
 
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]

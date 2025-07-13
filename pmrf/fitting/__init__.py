@@ -1,8 +1,3 @@
-from pmrf._features import (
-    extract_features,
-    make_feature_function,
-)
-
 from pmrf.fitting._base import (
     Fitter,
     BaseFitter,
@@ -21,12 +16,7 @@ from pmrf.fitting._bayesian import (
     BayesianResults,
 )
 
-from pmrf.fitting.fitters._polychord import (
-    PolychordFitter,
-    PolychordResults,
-)
-
-from pmrf.fitting.fitters._scipy import (
-    ScipyMinimizeFitter,
-    ScipyMinimizeResults,
-)
+from pmrf.fitting.fitters._polychord import PolychordFitter
+from pmrf.fitting.fitters._scipy import ScipyMinimizeFitter
+from pmrf.fitting.fitters._numpyro import NumpyroFitter
+from pmrf.fitting.fitters._blackjax import BlackjaxNSFitter

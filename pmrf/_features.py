@@ -1,18 +1,12 @@
-from typing import Sequence, Callable, Union
+from typing import Sequence
 import re
 
 import skrf
-import jax
 import jax.numpy as jnp
-from jax import flatten_util
 
 from pmrf._constants import FeatureT, FeatureInputT
 from pmrf._model import Model
 from pmrf._frequency import Frequency
-from pmrf._tree import combine
-
-FeatureFunctionT = Callable[[Model | jnp.ndarray], jnp.ndarray]
-ModelParametersT = Union[Model | jnp.ndarray]
 
 def extract_features(
     source: Model | skrf.Network | dict[str, skrf.Network],
@@ -75,88 +69,6 @@ def extract_features(
         return _extract_model_features(source, features, freq, dtype=dtype)
     else:
         return _extract_measured_features(source, features, freq, dtype=dtype)
-
-def make_feature_function(
-    model: Model,
-    features: FeatureInputT,
-    freq: Frequency | skrf.Frequency,
-    dtype: jnp.dtype = jnp.complex128,
-    flat = False,
-    return_params = False,
-    return_recon_fn = False,
-    nderiv = 0,
-    jit = False,
-) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
-    """Generate a feature function to parametrically extract model features.
-    
-    This function returns a callable feature function to extract model features,
-    alongside model parameters. The function can be just-in-time compiled using jax,
-    to enable its efficient, machine-code level computation.
-    
-    The function generated accepts the model parameters, in either Pytree
-    or flattened (raveled) formated, and returns the resultant model feature matrix.
-    This function is convenient for lower-level use in order to remove close over any details of the model,
-    and make use of a purely parametric function (e.g. for fitting or sampling).
-
-    Args:
-        model (Model):                              The model to generate the feature functions for.
-        features (FeatureT | FeatureList):          The list of features. See `extract_features` for more information.
-        freq (pmrf.Frequency):                      The frequency to extract the features at, treated as a static argument.
-        dtype (jnp.dtype, optional):                The data type of the final out feature matrix.        
-        flat (bool):                                Whether the feature function should accept a flat array as input.
-        return_params (bool):                       Specifies that the parameters should be returned alongside the feature function.
-                                                    For the flat case, the parameters are returned as an array. Defaults to `False`.
-        return_recon_fn (bool):                     Specifies that a "reconstruct" function should also be returned to
-                                                    reconstruct the model from its arguments.
-        nderiv (int):                               The number of derives to take of the feature function. Default to 0 for the original function.
-        jit (bool):                                 Whether or not to just-in-time compile the function.
-
-    Returns:
-        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
-    """
-    if isinstance(freq, skrf.Frequency):
-        freq = Frequency.from_skrf(freq)
-    
-    features = _format_features(features)
-    params_tree, static = model.partition()
-    
-    if flat:
-        params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
-        
-        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
-            raise Exception("Error: no free model parameters found to make feature function")
-        
-        def reconstruct_fn(flat_params) -> Model:
-            params_tree_recon = unravel_fn(flat_params)
-            return combine(params_tree_recon, static)
-            
-        def feature_fn(flat_params) -> jnp.ndarray:
-            model_recon = reconstruct_fn(flat_params)
-            return extract_features(model_recon, features, freq, dtype=dtype)
-    else:
-        params_out = params_tree
-        def reconstruct_fn(params_tree) -> Model:
-            return combine(params_tree, static)        
-        
-        def feature_fn(tree_params) -> jnp.ndarray:
-            model_recon = combine(tree_params, static)
-            return extract_features(model_recon, features, freq, dtype=dtype)
-
-    for i in range(nderiv):
-        feature_fn = jax.jacfwd(feature_fn)
-            
-    
-    if jit:
-        feature_fn = jax.jit(feature_fn)
-        if return_recon_fn:
-            reconstruct_fn = jax.jit(reconstruct_fn)
-        
-    if return_params:
-        if return_recon_fn:
-            return feature_fn, params_out, reconstruct_fn
-        else:
-            return feature_fn, params_out
-    return feature_fn
 
 def _format_features(features: FeatureInputT) -> list[FeatureT]:
     if isinstance(features, dict):

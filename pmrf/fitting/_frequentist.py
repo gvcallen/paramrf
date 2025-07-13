@@ -9,7 +9,6 @@ from pmrf._model import Model
 from pmrf._constants import FeatureInputT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
-from pmrf._features import make_feature_function
 
 class FrequentistResults(FitResults):
     pass
@@ -62,26 +61,31 @@ class FrequentistFitter(BaseFitter):
         
         self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
         
-    def _make_cost_fn(self, dont_jit=False):
-        # Generate JAX-compatible functions for feature extraction and model reconstruction
-        feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True, return_params=True, return_recon_fn=True)
-        self._cached_numpy_cost = feature_fn, x0, recon_fn
+    def _make_cost_function(self, flat=False, return_params=False, numpy_input=False):
+        flat = flat or numpy_input
+        feature_fn_jax, x0_jax = self._make_feature_function(flat=flat, return_params=True)
 
         # Define the JAX cost function to be minimized
-        def cost_jax(flat_params) -> jnp.ndarray:
-            model_features = feature_fn(flat_params)
+        @jax.jit
+        def cost_fn_jax(flat_params) -> jnp.ndarray:
+            model_features = feature_fn_jax(flat_params)
             error = self.measured_features - model_features
             cost_val = self.cost_metric_fn(error)
             if jnp.isscalar(self.cost_metric_fn(error)):
                 return cost_val
             else:
                 return cost_val[0]
-
-        if not dont_jit:
-            self.logger.info("Compiling model and cost function...")
-            cost_jax = jax.jit(cost_jax)
-            _ = cost_jax(x0)
-        
-        cost_numpy = lambda x: float(cost_jax(jnp.array(x)))
             
-        return cost_numpy, recon_fn, np.array(x0)
+        if numpy_input:
+            cost_fn = lambda x: float(cost_fn_jax(jnp.array(x)))
+            x0 = np.array(x0_jax)
+        else:
+            cost_fn = cost_fn_jax
+            x0 = x0_jax
+            
+        self.logger.info(f"Compiling cost function...")
+        _c0 = cost_fn(x0)
+        
+        if return_params:
+            return cost_fn, x0
+        return cost_fn

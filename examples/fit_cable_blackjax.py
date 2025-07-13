@@ -1,13 +1,11 @@
+import os
 import logging
 import skrf as rf
 import matplotlib.pyplot as plt
 
-from mpi4py import MPI
-rank = MPI.COMM_WORLD.Get_rank()
-
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed, PercentNormal
-from pmrf.fitting import PolychordFitter
+from pmrf.fitting import BlackjaxNSFitter
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,16 +26,18 @@ model = PhysicalCoaxial(
 )
 
 # Initialize the fitter. Note that the features need to align with the likelihood
-fitter = PolychordFitter(
+fitter = BlackjaxNSFitter(
     model=model,
     measured=measured,
     features=['s11_re', 's11_im'],
 )
 
 # Run the fit and plot the results. We use 10x the number of parameters for the live fit
-result = fitter.run(base_dir='output/fit_cable_polychord/chains', nlive=10)
-if rank == 0:
-    result.to_hdf5('output/fit_cable_polychord/defaultnlive.hdf5')
-    result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
-    measured.plot_s_db(m=0, n=0)
-    plt.show()
+result = fitter.run()
+os.makedirs('output/fit_cable_blackjax', exist_ok=True)
+result.to_hdf5('output/fit_cable_blackjax/cable_fit.hdf5')
+
+
+# result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
+# measured.plot_s_db(m=0, n=0)
+# plt.show()
