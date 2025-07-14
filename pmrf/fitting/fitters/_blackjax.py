@@ -99,15 +99,16 @@ class BlackjaxNSFitter(BayesianFitter):
         model_param_names = [param.name for param in self.initial_model.flat_params()]
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
-                x0[i] = nested_samples[param_name].mean()
+                val_new = nested_samples[param_name].mean()
             elif best_param_method == 'maximum-likelihood':
                 idx = jnp.argmax(nested_samples.logL.values)
-                x0[i] = nested_samples[param_name].values[idx]
+                val_new = nested_samples[param_name].values[idx]
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
+            x0 = x0.at[i].set(val_new)
                 
         return AnestheticResults(
-            model=None,
+            model=recon_fn(x0),
             initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,
