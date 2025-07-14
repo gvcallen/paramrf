@@ -30,6 +30,7 @@ polychord = [
 ]
 blackjax = [
     "blackjax @ git+https://github.com/handley-lab/blackjax@nested_sampling",
+    "anesthetic",
 ]
 
 [project.urls]

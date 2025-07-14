@@ -37,8 +37,10 @@ class BlackjaxNSFitter(BayesianFitter):
         n_live = n_live if n_live is not None else 25 * d
         if num_delete is None:
             if xla_bridge.get_backend().platform == 'cpu':
+                self.logger.info('Running BlackJAX on the CPU')
                 num_delete = int(0.1*n_live)
             else:
+                self.logger.info('Running BlackJAX on a GPU/TPU')
                 num_delete = int(0.5*n_live)
         if num_inner_steps is None:
             num_inner_steps = 3 * d
