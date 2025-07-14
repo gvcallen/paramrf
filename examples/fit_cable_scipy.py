@@ -10,11 +10,8 @@ from pmrf.functions import l2_norm_ax0, mag_2_db
 
 logging.basicConfig(level=logging.INFO)
 
-# Load the measured data
-measured = rf.Network('paramrf/examples/data/10m_cable.s2p', f_unit='MHz', name='measured')
-
 # Load the measured data and setup the model
-measured = rf.Network('paramrf/examples/data/10m_cable.s2p', f_unit='MHz')
+measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
 model = PhysicalCoaxial(
     din = PercentNormal(1.12, 5.0, scale=1e-3),
     dout = PercentNormal(3.2, 5.0, scale=1e-3),
