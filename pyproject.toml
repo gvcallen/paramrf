@@ -28,8 +28,6 @@ polychord = [
     "pandas",
     "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
 ]
-
-[project.optional-dependencies]
 blackjax = [
     "blackjax @ git+https://github.com/handley-lab/blackjax@nested_sampling",
 ]
