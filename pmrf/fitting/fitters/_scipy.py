@@ -4,6 +4,7 @@ import jsonpickle
 import h5py
 
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting.results._scipy import ScipyMinimizeResults
 
 class ScipyMinimizeFitter(FrequentistFitter):
     """
