@@ -129,7 +129,7 @@ class Model(eqx.Module):
     """
     # Instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
-    _z0: complex = field(default=50.0+0j, init=False, static=True)
+    _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
