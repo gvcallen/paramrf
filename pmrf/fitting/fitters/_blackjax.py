@@ -12,10 +12,11 @@ class BlackjaxNSFitter(BayesianFitter):
     """
     A fitter that uses the blackjax nested slice sampler (`blackjax.nss`).
     """
-    def run(self, best_param_method = 'maximum-likelihood', num_live_points = None, num_delete: int = 5, num_inner_steps: int = 20, logZ_convergence: float = 10.0, seed: int = 0) -> AnestheticResults:
+    def run(self, best_param_method = 'maximum-likelihood', n_live = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         import blackjax
         from anesthetic import NestedSamples
         from tqdm import tqdm
+        from jax.lib import xla_bridge
         
         start_time = time.time()
         rng_key = jax.random.PRNGKey(seed)
@@ -30,6 +31,18 @@ class BlackjaxNSFitter(BayesianFitter):
         loglikelihood_fn = self._make_loglikelihood_function(flat=True)
         logprior_fn = self._make_logprior_function(flat=True)
 
+        loglikelihood_fn = jax.jit(loglikelihood_fn)
+
+        d = len(param_names)
+        n_live = n_live if n_live is not None else 25 * d
+        if num_delete is None:
+            if xla_bridge.get_backend().platform == 'cpu':
+                num_delete = int(0.1*n_live)
+            else:
+                num_delete = int(0.5*n_live)
+        if num_inner_steps is None:
+            num_inner_steps = 3 * d
+
         nested_sampler = blackjax.nss(
             logprior_fn=logprior_fn,
             loglikelihood_fn=loglikelihood_fn,
@@ -38,35 +51,34 @@ class BlackjaxNSFitter(BayesianFitter):
         )
 
         rng_key, prior_key = jax.random.split(rng_key)
-        num_live_points = num_live_points if num_live_points is not None else 25 * len(param_names)
         
         keys = jax.random.split(rng_key, len(priors))
         samples_per_param = []
         for i, prior in enumerate(priors):
-            sample = prior.sample(keys[i], sample_shape=(num_live_points,))
-            samples_per_param.append(jnp.reshape(sample, (num_live_points, -1)))
+            sample = prior.sample(keys[i], sample_shape=(n_live,))
+            samples_per_param.append(jnp.reshape(sample, (n_live, -1)))
         initial_particles = jnp.concatenate(samples_per_param, axis=1)        
 
         init_fn = jax.jit(nested_sampler.init)
         step_fn = jax.jit(nested_sampler.step)
 
-        live_points = init_fn(initial_particles)
+        state = init_fn(initial_particles)
         dead_points_list = []
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
         self.logger.info(f'Parameter names: {param_names}')
-        self.logger.info(f"Starting nested sampling with {num_live_points} live points...")
+        self.logger.info(f"Starting nested sampling with {n_live} live points...")
         with tqdm(desc="Sampling", unit=" dead points") as pbar:
-            while not live_points.logZ_live - live_points.logZ < -logZ_convergence:
+            while not state.logZ_live - state.logZ < logZ_convergence:
                 rng_key, step_key = jax.random.split(rng_key)
-                live_points, dead_info = step_fn(step_key, live_points)
+                state, dead_info = step_fn(step_key, state)
                 dead_points_list.append(dead_info)
                 pbar.update(num_delete)
-                pbar.set_postfix(logZ=f"{live_points.logZ:.2f}")
+                pbar.set_postfix(logZ=f"{state.logZ:.2f}")
 
         # 6. Finalize the run and package the results
         self.logger.info("Finalizing results...")
-        final_dead_points = blackjax.ns.utils.finalise(live_points, dead_points_list)
+        final_dead_points = blackjax.ns.utils.finalise(state, dead_points_list)
 
         # Use anesthetic to easily calculate logZ and its error
         nested_samples = NestedSamples(
