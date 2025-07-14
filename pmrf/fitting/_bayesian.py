@@ -90,16 +90,6 @@ class BayesianFitter(BaseFitter):
         return logprior_fn
         
     def _make_loglikelihood_function(self, flat=False, numpy_input=False):
-        # Old code from polychord fitter
-        # feature_fn, x0, recon_fn = make_feature_function(self.initial_model, self.feature_list, self.model_frequency, flat=True, return_params=True, return_recon_fn=True)
-        # def jax_likelihood(flat_params_with_sigma) -> jnp.ndarray:
-        #     sigma = flat_params_with_sigma[-1]
-        #     model_features = feature_fn(flat_params_with_sigma[0:-1])
-        #     return gaussian_log_likelihood(self.measured_features, model_features, sigma)        
-        # def norm_logpdf(x, loc=0.0, scale=1.0):
-        #     return -0.5 * jnp.log(2 * jnp.pi * scale**2) - 0.5 * ((x - loc)**2) / (scale**2)
-        # def gaussian_log_likelihood(y_meas, y_model, sigma):
-        #     return jnp.sum(norm_logpdf(jnp.real(y_meas), jnp.real(y_model), sigma))
         flat = flat or numpy_input
         
         if not flat:
