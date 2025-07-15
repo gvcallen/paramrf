@@ -115,11 +115,11 @@ class BayesianFitter(BaseFitter):
         #     theta, sigma = params[:-1], params[-1]
         #     y_pred = feature_fn_jax(theta)
         #     y_real = jnp.real(y_pred)
-        #     y_imag = jnp.imag(y_pred)
+        #     # y_imag = jnp.imag(y_pred)
 
         #     # Using numpyro for a clean Normal distribution definition
         #     logL = dist.Normal(loc=y_real, scale=sigma).log_prob(obs_real).sum()
-        #     logL += dist.Normal(loc=y_imag, scale=sigma).log_prob(obs_imag).sum()
+        #     # logL += dist.Normal(loc=y_imag, scale=sigma).log_prob(obs_imag).sum()
         #     return logL
         
         
