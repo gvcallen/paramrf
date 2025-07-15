@@ -122,6 +122,7 @@ class BayesianFitter(BaseFitter):
         #     logL += dist.Normal(loc=y_imag, scale=sigma).log_prob(obs_imag).sum()
         #     return logL
         
+        
         if numpy_input:
             loglikelihood_fn = lambda x: float(loglikelihood_fn_jax(jnp.array(x)))
             x0 = np.array(x0_jax)
