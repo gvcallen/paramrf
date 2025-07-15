@@ -70,7 +70,7 @@ class BlackjaxNSFitter(BayesianFitter):
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
         self.logger.info(f'Parameter names: {param_names}')
-        self.logger.info(f"Starting nested sampling with {n_live} live points...")
+        self.logger.info(f"Starting nested sampling with {n_live} live points and {num_delete} delete points...")
         with tqdm(desc="Sampling", unit=" dead points") as pbar:
             while not state.logZ_live - state.logZ < logZ_convergence:
                 rng_key, step_key = jax.random.split(rng_key)
