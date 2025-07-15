@@ -101,17 +101,26 @@ class BayesianFitter(BaseFitter):
         obs_real = jnp.real(self.measured_features)
         obs_imag = jnp.imag(self.measured_features)
         
-        @jax.jit
-        def loglikelihood_fn_jax(params: jnp.ndarray) -> float:
-            theta, sigma = params[:-1], params[-1]
-            y_pred = feature_fn_jax(theta)
-            y_real = jnp.real(y_pred)
-            y_imag = jnp.imag(y_pred)
+        def norm_logpdf(x, loc=0.0, scale=1.0):
+            return -0.5 * jnp.log(2 * jnp.pi * scale**2) - 0.5 * ((x - loc)**2) / (scale**2)
+        def gaussian_log_likelihood(y_meas, y_model, sigma):
+            return jnp.sum(norm_logpdf(jnp.real(y_meas), jnp.real(y_model), sigma))        
+        def loglikelihood_fn_jax(flat_params_with_sigma) -> jnp.ndarray:
+            sigma = flat_params_with_sigma[-1]
+            model_features = feature_fn_jax(flat_params_with_sigma[0:-1])
+            return gaussian_log_likelihood(self.measured_features, model_features, sigma)        
+        
+        # @jax.jit
+        # def loglikelihood_fn_jax(params: jnp.ndarray) -> float:
+        #     theta, sigma = params[:-1], params[-1]
+        #     y_pred = feature_fn_jax(theta)
+        #     y_real = jnp.real(y_pred)
+        #     y_imag = jnp.imag(y_pred)
 
-            # Using numpyro for a clean Normal distribution definition
-            logL = dist.Normal(loc=y_real, scale=sigma).log_prob(obs_real).sum()
-            logL += dist.Normal(loc=y_imag, scale=sigma).log_prob(obs_imag).sum()
-            return logL
+        #     # Using numpyro for a clean Normal distribution definition
+        #     logL = dist.Normal(loc=y_real, scale=sigma).log_prob(obs_real).sum()
+        #     logL += dist.Normal(loc=y_imag, scale=sigma).log_prob(obs_imag).sum()
+        #     return logL
         
         if numpy_input:
             loglikelihood_fn = lambda x: float(loglikelihood_fn_jax(jnp.array(x)))
