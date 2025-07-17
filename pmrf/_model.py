@@ -160,17 +160,6 @@ class Model(eqx.Module):
                 default = eqx.field(default=default, converter=deepcopy)
                 setattr(cls, field_name, default)
                     
-            # Allow auto-conversion of Parameter-annotated structures
-            field_type = get_first_underlying_type(field_types)
-            if field_type is not None and issubclass(field_type, Parameter):
-                default = getattr(cls, field_name, None)
-                if default is not None:
-                    # Common mistake
-                    if isinstance(default, tuple) and isinstance(default[0], Parameter):
-                        raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple containing a parameter instead")
-                    param = asparam(default, name=field_name)
-                    setattr(cls, field_name, eqx.field(default=param, converter=partial(asparam, name=field_name)))
-                    
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
             for suffix, lookup in FUNC_LOOKUP.items():
