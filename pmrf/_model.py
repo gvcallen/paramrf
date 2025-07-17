@@ -1,4 +1,4 @@
-from functools import cached_property, partial
+from functools import cached_property
 from copy import deepcopy
 from typing import Callable, Sequence
 import dataclasses
@@ -134,31 +134,37 @@ class Model(eqx.Module):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
 
-        # Pre-process fields etc
+        # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
         for field_name, field_types in cls.__annotations__.items():
-            # Get the default
-            if hasattr(cls, field_name):
-                default = getattr(cls, field_name)
-            else:
-                default = None
+            # Setup
+            converters = []
+            default = getattr(cls, field_name, None)
+            if default is None:
+                continue
                 
-            # Populate any model names if not already set
+            # Apply model name replacement converter
             if isinstance(default, Model) and default.name is None:
-                default = dataclasses.replace(default, name=field_name)
+                converters.append(lambda x: dataclasses.replace(x, name=field_name))
             
-            # Allow auto-conversion of Parameter-annotated structures
+            # Apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
-            if field_type is not None and issubclass(field_type, Parameter) and default is not None:
+            if field_type is not None and issubclass(field_type, Parameter):
                 # Common mistake
                 if isinstance(default, tuple) and isinstance(default[0], Parameter):
                     raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple containing a parameter instead")
-                default = asparam(default, name=field_name)
+                converters.append(lambda x: asparam(x, name=field_name))
             
-            # Automatically deepcopy any defaults that are either Models, Parameters, Python built-ins, or jax arrays
-            clone_types = {list, dict, tuple, Parameter, Model, jnp.ndarray}
-            if default is not None and any(isinstance(default, clone_type) for clone_type in clone_types):
-                default = eqx.field(default=default, converter=deepcopy)
-                setattr(cls, field_name, default)
+            # Apply deepcopy converter, to avoid Python default mutable trap for any defaults that are Models, Parameters, Python built-ins, or jax arrays
+            if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
+                converters.append(deepcopy)
+            
+            # Set final combined converter
+            if len(converters) != 0:
+                def converter(x):
+                    for c in converters:
+                        x = c(x)
+                    return x
+                setattr(cls, field_name, eqx.field(default=default, converter=converter))         
                     
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
