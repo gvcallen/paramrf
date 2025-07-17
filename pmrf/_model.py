@@ -134,21 +134,31 @@ class Model(eqx.Module):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
 
+        # Pre-process fields etc
         for field_name, field_types in cls.__annotations__.items():
-            # Clone any defaults that are either Models, Parameters, Python built-ins, or numpy arrays
+            # Get the default
             if hasattr(cls, field_name):
                 default = getattr(cls, field_name)
-                new_default = None
-                if isinstance(default, list) or isinstance(default, dict) or isinstance(default, tuple):
-                    new_default = deepcopy(default)    
-                elif isinstance(default, Parameter) or isinstance(default, Model):
-                    new_default = deepcopy(default)
-                    if isinstance(default, Model) and default.name is None:
-                        new_default = dataclasses.replace(new_default, name=field_name)
-                elif isinstance(default, jnp.ndarray):
-                    new_default = default.copy()            
-                if new_default is not None:
-                    setattr(cls, field_name, new_default)
+            else:
+                default = None
+                
+            # Populate any model names if not already set
+            if isinstance(default, Model) and default.name is None:
+                default = dataclasses.replace(default, name=field_name)
+            
+            # Allow auto-conversion of Parameter-annotated structures
+            field_type = get_first_underlying_type(field_types)
+            if field_type is not None and issubclass(field_type, Parameter) and default is not None:
+                # Common mistake
+                if isinstance(default, tuple) and isinstance(default[0], Parameter):
+                    raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple containing a parameter instead")
+                default = asparam(default, name=field_name)
+            
+            # Automatically deepcopy any defaults that are either Models, Parameters, Python built-ins, or jax arrays
+            clone_types = {list, dict, tuple, Parameter, Model, jnp.ndarray}
+            if default is not None and any(isinstance(default, clone_type) for clone_type in clone_types):
+                default = eqx.field(default=default, converter=deepcopy)
+                setattr(cls, field_name, default)
                     
             # Allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
@@ -724,9 +734,11 @@ class Model(eqx.Module):
         if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
             free_submodels = [getattr(self, name) for name in free_submodels]
 
-        free_param_values = [param for source in free_submodels for param in source.params().values()]
-        free_params = {k: v for k, v in self.params().items() if any(v is p for p in free_param_values)}
-        return self.with_params(free_params, fix_others=True)
+        # TODO bug in this function for ReceiverModel when specifying custom connector model during construction
+        allowed_free_param_values = [param for source in free_submodels for param in source.params().values()]
+        allowed_free_params = {k: v for k, v in self.params().items() if any(v is p for p in allowed_free_param_values)}
+
+        return self.with_params(allowed_free_params, fix_others=True)
     
     def with_flat_params(self: ModelT, flat_params: list[Parameter] | jnp.ndarray, include_fixed=False) -> ModelT:
         """Returns the current model with the parameters specified in the array.
