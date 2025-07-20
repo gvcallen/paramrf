@@ -20,9 +20,9 @@ class NumPyroFitter(BayesianFitter):
         import numpyro.distributions as dist
         
         # Get the model parameters
-        flat_params = self.initial_model.flat_params()
-        param_names = [param.name for param in flat_params]
-        param_priors = [param.prior for param in flat_params]
+        params = self.initial_model.params(flat=True)
+        param_names = list(params.keys())
+        param_priors = [param.prior for param in params.values()]
         
         # Generate feature function and prepare the obs
         self.logger.info("Compiling model and likelihood function...")
@@ -52,8 +52,8 @@ class NumPyroMCMCFitter(NumPyroFitter):
             kernel = NUTS
         
         # Get the model parameters
-        flat_params = self.initial_model.flat_params()
-        param_names = [param.name for param in flat_params]
+        params = self.initial_model.params(flat=True)
+        param_names = list(params.keys())
         
         # Generate feature function and prepare the obs
         recon_fn = self._make_reconstruct_function(flat=True)
@@ -95,8 +95,8 @@ class NumPyroNSFitter(NumPyroFitter):
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
-        flat_params = self.initial_model.flat_params()
-        param_names = [param.name for param in flat_params]
+        params = self.initial_model.params(flat=True)
+        param_names = list(params.keys())
         
         # Generate feature function and prepare the obs
         recon_fn = self._make_reconstruct_function(flat=True)

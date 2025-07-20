@@ -91,7 +91,7 @@ class BaseSampler(ABC):
         return vectorized_fn(params_matrix)
     
     def _generate_param_matrix(self, N):
-        params = self.model.flat_params()
+        params = self.model.params(flat=True)
         D = len(params)
 
         X = self._generate_hypercube_samples(N, D)    

@@ -64,11 +64,11 @@ class ScipyMinimizeFitter(FrequentistFitter):
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
-        params = list(self.initial_model.flat_params())
-        param_names = list(self.initial_model.params().keys())
-        minimums = [p.min for p in params]
-        maximums = [p.max for p in params]
-        bounds = Bounds(minimums, maximums)
+        params = self.initial_model.params(flat=True)
+        param_names, params = list(params.keys()), list(params.values())
+        
+        minimums, maximums = self._bounds()
+        bounds = Bounds(np.array(minimums), np.array(maximums))
 
         recon_fn, x0 = self._make_reconstruct_function(numpy_input=True, return_params=True)
         cost_fn = self._make_cost_function(numpy_input=True)

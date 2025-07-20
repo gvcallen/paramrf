@@ -6,6 +6,7 @@ import equinox as eqx
 
 from pmrf.functions import l2_norm_ax0, mag_2_db
 from pmrf._model import Model
+from pmrf.parameters import Parameter, ParameterGroup
 from pmrf._constants import FeatureInputT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
@@ -89,3 +90,22 @@ class FrequentistFitter(BaseFitter):
         if return_params:
             return cost_fn, x0
         return cost_fn
+    
+    def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
+        param_groups: list[ParameterGroup] = self.initial_model.param_groups(flat=True)
+        param_names = list(self.initial_model.params(flat=True).keys())
+        
+        name_to_minimum = {name: None for name in param_names}
+        name_to_maximum = {name: None for name in param_names}
+        
+        for param_group in param_groups:
+            group_minimums, group_maximums = param_group.min, param_group.max
+            group_param_names = list(param_group.params.keys())
+            for i, name in enumerate(group_param_names):
+                name_to_minimum[name] = group_minimums[i]
+                name_to_maximum[name] = group_maximums[i]
+        
+        if any(value is None for value in name_to_minimum.values()) or any(value is None for value in name_to_maximum.values()):
+            raise Exception('Parameter found that did not belong to a parameter groups')
+        
+        return jnp.array(list(name_to_minimum.values())), jnp.array(list(name_to_maximum.values()))

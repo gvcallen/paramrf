@@ -16,16 +16,16 @@ class PolychordFitter(BayesianFitter):
         # Dynamic imports
         import numpy as np
         import pypolychord
-
+        
         # Get the model parameters
-        param_names = [param.name for param in self._flat_params()]
+        param_names = list(self._params().keys())
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
         recon_fn, x0 = self._make_reconstruct_function(return_params=True, numpy_input=True)
-        loglikelihood_fn = self._make_loglikelihood_function(numpy_input=True)
-        prior_fn = self._make_prior_transform_function(numpy_input=True)
+        loglikelihood_fn = self._make_log_likelihood_function(numpy_input=True)
+        prior_fn = self._make_inverse_cdf_function(numpy_input=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')

@@ -34,15 +34,15 @@ class JAXNSFitter(BayesianFitter):
         rng_key = jax.random.PRNGKey(seed)
 
         # --- 1. Parameter and Function Setup ---
-        params = self._flat_params()
+        params = self._params()
         param_names = [param.name for param in params]
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         priors = [param.prior for param in params]
         
         recon_fn, x0 = self._make_reconstruct_function(flat=True, return_params=True)
-        loglikelihood_fn = self._make_loglikelihood_function(flat=True)
-        prior_fn = self._make_prior_transform_function(flat=True)
+        loglikelihood_fn = self._make_log_likelihood_function(flat=True)
+        prior_fn = self._make_inverse_cdf_function(flat=True)
 
         if num_live_points is None:
             num_live_points = 25 * len(param_names)
@@ -88,7 +88,7 @@ class JAXNSFitter(BayesianFitter):
         self.logger.info(f"Final logZ = {logZ:.2f} +/- {logZ_err:.2f}")
         
         # --- 5. Update Model with Best-Fit Parameters ---
-        model_param_names = [param.name for param in self.initial_model.flat_params()]
+        model_param_names = list(self.initial_model.params(flat=True).keys())
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
                 x0[i] = nested_samples[param_name].mean()

@@ -2,6 +2,7 @@
 # import scipy.stats
 import json
 import dataclasses
+from dataclasses import dataclass
 
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
@@ -10,6 +11,9 @@ from typing import Sequence
 import equinox as eqx
 import jax.numpy as jnp
 from pmrf._util import field
+
+MIN_PERCENTILE = 0.01
+MAX_PERCENTILE = 0.99
 
 class Parameter(eqx.Module):
     """
@@ -67,12 +71,22 @@ class Parameter(eqx.Module):
     prior: Distribution | None = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
-    # TODO add bounds?
     name: str | None = field(default=None, static=True)
     
     @property
+    def ndim(self) -> int:
+        """The number of free dimensions for this parameter."""
+        if self.fixed:
+            return 0
+        # A Parameter object itself represents a single fittable entity,
+        # even if its value is an array. The prior handles the dimensionality.
+        if self.prior is not None and self.prior.event_dim > 0:
+            return self.prior.event_shape[0]
+        return 1    
+    
+    @property
     def min(self) -> jnp.array:
-        """The unscaled minimum value of the parameter's distribution (0.01 quantile).
+        """The unscaled minimum value of the parameter's distribution (MIN_PERCENTILE quantile).
 
         Returns:
             jnp.array: The minimum value, or -np.inf if no distribution is set.
@@ -81,7 +95,7 @@ class Parameter(eqx.Module):
             if isinstance(self.prior, dist.Uniform):
                 return self.prior.low
             else:
-                return self.prior.icdf(0.01)
+                return self.prior.icdf(MIN_PERCENTILE)
             
         if jnp.isscalar(self.value):
             return -jnp.inf
@@ -89,7 +103,7 @@ class Parameter(eqx.Module):
     
     @property
     def max(self) -> jnp.array:
-        """The unscaled maximum value of the parameter's distribution (0.99 quantile).
+        """The unscaled maximum value of the parameter's distribution (MAX_PERCENTILE quantile).
 
         Returns:
             jnp.array: The maximum value, or np.inf if no distribution is set.
@@ -98,15 +112,16 @@ class Parameter(eqx.Module):
             if isinstance(self.prior, dist.Uniform):
                 return self.prior.high
             else:
-                return self.prior.icdf(0.99)
+                return self.prior.icdf(MAX_PERCENTILE)
             
         if jnp.isscalar(self.value):
             return -jnp.inf
-        return jnp.array([-jnp.inf] * self.value.shape[0])    
+        return jnp.array([-jnp.inf] * self.value.shape[0])
     
-    def flattened(self, separator='_') -> 'Parameter | list[Parameter]':
+    def flatten(self, separator='_') -> 'Parameter | list[Parameter]':
         """Flattens self, either returning a single Parameter
         if the internal parameter is scalar, or a list.
+        If the internal prior cannot be separated, this will raise an Exception.
         
         Returns:
             'Parameter' | list['Parameter']: The raveled parameters.
@@ -195,7 +210,71 @@ class Parameter(eqx.Module):
             fixed=d["fixed"],
             scale=d["scale"],
             name=d["name"]
-        )    
+        )
+        
+@dataclass
+class ParameterGroup:
+    """
+    A metadata class that groups a set of named parameters and defines any relationships between them.
+    """
+    params: dict[str, Parameter | None]
+    prior: dist.Distribution | None = field(default=None)
+    flat: bool = False
+    
+    def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None, flat=flat):
+        self.flat = flat
+        
+        if isinstance(params, list):
+            self.params = {name: None for name in params}
+            self.prior = prior
+        else:
+            if len(params) == 0 and prior is None:
+                prior = next(iter(params.values())).prior
+            
+            self.params = params.copy()
+            self.prior = prior
+            
+    @property
+    def ndim(self) -> int:
+        """The number of free dimensions for this parameter."""
+        ndim = 0
+        for param in self.params.values():
+            ndim += param.ndim
+        return ndim
+
+    def resolve_params(self, params: dict[str, Parameter]) -> 'ParameterGroup':
+        """
+        Links the names to actual Parameter objects e.g. from a model.
+
+        Returns a new, resolved ParameterGroup instance.
+        """
+        params = {k: params[k] for k in self.params}
+        return dataclasses.replace(self, params=params)
+    
+    @property
+    def min(self) -> jnp.array:
+        """The unscaled minimum value of the parameter group's distribution (MIN_PERCENTILE quantile).
+
+        Returns:
+            jnp.array: The minimum value, or -np.inf if no distribution is set.
+        """
+        if self.prior is not None:
+            return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.ndim))
+            
+        return jnp.array([-jnp.inf] * self.ndim)
+    
+    @property
+    def max(self) -> jnp.array:
+        """The unscaled maximum value of the parameter's distribution (MAX_PERCENTILE quantile).
+
+        Returns:
+            jnp.array: The maximum value, or np.inf if no distribution is set.
+        """
+        if self.prior is not None:
+            return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.ndim))
+            
+        return jnp.array([-jnp.inf] * self.ndim)
+    
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     """Creates a `Parameter` with a uniform prior distribution.

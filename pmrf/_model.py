@@ -1,6 +1,6 @@
 from functools import cached_property
 from copy import deepcopy
-from typing import Callable, Sequence
+from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
 
@@ -15,14 +15,17 @@ from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
+from numpyro.distributions import Distribution
 
 from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, FeatureFunctionT, ModelParametersT, ModelT
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
-from pmrf.parameters import Parameter, is_valid_param, asparam
+from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf._frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, partition, combine, value_at_path
+
+ModelT = TypeVar('ModelT', bound='Model')
 
 jax.config.update("jax_enable_x64", True)
 
@@ -129,10 +132,12 @@ class Model(eqx.Module):
     """
     # Instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
+    separator: str = field(default='_', kw_only=True, static=True)
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+    _param_groups: list[ParameterGroup] | None = field(default=None, converter=lambda _x: list(), kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)        
+        super().__init_subclass__(**kwargs)
 
         # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
         for field_name, field_types in cls.__annotations__.items():
@@ -255,7 +260,7 @@ class Model(eqx.Module):
     def _has_s(self) -> bool:
         return is_overridden(type(self), Model, 's')          
         
-    def _path_to_param_name(self, path, separator: str = '_') -> str | list[str]:
+    def _path_to_param_name(self, path) -> str | list[str]:
         # Converts a path to its vector parameter name
         fields = []
         for key in path:
@@ -263,7 +268,7 @@ class Model(eqx.Module):
                 fields.append(key.name)
             elif isinstance(key, SequenceKey) or isinstance(key, FlattenedIndexKey):
                 fields.append(str(key.idx))
-        return separator.join(fields)
+        return self.separator.join(fields)
 
     def __pow__(self, other: ModelT) -> ModelT:
         from pmrf.models.containers import Cascade
@@ -431,63 +436,6 @@ class Model(eqx.Module):
             return self.s(freq)[:, m, :]
 
         return self.s(freq)[:, m, n]
-    
-    def params(self, include_fixed=False, separator='_') -> dict[str, Parameter]:
-        """A dictionary of the core model parameters.
-        
-        Keys are returned as long parameter names, and values are the
-        `Parameter` structures as they currently are in the model.
-        The dictionary order matches the underlying, flattened array order,
-        excluding any additional flattening per parameter.
-        
-        Args:
-            include_fixed (bool): Whether or not to return only the non-fixed (fit) parameters. Defaults to `False`.
-            separator (str): The separator between models for the parameter names. Defaults to '_'.
-
-        Returns:
-            dict[str, Parameter]: The parameter dictionary.
-        """
-        # TODO makes this more efficient so we dont first create the space i.e. just filter once
-        spec = self._core_object_spec if include_fixed else self._free_object_spec
-        params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
-        path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
-        return {self._path_to_param_name(path, separator=separator): param for path, param in path_and_params[0]}    
-    
-    def flat_params(self, return_array=False, include_fixed=False, dont_replace_names=False, separator='_') -> list[Parameter] | jnp.ndarray:
-        """Returns a flattened list/array of the model parameter objects.
-        
-        This is a parallel function to `model.with_flat_params(...)`,
-        allowing retreival of all parameter metadata.
-
-        Note that the parameter objects returned are not guaranteed
-        to be the same parameter objects referenced by the model,
-        as is the case with `model.params()`.
-                    
-        Args:
-            return_array (bool):        Returns a fully flat/raveled array of parameters instead of a list.
-                                        Defaults to `False`, in which case a list is returned.
-            include_fixed (bool):       Returns only the non-fixed (fit) parameters. Defaults to `False`.
-            dont_replace_names (bool):  Specifies not to replaces all names of the parameters with the long names used by this model.
-                                        If used, new parameter objects are constructed and will no longer
-                                        refer to the same objects as the underlying parameters. Defaults to `False`.
-            separator (str):            The separator between models and vector parameter fields for the parameter names. Defaults to '_'.
-
-        Returns:
-            list[Parameter]: The list of model parameters.
-        """
-        if return_array:
-            spec = self._core_value_spec if include_fixed else self._free_value_spec
-            params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
-            return flatten_util.ravel_pytree(params_tree)[0]
-        
-        params = self.params(include_fixed=include_fixed, separator=separator)
-        _flat_params = list(params.values())
-        if not dont_replace_names:
-            for i, name in zip(range(len(_flat_params)), params.keys()):
-                _flat_params[i] = dataclasses.replace(_flat_params[i], name=name)
-
-        _flat_params_devectorized = [p.flattened(separator=separator) if isinstance(p, Parameter) else p for p in _flat_params]
-        return [param for sublist in _flat_params_devectorized for param in (sublist if isinstance(sublist, list) else [sublist])]    
             
     def children(self) -> list[ModelT]:
         """Returns a list of immediate submodels (children).
@@ -567,23 +515,94 @@ class Model(eqx.Module):
                 filter_spec = self._core_value_spec
             else:
                 filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)
+        return partition(self, filter_spec, shared_spec)   
     
+    def params(self, include_fixed=False, flat=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+        """A dictionary of the core model parameters.
+        
+        Keys are returned as long parameter names, and values are the
+        `Parameter` structures as they currently are in the model.
+        The dictionary order matches the underlying, flattened array order.
+        
+        Args:
+            include_fixed (bool):   Whether or not to also return fixed (fit) parameters. Defaults to `False`.
+            flat (bool):            Flattens internal parameters such that all parameters are 1D.
+                                    Only possible if all parameters are separable. In this case, the return `Parameter`
+                                    objects are not guaranteed to refer to the same internal `Parameter` objects.
+            submodels:              Specifies a submodel for which parameters should be returned.
+
+        Returns:
+            dict[str, Parameter]: The parameter dictionary.
+        """
+        spec = self._core_object_spec if include_fixed else self._free_object_spec
+        params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
+        path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
+        
+        
+        _params: dict[str, Parameter] = {self._path_to_param_name(path): param for path, param in path_and_params[0]}          
+
+        if flat:
+            flat_params = {}
+            for name, param in _params.items():
+                if param.ndim > 1:
+                    param_flattened = param.flatten(separator=self.separator)
+                    for subparam in param_flattened:
+                        flat_params[f'{name}{self.separator}0'] = subparam
+                else:
+                    flat_params[name] = param
+            _params = flat_params
+
+        if submodels is not None:
+            if isinstance(submodels, Model) or isinstance(submodels, str):
+                submodels = [submodels]
+            if len(submodels) != 0 and isinstance(submodels[0], str):
+                submodels = [getattr(self, name) for name in submodels]
+            submodel_param_values = [param for submodel in submodels for param in submodel.params(include_fixed=include_fixed, flat=flat).values()]
+            _params = {k: v for k, v in _params.items() if any(v is p for p in submodel_param_values)}
+            
+        return _params
+        
+    def param_groups(self, include_fixed=False, flat=False) -> list[ParameterGroup]:
+        """A list of all parameter groups in the model.
+        
+        This function is useful for fitters that need to take into account
+        e.g. any constraints or correlated priors. Only groups that were
+        create with the same `flat` flag are returned.
+        
+        Currently, only groups for the current model are considered
+        (i.e. groups in children models are ignored).
+        
+        Args:
+            include_fixed (bool):   Whether or not to also return fixed (fit) parameters. Defaults to `False`.
+            flat (bool):            Flattens internal parameters such that all parameters are 1D.
+                                    Only possible if all parameters are separable. In this case, the return `Parameter`
+                                    objects are not guaranteed to refer to the same internal `Parameter` objects.
+
+        Returns:
+            dict[str, Parameter]: The parameter dictionary.
+        """
+        
+        params = self.params(include_fixed=include_fixed, flat=flat)
+        
+        groups = [group for group in self._param_groups if group.flat == flat]
+
+        grouped_param_names = {name for group in groups for name in group.params.keys()}
+        for name, param in params.items():
+            if name not in grouped_param_names:
+                groups.append(ParameterGroup(params={name: param}, prior=param.prior, flat=flat))
+        
+        return groups
+        
     def with_params(
         self: ModelT,
         params: dict[str, Parameter] | dict[str, float] | None = None,
         check_missing: bool = False,
         check_unknown: bool = False,
         fix_others = False,
-        separator: str = '_',
         **param_kwargs: dict[str, Parameter] | dict[str, float],
     ) -> ModelT:
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
         
-        This is the most common way to initialize the parameters of a model.
-        However, if you would like to populate the model with a flat array-like structure instead,
-        use `with_flat_params(...)`.
-
         Args:
             params (dict[str, Parameter] | dict[str, float] | None, optional):      The parameter dictionary to updated from.
                                                                                     Parameters can also be specified with key-word arguments.
@@ -591,7 +610,6 @@ class Model(eqx.Module):
             fix_others (bool):                                                      Whether or not to fix any parameters in the model that were not passed. Defaults to `False`.
             check_missing (bool):                                                   Specifies to check that all model parameters are passed. Defaults to `False`.
             check_unknown (bool):                                                   Specifies to check that no unknown parameters were passed. Defaults to `False`.
-            separator (str): The separator between models for the parameter names.  Defaults to '_'.
                                                                                
 
         Returns:
@@ -601,7 +619,7 @@ class Model(eqx.Module):
         params.update(param_kwargs)
         
         # First, generate an ordered, input flat params array
-        new_params = self.params(include_fixed=True, separator=separator)
+        new_params = self.params(include_fixed=True)
         
         # Validate the callers's input
         unknown_params = set(params.keys() - new_params.keys())
@@ -646,6 +664,34 @@ class Model(eqx.Module):
         new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
         combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
         return combined
+    
+    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup], flat=False) -> ModelT:
+        # Method 1
+        # joint_names = ['length', 'zn', 'k1']
+        # joint_prior = Distribution(...)
+        # group_info = ParameterGroup(names=joint_names, prior=joint_prior)
+        # 
+        # model = ReceiverModel(sr_mtsj1=Semirigid().with_param_group(group_info))
+        #
+        # Parameter
+        # self._parameter_groups
+        # ParameterGroup
+        if not isinstance(param_groups, list):
+            param_groups = [param_groups]
+        
+        all_params = self.params(include_fixed=True, flat=flat)
+        
+        param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
+        for param_group_old in param_groups_old:
+            if param_group_old.flat != flat:
+                raise Exception('Cannot mix flat and non-flat parameter groups')
+        
+        param_groups_new = param_groups_old
+        param_groups_new = param_groups_new.extend(param_groups)
+        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups]
+        param_groups_new = [dataclasses.replace(param_group_new, flat=flat) for param_group_new in param_groups_new]
+        return dataclasses.replace(self, _param_groups=param_groups_new)
+        
     
     def with_fixed_params(self: ModelT, *params, check_unknown=True) -> ModelT:
         """Returns a version of self with the specified parameters fixed.
@@ -729,31 +775,10 @@ class Model(eqx.Module):
         if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
             free_submodels = [getattr(self, name) for name in free_submodels]
 
-        # TODO bug in this function for ReceiverModel when specifying custom connector model during construction
         allowed_free_param_values = [param for source in free_submodels for param in source.params().values()]
         allowed_free_params = {k: v for k, v in self.params().items() if any(v is p for p in allowed_free_param_values)}
 
-        return self.with_params(allowed_free_params, fix_others=True)
-    
-    def with_flat_params(self: ModelT, flat_params: list[Parameter] | jnp.ndarray, include_fixed=False) -> ModelT:
-        """Returns the current model with the parameters specified in the array.
-        
-        See `Model.flat_params(...)` for more details.
-
-        Args:
-            array (jnp.ndarray):                    The array of parameters
-            include_fixed (bool, optional):         Specifies that the parameters passed in also contains fixed parameters. Defaults to `False`.
-
-        Returns:
-            ModelT: The model with the parameters set.
-        """
-        filter_spec = self._core_value_spec if include_fixed else self._free_value_spec
-        params, static = partition(self, filter_spec, self._param_value_spec)
-        _, unravel_fn = jax.flatten_util.ravel_pytree(params)
-        
-        if not isinstance(flat_params, jnp.ndarray):
-            flat_params = jnp.array([param.value for param in flat_params])
-        return combine(unravel_fn(flat_params), static)                
+        return self.with_params(allowed_free_params, fix_others=True)          
     
     def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
