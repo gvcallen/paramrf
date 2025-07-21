@@ -6,5 +6,6 @@ API
    :caption: API
 
    pmrf.fitting
+   pmrf.fitting
    pmrf.models
    pmrf.functions
