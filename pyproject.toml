@@ -11,7 +11,7 @@ dependencies = [
     "jax",
     "jaxtyping",
     "h5py",
-    "matplotlib < 3.8",
+    "matplotlib",
     "numpy",
     "numpyro",
     "jaxopt",
