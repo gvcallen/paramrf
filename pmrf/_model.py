@@ -142,34 +142,33 @@ class Model(eqx.Module):
         # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
         for field_name, field_types in cls.__annotations__.items():
             # Setup
-            converters = []
+            field_kwargs = {}
             default = getattr(cls, field_name, None)
             if default is None:
                 continue
                 
-            # Apply model name replacement converter
+            # Replace default model and parameter names with the field name
             if isinstance(default, Model) and default.name is None:
-                converters.append(lambda x, field_name=field_name: dataclasses.replace(x, name=field_name))
-            
-            # Apply asparam converter, to allow auto-conversion of Parameter-annotated structures
+                default = dataclasses.replace(default, name=field_name)
+            if isinstance(default, Parameter) and default.name is None:
+                default = dataclasses.replace(default, name=field_name)
+
+            # Auto apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
-            if field_type is not None and issubclass(field_type, Parameter):
+            if field_type is not None and issubclass(field_type, Parameter) and not isinstance(default, Parameter):
                 # Common mistake
-                if isinstance(default, tuple) and isinstance(default[0], Parameter):
-                    raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple containing a parameter instead")
-                converters.append(lambda x, field_name=field_name: asparam(x, name=field_name))
+                if isinstance(default, tuple):
+                    raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
+                field_kwargs['default'] = default
+                field_kwargs['converter'] = lambda x, field_name=field_name: asparam(x, name=field_name)
             
-            # Apply deepcopy converter, to avoid Python default mutable trap for any defaults that are Models, Parameters, Python built-ins, or jax arrays
+            # Apply default_factory to avoid Python default mutable trap
             if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
-                converters.append(deepcopy)
+                field_kwargs['default_factory'] = lambda default=default: deepcopy(default)
             
-            # Set final combined converter
-            if len(converters) != 0:
-                def converter(x, converters=converters):
-                    for c in converters:
-                        x = c(x)
-                    return x
-                setattr(cls, field_name, eqx.field(default=default, converter=converter))         
+            # Set final field
+            if len(field_kwargs) != 0:
+                setattr(cls, field_name, eqx.field(**field_kwargs))
                     
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
