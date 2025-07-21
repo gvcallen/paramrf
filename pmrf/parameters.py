@@ -67,7 +67,8 @@ class Parameter(eqx.Module):
     """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
-    value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
+    # value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
+    value: jnp.ndarray
     prior: Distribution | None = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)

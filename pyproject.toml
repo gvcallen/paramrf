@@ -32,6 +32,9 @@ blackjax = [
     "blackjax @ git+https://github.com/handley-lab/blackjax@nested_sampling",
     "anesthetic",
 ]
+docs = [
+    "myst-parser",
+]
 
 [project.urls]
 homepage = "https://github.com/gvcallen/paramrf"
