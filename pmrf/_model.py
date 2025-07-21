@@ -149,7 +149,7 @@ class Model(eqx.Module):
                 
             # Apply model name replacement converter
             if isinstance(default, Model) and default.name is None:
-                converters.append(lambda x: dataclasses.replace(x, name=field_name))
+                converters.append(lambda x, field_name=field_name: dataclasses.replace(x, name=field_name))
             
             # Apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
@@ -157,7 +157,7 @@ class Model(eqx.Module):
                 # Common mistake
                 if isinstance(default, tuple) and isinstance(default[0], Parameter):
                     raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple containing a parameter instead")
-                converters.append(lambda x: asparam(x, name=field_name))
+                converters.append(lambda x, field_name=field_name: asparam(x, name=field_name))
             
             # Apply deepcopy converter, to avoid Python default mutable trap for any defaults that are Models, Parameters, Python built-ins, or jax arrays
             if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
@@ -165,7 +165,7 @@ class Model(eqx.Module):
             
             # Set final combined converter
             if len(converters) != 0:
-                def converter(x):
+                def converter(x, converters=converters):
                     for c in converters:
                         x = c(x)
                     return x
