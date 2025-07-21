@@ -182,10 +182,10 @@ class Model(eqx.Module):
                 continue
                 
             # Replace default model and parameter names with the field name
-            # if isinstance(default, Model) and default.name is None:
-            #     default = dataclasses.replace(default, name=field_name)
-            # if isinstance(default, Parameter) and default.name is None:
-            #     default = dataclasses.replace(default, name=field_name)
+            if isinstance(default, Model) and default.name is None:
+                default = dataclasses.replace(default, name=field_name)
+            if isinstance(default, Parameter) and default.name is None:
+                default = dataclasses.replace(default, name=field_name)
 
             # Auto apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
@@ -199,7 +199,8 @@ class Model(eqx.Module):
             
             # Apply default_factory to avoid Python default mutable trap
             # if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
-            #     field_kwargs['default_factory'] = lambda default=default: deepcopy(default)
+            if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Model, jnp.ndarray}):
+                field_kwargs['default_factory'] = lambda default=default: deepcopy(default)
             
             # Set final field
             if len(field_kwargs) != 0:
