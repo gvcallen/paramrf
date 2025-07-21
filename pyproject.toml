@@ -33,7 +33,9 @@ blackjax = [
     "anesthetic",
 ]
 docs = [
+    "sphinx",
     "myst-parser",
+    "ghp-import",
 ]
 
 [project.urls]
