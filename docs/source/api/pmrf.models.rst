@@ -1,4 +1,4 @@
-pmrf.models package
+models (pmrf.models)
 ===================
 
 Submodules

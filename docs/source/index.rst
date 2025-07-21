@@ -3,16 +3,15 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-paramrf documentation
+.. My Project documentation master file
+
+ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 =====================
-
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
-
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   usage
+   tutorial
+   api/index

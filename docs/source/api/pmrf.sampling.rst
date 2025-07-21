@@ -1,4 +1,4 @@
-pmrf.sampling package
+sampling (pmrf.sampling)
 =====================
 
 Module contents

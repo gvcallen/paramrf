@@ -1,4 +1,4 @@
-pmrf.fitting package
+fitting (pmrf.fitting)
 ====================
 
 Subpackages
