@@ -135,7 +135,7 @@ class Model(eqx.Module):
     name: str | None = field(default=None, kw_only=True, static=True)
     separator: str = field(default='_', kw_only=True, static=True)
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
-    _param_groups: list[ParameterGroup] | None = field(default=None, kw_only=True, static=True)
+    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
@@ -314,6 +314,9 @@ class Model(eqx.Module):
         """
         prioritized = () # for future expansion
         unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+
+        if is_overridden(type(self), Model, '__call__'):
+            return self().primary_property
         
         for property in prioritized:
             if is_overridden(type(self), Model, property):

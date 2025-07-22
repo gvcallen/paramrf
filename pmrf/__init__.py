@@ -29,6 +29,7 @@ from pmrf.parameters import (
 import pmrf.fitting
 import pmrf.models
 import pmrf.parameters
+from pmrf.functions import *
 
 from importlib.metadata import version as _version, PackageNotFoundError
 try:

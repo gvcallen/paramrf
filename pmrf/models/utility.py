@@ -50,3 +50,43 @@ class Measured(Model):
         S_new = (S_real_new + 1j * S_imag_new).transpose(2, 0, 1)
 
         return S_new
+    
+
+class SModel(Model):
+    """
+    **Overview**
+
+    A general model defined by a constant S-parameter matrix.
+    """
+    s: jnp.array
+    
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        """Returns the S-parameter matrix.
+
+        Args:
+            freq (Frequency): Specifies the frequency to calculate the parameters at.
+
+        Returns:
+            jnp.ndarray: The resultant block-diagonal S-parameter matrix.
+        """
+        return self.s
+    
+
+class AModel(Model):
+    """
+    **Overview**
+
+    A general model defined by a constant ABCD matrix.
+    """
+    a: jnp.array
+    
+    def a(self, freq: Frequency) -> jnp.ndarray:
+        """Returns the ABCD matrix.
+
+        Args:
+            freq (Frequency): Specifies the frequency to calculate the parameters at.
+
+        Returns:
+            jnp.ndarray: The resultant block-diagonal ABCD matrix.
+        """
+        return self.a

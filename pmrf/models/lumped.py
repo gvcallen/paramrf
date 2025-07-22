@@ -241,3 +241,7 @@ class Transformer(Model):
         s = s.at[:, 3, 0].set(-0.5)
 
         return s
+    
+SHORT = Short()
+OPEN = Open()
+MATCH = Match()
