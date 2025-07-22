@@ -134,7 +134,7 @@ class Model(eqx.Module):
     name: str | None = field(default=None, kw_only=True, static=True)
     separator: str = field(default='_', kw_only=True, static=True)
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
-    _param_groups: list[ParameterGroup] | None = field(default=None, converter=lambda _x: list(), kw_only=True, static=True)
+    _param_groups: list[ParameterGroup] | None = field(default=None, kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
@@ -690,8 +690,8 @@ class Model(eqx.Module):
                 raise Exception('Cannot mix flat and non-flat parameter groups')
         
         param_groups_new = param_groups_old
-        param_groups_new = param_groups_new.extend(param_groups)
-        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups]
+        param_groups_new.extend(param_groups)
+        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups_new]
         param_groups_new = [dataclasses.replace(param_group_new, flat=flat) for param_group_new in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         

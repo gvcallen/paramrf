@@ -262,7 +262,11 @@ class ParameterGroup:
             jnp.array: The minimum value, or -np.inf if no distribution is set.
         """
         if self.prior is not None:
-            return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.ndim))
+            if hasattr(self.prior, 'min'):
+                return self.prior.min
+            else:
+                # TODO implement optimization to determine minima
+                return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.ndim))
             
         return jnp.array([-jnp.inf] * self.ndim)
     
@@ -274,9 +278,13 @@ class ParameterGroup:
             jnp.array: The maximum value, or np.inf if no distribution is set.
         """
         if self.prior is not None:
-            return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.ndim))
+            if hasattr(self.prior, 'max'):
+                return self.prior.max
+            else:
+                # TODO implement optimization to determine maximum
+                return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.ndim))
             
-        return jnp.array([-jnp.inf] * self.ndim)
+        return jnp.array([jnp.inf] * self.ndim)
     
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
