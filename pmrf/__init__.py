@@ -26,6 +26,10 @@ from pmrf.parameters import (
     Parameter as Parameter,
 )
 
+import pmrf.fitting
+import pmrf.models
+import pmrf.parameters
+
 from importlib.metadata import version as _version, PackageNotFoundError
 try:
     __version__ = _version(__name__)

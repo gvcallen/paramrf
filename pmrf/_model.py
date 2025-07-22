@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from functools import cached_property
 from copy import deepcopy
 from typing import Callable, Sequence, TypeVar
@@ -251,14 +252,6 @@ class Model(eqx.Module):
         # A Pytree filter for all free Model `Parameter` objects.
         return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
     
-    @property
-    def _has_a(self) -> bool:
-        return is_overridden(type(self), Model, 'a')
-    
-    @property
-    def _has_s(self) -> bool:
-        return is_overridden(type(self), Model, 's')          
-        
     def _path_to_param_name(self, path) -> str | list[str]:
         # Converts a path to its vector parameter name
         fields = []
@@ -364,7 +357,15 @@ class Model(eqx.Module):
         Returns:
             float: Z0.
         """
-        return self._z0                    
+        return self._z0
+    
+    def __call__(self) -> 'Model':
+        """Builds a compositional circuit model the represents this model.
+
+        Returns:
+            Model: The resultant model.
+        """        
+        raise NotImplementedError(f"Error: cannot use the __call__ method to build a model in the Model class directly")
     
     def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the abcd parameter matrix, to be derived by sub-classes.
@@ -374,7 +375,10 @@ class Model(eqx.Module):
         Returns:
             jnp.ndarray: The resultant abcd matrix.
         """
-        if not self._has_s:
+        if is_overridden(type(self), Model, '__call__'):
+            return self().a(freq)
+
+        if not is_overridden(type(self), Model, 's'):
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         s = self.s(freq)
@@ -388,7 +392,10 @@ class Model(eqx.Module):
         Returns:
             jnp.ndarray: The resultant abcd matrix.
         """
-        if not self._has_a:
+        if is_overridden(type(self), Model, '__call__'):
+            return self().s(freq)
+
+        if not is_overridden(type(self), Model, 'a'):
             raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
         
         a = self.a(freq)
