@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from functools import cached_property
-from copy import deepcopy
+from copy import deepcopy, copy
 from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
@@ -135,17 +135,17 @@ class Model(eqx.Module):
     name: str | None = field(default=None, kw_only=True, static=True)
     separator: str = field(default='_', kw_only=True, static=True)
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
-    _param_groups: list[ParameterGroup] | None = field(default=None, converter=lambda _x: list(), kw_only=True, static=True)
+    _param_groups: list[ParameterGroup] | None = field(default=None, kw_only=True, static=True)
 
     def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+        super().__init_subclass__(**kwargs)        
 
         # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
         for field_name, field_types in cls.__annotations__.items():
             # Setup
             field_kwargs = {}
             default = getattr(cls, field_name, None)
-            if default is None:
+            if default is None or isinstance(default, dataclasses.Field):
                 continue
                 
             # Replace default model and parameter names with the field name
@@ -156,12 +156,15 @@ class Model(eqx.Module):
 
             # Auto apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
-            if field_type is not None and issubclass(field_type, Parameter) and not isinstance(default, Parameter):
-                # Common mistake
-                if isinstance(default, tuple):
-                    raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
-                field_kwargs['default'] = default
+            if field_type is not None and issubclass(field_type, Parameter):
+                if default is not None and not isinstance(default, Parameter):                
+                    # Common mistake
+                    if isinstance(default, tuple):
+                        raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
+                    field_kwargs['default'] = default
+                
                 field_kwargs['converter'] = lambda x, field_name=field_name: asparam(x, name=field_name)
+                # field_kwargs['default_factory'] = lambda default=default: default
             
             # Apply default_factory to avoid Python default mutable trap
             if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
@@ -169,7 +172,8 @@ class Model(eqx.Module):
             
             # Set final field
             if len(field_kwargs) != 0:
-                setattr(cls, field_name, eqx.field(**field_kwargs))
+                setattr(cls, field_name, eqx.field(**field_kwargs))                
+        
                     
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
@@ -552,8 +556,8 @@ class Model(eqx.Module):
             for name, param in _params.items():
                 if param.ndim > 1:
                     param_flattened = param.flatten(separator=self.separator)
-                    for subparam in param_flattened:
-                        flat_params[f'{name}{self.separator}0'] = subparam
+                    for i, subparam in enumerate(param_flattened):
+                        flat_params[f'{name}{self.separator}{i}'] = subparam
                 else:
                     flat_params[name] = param
             _params = flat_params
@@ -693,8 +697,8 @@ class Model(eqx.Module):
                 raise Exception('Cannot mix flat and non-flat parameter groups')
         
         param_groups_new = param_groups_old
-        param_groups_new = param_groups_new.extend(param_groups)
-        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups]
+        param_groups_new.extend(param_groups)
+        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups_new]
         param_groups_new = [dataclasses.replace(param_group_new, flat=flat) for param_group_new in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         

@@ -68,10 +68,11 @@ class ScipyMinimizeFitter(FrequentistFitter):
         param_names, params = list(params.keys()), list(params.values())
         
         minimums, maximums = self._bounds()
-        bounds = Bounds(np.array(minimums), np.array(maximums))
+        minimums, maximums = np.array(minimums), np.array(maximums)
+        bounds = Bounds(minimums, maximums)
 
-        recon_fn, x0 = self._make_reconstruct_function(numpy_input=True, return_params=True)
-        cost_fn = self._make_cost_function(numpy_input=True)
+        recon_fn, x0 = self._make_reconstruct_function(flat=True, numpy_input=True, return_params=True)
+        cost_fn = self._make_cost_function(flat=True, numpy_input=True)
         
         # Define a wrapper function compatible with SciPy's interface
         def cost_scipy_fn(x, callback_args):

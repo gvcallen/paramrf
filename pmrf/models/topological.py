@@ -42,7 +42,7 @@ class PiCLC(Model):
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
-
+    
     def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix of the Pi-network.
 

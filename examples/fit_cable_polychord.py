@@ -22,9 +22,7 @@ model = PhysicalCoaxial(
     mur = Fixed(1.0),
     length = PercentNormal(10.0, 5.0),
     epr_model='bpoly',
-    epr_order=2,
     tand_model='bpoly',
-    tand_order=2
 )
 
 # Initialize the fitter. Note that the features need to align with the likelihood

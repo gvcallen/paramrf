@@ -63,46 +63,60 @@ class BayesianFitter(BaseFitter):
         param_groups: list[ParameterGroup] = self.initial_model.param_groups(flat=True)
         param_names = list(self._params().keys())
         
-        priors = [param.prior for param in self._params().values()]
-        if any(x is None for x in priors):
-            raise Exception("Found free parameter without a prior")
-        prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
+        # priors = [param.prior for param in self._params().values()]
+        # if any(x is None for x in priors):
+        #     raise Exception("Found free parameter without a prior")
+        # prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
+        
         # The first case is for independent priors (each group maps to one parameter) where the second case is for correlated priors
-        # if len(param_groups) == len(param_names):
-        #     priors = [param.prior for param in self._params()]
-        #     if any(x is None for x in priors):
-        #         raise Exception("Found free parameter without a prior")
-        #     prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
-        # else:
-        #     def prior_fn_jax(u: jnp.ndarray):
-        #         # We assign groups of d hypercube values to corresponding groups of physical values
-        #         name_to_hypercube_value = {name: u[i] for i, name in enumerate(param_names)}
-        #         name_to_physical_value = {name: None for name in param_names}
+        if len(param_groups) == len(param_names):
+            priors = [param.prior for param in self._params()]
+            if any(x is None for x in priors):
+                raise Exception("Found free parameter without a prior")
+            prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
+        else:
+            @jax.jit
+            def prior_fn_jax(u: jnp.ndarray):
+                # We assign groups of d hypercube values to corresponding groups of physical values
+                name_to_hypercube_value = {name: u[i] for i, name in enumerate(param_names)}
+                name_to_physical_value = {name: None for name in param_names}
                 
-        #         # First, we initialize the likelihood parameters (taken from the end of the hypercube)
-        #         for likelihood_param_name, likelihood_param_value in self.likelihood_params.items():
-        #             name_to_physical_value[likelihood_param_name] = likelihood_param_value.prior.icdf(u[-1])
+                # First, we initialize the likelihood parameters (taken from the end of the hypercube)
+                for likelihood_param_name, likelihood_param_value in self.likelihood_params.items():
+                    name_to_physical_value[likelihood_param_name] = likelihood_param_value.prior.icdf(u[-1])
                 
-        #         # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
-        #         # and use the icdf of the group prior to get the physical parameters for that group
-        #         for param_group in param_groups:
-        #             group_param_names = list(param_group.params.keys())
-        #             g = jnp.array([name_to_hypercube_value[name] for name in group_param_names])
-        #             param_values = param_group.prior.icdf(g)
-        #             for i, name in enumerate(group_param_names):
-        #                 name_to_physical_value[name] = param_values[i]
+                # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
+                # and use the icdf of the group prior to get the physical parameters for that group
+                for param_group in param_groups:
+                    group_param_names = list(param_group.params.keys())
+                    g = [name_to_hypercube_value[name] for name in group_param_names if name in param_names]
+                    
+                    # Either all parameters or no parameters must be present - the inverse transform is not partially defined
+                    if len(g) == 0:
+                        continue
+                    elif len(g) != len(group_param_names):
+                        raise Exception('Cannot use correlated priors where some parameters are fixed')
+                    
+                    g = jnp.array(g)
+                    param_values = param_group.prior.icdf(g)
+                    for i, name in enumerate(group_param_names):
+                        name_to_physical_value[name] = param_values[i]
                         
-        #         # Should probably check this outside of the function
-        #         if any(value is None for value in name_to_physical_value.values()):
-        #             raise Exception('Parameter found that did not belong to a parameter groups')
+                # Should probably check this outside of the function
+                if any(value is None for value in name_to_physical_value.values()):
+                    raise Exception('Parameter found that did not belong to a parameter groups')
                 
-        #         # Return the physical values
-        #         return jnp.array(name_to_physical_value.values())
+                # Return the physical values
+                return jnp.array(list(name_to_physical_value.values()))
+        
+        _prior_vals = prior_fn_jax(jnp.array([0.5] * len(param_names)))
         
         if numpy_input:
             prior_fn = lambda hypercube: np.array(prior_fn_jax(hypercube))
         else:
             prior_fn = prior_fn_jax
+            
+            
         return prior_fn
     
     def _make_log_prior_function(self, flat=False, numpy_input=False):

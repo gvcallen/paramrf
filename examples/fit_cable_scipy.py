@@ -21,10 +21,10 @@ model = PhysicalCoaxial(
     mur = Fixed(1.0),
     length = PercentNormal(10.0, 5.0),
     epr_model='bpoly',
-    epr_order=2,
     tand_model='bpoly',
-    tand_order=2
 )
+
+print(model.params(flat=True).keys())
 
 # Initialize the fitter. We fit on the real and imaginary and combine their results
 fitter = ScipyMinimizeFitter(
