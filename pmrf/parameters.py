@@ -67,8 +67,7 @@ class Parameter(eqx.Module):
     """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
-    # value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
-    value: jnp.ndarray
+    value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
     prior: Distribution | None = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
@@ -81,8 +80,11 @@ class Parameter(eqx.Module):
             return 0
         # A Parameter object itself represents a single fittable entity,
         # even if its value is an array. The prior handles the dimensionality.
-        if self.prior is not None and self.prior.event_dim > 0:
-            return self.prior.event_shape[0]
+        if self.prior is not None:
+            if len(self.prior.batch_shape) == 0:
+                return 1
+            else:
+                return self.prior.batch_shape[0]
         return 1    
     
     @property

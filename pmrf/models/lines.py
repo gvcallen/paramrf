@@ -252,27 +252,26 @@ class PhysicalCoaxial(RLGCLine):
     separate_rho: bool = False
     neglect_skin_inductance: bool = False
 
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            if k in {f.name for f in fields(self)}:
-                setattr(self, k, v)
-        
-        poly_params = ['epr', 'mur', 'tand', 'rho']
-        # If a polynomial model is specified we default to linear, unless {param}_order has been passed
-        for param in poly_params:
-            model = getattr(self, f'{param}_model')
-            if model != 'constant':
-                current = jnp.array(getattr(self, param))
-                order = kwargs.pop(f'{param}_order', 1)
-                # Set the coefficients if the user has not already
-                if jnp.isscalar(current):
-                    if model == 'bpoly':
-                        coeffs = [current] * (order+1)
-                    elif model == 'ppoly':
-                        coeffs = [current] + [0.0]*order
-                    else:
-                        raise Exception(f"Unknown frequency model for parameter {param}")
-                    setattr(self, param, coeffs)
+    # def __post_init__(self):
+    #     poly_params = ['epr', 'mur', 'tand', 'rho']
+    #     # If a polynomial model is specified we default to linear, unless {param}_order has been passed
+    #     for param in poly_params:
+    #         model = getattr(self, f'{param}_model')
+    #         value = jnp.array(getattr(self, param))
+    #         if model == 'constant':
+    #             if not jnp.isscalar(value):
+    #                 raise Exception("'Constant' coaxial parameters must have a scalar value")
+    #         else:
+    #             order = jnp
+    #             # Set the coefficients if the user has not already
+    #             if jnp.isscalar(value):
+    #                 if model == 'bpoly':
+    #                     coeffs = [value] * (order+1)
+    #                 elif model == 'ppoly':
+    #                     coeffs = [value] + [0.0]*order
+    #                 else:
+    #                     raise Exception(f"Unknown frequency model for parameter {param}")
+    #                 setattr(self, param, coeffs)
 
     def interpolated(self, param: str, freq: Frequency) -> jnp.ndarray:
         """Evaluates a potentially frequency-dependent parameter.
