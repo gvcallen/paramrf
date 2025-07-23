@@ -530,7 +530,7 @@ class Model(eqx.Module):
                 filter_spec = self._free_value_spec
         return partition(self, filter_spec, shared_spec)   
     
-    def params(self, include_fixed=False, flat=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def params(self, include_fixed=False, flat=False, flat_array=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """A dictionary of the core model parameters.
         
         Keys are returned as long parameter names, and values are the
@@ -542,6 +542,9 @@ class Model(eqx.Module):
             flat (bool):            Flattens internal parameters such that all parameters are 1D.
                                     Only possible if all parameters are separable. In this case, the return `Parameter`
                                     objects are not guaranteed to refer to the same internal `Parameter` objects.
+                                    Defaults to False.
+            flat_array (bool):      Same as `flat`, but returns a jax array of values instead of a dict of Parameter objects.
+                                    Defaults to False.
             submodels:              Specifies a submodel for which parameters should be returned.
 
         Returns:
@@ -550,11 +553,9 @@ class Model(eqx.Module):
         spec = self._core_object_spec if include_fixed else self._free_object_spec
         params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
         path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
-        
-        
         _params: dict[str, Parameter] = {self._path_to_param_name(path): param for path, param in path_and_params[0]}          
 
-        if flat:
+        if flat | flat_array:
             flat_params = {}
             for name, param in _params.items():
                 if param.ndim > 1:
@@ -573,7 +574,14 @@ class Model(eqx.Module):
             submodel_param_values = [param for submodel in submodels for param in submodel.params(include_fixed=include_fixed, flat=flat).values()]
             _params = {k: v for k, v in _params.items() if any(v is p for p in submodel_param_values)}
             
+        if flat_array:
+            return jnp.array([p.value for p in _params.values()])
+        
         return _params
+    
+    def param_names(self, include_fixed=False, flat=False, submodels=None):
+        params = self.params(include_fixed=include_fixed, flat=flat, submodels=submodels)
+        return list(params.keys())
         
     def param_groups(self, include_fixed=False, flat=False) -> list[ParameterGroup]:
         """A list of all parameter groups in the model.
@@ -608,7 +616,7 @@ class Model(eqx.Module):
         
     def with_params(
         self: ModelT,
-        params: dict[str, Parameter] | dict[str, float] | None = None,
+        params: dict[str, Parameter] | dict[str, float] | jnp.ndarray | None = None,
         check_missing: bool = False,
         check_unknown: bool = False,
         fix_others = False,
@@ -617,8 +625,9 @@ class Model(eqx.Module):
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
         
         Args:
-            params (dict[str, Parameter] | dict[str, float] | None, optional):      The parameter dictionary to updated from.
-                                                                                    Parameters can also be specified with key-word arguments.
+            params (dict[str, Parameter] | dict[str, float] | None, optional):      The parameter value to update from.
+                                                                                    If an array is passed, all values must be specified.
+                                                                                    Parameters can also be passed as key-word arguments.
                                                                                     Defaults to `None`.
             fix_others (bool):                                                      Whether or not to fix any parameters in the model that were not passed. Defaults to `False`.
             check_missing (bool):                                                   Specifies to check that all model parameters are passed. Defaults to `False`.
@@ -628,55 +637,67 @@ class Model(eqx.Module):
         Returns:
             ModelT: The model with the specific parameter changes.
         """
-        params = params if params is not None else {}
-        params.update(param_kwargs)
+        # Prepare input
+        if isinstance(params, dict):
+            params = params if params is not None else {}
+            params.update(param_kwargs)
         
-        # First, generate an ordered, input flat params array
-        new_params = self.params(include_fixed=True)
+            # Generate an ordered, input flat params array for verification
+            new_params = self.params(include_fixed=True)
         
-        # Validate the callers's input
-        unknown_params = set(params.keys() - new_params.keys())
-        if check_unknown and len(unknown_params) != 0:
-            raise Exception(f"Error: the following parameters were passed but are not in the model: {unknown_params}")
-        params = {k: v for k, v in params.items() if k not in unknown_params}
+            # Validate the callers's input
+            unknown_params = set(params.keys() - new_params.keys())
+            if check_unknown and len(unknown_params) != 0:
+                raise Exception(f"Error: the following parameters were passed but are not in the model: {unknown_params}")
+            params = {k: v for k, v in params.items() if k not in unknown_params}
         
-        if check_missing or fix_others:
-            missing_params = set(new_params.keys() - params.keys())
-            if check_missing and len(missing_params) != 0:
-                raise Exception(f"Error: the following model parameters were missing: {missing_params}")
-            if fix_others:
-                for missing_param_name in missing_params:
-                    new_params[missing_param_name] = dataclasses.replace(new_params[missing_param_name], fixed=True)
+            if check_missing or fix_others:
+                missing_params = set(new_params.keys() - params.keys())
+                if check_missing and len(missing_params) != 0:
+                    raise Exception(f"Error: the following model parameters were missing: {missing_params}")
+                if fix_others:
+                    for missing_param_name in missing_params:
+                        new_params[missing_param_name] = dataclasses.replace(new_params[missing_param_name], fixed=True)
                         
-        def is_convertible_to_float(x):
-            try:
-                float(x)
-                return True
-            except (ValueError, TypeError):
-                return False
+            def is_convertible_to_float(x):
+                try:
+                    float(x)
+                    return True
+                except (ValueError, TypeError):
+                    return False
 
-        # Convert to an array of parameters instead of floats
-        if all(is_convertible_to_float(v) for v in params.values()):            
-            for name, value in params.items():
-                # TODO create specs for the full parameter objects such that we can get and use the built-in scales
-                new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value), scale=1.0)
+            # Convert to an array of parameters instead of floats
+            if all(is_convertible_to_float(v) for v in params.values()):            
+                for name, value in params.items():
+                    # TODO create specs for the full parameter objects such that we can get and use the built-in scales
+                    new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value), scale=1.0)
+            else:
+                new_params.update(params)
+            new_flat_params = list(new_params.values())
+        
+            # Get the current flat parameter object
+            params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
+            flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
+            
+            # We allow the caller to pass None for name and then we update the name. Otherwise names should match
+            for i, param in enumerate(flat_params):
+                if new_flat_params[i].name == None:
+                    new_flat_params[i] = dataclasses.replace(new_flat_params[i], name=param.name)
+            
+            # Create the update tree and return
+            new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
+            combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
+            return combined
         else:
-            new_params.update(params)
-        new_flat_params = list(new_params.values())
-        
-        # Get the current flat parameter object
-        params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
-        flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
-        
-        # We allow the caller to pass None for name and then we update the name. Otherwise names should match
-        for i, param in enumerate(flat_params):
-            if new_flat_params[i].name == None:
-                new_flat_params[i] = dataclasses.replace(new_flat_params[i], name=param.name)
-        
-        # Create the update tree and return
-        new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
-        combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
-        return combined
+            params = jnp.array(params)
+            params_tree, static = self.partition()            
+            params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
+            
+            if jnp.isscalar(params_out) or params_out.shape[0] == 0:
+                raise Exception("Error: no free model parameters found to make feature function")
+            
+            params_tree_recon = unravel_fn(params)
+            return combine(params_tree_recon, static)            
     
     def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup], flat=False) -> ModelT:
         # Method 1
