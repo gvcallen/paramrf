@@ -21,6 +21,8 @@ class NumPyroFitter(BayesianFitter):
         
         # Get the model parameters
         params = self.initial_model.flat_params()
+        self._make_log_prior_fn()
+        
         param_names = list(params.keys())
         param_priors = [param.prior for param in params.values()]
         

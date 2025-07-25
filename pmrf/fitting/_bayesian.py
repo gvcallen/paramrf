@@ -58,7 +58,7 @@ class BayesianFitter(BaseFitter):
     def _flat_param_names(self) -> list[str]:
         return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())
     
-    def _make_prior_transform_function(self, as_numpy=False):
+    def _make_prior_transform_fn(self, as_numpy=False):
         model_prior_transform_fn = make_prior_fn(self.initial_model)
         likelihood_prior_transform_fn = lambda hypercube: jnp.array([param.prior.icdf(hypercube[i]) for i, param in enumerate(self.likelihood_params.values())])
         
@@ -80,7 +80,7 @@ class BayesianFitter(BaseFitter):
         
         return prior_transform_fn
     
-    def _make_log_prior_function(self, as_numpy=False):
+    def _make_log_prior_fn(self, as_numpy=False):
         model_prior_logprob_fn = make_prior_fn(self.initial_model, kind='log_prob')
         likelihood_prior_logprob_fn = lambda hypercube: jnp.array([param.prior.log_prob(hypercube[i]) for i, param in enumerate(self.likelihood_params.values())])
         
@@ -134,6 +134,6 @@ class BayesianFitter(BaseFitter):
             y_pred = jnp.real(feature_fn_jax(theta))
             y_meas = jnp.real(self.measured_features)
             logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
-            return logL        
+            return logL
         
         return loglikelihood_fn

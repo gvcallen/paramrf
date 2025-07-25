@@ -41,7 +41,7 @@ class JAXNSFitter(BayesianFitter):
         
         x0 = self.initial_model.flat_params()
         loglikelihood_fn = self._make_log_likelihood_fn()
-        prior_fn = self._make_prior_transform_function()
+        prior_fn = self._make_prior_transform_fn()
 
         if num_live_points is None:
             num_live_points = 25 * len(param_names)

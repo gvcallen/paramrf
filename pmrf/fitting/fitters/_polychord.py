@@ -25,7 +25,7 @@ class PolychordFitter(BayesianFitter):
         # Generate prior and likelihood functions
         x0 = np.array(self.initial_model.flat_params())
         loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
-        prior_fn = self._make_prior_transform_function(as_numpy=True)
+        prior_fn = self._make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')

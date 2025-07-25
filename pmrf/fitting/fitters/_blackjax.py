@@ -28,7 +28,7 @@ class BlackjaxNSFitter(BayesianFitter):
         
         x0 = self.initial_model.flat_params()
         loglikelihood_fn = self._make_log_likelihood_fn()
-        logprior_fn = self._make_log_prior_function()
+        logprior_fn = self._make_log_prior_fn()
 
         loglikelihood_fn = jax.jit(loglikelihood_fn)
         logprior_fn = jax.jit(logprior_fn)
