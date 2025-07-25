@@ -10,8 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf._frequency import Frequency
-from pmrf._model import Model
-from pmrf._features import extract_features, make_feature_function
+from pmrf._model import Model, make_feature_function
 from pmrf._constants import FeatureInputT
 
 class BaseSampler(ABC):
@@ -78,7 +77,7 @@ class BaseSampler(ABC):
             frequency = Frequency.from_skrf(frequency)
         
         params_matrix = jnp.array(self._generate_param_matrix(N))
-        feature_fn, params_out = make_feature_function(self.model, features, frequency, dtype=dtype, jit=not dont_jit, flat=True, return_params=True)
+        feature_fn, params_out = make_feature_function(self.model, features, frequency, dtype=dtype, flat=True, return_params=True)
         self.logger.info('Compiling feature function...')
         _features0 = feature_fn(params_out)
 
@@ -97,13 +96,12 @@ class BaseSampler(ABC):
         X = self._generate_hypercube_samples(N, D)    
         
         mapped = []
-        for d in range(D):
+        for d, param in enumerate(params.values()):
             x_d = X[:, d]  # Shape (N,)
-            p = params[d]
-            if p.prior is not None:
-                mapped_d = p.prior.icdf(x_d)
+            if param.prior is not None:
+                mapped_d = param.prior.icdf(x_d)
             else:
-                mapped_d = p.min + x_d * p.max
+                mapped_d = param.min + x_d * param.max
             mapped.append(mapped_d)
 
         return np.stack(mapped, axis=0).T

@@ -63,17 +63,13 @@ class BayesianFitter(BaseFitter):
         param_groups: list[ParameterGroup] = self.initial_model.param_groups(flat=True)
         param_names = list(self._params().keys())
         
-        # priors = [param.prior for param in self._params().values()]
-        # if any(x is None for x in priors):
-        #     raise Exception("Found free parameter without a prior")
-        # prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
-        
-        # The first case is for independent priors (each group maps to one parameter) where the second case is for correlated priors
+        # The first case is for independent priors (each group maps to one parameter) whereas the second case is for correlated priors
         if len(param_groups) == len(param_names):
             priors = [param.prior for param in self._params()]
             if any(x is None for x in priors):
                 raise Exception("Found free parameter without a prior")
             prior_fn_jax = lambda hypercube: jnp.array([prior.icdf(hypercube[i]) for i, prior in enumerate(priors)])
+            prior_fn_jax = jax.jit(prior_fn_jax)
         else:
             @jax.jit
             def prior_fn_jax(u: jnp.ndarray):
@@ -82,8 +78,8 @@ class BayesianFitter(BaseFitter):
                 name_to_physical_value = {name: None for name in param_names}
                 
                 # First, we initialize the likelihood parameters (taken from the end of the hypercube)
-                for likelihood_param_name, likelihood_param_value in self.likelihood_params.items():
-                    name_to_physical_value[likelihood_param_name] = likelihood_param_value.prior.icdf(u[-1])
+                for i, (likelihood_param_name, likelihood_param_value) in enumerate(self.likelihood_params.items()):
+                    name_to_physical_value[likelihood_param_name] = likelihood_param_value.prior.icdf(u[-i])
                 
                 # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
                 # and use the icdf of the group prior to get the physical parameters for that group
@@ -110,13 +106,10 @@ class BayesianFitter(BaseFitter):
                 return jnp.array(list(name_to_physical_value.values()))
         
         _prior_vals = prior_fn_jax(jnp.array([0.5] * len(param_names)))
-        
         if numpy_input:
             prior_fn = lambda hypercube: np.array(prior_fn_jax(hypercube))
         else:
             prior_fn = prior_fn_jax
-            
-            
         return prior_fn
     
     def _make_log_prior_function(self, flat=False, numpy_input=False):

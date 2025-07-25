@@ -888,7 +888,7 @@ def make_reconstruct_function(
     if return_params:
         return reconstruct_fn, params_out
     else:
-        reconstruct_fn
+        return reconstruct_fn
         
 def make_feature_function(
     model: Model,
