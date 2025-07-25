@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf._frequency import Frequency
-from pmrf._model import Model, make_feature_function
+from pmrf._model import Model, make_feature_fn, make_prior_fn
 from pmrf._constants import FeatureInputT
 
 class BaseSampler(ABC):
@@ -24,7 +24,7 @@ class BaseSampler(ABC):
             raise Exception('Error: to use this class as an iterator, call e.g. enumerate (CircuitSampler.range(n))')
 
         N = self.N
-        params_matrix = self._generate_param_matrix(N)
+        params_matrix = self._generate_params(N)
         params, static = self.model.params()
         _, ravel_fn = flatten_util.ravel_pytree(params)
         for i in N:
@@ -63,7 +63,7 @@ class BaseSampler(ABC):
         Returns:
             _type_: Model | None
         """
-        params_matrix = self._generate_param_matrix(N)
+        params_matrix = self._generate_params(N)
 
         models = []
         params, static = self.model.partition()
@@ -76,10 +76,12 @@ class BaseSampler(ABC):
         if isinstance(frequency, skrf.Frequency):
             frequency = Frequency.from_skrf(frequency)
         
-        params_matrix = jnp.array(self._generate_param_matrix(N))
-        feature_fn, params_out = make_feature_function(self.model, features, frequency, dtype=dtype, flat=True, return_params=True)
+        params_matrix = jnp.array(self._generate_params(N))
+        params = self.model.flat_params()
+        feature_fn = make_feature_fn(self.model, features, frequency, dtype=dtype)
+        
         self.logger.info('Compiling feature function...')
-        _features0 = feature_fn(params_out)
+        _features0 = feature_fn(params)
 
         self.logger.info('Generating features.')
         
@@ -89,22 +91,20 @@ class BaseSampler(ABC):
 
         return vectorized_fn(params_matrix)
     
-    def _generate_param_matrix(self, N):
-        params = self.model.params(flat=True)
+    def _generate_params(self, N):
+        params = self.model.flat_params()
         D = len(params)
 
-        X = self._generate_hypercube_samples(N, D)    
+        U = self._generate_hypercube_samples(N, D)
+        prior_transform_fn = make_prior_fn(self.model)
         
-        mapped = []
-        for d, param in enumerate(params.values()):
-            x_d = X[:, d]  # Shape (N,)
-            if param.prior is not None:
-                mapped_d = param.prior.icdf(x_d)
-            else:
-                mapped_d = param.min + x_d * param.max
-            mapped.append(mapped_d)
+        X = []
+        for i in range(N):
+            u = U[i, :]
+            x = prior_transform_fn(u)
+            X.append(x)
 
-        return np.stack(mapped, axis=0).T
+        return np.stack(X, axis=0)
     
     @abstractmethod
     def _generate_hypercube_samples(self, N, D) -> np.ndarray:

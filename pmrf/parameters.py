@@ -222,11 +222,8 @@ class ParameterGroup:
     """
     params: dict[str, Parameter | None]
     prior: dist.Distribution | None = field(default=None)
-    flat: bool = False
     
-    def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None, flat=flat):
-        self.flat = flat
-        
+    def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
         if isinstance(params, list):
             self.params = {name: None for name in params}
             self.prior = prior

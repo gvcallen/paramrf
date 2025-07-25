@@ -24,7 +24,7 @@ model = PhysicalCoaxial(
     tand_model='bpoly',
 )
 
-print(model.params(flat=True).keys())
+print(model.flat_params().keys())
 
 # Initialize the fitter. We fit on the real and imaginary and combine their results
 fitter = ScipyMinimizeFitter(

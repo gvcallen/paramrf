@@ -18,14 +18,14 @@ class PolychordFitter(BayesianFitter):
         import pypolychord
         
         # Get the model parameters
-        param_names = list(self._params().keys())
+        param_names = self._flat_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
-        recon_fn, x0 = self._make_reconstruct_function(return_params=True, numpy_input=True)
-        loglikelihood_fn = self._make_log_likelihood_function(numpy_input=True)
-        prior_fn = self._make_inverse_cdf_function(numpy_input=True)
+        x0 = np.array(self.initial_model.flat_params())
+        loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
+        prior_fn = self._make_prior_transform_function(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
@@ -52,7 +52,7 @@ class PolychordFitter(BayesianFitter):
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
         return AnestheticResults(
-            model=recon_fn(x0),
+            model=self.initial_model.with_flat_params(x0),
             initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,

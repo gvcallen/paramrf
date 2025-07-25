@@ -62,13 +62,13 @@ class FrequentistFitter(BaseFitter):
         
         self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
         
-    def _make_cost_function(self, flat=False, return_params=False, numpy_input=False):
-        flat = flat or numpy_input
-        feature_fn_jax, x0_jax = self._make_feature_function(flat=flat, return_params=True)
+    def _make_cost_function(self, as_numpy=False):
+        x0_jax = self.initial_model.flat_params()
+        feature_fn_jax = self._make_feature_function()
 
         # Define the JAX cost function to be minimized
         @jax.jit
-        def cost_fn_jax(flat_params) -> jnp.ndarray:
+        def cost_fn(flat_params) -> jnp.ndarray:
             model_features = feature_fn_jax(flat_params)
             error = self.measured_features - model_features
             cost_val = self.cost_metric_fn(error)
@@ -77,23 +77,20 @@ class FrequentistFitter(BaseFitter):
             else:
                 return cost_val[0]
             
-        if numpy_input:
+        if as_numpy:
+            cost_fn_jax = cost_fn
             cost_fn = lambda x: float(cost_fn_jax(jnp.array(x)))
-            x0 = np.array(x0_jax)
-        else:
-            cost_fn = cost_fn_jax
-            x0 = x0_jax
+            x0_np = np.array(x0_jax)
+            x0 = x0_np
             
         self.logger.info(f"Compiling cost function...")
         _c0 = cost_fn(x0)
         
-        if return_params:
-            return cost_fn, x0
         return cost_fn
     
     def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
-        param_groups: list[ParameterGroup] = self.initial_model.param_groups(flat=True)
-        param_names = list(self.initial_model.params(flat=True).keys())
+        param_groups = self.initial_model.param_groups()
+        param_names = self.initial_model.flat_param_names()
         
         name_to_minimum = {name: None for name in param_names}
         name_to_maximum = {name: None for name in param_names}

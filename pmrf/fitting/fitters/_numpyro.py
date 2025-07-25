@@ -20,13 +20,14 @@ class NumPyroFitter(BayesianFitter):
         import numpyro.distributions as dist
         
         # Get the model parameters
-        params = self.initial_model.params(flat=True)
+        params = self.initial_model.flat_params()
         param_names = list(params.keys())
         param_priors = [param.prior for param in params.values()]
         
         # Generate feature function and prepare the obs
         self.logger.info("Compiling model and likelihood function...")
-        feature_fn, x0 = self._make_feature_function(flat=True, return_params=True)
+        x0 = self.initial_model.flat_params()
+        feature_fn = self._make_feature_function()
         feature_fn = jax.jit(feature_fn)
         _y0 = feature_fn(x0)
         
@@ -52,11 +53,8 @@ class NumPyroMCMCFitter(NumPyroFitter):
             kernel = NUTS
         
         # Get the model parameters
-        params = self.initial_model.params(flat=True)
+        params = self.initial_model.flat_params()
         param_names = list(params.keys())
-        
-        # Generate feature function and prepare the obs
-        recon_fn = self._make_reconstruct_function(flat=True)
         
         # Define the numpyro model
         numpyro_model = self._make_numpyro_model()
@@ -75,7 +73,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = recon_fn(x_mean)
+        fitted_model = self.initial_model.with_flat_params(x_mean)
         
         # Return the results
         return NumPyroResults(
@@ -95,11 +93,8 @@ class NumPyroNSFitter(NumPyroFitter):
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
-        params = self.initial_model.params(flat=True)
+        params = self.initial_model.flat_params()
         param_names = list(params.keys())
-        
-        # Generate feature function and prepare the obs
-        recon_fn = self._make_reconstruct_function(flat=True)
         
         # Define the numpyro model
         numpyro_model = self._make_numpyro_model()
@@ -115,7 +110,7 @@ class NumPyroNSFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = recon_fn(x_mean)
+        fitted_model = self.initial_model.with_flat_params(x_mean)
         
         # Return the results
         return NumPyroResults(

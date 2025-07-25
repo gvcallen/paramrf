@@ -528,9 +528,9 @@ class Model(eqx.Module):
                 filter_spec = self._core_value_spec
             else:
                 filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)   
+        return partition(self, filter_spec, shared_spec)
     
-    def params(self, include_fixed=False, flat=False, flat_array=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def params(self, include_fixed=False, flat=False, flat_params=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """A dictionary of the core model parameters.
         
         Keys are returned as long parameter names, and values are the
@@ -540,10 +540,9 @@ class Model(eqx.Module):
         Args:
             include_fixed (bool):   Whether or not to also return fixed (fit) parameters. Defaults to `False`.
             flat (bool):            Flattens internal parameters such that all parameters are 1D.
-                                    Only possible if all parameters are separable. In this case, the return `Parameter`
-                                    objects are not guaranteed to refer to the same internal `Parameter` objects.
-                                    Defaults to False.
-            flat_array (bool):      Same as `flat`, but returns a jax array of values instead of a dict of Parameter objects.
+                                    Only possible if all parameters are separable. Returns an array.
+            flat_params (bool):     Same as `flat`, but returns a dict containing of manufactured parameter objects
+                                    instead of an array.
                                     Defaults to False.
             submodels:              Specifies a submodel for which parameters should be returned.
 
@@ -555,16 +554,16 @@ class Model(eqx.Module):
         path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
         _params: dict[str, Parameter] = {self._path_to_param_name(path): param for path, param in path_and_params[0]}          
 
-        if flat | flat_array:
-            flat_params = {}
+        if flat | flat_params:
+            flat_params_dict = {}
             for name, param in _params.items():
                 if param.ndim > 1:
                     param_flattened = param.flatten(separator=self.separator)
                     for i, subparam in enumerate(param_flattened):
-                        flat_params[f'{name}{self.separator}{i}'] = subparam
+                        flat_params_dict[f'{name}{self.separator}{i}'] = subparam
                 else:
-                    flat_params[name] = param
-            _params = flat_params
+                    flat_params_dict[name] = param
+            _params = flat_params_dict
 
         if submodels is not None:
             if isinstance(submodels, Model) or isinstance(submodels, str):
@@ -574,16 +573,25 @@ class Model(eqx.Module):
             submodel_param_values = [param for submodel in submodels for param in submodel.params(include_fixed=include_fixed, flat=flat).values()]
             _params = {k: v for k, v in _params.items() if any(v is p for p in submodel_param_values)}
             
-        if flat_array:
+        if flat and not flat_params:
             return jnp.array([p.value for p in _params.values()])
         
         return _params
     
-    def param_names(self, include_fixed=False, flat=False, submodels=None):
-        params = self.params(include_fixed=include_fixed, flat=flat, submodels=submodels)
+    def flat_params(self, *args, **kwargs) -> jnp.ndarray:
+        return self.params(*args, flat=True, **kwargs)
+    
+    def flat_param_objects(self, *args, **kwargs) -> list[Parameter]:
+        return self.params(*args, flat=True, flat_params=True, **kwargs)
+    
+    def flat_param_names(self) -> list[str]:
+        return list(self.params(flat_params=True).keys())
+    
+    def param_names(self, *args, **kwargs):
+        params = self.params(*args, **kwargs)
         return list(params.keys())
         
-    def param_groups(self, include_fixed=False, flat=False) -> list[ParameterGroup]:
+    def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
         """A list of all parameter groups in the model.
         
         This function is useful for fitters that need to take into account
@@ -595,25 +603,21 @@ class Model(eqx.Module):
         
         Args:
             include_fixed (bool):   Whether or not to also return fixed (fit) parameters. Defaults to `False`.
-            flat (bool):            Flattens internal parameters such that all parameters are 1D.
-                                    Only possible if all parameters are separable. In this case, the return `Parameter`
-                                    objects are not guaranteed to refer to the same internal `Parameter` objects.
 
         Returns:
             dict[str, Parameter]: The parameter dictionary.
         """
         
-        params = self.params(include_fixed=include_fixed, flat=flat)
-        
-        groups = [group for group in self._param_groups if group.flat == flat]
+        params = self.flat_param_objects(include_fixed=include_fixed)
+        groups = [group for group in self._param_groups]
 
         grouped_param_names = {name for group in groups for name in group.params.keys()}
         for name, param in params.items():
             if name not in grouped_param_names:
-                groups.append(ParameterGroup(params={name: param}, prior=param.prior, flat=flat))
+                groups.append(ParameterGroup(params={name: param}, prior=param.prior))
         
         return groups
-        
+    
     def with_params(
         self: ModelT,
         params: dict[str, Parameter] | dict[str, float] | jnp.ndarray | None = None,
@@ -697,9 +701,12 @@ class Model(eqx.Module):
                 raise Exception("Error: no free model parameters found to make feature function")
             
             params_tree_recon = unravel_fn(params)
-            return combine(params_tree_recon, static)            
+            return combine(params_tree_recon, static)   
+        
+    def with_flat_params(self, *args, **kwargs):
+        return self.with_params(*args, **kwargs)
     
-    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup], flat=False) -> ModelT:
+    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
         # Method 1
         # joint_names = ['length', 'zn', 'k1']
         # joint_prior = Distribution(...)
@@ -713,17 +720,13 @@ class Model(eqx.Module):
         if not isinstance(param_groups, list):
             param_groups = [param_groups]
         
-        all_params = self.params(include_fixed=True, flat=flat)
+        all_params = self.flat_params(fixed=True)
         
         param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
-        for param_group_old in param_groups_old:
-            if param_group_old.flat != flat:
-                raise Exception('Cannot mix flat and non-flat parameter groups')
         
         param_groups_new = param_groups_old
         param_groups_new.extend(param_groups)
         param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups_new]
-        param_groups_new = [dataclasses.replace(param_group_new, flat=flat) for param_group_new in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         
     
@@ -804,10 +807,10 @@ class Model(eqx.Module):
             ModelT: A new model with the parameters not in `free_submodels` fixed.
         """
         if isinstance(free_submodels, Model) or isinstance(free_submodels, str):
-            free_submodels = [free_submodels]
+            free_submodels: list[Model] = [free_submodels]
         
         if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
-            free_submodels = [getattr(self, name) for name in free_submodels]
+            free_submodels: list[Model] = [getattr(self, name) for name in free_submodels]
 
         allowed_free_param_values = [param for source in free_submodels for param in source.params().values()]
         allowed_free_params = {k: v for k, v in self.params().items() if any(v is p for p in allowed_free_param_values)}
@@ -842,62 +845,13 @@ class Model(eqx.Module):
         })
 
         return skrf.Network(**kwargs)    
-    
-def make_reconstruct_function(
-    model: Model,
-    flat = False,
-    return_params = False,
-    numpy_input = False,
-) -> tuple[Callable, ModelParametersT]:
-    """Generate a reconstruct function to parametrically reconstruct a model, either from flat parameters or from the dynamic component of the model.
-    
-    Args:
-        model (Model):                              The model to generate the feature functions for.
-        flat (bool):                                Whether the feature function should accept a flat array as input.
-        return_params (bool):                       Specifies that the parameters should be returned alongside the feature function.
-                                                    For the flat case, the parameters are returned as an array. Defaults to `False`.
-        numpy_input (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
-                                                    Mutually exclusive with `flat` since `numpy_input` implies it.
-
-    Returns:
-        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
-    """    
-    flat = flat or numpy_input
-    params_tree, static = model.partition()
-    
-    if flat:
-        params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
         
-        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
-            raise Exception("Error: no free model parameters found to make feature function")
-        
-        def reconstruct_fn_jax(flat_params) -> Model:
-            params_tree_recon = unravel_fn(flat_params)
-            return combine(params_tree_recon, static)
-    else:
-        params_out = params_tree
-        def reconstruct_fn_jax(params_tree) -> Model:
-            return combine(params_tree, static)
-        
-    if numpy_input:
-        params_out = np.array(params_out)
-        reconstruct_fn = lambda x: reconstruct_fn_jax(jnp.array(x))
-    else:
-        reconstruct_fn = reconstruct_fn_jax
-        
-    if return_params:
-        return reconstruct_fn, params_out
-    else:
-        return reconstruct_fn
-        
-def make_feature_function(
+def make_feature_fn(
     model: Model,
     features: FeatureInputT,
     freq: Frequency | skrf.Frequency,
     dtype: jnp.dtype = jnp.complex128,
-    flat = False,
-    return_params = False,
-    numpy_input = False,
+    as_numpy = False,
     nderiv = 0,
 ) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
     """Generate a feature function to parametrically extract model features.
@@ -916,10 +870,7 @@ def make_feature_function(
         features (FeatureT | FeatureList):          The list of features. See `extract_features` for more information.
         freq (pmrf.Frequency):                      The frequency to extract the features at, treated as a static argument.
         dtype (jnp.dtype, optional):                The data type of the final out feature matrix.        
-        flat (bool):                                Whether the feature function should accept a flat array as input.
-        return_params (bool):                       Specifies that the parameters should be returned alongside the feature function.
-                                                    For the flat case, the parameters are returned as an array. Defaults to `False`.
-        numpy_input (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
+        as_numpy (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
                                                     Only for the flat case.        
         nderiv (int):                               The number of derives to take of the feature function. Default to 0 for the original function.
 
@@ -928,36 +879,62 @@ def make_feature_function(
     """
     from pmrf._features import extract_features
     
-    flat = flat or numpy_input
     if isinstance(freq, skrf.Frequency):
         freq = Frequency.from_skrf(freq)
     
-    reconstruct_fn, params_out = make_reconstruct_function(model, flat=flat, return_params=True)
-    
-    if flat:
-        if jnp.isscalar(params_out) or params_out.shape[0] == 0:
-            raise Exception("Error: no free model parameters found to make feature function")
-        
-        def feature_fn_jax(flat_params) -> jnp.ndarray:
-            model_recon = reconstruct_fn(flat_params)
-            return extract_features(model_recon, features, freq, dtype=dtype)
-    else:
-        def feature_fn_jax(tree_params) -> jnp.ndarray:
-            model_recon = reconstruct_fn(tree_params)
-            return extract_features(model_recon, features, freq, dtype=dtype)
+    @jax.jit
+    def feature_fn(flat_params) -> jnp.ndarray:
+        model_recon = model.with_flat_params(flat_params)
+        return extract_features(model_recon, features, freq, dtype=dtype)
 
     for _ in range(nderiv):
-        feature_fn_jax = jax.jacfwd(feature_fn_jax)
+        feature_fn = jax.jacfwd(feature_fn)
         
-    feature_fn_jax = jax.jit(feature_fn_jax)
-        
-    if numpy_input:
+    if as_numpy:
         params_out = np.array(params_out)
-        feature_fn = lambda x: feature_fn_jax(jnp.array(x))
-    else:
-        feature_fn = feature_fn_jax        
+        feature_fn_np = lambda x: np.array(feature_fn(jnp.array(x)))
+        feature_fn = feature_fn_np
     
-    if return_params:
-        return feature_fn, params_out
-    else:
-        return feature_fn    
+    return feature_fn    
+    
+def make_prior_fn(model: Model, kind='icdf', as_numpy=False):
+    param_groups: list[ParameterGroup] = model.param_groups()
+    param_names = model.flat_param_names()
+    
+    # The first case is for independent priors (each group maps to one parameter) whereas the second case is for correlated priors
+    @jax.jit
+    def prior_transform_fn(u: jnp.ndarray):
+        # We assign groups of d hypercube values to corresponding groups of physical values
+        name_to_hypercube_value = {name: u[i] for i, name in enumerate(param_names)}
+        name_to_physical_value = {name: None for name in param_names}
+        
+        # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
+        # and use the icdf of the group prior to get the physical parameters for that group
+        for param_group in param_groups:
+            group_param_names = list(param_group.params.keys())
+            g = [name_to_hypercube_value[name] for name in group_param_names if name in param_names]
+            
+            # Either all parameters or no parameters must be present - the inverse transform is not partially defined
+            if len(g) == 0:
+                continue
+            elif len(g) != len(group_param_names):
+                raise Exception('Cannot use correlated priors where some parameters are fixed')
+            
+            g = jnp.array(g)
+            prior_attr_fn = getattr(param_group.prior, kind)
+            param_values = prior_attr_fn(g)
+            for i, name in enumerate(group_param_names):
+                name_to_physical_value[name] = param_values[i]
+                
+        # Should probably check this outside of the function
+        if any(value is None for value in name_to_physical_value.values()):
+            raise Exception('Parameter found that did not belong to a parameter groups')
+        
+        # Return the physical values
+        return jnp.array(list(name_to_physical_value.values()))
+    
+    if as_numpy:
+        prior_transform_fn_np = lambda hypercube: np.array(prior_transform_fn(hypercube))
+        prior_transform_fn = prior_transform_fn_np
+    
+    return prior_transform_fn

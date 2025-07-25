@@ -1,7 +1,7 @@
 from pmrf._model import (
     Model as Model,
-    make_reconstruct_function,
-    make_feature_function,
+    make_feature_fn,
+    make_prior_fn,
 )
 from pmrf._util import (
     field,
