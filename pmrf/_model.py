@@ -706,6 +706,9 @@ class Model(eqx.Module):
     def with_flat_params(self, *args, **kwargs):
         return self.with_params(*args, **kwargs)
     
+    def with_replaced(self: ModelT, *args, **kwargs) -> ModelT:
+        return dataclasses.replace(self, *args, **kwargs)
+    
     def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
         # Method 1
         # joint_names = ['length', 'zn', 'k1']

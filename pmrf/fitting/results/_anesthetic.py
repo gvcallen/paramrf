@@ -5,6 +5,23 @@ import h5py
 from pmrf.fitting._bayesian import BayesianResults
 
 class AnestheticResults(BayesianResults):
+    from anesthetic import NestedSamples
+    
+    @property
+    def samples(self):
+        nested_samples = self.nested_samples
+        model = self.model
+        return nested_samples.loc[:, model.flat_param_names() + ['sigma']]
+    
+    @property
+    def weights(self):
+        nested_samples = self.nested_samples
+        return nested_samples.get_weights()
+    
+    @property
+    def nested_samples(self) -> NestedSamples:
+        return self.solver_results
+    
     def encode_solver_results(self, group: h5py.Group):
         samples = self.solver_results
         group['samples'] = samples.to_csv()

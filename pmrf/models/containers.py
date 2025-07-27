@@ -160,7 +160,7 @@ class Renumbered(Model):
         model = self.model
         to_ports, from_ports = self.to_ports, self.from_ports
 
-        if model.primary_property == 'a' and len(from_ports) != 1 and len(to_ports) != 1:
+        if model.primary_property == 'a' and len(from_ports) != 2 and len(to_ports) != 2:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")
         
         # TODO upgrade for matrix z0
