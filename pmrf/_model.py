@@ -642,7 +642,7 @@ class Model(eqx.Module):
             ModelT: The model with the specific parameter changes.
         """
         # Prepare input
-        if isinstance(params, dict):
+        if isinstance(params, dict) or len(param_kwargs) != 0:
             params = params if params is not None else {}
             params.update(param_kwargs)
         
