@@ -336,6 +336,24 @@ class Model(eqx.Module):
         freq = Frequency(1, 2, 2)
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
+    
+    @cached_property
+    def num_flat_params(self) -> int:
+        """The number of free, flattened parameters in the model.
+
+        Returns:
+            int: The number of flattened parameters.
+        """
+        return len(self.flat_params())
+    
+    @cached_property
+    def num_params(self) -> int:
+        """The number of free parameters in the model.
+
+        Returns:
+            int: The number of free parameters.
+        """
+        return len(self.params())
 
     @property
     def nports(self) -> int:
