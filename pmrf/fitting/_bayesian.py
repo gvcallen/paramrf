@@ -47,13 +47,36 @@ class BayesianFitter(BaseFitter):
                 Note that note all features are compatibile with all likelihoods,
                 but no error checking is currently done for this.
                 Defaults to `None`.
+            likelihood_kind (str, optional):
+                The kind of likelihood to use. Defaults to "gaussian" for a one-dimensional Gaussian likelihood
+                requiring a single likelihood parameter 'sigma'. Can also be "multivariate_gaussian", in which case either
+                multiple standard deviations 'sigma_0', 'sigma_1', ..., 'sigma_N' may be passed, where N is the number of features,
+                or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
+                of size N containing the names of the likelihood parameters to use for each feature.
+            likelihood_params (dict[str, Parameter], optional):
+                A dictionary of likelihood parameters to use for the likelihood function.
         """
-        if likelihood_kind != "gaussian" or (likelihood_params is not None and len(likelihood_params) > 1):
-            raise Exception("Currently only a gaussian likelihood with a single sigma parameter is supported")
-        
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
-        self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': Uniform(0.0, 50.0e-3, name='sigma')}
-        self.likelihood_kind = likelihood_kind
+        
+        if likelihood_kind == 'multivariate_gaussian':
+            if likelihood_params is None:
+                raise Exception('Likelihood parameters must be provided for multivariate Gaussian likelihoods')
+            if 'feature_sigmas' in likelihood_params:
+                feature_sigmas = likelihood_params.pop('feature_sigmas', None)
+                if feature_sigmas is None:
+                    raise Exception('Currently on feature_sigmas is supported for multivariate Gaussian likelihoods')
+                self.feature_sigmas = feature_sigmas
+            
+            self.likelihood_kind = likelihood_kind
+            self.likelihood_params = likelihood_params
+        elif likelihood_kind == 'gaussian':        
+            if likelihood_params is not None and len(likelihood_params) > 1:
+                raise Exception("A gaussian likelihood only has a single likelihood parameter 'sigma'")
+
+            self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': Uniform(0.0, 50.0e-3, name='sigma')}
+            self.likelihood_kind = likelihood_kind
+        else:
+            raise Exception(f"Unsupported likelihood kind: {likelihood_kind}")
         
     @property
     def num_params(self) -> int:
@@ -103,13 +126,14 @@ class BayesianFitter(BaseFitter):
         return logprior_fn
         
     def _make_log_likelihood_fn(self, as_numpy=False):
-        if self.likelihood_kind != 'gaussian':
-            raise Exception('Unsupported likelihood kind')
-        
-        log_likelihood_fn = self._make_gaussian_log_likelihood_fn()
-        
-        x0 = jnp.array(list(self.initial_model.flat_params()) + [self.likelihood_params['sigma'].prior.mean])
-        
+        if self.likelihood_kind == 'gaussian':        
+            log_likelihood_fn = self._make_gaussian_log_likelihood_fn()        
+        elif self.likelihood_kind == 'multivariate_gaussian':
+            log_likelihood_fn = self._make_multivariate_gaussian_log_likelihood_fn()
+        else:
+            raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
+
+        x0 = jnp.array(list(self.initial_model.flat_params()) + [param.prior.mean for param in self.likelihood_params.values()])
         if as_numpy:
             log_likelihood_fn_jax = log_likelihood_fn
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
@@ -121,16 +145,7 @@ class BayesianFitter(BaseFitter):
         return log_likelihood_fn
     
     def _make_gaussian_log_likelihood_fn(self):
-        feature_fn_jax = self._make_feature_function()
-        
-        # def norm_logpdf(x, loc=0.0, scale=1.0):
-        #     return -0.5 * jnp.log(2 * jnp.pi * scale**2) - 0.5 * ((x - loc)**2) / (scale**2)
-        # def gaussian_log_likelihood(y_meas, y_model, sigma):
-        #     return jnp.sum(norm_logpdf(jnp.real(y_meas), jnp.real(y_model), sigma))        
-        # def loglikelihood_fn(flat_params_with_sigma) -> jnp.ndarray:
-        #     sigma = flat_params_with_sigma[-1]
-        #     model_features = feature_fn_jax(flat_params_with_sigma[0:-1])
-        #     return gaussian_log_likelihood(self.measured_features, model_features, sigma)        
+        feature_fn_jax = self._make_feature_function() 
         
         @jax.jit
         def loglikelihood_fn(flat_params) -> float:
@@ -138,6 +153,26 @@ class BayesianFitter(BaseFitter):
             y_pred = jnp.real(feature_fn_jax(theta))
             y_meas = jnp.real(self.measured_features)
             logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
+            return logL
+        
+        return loglikelihood_fn
+    
+    def _make_multivariate_gaussian_log_likelihood_fn(self):
+        feature_fn_jax = self._make_feature_function()
+        
+        @jax.jit
+        def loglikelihood_fn(flat_params) -> float:
+            num_sigma = len(self.likelihood_params)
+            theta, sigmas = flat_params[0:-num_sigma], flat_params[-num_sigma:]
+            y_pred = jnp.real(feature_fn_jax(theta))
+            y_meas = jnp.real(self.measured_features)
+            
+            logL = 0.0
+            for i in range(y_pred.shape[1]):
+                y_pred_i = y_pred[:, i]
+                y_meas_i = y_meas[:, i]
+                sigma_idx = list(self.likelihood_params.keys()).index(self.feature_sigmas[i])
+                logL += dist.Normal(loc=y_pred_i, scale=sigmas[sigma_idx]).log_prob(y_meas_i).sum()
             return logL
         
         return loglikelihood_fn

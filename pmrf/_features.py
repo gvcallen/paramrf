@@ -44,7 +44,7 @@ def extract_features(
         dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
 
     Returns:
-        np.ndarray: The feature matrix.
+        np.ndarray: The feature matrix of size M x N, where M is the number of frequencies and N is the number of features.
     """    
     # We format the features to be flat (and parse them in the process)
     features = _format_features(features)
