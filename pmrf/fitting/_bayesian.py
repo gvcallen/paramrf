@@ -55,6 +55,10 @@ class BayesianFitter(BaseFitter):
         self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': Uniform(0.0, 50.0e-3, name='sigma')}
         self.likelihood_kind = likelihood_kind
         
+    @property
+    def num_params(self) -> int:
+        return self.initial_model.num_flat_params + len(self.likelihood_params)
+        
     def _flat_param_names(self) -> list[str]:
         return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())
     
