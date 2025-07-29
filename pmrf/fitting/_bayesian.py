@@ -54,19 +54,17 @@ class BayesianFitter(BaseFitter):
                 or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
                 of size N containing the names of the likelihood parameters to use for each feature.
             likelihood_params (dict[str, Parameter], optional):
-                A dictionary of likelihood parameters to use for the likelihood function.
+                A dictionary of likelihood parameters to use for the likelihood function.                
         """
+        feature_sigmas = kwargs.pop('feature_sigmas', None)
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
             if likelihood_params is None:
                 raise Exception('Likelihood parameters must be provided for multivariate Gaussian likelihoods')
-            if 'feature_sigmas' in likelihood_params:
-                feature_sigmas = likelihood_params.pop('feature_sigmas', None)
-                if feature_sigmas is None:
-                    raise Exception('Currently on feature_sigmas is supported for multivariate Gaussian likelihoods')
-                self.feature_sigmas = feature_sigmas
-            
+            if feature_sigmas is None:
+                raise Exception('Currently on feature_sigmas is supported for multivariate Gaussian likelihoods')
+            self.feature_sigmas = feature_sigmas
             self.likelihood_kind = likelihood_kind
             self.likelihood_params = likelihood_params
         elif likelihood_kind == 'gaussian':        
@@ -167,12 +165,10 @@ class BayesianFitter(BaseFitter):
             y_pred = jnp.real(feature_fn_jax(theta))
             y_meas = jnp.real(self.measured_features)
             
-            logL = 0.0
-            for i in range(y_pred.shape[1]):
-                y_pred_i = y_pred[:, i]
-                y_meas_i = y_meas[:, i]
-                sigma_idx = list(self.likelihood_params.keys()).index(self.feature_sigmas[i])
-                logL += dist.Normal(loc=y_pred_i, scale=sigmas[sigma_idx]).log_prob(y_meas_i).sum()
+            param_keys = list(self.likelihood_params.keys())
+            sigma_indices = jnp.array([param_keys.index(key) for key in self.feature_sigmas])
+            scales = sigmas[sigma_indices]
+            logL = dist.Normal(loc=y_pred, scale=scales).log_prob(y_meas).sum()
             return logL
         
         return loglikelihood_fn
