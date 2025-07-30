@@ -218,39 +218,15 @@ class Parameter(eqx.Module):
 @dataclass
 class ParameterGroup:
     """
-    A metadata class that groups a set of named parameters and defines any relationships between them.
+    A metadata class that groups a set of named flat parameters and defines any relationships between them.
     """
     params: dict[str, Parameter | None]
     prior: dist.Distribution | None = field(default=None)
     
     def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
-        if isinstance(params, list):
-            self.params = {name: None for name in params}
-            self.prior = prior
-        else:
-            if len(params) == 0 and prior is None:
-                prior = next(iter(params.values())).prior
+        self.params = params
+        self.prior = prior
             
-            self.params = params.copy()
-            self.prior = prior
-            
-    @property
-    def ndim(self) -> int:
-        """The number of free dimensions for this parameter."""
-        ndim = 0
-        for param in self.params.values():
-            ndim += param.ndim
-        return ndim
-
-    def resolve_params(self, params: dict[str, Parameter]) -> 'ParameterGroup':
-        """
-        Links the names to actual Parameter objects e.g. from a model.
-
-        Returns a new, resolved ParameterGroup instance.
-        """
-        params = {k: params[k] for k in self.params}
-        return dataclasses.replace(self, params=params)
-    
     @property
     def min(self) -> jnp.array:
         """The unscaled minimum value of the parameter group's distribution (MIN_PERCENTILE quantile).

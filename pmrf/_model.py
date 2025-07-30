@@ -722,32 +722,21 @@ class Model(eqx.Module):
             return combine(params_tree_recon, static)   
         
     def with_flat_params(self, *args, **kwargs):
+        if args[0].shape[0] != self.num_flat_params:
+            raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {args[0].shape[0]}')
         return self.with_params(*args, **kwargs)
     
     def with_replaced(self: ModelT, *args, **kwargs) -> ModelT:
         return dataclasses.replace(self, *args, **kwargs)
     
     def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
-        # Method 1
-        # joint_names = ['length', 'zn', 'k1']
-        # joint_prior = Distribution(...)
-        # group_info = ParameterGroup(names=joint_names, prior=joint_prior)
-        # 
-        # model = ReceiverModel(sr_mtsj1=Semirigid().with_param_group(group_info))
-        #
-        # Parameter
-        # self._parameter_groups
-        # ParameterGroup
         if not isinstance(param_groups, list):
             param_groups = [param_groups]
         
-        all_params = self.flat_params(fixed=True)
-        
         param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
-        
         param_groups_new = param_groups_old
         param_groups_new.extend(param_groups)
-        param_groups_new = [param_group.resolve_params(all_params) for param_group in param_groups_new]
+        param_groups_new = [param_group for param_group in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         
     
