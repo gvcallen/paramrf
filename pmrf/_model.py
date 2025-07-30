@@ -599,7 +599,7 @@ class Model(eqx.Module):
     def flat_params(self, *args, **kwargs) -> jnp.ndarray:
         return self.params(*args, flat=True, **kwargs)
     
-    def flat_param_objects(self, *args, **kwargs) -> list[Parameter]:
+    def flat_param_objects(self, *args, **kwargs) -> dict[str, Parameter]:
         return self.params(*args, flat=True, flat_params=True, **kwargs)
     
     def flat_param_names(self) -> list[str]:
@@ -629,7 +629,7 @@ class Model(eqx.Module):
         params = self.flat_param_objects(include_fixed=include_fixed)
         groups = [group for group in self._param_groups]
 
-        grouped_param_names = {name for group in groups for name in group.params.keys()}
+        grouped_param_names = {name for group in groups for name in group.flat_param_names}
         for name, param in params.items():
             if name not in grouped_param_names:
                 groups.append(ParameterGroup(params={name: param}, prior=param.prior))
@@ -921,7 +921,7 @@ def make_prior_fn(model: Model, kind='icdf', as_numpy=False):
         # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
         # and use the icdf of the group prior to get the physical parameters for that group
         for param_group in param_groups:
-            group_param_names = list(param_group.params.keys())
+            group_param_names = param_group.flat_param_names
             g = [name_to_hypercube_value[name] for name in group_param_names if name in param_names]
             
             # Either all parameters or no parameters must be present - the inverse transform is not partially defined

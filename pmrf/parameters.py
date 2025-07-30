@@ -193,7 +193,7 @@ class Parameter(eqx.Module):
     def copy(self):
         return dataclasses.replace(self)
     
-    # Serialization
+     # Serialization
     def to_json(self) -> str:
         d = {
             "value": self.value.tolist(),
@@ -220,11 +220,11 @@ class ParameterGroup:
     """
     A metadata class that groups a set of named flat parameters and defines any relationships between them.
     """
-    params: dict[str, Parameter | None]
+    flat_param_names: list[str]
     prior: dist.Distribution | None = field(default=None)
     
     def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
-        self.params = params
+        self.flat_param_names = params
         self.prior = prior
             
     @property

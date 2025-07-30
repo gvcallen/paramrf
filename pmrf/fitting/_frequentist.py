@@ -97,7 +97,7 @@ class FrequentistFitter(BaseFitter):
         
         for param_group in param_groups:
             group_minimums, group_maximums = param_group.min, param_group.max
-            group_param_names = list(param_group.params.keys())
+            group_param_names = list(param_group.flat_param_names.keys())
             for i, name in enumerate(group_param_names):
                 name_to_minimum[name] = group_minimums[i]
                 name_to_maximum[name] = group_maximums[i]
