@@ -10,8 +10,10 @@ class AnestheticResults(BayesianResults):
     @property
     def samples(self):
         nested_samples = self.nested_samples
-        model = self.model
-        return nested_samples.loc[:, model.flat_param_names() + ['sigma']]
+        columns = nested_samples.columns
+        param_names = [columns[i][0] for i in range(len(columns))]
+        param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]
+        return nested_samples.loc[:, param_names]
     
     @property
     def weights(self):
