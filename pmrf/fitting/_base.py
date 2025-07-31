@@ -65,7 +65,7 @@ class BaseFitter(ABC):
     def __init__(
         self,
         model: Model,
-        measured: skrf.Network | dict[str, skrf.Network],
+        measured: str | skrf.Network | dict[str, skrf.Network],
         frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
     ) -> None:
@@ -73,7 +73,7 @@ class BaseFitter(ABC):
 
         Args:
             model (Model):                                              The parametric `pmrf` model to be fitted.
-            measured (skrf.Network | dict[str, skrf.Network]):          The measured network data to fit the model against.
+            measured (str | skrf.Network | dict[str, skrf.Network]):    The measured network data to fit the model against.
                                                                         A dict can optionally be passed, in which case
                                                                         the keys of the networks must can be referenced during
                                                                         feature extraction by also specifying features as a dictionary.
@@ -92,6 +92,9 @@ class BaseFitter(ABC):
                                                                         it is assumed that those feature(s) should be extract for all measured networks/submodels.
                                                                         Defaults to `None`, which uses S11 magnitude `('s', (0, 0))`.
         """
+        if isinstance(measured, str):
+            measured = skrf.Network(str)
+        
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else 's11'
         if not isinstance(features, Sequence) and not isinstance(features, dict):
