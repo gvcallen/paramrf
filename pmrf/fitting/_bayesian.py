@@ -78,7 +78,15 @@ class BayesianFitter(BaseFitter):
         
     @property
     def num_params(self) -> int:
-        return self.initial_model.num_flat_params + len(self.likelihood_params)
+        return self.num_model_params + self.num_likelihood_params
+    
+    @property
+    def num_model_params(self) -> int:
+        return self.initial_model.num_flat_params
+    
+    @property
+    def num_likelihood_params(self) -> int:
+        return len(self.likelihood_params)
         
     def _flat_param_names(self) -> list[str]:
         return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())

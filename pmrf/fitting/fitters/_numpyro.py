@@ -55,8 +55,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
             kernel = NUTS
         
         # Get the model parameters
-        params = self.initial_model.flat_params()
-        param_names = list(params.keys())
+        param_names = self.initial_model.flat_param_names()
         
         # Define the numpyro model
         numpyro_model = self._make_numpyro_model()

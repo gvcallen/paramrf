@@ -42,7 +42,7 @@ class PolychordFitter(BayesianFitter):
         
         self.logger.info(f'PolyChord finished at {time_string()}')
         
-        for i, param_name in enumerate(param_names[0:-1]):
+        for i, param_name in enumerate(param_names[0:-self.num_likelihood_params]):
             if best_param_method == 'mean':
                 x0[i] = nested_samples[param_name].mean()
             elif best_param_method == 'maximum-likelihood':
