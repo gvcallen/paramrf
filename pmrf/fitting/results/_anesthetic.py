@@ -8,6 +8,14 @@ class AnestheticResults(BayesianResults):
     from anesthetic import NestedSamples
     
     @property
+    def prior_samples(self):
+        nested_samples = self.nested_samples.prior()
+        columns = nested_samples.columns
+        param_names = [columns[i][0] for i in range(len(columns))]
+        param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]
+        return nested_samples.loc[:, param_names]
+    
+    @property
     def samples(self):
         nested_samples = self.nested_samples
         columns = nested_samples.columns
