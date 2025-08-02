@@ -827,23 +827,23 @@ class Model(eqx.Module):
 
         return self.with_params(allowed_free_params, fix_others=True)          
     
-    def to_skrf(self, freq: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
+    def to_skrf(self, frequency: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
         
         The internal primary property in `self.primary_property` is used for the conversion.
 
         Args:
-            freq (pmrf.Frequency | skrf.Frequency): The frequency object.
+            frequency (pmrf.Frequency | skrf.Frequency): The frequency object.
 
         Returns:
             skrf.Network: The resultant skrf Network.
         """
-        if isinstance(freq, Frequency):
-            model_freq = freq
-            measured_freq = freq.to_skrf()
+        if isinstance(frequency, Frequency):
+            model_freq = frequency
+            measured_freq = frequency.to_skrf()
         else:
-            model_freq = Frequency.from_skrf(freq)
-            measured_freq = freq
+            model_freq = Frequency.from_skrf(frequency)
+            measured_freq = frequency
         
         f, fname = self.primary_function, self.primary_property
         kwargs = kwargs or {}
@@ -853,8 +853,10 @@ class Model(eqx.Module):
             'name': kwargs.get('name', self.name),
             'z0': self._z0,
         })
-
         return skrf.Network(**kwargs)    
+    
+    def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
+        return self.to_skrf(frequency).write_touchstone(filename, **kwargs)
         
 def make_feature_fn(
     model: Model,
