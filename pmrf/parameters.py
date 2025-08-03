@@ -226,6 +226,10 @@ class ParameterGroup:
     def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
         self.flat_param_names = params
         self.prior = prior
+        
+    @property
+    def num_flat_params(self):
+        return len(self.flat_param_names)
             
     @property
     def min(self) -> jnp.array:
@@ -239,9 +243,9 @@ class ParameterGroup:
                 return self.prior.min
             else:
                 # TODO implement optimization to determine minima
-                return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.ndim))
+                return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.num_flat_params))
             
-        return jnp.array([-jnp.inf] * self.ndim)
+        return jnp.array([-jnp.inf] * self.num_flat_params)
     
     @property
     def max(self) -> jnp.array:
@@ -255,9 +259,9 @@ class ParameterGroup:
                 return self.prior.max
             else:
                 # TODO implement optimization to determine maximum
-                return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.ndim))
+                return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.num_flat_params))
             
-        return jnp.array([jnp.inf] * self.ndim)
+        return jnp.array([jnp.inf] * self.num_flat_params)
     
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
