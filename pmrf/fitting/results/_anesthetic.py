@@ -51,7 +51,7 @@ class AnestheticResults(BayesianResults):
         from anesthetic import make_2d_axes
         
         nested_samples = self.solver_results
-        params = param_names or list(self.model.params().keys())
+        params = param_names or list(self.fit_model.params().keys())
 
         if ax is None:
             fig, ax = make_2d_axes(params, figsize=fig_size)

@@ -12,10 +12,13 @@ from pmrf._util import time_string
 PolychordResults = AnestheticResults
 
 class PolychordFitter(BayesianFitter):
-    def run(self, best_param_method='maximum-likelihood', **kwargs) -> AnestheticResults:
+    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np
         import pypolychord
+        
+        if not 'nlive' in kwargs and nlive_factor is not None:
+            kwargs['nlive'] = nlive_factor * (self.initial_model.num_flat_params + len(self.likelihood_params))
         
         # Get the model parameters
         param_names = self._flat_param_names()

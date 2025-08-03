@@ -4,6 +4,7 @@ from copy import deepcopy, copy
 from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
+import jsonpickle
 
 from typing import Sequence, Callable
 
@@ -857,6 +858,11 @@ class Model(eqx.Module):
     
     def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
         return self.to_skrf(frequency).write_touchstone(filename, **kwargs)
+    
+    # def save(self, filepath: str):
+    #     json = jsonpickle.encode(self)
+    #     with open(filepath, 'w') as f:
+    #         f.write(f'{json}.pkl')
         
 def make_feature_fn(
     model: Model,

@@ -30,22 +30,22 @@ from pmrf._constants import FeatureInputT
 from pmrf._features import extract_features
 
 def Fitter(
-    solver: str,
+    fitter: str,
     *args,
     **kwargs
 ) -> 'BaseFitter':
     """Fitter factory function.
     
-    This allows the creator of a fitter by simply specifying the solver type and having all arguments forwarded.
+    This allows the creator of a fitter by simply specifying the fitter type and having all arguments forwarded.
     See the relevant fitter classes for detailed documentation.
 
     Args:
-        solver (str): The solver to use, specified as either e.g. 'ScipyMinimize' or 'scipy-minimize'.
+        fitter (str): The fitter to use, specified as either e.g. 'ScipyMinimize' or 'scipy-minimize'.
 
     Returns:
         BaseFitter: The concrete fitter instance.
     """
-    cls = get_fitter_class(solver)
+    cls = get_fitter_class(fitter)
     return cls(*args, **kwargs)
 
 class BaseFitter(ABC):
@@ -151,13 +151,10 @@ class BaseFitter(ABC):
     
 @dataclass
 class FitResults:
-    # Output
-    model: Model | None = None
-    solver_results: Any = None
-    
-    # Input
     measured: skrf.Network | dict[str, skrf.Network] | None = None
     initial_model: Model | None = None
+    fit_model: Model | None = None
+    solver_results: Any = None
     frequency: Frequency | None = None
     features: list[FeatureT] | None = None
     logger: logging.Logger | None = None
@@ -165,7 +162,7 @@ class FitResults:
     fit_kwargs: tuple | None = None
     solver_args: tuple | None = None
     solver_kwargs: dict | None = None
-    version: int = 1
+    version: int = 2
     
     def encode_solver_results(self, group: h5py.Group):
         data = None
@@ -212,8 +209,8 @@ class FitResults:
                     user_metadata_grp[k] = json.dumps(v)
 
             # Model fit
-            if self.model is not None:
-                encode_model(self.model, f.create_group('model'))
+            if self.fit_model is not None:
+                encode_model(self.fit_model, f.create_group('fit_model'))
 
             # Solver results
             if self.solver_results is not None:
@@ -296,7 +293,10 @@ class FitResults:
                     logging.warning(f"Could not import class from path '{fit_results_cls_path}'. Using FitResults instead.")            
 
             # Model fit
-            model = decode_model(f['model']) if 'model' in f else None
+            if version == 1:
+                model = decode_model(f['model']) if 'model' in f else None
+            elif version == 2:
+                model = decode_model(f['fit_model']) if 'fit_model' in f else None
             
             # Solver results
             solver_results = cls.decode_solver_results(f['solver_results']) if 'solver_results' in f else None

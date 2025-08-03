@@ -36,6 +36,6 @@ fitter = PolychordFitter(
 result = fitter.run(base_dir='output/fit_cable_polychord/chains', nlive=10)
 if rank == 0:
     result.to_hdf5('output/fit_cable_polychord/defaultnlive.hdf5')
-    result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
+    result.fit_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
     measured.plot_s_db(m=0, n=0)
     plt.show()
