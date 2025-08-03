@@ -98,7 +98,7 @@ class JAXNSFitter(BayesianFitter):
                 self.logger.warning("Unknown best parameter method. Skipping.")
                 
         return AnestheticResults(
-            model=None,
+            fit_model=None,
             initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,

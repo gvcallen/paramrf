@@ -106,9 +106,11 @@ class BlackjaxNSFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
             x0 = x0.at[i].set(val_new)
+            
+        fit_model = self.initial_model.with_flat_params(x0)
                 
         return AnestheticResults(
-            model=self.initial_model.with_flat_params(x0),
+            fit_model=fit_model,
             initial_model=self.initial_model,
             frequency=self.model_frequency,
             measured=self.measured,
