@@ -12,12 +12,15 @@ from pmrf._util import time_string
 PolychordResults = AnestheticResults
 
 class dyPolychordFitter(BayesianFitter):
-    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
+    def run(self, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np
         import dyPolyChord.pypolychord_utils
         import dyPolyChord
         from anesthetic import read_chains
+        
+        nlive_init_factor = nlive_init_factor if nlive_init_factor is not None else 1
+        nlive_factor = nlive_factor if nlive_factor is not None else 25
         
         num_params = self.initial_model.num_flat_params + len(self.likelihood_params)
         param_names = self._flat_param_names()
@@ -27,8 +30,11 @@ class dyPolychordFitter(BayesianFitter):
         settings_dict_in = {}
         dynamic_goal = 1.0
         
-        kwargs.setdefault('ninit', num_params)
+        kwargs.setdefault('ninit', nlive_init_factor * num_params)
         kwargs.setdefault('nlive_const', nlive_factor * num_params)
+        
+        if kwargs['nlive_const'] <= kwargs['ninit']:
+            raise Exception('Number of dynamic live points must be greater than number of init live points')
         
         # kwargs.setdefault('paramnames', labeled_param_names)
         settings_dict_in.setdefault('base_dir', 'chains')
