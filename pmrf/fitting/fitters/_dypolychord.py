@@ -37,7 +37,7 @@ class dyPolychordFitter(BayesianFitter):
             raise Exception('Number of dynamic live points must be greater than number of init live points')
         
         # kwargs.setdefault('paramnames', labeled_param_names)
-        settings_dict_in.setdefault('base_dir', 'chains')
+        settings_dict_in.setdefault('base_dir', kwargs.pop('base_dir', 'chains'))
         settings_dict_in.setdefault('file_root', 'test')
         
         # Generate prior and likelihood functions
