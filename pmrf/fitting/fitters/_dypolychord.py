@@ -24,12 +24,15 @@ class dyPolychordFitter(BayesianFitter):
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
-        kwargs.setdefault('dynamic_goal', 1.0)
+        settings_dict_in = {}
+        dynamic_goal = 1.0
+        
         kwargs.setdefault('ninit', num_params)
         kwargs.setdefault('nlive_const', nlive_factor * num_params)
-        kwargs.setdefault('paramnames', labeled_param_names)
-        kwargs.setdefault('base_dir', 'chains')
-        kwargs.setdefault('file_root', 'test')
+        
+        # kwargs.setdefault('paramnames', labeled_param_names)
+        settings_dict_in.setdefault('base_dir', 'chains')
+        settings_dict_in.setdefault('file_root', 'test')
         
         # Generate prior and likelihood functions
         x0 = np.array(self.initial_model.flat_params())
@@ -47,8 +50,11 @@ class dyPolychordFitter(BayesianFitter):
         )
 
         # Run dyPolyChord
+        # TODO clean up this parameter passing and settings dict stuff
         dyPolyChord.run_dypolychord(
             combined_fn,
+            settings_dict_in=settings_dict_in,
+            dynamic_goal=dynamic_goal,
             **kwargs,
         )
         

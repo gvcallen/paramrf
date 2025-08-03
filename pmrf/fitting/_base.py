@@ -381,12 +381,13 @@ def is_bayesian(solver) -> bool:
     return issubclass(cls, BayesianFitter)
 
 def get_fitter_class(solver: str):
-    class_name = ''.join(part[0].upper() + part[1:] for part in solver.split('-'))
-    class_name = class_name + 'Fitter'
+    class_names = [solver + 'Fitter']
+    class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
     try:
         for submodule_name, _ in iter_submodules('pmrf.fitting.fitters'):
             fitter_submodel = importlib.import_module(submodule_name)
-            if hasattr(fitter_submodel, class_name):
-                return getattr(fitter_submodel, class_name)
+            for class_name in class_names:
+                if hasattr(fitter_submodel, class_name):
+                    return getattr(fitter_submodel, class_name)
     except (ImportError, AttributeError):
         raise Exception(f'Could not find solver named {solver}')
