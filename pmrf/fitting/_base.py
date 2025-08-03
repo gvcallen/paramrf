@@ -30,7 +30,7 @@ from pmrf._constants import FeatureInputT
 from pmrf._features import extract_features
 
 def Fitter(
-    fitter: str,
+    name: str,
     *args,
     **kwargs
 ) -> 'BaseFitter':
@@ -40,12 +40,12 @@ def Fitter(
     See the relevant fitter classes for detailed documentation.
 
     Args:
-        fitter (str): The fitter to use, specified as either e.g. 'ScipyMinimize' or 'scipy-minimize'.
+        name (str): The name of the fitter to create, specified as either e.g. 'ScipyMinimize' or 'scipy-minimize'.
 
     Returns:
         BaseFitter: The concrete fitter instance.
     """
-    cls = get_fitter_class(fitter)
+    cls = get_fitter_class(name)
     return cls(*args, **kwargs)
 
 class BaseFitter(ABC):
