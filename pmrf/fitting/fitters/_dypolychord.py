@@ -1,0 +1,81 @@
+from typing import Any
+import jax
+import jax.numpy as jnp
+import io   
+import h5py
+import numpy as np
+
+from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting.results import AnestheticResults
+from pmrf._util import time_string
+   
+PolychordResults = AnestheticResults
+
+class dyPolychordFitter(BayesianFitter):
+    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
+        # Dynamic imports
+        import numpy as np
+        import dyPolyChord.pypolychord_utils
+        import dyPolyChord
+        from anesthetic import read_chains
+        
+        num_params = self.initial_model.num_flat_params + len(self.likelihood_params)
+        param_names = self._flat_param_names()
+        dot_param_names = [name.replace('_', '.') for name in param_names]
+        labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
+        
+        kwargs.setdefault('dynamic_goal', 1.0)
+        kwargs.setdefault('ninit', num_params)
+        kwargs.setdefault('nlive_const', nlive_factor * num_params)
+        kwargs.setdefault('paramnames', labeled_param_names)
+        kwargs.setdefault('base_dir', 'chains')
+        kwargs.setdefault('file_root', 'test')
+        
+        # Generate prior and likelihood functions
+        x0 = np.array(self.initial_model.flat_params())
+        loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
+        prior_fn = self._make_prior_transform_fn(as_numpy=True)
+        dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
+
+        self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
+        self.logger.info(f'Parameter names: {param_names}')
+        self.logger.info(f'PolyChord started at {time_string()}')
+        
+        # Make a callable for running PolyChord
+        combined_fn = dyPolyChord.pypolychord_utils.RunPyPolyChord(
+            loglikelihood_fn, prior_fn, len(param_names),
+        )
+
+        # Run dyPolyChord
+        dyPolyChord.run_dypolychord(
+            combined_fn,
+            **kwargs,
+        )
+        
+        nested_samples = read_chains(f'{kwargs['chains']}/{kwargs['file_root']}')
+        
+        self.logger.info(f'dyPolyChord finished at {time_string()}')
+        
+        for i, param_name in enumerate(param_names[0:-self.num_likelihood_params]):
+            if best_param_method == 'mean':
+                x0[i] = nested_samples[param_name].mean()
+            elif best_param_method == 'maximum-likelihood':
+                idx = jnp.argmax(nested_samples.logL.values)
+                x0[i] = nested_samples[param_name].values[idx]
+            else:
+                self.logger.warning("Unknown best parameter method. Skipping")
+                
+        fit_model = self.initial_model.with_flat_params(x0)
+                
+        return AnestheticResults(
+            fit_model=fit_model,
+            initial_model=self.initial_model,
+            frequency=self.model_frequency,
+            measured=self.measured,
+            features=self.feature_list,
+            logger=self.logger,
+            solver_results=nested_samples,
+            solver_args=(),
+            solver_kwargs=kwargs,
+            fit_kwargs={'best_param_method': best_param_method}
+        )    
