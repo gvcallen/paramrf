@@ -29,6 +29,11 @@ class AnestheticResults(BayesianResults):
         return nested_samples.get_weights()
     
     @property
+    def prior_weights(self):
+        nested_samples = self.nested_samples
+        return nested_samples.prior().get_weights()
+    
+    @property
     def nested_samples(self) -> NestedSamples:
         return self.solver_results
     
