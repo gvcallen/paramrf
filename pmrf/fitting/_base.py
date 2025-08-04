@@ -294,9 +294,9 @@ class FitResults:
 
             # Model fit
             if version == 1:
-                model = decode_model(f['model']) if 'model' in f else None
+                fit_model = decode_model(f['model']) if 'model' in f else None
             elif version == 2:
-                model = decode_model(f['fit_model']) if 'fit_model' in f else None
+                fit_model = decode_model(f['fit_model']) if 'fit_model' in f else None
             
             # Solver results
             solver_results = cls.decode_solver_results(f['solver_results']) if 'solver_results' in f else None
@@ -356,7 +356,7 @@ class FitResults:
                 fit_kwargs = jsonpickle.decode(input_grp['fit_kwargs'][()])
                 
             return cls(
-                model=model,
+                fit_model=fit_model,
                 initial_model=initial_model,
                 frequency=frequency,
                 measured=measured,
