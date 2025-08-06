@@ -10,8 +10,8 @@ from pmrf._frequency import Frequency
 
 def extract_features(
     source: Model | skrf.Network | dict[str, skrf.Network],
+    frequency: Frequency | None,
     features: FeatureInputT,
-    freq: Frequency | skrf.Frequency = None,
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
@@ -38,7 +38,7 @@ def extract_features(
                                                                         with missing networks specified using integers for the number of ports at that index.
                                                                         Lists of networks are treated as forming one, stack network with isolated ports.
         features (FeatureInputT):                                       The features to extract, as described in detail above.
-        freq (pmrf.Frequency | skrf.Frequency, optional):               The frequency to extract the features at. This will become the row dimension of the resultant matrix.
+        frequency (pmrf.Frequency | skrf.Frequency, optional):          The frequency to extract the features at. This will become the row dimension of the resultant matrix.
                                                                         This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
                                                                         in which case the network's internal frequency is used. Otherwise, the network is i508e76ad-05af-4e71-8c22-053f37e3a62dnterpolated.
         dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
@@ -51,24 +51,24 @@ def extract_features(
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
-        freq = source.frequency
+        frequency = source.frequency
         source = {'': source}
     elif isinstance(source, dict):
         # Currently only support a single frequency across networks
-        freq = list(source.values())[0].frequency
+        frequency = list(source.values())[0].frequency
     elif isinstance(source, Model):
-        if freq is None:
+        if frequency is None:
             raise Exception("Frequency must be passed when extracting features from a model")
-        if isinstance(freq, skrf.Frequency):
-            freq = Frequency.from_skrf(freq)
+        if isinstance(frequency, skrf.Frequency):
+            frequency = Frequency.from_skrf(frequency)
     else:
         raise TypeError("Invalid type to extract_features")
     
     # Return the extracted features
     if isinstance(source, Model):
-        return _extract_model_features(source, features, freq, dtype=dtype)
+        return _extract_model_features(source, features, frequency, dtype=dtype)
     else:
-        return _extract_measured_features(source, features, freq, dtype=dtype)
+        return _extract_measured_features(source, features, frequency, dtype=dtype)
 
 def _format_features(features: FeatureInputT) -> list[FeatureT]:
     if isinstance(features, dict):

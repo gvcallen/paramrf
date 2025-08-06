@@ -1,7 +1,6 @@
 from pmrf._model import (
     Model as Model,
-    make_feature_fn,
-    make_prior_fn,
+    wrap,
 )
 from pmrf._util import (
     field,

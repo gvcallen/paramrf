@@ -6,55 +6,7 @@ import sys
 import logging
 import inspect
 from types import GenericAlias, UnionType
-from equinox import field as base_field
-           
-# Temporarily not supporting derived fields
-field = base_field
-# def field(
-#     *,
-#     derived: bool = False,
-#     **kwargs,
-# ):    
-#     metadata = dict(kwargs.pop('metadata', {}))
-#     if 'derived' in metadata:
-#         raise Exception("Cannot use metadata with `derived` already set.")
-#     metadata['derived'] = derived
-    
-#     if derived:
-#         kwargs['init'] = False
-    
-#     return base_field(metadata=metadata, **kwargs)
-
-def load_class_from_string(dotted_path):
-    module_path, class_name = dotted_path.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    return getattr(module, class_name)
-    
-def iter_submodules(package_name: str):
-    """Yield all submodules and subpackages of a given package."""
-    package = importlib.import_module(package_name)
-    if not hasattr(package, '__path__'):
-        raise ValueError(f"{package_name} is not a package")
-
-    for _finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
-        yield name, ispkg
-
-def time_string(format="%H:%M:%S"):
-    return datetime.now().strftime(format)
-
-def update_dict_with_alias(original: dict, updates: dict, alias_map: dict) -> None:
-    # Build prefix lookup trie (flattened since prefixes are strings)
-    # Sort prefixes by length (longest first) to match the most specific prefix first
-    sorted_aliases = sorted(alias_map.items(), key=lambda x: -len(x[0]))
-
-    for key in original:
-        for orig_prefix, update_prefix in sorted_aliases:
-            if key.startswith(orig_prefix):
-                aliased_key = update_prefix + key[len(orig_prefix):]
-                if aliased_key in updates:
-                    original[key] = updates[aliased_key]
-                break
-        # if no prefix matched, keep the original value
+from equinox import field
         
 class classproperty:
     def __init__(self, func):
@@ -93,6 +45,37 @@ class LevelFilteredLogger:
     def exception(self, msg, *args, exc_info=True, **kwargs):
         if not self._should_suppress(logging.ERROR):
             print(f"[EXCEPTION] {msg}", file=sys.stderr)
+           
+def load_class_from_string(dotted_path):
+    module_path, class_name = dotted_path.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+    
+def iter_submodules(package_name: str):
+    """Yield all submodules and subpackages of a given package."""
+    package = importlib.import_module(package_name)
+    if not hasattr(package, '__path__'):
+        raise ValueError(f"{package_name} is not a package")
+
+    for _finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+        yield name, ispkg
+
+def time_string(format="%H:%M:%S"):
+    return datetime.now().strftime(format)
+
+def update_dict_with_alias(original: dict, updates: dict, alias_map: dict) -> None:
+    # Build prefix lookup trie (flattened since prefixes are strings)
+    # Sort prefixes by length (longest first) to match the most specific prefix first
+    sorted_aliases = sorted(alias_map.items(), key=lambda x: -len(x[0]))
+
+    for key in original:
+        for orig_prefix, update_prefix in sorted_aliases:
+            if key.startswith(orig_prefix):
+                aliased_key = update_prefix + key[len(orig_prefix):]
+                if aliased_key in updates:
+                    original[key] = updates[aliased_key]
+                break
+        # if no prefix matched, keep the original value
 
 def is_overridden(cls, baseclass, method_name):
     result = False

@@ -17,6 +17,7 @@ class RefNode:
     def __repr__(self):
         return f"RefNode({tuple(self.path)})"
 
+# Dummy node used for array sharing in a model. See partition(..)
 def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
     is_leaf_takes_path: bool = False,
@@ -145,7 +146,7 @@ def path_repr(path):
             raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <path_repr> but '{type(key)}' was passed of value {key}")        
         
     return repr
-    
+
 def dealias(
     tree: PyTree,
     core_spec: PyTree[TreeAxisSpec],

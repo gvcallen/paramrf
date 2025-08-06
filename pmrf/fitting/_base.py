@@ -20,14 +20,14 @@ try:
 except ImportError:
     rank = 0
 
-from pmrf._model import Model, make_feature_fn
+from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf._constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 from pmrf._constants import FeatureInputT
-from pmrf._features import extract_features
+from pmrf import extract_features, wrap
 
 def Fitter(
     name: str,
@@ -90,13 +90,13 @@ class BaseFitter(ABC):
                                                                         {'source_name1', ('s11'), {'source_name2', ('s21')} can be passed.
                                                                         Note that if a sequence of networks is passed, but a dictionary is not.
                                                                         it is assumed that those feature(s) should be extract for all measured networks/submodels.
-                                                                        Defaults to `None`, which uses S11 magnitude `('s', (0, 0))`.
+                                                                        Defaults to `None`, in which case real and imaginary features for all ports are used.
         """
         if isinstance(measured, str):
             measured = skrf.Network(str)
         
         # Set the default features and ensure it is not a scalar
-        features = features if features is not None else 's11'
+        features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
         if not isinstance(features, Sequence) and not isinstance(features, dict):
             features = [features]
         if isinstance(measured, dict) and not isinstance(features, dict):
@@ -145,8 +145,8 @@ class BaseFitter(ABC):
         """
         pass
     
-    def _make_feature_function(self, as_numpy=False):
-        return make_feature_fn(self.initial_model, self.feature_list, self.model_frequency, as_numpy=as_numpy)    
+    def _make_feature_function(self, as_numpy=False, **kwargs):
+        return wrap(extract_features, self.initial_model, self.model_frequency, as_numpy=as_numpy, **kwargs)
 
     
 @dataclass
@@ -185,7 +185,7 @@ class FitResults:
     def to_hdf5(self, path: str, metadata: dict | None = None):
         def encode_model(model: Model, group: h5py.Group, save_instance=False):
             params_tree, static_tree = model.partition(include_fixed=True, param_objects=True)
-            params = model.params()
+            params = model.named_params()
             model_raw_grp = group.create_group('raw')
             model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
             model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))

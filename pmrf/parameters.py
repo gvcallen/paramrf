@@ -220,16 +220,16 @@ class ParameterGroup:
     """
     A metadata class that groups a set of named flat parameters and defines any relationships between them.
     """
-    flat_param_names: list[str]
+    names: list[str]
     prior: dist.Distribution | None = field(default=None)
     
-    def __init__(self, params: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
-        self.flat_param_names = params
+    def __init__(self, names: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
+        self.names = names
         self.prior = prior
         
     @property
     def num_flat_params(self):
-        return len(self.flat_param_names)
+        return len(self.names)
             
     @property
     def min(self) -> jnp.array:
@@ -412,7 +412,7 @@ def is_fixed_param(x) -> bool:
     """
     return isinstance(x, Parameter) and x.fixed
 
-def asparam(x, name=None) -> Parameter:
+def asparam(x, **kwargs) -> Parameter:
     """Ensures an object is a `Parameter`.
 
     If the object is already a `Parameter`, it is returned unchanged.
@@ -427,7 +427,7 @@ def asparam(x, name=None) -> Parameter:
     """
     if isinstance(x, Parameter):
         return x
-    return Parameter(value=x, name=name)
+    return Parameter(value=x, **kwargs)
 
 def _split_vectorized_distribution(dist):
     if dist.event_shape != ():

@@ -6,7 +6,7 @@ import numpyro.distributions as dist
 import dataclasses
 
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf._model import Model, make_prior_fn
+from pmrf._model import Model
 from pmrf._constants import FeatureInputT
 from pmrf.fitting._base import BaseFitter, FitResults
 
@@ -44,9 +44,8 @@ class BayesianFitter(BaseFitter):
                 The frequency axis to perform the fit on. Defaults to `None`.
             features (FeatureT | FeatureListT | None = None, optional):
                 The features to extract for comparison.
-                Note that note all features are compatibile with all likelihoods,
-                but no error checking is currently done for this.
-                Defaults to `None`.
+                Note that note all features make sense for all likelihoods, but no error checking is done for this.
+                Defaults to `None`, in which case real and imaginary feature for all model ports are used.
             likelihood_kind (str, optional):
                 The kind of likelihood to use. Defaults to "gaussian" for a one-dimensional Gaussian likelihood
                 requiring a single likelihood parameter 'sigma'. Can also be "multivariate_gaussian", in which case either
@@ -56,7 +55,8 @@ class BayesianFitter(BaseFitter):
             likelihood_params (dict[str, Parameter], optional):
                 A dictionary of likelihood parameters to use for the likelihood function.                
         """
-        feature_sigmas = kwargs.pop('feature_sigmas', None)
+        feature_sigmas = kwargs.pop('feature_sigmas', None)        
+
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
@@ -92,16 +92,14 @@ class BayesianFitter(BaseFitter):
         return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())
     
     def _make_prior_transform_fn(self, as_numpy=False):
-        model_prior_transform_fn = make_prior_fn(self.initial_model)
-        likelihood_prior_transform_fn = lambda hypercube: jnp.array([param.prior.icdf(hypercube[i]) for i, param in enumerate(self.likelihood_params.values())])
-        
+        model_prior = self.initial_model.prior()
         num_model_params = len(self.initial_model.flat_params())
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
         def prior_transform_fn(u):
-            theta_model = model_prior_transform_fn(u[0:num_model_params])
-            theta_likelihood = likelihood_prior_transform_fn(u[num_model_params:])
+            theta_model = model_prior.icdf(u[0:num_model_params])
+            theta_likelihood = jnp.array([param.prior.icdf(u[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
             return jnp.concat((theta_model, theta_likelihood))
             
         if as_numpy:
@@ -114,20 +112,22 @@ class BayesianFitter(BaseFitter):
         return prior_transform_fn
     
     def _make_log_prior_fn(self, as_numpy=False):
-        model_prior_logprob_fn = make_prior_fn(self.initial_model, kind='log_prob')
-        likelihood_prior_logprob_fn = lambda hypercube: jnp.array([param.prior.log_prob(hypercube[i]) for i, param in enumerate(self.likelihood_params.values())])
-        
-        num_model_params = len(self.initial_model.flat_params())
+        model_prior = self.initial_model.prior()
+        num_model_params = self.initial_model.num_flat_params
+        num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
         def logprior_fn(params: jax.Array) -> float:
-            sum_logprob_model = jnp.sum(model_prior_logprob_fn(params[0:num_model_params]))
-            sum_logprob_likelihood = jnp.sum(likelihood_prior_logprob_fn(params[num_model_params:]))
-            return sum_logprob_model + sum_logprob_likelihood
+            logprob_model = model_prior.log_prob(params[0:num_model_params])
+            logprob_likelihood = jnp.array([param.prior.log_prob(params[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
+            return jnp.sum(logprob_model) + jnp.sum(logprob_likelihood)
         
         if as_numpy:
             logprior_fn_jax = logprior_fn
             logprior_fn = lambda x: float(logprior_fn_jax(jnp.array(x)))
+
+        self.logger.info('Compiling log prior...')
+        _prior = logprior_fn(jnp.array([0.5] * (num_model_params + num_likelihood_params)))
             
         return logprior_fn
         
@@ -147,7 +147,7 @@ class BayesianFitter(BaseFitter):
             
         self.logger.info(f"Compiling likelihood function...")
         _log_likelihood = log_likelihood_fn(x0)
-        
+
         return log_likelihood_fn
     
     def _make_gaussian_log_likelihood_fn(self):

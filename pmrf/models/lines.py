@@ -5,6 +5,7 @@ from scipy.constants import c, mu_0, epsilon_0
 from dataclasses import fields
 
 from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
+from pmrf.functions.conversions import renormalize_s
 from pmrf._frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf._model import Model
@@ -37,30 +38,59 @@ class RLGCLine(Model):
         Returns:
             tuple: A tuple containing the R, L, G, and C parameter vectors, in that order.
         """
-        raise NotImplementedError("'rlgc' must be implemented in the derived class")
+        raise NotImplementedError("'rlgc' must be implemented in the derived class")    
 
-    def a(self, freq: Frequency) -> jnp.ndarray:
+    # def a(self, freq: Frequency) -> jnp.ndarray:
+    #     """Calculates the ABCD-matrix from the line's RLGC parameters.
+
+    #     Args:
+    #         freq (Frequency): The frequency axis for the calculation.
+
+    #     Returns:
+    #         np.ndarray: The resultant ABCD-matrix.
+    #     """
+    #     import numpy as np
+
+    #     w = freq.w
+    #     R, L, G, C = self.rlgc(freq)
+    #     gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+    #     Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+
+    #     gL = gamma*self.length
+        
+    #     a = jnp.array([
+    #         [jnp.cosh(gL), Zc * jnp.sinh(gL)],
+    #         [1 / Zc * jnp.sinh(gL), jnp.cosh(gL)]
+    #     ]).transpose(2, 0, 1)
+
+    #     return a
+
+    def s(self, frequency: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix from the line's RLGC parameters.
 
         Args:
-            freq (Frequency): The frequency axis for the calculation.
+            frequency (Frequency): The frequency axis for the calculation.
 
         Returns:
             np.ndarray: The resultant ABCD-matrix.
         """
-        w = freq.w
-        R, L, G, C = self.rlgc(freq)
+        import numpy as np
+
+        w = frequency.w
+        R, L, G, C = self.rlgc(frequency)
         gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
         Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
-
         gL = gamma*self.length
         
-        a = jnp.array([
-            [jnp.cosh(gL), Zc * jnp.sinh(gL)],
-            [1 / Zc * jnp.sinh(gL), jnp.cosh(gL)]
-        ]).transpose(2, 0, 1)
+        s11 = jnp.zeros(frequency.npoints, dtype=complex)
+        s21 = jnp.exp(-1*gL)
 
-        return a
+        s = jnp.array([
+            [s11, s21],
+            [s21, s11],
+        ]).transpose(2, 0, 1)        
+
+        return renormalize_s(s, Zc, self.z0)
     
 class ConstantRLGCLine(RLGCLine):
     """

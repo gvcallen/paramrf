@@ -9,8 +9,9 @@ from jax import flatten_util
 import jax.numpy as jnp
 import equinox as eqx
 
+from pmrf import extract_features, wrap, wrap_prior
 from pmrf._frequency import Frequency
-from pmrf._model import Model, make_feature_fn, make_prior_fn
+from pmrf._model import Model
 from pmrf._constants import FeatureInputT
 
 class BaseSampler(ABC):
@@ -25,7 +26,7 @@ class BaseSampler(ABC):
 
         N = self.N
         params_matrix = self._generate_params(N)
-        params, static = self.model.params()
+        params, static = self.model.named_params()
         _, ravel_fn = flatten_util.ravel_pytree(params)
         for i in N:
             yield eqx.combine(ravel_fn(params_matrix[i,:]), static)
@@ -72,13 +73,14 @@ class BaseSampler(ABC):
             models.append(eqx.combine(ravel_fn(params_matrix[i,:]), static))
         return models
 
-    def generate_features(self, N, features: FeatureInputT, frequency: Frequency | skrf.Frequency, dtype: jnp.dtype | np.dtype = jnp.complex128, dont_jit=False) -> jnp.array:
+    def generate_features(self, N, features: FeatureInputT, frequency: Frequency | skrf.Frequency, dont_jit=False, **kwargs) -> jnp.array:
         if isinstance(frequency, skrf.Frequency):
             frequency = Frequency.from_skrf(frequency)
         
         params_matrix = jnp.array(self._generate_params(N))
         params = self.model.flat_params()
-        feature_fn = make_feature_fn(self.model, features, frequency, dtype=dtype)
+
+        feature_fn = wrap(extract_features, self.model, frequency, features)
         
         self.logger.info('Compiling feature function...')
         _features0 = feature_fn(params)
@@ -96,7 +98,7 @@ class BaseSampler(ABC):
         D = len(params)
 
         U = self._generate_hypercube_samples(N, D)
-        prior_transform_fn = make_prior_fn(self.model)
+        prior_transform_fn = wrap_prior(self.model)
         
         X = []
         for i in range(N):

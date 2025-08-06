@@ -5,17 +5,17 @@ from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
 import jsonpickle
-
-from typing import Sequence, Callable
+from collections.abc import Mapping, Sequence
+from typing import Sequence, Callable, Any, Tuple, List, Type
 
 import skrf as skrf
 import numpy as np
 import jax
 import jax.numpy as jnp
 from jax import flatten_util
-from jaxtyping import PyTree
+from jaxtyping import PyTree, PyTreeDef
 from jax import flatten_util
-from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
+from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
 from numpyro.distributions import Distribution
 
@@ -23,9 +23,11 @@ from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, Featu
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
+from pmrf.distributions._joint import JointParameterDistribution
 from pmrf._frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
-from pmrf._tree import nodes_by_type, partition, combine, value_at_path
+from pmrf._tree import nodes_by_type, value_at_path
+from pmrf._constants import TreeAxisSpec
 
 ModelT = TypeVar('ModelT', bound='Model')
 
@@ -164,7 +166,7 @@ class Model(eqx.Module):
                         raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
                     field_kwargs['default'] = default
                 
-                field_kwargs['converter'] = lambda x, field_name=field_name: asparam(x, name=field_name)
+                field_kwargs['converter'] = lambda x, field_name=field_name: asparam(x, name=field_name, fixed=True)
                 # field_kwargs['default_factory'] = lambda default=default: default
             
             # Apply default_factory to avoid Python default mutable trap
@@ -279,7 +281,7 @@ class Model(eqx.Module):
             dict[str, Parameter]: The parameters.
         """
         instance = cls()
-        return instance.params()
+        return instance.named_params()
     
     @classproperty
     def DEFAULT_PARAM_NAMES(cls) -> list[str]:
@@ -354,7 +356,7 @@ class Model(eqx.Module):
         Returns:
             int: The number of free parameters.
         """
-        return len(self.params())
+        return len(self.named_params())
 
     @property
     def nports(self) -> int:
@@ -427,7 +429,7 @@ class Model(eqx.Module):
         a = self.a(freq)
         return a2s(a, self.z0)
     
-    def s_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
+    def a_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
         """Calculates the ABCD parameter matrix at specific ports.
         
         This can be overriden for performance reasons.
@@ -469,13 +471,21 @@ class Model(eqx.Module):
 
         return self.s(freq)[:, m, n]
             
-    def children(self) -> list[ModelT]:
+    def children(self) -> list['Model']:
         """Returns a list of immediate submodels (children).
 
         Returns:
             list[ModelT]: The submodels.
         """
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
+    
+    def named_children(self) -> dict[str, 'Model']:
+        """Returns a dict of immediate submodels (children).
+
+        Returns:
+            list[ModelT]: The submodels.
+        """
+        return {child.name: child for child in self.children()}
     
     def submodels(self) -> list[ModelT]:
         """Returns a list of all submodels.
@@ -549,7 +559,7 @@ class Model(eqx.Module):
                 filter_spec = self._free_value_spec
         return partition(self, filter_spec, shared_spec)
     
-    def params(self, include_fixed=False, flat=False, flat_params=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, include_fixed=False, flat=False, flat_params=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """A dictionary of the core model parameters.
         
         Keys are returned as long parameter names, and values are the
@@ -598,16 +608,13 @@ class Model(eqx.Module):
         return _params
     
     def flat_params(self, *args, **kwargs) -> jnp.ndarray:
-        return self.params(*args, flat=True, **kwargs)
-    
-    def flat_param_objects(self, *args, **kwargs) -> dict[str, Parameter]:
-        return self.params(*args, flat=True, flat_params=True, **kwargs)
+        return self.named_params(*args, flat=True, **kwargs)
     
     def flat_param_names(self) -> list[str]:
-        return list(self.params(flat_params=True).keys())
+        return list(self.named_params(flat_params=True).keys())
     
     def param_names(self, *args, **kwargs):
-        params = self.params(*args, **kwargs)
+        params = self.named_params(*args, **kwargs)
         return list(params.keys())
         
     def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
@@ -627,15 +634,18 @@ class Model(eqx.Module):
             dict[str, Parameter]: The parameter dictionary.
         """
         
-        params = self.flat_param_objects(include_fixed=include_fixed)
+        params = self.named_params(flat=True, flat_params=True, include_fixed=include_fixed)
         groups = [group for group in self._param_groups]
 
-        grouped_param_names = {name for group in groups for name in group.flat_param_names}
+        grouped_param_names = {name for group in groups for name in group.names}
         for name, param in params.items():
             if name not in grouped_param_names:
-                groups.append(ParameterGroup(params={name: param}, prior=param.prior))
+                groups.append(ParameterGroup(names={name: param}, prior=param.prior))
         
         return groups
+    
+    def prior(self) -> Distribution:
+        return JointParameterDistribution(self.param_groups(), self.flat_param_names())
     
     def with_params(
         self: ModelT,
@@ -666,7 +676,7 @@ class Model(eqx.Module):
             params.update(param_kwargs)
         
             # Generate an ordered, input flat params array for verification
-            new_params = self.params(include_fixed=True)
+            new_params = self.named_params(include_fixed=True)
         
             # Validate the callers's input
             unknown_params = set(params.keys() - new_params.keys())
@@ -713,7 +723,10 @@ class Model(eqx.Module):
             return combined
         else:
             params = jnp.array(params)
-            params_tree, static = self.partition()            
+
+            if params.shape[0] != self.num_flat_params:
+                raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {params.shape[0]}')
+            params_tree, static = self.partition()
             params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
             
             if jnp.isscalar(params_out) or params_out.shape[0] == 0:
@@ -723,8 +736,6 @@ class Model(eqx.Module):
             return combine(params_tree_recon, static)   
         
     def with_flat_params(self, *args, **kwargs):
-        if args[0].shape[0] != self.num_flat_params:
-            raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {args[0].shape[0]}')
         return self.with_params(*args, **kwargs)
     
     def with_replaced(self: ModelT, *args, **kwargs) -> ModelT:
@@ -740,7 +751,6 @@ class Model(eqx.Module):
         param_groups_new = [param_group for param_group in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         
-    
     def with_fixed_params(self: ModelT, *params, check_unknown=True) -> ModelT:
         """Returns a version of self with the specified parameters fixed.
 
@@ -755,7 +765,7 @@ class Model(eqx.Module):
             params = [params]
         params = set(params)
             
-        current_params = self.params()        
+        current_params = self.named_params()        
         current_param_names = set(current_params.keys())
         
         if check_unknown:
@@ -783,7 +793,7 @@ class Model(eqx.Module):
         if isinstance(params, str):
             params = [params]
         params = set(params)
-        current_params = self.params(include_fixed=True)
+        current_params = self.named_params(include_fixed=True)
         current_param_names = set(current_params.keys())
         
         if check_unknown:
@@ -823,12 +833,12 @@ class Model(eqx.Module):
         if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
             free_submodels: list[Model] = [getattr(self, name) for name in free_submodels]
 
-        allowed_free_param_values = [param for source in free_submodels for param in source.params().values()]
-        allowed_free_params = {k: v for k, v in self.params().items() if any(v is p for p in allowed_free_param_values)}
+        allowed_free_param_values = [param for source in free_submodels for param in source.named_params().values()]
+        allowed_free_params = {k: v for k, v in self.named_params().items() if any(v is p for p in allowed_free_param_values)}
 
         return self.with_params(allowed_free_params, fix_others=True)          
     
-    def to_skrf(self, frequency: Frequency | skrf.Frequency, **kwargs) -> skrf.Network:
+    def to_skrf(self, frequency: Frequency | skrf.Frequency, sigma=0.0, **kwargs) -> skrf.Network:
         """Converts the model to a numpy array at the specified frequency.
         
         The internal primary property in `self.primary_property` is used for the conversion.
@@ -854,7 +864,10 @@ class Model(eqx.Module):
             'name': kwargs.get('name', self.name),
             'z0': self._z0,
         })
-        return skrf.Network(**kwargs)    
+        ntwk = skrf.Network(**kwargs)
+        if sigma != 0.0:
+            ntwk.s += + (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
+        return ntwk
     
     def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
         return self.to_skrf(frequency).write_touchstone(filename, **kwargs)
@@ -863,96 +876,96 @@ class Model(eqx.Module):
     #     json = jsonpickle.encode(self)
     #     with open(filepath, 'w') as f:
     #         f.write(f'{json}.pkl')
-        
-def make_feature_fn(
+
+def wrap(
+    func: Callable,
     model: Model,
-    features: FeatureInputT,
-    freq: Frequency | skrf.Frequency,
-    dtype: jnp.dtype = jnp.complex128,
+    frequency_or_unit: Frequency | str = 'Hz',
+    *,
     as_numpy = False,
-    nderiv = 0,
-) -> tuple[FeatureFunctionT, ModelParametersT] | tuple[FeatureFunctionT, ModelParametersT, Callable]:
-    """Generate a feature function to parametrically extract model features.
-    
-    This function returns a callable feature function to extract model features,
-    alongside model parameters. The function can be just-in-time compiled using jax,
-    to enable its efficient, machine-code level computation.
-    
-    The function generated accepts the model parameters, in either Pytree
-    or flattened (raveled) formated, and returns the resultant model feature matrix.
-    This function is convenient for lower-level use in order to remove close over any details of the model,
-    and make use of a purely parametric function (e.g. for fitting or sampling).
-
-    Args:
-        model (Model):                              The model to generate the feature functions for.
-        features (FeatureT | FeatureList):          The list of features. See `extract_features` for more information.
-        freq (pmrf.Frequency):                      The frequency to extract the features at, treated as a static argument.
-        dtype (jnp.dtype, optional):                The data type of the final out feature matrix.        
-        as_numpy (bool):                         Specifies whether the return function should accept a numpy array as opposed to a jax array.
-                                                    Only for the flat case.        
-        nderiv (int):                               The number of derives to take of the feature function. Default to 0 for the original function.
-
-    Returns:
-        tuple[FeatureFunction, ModelParameters]:    The feature function, alongside the partitioned or flattened model parameters.
+    **kwargs: dict,
+) -> Callable[[jnp.ndarray, jnp.ndarray, Any], jnp.ndarray]:
     """
-    from pmrf._features import extract_features
-    
-    if isinstance(freq, skrf.Frequency):
-        freq = Frequency.from_skrf(freq)
-    
-    @jax.jit
-    def feature_fn(flat_params) -> jnp.ndarray:
-        model_recon = model.with_flat_params(flat_params)
-        return extract_features(model_recon, features, freq, dtype=dtype)
+    Wraps a function `func(model, frequency, *args, **kwargs)` so that it
+    instead accepts `theta_array` and optionally `f_array` as the first arguments.
 
-    for _ in range(nderiv):
-        feature_fn = jax.jacfwd(feature_fn)
-        
+    Parameters
+    ----------
+    func : Callable
+        The original function accepting `model`, `frequency`, ...
+    model : prf.Model
+        A model used for calling `with_flat_params`.
+
+    Returns
+    -------
+    Callable
+        A function with signature `(theta_array, f_array, *args, **kwargs) -> output`
+    """
+    static_kwargs = static_kwargs or None
+    accepts_freq = isinstance(frequency_or_unit, str)
+
+    @eqx.filter_jit
+    def wrapped_fn(theta_array: jnp.ndarray, f_array: jnp.ndarray, *args, **kwargs):
+        new_model = model.with_flat_params(theta_array)
+        new_frequency = Frequency.from_f(f=f_array, unit=frequency_or_unit) if accepts_freq else new_frequency
+        return func(new_model, new_frequency, *args, **kwargs)
+    
+    if not accepts_freq:
+        wrapped_fn_freq = wrapped_fn
+        wrapped_fn = lambda theta: wrapped_fn_freq(jnp.array(theta), frequency_or_unit.f)
+    
     if as_numpy:
-        params_out = np.array(params_out)
-        feature_fn_np = lambda x: np.array(feature_fn(jnp.array(x)))
-        feature_fn = feature_fn_np
+        if accepts_freq:
+            wrapped_fn_jax = wrapped_fn
+            wrapped_fn = lambda theta, f: np.array(wrapped_fn_jax(jnp.array(theta), jnp.array(f)))
+        else:
+            wrapped_fn_jax = wrapped_fn
+            wrapped_fn = lambda theta: np.array(wrapped_fn_jax(jnp.array(theta)))
+
+    return wrapped_fn
+
     
-    return feature_fn    
+# def wrap_prior(model: Model, kind='icdf', as_numpy=False):
+#     param_groups: list[ParameterGroup] = model.param_groups()
+#     param_names = model.flat_param_names()
     
-def make_prior_fn(model: Model, kind='icdf', as_numpy=False):
-    param_groups: list[ParameterGroup] = model.param_groups()
-    param_names = model.flat_param_names()
-    
-    # The first case is for independent priors (each group maps to one parameter) whereas the second case is for correlated priors
-    @jax.jit
-    def prior_transform_fn(u: jnp.ndarray):
-        # We assign groups of d hypercube values to corresponding groups of physical values
-        name_to_hypercube_value = {name: u[i] for i, name in enumerate(param_names)}
-        name_to_physical_value = {name: None for name in param_names}
+#     # The first case is for independent priors (each group maps to one parameter) whereas the second case is for correlated priors
+#     @jax.jit
+#     def prior_transform_fn(u: jnp.ndarray):
+#         # We assign groups of d hypercube values to corresponding groups of physical values
+#         name_to_hypercube_value = {name: u[i] for i, name in enumerate(param_names)}
+#         name_to_physical_value = {name: None for name in param_names}
         
-        # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
-        # and use the icdf of the group prior to get the physical parameters for that group
-        for param_group in param_groups:
-            group_param_names = param_group.flat_param_names
-            g = [name_to_hypercube_value[name] for name in group_param_names if name in param_names]
+#         # Then we run through the parameter groups, collect the d hypercube parameters into an array g per group,
+#         # and use the icdf of the group prior to get the physical parameters for that group
+#         for param_group in param_groups:
+#             group_param_names = param_group.names
+#             g = [name_to_hypercube_value[name] for name in group_param_names if name in param_names]
             
-            # Either all parameters or no parameters must be present - the inverse transform is not partially defined
-            if len(g) == 0:
-                continue
-            elif len(g) != len(group_param_names):
-                raise Exception('Cannot use correlated priors where some parameters are fixed')
+#             # Either all parameters or no parameters must be present - the inverse transform is not partially defined
+#             if len(g) == 0:
+#                 continue
+#             elif len(g) != len(group_param_names):
+#                 raise Exception('Cannot use correlated priors where some parameters are fixed')
             
-            g = jnp.array(g)
-            prior_attr_fn = getattr(param_group.prior, kind)
-            param_values = prior_attr_fn(g)
-            for i, name in enumerate(group_param_names):
-                name_to_physical_value[name] = param_values[i]
+#             if param_group.prior is None:
+#                 raise Exception(f'Parameter(s) {group_param_names} do not have priors')
+            
+#             g = jnp.array(g)
+#             prior_attr_fn = getattr(param_group.prior, kind)
+#             param_values = prior_attr_fn(g)
+#             for i, name in enumerate(group_param_names):
+#                 name_to_physical_value[name] = param_values[i]
                 
-        # Should probably check this outside of the function
-        if any(value is None for value in name_to_physical_value.values()):
-            raise Exception('Parameter found that did not belong to a parameter groups')
+#         # Should probably check this outside of the function
+#         if any(value is None for value in name_to_physical_value.values()):
+#             raise Exception('Parameter found that did not belong to a parameter groups')
         
-        # Return the physical values
-        return jnp.array(list(name_to_physical_value.values()))
+#         # Return the physical values
+#         return jnp.array(list(name_to_physical_value.values()))
     
-    if as_numpy:
-        prior_transform_fn_np = lambda hypercube: np.array(prior_transform_fn(hypercube))
-        prior_transform_fn = prior_transform_fn_np
+#     if as_numpy:
+#         prior_transform_fn_np = lambda hypercube: np.array(prior_transform_fn(hypercube))
+#         prior_transform_fn = prior_transform_fn_np
     
-    return prior_transform_fn
+#     return prior_transform_fn

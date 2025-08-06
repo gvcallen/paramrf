@@ -51,7 +51,7 @@ class Frequency(eqx.Module):
     _f: jnp.array
     _unit: str = field(static=True)
 
-    def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, unit: FrequencyUnitT | None = 'Hz', f = None) -> None:
+    def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, unit: FrequencyUnitT | None = 'Hz') -> None:
         """
         Frequency initializer.
 
@@ -99,12 +99,46 @@ class Frequency(eqx.Module):
 
         """
         self._unit = unit.lower()
-        if not f is None:
-            self._f = jnp.array(f)
-        else:        
-            start =  self.multiplier * start
-            stop = self.multiplier * stop
-            self._f = jnp.linspace(start, stop, npoints)
+        start =  self.multiplier * start
+        stop = self.multiplier * stop
+        self._f = jnp.linspace(start, stop, npoints)
+
+    @classmethod
+    def from_f(cls, f: NumberLike, unit: FrequencyUnitT | None = None) -> Frequency:
+        """
+        Construct Frequency object from a frequency vector.
+
+        The unit is set by kwarg 'unit'
+
+        Parameters
+        ----------
+        f : scalar or array-like
+            frequency vector
+
+        *args, **kwargs : arguments, keyword arguments
+            passed on to  :func:`__init__`.
+
+        Returns
+        -------
+        myfrequency : :class:`Frequency` object
+            the Frequency object
+
+        Raises
+        ------
+        InvalidFrequencyWarning:
+            If frequency points are not monotonously increasing
+
+        Examples
+        --------
+        >>> f = np.linspace(75,100,101)
+        >>> rf.Frequency.from_f(f, unit='GHz')
+        """
+        if jnp.isscalar(f):
+            f = [f]
+        temp_freq =  cls(0,0,0,unit=unit)
+        temp_freq._f = jnp.asarray(f) * temp_freq.multiplier
+
+        return temp_freq        
         
     @staticmethod
     def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
