@@ -39,7 +39,7 @@ class JAXNSFitter(BayesianFitter):
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         priors = [param.prior for param in params]
         
-        x0 = self.initial_model.flat_params()
+        x0 = self.model.flat_params()
         loglikelihood_fn = self._make_log_likelihood_fn()
         prior_fn = self._make_prior_transform_fn()
 
@@ -87,7 +87,7 @@ class JAXNSFitter(BayesianFitter):
         self.logger.info(f"Final logZ = {logZ:.2f} +/- {logZ_err:.2f}")
         
         # --- 5. Update Model with Best-Fit Parameters ---
-        model_param_names = list(self.initial_model.flat_param_names())
+        model_param_names = list(self.model.flat_param_names())
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
                 x0[i] = nested_samples[param_name].mean()
@@ -99,8 +99,8 @@ class JAXNSFitter(BayesianFitter):
                 
         return AnestheticResults(
             fit_model=None,
-            initial_model=self.initial_model,
-            frequency=self.model_frequency,
+            initial_model=self.model,
+            frequency=self.frequency,
             measured=self.measured,
             features=self.feature_list,
             logger=self.logger,

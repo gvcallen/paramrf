@@ -52,6 +52,8 @@ class FrequentistFitter(BaseFitter):
                 is used. Defaults to `None`.
         """
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
+
+        features=self.feature_list
         if cost is not None and not isinstance(cost, list):
             cost = [cost]
         if cost is None:
@@ -63,7 +65,7 @@ class FrequentistFitter(BaseFitter):
         self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
         
     def _make_cost_function(self, as_numpy=False):
-        x0_jax = self.initial_model.flat_params()
+        x0_jax = self.model.flat_params()
         feature_fn_jax = self._make_feature_function()
 
         # Define the JAX cost function to be minimized
@@ -89,8 +91,8 @@ class FrequentistFitter(BaseFitter):
         return cost_fn
     
     def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
-        param_groups = self.initial_model.param_groups()
-        param_names = self.initial_model.flat_param_names()
+        param_groups = self.model.param_groups()
+        param_names = self.model.flat_param_names()
         
         name_to_minimum = {name: None for name in param_names}
         name_to_maximum = {name: None for name in param_names}

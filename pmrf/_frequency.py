@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from numbers import Number
+import dataclasses
 
 import skrf
 import equinox as eqx
@@ -136,9 +137,9 @@ class Frequency(eqx.Module):
         if jnp.isscalar(f):
             f = [f]
         temp_freq =  cls(0,0,0,unit=unit)
-        temp_freq._f = jnp.asarray(f) * temp_freq.multiplier
+        new_freq = eqx.tree_at(lambda freq: freq._f, temp_freq, jnp.asarray(f) * temp_freq.multiplier)
 
-        return temp_freq        
+        return new_freq
         
     @staticmethod
     def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
@@ -150,7 +151,7 @@ class Frequency(eqx.Module):
         Returns:
             Frequency: The equivalent pmrf Frequency object.
         """
-        return Frequency(f=skrf_frequency.f, unit=skrf_frequency.unit)
+        return Frequency.from_f(skrf_frequency.f_scaled, unit=skrf_frequency.unit)
     
     def to_skrf(self) -> skrf.Frequency:
         """Converts this `pmrf.Frequency` object to a `skrf.Frequency` object.

@@ -23,10 +23,10 @@ from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, Featu
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
-from distributions._parameter import JointParameterDistribution
+from pmrf.distributions._parameter import JointParameterDistribution
 from pmrf._frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
-from pmrf._tree import nodes_by_type, value_at_path
+from pmrf._tree import nodes_by_type, value_at_path, partition, combine
 from pmrf._constants import TreeAxisSpec
 
 ModelT = TypeVar('ModelT', bound='Model')
@@ -487,7 +487,7 @@ class Model(eqx.Module):
         """
         return {child.name: child for child in self.children()}
     
-    def submodels(self) -> list[ModelT]:
+    def submodels(self) -> list['Model']:
         """Returns a list of all submodels.
         
         This contains all immediate sub-models, as well as their sub-models.
@@ -497,7 +497,7 @@ class Model(eqx.Module):
         """
         return nodes_by_type(self, Model)[1:]
 
-    def flipped(self) -> ModelT:
+    def flipped(self) -> 'Model':
         """Returns a version of the model with its ports flipped.
 
         Returns:
@@ -506,7 +506,7 @@ class Model(eqx.Module):
         from pmrf.models.containers import Flipped
         return Flipped(self)
     
-    def terminated(self, load: ModelT = None) -> ModelT:
+    def terminated(self, load: 'Model' = None) -> 'Model':
         """Returns the model terminated in a one-port load.
         
         May only be called for two-port models.
@@ -883,8 +883,7 @@ def wrap(
     frequency_or_unit: Frequency | str = 'Hz',
     *,
     as_numpy = False,
-    **kwargs: dict,
-) -> Callable[[jnp.ndarray, jnp.ndarray, Any], jnp.ndarray]:
+) -> Callable:
     """
     Wraps a function `func(model, frequency, *args, **kwargs)` so that it
     instead accepts `theta_array` and optionally `f_array` as the first arguments.
@@ -901,26 +900,28 @@ def wrap(
     Callable
         A function with signature `(theta_array, f_array, *args, **kwargs) -> output`
     """
-    static_kwargs = static_kwargs or None
     accepts_freq = isinstance(frequency_or_unit, str)
 
-    @eqx.filter_jit
-    def wrapped_fn(theta_array: jnp.ndarray, f_array: jnp.ndarray, *args, **kwargs):
-        new_model = model.with_flat_params(theta_array)
-        new_frequency = Frequency.from_f(f=f_array, unit=frequency_or_unit) if accepts_freq else new_frequency
+    # @eqx.filter_jit
+    def wrapped_without_freq_fn(theta: jnp.ndarray, *args, **kwargs):
+        new_model = model.with_flat_params(theta)
+        return func(new_model, frequency_or_unit, *args, **kwargs)    
+
+    # @eqx.filter_jit
+    def wrapped_with_freq_fn(theta: jnp.ndarray, f_scaled: jnp.ndarray, *args, **kwargs):
+        new_model = model.with_flat_params(theta)
+        new_frequency = Frequency.from_f(f=f_scaled, unit=frequency_or_unit)
         return func(new_model, new_frequency, *args, **kwargs)
     
-    if not accepts_freq:
-        wrapped_fn_freq = wrapped_fn
-        wrapped_fn = lambda theta: wrapped_fn_freq(jnp.array(theta), frequency_or_unit.f)
-    
+    wrapped_fn = wrapped_with_freq_fn if accepts_freq else wrapped_without_freq_fn
+
     if as_numpy:
         if accepts_freq:
             wrapped_fn_jax = wrapped_fn
-            wrapped_fn = lambda theta, f: np.array(wrapped_fn_jax(jnp.array(theta), jnp.array(f)))
+            wrapped_fn = lambda theta, f, *args, **kwargs: np.array(wrapped_fn_jax(jnp.array(theta), jnp.array(f), *args, **kwargs))
         else:
             wrapped_fn_jax = wrapped_fn
-            wrapped_fn = lambda theta: np.array(wrapped_fn_jax(jnp.array(theta)))
+            wrapped_fn = lambda theta, *args, **kwargs: np.array(wrapped_fn_jax(jnp.array(theta), *args, **kwargs))
 
     return wrapped_fn
 

@@ -22,7 +22,7 @@ class dyPolychordFitter(BayesianFitter):
         nlive_init_factor = nlive_init_factor if nlive_init_factor is not None else 1
         nlive_factor = nlive_factor if nlive_factor is not None else 25
         
-        num_params = self.initial_model.num_flat_params + len(self.likelihood_params)
+        num_params = self.model.num_flat_params + len(self.likelihood_params)
         param_names = self._flat_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
@@ -42,7 +42,7 @@ class dyPolychordFitter(BayesianFitter):
         settings_dict_in.setdefault('file_root', 'test')
         
         # Generate prior and likelihood functions
-        x0 = np.array(self.initial_model.flat_params())
+        x0 = np.array(self.model.flat_params())
         loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
         prior_fn = self._make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
@@ -78,12 +78,12 @@ class dyPolychordFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
-        fit_model = self.initial_model.with_flat_params(x0)
+        fit_model = self.model.with_flat_params(x0)
                 
         return AnestheticResults(
             fit_model=fit_model,
-            initial_model=self.initial_model,
-            frequency=self.model_frequency,
+            initial_model=self.model,
+            frequency=self.frequency,
             measured=self.measured,
             features=self.feature_list,
             logger=self.logger,

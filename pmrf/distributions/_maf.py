@@ -3,8 +3,8 @@ from numpyro.distributions import Distribution, constraints
 _BACKEND_REGISTRY = {}
 
 try:
-    from pmrf.distributions._backends.margarine import MargarineAdapter
-    _BACKEND_REGISTRY["margarine"] = MargarineAdapter
+    from pmrf.distributions._backends.margarine import MargarineMAFAdapter
+    _BACKEND_REGISTRY["margarine"] = MargarineMAFAdapter
 except ImportError:
     pass
 

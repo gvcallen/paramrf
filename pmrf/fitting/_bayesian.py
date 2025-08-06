@@ -7,7 +7,7 @@ import dataclasses
 
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf._model import Model
-from constants import FeatureInputT
+from pmrf._constants import FeatureInputT
 from pmrf.fitting._base import BaseFitter, FitResults
 
 
@@ -82,18 +82,18 @@ class BayesianFitter(BaseFitter):
     
     @property
     def num_model_params(self) -> int:
-        return self.initial_model.num_flat_params
+        return self.model.num_flat_params
     
     @property
     def num_likelihood_params(self) -> int:
         return len(self.likelihood_params)
         
     def _flat_param_names(self) -> list[str]:
-        return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())
+        return self.model.flat_param_names() + list(self.likelihood_params.keys())
     
     def _make_prior_transform_fn(self, as_numpy=False):
-        model_prior = self.initial_model.prior()
-        num_model_params = len(self.initial_model.flat_params())
+        model_prior = self.model.prior()
+        num_model_params = len(self.model.flat_params())
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
@@ -112,8 +112,8 @@ class BayesianFitter(BaseFitter):
         return prior_transform_fn
     
     def _make_log_prior_fn(self, as_numpy=False):
-        model_prior = self.initial_model.prior()
-        num_model_params = self.initial_model.num_flat_params
+        model_prior = self.model.prior()
+        num_model_params = self.model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
@@ -139,7 +139,7 @@ class BayesianFitter(BaseFitter):
         else:
             raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
 
-        x0 = jnp.array(list(self.initial_model.flat_params()) + [param.prior.mean for param in self.likelihood_params.values()])
+        x0 = jnp.array(list(self.model.flat_params()) + [param.prior.mean for param in self.likelihood_params.values()])
         if as_numpy:
             log_likelihood_fn_jax = log_likelihood_fn
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))

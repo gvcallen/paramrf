@@ -64,14 +64,14 @@ class ScipyMinimizeFitter(FrequentistFitter):
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
-        params = self.initial_model.flat_params()
-        param_names = self.initial_model.flat_param_names()
+        params = self.model.flat_params()
+        param_names = self.model.flat_param_names()
         
         minimums, maximums = self._bounds()
         minimums, maximums = np.array(minimums), np.array(maximums)
         bounds = Bounds(minimums, maximums)
 
-        x0 = self.initial_model.flat_params()
+        x0 = self.model.flat_params()
         cost_fn = self._make_cost_function(as_numpy=True)
         
         # Define a wrapper function compatible with SciPy's interface
@@ -91,12 +91,12 @@ class ScipyMinimizeFitter(FrequentistFitter):
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         
         # Reconstruct the final model with optimized parameters
-        fit_model = self.initial_model.with_flat_params(scipy_result.x)
+        fit_model = self.model.with_flat_params(scipy_result.x)
         
         return ScipyMinimizeResults(
             fit_model=fit_model,
-            initial_model=self.initial_model,
-            frequency=self.model_frequency,
+            initial_model=self.model,
+            frequency=self.frequency,
             measured=self.measured,
             features=self.feature_list,
             logger=self.logger,

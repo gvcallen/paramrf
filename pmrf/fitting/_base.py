@@ -5,7 +5,9 @@ import importlib
 import logging
 from typing import Any, Sequence
 from io import BytesIO
+from functools import partial
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import json
@@ -66,7 +68,7 @@ class BaseFitter(ABC):
         self,
         model: Model,
         measured: str | skrf.Network | dict[str, skrf.Network],
-        frequency: skrf.Frequency | None = None,
+        frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
     ) -> None:
         """Initializes the BaseFitter.
@@ -78,7 +80,7 @@ class BaseFitter(ABC):
                                                                         the keys of the networks must can be referenced during
                                                                         feature extraction by also specifying features as a dictionary.
                                                                         See the documentation for the `features` argument below.
-            frequency (skrf.Frequency | None, optional):                The frequency axis to perform the fit on. If `None`, the frequency
+            frequency (Frequency | None, optional):                The frequency axis to perform the fit on. If `None`, the frequency
                                                                         from the first measured network is used. All networks will be
                                                                         interpolated onto this single frequency axis. Defaults to `None`.
             features (FeatureInputT | None, optional):                  Defines the features to be extracted from the network data and model for fitting.
@@ -122,16 +124,15 @@ class BaseFitter(ABC):
                 measured_freq = measured.frequency
                 
         # Initialize model parameters from user and store in flat array
-        self.initial_model: Model = model
-        self.model_frequency: Frequency = Frequency.from_skrf(measured_freq)
+        self.model: Model = model
+        self.frequency: Frequency = frequency or Frequency.from_skrf(measured_freq)
         self.measured: skrf.Network | dict[str, skrf.Network] = measured
-        self.measured_frequency: skrf.Frequency = measured_freq
-        self.measured_features = extract_features(measured, features)
+        self.measured_features = extract_features(measured, None, features)
         self.feature_list = features
         if rank == 0:
             self.logger = logging.getLogger("pmrf.fitting")
         else:
-            self.logger = LevelFilteredLogger(null_level=logging.WARNING)        
+            self.logger = LevelFilteredLogger(null_level=logging.WARNING)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> 'FitResults':
@@ -145,9 +146,10 @@ class BaseFitter(ABC):
         """
         pass
     
-    def _make_feature_function(self, as_numpy=False, **kwargs):
-        return wrap(extract_features, self.initial_model, self.model_frequency, as_numpy=as_numpy, **kwargs)
-
+    def _make_feature_function(self, as_numpy=False):
+        general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=as_numpy)
+        feature_fn = lambda theta: general_feature_fn(theta, self.feature_list)
+        return jax.jit(feature_fn)
     
 @dataclass
 class FitResults:
@@ -158,10 +160,12 @@ class FitResults:
     frequency: Frequency | None = None
     features: list[FeatureT] | None = None
     logger: logging.Logger | None = None
-    fit_args: tuple | None = None
-    fit_kwargs: tuple | None = None
+    
+    fitter_args: tuple | None = None
+    fitter_kwargs: tuple | None = None
     solver_args: tuple | None = None
     solver_kwargs: dict | None = None
+    
     version: int = 2
     
     def encode_solver_results(self, group: h5py.Group):
@@ -246,10 +250,10 @@ class FitResults:
                 frequency_grp['unit'] = self.frequency.unit
             if self.features is not None:
                 input_grp.create_dataset('features', data=json.dumps(self.features))
-            if self.fit_args is not None:
-                input_grp.create_dataset('fit_args', data=jsonpickle.encode(self.fit_args))
-            if self.fit_kwargs is not None:
-                input_grp.create_dataset('fit_kwargs', data=jsonpickle.encode(self.fit_kwargs))            
+            if self.fitter_args is not None:
+                input_grp.create_dataset('fit_args', data=jsonpickle.encode(self.fitter_args))
+            if self.fitter_kwargs is not None:
+                input_grp.create_dataset('fit_kwargs', data=jsonpickle.encode(self.fitter_kwargs))            
             if self.solver_args is not None:
                 input_grp.create_dataset('solver_args', data=jsonpickle.encode(self.solver_args))
             if self.solver_kwargs is not None:

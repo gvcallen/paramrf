@@ -4,7 +4,7 @@ import numpy as np
 
 from margarine.maf import MAF
 
-class MargarineAdapter:
+class MargarineMAFAdapter:
     """
     Adapter for MAF models from the 'margarine' library.
     """
