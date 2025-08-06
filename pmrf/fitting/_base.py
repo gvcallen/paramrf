@@ -231,14 +231,14 @@ class FitResults:
             if self.measured is not None:
                 measured_grp = input_grp.create_group('measured')
                 if isinstance(self.measured, skrf.Network):
-                    measured_grp['name'] = self.measured.name
+                    measured_grp['name'] = self.measured.name or 'ntwk'
                     measured_grp.create_dataset('s', data=self.measured.s)
                     measured_grp.create_dataset('f', data=self.measured.f)
                     measured_grp.create_dataset('z0', data=self.measured.z0)
                 else:
                     for label, ntwk in self.measured.items():
                         measured_ntwk_grp = measured_grp.create_group(label)
-                        measured_ntwk_grp['name'] = ntwk.name
+                        measured_ntwk_grp['name'] = ntwk.name or 'ntwk'
                         measured_ntwk_grp.create_dataset('s', data=ntwk.s)
                         measured_ntwk_grp.create_dataset('f', data=ntwk.f)
                         measured_ntwk_grp.create_dataset('z0', data=ntwk.z0)
@@ -251,7 +251,7 @@ class FitResults:
             if self.features is not None:
                 input_grp.create_dataset('features', data=json.dumps(self.features))
             if self.fitter_args is not None:
-                input_grp.create_dataset('fit_args', data=jsonpickle.encode(self.fitter_args))
+                input_grp.create_dataset('fitter_args', data=jsonpickle.encode(self.fitter_args))
             if self.fitter_kwargs is not None:
                 input_grp.create_dataset('fitter_kwargs', data=jsonpickle.encode(self.fitter_kwargs))            
             if self.solver_args is not None:
@@ -343,19 +343,19 @@ class FitResults:
                 f_arr = freq_grp['f'][()]
                 unit = freq_grp['unit'][()]
                 unit = unit.decode('utf-8') if isinstance(unit, bytes) else unit
-                frequency = Frequency(f=f_arr, unit=unit)
+                frequency = Frequency.from_f(f=f_arr, unit=unit)
             if 'features' in input_grp:
                 features = json.loads(input_grp["features"][()])
 
             ## Solver args, kwargs and fit args, kwargs
             solver_args, solver_kwargs = None, None
-            fit_args, fitter_kwargs = None, None
+            fitter_args, fitter_kwargs = None, None
             if 'solver_args' in input_grp:
                 solver_args = jsonpickle.decode(input_grp['solver_args'][()])
             if 'solver_kwargs' in input_grp:
                 solver_kwargs = jsonpickle.decode(input_grp['solver_kwargs'][()])
-            if 'fit_args' in input_grp:
-                fit_args = jsonpickle.decode(input_grp['fit_args'][()])
+            if 'fitter_args' in input_grp:
+                fitter_args = jsonpickle.decode(input_grp['fitter_args'][()])
             if 'fitter_kwargs' in input_grp:
                 fitter_kwargs = jsonpickle.decode(input_grp['fitter_kwargs'][()])
                 
@@ -367,7 +367,7 @@ class FitResults:
                 features=features,
                 logger=None,  # Not saved/restored
                 solver_results=solver_results,
-                fit_args=fit_args,
+                fitter_args=fitter_args,
                 fitter_kwargs=fitter_kwargs,
                 solver_args=solver_args,
                 solver_kwargs=solver_kwargs,

@@ -905,7 +905,8 @@ def wrap(
     *args : tuple
         Either (model, Frequency | unit) or just (Frequency | unit) if `func` is a bound method.
     as_numpy : bool, keyword-only
-        Whether to convert outputs to NumPy arrays.
+        Whether to convert outputs to NumPy arrays and accept NumPy arrays as input.
+        The function is jitted internally if this is passed.
 
     Returns
     -------
@@ -943,19 +944,15 @@ def wrap(
     wrapped_fn = wrapped_with_freq if use_variable_frequency else wrapped_fixed_freq
 
     if as_numpy:
-        raw_fn = wrapped_fn
+        raw_fn = eqx.filter_jit(wrapped_fn)
         if use_variable_frequency:
-            wrapped_fn = lambda theta, f, *a, **kw: np.array(
-                raw_fn(jnp.array(theta), jnp.array(f), *a, **kw)
-            )
+            wrapped_fn = lambda theta, f, *a, **kw: np.array(raw_fn(jnp.array(theta), jnp.array(f), *a, **kw))
         else:
-            wrapped_fn = lambda theta, *a, **kw: np.array(
-                raw_fn(jnp.array(theta), *a, **kw)
-            )
+            wrapped_fn = lambda theta, *a, **kw: np.array(raw_fn(jnp.array(theta), *a, **kw))
 
     # Forward metadata
     update_wrapper(wrapped_fn, func)
-
+    
     return wrapped_fn
 
     
