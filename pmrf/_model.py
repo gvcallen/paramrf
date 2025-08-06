@@ -4,6 +4,9 @@ from copy import deepcopy, copy
 from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
+from functools import update_wrapper
+import jax.numpy as jnp
+import numpy as np
 import jsonpickle
 from collections.abc import Mapping, Sequence
 from typing import Sequence, Callable, Any, Tuple, List, Type
@@ -866,7 +869,7 @@ class Model(eqx.Module):
         })
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:
-            ntwk.s += + (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
+            ntwk.s += (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
         return ntwk
     
     def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
@@ -879,49 +882,79 @@ class Model(eqx.Module):
 
 def wrap(
     func: Callable,
-    model: Model,
-    frequency_or_unit: Frequency | str = 'Hz',
-    *,
-    as_numpy = False,
+    *args,
+    as_numpy: bool = False,
 ) -> Callable:
     """
-    Wraps a function `func(model, frequency, *args, **kwargs)` so that it
-    instead accepts `theta_array` and optionally `f_array` as the first arguments.
+    Wraps a function or method that accepts (model, frequency, *args, **kwargs),
+    so that it instead accepts flat arrays (theta, [f], *args, **kwargs).
+
+    Supported calls:
+        wrap(userfunc, model, "MHz")
+        wrap(userfunc, model, freq)
+        wrap(model.userfunc, "MHz")
+        wrap(model.userfunc, freq)
+        
+    In the case where a Frequency object is passed, it is closed over, and the returned
+    function only accepts theta.
 
     Parameters
     ----------
     func : Callable
-        The original function accepting `model`, `frequency`, ...
-    model : prf.Model
-        A model used for calling `with_flat_params`.
+        A function or method taking (model, frequency, ...).
+    *args : tuple
+        Either (model, Frequency | unit) or just (Frequency | unit) if `func` is a bound method.
+    as_numpy : bool, keyword-only
+        Whether to convert outputs to NumPy arrays.
 
     Returns
     -------
     Callable
-        A function with signature `(theta_array, f_array, *args, **kwargs) -> output`
+        A wrapped function accepting (theta_array, [f_array], *args, **kwargs).
     """
-    accepts_freq = isinstance(frequency_or_unit, str)
+    # Determine if func is a bound method
+    if hasattr(func, '__self__') and func.__self__ is not None:
+        model: Model = func.__self__
+        func = func.__func__
+        args = list(args)
+    else:
+        model: Model = args[0]
+        args = args[1:]
 
-    # @eqx.filter_jit
-    def wrapped_without_freq_fn(theta: jnp.ndarray, *args, **kwargs):
-        new_model = model.with_flat_params(theta)
-        return func(new_model, frequency_or_unit, *args, **kwargs)    
+    # Now args[0] should be Frequency or unit
+    frequency_or_unit = args[0] if args else "Hz"
 
-    # @eqx.filter_jit
-    def wrapped_with_freq_fn(theta: jnp.ndarray, f_scaled: jnp.ndarray, *args, **kwargs):
+    # Validate
+    if not isinstance(frequency_or_unit, (str, Frequency)):
+        raise TypeError("Expected Frequency or unit string as second argument")
+
+    use_variable_frequency = isinstance(frequency_or_unit, str)
+
+    # Define wrapped function
+    def wrapped_with_freq(theta: jnp.ndarray, f_array: jnp.ndarray, *f_args, **f_kwargs):
         new_model = model.with_flat_params(theta)
-        new_frequency = Frequency.from_f(f=f_scaled, unit=frequency_or_unit)
-        return func(new_model, new_frequency, *args, **kwargs)
-    
-    wrapped_fn = wrapped_with_freq_fn if accepts_freq else wrapped_without_freq_fn
+        frequency = Frequency.from_f(f_array, unit=frequency_or_unit)
+        return func(new_model, frequency, *f_args, **f_kwargs)
+
+    def wrapped_fixed_freq(theta: jnp.ndarray, *f_args, **f_kwargs):
+        new_model = model.with_flat_params(theta)
+        return func(new_model, frequency_or_unit, *f_args, **f_kwargs)
+
+    wrapped_fn = wrapped_with_freq if use_variable_frequency else wrapped_fixed_freq
 
     if as_numpy:
-        if accepts_freq:
-            wrapped_fn_jax = wrapped_fn
-            wrapped_fn = lambda theta, f, *args, **kwargs: np.array(wrapped_fn_jax(jnp.array(theta), jnp.array(f), *args, **kwargs))
+        raw_fn = wrapped_fn
+        if use_variable_frequency:
+            wrapped_fn = lambda theta, f, *a, **kw: np.array(
+                raw_fn(jnp.array(theta), jnp.array(f), *a, **kw)
+            )
         else:
-            wrapped_fn_jax = wrapped_fn
-            wrapped_fn = lambda theta, *args, **kwargs: np.array(wrapped_fn_jax(jnp.array(theta), *args, **kwargs))
+            wrapped_fn = lambda theta, *a, **kw: np.array(
+                raw_fn(jnp.array(theta), *a, **kw)
+            )
+
+    # Forward metadata
+    update_wrapper(wrapped_fn, func)
 
     return wrapped_fn
 

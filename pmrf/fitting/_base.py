@@ -253,7 +253,7 @@ class FitResults:
             if self.fitter_args is not None:
                 input_grp.create_dataset('fit_args', data=jsonpickle.encode(self.fitter_args))
             if self.fitter_kwargs is not None:
-                input_grp.create_dataset('fit_kwargs', data=jsonpickle.encode(self.fitter_kwargs))            
+                input_grp.create_dataset('fitter_kwargs', data=jsonpickle.encode(self.fitter_kwargs))            
             if self.solver_args is not None:
                 input_grp.create_dataset('solver_args', data=jsonpickle.encode(self.solver_args))
             if self.solver_kwargs is not None:
@@ -349,15 +349,15 @@ class FitResults:
 
             ## Solver args, kwargs and fit args, kwargs
             solver_args, solver_kwargs = None, None
-            fit_args, fit_kwargs = None, None
+            fit_args, fitter_kwargs = None, None
             if 'solver_args' in input_grp:
                 solver_args = jsonpickle.decode(input_grp['solver_args'][()])
             if 'solver_kwargs' in input_grp:
                 solver_kwargs = jsonpickle.decode(input_grp['solver_kwargs'][()])
             if 'fit_args' in input_grp:
                 fit_args = jsonpickle.decode(input_grp['fit_args'][()])
-            if 'fit_kwargs' in input_grp:
-                fit_kwargs = jsonpickle.decode(input_grp['fit_kwargs'][()])
+            if 'fitter_kwargs' in input_grp:
+                fitter_kwargs = jsonpickle.decode(input_grp['fitter_kwargs'][()])
                 
             return cls(
                 fit_model=fit_model,
@@ -368,7 +368,7 @@ class FitResults:
                 logger=None,  # Not saved/restored
                 solver_results=solver_results,
                 fit_args=fit_args,
-                fit_kwargs=fit_kwargs,
+                fitter_kwargs=fitter_kwargs,
                 solver_args=solver_args,
                 solver_kwargs=solver_kwargs,
                 version=version,

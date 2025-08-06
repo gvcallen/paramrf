@@ -106,5 +106,5 @@ class JAXNSFitter(BayesianFitter):
             logger=self.logger,
             solver_results=nested_samples,
             solver_args=(),
-            fit_kwargs={'best_param_method': best_param_method, 'termination_frac': termination_frac}
+            fitter_kwargs={'best_param_method': best_param_method, 'termination_frac': termination_frac}
         )

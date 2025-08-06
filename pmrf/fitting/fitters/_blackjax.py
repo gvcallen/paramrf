@@ -118,5 +118,5 @@ class BlackjaxNSFitter(BayesianFitter):
             logger=self.logger,
             solver_results=nested_samples,
             solver_args=(),
-            fit_kwargs={'best_param_method': best_param_method}
+            fitter_kwargs={'best_param_method': best_param_method}
         )

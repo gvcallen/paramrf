@@ -53,14 +53,14 @@ class FrequentistFitter(BaseFitter):
         """
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
 
-        features=self.feature_list
+        features = self.feature_list
         if cost is not None and not isinstance(cost, list):
             cost = [cost]
         if cost is None:
             if len(features) > 1:
-                cost = [mag_2_db, l2_norm_ax0, l2_norm_ax0]
+                cost = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
             else:
-                cost = [mag_2_db, l2_norm_ax0]
+                cost = [l2_norm_ax0, mag_2_db]
         
         self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
         
