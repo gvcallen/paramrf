@@ -65,7 +65,8 @@ class dyPolychordFitter(BayesianFitter):
             **kwargs,
         )
         
-        nested_samples = read_chains(f'{kwargs['chains']}/{kwargs['file_root']}')
+        chains_root, file_root = kwargs['chains'], kwargs['file_root']
+        nested_samples = read_chains(f'{chains_root}/{file_root}')
         
         self.logger.info(f'dyPolyChord finished at {time_string()}')
         
