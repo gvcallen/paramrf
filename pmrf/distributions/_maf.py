@@ -1,8 +1,4 @@
 from numpyro.distributions import Distribution, constraints
-import jax.numpy as jnp
-import jax
-
-from pmrf.models import Model
 
 _BACKEND_REGISTRY = {}
 
@@ -11,7 +7,6 @@ try:
     _BACKEND_REGISTRY["margarine"] = MargarineAdapter
 except ImportError:
     pass
-
 
 class MAFDistribution(Distribution):
     """

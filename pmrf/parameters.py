@@ -1,15 +1,13 @@
-# from scipy.stats import rv_continuous
-# import scipy.stats
 import json
 import dataclasses
 from dataclasses import dataclass
+from typing import Sequence
 
+import jax.numpy as jnp
+import equinox as eqx
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
-from typing import Sequence
-import equinox as eqx
-import jax.numpy as jnp
 from pmrf._util import field
 
 MIN_PERCENTILE = 0.01

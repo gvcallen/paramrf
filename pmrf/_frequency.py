@@ -7,7 +7,7 @@ import equinox as eqx
 
 import jax.numpy as jnp
 from pmrf._util import field
-from constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
+from pmrf._constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
 
 class Frequency(eqx.Module):
     """

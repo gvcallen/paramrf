@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from constants import NumberLike
+from pmrf._constants import NumberLike
 
 import jax
 from jax import lax

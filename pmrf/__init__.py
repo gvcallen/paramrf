@@ -6,7 +6,7 @@ from pmrf._util import (
     field,
 )
 
-from frequency import (
+from pmrf._frequency import (
     Frequency as Frequency,
 )
 

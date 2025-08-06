@@ -3,7 +3,7 @@ from jax import vmap
 import skrf
 
 import jax.numpy as jnp
-from frequency import Frequency
+from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf.models.lumped import Match
 from pmrf._util import field
