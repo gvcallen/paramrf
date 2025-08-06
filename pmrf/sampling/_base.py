@@ -10,9 +10,9 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf import extract_features, wrap, wrap_prior
-from pmrf._frequency import Frequency
+from frequency import Frequency
 from pmrf._model import Model
-from pmrf._constants import FeatureInputT
+from constants import FeatureInputT
 
 class BaseSampler(ABC):
     def __init__(self, model: Model):

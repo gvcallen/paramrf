@@ -2,7 +2,7 @@ import jax
 from jax import vmap
 
 import jax.numpy as jnp
-from pmrf._frequency import Frequency
+from frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf._model import Model
 from pmrf._util import field

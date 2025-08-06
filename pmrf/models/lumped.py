@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 from pmrf.parameters import Parameter
 from pmrf._model import Model
-from pmrf._frequency import Frequency
+from frequency import Frequency
 
 class Load(Model):
     """

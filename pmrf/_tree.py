@@ -8,7 +8,7 @@ from jaxtyping import PyTree, PyTreeDef
 from jax.tree_util import DictKey, SequenceKey, GetAttrKey
 import equinox as eqx
 
-from pmrf._constants import TreeAxisSpec
+from constants import TreeAxisSpec
 
 # Dummy node used for array sharing in a model. See partition(..)
 class RefNode:

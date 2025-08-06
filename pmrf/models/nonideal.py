@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from pmrf.models.lumped import Resistor
 from pmrf.models.topological import PiCLC
 from pmrf._model import Model
-from pmrf._frequency import Frequency
+from frequency import Frequency
 
 class NonIdealResistor(Model):
     """

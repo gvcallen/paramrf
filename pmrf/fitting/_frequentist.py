@@ -7,7 +7,7 @@ import equinox as eqx
 from pmrf.functions import l2_norm_ax0, mag_2_db
 from pmrf._model import Model
 from pmrf.parameters import Parameter, ParameterGroup
-from pmrf._constants import FeatureInputT, ArrayFuncT
+from constants import FeatureInputT, ArrayFuncT
 
 from pmrf.fitting._base import BaseFitter, FitResults
 

@@ -7,7 +7,7 @@ import dataclasses
 
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf._model import Model
-from pmrf._constants import FeatureInputT
+from constants import FeatureInputT
 from pmrf.fitting._base import BaseFitter, FitResults
 
 

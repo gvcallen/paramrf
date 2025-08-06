@@ -21,12 +21,12 @@ except ImportError:
     rank = 0
 
 from pmrf._model import Model
-from pmrf._frequency import Frequency
-from pmrf._constants import FeatureT
+from frequency import Frequency
+from constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
 from pmrf._model import Model
-from pmrf._frequency import Frequency
-from pmrf._constants import FeatureInputT
+from frequency import Frequency
+from constants import FeatureInputT
 from pmrf import extract_features, wrap
 
 def Fitter(

@@ -19,15 +19,15 @@ from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, Flatten
 import equinox as eqx
 from numpyro.distributions import Distribution
 
-from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, FeatureFunctionT, ModelParametersT, ModelT
+from constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, FeatureFunctionT, ModelParametersT, ModelT
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions._joint import JointParameterDistribution
-from pmrf._frequency import Frequency
+from frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, value_at_path
-from pmrf._constants import TreeAxisSpec
+from constants import TreeAxisSpec
 
 ModelT = TypeVar('ModelT', bound='Model')
 
