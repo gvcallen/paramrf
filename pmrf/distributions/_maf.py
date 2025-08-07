@@ -19,6 +19,8 @@ class MAFDistribution(Distribution):
     def __init__(self, maf_or_path, backend="margarine", validate_args=None):
         if backend not in _BACKEND_REGISTRY:
             raise ValueError(f"Unsupported backend '{backend}'. Available: {list(_BACKEND_REGISTRY)}")
+        
+        self.backend = backend
 
         adapter_cls = _BACKEND_REGISTRY[backend]
         if isinstance(maf_or_path, str):
@@ -27,8 +29,8 @@ class MAFDistribution(Distribution):
             maf_model = maf_or_path
 
         self.adapter = adapter_cls(maf_model)
-        self.event_shape = (self.adapter.event_dim,)
-        super().__init__(batch_shape=(), event_shape=self.event_shape, validate_args=validate_args)
+        event_shape = (self.adapter.event_dim,)
+        super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
 
     @classmethod
     def load(cls, path, backend="margarine", validate_args=None):
@@ -38,6 +40,9 @@ class MAFDistribution(Distribution):
         adapter_cls = _BACKEND_REGISTRY[backend]
         maf_model = adapter_cls.load(path)
         return cls(maf_model, backend=backend, validate_args=validate_args)
+    
+    def save(self, path):
+        self.adapter.save(path)
     
     @classmethod
     def generate(cls, data, weights=None, backend="margarine", validate_args=None, **kwargs):

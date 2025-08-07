@@ -64,7 +64,7 @@ class JointParameterDistribution(Distribution):
             group_x = dist.icdf(group_u)
             for i, name in enumerate(group_names):
                 values[self.name_to_index[name]] = group_x[..., i]
-        return jnp.stack(values, axis=-1)
+        return jnp.stack(values, axis=-1).reshape(u.shape)
 
     def cdf(self, x):
         values = [None] * len(self.param_names)

@@ -643,7 +643,7 @@ class Model(eqx.Module):
         grouped_param_names = {name for group in groups for name in group.names}
         for name, param in params.items():
             if name not in grouped_param_names:
-                groups.append(ParameterGroup(names={name: param}, prior=param.prior))
+                groups.append(ParameterGroup(param_names={name: param}, prior=param.prior))
         
         return groups
     
@@ -656,6 +656,7 @@ class Model(eqx.Module):
         check_missing: bool = False,
         check_unknown: bool = False,
         fix_others = False,
+        include_fixed = False,
         **param_kwargs: dict[str, Parameter] | dict[str, float],
     ) -> ModelT:
         """Returns a model the same type as `self`, but with core parameters updated from a dictionary.
@@ -675,6 +676,9 @@ class Model(eqx.Module):
         """
         # Prepare input
         if isinstance(params, dict) or len(param_kwargs) != 0:
+            if include_fixed:
+                raise Exception('Not yet supported')
+            
             params = params if params is not None else {}
             params.update(param_kwargs)
         
@@ -729,7 +733,7 @@ class Model(eqx.Module):
 
             if params.shape[0] != self.num_flat_params:
                 raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {params.shape[0]}')
-            params_tree, static = self.partition()
+            params_tree, static = self.partition(include_fixed=include_fixed)
             params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
             
             if jnp.isscalar(params_out) or params_out.shape[0] == 0:
@@ -944,7 +948,7 @@ def wrap(
     wrapped_fn = wrapped_with_freq if use_variable_frequency else wrapped_fixed_freq
 
     if as_numpy:
-        raw_fn = eqx.filter_jit(wrapped_fn)
+        raw_fn = jax.jit(wrapped_fn)
         if use_variable_frequency:
             wrapped_fn = lambda theta, f, *a, **kw: np.array(raw_fn(jnp.array(theta), jnp.array(f), *a, **kw))
         else:

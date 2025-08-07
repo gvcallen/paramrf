@@ -221,8 +221,8 @@ class ParameterGroup:
     names: list[str]
     prior: dist.Distribution | None = field(default=None)
     
-    def __init__(self, names: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
-        self.names = names
+    def __init__(self, param_names: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
+        self.names = param_names
         self.prior = prior
         
     @property

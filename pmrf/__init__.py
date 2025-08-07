@@ -23,6 +23,7 @@ from pmrf._features import (
 
 from pmrf.parameters import (
     Parameter as Parameter,
+    ParameterGroup as ParameterGroup
 )
 
 import pmrf.fitting

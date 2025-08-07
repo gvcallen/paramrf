@@ -7,15 +7,15 @@ from pmrf.fitting._bayesian import BayesianResults
 class AnestheticResults(BayesianResults):
     from anesthetic import NestedSamples
     
-    def prior_samples(self):
-        nested_samples = self.nested_samples.prior()
+    def samples(self):
+        nested_samples = self.nested_samples
         columns = nested_samples.columns
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]
         return nested_samples.loc[:, param_names]
     
-    def samples(self):
-        nested_samples = self.nested_samples
+    def prior_samples(self):
+        nested_samples = self.nested_samples.prior()
         columns = nested_samples.columns
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]

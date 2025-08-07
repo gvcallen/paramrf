@@ -1,6 +1,9 @@
+import os
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+os.environ["TF_USE_LEGACY_KERAS"] = "True"
 
 from margarine.maf import MAF
 
