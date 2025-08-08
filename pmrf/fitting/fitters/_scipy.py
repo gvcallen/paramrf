@@ -70,9 +70,12 @@ class ScipyMinimizeFitter(FrequentistFitter):
         minimums, maximums = self._bounds()
         minimums, maximums = np.array(minimums), np.array(maximums)
         bounds = Bounds(minimums, maximums)
-
-        x0 = self.model.flat_params()
+        
+        x0 = np.array(self.model.flat_params())
         cost_fn = self._make_cost_function(as_numpy=True)
+
+        if np.any((maximums - x0) < 0.0) or np.any((x0 - minimums) < 0.0):
+            raise Exception('Bad prior bounds')
         
         # Define a wrapper function compatible with SciPy's interface
         def cost_scipy_fn(x, callback_args):

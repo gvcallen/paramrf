@@ -640,10 +640,10 @@ class Model(eqx.Module):
         params = self.named_params(flat=True, flat_params=True, include_fixed=include_fixed)
         groups = [group for group in self._param_groups]
 
-        grouped_param_names = {name for group in groups for name in group.names}
+        grouped_param_names = {name for group in groups for name in group.param_names}
         for name, param in params.items():
             if name not in grouped_param_names:
-                groups.append(ParameterGroup(param_names={name: param}, prior=param.prior))
+                groups.append(ParameterGroup(param_names=[name], prior=param.prior))
         
         return groups
     
@@ -879,10 +879,15 @@ class Model(eqx.Module):
     def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
         return self.to_skrf(frequency).write_touchstone(filename, **kwargs)
     
-    # def save(self, filepath: str):
-    #     json = jsonpickle.encode(self)
-    #     with open(filepath, 'w') as f:
-    #         f.write(f'{json}.pkl')
+    def save(self, filepath: str):
+        json = jsonpickle.encode(self)
+        with open(filepath, 'w') as f:
+            f.write(json)
+    
+    @classmethod
+    def read(cls: ModelT, filepath: str) -> ModelT:
+        with open(filepath, 'r') as f:            
+            return jsonpickle.decode(f.read())
 
 def wrap(
     func: Callable,

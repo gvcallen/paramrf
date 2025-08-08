@@ -27,7 +27,7 @@ from pmrf._frequency import Frequency
 from pmrf._constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
 from pmrf._model import Model
-from pmrf._frequency import Frequency
+from pmrf._frequency import Frequency, MULTIPLIER_DICT
 from pmrf._constants import FeatureInputT
 from pmrf import extract_features, wrap
 
@@ -247,6 +247,7 @@ class FitResults:
             if self.frequency is not None:
                 frequency_grp = input_grp.create_group('frequency')
                 frequency_grp['f'] = self.frequency.f
+                frequency_grp['f_scaled'] = self.frequency.f_scaled
                 frequency_grp['unit'] = self.frequency.unit
             if self.features is not None:
                 input_grp.create_dataset('features', data=json.dumps(self.features))
@@ -340,10 +341,14 @@ class FitResults:
             features = None
             if 'frequency' in input_grp:
                 freq_grp = input_grp['frequency']
-                f_arr = freq_grp['f'][()]
                 unit = freq_grp['unit'][()]
                 unit = unit.decode('utf-8') if isinstance(unit, bytes) else unit
-                frequency = Frequency.from_f(f=f_arr, unit=unit)
+                if 'f_scaled' in freq_grp:
+                    f_scaled_arr = freq_grp['f_scaled'][()]
+                    frequency = Frequency.from_f(f=f_scaled_arr, unit=unit)
+                else:
+                    f_arr = freq_grp['f'][()]
+                    frequency = Frequency.from_f(f_arr / MULTIPLIER_DICT[unit.lower()], unit=unit)
             if 'features' in input_grp:
                 features = json.loads(input_grp["features"][()])
 

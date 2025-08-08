@@ -119,6 +119,12 @@ class Parameter(eqx.Module):
             return -jnp.inf
         return jnp.array([-jnp.inf] * self.value.shape[0])
     
+    def with_value(self, value: jnp.array) -> 'Parameter':
+        return dataclasses.replace(self, value=value)
+    
+    def with_prior(self, prior: Distribution) -> 'Parameter':
+        return dataclasses.replace(self, prior=prior)
+    
     def flatten(self, separator='_') -> 'Parameter | list[Parameter]':
         """Flattens self, either returning a single Parameter
         if the internal parameter is scalar, or a list.
@@ -218,16 +224,16 @@ class ParameterGroup:
     """
     A metadata class that groups a set of named flat parameters and defines any relationships between them.
     """
-    names: list[str]
+    param_names: list[str]
     prior: dist.Distribution | None = field(default=None)
     
     def __init__(self, param_names: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
-        self.names = param_names
+        self.param_names = param_names
         self.prior = prior
         
     @property
     def num_flat_params(self):
-        return len(self.names)
+        return len(self.param_names)
             
     @property
     def min(self) -> jnp.array:
@@ -238,7 +244,9 @@ class ParameterGroup:
         """
         if self.prior is not None:
             if hasattr(self.prior, 'min'):
-                return self.prior.min
+                return self.prior.min.reshape((self.num_flat_params))
+            elif hasattr(self.prior, 'low'):
+                return self.prior.low.reshape((self.num_flat_params))
             else:
                 # TODO implement optimization to determine minima
                 return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.num_flat_params))
@@ -254,7 +262,9 @@ class ParameterGroup:
         """
         if self.prior is not None:
             if hasattr(self.prior, 'max'):
-                return self.prior.max
+                return self.prior.max.reshape((self.num_flat_params))
+            elif hasattr(self.prior, 'high'):
+                return self.prior.high.reshape((self.num_flat_params))
             else:
                 # TODO implement optimization to determine maximum
                 return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.num_flat_params))

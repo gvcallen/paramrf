@@ -34,7 +34,7 @@ class JointParameterDistribution(Distribution):
     def sample(self, key, sample_shape=()):
         values = [None] * len(self.param_names)
         for group in self.param_groups:
-            group_names = group.names
+            group_names = group.param_names
             subkey, key = jax.random.split(key)
             dist: Distribution = getattr(group, self.kind)
             samples = dist.sample(subkey, sample_shape)
@@ -46,7 +46,7 @@ class JointParameterDistribution(Distribution):
     def log_prob(self, value):
         total_logp = 0.0
         for group in self.param_groups:
-            group_names = group.names
+            group_names = group.param_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_vals = value[..., idxs]
             dist: Distribution = getattr(group, self.kind)
@@ -57,7 +57,7 @@ class JointParameterDistribution(Distribution):
     def icdf(self, u):
         values = [None] * len(self.param_names)
         for group in self.param_groups:
-            group_names = group.names
+            group_names = group.param_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_u = u[..., idxs]
             dist: Distribution = getattr(group, self.kind)
@@ -69,7 +69,7 @@ class JointParameterDistribution(Distribution):
     def cdf(self, x):
         values = [None] * len(self.param_names)
         for group in self.param_groups:
-            group_names = group.names
+            group_names = group.param_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_x = x[..., idxs]
             dist: Distribution = getattr(group, self.kind)
