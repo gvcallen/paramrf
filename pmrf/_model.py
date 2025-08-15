@@ -834,6 +834,7 @@ class Model(eqx.Module):
         Returns:
             ModelT: A new model with the parameters not in `free_submodels` fixed.
         """
+        # TODO this function ends up error in `delias` if `free_submodels` is empty
         if isinstance(free_submodels, Model) or isinstance(free_submodels, str):
             free_submodels: list[Model] = [free_submodels]
         

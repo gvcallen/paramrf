@@ -1,12 +1,21 @@
 from numpyro.distributions import Distribution, constraints
 
 _BACKEND_REGISTRY = {}
+_backend_initialized = False
 
-try:
-    from pmrf.distributions._backends.margarine import MargarineMAFAdapter
-    _BACKEND_REGISTRY["margarine"] = MargarineMAFAdapter
-except ImportError:
-    pass
+def get_adapter(backend):
+    if not _backend_initialized:
+        try:
+            from pmrf.distributions._backends.margarine import MargarineMAFAdapter
+            _BACKEND_REGISTRY['margarine_maf'] = MargarineMAFAdapter
+        except ImportError:
+            pass
+        
+        _backend_initialized = True
+    if backend not in _BACKEND_REGISTRY:
+        raise ValueError(f"Unsupported backend '{backend}'. Available: {list(_BACKEND_REGISTRY)}")
+    return _BACKEND_REGISTRY[backend]
+        
 
 class MAFDistribution(Distribution):
     """
@@ -16,13 +25,10 @@ class MAFDistribution(Distribution):
     support = constraints.real_vector
     has_rsample = False  # No reparameterization support
 
-    def __init__(self, maf_or_path, backend="margarine", validate_args=None):
-        if backend not in _BACKEND_REGISTRY:
-            raise ValueError(f"Unsupported backend '{backend}'. Available: {list(_BACKEND_REGISTRY)}")
-        
+    def __init__(self, maf_or_path, backend='margarine_maf', validate_args=None):
         self.backend = backend
 
-        adapter_cls = _BACKEND_REGISTRY[backend]
+        adapter_cls = get_adapter(backend)
         if isinstance(maf_or_path, str):
             maf_model = adapter_cls.load(maf_or_path)
         else:
@@ -33,11 +39,11 @@ class MAFDistribution(Distribution):
         super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
 
     @classmethod
-    def load(cls, path, backend="margarine", validate_args=None):
+    def load(cls, path, backend='margarine_maf', validate_args=None):
         """
         Load a MAFDistribution from a file using the specified backend.
         """
-        adapter_cls = _BACKEND_REGISTRY[backend]
+        adapter_cls = get_adapter(backend)
         maf_model = adapter_cls.load(path)
         return cls(maf_model, backend=backend, validate_args=validate_args)
     
@@ -45,8 +51,8 @@ class MAFDistribution(Distribution):
         self.adapter.save(path)
     
     @classmethod
-    def generate(cls, data, weights=None, backend="margarine", validate_args=None, **kwargs):
-        adapter_cls = _BACKEND_REGISTRY[backend]
+    def generate(cls, data, weights=None, backend='margarine_maf', validate_args=None, **kwargs):
+        adapter_cls = get_adapter(backend)
         maf_model = adapter_cls.generate(data, weights=weights, **kwargs)
         return cls(maf_model, backend=backend, validate_args=validate_args)
 
