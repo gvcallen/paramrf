@@ -38,6 +38,9 @@ class MAFDistribution(Distribution):
         event_shape = (self.adapter.event_dim,)
         super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
 
+    def save(self, path):
+        self.adapter.save(path)
+    
     @classmethod
     def load(cls, path, backend='margarine_maf', validate_args=None):
         """
@@ -45,10 +48,7 @@ class MAFDistribution(Distribution):
         """
         adapter_cls = get_adapter(backend)
         maf_model = adapter_cls.load(path)
-        return cls(maf_model, backend=backend, validate_args=validate_args)
-    
-    def save(self, path):
-        self.adapter.save(path)
+        return cls(maf_model, backend=backend, validate_args=validate_args)    
     
     @classmethod
     def generate(cls, data, weights=None, backend='margarine_maf', validate_args=None, **kwargs):

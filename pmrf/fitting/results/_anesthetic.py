@@ -7,6 +7,10 @@ from pmrf.fitting._bayesian import BayesianResults
 class AnestheticResults(BayesianResults):
     from anesthetic import NestedSamples
     
+    @property
+    def nested_samples(self) -> NestedSamples:
+        return self.solver_results    
+    
     def samples(self):
         nested_samples = self.nested_samples
         columns = nested_samples.columns
@@ -28,10 +32,6 @@ class AnestheticResults(BayesianResults):
     def prior_weights(self):
         nested_samples = self.nested_samples
         return nested_samples.prior().get_weights()
-    
-    @property
-    def nested_samples(self) -> NestedSamples:
-        return self.solver_results
     
     def encode_solver_results(self, group: h5py.Group):
         samples = self.solver_results

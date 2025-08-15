@@ -49,6 +49,13 @@ def Fitter(
     """
     cls = get_fitter_class(name)
     return cls(*args, **kwargs)
+    
+@dataclass
+class FitSettings:
+    frequency: Frequency | None = None
+    features: list[FeatureT] | None = None
+    fitter_kwargs: dict | None = None
+    solver_kwargs: dict | None = None    
 
 class BaseFitter(ABC):
     """
@@ -122,18 +129,23 @@ class BaseFitter(ABC):
                         raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency for fitting)")
             else:
                 measured_freq = measured.frequency
-                
+        
+        # Initialize settings
+        self.frequency = frequency or Frequency.from_skrf(measured_freq)
+        self.features = features
+        
         # Initialize model parameters from user and store in flat array
-        self.model: Model = model
-        self.frequency: Frequency = frequency or Frequency.from_skrf(measured_freq)
+        self.initial_model: Model = model
         self.measured: skrf.Network | dict[str, skrf.Network] = measured
         self.measured_features = extract_features(measured, None, features)
-        self.feature_list = features
         if rank == 0:
             self.logger = logging.getLogger("pmrf.fitting")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
-
+    
+    def _settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
+        return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)
+    
     @abstractmethod
     def run(self, *args, **kwargs) -> 'FitResults':
         """Executes the fitting algorithm.
@@ -147,8 +159,8 @@ class BaseFitter(ABC):
         pass
     
     def _make_feature_function(self, as_numpy=False):
-        general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=as_numpy)
-        feature_fn = lambda theta: general_feature_fn(theta, self.feature_list)
+        general_feature_fn = wrap(extract_features, self.initial_model, self.frequency, as_numpy=as_numpy)
+        feature_fn = lambda theta: general_feature_fn(theta, self._settings.features)
         return jax.jit(feature_fn)
     
 @dataclass
@@ -157,16 +169,7 @@ class FitResults:
     initial_model: Model | None = None
     fitted_model: Model | None = None
     solver_results: Any = None
-    frequency: Frequency | None = None
-    features: list[FeatureT] | None = None
-    logger: logging.Logger | None = None
-    
-    fitter_args: tuple | None = None
-    fitter_kwargs: tuple | None = None
-    solver_args: tuple | None = None
-    solver_kwargs: dict | None = None
-    
-    version: int = 3
+    settings: FitSettings
     
     def encode_solver_results(self, group: h5py.Group):
         data = None
@@ -186,50 +189,28 @@ class FitResults:
                 logging.error(f"Failed to decode solver results: {e}")
         return None
     
-    def to_hdf5(self, path: str, metadata: dict | None = None):
-        def encode_model(model: Model, group: h5py.Group, save_instance=False):
-            params_tree, static_tree = model.partition(include_fixed=True, param_objects=True)
-            params = model.named_params()
-            model_raw_grp = group.create_group('raw')
-            model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
-            model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
-            
-            params_grp = group.create_group('params')
-            for name, initial_param in params.items():
-                params_grp[name] = initial_param.to_json()
-        
+    def save_hdf(self, path: str, metadata: dict | None = None):
         with h5py.File(path, 'w') as f:
             # Metadata
             metadata_grp = f.create_group('metadata')
-            fitter_metadata_grp = metadata_grp.create_group('fitter')
-            fitter_metadata_grp['version'] = self.version
-            fitter_metadata_grp['fit_results_cls'] = str(self.__class__.__module__ + "." + self.__class__.__qualname__)
+            internal_metadata_grp = metadata_grp.create_group('__pmrf__')
+            internal_metadata_grp['fit_results_cls'] = str(self.__class__.__module__ + "." + self.__class__.__qualname__)
             if self.solver_results is not None:
-                fitter_metadata_grp['solver_results_cls'] = self.solver_results.__module__ + "." + self.__class__.__qualname__
+                internal_metadata_grp['solver_results_cls'] = self.solver_results.__module__ + "." + self.__class__.__qualname__
             
             if not metadata is None:
-                user_metadata_grp = metadata_grp.create_group('user')
                 for k, v in metadata.items():
-                    user_metadata_grp[k] = json.dumps(v)
+                    metadata_grp[k] = json.dumps(v)
 
-            # Model fit
+            # Models
             if self.fitted_model is not None:
-                encode_model(self.fitted_model, f.create_group('fitted_model'))
-
-            # Solver results
-            if self.solver_results is not None:
-                solver_results_grp = f.create_group('solver_results')
-                self.encode_solver_results(solver_results_grp)                
-
-            # Other input
-            ## Setup
-            input_grp = f.create_group('input')
+                self.fitted_model.write_hdf(f.create_group('fitted_model'))
             if self.initial_model is not None:
-                encode_model(self.initial_model, input_grp.create_group('model'), save_instance=True)
-                    
-            ## Measured data
+                self.initial_model.write_hdf(f.create_group('initial_model'))
+
+            # Measured data
             if self.measured is not None:
-                measured_grp = input_grp.create_group('measured')
+                measured_grp = f.create_group('measured')
                 if isinstance(self.measured, skrf.Network):
                     measured_grp['name'] = self.measured.name or 'ntwk'
                     measured_grp.create_dataset('s', data=self.measured.s)
@@ -242,55 +223,43 @@ class FitResults:
                         measured_ntwk_grp.create_dataset('s', data=ntwk.s)
                         measured_ntwk_grp.create_dataset('f', data=ntwk.f)
                         measured_ntwk_grp.create_dataset('z0', data=ntwk.z0)
+                        
+            # Solver results
+            if self.solver_results is not None:
+                solver_results_grp = f.create_group('solver_results')
+                self.encode_solver_results(solver_results_grp)                
+
+            # Other input
+            ## Setup
+            input_grp = f.create_group('settings')                    
 
             ## Other settings
-            if self.frequency is not None:
+            if self.settings.frequency is not None:
                 frequency_grp = input_grp.create_group('frequency')
-                frequency_grp['f'] = self.frequency.f
-                frequency_grp['f_scaled'] = self.frequency.f_scaled
-                frequency_grp['unit'] = self.frequency.unit
-            if self.features is not None:
-                input_grp.create_dataset('features', data=json.dumps(self.features))
-            if self.fitter_args is not None:
-                input_grp.create_dataset('fitter_args', data=jsonpickle.encode(self.fitter_args))
-            if self.fitter_kwargs is not None:
-                input_grp.create_dataset('fitter_kwargs', data=jsonpickle.encode(self.fitter_kwargs))            
-            if self.solver_args is not None:
-                input_grp.create_dataset('solver_args', data=jsonpickle.encode(self.solver_args))
-            if self.solver_kwargs is not None:
-                input_grp.create_dataset('solver_kwargs', data=jsonpickle.encode(self.solver_kwargs))            
+                frequency_grp['f'] = self.settings.frequency.f
+                frequency_grp['f_scaled'] = self.settings.frequency.f_scaled
+                frequency_grp['unit'] = self.settings.frequency.unit
+            if self.settings.features is not None:
+                input_grp.create_dataset('features', data=json.dumps(self.settings.features))
+            if self.settings.fitter_kwargs is not None:
+                input_grp.create_dataset('fitter_kwargs', data=jsonpickle.encode(self.settings.fitter_kwargs))            
+            if self.settings.solver_kwargs is not None:
+                input_grp.create_dataset('solver_kwargs', data=jsonpickle.encode(self.settings.solver_kwargs))            
 
     @classmethod
-    def from_hdf5(cls, path: str) -> "FitResults":
-        def decode_model(group: h5py.Group) -> Model:
-            model_raw_grp = group['raw']
-            params_json = model_raw_grp['params'][()]
-            params_json = params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json
-            static_json = model_raw_grp['static'][()]
-            static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
-            
-            try:
-                params_tree = jsonpickle.decode(params_json)
-                static_tree = jsonpickle.decode(static_json)
-                
-                # NB the following hack actually also BREAKS some model loading... we need to investigate further
-                # The following fixes some quirks when e.g. the original model contains lambdas.
-                # Not sure 100% why but some fields seem to be in a "bad" state when jsonpickle cant deserialize them
-                # params_tree = dataclasses.replace(params_tree)
-                # static_tree = dataclasses.replace(static_tree)
-                
-                return eqx.combine(params_tree, static_tree)
-            except:
-                return None
-
+    def load_hdf(cls, path: str) -> "FitResults":
         with h5py.File(path, 'r') as f:
             # Metadata
             if 'metadata' in f:
                 metadata_grp = f['metadata']
-
-                fitter_metadata_grp = metadata_grp['fitter']
-                version = fitter_metadata_grp['version'][()]
-                fit_results_cls_path = fitter_metadata_grp['fit_results_cls'][()]
+                
+                if 'fitter' in metadata_grp and 'version' in metadata_grp['fitter']:
+                    internal_metadata_grp = metadata_grp['fitter']
+                else:
+                    internal_metadata_grp = metadata_grp['__pmrf__']
+                
+                version = internal_metadata_grp['version'][()]
+                fit_results_cls_path = internal_metadata_grp['fit_results_cls'][()]
                 fit_results_cls_path = fit_results_cls_path.decode('utf-8') if isinstance(fit_results_cls_path, bytes) else fit_results_cls_path
                 try:
                     cls = load_class_from_string(fit_results_cls_path)
@@ -299,25 +268,29 @@ class FitResults:
 
             # Model fit
             if version == 1:
-                fitted_model = decode_model(f['model']) if 'model' in f else None
+                fitted_model = Model.read_hdf(f['model']) if 'model' in f else None
             elif version == 2:
-                fitted_model = decode_model(f['fit_model']) if 'fit_model' in f else None
-            elif version == 3:
-                fitted_model = decode_model(f['fitted_model']) if 'fitted_model' in f else None
+                fitted_model = Model.read_hdf(f['fit_model']) if 'fit_model' in f else None
+            elif version >= 3:
+                fitted_model = Model.read_hdf(f['fitted_model']) if 'fitted_model' in f else None
             
             # Solver results
             solver_results = cls.decode_solver_results(f['solver_results']) if 'solver_results' in f else None
 
-            # Input
-            input_grp = f['input']
+            # Settings
+            settings_grp = f['input']
             
-            ## Initial model
-            initial_model = decode_model(input_grp['model']) if 'model' in input_grp else None
+            initial_model = Model.read_hdf(settings_grp['model']) if 'model' in settings_grp else None
 
             ## Measured networks
             measured = None
-            if 'measured' in input_grp:
-                measured_grp = input_grp['measured']
+            measured_grp = None
+            if version <= 3 and 'measured' in settings_grp:
+                measured_grp = settings_grp['measured']
+            elif 'measured' in f:
+                measured_grp = f['measured']
+            
+            if measured_grp is not None:
                 if 'name' in measured_grp:
                     net_grp = measured_grp
                     name = net_grp['name'][()]
@@ -341,8 +314,8 @@ class FitResults:
             ## Frequency and features
             frequency = None
             features = None
-            if 'frequency' in input_grp:
-                freq_grp = input_grp['frequency']
+            if 'frequency' in settings_grp:
+                freq_grp = settings_grp['frequency']
                 unit = freq_grp['unit'][()]
                 unit = unit.decode('utf-8') if isinstance(unit, bytes) else unit
                 if 'f_scaled' in freq_grp:
@@ -351,35 +324,24 @@ class FitResults:
                 else:
                     f_arr = freq_grp['f'][()]
                     frequency = Frequency.from_f(f_arr / MULTIPLIER_DICT[unit.lower()], unit=unit)
-            if 'features' in input_grp:
-                features = json.loads(input_grp["features"][()])
+            if 'features' in settings_grp:
+                features = json.loads(settings_grp["features"][()])
 
             ## Solver args, kwargs and fit args, kwargs
-            solver_args, solver_kwargs = None, None
-            fitter_args, fitter_kwargs = None, None
-            if 'solver_args' in input_grp:
-                solver_args = jsonpickle.decode(input_grp['solver_args'][()])
-            if 'solver_kwargs' in input_grp:
-                solver_kwargs = jsonpickle.decode(input_grp['solver_kwargs'][()])
-            if 'fitter_args' in input_grp:
-                fitter_args = jsonpickle.decode(input_grp['fitter_args'][()])
-            if 'fitter_kwargs' in input_grp:
-                fitter_kwargs = jsonpickle.decode(input_grp['fitter_kwargs'][()])
+            solver_kwargs, fitter_kwargs = None, None
+            if 'solver_kwargs' in settings_grp:
+                solver_kwargs = jsonpickle.decode(settings_grp['solver_kwargs'][()])
+            if 'fitter_kwargs' in settings_grp:
+                fitter_kwargs = jsonpickle.decode(settings_grp['fitter_kwargs'][()])
                 
-            return cls(
-                fitted_model=fitted_model,
-                initial_model=initial_model,
-                frequency=frequency,
+            settings = FitSettings(frequency, features, fitter_kwargs, solver_kwargs)
+            return FitResults(
                 measured=measured,
-                features=features,
-                logger=None,  # Not saved/restored
+                initial_model=initial_model,
+                fitted_model=fitted_model,
                 solver_results=solver_results,
-                fitter_args=fitter_args,
-                fitter_kwargs=fitter_kwargs,
-                solver_args=solver_args,
-                solver_kwargs=solver_kwargs,
-                version=version,
-            )              
+                settings=settings,
+            )
     
 def is_frequentist(solver) -> bool:
     from pmrf.fitting._frequentist import FrequentistFitter

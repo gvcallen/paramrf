@@ -1,6 +1,5 @@
-from abc import abstractmethod
 from functools import cached_property
-from copy import deepcopy, copy
+from copy import deepcopy
 from typing import Callable, Sequence, TypeVar
 import dataclasses
 from dataclasses import fields, is_dataclass
@@ -8,29 +7,29 @@ from functools import update_wrapper
 import jax.numpy as jnp
 import numpy as np
 import jsonpickle
-from collections.abc import Mapping, Sequence
-from typing import Sequence, Callable, Any, Tuple, List, Type
+from collections.abc import Sequence
+from typing import Sequence, Callable
 
 import skrf as skrf
 import numpy as np
+import h5py
 import jax
 import jax.numpy as jnp
 from jax import flatten_util
-from jaxtyping import PyTree, PyTreeDef
+from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
 from numpyro.distributions import Distribution
 
-from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, FeatureInputT, FeatureFunctionT, ModelParametersT, ModelT
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions._parameter import JointParameterDistribution
+from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, ModelT
 from pmrf._frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, value_at_path, partition, combine
-from pmrf._constants import TreeAxisSpec
 
 ModelT = TypeVar('ModelT', bound='Model')
 
@@ -875,20 +874,53 @@ class Model(eqx.Module):
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:
             ntwk.s += (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
-        return ntwk
+        return ntwk    
     
-    def write_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **kwargs):
-        return self.to_skrf(frequency).write_touchstone(filename, **kwargs)
-    
+    def write_hdf(self, group: h5py.Group):    
+        params_tree, static_tree = self.partition(include_fixed=True, param_objects=True)
+        params = self.named_params()
+        model_raw_grp = group.create_group('raw')
+        model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
+        model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
+        
+        params_grp = group.create_group('params')
+        for name, initial_param in params.items():
+            params_grp[name] = initial_param.to_json()        
+            
+    @classmethod
+    def read_hdf(cls, group: h5py.Group) -> ModelT:
+        model_raw_grp = group['raw']
+        params_json = model_raw_grp['params'][()]
+        params_json = params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json
+        static_json = model_raw_grp['static'][()]
+        static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
+        
+        try:
+            params_tree = jsonpickle.decode(params_json)
+            static_tree = jsonpickle.decode(static_json)
+            
+            # NB the following hack actually also BREAKS some model loading... we need to investigate further
+            # The following fixes some quirks when e.g. the original model contains lambdas.
+            # Not sure 100% why but some fields seem to be in a "bad" state when jsonpickle cant deserialize them
+            # params_tree = dataclasses.replace(params_tree)
+            # static_tree = dataclasses.replace(static_tree)
+            
+            return eqx.combine(params_tree, static_tree)
+        except:
+            return None
+        
     def save(self, filepath: str):
         json = jsonpickle.encode(self)
         with open(filepath, 'w') as f:
             f.write(json)
-    
+            
     @classmethod
-    def read(cls: ModelT, filepath: str) -> ModelT:
+    def load(cls: ModelT, filepath: str) -> ModelT:
         with open(filepath, 'r') as f:            
             return jsonpickle.decode(f.read())
+    
+    def export_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, **skrf_kwargs):
+        return self.to_skrf(frequency).write_touchstone(filename, **skrf_kwargs)
 
 def wrap(
     func: Callable,

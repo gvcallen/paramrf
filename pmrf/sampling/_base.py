@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, TypeVar
 from abc import ABC, abstractmethod
 import logging
 
@@ -9,14 +9,16 @@ from jax import flatten_util
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf import extract_features, wrap, wrap_prior
+from pmrf import extract_features, wrap
 from pmrf._frequency import Frequency
 from pmrf._model import Model
 from pmrf._constants import FeatureInputT
 
+ModelT = TypeVar('ModelT', bound='Model')
+
 class BaseSampler(ABC):
-    def __init__(self, model: Model):
-        self.model = model
+    def __init__(self, model: ModelT):
+        self.model: Model = model
         self.N = None
         self.logger = logging.getLogger(__name__)
 
@@ -38,7 +40,7 @@ class BaseSampler(ABC):
             raise Exception('Error: to use this class as an iterator, call e.g. enumerate (CircuitSampler.range(n))')
         return self.N
 
-    def range(self, N) -> Model:
+    def range(self, N) -> ModelT:
         """Allows the CircuitSampler to be used as an iterable. To use, call e.g:
             for i, system in enumerate(sampler.range(10)).
 
@@ -51,7 +53,7 @@ class BaseSampler(ABC):
         self.N = N
         return self
 
-    def generate_models(self, N) -> list[Model]:
+    def generate_models(self, N) -> list[ModelT]:
         """Generates N random models using the sampler's engine.
 
         Note that, if you want to generate samples one-by-one,
@@ -98,12 +100,12 @@ class BaseSampler(ABC):
         D = len(params)
 
         U = self._generate_hypercube_samples(N, D)
-        prior_transform_fn = wrap_prior(self.model)
+        prior = self.model.prior()
         
         X = []
         for i in range(N):
             u = U[i, :]
-            x = prior_transform_fn(u)
+            x = prior.icdf(u)
             X.append(x)
 
         return np.stack(X, axis=0)

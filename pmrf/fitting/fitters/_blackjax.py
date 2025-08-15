@@ -26,7 +26,7 @@ class BlackjaxNSFitter(BayesianFitter):
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         priors = [param.prior for param in params]
         
-        x0 = self.model.flat_params()
+        x0 = self.initial_model.flat_params()
         loglikelihood_fn = self._make_log_likelihood_fn()
         logprior_fn = self._make_log_prior_fn()
 
@@ -96,7 +96,7 @@ class BlackjaxNSFitter(BayesianFitter):
         self.logger.info(f"Sampling finished in {total_time:.2f} seconds.")
         self.logger.info(f"Final logZ = {nested_samples.logZ()}")
         
-        model_param_names = list(self.model.flat_param_names())
+        model_param_names = list(self.initial_model.flat_param_names())
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
                 val_new = nested_samples[param_name].mean()
@@ -107,15 +107,12 @@ class BlackjaxNSFitter(BayesianFitter):
                 self.logger.warning("Unknown best parameter method. Skipping")
             x0 = x0.at[i].set(val_new)
             
-        fitted_model = self.model.with_flat_params(x0)
+        fitted_model = self.initial_model.with_flat_params(x0)
                 
         return AnestheticResults(
+            initial_model=self.initial_model,
             fitted_model=fitted_model,
-            initial_model=self.model,
-            frequency=self.frequency,
-            measured=self.measured,
-            features=self.feature_list,
-            logger=self.logger,
+            settings=self._settings,
             solver_results=nested_samples,
             solver_args=(),
             fitter_kwargs={'best_param_method': best_param_method}

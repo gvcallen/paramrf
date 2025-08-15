@@ -5,12 +5,13 @@ import numpyro.distributions as dist
 
 from pmrf.fitting._bayesian import BayesianFitter
 from pmrf.fitting.results import AnestheticResults
+from pmrf._util import explicit_kwargs
 
 class JAXNSFitter(BayesianFitter):
     """
     A fitter that uses the jaxns nested sampler.
     """
-    def run(self, best_param_method: str = 'maximum-likelihood', num_live_points: int = None, termination_frac: float = 0.01, max_samples: float = 1e6, seed: int = 0) -> AnestheticResults:
+    def run(self, best_param_method: str = 'maximum-likelihood', num_live_points: int = None, termination_frac: float = 0.01, max_samples: float = 1e6, seed: int = 0, **kwargs) -> AnestheticResults:
         """
         Runs the jaxns nested sampler.
 
@@ -39,7 +40,7 @@ class JAXNSFitter(BayesianFitter):
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         priors = [param.prior for param in params]
         
-        x0 = self.model.flat_params()
+        x0 = self.initial_model.flat_params()
         loglikelihood_fn = self._make_log_likelihood_fn()
         prior_fn = self._make_prior_transform_fn()
 
@@ -87,7 +88,7 @@ class JAXNSFitter(BayesianFitter):
         self.logger.info(f"Final logZ = {logZ:.2f} +/- {logZ_err:.2f}")
         
         # --- 5. Update Model with Best-Fit Parameters ---
-        model_param_names = list(self.model.flat_param_names())
+        model_param_names = list(self.initial_model.flat_param_names())
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
                 x0[i] = nested_samples[param_name].mean()
@@ -97,14 +98,13 @@ class JAXNSFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping.")
                 
+        fitted_model = self.initial_model.with_flat_params(x0)
+                
+        settings = self._settings(kwargs, explicit_kwargs())
         return AnestheticResults(
-            fitted_model=None,
-            initial_model=self.model,
-            frequency=self.frequency,
             measured=self.measured,
-            features=self.feature_list,
-            logger=self.logger,
+            initial_model=self.initial_model,
+            fitted_model=fitted_model,
             solver_results=nested_samples,
-            solver_args=(),
-            fitter_kwargs={'best_param_method': best_param_method, 'termination_frac': termination_frac}
+            settings=settings,
         )

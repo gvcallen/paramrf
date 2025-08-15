@@ -5,10 +5,11 @@ import io
 import h5py
 import numpy as np
 
-from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting._bayesian import BayesianFitter
 from pmrf.fitting.results import AnestheticResults
-from pmrf._util import time_string
+from pmrf._util import time_string, explicit_kwargs
    
+# For legacy imports
 PolychordResults = AnestheticResults
 
 class PolychordFitter(BayesianFitter):
@@ -18,7 +19,7 @@ class PolychordFitter(BayesianFitter):
         import pypolychord
         
         if not 'nlive' in kwargs and nlive_factor is not None:
-            kwargs['nlive'] = nlive_factor * (self.model.num_flat_params + len(self.likelihood_params))
+            kwargs['nlive'] = nlive_factor * (self.initial_model.num_flat_params + len(self.likelihood_params))
         
         # Get the model parameters
         param_names = self._flat_param_names()
@@ -26,7 +27,7 @@ class PolychordFitter(BayesianFitter):
         labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
-        x0 = np.array(self.model.flat_params())
+        x0 = np.array(self.initial_model.flat_params())
         loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
         prior_fn = self._make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
@@ -54,17 +55,13 @@ class PolychordFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
-        fitted_model = self.model.with_flat_params(x0)
-                
+        fitted_model = self.initial_model.with_flat_params(x0)
+        
+        settings = self._settings(kwargs, explicit_kwargs())
         return AnestheticResults(
-            fitted_model=fitted_model,
-            initial_model=self.model,
-            frequency=self.frequency,
             measured=self.measured,
-            features=self.feature_list,
-            logger=self.logger,
+            initial_model=self.initial_model,
+            fitted_model=fitted_model,
             solver_results=nested_samples,
-            solver_args=(),
-            solver_kwargs=kwargs,
-            fitter_kwargs={'best_param_method': best_param_method}
-        )    
+            settings=settings,
+        )

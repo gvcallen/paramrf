@@ -113,3 +113,26 @@ def get_first_underlying_type(tp: type) -> type | None:
     if origin is Union:
         return None
     return get_first_underlying_type(origin)
+
+def explicit_kwargs():
+    frame = inspect.currentframe().f_back
+    func_name = frame.f_code.co_name
+    func_obj = frame.f_globals[func_name]
+    sig = inspect.signature(func_obj)
+
+    bound = sig.bind_partial(**frame.f_locals)
+
+    result = {}
+    for name, value in bound.arguments.items():
+        param = sig.parameters[name]
+        # Only keep keyword-only parameters
+        # or positional-or-keyword parameters that were passed via keyword
+        if param.kind == inspect.Parameter.KEYWORD_ONLY:
+            result[name] = value
+        elif param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            # Passed by keyword if it's in locals and not before var-positional
+            if name in frame.f_locals:
+                # Check if it was supplied via keyword
+                if name in frame.f_locals and name not in bound.args:
+                    result[name] = value
+    return result

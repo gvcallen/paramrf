@@ -4,6 +4,7 @@ from typing import Any
 import h5py
 
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
+from pmrf._util import explicit_kwargs
 
 class NumPyroResults(BayesianResults):
     def encode_solver_results(self, group: h5py.Group):
@@ -20,7 +21,7 @@ class NumPyroFitter(BayesianFitter):
         import numpyro.distributions as dist
         
         # Get the model parameters
-        params = self.model.flat_params()
+        params = self.initial_model.flat_params()
         self._make_log_prior_fn()
         
         param_names = list(params.keys())
@@ -28,7 +29,7 @@ class NumPyroFitter(BayesianFitter):
         
         # Generate feature function and prepare the obs
         self.logger.info("Compiling model and likelihood function...")
-        x0 = self.model.flat_params()
+        x0 = self.initial_model.flat_params()
         feature_fn = self._make_feature_function()
         feature_fn = jax.jit(feature_fn)
         _y0 = feature_fn(x0)
@@ -55,7 +56,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
             kernel = NUTS
         
         # Get the model parameters
-        param_names = self.model.flat_param_names()
+        param_names = self.initial_model.flat_param_names()
         
         # Define the numpyro model
         numpyro_model = self._make_numpyro_model()
@@ -74,27 +75,24 @@ class NumPyroMCMCFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = self.model.with_flat_params(x_mean)
+        fitted_model = self.initial_model.with_flat_params(x_mean)
         
         # Return the results
+        settings = self._settings(kwargs, explicit_kwargs())
         return NumPyroResults(
-            fitted_model=fitted_model,
-            initial_model=self.model,
-            frequency=self.frequency,
             measured=self.measured,
-            features=self.feature_list,
-            logger=self.logger,
+            initial_model=self.initial_model,
+            fitted_model=fitted_model,
             solver_results=samples,
-            solver_args=(),
-            # solver_kwargs=kwargs,
-        )    
+            settings=settings,
+        )   
         
 class NumPyroNSFitter(NumPyroFitter):
-    def run(self, *, constructor_kwargs=None, terminated_kwargs=None) -> NumPyroResults:
+    def run(self, *, constructor_kwargs=None, terminated_kwargs=None, **kwargs) -> NumPyroResults:
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
-        params = self.model.flat_params()
+        params = self.initial_model.flat_params()
         param_names = list(params.keys())
         
         # Define the numpyro model
@@ -111,17 +109,14 @@ class NumPyroNSFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = self.model.with_flat_params(x_mean)
+        fitted_model = self.initial_model.with_flat_params(x_mean)
         
         # Return the results
+        settings = self._settings(kwargs, explicit_kwargs())
         return NumPyroResults(
-            fitted_model=fitted_model,
-            initial_model=self.model,
-            frequency=self.frequency,
             measured=self.measured,
-            features=self.feature_list,
-            logger=self.logger,
+            initial_model=self.initial_model,
+            fitted_model=fitted_model,
             solver_results=samples,
-            solver_args=(),
-            # solver_kwargs=kwargs,
+            settings=settings,
         )   

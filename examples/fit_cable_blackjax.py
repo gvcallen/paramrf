@@ -33,7 +33,7 @@ fitter = BlackjaxNSFitter(
 # Run the fit and plot the results. We use 10x the number of parameters for the live fit
 result = fitter.run()
 os.makedirs('output/fit_cable_blackjax', exist_ok=True)
-result.to_hdf5('output/fit_cable_blackjax/cable_fit.hdf5')
+result.save_hdf('output/fit_cable_blackjax/cable_fit.hdf5')
 
 
 # result.model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
