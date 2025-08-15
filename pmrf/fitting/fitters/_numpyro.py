@@ -74,11 +74,11 @@ class NumPyroMCMCFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fit_model = self.model.with_flat_params(x_mean)
+        fitted_model = self.model.with_flat_params(x_mean)
         
         # Return the results
         return NumPyroResults(
-            fit_model=fit_model,
+            fitted_model=fitted_model,
             initial_model=self.model,
             frequency=self.frequency,
             measured=self.measured,
@@ -111,11 +111,11 @@ class NumPyroNSFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fit_model = self.model.with_flat_params(x_mean)
+        fitted_model = self.model.with_flat_params(x_mean)
         
         # Return the results
         return NumPyroResults(
-            fit_model=fit_model,
+            fitted_model=fitted_model,
             initial_model=self.model,
             frequency=self.frequency,
             measured=self.measured,

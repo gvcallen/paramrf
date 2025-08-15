@@ -155,7 +155,7 @@ class BaseFitter(ABC):
 class FitResults:
     measured: skrf.Network | dict[str, skrf.Network] | None = None
     initial_model: Model | None = None
-    fit_model: Model | None = None
+    fitted_model: Model | None = None
     solver_results: Any = None
     frequency: Frequency | None = None
     features: list[FeatureT] | None = None
@@ -166,7 +166,7 @@ class FitResults:
     solver_args: tuple | None = None
     solver_kwargs: dict | None = None
     
-    version: int = 2
+    version: int = 3
     
     def encode_solver_results(self, group: h5py.Group):
         data = None
@@ -213,8 +213,8 @@ class FitResults:
                     user_metadata_grp[k] = json.dumps(v)
 
             # Model fit
-            if self.fit_model is not None:
-                encode_model(self.fit_model, f.create_group('fit_model'))
+            if self.fitted_model is not None:
+                encode_model(self.fitted_model, f.create_group('fitted_model'))
 
             # Solver results
             if self.solver_results is not None:
@@ -299,9 +299,11 @@ class FitResults:
 
             # Model fit
             if version == 1:
-                fit_model = decode_model(f['model']) if 'model' in f else None
+                fitted_model = decode_model(f['model']) if 'model' in f else None
             elif version == 2:
-                fit_model = decode_model(f['fit_model']) if 'fit_model' in f else None
+                fitted_model = decode_model(f['fit_model']) if 'fit_model' in f else None
+            elif version == 3:
+                fitted_model = decode_model(f['fitted_model']) if 'fitted_model' in f else None
             
             # Solver results
             solver_results = cls.decode_solver_results(f['solver_results']) if 'solver_results' in f else None
@@ -365,7 +367,7 @@ class FitResults:
                 fitter_kwargs = jsonpickle.decode(input_grp['fitter_kwargs'][()])
                 
             return cls(
-                fit_model=fit_model,
+                fitted_model=fitted_model,
                 initial_model=initial_model,
                 frequency=frequency,
                 measured=measured,

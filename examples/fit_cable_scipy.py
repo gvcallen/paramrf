@@ -36,7 +36,7 @@ fitter = ScipyMinimizeFitter(
 
 # Run the fit
 result = fitter.run(method='Nelder-Mead')
-model_ntwk = result.fit_model.to_skrf(measured.frequency)
+model_ntwk = result.fitted_model.to_skrf(measured.frequency)
 
 # Plot some results
 fig, axes = plt.subplots(2, 2)

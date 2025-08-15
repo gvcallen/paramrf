@@ -94,10 +94,10 @@ class ScipyMinimizeFitter(FrequentistFitter):
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         
         # Reconstruct the final model with optimized parameters
-        fit_model = self.model.with_flat_params(scipy_result.x)
+        fitted_model = self.model.with_flat_params(scipy_result.x)
         
         return ScipyMinimizeResults(
-            fit_model=fit_model,
+            fitted_model=fitted_model,
             initial_model=self.model,
             frequency=self.frequency,
             measured=self.measured,

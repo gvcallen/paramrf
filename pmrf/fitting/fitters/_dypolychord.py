@@ -79,10 +79,10 @@ class dyPolychordFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
-        fit_model = self.model.with_flat_params(x0)
+        fitted_model = self.model.with_flat_params(x0)
                 
         return AnestheticResults(
-            fit_model=fit_model,
+            fitted_model=fitted_model,
             initial_model=self.model,
             frequency=self.frequency,
             measured=self.measured,
