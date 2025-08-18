@@ -22,11 +22,11 @@ dependencies = [
 
 [project.optional-dependencies]
 polychord = [
+    "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
     "anesthetic",
     "fgivenx",
     "mpi4py",
     "pandas",
-    "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
 ]
 blackjax = [
     "blackjax @ git+https://github.com/handley-lab/blackjax@nested_sampling",
@@ -39,7 +39,7 @@ docs = [
 ]
 
 [project.urls]
-homepage = "https://github.com/gvcallen/paramrf"
+homepage = "https://github.com/paramrf/paramrf"
 
 [build-system]
 requires = [
