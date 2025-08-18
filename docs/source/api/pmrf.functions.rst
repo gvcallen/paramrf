@@ -1,4 +1,4 @@
-pmrf.functions package
+functions (``pmrf.functions``)
 ======================
 
 Submodules

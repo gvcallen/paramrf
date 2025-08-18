@@ -2,10 +2,14 @@ API
 =============
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: API
 
-   pmrf.fitting
-   pmrf.fitting
+   pmrf.Model
+   pmrf.Parameter
+   pmrf.Frequency
    pmrf.models
+   pmrf.fitting
    pmrf.functions
+   pmrf.sampling
+   pmrf.distributions

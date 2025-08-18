@@ -1,14 +1,25 @@
-fitting (pmrf.fitting)
+fitting (``pmrf.fitting``)
 ====================
 
-Subpackages
------------
+Submodules
+----------
 
-.. toctree::
-   :maxdepth: 4
+pmrf.fitting.fitters module
+-----------------------------
 
-   pmrf.fitting.fitters
-   pmrf.fitting.results
+.. automodule:: pmrf.fitting.fitters
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+pmrf.fitting.results module
+-----------------------------
+
+.. automodule:: pmrf.fitting.results
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 
 Module contents
 ---------------
@@ -17,3 +28,4 @@ Module contents
    :members:
    :show-inheritance:
    :undoc-members:
+   

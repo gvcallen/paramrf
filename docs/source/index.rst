@@ -5,13 +5,13 @@
 
 .. My Project documentation master file
 
-ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling (tester)
+ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 =====================
+**ParamRF**, or ``pmrf``, is a declarative circuit modelling framework catering for the frequency-domain fitting and simulation of (microwave) circuit models in an efficient, parametric, object-orientated manner. This documentation serves as an introduction into the framework and its features with some basic examples, and also provides an overall API reference.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Documentation
 
-   usage
-   tutorial
+   introduction/index
    api/index
