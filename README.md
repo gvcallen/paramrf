@@ -16,3 +16,8 @@
 * **scikit-rf Integration**: Designed for seamless interoperability with *scikit-rf*, ``pmrf`` models can be evaluated and converted to ``skrf.Network`` objects, providing access to *scikit-rf*'s library of analysis and plotting tools.
 
 ## Installation
+ParamRF can be installed using pip directly from the github page:
+
+``
+pip install git+https://github.com/paramrf/paramrf@main
+``
