@@ -2,16 +2,11 @@
 
 **ParamRF**, or ``pmrf``, is a declarative circuit modelling framework catering for the frequency-domain fitting and simulation of (microwave) circuit models in an efficient, parametric, object-orientated manner. The framework integrates concepts from several packages into one, such as `scikit-rf` for general syntax and RF concepts, `equinox` for model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation.
 
-+----------+------------------------------------+
-| Version  | 0.4.2                              |
-+----------+------------------------------------+
-| Author   | Gary Allen                         |
-+----------+------------------------------------+
-| Homepage | https://github.com/paramrf/paramrf |
-+----------+------------------------------------+
-| Docs     | https://paramrf.github.io/paramrf  |
-+----------+------------------------------------+
-
+| **Version** | 0.4.2 |
+|-------------|-------|
+| **Author**  | Gary Allen |
+| **Homepage** | [github.com/paramrf/paramrf](https://github.com/paramrf/paramrf) |
+| **Docs** | [paramrf.github.io/paramrf](https://paramrf.github.io/paramrf) |
 
 ## Key Features
 * **Declarative and Composable Modelling**: Allows for the definition of models using either a self-documenting, declarative syntax or via compositional techniques such as cascading. Since models can consist of a mix of ``Parameter`` objects as well as other ``Model``'s, this allows for a natural means of building complex, hierarchial models from both equations and other sub-models.
