@@ -160,7 +160,7 @@ class BaseFitter(ABC):
     
     def _make_feature_function(self, as_numpy=False):
         general_feature_fn = wrap(extract_features, self.initial_model, self.frequency, as_numpy=as_numpy)
-        feature_fn = lambda theta: general_feature_fn(theta, self._settings.features)
+        feature_fn = lambda theta: general_feature_fn(theta, self.features)
         return jax.jit(feature_fn)
     
 @dataclass
@@ -169,7 +169,7 @@ class FitResults:
     initial_model: Model | None = None
     fitted_model: Model | None = None
     solver_results: Any = None
-    settings: FitSettings
+    settings: FitSettings | None = None
     
     def encode_solver_results(self, group: h5py.Group):
         data = None
@@ -335,7 +335,7 @@ class FitResults:
                 fitter_kwargs = jsonpickle.decode(settings_grp['fitter_kwargs'][()])
                 
             settings = FitSettings(frequency, features, fitter_kwargs, solver_kwargs)
-            return FitResults(
+            return cls(
                 measured=measured,
                 initial_model=initial_model,
                 fitted_model=fitted_model,
