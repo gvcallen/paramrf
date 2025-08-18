@@ -1,9 +1,6 @@
 from numpyro.distributions import Distribution, constraints
-from numpyro.distributions.util import clamp_probs
 import jax.numpy as jnp
 import jax
-from jax.random import PRNGKey
-from typing import Any
 
 from pmrf.parameters import ParameterGroup
 
