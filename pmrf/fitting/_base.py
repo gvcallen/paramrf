@@ -190,6 +190,7 @@ class FitResults:
         return None
     
     def save_hdf(self, path: str, metadata: dict | None = None):
+        
         with h5py.File(path, 'w') as f:
             # Metadata
             metadata_grp = f.create_group('metadata')
@@ -199,8 +200,14 @@ class FitResults:
                 internal_metadata_grp['solver_results_cls'] = self.solver_results.__module__ + "." + self.__class__.__qualname__
             
             if not metadata is None:
-                for k, v in metadata.items():
-                    metadata_grp[k] = json.dumps(v)
+                def save_dict_to_group(d: dict, group: h5py.Group):
+                    for k, v in d.items():
+                        if isinstance(v, dict):
+                            subgrp = group.create_group(k)
+                            save_dict_to_group(v, subgrp)
+                        else:
+                            group[k] = json.dumps(v)        
+                save_dict_to_group(metadata, metadata_grp)
 
             # Models
             if self.fitted_model is not None:

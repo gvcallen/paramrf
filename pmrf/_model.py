@@ -332,7 +332,7 @@ class Model(eqx.Module):
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
 
     @cached_property
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def number_of_ports(self) -> int:
         """The number of ports in the model
 
@@ -398,12 +398,12 @@ class Model(eqx.Module):
         """        
         raise NotImplementedError(f"Error: cannot use the __call__ method to build a model in the Model class directly")
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
         primary_function = self.primary_function
         return primary_function(freq)
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the abcd parameter matrix, to be derived by sub-classes.
 
@@ -421,7 +421,7 @@ class Model(eqx.Module):
         s = self.s(freq)
         return s2a(s, self.z0)
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S parameter matrix, to be derived by sub-classes.
 
@@ -439,7 +439,7 @@ class Model(eqx.Module):
         a = self.a(freq)
         return a2s(a, self.z0)
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def a_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
         """Calculates the ABCD parameter matrix at specific ports.
         
@@ -461,7 +461,7 @@ class Model(eqx.Module):
 
         return self.a(freq)[:, m, n]
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def s_mn(self, freq: Frequency, m: IndexArray = None, n: IndexArray = None) -> jnp.ndarray:
         """Calculates the S parameter matrix at specific ports.
         
