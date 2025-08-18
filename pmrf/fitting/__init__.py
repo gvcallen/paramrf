@@ -4,6 +4,7 @@ from pmrf.fitting._base import (
     FitResults,
     is_frequentist,
     is_bayesian,
+    is_inference_kind,
 )
 
 from pmrf.fitting._frequentist import (

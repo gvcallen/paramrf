@@ -353,6 +353,14 @@ def is_bayesian(solver) -> bool:
     cls = get_fitter_class(solver)
     return issubclass(cls, BayesianFitter)
 
+def is_inference_kind(solver, inference: str):
+    if inference == 'frequentist':
+        return is_frequentist(solver)
+    elif inference == 'bayesian':
+        return is_bayesian(solver)
+    else:
+        raise Exception(f"Unknown inference type '{inference}'")
+
 def get_fitter_class(solver: str):
     class_names = [solver + 'Fitter']
     class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
