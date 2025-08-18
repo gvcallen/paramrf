@@ -1,10 +1,10 @@
-sampling (``pmrf.sampling``)
-=====================
+constants (``pmrf.constants``)
+====================
 
 Module contents
 ---------------
 
-.. automodule:: pmrf.sampling
+.. automodule:: pmrf.constants
    :members:
    :show-inheritance:
    :undoc-members:

@@ -8,7 +8,7 @@ from jax import lax
 from jax.scipy.special import gammaln
 from jax._src.numpy.ufuncs import _constant_like
 
-from pmrf._constants import NumberLike, INF, LOG_OF_NEG
+from pmrf.constants import NumberLike, INF, LOG_OF_NEG
 
 def complex_2_magnitude(z: NumberLike):
     """

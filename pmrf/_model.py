@@ -26,7 +26,7 @@ from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions._parameter import JointParameterDistribution
-from pmrf._constants import PRIMARY_PROPERTIES, IndexArray, ModelT
+from pmrf.constants import PRIMARY_PROPERTIES, IndexArray, ModelT
 from pmrf._frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, value_at_path, partition, combine

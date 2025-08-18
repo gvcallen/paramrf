@@ -10,6 +10,7 @@ API
    pmrf.Frequency
    pmrf.models
    pmrf.fitting
-   pmrf.functions
    pmrf.sampling
+   pmrf.functions
    pmrf.distributions
+   pmrf.constants

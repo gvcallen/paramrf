@@ -4,7 +4,7 @@ import re
 import skrf
 import jax.numpy as jnp
 
-from pmrf._constants import FeatureT, FeatureInputT
+from pmrf.constants import FeatureT, FeatureInputT
 from pmrf._model import Model
 from pmrf._frequency import Frequency
 

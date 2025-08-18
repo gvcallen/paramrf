@@ -12,7 +12,7 @@ import equinox as eqx
 from pmrf import extract_features, wrap
 from pmrf._frequency import Frequency
 from pmrf._model import Model
-from pmrf._constants import FeatureInputT
+from pmrf.constants import FeatureInputT
 
 ModelT = TypeVar('ModelT', bound='Model')
 

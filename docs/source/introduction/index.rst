@@ -146,14 +146,3 @@ The below example demonstrates a very simple example of simulating 10 different 
 
     for i, res in enumerate(resistors):
         res.export_touchstone(freq, f'resistors_{i}')
-
-Key Features
-~~~~~~~~~~~~~~~~~~~~
-
-The framework's strengths can be summarized into the following key features:
-
-* **Parametric & Composable Design**: Models are defined declaratively as `Equinox` modules, allowing for the natural composition of complex systems from simpler sub-models. Any model attribute can be either a `Parameter` or another `Model`, allowing flexible, hierarchial model building.
-* **Unified Fitting Engine**: Offers a unified interface for both frequentist optimization and advanced Bayesian inference.
-* **JAX Backend**: Leverages `JAX` for Just-In-Time (JIT) compilation of models to high-performance hardware (CPU, GPU, TPU). This removes python overhead due to interpreter context switching; enables better vectorization and parallelization; and provides automatic differentiation through the entire model structure, enabling new analysis and more efficient gradient-based optimization.
-* **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
-* **`scikit-rf` Integration**: Designed for seamless interoperability with `scikit-rf`. `pmrf` models can be evaluated and converted to `skrf.Network` objects, providing access to `scikit-rf`'s library of analysis and plotting tools.
