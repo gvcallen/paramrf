@@ -1,3 +1,9 @@
+import os
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
+
+import jax
+jax.config.update("jax_enable_x64", True)
+
 from pmrf._model import (
     Model as Model,
     wrap,

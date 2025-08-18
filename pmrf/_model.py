@@ -33,8 +33,6 @@ from pmrf._tree import nodes_by_type, value_at_path, partition, combine
 
 ModelT = TypeVar('ModelT', bound='Model')
 
-jax.config.update("jax_enable_x64", True)
-
 class Model(eqx.Module):
     """
     **Overview**
