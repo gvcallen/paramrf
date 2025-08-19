@@ -16,7 +16,7 @@
 * **scikit-rf Integration**: Designed for seamless interoperability with *scikit-rf*, ``pmrf`` models can be evaluated and converted to ``skrf.Network`` objects, providing access to *scikit-rf*'s library of analysis and plotting tools.
 
 ## Installation
-ParamRF can be installed using pip directly from the github page:
+ParamRF can be installed using pip directly from the GitHub page:
 
 ``
 pip install git+https://github.com/paramrf/paramrf@main
@@ -25,11 +25,13 @@ pip install git+https://github.com/paramrf/paramrf@main
 Several additional (optional) dependency packs can also be installed instead of manually installing the packages.
 
 For Polychord fitting:
+
 ``
 pip install 'paramrf[polychord] @ git+https://github.com/paramrf/paramrf@main'
 ``
 
 For blackjax fitting:
+
 ``
 pip install 'paramrf[blackjax] @ git+https://github.com/paramrf/paramrf@main'
 ``

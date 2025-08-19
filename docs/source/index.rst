@@ -27,4 +27,6 @@ Key Features
    :caption: Documentation
 
    introduction/index
+   installation
    api/index
+   license
