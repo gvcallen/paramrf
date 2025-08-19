@@ -1,6 +1,7 @@
 # docs/source/conf.py
 import os
 import sys
+from pathlib import Path
 
 # Compute repo roots relative to this conf.py file
 _here = os.path.abspath(os.path.dirname(__file__))          # docs/source
@@ -11,10 +12,44 @@ for p in (_src_root, _repo_root):
     if os.path.isdir(p) and p not in sys.path:
         sys.path.insert(0, p)
 
+# --- Version helpers ---------------------------------------------------------
+def _get_release(_project_name: str, repo_root: str) -> str:
+    """Resolve package version for Sphinx 'release' from multiple sources."""
+    # 1) Try pyproject.toml (PEP 621)
+    try:
+        try:
+            import tomllib  # Python 3.11+
+        except ModuleNotFoundError:  # pragma: no cover
+            import tomli as tomllib  # fallback for older Pythons
+
+        pyproject = Path(repo_root) / "pyproject.toml"
+        if pyproject.is_file():
+            with open(pyproject, "rb") as f:
+                data = tomllib.load(f)
+            ver = (data.get("project") or {}).get("version")
+            if ver:
+                return ver
+    except Exception:
+        pass
+
+    # 2) If the package is installed in the env, ask importlib.metadata
+    try:
+        from importlib.metadata import version as _dist_version
+        return _dist_version(_project_name)
+    except Exception:
+        pass
+
+    # 3) Final fallback
+    return "0.0.0"
+
+# --- Project info ------------------------------------------------------------
 project = 'paramrf'
 author = 'Gary Allen'
-release = '0.4.2'
+release = _get_release(project, _repo_root)
+# Sphinx often uses 'version' as the short X.Y string
+version = ".".join(release.split(".")[:2]) if release and "." in release else release
 
+# --- Extensions & config -----------------------------------------------------
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
@@ -35,7 +70,6 @@ autodoc_default_options = {
     "member-order": "bysource",
     "property-doc-from-class": True,   # <--- important
 }
-
 
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
