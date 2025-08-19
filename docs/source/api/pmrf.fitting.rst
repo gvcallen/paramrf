@@ -13,6 +13,7 @@ Fitters
    pmrf.fitting.fitters.ScipyMinimizeFitter
    pmrf.fitting.fitters.PolychordFitter
    pmrf.fitting.fitters.dyPolychordFitter
+   pmrf.fitting.fitters.BlackjaxNSFitter
    pmrf.fitting.fitters.NumPyroMCMCFitter
 
 Results

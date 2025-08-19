@@ -10,7 +10,7 @@ from pmrf.fitting.results import AnestheticResults
 
 class BlackjaxNSFitter(BayesianFitter):
     """
-    A fitter that uses the blackjax nested slice sampler (`blackjax.nss`).
+    A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
     """
     def run(self, best_param_method = 'maximum-likelihood', n_live = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         import blackjax
