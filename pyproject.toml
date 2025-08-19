@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.4.3"
+version = "0.5.0"
 description = "ParamRF: Parametric Circuit Modelling, Fitting and Sampling"
 readme = "README.md"
 authors = [
