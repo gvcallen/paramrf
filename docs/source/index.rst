@@ -13,7 +13,7 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 +----------+------------------------------------+
 
 Key Features
---------------
+---------------------
 
 * **Declarative and Composable Modelling**: Allows for the definition of models using either a self-documenting, declarative syntax or via compositional techniques such as cascading. Since models can consist of a mix of ``Parameter`` objects as well as other ``Model``'s, this allows for a natural means of building complex, hierarchial models from both equations and other sub-models.
 * **Unified Fitting Engine**: Provides a number of commonly available fitting algorithms with a unified interface, catering for both classical frequentist optimization and statistical Bayesian inference.

@@ -4,6 +4,8 @@ ParamRF can be installed using pip directly from the GitHub page:
 
 ``pip install git+https://github.com/paramrf/paramrf@main``
 
+Optional dependencies
+---------------------
 Several additional (optional) dependency packs can also be installed instead of manually installing the packages.
 
 For Polychord fitting:

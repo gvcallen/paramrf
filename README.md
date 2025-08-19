@@ -1,6 +1,8 @@
 # ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 
-**ParamRF**, or ``pmrf``, is a declarative circuit modelling framework catering for the frequency-domain fitting and simulation of (microwave) circuit models in an efficient, parametric, object-orientated manner. The framework integrates concepts from several packages into one, such as `scikit-rf` for general syntax and RF concepts, `equinox` for model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation.
+**ParamRF**, or ``pmrf``, is a declarative circuit modelling framework.
+
+The framework caters for the frequency-domain fitting and simulation of (microwave) circuit models in an efficient, parametric, object-orientated manner. Concepts from several packages are integrated, such as `scikit-rf` for general syntax and RF concepts, `equinox` for model building, and `jax` for high-speed, hardware-accelerated calculations and automatic differentiation.
 
 | **ParamRF** |  |
 |-------------|-------|
@@ -22,7 +24,8 @@ ParamRF can be installed using pip directly from the GitHub page:
 pip install git+https://github.com/paramrf/paramrf@main
 ``
 
-Several additional (optional) dependency packs can also be installed instead of manually installing the packages.
+### Optional dependencies
+Several additional dependency packs can also be installed instead of manually installing the packages.
 
 For Polychord fitting:
 
