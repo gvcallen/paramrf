@@ -19,8 +19,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install sphinx sphinx_rtd_theme myst-parser ghp-import
-        pip install git+https://github.com/paramrf/paramrf@main
+        pip install -e ".[docs]"
 
     - name: Build docs
       run: |
