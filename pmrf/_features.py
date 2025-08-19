@@ -5,8 +5,8 @@ import skrf
 import jax.numpy as jnp
 
 from pmrf.constants import FeatureT, FeatureInputT
-from pmrf._model import Model
-from pmrf._frequency import Frequency
+from pmrf.models.model import Model
+from pmrf.frequency import Frequency
 
 def extract_features(
     source: Model | skrf.Network | dict[str, skrf.Network],

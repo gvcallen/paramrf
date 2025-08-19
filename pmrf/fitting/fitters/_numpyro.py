@@ -4,16 +4,8 @@ from typing import Any
 import h5py
 
 from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting.results._numpyro import NumPyroResults
 from pmrf._util import explicit_kwargs
-
-class NumPyroResults(BayesianResults):
-    def encode_solver_results(self, group: h5py.Group):
-        samples = self.solver_results
-        group['samples'] = samples
-        
-    @classmethod
-    def decode_solver_results(cls, group: h5py.Group) -> Any:
-        group['samples']
         
 class NumPyroFitter(BayesianFitter):
     def _make_numpyro_model(self):
@@ -49,6 +41,9 @@ class NumPyroFitter(BayesianFitter):
         return numpyro_model
 
 class NumPyroMCMCFitter(NumPyroFitter):
+    """
+    NumPyro fitter using numpyro.infer.MCMC.
+    """        
     def run(self, kernel=None, **kwargs) -> NumPyroResults:
         from numpyro.infer import MCMC, NUTS
         

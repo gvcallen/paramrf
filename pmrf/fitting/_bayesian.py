@@ -6,7 +6,7 @@ import numpyro.distributions as dist
 import dataclasses
 
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf._model import Model
+from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.fitting._base import BaseFitter, FitResults
 
@@ -16,12 +16,9 @@ class BayesianResults(FitResults):
     
 class BayesianFitter(BaseFitter):
     """
-    **Overview**
-
     A base class for Bayesian fitting methods.
 
-    This class extends `BaseFitter` by adding the concept of a likelihood function,
-    as well as providing support for prior sampling.
+    This class extends `BaseFitter` by adding the concept of a likelihood function.
     """
     def __init__(
         self,

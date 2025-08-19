@@ -12,42 +12,40 @@ from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DIC
 
 class Frequency(eqx.Module):
     """
-    **Overview**
+    Overview
+    --------
 
     Represents a frequency axis for **paramrf** models.
 
     This class provides a container for a frequency band, defining the points
-    at which network parameters are evaluated. It is a simplified,
-    JAX-compatible version of the `skrf.Frequency` class, designed for use
-    within the **paramrf** ecosystem.
+    at which network parameters are evaluated. The source code has been
+    derived from the scikit-rf Frequency class, but with added JAX compatibility.
 
     The primary purpose is to hold a vector of frequency points (`f`) and the
     corresponding frequency unit (`unit`). It provides numerous properties
     for accessing different representations of the frequency axis, such as
     angular frequency (`w`) and scaled frequency (`f_scaled`).
 
-    **Example:**
+    Examples
+    --------
+    .. code-block:: python
 
-    Creating and using a `Frequency` object is straightforward.
+        import pmrf as prf
+        import skrf as rf
 
-    ```python
-    import pmrf as prf
-    import skrf as rf
+        # Create a frequency axis from 1 to 2 GHz with 101 points
+        freq = prf.Frequency(start=1, stop=2, npoints=101, unit='ghz')
 
-    # Create a frequency axis from 1 to 2 GHz with 101 points
-    freq = prf.Frequency(start=1, stop=2, npoints=101, unit='ghz')
+        # Access properties like the frequency vector in Hz or radians/sec
+        print(f"Frequency points in Hz: {freq.f[:5]}...")
+        print(f"Angular frequency in rad/s: {freq.w[:5]}...")
 
-    # Access properties like the frequency vector in Hz or radians/sec
-    print(f"Frequency points in Hz: {freq.f[:5]}...")
-    print(f"Angular frequency in rad/s: {freq.w[:5]}...")
+        # Convert to a scikit-rf Frequency object
+        skrf_freq = freq.to_skrf()
+        print(f"Type after conversion: {type(skrf_freq)}")
 
-    # Convert to a scikit-rf Frequency object
-    skrf_freq = freq.to_skrf()
-    print(f"Type after conversion: {type(skrf_freq)}")
-
-    # Create from a scikit-rf Frequency object
-    freq_from_skrf = prf.Frequency.from_skrf(skrf_freq)
-    ```
+        # Create from a scikit-rf Frequency object
+        freq_from_skrf = prf.Frequency.from_skrf(skrf_freq)
     """
     _f: jnp.array
     _unit: str = field(static=True)
@@ -167,41 +165,142 @@ class Frequency(eqx.Module):
         return self.npoints
 
     def __add__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise addition on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The addend. If a :class:`Frequency`, frequencies are added elementwise;
+            otherwise ``other`` is broadcast as needed.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f + (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __sub__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise subtraction on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The subtrahend. If a :class:`Frequency`, frequencies are subtracted
+            elementwise; otherwise ``other`` is broadcast.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f - (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __mul__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise multiplication on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The multiplier. If a :class:`Frequency`, multiply elementwise;
+            otherwise ``other`` is broadcast.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f * (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __rmul__(self, other: Frequency | NumberLike) -> Frequency:
+        """Reflected elementwise multiplication on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The multiplier.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f * (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __div__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise division on frequency values (Python 2 style alias).
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The divisor. If a :class:`Frequency`, divide elementwise;
+            otherwise ``other`` is broadcast.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f / (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __truediv__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise true division on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The divisor. If a :class:`Frequency`, divide elementwise;
+            otherwise ``other`` is broadcast.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f / (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __floordiv__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise floor division on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The divisor.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f // (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __mod__(self, other: Frequency | NumberLike) -> Frequency:
+        """Elementwise modulo on frequency values.
+
+        Parameters
+        ----------
+        other : Frequency or NumberLike
+            The modulus.
+
+        Returns
+        -------
+        Frequency
+            A new object with updated frequency vector.
+        """
         out = self.copy()
         out._f = self.f % (other.f if isinstance(other, Frequency) else other)
         return out

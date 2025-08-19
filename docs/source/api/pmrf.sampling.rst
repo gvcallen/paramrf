@@ -1,10 +1,23 @@
-sampling (``pmrf.sampling``)
-=====================
+pmrf.sampling
+===========
 
-Module contents
----------------
+The **sampling** module, with built-in random sampling algorithms.
 
-.. automodule:: pmrf.sampling
-   :members:
-   :show-inheritance:
-   :undoc-members:
+Samplers
+-----------
+.. autosummary::
+   :toctree: generated/sampling/samplers
+   :caption: Submodules
+   :recursive:
+
+   pmrf.sampling.samplers.UniformSampler
+   pmrf.sampling.samplers.LatinHypercubeSampler
+
+Bases
+-----------
+.. autosummary::
+   :toctree: generated/sampling/bases
+   :caption: Submodules
+   :recursive:
+
+   pmrf.sampling.BaseSampler

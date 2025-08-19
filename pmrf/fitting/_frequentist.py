@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.functions import l2_norm_ax0, mag_2_db
-from pmrf._model import Model
+from pmrf.models.model import Model
 from pmrf.parameters import Parameter, ParameterGroup
 from pmrf.constants import FeatureInputT, ArrayFuncT
 
@@ -16,14 +16,11 @@ class FrequentistResults(FitResults):
 
 class FrequentistFitter(BaseFitter):
     """
-    **Overview**
-
     A base class for frequentist (classical) optimization methods.
 
     This class extends `BaseFitter` by adding the concept of a `cost_fn`,
     a function that takes the difference between model features and measured
     features and computes a single scalar value representing the "cost" or "error".
-    The goal of the fitter is to minimize this value.
     """
     def __init__(
         self,

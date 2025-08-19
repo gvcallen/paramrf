@@ -1,31 +1,41 @@
-fitting (``pmrf.fitting``)
-====================
+pmrf.fitting
+===========
 
-Submodules
-----------
+The **fitting** module, with built-in fitting algorithms and results
 
-pmrf.fitting.fitters module
------------------------------
+Fitters
+-----------
+.. autosummary::
+   :toctree: generated/fitting/fitters
+   :caption: Submodules
+   :recursive:
 
-.. automodule:: pmrf.fitting.fitters
-   :members:
-   :show-inheritance:
-   :undoc-members:
+   pmrf.fitting.fitters.ScipyMinimizeFitter
+   pmrf.fitting.fitters.PolychordFitter
+   pmrf.fitting.fitters.dyPolychordFitter
+   pmrf.fitting.fitters.NumPyroMCMCFitter
 
-pmrf.fitting.results module
------------------------------
+Results
+-----------
+.. autosummary::
+   :toctree: generated/fitting/results
+   :caption: Submodules
+   :recursive:
 
-.. automodule:: pmrf.fitting.results
-   :members:
-   :show-inheritance:
-   :undoc-members:
+   pmrf.fitting.results.ScipyMinimizeResults
+   pmrf.fitting.results.AnestheticResults
+   pmrf.fitting.results.NumPyroResults
 
+Bases
+-----------
+.. autosummary::
+   :toctree: generated/fitting/bases
+   :caption: Submodules
+   :recursive:
 
-Module contents
----------------
-
-.. automodule:: pmrf.fitting
-   :members:
-   :show-inheritance:
-   :undoc-members:
-   
+   pmrf.fitting.BaseFitter
+   pmrf.fitting.FrequentistFitter
+   pmrf.fitting.BayesianFitter
+   pmrf.fitting.FitResults
+   pmrf.fitting.FrequentistResults
+   pmrf.fitting.BayesianResults

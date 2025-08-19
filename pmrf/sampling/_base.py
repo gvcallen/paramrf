@@ -10,8 +10,8 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf import extract_features, wrap
-from pmrf._frequency import Frequency
-from pmrf._model import Model
+from pmrf.frequency import Frequency
+from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 
 ModelT = TypeVar('ModelT', bound='Model')
@@ -111,5 +111,5 @@ class BaseSampler(ABC):
         return np.stack(X, axis=0)
     
     @abstractmethod
-    def _generate_hypercube_samples(self, N, D) -> np.ndarray:
+    def _generate_hypercube_samples(self, N, D) -> jnp.ndarray:
         pass

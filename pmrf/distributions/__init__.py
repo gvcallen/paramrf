@@ -1,3 +1,3 @@
 from numpyro.distributions import *
-from pmrf.distributions._maf import MAFDistribution
-from pmrf.distributions._parameter import JointParameterDistribution
+from pmrf.distributions.maf import MAFDistribution
+from pmrf.distributions.parameter import JointParameterDistribution

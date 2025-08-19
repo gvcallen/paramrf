@@ -22,12 +22,12 @@ try:
 except ImportError:
     rank = 0
 
-from pmrf._model import Model
-from pmrf._frequency import Frequency
+from pmrf.models.model import Model
+from pmrf.frequency import Frequency
 from pmrf.constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
-from pmrf._model import Model
-from pmrf._frequency import Frequency, MULTIPLIER_DICT
+from pmrf.models.model import Model
+from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 
@@ -59,17 +59,7 @@ class FitSettings:
 
 class BaseFitter(ABC):
     """
-    **Overview**
-
-    An abstract base class that provides the foundational structure for all
-    fitting algorithms in `pmrf`.
-
-    This class handles the common setup tasks required for any fitting routine, including:
-    - Managing the parametric `Model` to be optimized.
-    - Processing and aligning the measured `skrf.Network` data.
-    - Interpolating all data onto a common frequency axis.
-    - Defining the logic for feature extraction, which transforms raw S-parameters
-      into a format suitable for comparison (e.g., magnitude, dB, phase).
+    An abstract base class that provides the foundation for all fitting algorithms in `pmrf`.
     """
     def __init__(
         self,

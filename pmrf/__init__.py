@@ -4,7 +4,7 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import jax
 jax.config.update("jax_enable_x64", True)
 
-from pmrf._model import (
+from pmrf.models.model import (
     Model as Model,
     wrap,
 )
@@ -12,15 +12,8 @@ from pmrf._util import (
     field,
 )
 
-from pmrf._frequency import (
+from pmrf.frequency import (
     Frequency as Frequency,
-)
-
-from pmrf._tree import (
-    partition,
-    combine,
-    restore,
-    dealias
 )
 
 from pmrf._features import (
@@ -32,9 +25,6 @@ from pmrf.parameters import (
     ParameterGroup as ParameterGroup
 )
 
-import pmrf.fitting
-import pmrf.models
-import pmrf.parameters
 from pmrf.functions import *
 
 from importlib.metadata import version as _version, PackageNotFoundError
@@ -42,3 +32,12 @@ try:
     __version__ = _version(__name__)
 except PackageNotFoundError:
     pass
+
+__all__ = [
+    "Model",
+    "Frequency",
+    "Parameter",
+    "ParameterGroup",
+    "wrap",
+    "extract_features"
+]

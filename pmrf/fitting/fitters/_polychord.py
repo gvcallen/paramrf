@@ -13,6 +13,11 @@ from pmrf._util import time_string, explicit_kwargs
 PolychordResults = AnestheticResults
 
 class PolychordFitter(BayesianFitter):
+    """
+    Polychord fitter using pypolychord.run.
+    
+    Polychord has its own license available at https://github.com/PolyChord/PolyChordLite.
+    """
     def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np

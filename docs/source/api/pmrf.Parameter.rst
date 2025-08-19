@@ -1,10 +1,17 @@
 Parameter (``pmrf.Parameter``)
-====================
+===============================
 
-Module contents
----------------
+.. currentmodule:: pmrf.parameters
 
-.. automodule:: pmrf.Parameter
+.. autoclass:: Parameter
    :members:
-   :show-inheritance:
    :undoc-members:
+   :inherited-members:
+   :show-inheritance:
+   :member-order: bysource
+
+.. autoclass:: ParameterGroup
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: bysource

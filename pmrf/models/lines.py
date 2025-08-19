@@ -6,9 +6,9 @@ from dataclasses import fields
 
 from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.functions.conversions import renormalize_s
-from pmrf._frequency import Frequency
+from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
-from pmrf._model import Model
+from pmrf.models.model import Model
 
 class RLGCLine(Model):
     """

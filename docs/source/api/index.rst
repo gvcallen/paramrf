@@ -1,16 +1,26 @@
 API
-=============
+===
 
 .. toctree::
    :maxdepth: 1
-   :caption: API
+   :caption: Core classes
 
    pmrf.Model
    pmrf.Parameter
    pmrf.Frequency
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Submodules
+
    pmrf.models
    pmrf.fitting
    pmrf.sampling
    pmrf.functions
    pmrf.distributions
-   pmrf.constants
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Free functions (package root)
+
+   pmrf

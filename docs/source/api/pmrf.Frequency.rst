@@ -1,10 +1,11 @@
 Frequency (``pmrf.Frequency``)
-====================
+==============================
 
-Module contents
----------------
+.. currentmodule:: pmrf.frequency
 
-.. automodule:: pmrf.Frequency
+.. autoclass:: Frequency
    :members:
-   :show-inheritance:
    :undoc-members:
+   :inherited-members:
+   :show-inheritance:
+   :member-order: bysource

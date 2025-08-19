@@ -1,10 +1,21 @@
 Model (``pmrf.Model``)
-====================
+======================
 
-Module contents
----------------
+.. currentmodule:: pmrf.models
 
-.. automodule:: pmrf.Model
+.. autoclass:: Model
    :members:
-   :show-inheritance:
    :undoc-members:
+   :inherited-members:
+   :show-inheritance:
+   :member-order: bysource
+   :special-members: __call__
+
+Module-local helpers
+--------------------
+
+These helpers live in :mod:`pmrf.model` but are re-exported at :mod:`pmrf`.
+Prefer the canonical docs at the root package page.
+
+.. autofunction:: wrap
+   :noindex:

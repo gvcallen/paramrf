@@ -2,9 +2,9 @@ import jax
 from jax import vmap
 
 import jax.numpy as jnp
-from pmrf._frequency import Frequency
+from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
-from pmrf._model import Model
+from pmrf.models.model import Model
 from pmrf._util import field
 
 class Cascade(Model):

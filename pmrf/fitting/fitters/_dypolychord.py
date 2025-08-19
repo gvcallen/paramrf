@@ -12,6 +12,9 @@ from pmrf._util import time_string, explicit_kwargs
 PolychordResults = AnestheticResults
 
 class dyPolychordFitter(BayesianFitter):
+    """
+    dyPolychord fitter using dyPolyChord.run_dypolychord.
+    """
     def run(self, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np
