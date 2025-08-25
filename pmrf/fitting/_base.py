@@ -284,8 +284,11 @@ class FitResults:
                 settings_grp = f['input']
             else:
                 settings_grp = f['settings']
-            
-            initial_model = Model.read_hdf(settings_grp['model']) if 'model' in settings_grp else None
+                
+            if version <= 3:            
+                initial_model = Model.read_hdf(settings_grp['model']) if 'model' in settings_grp else None
+            else:
+                initial_model = Model.read_hdf(f['initial_model']) if 'initial_model' in f else None
 
             ## Measured networks
             measured = None
