@@ -146,6 +146,9 @@ class Parameter(eqx.Module):
         Parameter
             A copy of this object with ``prior`` replaced.
         """
+        if not isinstance(prior, Distribution):
+            raise Exception('Only numpyro distributions are supported as priors')
+        
         return dataclasses.replace(self, prior=prior)
     
     def flatten(self, separator='_') -> 'Parameter | list[Parameter]':

@@ -180,12 +180,14 @@ class FitResults:
         return None
     
     def save_hdf(self, path: str, metadata: dict | None = None):
+        version = 4
         
         with h5py.File(path, 'w') as f:
             # Metadata
             metadata_grp = f.create_group('metadata')
             internal_metadata_grp = metadata_grp.create_group('__pmrf__')
             internal_metadata_grp['fit_results_cls'] = str(self.__class__.__module__ + "." + self.__class__.__qualname__)
+            internal_metadata_grp['version'] = version
             if self.solver_results is not None:
                 internal_metadata_grp['solver_results_cls'] = self.solver_results.__module__ + "." + self.__class__.__qualname__
             
@@ -255,7 +257,10 @@ class FitResults:
                 else:
                     internal_metadata_grp = metadata_grp['__pmrf__']
                 
-                version = internal_metadata_grp['version'][()]
+                if 'version' in internal_metadata_grp:
+                    version = internal_metadata_grp['version'][()]
+                else:
+                    version = 4 # bug for some
                 fit_results_cls_path = internal_metadata_grp['fit_results_cls'][()]
                 fit_results_cls_path = fit_results_cls_path.decode('utf-8') if isinstance(fit_results_cls_path, bytes) else fit_results_cls_path
                 try:
@@ -275,9 +280,15 @@ class FitResults:
             solver_results = cls.decode_solver_results(f['solver_results']) if 'solver_results' in f else None
 
             # Settings
-            settings_grp = f['input']
-            
-            initial_model = Model.read_hdf(settings_grp['model']) if 'model' in settings_grp else None
+            if version <= 3:
+                settings_grp = f['input']
+            else:
+                settings_grp = f['settings']
+                
+            if version <= 3:            
+                initial_model = Model.read_hdf(settings_grp['model']) if 'model' in settings_grp else None
+            else:
+                initial_model = Model.read_hdf(f['initial_model']) if 'initial_model' in f else None
 
             ## Measured networks
             measured = None
