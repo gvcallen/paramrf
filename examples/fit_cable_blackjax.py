@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed, PercentNormal
-from pmrf.fitting import BlackjaxNSFitter
+from pmrf.fitting import BlackJAXNSFitter
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,7 +24,7 @@ model = PhysicalCoaxial(
 )
 
 # Initialize the fitter. Note that the features need to align with the likelihood
-fitter = BlackjaxNSFitter(
+fitter = BlackJAXNSFitter(
     model=model,
     measured=measured,
     features=['s11_re', 's11_im'],

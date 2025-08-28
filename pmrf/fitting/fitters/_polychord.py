@@ -10,9 +10,9 @@ from pmrf.fitting.results import AnestheticResults
 from pmrf._util import time_string, explicit_kwargs
    
 # For legacy imports
-PolychordResults = AnestheticResults
+PolyChordResults = AnestheticResults
 
-class PolychordFitter(BayesianFitter):
+class PolyChordFitter(BayesianFitter):
     """
     Polychord fitter using pypolychord.run.
     

@@ -7,7 +7,7 @@ rank = MPI.COMM_WORLD.Get_rank()
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed, PercentNormal
-from pmrf.fitting import PolychordFitter
+from pmrf.fitting import PolyChordFitter
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +26,7 @@ model = PhysicalCoaxial(
 )
 
 # Initialize the fitter. Note that the features need to align with the likelihood
-fitter = PolychordFitter(
+fitter = PolyChordFitter(
     model=model,
     measured=measured,
     features=['s11_re', 's11_im'],

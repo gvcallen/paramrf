@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from pmrf.fitting._bayesian import BayesianFitter
 from pmrf.fitting.results import AnestheticResults
 
-class BlackjaxNSFitter(BayesianFitter):
+class BlackJAXNSFitter(BayesianFitter):
     """
     A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
     """

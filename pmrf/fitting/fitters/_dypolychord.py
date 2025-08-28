@@ -11,7 +11,7 @@ from pmrf._util import time_string, explicit_kwargs
    
 PolychordResults = AnestheticResults
 
-class dyPolychordFitter(BayesianFitter):
+class dyPolyChordFitter(BayesianFitter):
     """
     dyPolychord fitter using dyPolyChord.run_dypolychord.
     """

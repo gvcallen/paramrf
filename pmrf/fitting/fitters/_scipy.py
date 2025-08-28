@@ -6,7 +6,7 @@ import h5py
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
 from pmrf.fitting.results._scipy import ScipyMinimizeResults
 
-class ScipyMinimizeFitter(FrequentistFitter):
+class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """

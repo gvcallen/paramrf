@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from pmrf.models.lines import PhysicalCoaxial
 from pmrf.parameters import Uniform, Fixed, PercentNormal
-from pmrf.fitting import ScipyMinimizeFitter
+from pmrf.fitting import SciPyMinimizeFitter
 from pmrf.functions import l2_norm_ax0, mag_2_db
 
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +27,7 @@ model = PhysicalCoaxial(
 print(model.flat_params().keys())
 
 # Initialize the fitter. We fit on the real and imaginary and combine their results
-fitter = ScipyMinimizeFitter(
+fitter = SciPyMinimizeFitter(
     model=model,
     measured=measured,
     features=['s11_re', 's11_im'],
