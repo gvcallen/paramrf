@@ -5,7 +5,7 @@ import skrf
 import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.models.lumped import Match
+from pmrf.models.lumped import MATCH
 from pmrf._util import field
 
 class Measured(Model):

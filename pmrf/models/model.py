@@ -521,9 +521,9 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.lumped import Short
+        from pmrf.models.lumped import SHORT
         from pmrf.models.containers import Cascade
-        load = load or Short()
+        load = load or SHORT
         terminated_model = Cascade((self, load))
         return terminated_model
     
