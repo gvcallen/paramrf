@@ -62,7 +62,8 @@ class PolyChordFitter(BayesianFitter):
                 
         fitted_model = self.initial_model.with_flat_params(x0)
         
-        settings = self._settings(kwargs, explicit_kwargs())
+        # settings = self._settings(kwargs, explicit_kwargs())
+        settings = self._settings(kwargs)
         return AnestheticResults(
             measured=self.measured,
             initial_model=self.initial_model,

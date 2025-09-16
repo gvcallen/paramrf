@@ -4,6 +4,7 @@ _BACKEND_REGISTRY = {}
 _backend_initialized = False
 
 def get_adapter(backend):
+    global _backend_initialized
     if not _backend_initialized:
         try:
             from pmrf.distributions._backends.margarine import MargarineMAFAdapter
