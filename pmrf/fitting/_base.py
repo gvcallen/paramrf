@@ -92,7 +92,7 @@ class BaseFitter(ABC):
                                                                         Defaults to `None`, in which case real and imaginary features for all ports are used.
         """
         if isinstance(measured, str):
-            measured = skrf.Network(str)
+            measured = skrf.Network(measured)
         
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
