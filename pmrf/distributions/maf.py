@@ -54,7 +54,10 @@ class MAFDistribution(Distribution):
     @classmethod
     def generate(cls, data, weights=None, backend='margarine_maf', validate_args=None, **kwargs):
         adapter_cls = get_adapter(backend)
-        maf_model = adapter_cls.generate(data, weights=weights, **kwargs)
+        if weights is not None:
+            maf_model = adapter_cls.generate(data, weights=weights, **kwargs)
+        else:
+            maf_model = adapter_cls.generate(data, **kwargs)
         return cls(maf_model, backend=backend, validate_args=validate_args)
 
     def sample(self, key, sample_shape=()):

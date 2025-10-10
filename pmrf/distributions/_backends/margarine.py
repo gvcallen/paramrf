@@ -25,7 +25,10 @@ class MargarineMAFAdapter:
     @staticmethod
     def generate(data, weights=None, construct_kwargs: dict = {}, **kwargs):
         from margarine.maf import MAF
-        maf = MAF(data, weights=weights, **construct_kwargs)
+        if weights is not None:
+            maf = MAF(data, weights=weights, **construct_kwargs)
+        else:
+            maf = MAF(data, **construct_kwargs)
         maf.train(**kwargs)
         return maf
 
