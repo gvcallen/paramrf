@@ -9,6 +9,7 @@ The framework caters for the frequency-domain fitting and simulation of (microwa
 | **Author**  | Gary Allen |
 | **Homepage** | [github.com/paramrf/paramrf](https://github.com/paramrf/paramrf) |
 | **Docs** | [paramrf.github.io/paramrf](https://paramrf.github.io/paramrf) |
+| **Paper** | [ParamRF: A JAX-Native Framework for Declarative Circuit Modelling](https://drive.google.com/file/d/1DlzSgM-ywFxPjBFx1eZmA5Xg3_xYqLif/view?usp=sharing) |
 
 ## Key Features
 * **Declarative and Composable Modelling**: Allows for the definition of models using either a self-documenting, declarative syntax or via compositional techniques such as cascading. Since models can consist of a mix of ``Parameter`` objects as well as other ``Model``'s, this allows for a natural means of building complex, hierarchial models from both equations and other sub-models.
