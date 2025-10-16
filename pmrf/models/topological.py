@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
+from pmrf.functions import y2s
 
 class PiCLC(Model):
     """
@@ -42,6 +43,21 @@ class PiCLC(Model):
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
+    three_port = False
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        if not self.three_port:
+            raise Exception('y only available for pi-CLC for three_port == True')
+        
+        Y1 = 1j * freq.w * self.C1
+        Y2 = 1j * freq.w * self.C2
+        Y3 = 1 / (1j * freq.w * self.L)
+
+        return jnp.array([
+            [Y1 + Y3,       -Y3,            -Y1],
+            [-Y3,           Y2 + Y3,        -Y2],
+            [-Y1,           -Y2,            Y1 + Y2],
+        ]).transpose(2, 0, 1)        
     
     def a(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the ABCD-matrix of the Pi-network.
@@ -55,6 +71,9 @@ class PiCLC(Model):
         Returns:
             np.ndarray: The resultant ABCD-matrix.
         """
+        if self.three_port:
+            raise Exception('Cannot calculate ABCD matrix of pi network when three_port == True')
+
         # This conditional dispatch is used to avoid division-by-zero errors
         # during JAX transformations if L becomes zero.
         return jax.lax.cond(
@@ -91,3 +110,9 @@ class PiCLC(Model):
             [ones,  zeros],
             [Y,     ones]
         ]).transpose(2, 0, 1)
+    
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        if not self.three_port:
+            return super().s(freq)
+        
+        return y2s(self.y(freq), self.z0)

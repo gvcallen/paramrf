@@ -1,11 +1,68 @@
+from typing import Sequence
+
 import jax
 from jax import vmap
-
 import jax.numpy as jnp
+import numpy as np
+
 from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf.models.model import Model
+from pmrf.models.utility import Port
 from pmrf._util import field
+from pmrf.functions.connections import connect_one, connect_many
+
+class Circuit(Model):
+    models: list[Model]
+    indexed_connections: list[list[tuple[int, int]]] = field(static=True)
+    port_idxs: list[int] = field(static=True)
+
+    def __init__(self, connections: list[list[tuple[Model, int]]]):
+        super().__init__()
+
+        self.models = []
+        self.indexed_connections = []
+        self.port_idxs = []
+        id_to_index: dict[Model, int] = {}
+
+        for connection in connections:
+            indexed_connection = []
+            for model, value in connection:
+                if id(model) not in id_to_index:
+                    id_to_index[id(model)] = len(self.models)
+                    self.models.append(model)
+                model_idx = id_to_index[id(model)]
+                indexed_connection.append((model_idx, value))
+            self.indexed_connections.append(indexed_connection)
+        for model in self.models:
+            if isinstance(model, Port):
+                self.port_idxs.append(id_to_index[id(model)])
+
+        # connections: list[list[tuple[Model, int]]]
+
+    def s(self, freq: Frequency) -> jnp.array:
+        Smats = [model.s(freq) for model in self.models]
+        z0s = [model.z0 for model in self.models]
+
+        return connect_many(Smats, z0s, self.indexed_connections, self.port_idxs)
+
+class Connected(Model):
+    models: Sequence[Model] | Model
+    ports: Sequence[int | Sequence[int]]
+
+    def __post_init__(self):
+        self.name = 'connected'
+        # Do some validation
+
+    def s(self, freq: Frequency) -> jnp.array:
+        models, ports = self.models, self.ports
+        if isinstance(models, Model):
+            models = [models]
+
+        Smats = [model.s(freq) for model in models]
+        z0s = [model.z0 for model in models]
+        Sout, _ = connect_one(Smats, z0s, ports)
+        return Sout
 
 class Cascade(Model):
     """

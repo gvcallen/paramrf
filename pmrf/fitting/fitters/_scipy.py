@@ -24,8 +24,17 @@ class SciPyMinimizeFitter(FrequentistFitter):
         x0 = np.array(self.initial_model.flat_params())
         cost_fn = self._make_cost_function(as_numpy=True)
 
-        if np.any((maximums - x0) < 0.0) or np.any((x0 - minimums) < 0.0):
-            raise Exception('Bad prior bounds')
+        too_low, too_high = x0 < minimums, x0 > maximums
+        if np.any(too_low | too_high):
+            bad_params = []
+            for i, (name, val, minv, maxv, low, high) in enumerate(zip(param_names, x0, minimums, maximums, too_low, too_high)):
+                if low or high:
+                    bad_params.append(
+                        f"  {name}: x0={val}, min={minv}, max={maxv} "
+                        f"({'below min' if low else 'above max'})"
+                    )
+            bad_param_report = "\n".join(bad_params)
+            raise Exception(f"Bad prior bounds:\n{bad_param_report}")
         
         # Define a wrapper function compatible with SciPy's interface
         def cost_scipy_fn(x, callback_args):

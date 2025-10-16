@@ -25,6 +25,7 @@ class RLGCLine(Model):
     four distributed parameters (R, L, G, C) behave as a function of frequency.
     """
     length: Parameter = 1.0
+    floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -51,6 +52,9 @@ class RLGCLine(Model):
         """
         import numpy as np
 
+        if self.floating:
+            raise Exception('Cannot calculate ABCD matrix for a floating line')
+
         w = freq.w
         R, L, G, C = self.rlgc(freq)
         gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
@@ -65,32 +69,44 @@ class RLGCLine(Model):
 
         return a
 
-    # def s(self, frequency: Frequency) -> jnp.ndarray:
-    #     """Calculates the S-matrix from the line's RLGC parameters.
+    def s(self, frequency: Frequency) -> jnp.ndarray:
+        """Calculates the S-matrix from the line's RLGC parameters.
 
-    #     Args:
-    #         frequency (Frequency): The frequency axis for the calculation.
+        Args:
+            frequency (Frequency): The frequency axis for the calculation.
 
-    #     Returns:
-    #         np.ndarray: The resultant ABCD-matrix.
-    #     """
-    #     import numpy as np
-
-    #     w = frequency.w
-    #     R, L, G, C = self.rlgc(frequency)
-    #     gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-    #     Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
-    #     gL = gamma*self.length
+        Returns:
+            np.ndarray: The resultant ABCD-matrix.
+        """
+        w = frequency.w
+        R, L, G, C = self.rlgc(frequency)
+        gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+        Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+        gL = gamma*self.length
         
-    #     s11 = jnp.zeros(frequency.npoints, dtype=complex)
-    #     s21 = jnp.exp(-1*gL)
+        if self.floating:
+            denom = -1 + 9*jnp.exp(2*gL)
+            s11 = (1 + 3*jnp.exp(2*gL)) / denom
+            s12 = 4*jnp.exp(gL) / denom
+            s13 = (-2 + 6*jnp.exp(2*gL)) / denom
+            s14 = -s12
 
-    #     s = jnp.array([
-    #         [s11, s21],
-    #         [s21, s11],
-    #     ]).transpose(2, 0, 1)        
+            s = jnp.array([
+                [s11, s12, s13, s14],
+                [s12, s11, s14, s13],
+                [s13, s14, s11, s12],
+                [s14, s13, s12, s11],
+            ]).transpose(2, 0, 1)
+        else:
+            s11 = jnp.zeros(frequency.npoints, dtype=complex)
+            s21 = jnp.exp(-1*gL)
 
-    #     return renormalize_s(s, Zc, self.z0)
+            s = jnp.array([
+                [s11, s21],
+                [s21, s11],
+            ]).transpose(2, 0, 1)
+
+        return renormalize_s(s, Zc, self.z0)
     
 class ConstantRLGCLine(RLGCLine):
     """
@@ -137,13 +153,14 @@ class ConstantRLGCLine(RLGCLine):
         """
         return self.R, self.L, self.G, self.C   
     
-class DatasheetCoaxial(RLGCLine):
+class DatasheetLine(RLGCLine):
     """
     **Overview**
 
-    A coaxial line defined by parameters typically found on a datasheet.
+    A transmission line defined by parameters typically found on a datasheet,
+    such as nominal impedance and loss factors.
 
-    This model provides a convenient way to define a coaxial cable from its
+    This model provides a convenient way to define a transmission line from its
     nominal impedance, dielectric constant, and loss factors, rather than
     from the fundamental RLGC values directly. It includes terms for both
     skin effect loss (`k1`) and dielectric loss (`k2`).
@@ -227,7 +244,7 @@ class DatasheetCoaxial(RLGCLine):
         
         return R, L, G, C
         
-class PhysicalCoaxial(RLGCLine):
+class CoaxialLine(RLGCLine):
     """
     **Overview**
 

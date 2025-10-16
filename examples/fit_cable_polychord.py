@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpi4py import MPI
 rank = MPI.COMM_WORLD.Get_rank()
 
-from pmrf.models.lines import PhysicalCoaxial
+from pmrf.models.lines import CoaxialLine
 from pmrf.parameters import Uniform, Fixed, PercentNormal
 from pmrf.fitting import PolyChordFitter
 
@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Load the measured data and setup the model
 measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
-model = PhysicalCoaxial(
+model = CoaxialLine(
     din = PercentNormal(1.12, 5.0, scale=1e-3),
     dout = PercentNormal(3.2, 5.0, scale=1e-3),
     epr = PercentNormal(1.45, 5.0, n=2),

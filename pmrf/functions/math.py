@@ -862,6 +862,91 @@ def polar_2_rect(radii, angles, deg=False):
 def rect_2_polar(x, deg=False):
     return abs(x), jnp.angle(x, deg=deg)
 
+def rsolve(A: jnp.ndarray, B: jnp.ndarray) -> jnp.ndarray:
+    r"""Solves x @ A = B.
+
+    Calls numpy.linalg.solve with transposed matrices.
+
+    Same as B @ np.linalg.inv(A) but avoids calculating the inverse and
+    should be numerically slightly more accurate.
+
+    Input should have dimension of similar to (nfreqs, nports, nports).
+
+    Parameters
+    ----------
+    A : np.ndarray
+    B : np.ndarray
+
+    Returns
+    -------
+    x : np.ndarray
+    """
+    return jnp.transpose(jnp.linalg.solve(jnp.transpose(A, (0, 2, 1)).conj(),
+            jnp.transpose(B, (0, 2, 1)).conj()), (0, 2, 1)).conj()
+
+def nudge_eig(mat: jnp.ndarray,
+              cond: float | None = None,
+              min_eig: float | None  = None) -> jnp.ndarray:
+    r"""Nudge eigenvalues with absolute value smaller than
+    max(cond * max(eigenvalue), min_eig) to that value.
+    Can be used to avoid singularities in solving matrix equations.
+
+    Input should have dimension of similar to (nfreqs, nports, nports).
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Matrices to nudge
+    cond : float, optional
+        Minimum eigenvalue ratio compared to the maximum eigenvalue.
+        Default value is set by `skrf.constants.EIG_COND`.
+    min_eig : float, optional
+        Minimum eigenvalue.
+        Default value is set by `skrf.constants.EIG_MIN`.
+    Returns
+    -------
+    res : np.ndarray
+        Nudged matrices
+    """
+    # use current constants
+
+    EIG_COND = 1e-9
+    EIG_MIN = 1e-12
+    
+    if not cond:
+        cond = EIG_COND
+    if not min_eig:
+        min_eig = EIG_MIN
+
+    eigw, eigv = jnp.linalg.eig(mat)
+    max_eig = jnp.amax(jnp.abs(eigw), axis=1)
+    mask = jnp.logical_or(jnp.abs(eigw) < cond * max_eig[:, None], jnp.abs(eigw) < min_eig)
+    has_problem = mask.any()
+    
+    def fix_branch():
+        nonlocal eigw
+        # mask_cond = cond * jnp.repeat(max_eig[:, None], mat.shape[-1], axis=-1)[mask]
+        # mask_min = min_eig * jnp.ones(mask_cond.shape)
+        # eigw[mask] = jnp.maximum(mask_cond, mask_min)
+        mask_array = cond * jnp.repeat(max_eig[:, None], mat.shape[-1], axis=-1)
+        mask_min = min_eig * jnp.ones_like(mask_array)
+        eigw = jnp.where(mask, jnp.maximum(mask_array, mask_min), eigw)
+
+        # Now assemble the eigendecomposited matrices back
+        e = jnp.zeros_like(mat)
+        # other = jnp.einsum('ijj->ij', e)
+        # e = jnp.einsum('ijj->ij', e).at[...].set(eigw)
+        # e = e.at[jnp.diag_indices(e.shape[1], e.shape[2])].set(eigw)
+        rows = jnp.arange(e.shape[1])
+        e = e.at[jnp.arange(e.shape[0])[:, None], rows, rows].set(eigw)
+
+        return rsolve(eigv, eigv @ e)
+    
+    def no_fix_branch():
+        return mat
+    
+    return jax.lax.cond(has_problem, fix_branch, no_fix_branch)
+
 def round_sig(x, sig=3):
     if x == 0:
         return 0

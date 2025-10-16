@@ -256,10 +256,17 @@ class Model(eqx.Module):
                 fields.append(str(key.idx))
         return self.separator.join(fields)
 
-    def __pow__(self, other: ModelT) -> ModelT:
+    def __pow__(self, other: 'Model') -> 'Model':
         """Cascade composition operator ``**``."""        
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
+    
+    def connect(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
+        from pmrf.models.containers import Connected
+        if isinstance(others, Model):
+            others = [others]
+        models = [self, *others]
+        return Connected(models, ports)
     
     # ---- Defaults / Primary ---------------------------------------------------    
     
@@ -385,7 +392,7 @@ class Model(eqx.Module):
         -------
         jnp.ndarray
         """
-        return self._z0
+        return jnp.array(self._z0)
     
     # ---- Core API -------------------------------------------------------------
     
@@ -562,7 +569,7 @@ class Model(eqx.Module):
                 filter_spec = self._free_value_spec
         return partition(self, filter_spec, shared_spec)
     
-    def named_params(self, include_fixed=False, flat=False, flat_params=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, include_fixed=False, flat=False, flat_params=False, values=False, scaled_values=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Return model parameters as a dict (or flattened array).
 
         Keys are fully-qualified parameter names. The order matches the internal
@@ -612,6 +619,11 @@ class Model(eqx.Module):
         if flat and not flat_params:
             return jnp.array([p.value for p in _params.values()])
         
+        if values or scaled_values:
+            if scaled_values:
+                return {k: jnp.array(p) for k, p in _params.items()}
+            else:
+                return {k: p.value for k, p in _params.items()}
         return _params
     
     def flat_params(self, *args, **kwargs) -> jnp.ndarray:
