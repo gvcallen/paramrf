@@ -43,7 +43,7 @@ class PiCLC(Model):
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
-    three_port = False
+    three_port: bool = False
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         if not self.three_port:
@@ -114,5 +114,36 @@ class PiCLC(Model):
     def s(self, freq: Frequency) -> jnp.ndarray:
         if not self.three_port:
             return super().s(freq)
+        
+        return y2s(self.y(freq), self.z0)
+    
+class BoxCLCC(Model):
+    C1: Parameter = 1.0e-12
+    L: Parameter = 1.0e-9
+    C2: Parameter = 1.0e-12
+    C3: Parameter = 1.0e-12
+    four_port: bool = False
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        if not self.four_port:
+            raise Exception('y only available for pi-CLC for four_port == True')
+        
+        Y1 = 1j * freq.w * self.C1
+        Y2 = 1j * freq.w * self.C2
+        Y3 = 1 / (1j * freq.w * self.L)
+        Y4 = 1j * freq.w * self.C3
+        zero = jnp.zeros(freq.npoints)
+        zero = zero.astype(dtype=complex)
+
+        return jnp.array([
+            [Y1 + Y3,       -Y3,            -Y1,            zero],
+            [-Y3,           Y2 + Y3,        zero,              -Y2],
+            [-Y1,           zero,              Y1 + Y4,        -Y4],
+            [zero,             -Y2,            -Y4,            Y2 + Y4]
+        ]).transpose(2, 0, 1)    
+    
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        if not self.four_port:
+            raise Exception('Box-CLCC network not yet available for four_port == False')
         
         return y2s(self.y(freq), self.z0)

@@ -397,29 +397,6 @@ class ShuntInductor(Model):
         ]).transpose(2, 0, 1)
 
         return s
-        
-class Transformer(Model):
-    """
-    **Overview**
-
-    An ideal, lossless, frequency-independent 4-port 1:1 transformer.
-    """
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        """Returns the fixed S-parameter matrix for the transformer.
-
-        Args:
-            freq (Frequency): The frequency axis for the calculation.
-
-        Returns:
-            np.ndarray: The 4x4 S-parameter matrix, constant across frequency.
-        """
-        s = 0.5 * jnp.ones((freq.npoints, 4, 4), dtype=jnp.complex128)
-        s = s.at[:, 0, 3].set(-0.5)
-        s = s.at[:, 1, 2].set(-0.5)
-        s = s.at[:, 2, 1].set(-0.5)
-        s = s.at[:, 3, 0].set(-0.5)
-
-        return s
     
 SHORT = Load(-1.0)
 OPEN = Load(1.0)

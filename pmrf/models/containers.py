@@ -8,7 +8,7 @@ import numpy as np
 from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf.models.model import Model
-from pmrf.models.utility import Port
+from pmrf.models.misc import Port
 from pmrf._util import field
 from pmrf.functions.connections import connect_one, connect_many
 

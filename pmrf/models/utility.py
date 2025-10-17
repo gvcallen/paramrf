@@ -8,14 +8,6 @@ from pmrf.models.model import Model
 from pmrf.models.lumped import MATCH, SHORT
 from pmrf._util import field
 
-class Port(Model):
-    def __call__(self) -> Model:
-        return MATCH
-
-class Ground(Model):
-    def __call__(self) -> Model:
-        return SHORT
-
 class Measured(Model):
     s_measured: jnp.ndarray
     f_measured: jnp.ndarray
@@ -66,9 +58,9 @@ class SModel(Model):
 
     A general model defined by a constant S-parameter matrix.
     """
-    s: jnp.array
+    s_array: jnp.array
     
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, _freq: Frequency) -> jnp.ndarray:
         """Returns the S-parameter matrix.
 
         Args:
@@ -77,7 +69,13 @@ class SModel(Model):
         Returns:
             jnp.ndarray: The resultant block-diagonal S-parameter matrix.
         """
-        return self.s
+        nports = self.s_array.shape[1]
+        nfreq = _freq.npoints
+
+        if nfreq != self.s_array.shape[0]:
+            return jnp.zeros((nfreq, nports, nports))
+
+        return self.s_array
     
 
 class AModel(Model):
@@ -86,9 +84,9 @@ class AModel(Model):
 
     A general model defined by a constant ABCD matrix.
     """
-    a: jnp.array
+    a_array: jnp.array
     
-    def a(self, freq: Frequency) -> jnp.ndarray:
+    def a(self, _freq: Frequency) -> jnp.ndarray:
         """Returns the ABCD matrix.
 
         Args:
@@ -97,4 +95,9 @@ class AModel(Model):
         Returns:
             jnp.ndarray: The resultant block-diagonal ABCD matrix.
         """
-        return self.a
+        nports = self.a_array.shape[1]
+        nfreq = _freq.npoints
+        if nfreq != self.a_array.shape[0]:
+            return jnp.zeros((nfreq, nports, nports))
+        
+        return self.a_array
