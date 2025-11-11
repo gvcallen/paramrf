@@ -38,9 +38,9 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
 
 Circuit Models
 ^^^^^^^^^^^^^^^^^^^
-For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". This list has each entry being a node in the circuit (as in scikit-rf's Circuit class). Each node is again a list, with each element being a tuple containing the model and port index to be connected to that node.
+For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". Each entry in this list is a node in the circuit. Each node is another list, with each element being a tuple for each connected circuit element or sub-model. Each tuple then contains the model object, as well as the index of the port for that model that is connected in that node.
 
-The following example uses this method to define the following two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc.
+The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc.
 
 .. image:: circuit_clc.png
    :alt: pi-CLC circuit diagram
@@ -49,6 +49,7 @@ The following example uses this method to define the following two-port PI-CLC n
 
 
 .. code-block:: python
+    
     import pmrf as prf
     from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
 
