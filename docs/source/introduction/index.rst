@@ -16,14 +16,15 @@ Model Composition
 ~~~~~~~~~~~~~~~~~~~~
 **ParamRF** provides a small component library with commonly-used models such as lumped and distributed elements. Models can be built directly using these in a compositional approach.
 
-Cascade Models
+Cascaded Models
 ^^^^^^^^^^^^^^^^^^^
 For simple circuit element chains, the ** operator can be used to cascade several models together.
 
-The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class ``Model`` of type ``pmrf.models.containers.Cascade``, consisting of parameters representing the respective *R*, *L* and *C* parameters.
+The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class ``Model`` of type ``pmrf.models.containers.Cascade``, consisting of parameters representing the respective *R*, *L* and *C* parameters. The S11 is then plotted using matplotlib.
 
 .. code-block:: python
 
+    import pmrf as prf
     from pmrf.models import Resistor, Inductor, ShuntCapacitor, OPEN
     from pmrf.parameters import Fixed
 
@@ -36,11 +37,17 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
     rlc = resistor ** inductor ** capacitor
     terminated_rlc = rlc.terminated(OPEN).with_params(res_R=Fixed(90.0))
 
+    # Plot the S11 of the terminated model using matplotlib
+    import matplotlib.pyplot as plt
+    freq = prf.Frequency(1, 1000, 1000, 'MHz')
+    s11 = terminated_rlc.s(freq)[:,0,0]
+    plt.plot(freq.f_scaled, s11)
+
 Circuit Models
 ^^^^^^^^^^^^^^^^^^^
 For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". Each entry in this list is a node in the circuit. Each node is another list, with each element being a tuple for each connected circuit element or sub-model. Each tuple then contains the model object, as well as the index of the port for that model that is connected in that node.
 
-The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc.
+The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc. The model is then converted to a scikit-rf network.
 
 .. image:: circuit_clc.png
    :alt: pi-CLC circuit diagram
@@ -49,7 +56,7 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
 
 
 .. code-block:: python
-    
+
     import pmrf as prf
     from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
 
@@ -66,8 +73,9 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
         [(ground, 0), (capacitor1, 0), (capacitor2, 0)], # E2
     ]
 
-    # Create the model
+    # Create the model and convert it to a scikit-rf Network at a desired frequency
     pi_clc = Circuit(connections)
+    pi_clc_skrf = pi_clc.to_skrf(prf.Frequency(10, 20, 11, 'MHz'))
 
 
 Model Declaration
