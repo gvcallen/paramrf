@@ -13,16 +13,6 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 +----------+------------------------------------+
 
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Documentation
-
-   installation
-   introduction/index
-   license
-   api/index
-
-
 Key Features
 ---------------------
 
@@ -36,7 +26,7 @@ Key Features
 Citation
 ---------------------
 
-If you have used ParamRF for academic work, please cite the original [paper](https://doi.org/10.48550/arXiv.2510.15881):
+If you have used ParamRF for academic work, please cite the original paper (https://doi.org/10.48550/arXiv.2510.15881):
 as: ::
 
    G.V.C. Allen, D.I.L. de Villiers, (2025). ParamRF: A JAX-native Framework for Declarative Circuit Modelling. arXiv, https://doi.org/10.48550/arXiv.2510.15881.
@@ -56,3 +46,14 @@ or using the BibTeX:
       archivePrefix = {arXiv},
       primaryClass = {cs.OH},
    }
+
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Documentation
+
+   installation
+   introduction/index
+   api/index
+   license
