@@ -1,20 +1,24 @@
 Introduction
 =====================
 
-**ParamRF** provides a declarative circuit modelling interface that compiles circuit models into an efficient linear algebra graph using *JAX*, and also provides the ability to fit or simulate these models using various fitting algorithms and random samplers. An introduction into the core concepts, as well as the showcase of some simple examples, is provided below. A few comparisons are drawn against the popular library *scikit-rf*, which some users may be more familiar with.
+**ParamRF** provides a declarative circuit modelling interface that compiles circuit models using *JAX*. This page provides in introduction into how models are created, and an overview of the fitting procedures.
 
 Core Concepts
 ~~~~~~~~~~~~~~~~~~~~
 
 The library revolves around a few key building blocks:
 
-* ``pmrf.Model``: The base class for any computable circuit component, such as foundational models (resistors, transmission lines etc.) or complex circuit models. Compared to scikit-rf's *Network* class, models are *functional* in nature, meaning that they only encapsulate their *representation* (parameters and computation) as opposed to their *data*. Therefore, all model properties such as *s*, *a* etc. accept frequency as an input. Models can be defined using composition such as cascading existing models, or via inheritance of the model class itself.
+* ``pmrf.Model``: The base class for any computable circuit component. Model methods such as *s*, *a* can be used to define model S-parameters, ABCD-parameters etc. and all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself. Models can be defined using composition such as cascading existing models, or via inheritance of the model class itself.
 * ``pmrf.Parameter``: A parameter in a circuit model, storing its value as well as any parameter *metadata*. This allows for parameter bounds and scaling, provides the ability to mark parameters as *fixed*, and can have a prior associated with it for Bayesian fitting.
-* ``pmrf.Frequency``: A wrapper around a JAX array that defines the frequency axis over which models are evaluated. The way in which this class is used summarizes the package's main design choice difference compared to *scikit-rf*. Specifically, the frequency object is an *input* to the model, as opposed to a member field of the model itself. This decouples the evaluation of the model from its parameters (and also conveniently provides the ability to differentiate with respect to frequency thanks to *JAX*).
+* ``pmrf.Frequency``: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
-**ParamRF** provides a small component library with commonly-used models, such as lumped and distributed elements, and convenience models that implement functionality such as cascading and port termination. Models can be built directly using these in a compositional approach.
+**ParamRF** provides a small component library with commonly-used models such as lumped and distributed elements. Models can be built directly using these in a compositional approach.
+
+Cascade Models
+^^^^^^^^^^^^^^^^^^^
+For simple circuit element chains, the ** operator can be used to cascade several models together.
 
 The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class ``Model`` of type ``pmrf.models.containers.Cascade``, consisting of parameters representing the respective *R*, *L* and *C* parameters.
 
@@ -32,13 +36,45 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
     rlc = resistor ** inductor ** capacitor
     terminated_rlc = rlc.terminated(OPEN).with_params(res_R=Fixed(90.0))
 
+Circuit Models
+^^^^^^^^^^^^^^^^^^^
+For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". This list has each entry being a node in the circuit (as in scikit-rf's Circuit class). Each node is again a list, with each element being a tuple containing the model and port index to be connected to that node.
+
+The following example uses this method to define the following two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc.
+.. image:: circuit_clc.png
+   :alt: pi-CLC circuit diagram
+   :width: 400px
+   :height: 300px
+   :align: center
+
+.. code-block:: python
+    import pmrf as prf
+    from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+
+    # Instantiate the elements, ports and grounds
+    capacitor1, capacitor2 = Capacitor(C=2e-12), Capacitor(C=1.5e-12)
+    inductor = Inductor(L=3e-9)
+    port1, port2 = Port(), Port()
+    ground = Ground()
+
+    # Create the connections list
+    connections = [
+        [(port1, 0), (capacitor1, 1), (inductor, 1)], # E0
+        [(port2, 0), (capacitor2, 1), (inductor, 0)], # E1
+        [(ground, 0), (capacitor1, 0), (capacitor2, 0)], # E2
+    ]
+
+    # Create the model
+    pi_clc = Circuit(connections)
+
+
 Model Declaration
 ~~~~~~~~~~~~~~~~~~~~
-For more complex or custom circuit or equation-based models, users can inherit directly from ``Model``, which itself is an *Equinox* ``Module`` and therefore a Python ``dataclass`` and *JAX* *PyTree*. Although an in-depth understanding of these concepts is not required, the reader is encouraged to briefly study the *JAX*, *Equinox* and Python documentations for a better overview.
+For more complex models (such as equation-based ones), users can inherit directly from the ``Model`` class (which itself is an *Equinox* ``Module`` and therefore a Python ``dataclass`` and *JAX* *PyTree*).
 
 Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a ``Parameter`` or ``Model`` are dynamic and can be adjusted (for example, by fitting routines). Parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
 
-The following example demonstrates these concepts by defining an amplifier model represented by some two-port gain terminated in a non-ideal resistor.
+The following example demonstrates these concepts by defining an amplifier model represented by some two-port gain terminated in a non-ideal resistor. The model is created 
 
 .. code-block:: python
 
