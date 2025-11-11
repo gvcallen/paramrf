@@ -37,10 +37,10 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
     rlc = resistor ** inductor ** capacitor
     terminated_rlc = rlc.terminated(OPEN).with_params(res_R=Fixed(90.0))
 
-    # Plot the S11 of the terminated model using matplotlib
+    # Plot the S11 of the terminated model directly using matplotlib
     import matplotlib.pyplot as plt
     freq = prf.Frequency(1, 1000, 1000, 'MHz')
-    s11 = terminated_rlc.s(freq)[:,0,0]
+    s11 = terminated_rlc.s_db(freq)[:,0,0]
     plt.plot(freq.f_scaled, s11)
 
 Circuit Models
@@ -73,9 +73,9 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
         [(ground, 0), (capacitor1, 0), (capacitor2, 0)], # E2
     ]
 
-    # Create the model and convert it to a scikit-rf Network at a desired frequency
+    # Create the model and convert it to a scikit-rf Network at a desired frequency, ploting S21
     pi_clc = Circuit(connections)
-    pi_clc_skrf = pi_clc.to_skrf(prf.Frequency(10, 20, 11, 'MHz'))
+    pi_clc.to_skrf(prf.Frequency(1, 1000, 1001, 'MHz')).plot_s_db(m=0, n=0)
 
 
 Model Declaration
