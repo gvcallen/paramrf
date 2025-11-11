@@ -44,8 +44,7 @@ The following example uses this method to define the following two-port PI-CLC n
 
 .. image:: circuit_clc.png
    :alt: pi-CLC circuit diagram
-   :width: 400px
-   :height: 300px
+   :width: 600px
    :align: center
 
 .. code-block:: python
@@ -161,13 +160,13 @@ The following provides a complete example of fitting the built in ``PhysicalCoax
     import skrf as rf
 
     import pmrf as prf
-    from pmrf.models import PhysicalCoaxial
+    from pmrf.models import CoaxialLine
     from pmrf.parameters import Uniform, Fixed, PercentNormal
     from pmrf.fitting import ScipyMinimizeFitter
 
     # Load the measured data and setup the model
     measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
-    model = PhysicalCoaxial(
+    model = CoaxialLine(
         din = PercentNormal(1.12, 5.0, scale=1e-3),
         dout = PercentNormal(3.2, 5.0, scale=1e-3),
         epr = PercentNormal(1.45, 5.0, n=2),
