@@ -41,6 +41,7 @@ Circuit Models
 For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". This list has each entry being a node in the circuit (as in scikit-rf's Circuit class). Each node is again a list, with each element being a tuple containing the model and port index to be connected to that node.
 
 The following example uses this method to define the following two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc.
+
 .. image:: circuit_clc.png
    :alt: pi-CLC circuit diagram
    :width: 400px
@@ -74,33 +75,67 @@ For more complex models (such as equation-based ones), users can inherit directl
 
 Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a ``Parameter`` or ``Model`` are dynamic and can be adjusted (for example, by fitting routines). Parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
 
-The following example demonstrates these concepts by defining an amplifier model represented by some two-port gain terminated in a non-ideal resistor. The model is created 
+Equation-based Models
+^^^^^^^^^^^^^^^^^^^
+The following example demonstrates custom model definition by defining a capacitor from first principles. Here, one of the typical network properties, such as ``s``, ``a``, ``y`` etc., must be overriden, returning the resultant matrix directly.
 
 .. code-block:: python
 
     import jax.numpy as jnp
     import pmrf as prf
-    from pmrf.models import Resistor, PiCLC, SModel
-    from pmrf.parameters import Uniform, Fixed
 
     # Define a model class. Behaviour is defined by implementing 
     # a primary matrix function such as "s" in our case.
-    class TerminatedAmplifier(prf.Model):
-        G: prf.Parameter =            Uniform(prf.db_2_mag(10), prf.db_2_mag(15))
-        resistor: prf.Model =         Resistor(Fixed(1.0, scale=1e3))
-        parasitics: prf.Model =       PiCLC(C1=0.05e-12, L=0.1e-9, C2=0.1e-12)
+    class Capacitor(Model):
+        C: prf.Parameter = 1.0e-12
 
-        def s(self, freq: prf.Frequency):       
-            # We use jnp for calculations as a function of freq.f or freq.w,
-            # and here wrap it in the utility "SModel" for easier cascading.
-            # Note that "terminated()" defaults to a SHORT
-            s21 = jnp.sqrt(self.G) * jnp.ones_like(freq.f)
-            zeros = jnp.zeros_like(freq.f)
-            amp = SModel(jnp.array([
-                [zeros, zeros],
-                [s21,   zeros]
-            ]).transpose(2, 0, 1))
-            return (amp ** self.parasitics ** self.res).terminated().s(freq)    
+        def s(self, freq: Frequency) -> jnp.ndarray:
+            w = freq.w
+            C = self.C
+
+            z0 = z0_1 = self.z0
+            denom = 1.0 + 1j * w * C * (z0_0 + z0_1)
+            s11 = (1.0 - 1j * w * C * (jnp.conj(z0_0) - z0_1) ) / denom
+            s22 = (1.0 - 1j * w * C * (jnp.conj(z0_1) - z0_0) ) / denom
+            s12 = s21 = (2j * w * C * (z0_0.real * z0_1.real)**0.5) / denom
+
+            return jnp.array([
+                [s11, s12],
+                [s21, s22]
+            ]).transpose(2, 0, 1)
+
+Circuit Models
+^^^^^^^^^^^^^^^^^^^
+Sometimes it is still convenient to inherit from ``Model`` while still building the model using cascading or ``Circuit``. In this case, the model can be built from sub-models fields/attributes, and returned by overriding the ``__call__`` method.
+
+The following example creates a PI-CLC model once again, but using the above method. Note how certain parameters can be given initial parameters, bounds or fixed to a constant (useful for fitting).
+
+.. code-block:: python
+
+    import jax.numpy as jnp
+    import pmrf as prf
+    from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+    from pmrf.parameters import Uniform, Fixed
+
+    class PiCLC(Model):
+        capacitor1: Capacitor = Capacitor(C=Fixed(1.0e-12))
+        capacitor2: Capacitor = Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+        inductor: Inductor = Inductor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+
+        def __call__(self) -> Model:
+            # Instantiate the ports and grounds
+            port1, port2, ground = Port(), Port(), Ground()
+
+            # Create the connections list. This time, capacitor1, capacitor2 and inductor are members.
+            connections = [
+                [(port1, 0), (self.capacitor1, 1), (self.inductor, 1)], # E0
+                [(port2, 0), (self.capacitor2, 1), (self.inductor, 0)], # E1
+                [(ground, 0), (self.capacitor1, 0), (self.capacitor2, 0)], # E2
+            ]
+
+            # Return the model
+            return Circuit(connections)
+
 
 Fitting
 ~~~~~~~~~~~~~~~~~~~~
