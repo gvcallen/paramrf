@@ -245,15 +245,22 @@ class Model(eqx.Module):
         return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
     
     # ---- Helpers --------------------------------------------------------------
-
+    
     def _path_to_param_name(self, path) -> str | list[str]:
         """Convert a PyTree path to a fully-qualified parameter name."""
         fields = []
-        for key in path:
+
+        for i, key in enumerate(path):
             if isinstance(key, GetAttrKey) or isinstance(key, DictKey):
                 fields.append(key.name)
             elif isinstance(key, SequenceKey) or isinstance(key, FlattenedIndexKey):
-                fields.append(str(key.idx))
+                # This code adds the ability for models to be named and their names used for the parameter name instead of the list variable name and index
+                value = value_at_path(self, path[:i+1])
+                if hasattr(value, 'name') and not value.name is None:
+                    fields.pop()
+                    fields.append(value.name)
+                else:
+                    fields.append(str(key.idx))
         return self.separator.join(fields)
 
     def __pow__(self, other: 'Model') -> 'Model':
