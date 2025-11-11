@@ -130,9 +130,9 @@ The following example creates a PI-CLC model once again, but using the above met
     from pmrf.parameters import Uniform, Fixed
 
     class PiCLC(Model):
-        capacitor1: Capacitor = Capacitor(C=Fixed(1.0e-12))
-        capacitor2: Capacitor = Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
-        inductor: Inductor = Inductor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+        capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))
+        capacitor2: Capacitor =     Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+        inductor: Inductor =        Inductor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
 
         def __call__(self) -> Model:
             # Instantiate the ports and grounds
