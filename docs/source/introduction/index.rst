@@ -47,7 +47,7 @@ Circuit Models
 ^^^^^^^^^^^^^^^^^^^
 For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". Each entry in this list is a node in the circuit. Each node is another list, with each element being a tuple for each connected circuit element or sub-model. Each tuple then contains the model object, as well as the index of the port for that model that is connected in that node.
 
-The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc. The model is then converted to a scikit-rf network.
+The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc. The model is then converted to a scikit-rf network and plotted.
 
 .. image:: circuit_clc.png
    :alt: pi-CLC circuit diagram
@@ -75,7 +75,8 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
 
     # Create the model and convert it to a scikit-rf Network at a desired frequency, ploting S21
     pi_clc = Circuit(connections)
-    pi_clc.to_skrf(prf.Frequency(1, 1000, 1001, 'MHz')).plot_s_db(m=0, n=0)
+    pi_clc_skrf = pi_clc.to_skrf(prf.Frequency(1, 1000, 1001, 'MHz'))
+    pi_clc_skrf.plot_s_db(m=0, n=0)
 
 
 Model Inheritance
