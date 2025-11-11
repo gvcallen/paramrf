@@ -17,10 +17,7 @@ from pmrf.fitting._bayesian import (
     BayesianResults,
 )
 
-try:
-    from pmrf.fitting.fitters._scipy import SciPyMinimizeFitter
-except:
-    pass
+from pmrf.fitting.fitters._scipy import SciPyMinimizeFitter
 
 try:
     from pmrf.fitting.fitters._polychord import PolyChordFitter
