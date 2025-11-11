@@ -10,7 +10,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """
-    def run(self, **kwargs) -> FrequentistResults:
+    def run(self, log_every=500, **kwargs) -> FrequentistResults:
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
@@ -40,7 +40,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         def cost_scipy_fn(x, callback_args):
             cost = cost_fn(x)
             i = callback_args['fevel']
-            if i % 500 == 0:
+            if i % log_every == 0:
                 self.logger.info(f"fevel = {i}, cost = {cost:.2f}")
             callback_args['fevel'] += 1
             return cost

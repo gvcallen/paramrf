@@ -127,7 +127,14 @@ class BoxCLCC(Model):
     def y(self, freq: Frequency) -> jnp.ndarray:
         if not self.four_port:
             raise Exception('y only available for pi-CLC for four_port == True')
-        
+
+        return jax.lax.cond(
+            jnp.array(self.L) <= 1e-18,
+            lambda: self.y_zero_inductance(freq),
+            lambda: self.y_general(freq),
+        )
+    
+    def y_general(self, freq: Frequency) -> jnp.ndarray:        
         Y1 = 1j * freq.w * self.C1
         Y2 = 1j * freq.w * self.C2
         Y3 = 1 / (1j * freq.w * self.L)
@@ -140,7 +147,25 @@ class BoxCLCC(Model):
             [-Y3,           Y2 + Y3,        zero,              -Y2],
             [-Y1,           zero,              Y1 + Y4,        -Y4],
             [zero,             -Y2,            -Y4,            Y2 + Y4]
-        ]).transpose(2, 0, 1)    
+        ]).transpose(2, 0, 1)
+    
+    def y_zero_inductance(self, freq: Frequency) -> jnp.ndarray:        
+        Y1 = 1j * freq.w * self.C1
+        Y2 = 1j * freq.w * self.C2
+
+        # Hack for now
+        L = 1e-18
+        Y3 = 1 / (1j * freq.w * L)
+        Y4 = 1j * freq.w * self.C3
+        zero = jnp.zeros(freq.npoints)
+        zero = zero.astype(dtype=complex)
+
+        return jnp.array([
+            [Y1 + Y3,       -Y3,            -Y1,            zero],
+            [-Y3,           Y2 + Y3,        zero,              -Y2],
+            [-Y1,           zero,              Y1 + Y4,        -Y4],
+            [zero,             -Y2,            -Y4,            Y2 + Y4]
+        ]).transpose(2, 0, 1)     
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         if not self.four_port:

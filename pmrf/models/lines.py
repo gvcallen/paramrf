@@ -419,3 +419,43 @@ class CoaxialLine(RLGCLine):
         R = self.R_skin(freq)
         
         return R, L, G, C
+    
+class MicrostripLine(RLGCLine):
+    """
+    A microstrip line defined by its geometric and material properties (i.e. width, height, dielectric constant, tan delta, rho).
+    """
+    W: Parameter = 3e-3
+    H: Parameter = 1.6e-3
+    epr: Parameter = 4.3
+    tand: Parameter = 0.0
+    rho: Parameter = 0.0
+
+    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Calculates RLGC parameters from physical and material properties.
+        Note that h > w is not yet supported.
+
+        Args:
+            freq (Frequency): The frequency axis for the calculation.
+
+        Returns:
+            tuple: The calculated R, L, G, and C parameter vectors.
+        """
+        W, H = self.W, self.H
+        epr, tand, rho = self.epr, self.tand, self.rho
+        
+        u = W / H
+
+        t1 = ((epr + 1) / 2)
+        t2 = ((epr - 1) / 2)
+        t3 = 1 / jnp.sqrt(1 + 12 / u)
+        epe = (t1 + t2*t3) * jnp.ones(freq.npoints)
+        
+        Za = (120 * jnp.pi) / (u + 1.393 + 0.667 * jnp.log(u + 1.444))
+        Ze = Za / jnp.sqrt(epe)
+
+        L = (Ze * jnp.sqrt(epe)) / c
+        C = (jnp.sqrt(epe)) / (Ze * c)
+        R = (1 / W) * jnp.sqrt(2 * mu_0 * rho) * jnp.sqrt(freq.w)
+        G = (1 / (Za * c)) * (epr * (epe - 1) / (epr - 1)) * tand * freq.w
+        
+        return R, L, G, C
