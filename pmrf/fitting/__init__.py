@@ -17,24 +17,5 @@ from pmrf.fitting._bayesian import (
     BayesianResults,
 )
 
-from pmrf.fitting.fitters._scipy import SciPyMinimizeFitter
-
-try:
-    from pmrf.fitting.fitters._polychord import PolyChordFitter
-except:
-    pass
-
-try:
-    from pmrf.fitting.fitters._dypolychord import dyPolyChordFitter
-except:
-    pass
-
-try:
-    from pmrf.fitting.fitters._numpyro import NumPyroMCMCFitter, NumPyroNSFitter
-except:
-    pass
-
-try:
-    from pmrf.fitting.fitters._blackjax import BlackJAXNSFitter
-except:
-    pass
+from pmrf.fitting.fitters import *
+from pmrf.fitting.results import *
