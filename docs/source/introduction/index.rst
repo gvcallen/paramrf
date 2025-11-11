@@ -98,7 +98,7 @@ The following example demonstrates custom model definition by defining a capacit
 
     # Define a model class. Behaviour is defined by implementing 
     # a primary matrix function such as "s" in this case.
-    class Capacitor(Model):
+    class Capacitor(prf.Model):
         C: prf.Parameter = 1.0e-12
 
         def s(self, freq: Frequency) -> jnp.ndarray:
@@ -129,12 +129,12 @@ The following example creates a PI-CLC model once again, but using the above met
     from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
     from pmrf.parameters import Uniform, Fixed
 
-    class PiCLC(Model):
+    class PiCLC(prf.Model):
         capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))
         capacitor2: Capacitor =     Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
         inductor: Inductor =        Inductor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
 
-        def __call__(self) -> Model:
+        def __call__(self) -> prf.Model:
             # Instantiate the ports and grounds
             port1, port2, ground = Port(), Port(), Ground()
 
