@@ -101,9 +101,6 @@ class Inductor(Model):
     """
     L: Parameter = 1.0
     
-    def __post_init__(self):
-        self.name = 'inductor'
-
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Calculates the S-parameters of a series inductor.
 
