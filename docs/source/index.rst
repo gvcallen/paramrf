@@ -17,10 +17,11 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
    :maxdepth: 2
    :caption: Documentation
 
-   introduction/index
    installation
+   introduction/index
    api/index
    license
+
 
 Key Features
 ---------------------
