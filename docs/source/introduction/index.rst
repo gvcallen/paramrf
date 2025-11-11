@@ -47,6 +47,7 @@ The following example uses this method to define the following two-port PI-CLC n
    :width: 600px
    :align: center
 
+
 .. code-block:: python
     import pmrf as prf
     from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
