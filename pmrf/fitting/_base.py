@@ -370,6 +370,8 @@ def is_inference_kind(solver, inference: str):
         raise Exception(f"Unknown inference type '{inference}'")
 
 def get_fitter_class(solver: str):
+    solver = solver.replace('scipy', 'sciPy')
+
     class_names = [solver + 'Fitter']
     class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
     try:
