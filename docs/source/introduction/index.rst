@@ -101,11 +101,11 @@ The following example demonstrates custom model definition by defining a capacit
     class Capacitor(prf.Model):
         C: prf.Parameter = 1.0e-12
 
-        def s(self, freq: Frequency) -> jnp.ndarray:
+        def s(self, freq: prf.Frequency) -> jnp.ndarray:
             w = freq.w
             C = self.C
 
-            z0 = z0_1 = self.z0
+            z0_0 = z0_1 = self.z0
             denom = 1.0 + 1j * w * C * (z0_0 + z0_1)
             s11 = (1.0 - 1j * w * C * (jnp.conj(z0_0) - z0_1) ) / denom
             s22 = (1.0 - 1j * w * C * (jnp.conj(z0_1) - z0_0) ) / denom
@@ -132,7 +132,7 @@ The following example creates a PI-CLC model once again, but using the above met
     class PiCLC(prf.Model):
         capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))
         capacitor2: Capacitor =     Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
-        inductor: Inductor =        Inductor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+        inductor: Inductor =        Inductor(L=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
 
         def __call__(self) -> prf.Model:
             # Instantiate the ports and grounds
