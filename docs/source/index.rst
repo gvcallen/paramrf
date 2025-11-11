@@ -2,16 +2,17 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 =====================
 **ParamRF**, or ``pmrf``, is a declarative circuit modelling framework catering for the frequency-domain fitting and simulation of circuit models in an efficient, parametric, object-orientated manner. This documentation serves as an introduction into the framework and its features with some basic examples, and also provides an overall API reference.
 
-+----------+------------------------------------+
-| Version  | |release|                          |
-+----------+------------------------------------+
-| Author   | Gary Allen                         |
-+----------+------------------------------------+
-| Homepage | https://github.com/paramrf/paramrf |
-+----------+------------------------------------+
-| Docs     | https://paramrf.github.io/paramrf  |
-+----------+------------------------------------+
-
++----------+------------------------------------------------+
+| Version  | |release|                                      |
++----------+------------------------------------------------+
+| Author   | Gary Allen                                     |
++----------+------------------------------------------------+
+| Homepage | https://github.com/paramrf/paramrf             |
++----------+------------------------------------------------+
+| Docs     | https://paramrf.github.io/paramrf              |
++----------+------------------------------------------------+
+| Paper    | https://doi.org/10.48550/arXiv.2510.15881      |
++----------+------------------------------------------------+
 
 .. toctree::
    :maxdepth: 2
