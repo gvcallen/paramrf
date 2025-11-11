@@ -13,6 +13,16 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 +----------+------------------------------------+
 
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Documentation
+
+   installation
+   introduction/index
+   api/index
+   license
+
+
 Key Features
 ---------------------
 
@@ -46,14 +56,3 @@ or using the BibTeX:
       archivePrefix = {arXiv},
       primaryClass = {cs.OH},
    }
-
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Documentation
-
-   installation
-   introduction/index
-   api/index
-   license
