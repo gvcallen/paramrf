@@ -52,3 +52,7 @@ or with BibTeX:
     primaryClass = {cs.OH},
 }
 ```
+
+## Contributions
+
+Since the library is in very early stages and likely contains several bugs, contributions are more than welcome by submitting a PR (especially for the docs!). However, before making any major changes, please open an issue so we can discuss the general intention of the contribution.
