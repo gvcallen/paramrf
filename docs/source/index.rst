@@ -12,6 +12,16 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 | Docs     | https://paramrf.github.io/paramrf  |
 +----------+------------------------------------+
 
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Documentation
+
+   introduction/index
+   installation
+   api/index
+   license
+
 Key Features
 ---------------------
 
@@ -22,11 +32,26 @@ Key Features
 * **scikit-rf Integration**: Designed for seamless interoperability with *scikit-rf*, ``pmrf`` models can be evaluated and converted to ``skrf.Network`` objects, providing access to *scikit-rf*'s library of analysis and plotting tools.
 
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Documentation
+Citation
+---------------------
 
-   introduction/index
-   installation
-   api/index
-   license
+If you have used ParamRF for academic work, please cite the original [paper](https://doi.org/10.48550/arXiv.2510.15881):
+as: ::
+
+   G.V.C. Allen, D.I.L. de Villiers, (2025). ParamRF: A JAX-native Framework for Declarative Circuit Modelling. arXiv, https://doi.org/10.48550/arXiv.2510.15881.
+
+or using the BibTeX:
+
+.. code:: bibtex
+
+   @article{paramrf,
+      doi = {10.48550/arXiv.2510.15881},
+      url = {https://doi.org/10.48550/arXiv.2510.15881}, 
+      year = {2025},
+      month = {Oct},
+      title = {ParamRF: A JAX-native Framework for Declarative Circuit Modelling}, 
+      author = {Gary V. C. Allen and Dirk I. L. de Villiers},
+      eprint = {2510.15881},
+      archivePrefix = {arXiv},
+      primaryClass = {cs.OH},
+   }
