@@ -164,7 +164,7 @@ Main Fitters
 Fitting Example
 ^^^^^^^^^^^^^^^^^^^^
 
-The following provides a complete example of fitting the built in ``PhysicalCoaxial`` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
+The following provides a complete example of fitting the built in ``CoaxialLine`` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
 
 .. code-block:: python
 
