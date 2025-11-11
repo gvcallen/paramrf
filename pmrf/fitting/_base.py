@@ -376,7 +376,10 @@ def get_fitter_class(solver: str):
     class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
     try:
         for submodule_name, _ in iter_submodules('pmrf.fitting.fitters'):
-            fitter_submodel = importlib.import_module(submodule_name)
+            try:
+                fitter_submodel = importlib.import_module(submodule_name)
+            except:
+                continue
             for class_name in class_names:
                 if hasattr(fitter_submodel, class_name):
                     return getattr(fitter_submodel, class_name)
