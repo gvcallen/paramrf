@@ -78,11 +78,13 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
     pi_clc.to_skrf(prf.Frequency(1, 1000, 1001, 'MHz')).plot_s_db(m=0, n=0)
 
 
-Model Declaration
+Model Inheritance
 ~~~~~~~~~~~~~~~~~~~~
-For more complex models (such as equation-based ones), users can inherit directly from the ``Model`` class (which itself is an *Equinox* ``Module`` and therefore a Python ``dataclass`` and *JAX* *PyTree*).
+For more complex models (such as equation-based ones), users can inherit directly from the ``Model`` class and override one of the network properties (such as ``s``, ``a``, or ``y``) or the ``__call__`` method.
 
-Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a ``Parameter`` or ``Model`` are dynamic and can be adjusted (for example, by fitting routines). Parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
+Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a ``Parameter`` or ``Model`` are dynamic and can be adjusted (for example, by fitting routines).
+
+Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^
@@ -94,7 +96,7 @@ The following example demonstrates custom model definition by defining a capacit
     import pmrf as prf
 
     # Define a model class. Behaviour is defined by implementing 
-    # a primary matrix function such as "s" in our case.
+    # a primary matrix function such as "s" in this case.
     class Capacitor(Model):
         C: prf.Parameter = 1.0e-12
 
