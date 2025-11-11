@@ -19,8 +19,8 @@ ParamRF: Parametric Microwave Circuit Modelling, Fitting and Sampling
 
    installation
    introduction/index
-   api/index
    license
+   api/index
 
 
 Key Features
