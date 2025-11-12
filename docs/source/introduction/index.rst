@@ -1,7 +1,7 @@
 Introduction
 =====================
 
-**ParamRF** provides a declarative modelling interface that compiles models (such as circuit models) using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting procedures.
+**ParamRF** provides a declarative modelling interface that compiles RF models, such as circuit models, using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting procedures.
 
 Core Concepts
 ~~~~~~~~~~~~~~~~~~~~

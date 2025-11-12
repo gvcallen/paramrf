@@ -1,4 +1,4 @@
-# ParamRF: Parametric Frequency-Domain Modelling, Fitting and Sampling
+# ParamRF: Parametric Radio Frequency Modelling, Fitting and Sampling
 
 **ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modelling framework. It provides an object-orientated means for frequency-domain modelling, fitting and sampling of RF models, with focus on circuit models.
 
