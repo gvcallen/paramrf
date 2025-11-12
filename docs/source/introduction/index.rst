@@ -1,15 +1,15 @@
 Introduction
 =====================
 
-**ParamRF** provides a declarative circuit modelling interface that compiles circuit models using *JAX*. This page provides in introduction into how models are created, and an overview of the fitting procedures.
+**ParamRF** provides a declarative modelling interface that compiles models (such as circuit models) using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting procedures.
 
 Core Concepts
 ~~~~~~~~~~~~~~~~~~~~
 
 The library revolves around a few key building blocks:
 
-* ``pmrf.Model``: The base class for any computable circuit component. Model methods such as *s*, *a* can be used to define model S-parameters, ABCD-parameters etc. and all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself. Models can be defined using composition such as cascading existing models, or via inheritance of the model class itself.
-* ``pmrf.Parameter``: A parameter in a circuit model, storing its value as well as any parameter *metadata*. This allows for parameter bounds and scaling, provides the ability to mark parameters as *fixed*, and can have a prior associated with it for Bayesian fitting.
+* ``pmrf.Model``: The base class for any computable RF component. Model methods such as *s*, *a* can be used to define model S-parameters, ABCD-parameters etc. and all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself. Models can be defined using composition such as cascading existing models, or via inheritance of the model class itself.
+* ``pmrf.Parameter``: A parameter in a model, storing its value as well as any parameter *metadata*. This allows for parameter bounds and scaling, provides the ability to mark parameters as *fixed*, and can have a prior associated with it for Bayesian fitting.
 * ``pmrf.Frequency``: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 
 Model Composition
@@ -89,7 +89,7 @@ Note that parameter initialization is flexible: parameters may be populated with
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^
-The following example demonstrates custom model definition by defining a capacitor from first principles. Here, one of the typical network properties, such as ``s``, ``a``, ``y`` etc., must be overriden, returning the resultant matrix directly.
+The following example demonstrates custom model definition by defining a capacitor from first principles. This could be used, for example, to implement more complex analytic or surrogate models. Here, one of the typical network properties, such as ``s``, ``a``, ``y`` etc., must be overriden, returning the resultant matrix directly.
 
 .. code-block:: python
 
