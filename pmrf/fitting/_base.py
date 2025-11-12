@@ -371,6 +371,7 @@ def is_inference_kind(solver, inference: str):
 
 def get_fitter_class(solver: str):
     solver = solver.replace('scipy', 'sciPy')
+    solver = solver.replace('polychord', 'polyChord')
 
     class_names = [solver + 'Fitter']
     class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')

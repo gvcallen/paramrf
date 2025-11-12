@@ -12,11 +12,12 @@ class BlackJAXNSFitter(BayesianFitter):
     """
     A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
     """
-    def run(self, best_param_method = 'maximum-likelihood', n_live = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
+    def run(self, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         import blackjax
         from anesthetic import NestedSamples
         from tqdm import tqdm
-        from jax.lib import xla_bridge
+        # from jax.lib import xla_bridge
+        from jax.extend.backend import get_backend
         
         start_time = time.time()
         rng_key = jax.random.PRNGKey(seed)
@@ -24,19 +25,17 @@ class BlackJAXNSFitter(BayesianFitter):
         param_names = self._flat_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
-        priors = [param.prior for param in params]
         
         x0 = self.initial_model.flat_params()
-        loglikelihood_fn = self._make_log_likelihood_fn()
-        logprior_fn = self._make_log_prior_fn()
-
-        loglikelihood_fn = jax.jit(loglikelihood_fn)
-        logprior_fn = jax.jit(logprior_fn)
+        prior_fn = jax.jit(self._make_prior_transform_fn())
+        logprior_fn = jax.jit(self._make_log_prior_fn())
+        loglikelihood_fn = jax.jit(self._make_log_likelihood_fn())
 
         d = len(param_names)
-        n_live = n_live if n_live is not None else 25 * d
+        nlive_factor = nlive_factor if nlive_factor is not None else 25
+        n_live = nlive_factor * d
         if num_delete is None:
-            if xla_bridge.get_backend().platform == 'cpu':
+            if get_backend().platform == 'cpu':
                 self.logger.info('Running BlackJAX on the CPU')
                 num_delete = int(0.1*n_live)
             else:
@@ -53,13 +52,8 @@ class BlackJAXNSFitter(BayesianFitter):
         )
 
         rng_key, prior_key = jax.random.split(rng_key)
-        
-        keys = jax.random.split(rng_key, len(priors))
-        samples_per_param = []
-        for i, prior in enumerate(priors):
-            sample = prior.sample(keys[i], sample_shape=(n_live,))
-            samples_per_param.append(jnp.reshape(sample, (n_live, -1)))
-        initial_particles = jnp.concatenate(samples_per_param, axis=1)        
+        u = jax.random.uniform(prior_key, shape=(n_live, d))
+        initial_particles = jax.vmap(prior_fn)(u)
 
         init_fn = jax.jit(nested_sampler.init)
         step_fn = jax.jit(nested_sampler.step)
