@@ -71,14 +71,8 @@ class Parameter(eqx.Module):
         """The number of free dimensions for this parameter."""
         if self.fixed:
             return 0
-        # A Parameter object itself represents a single fittable entity,
-        # even if its value is an array. The prior handles the dimensionality.
-        if self.prior is not None:
-            if len(self.prior.batch_shape) == 0:
-                return 1
-            else:
-                return self.prior.batch_shape[0]
-        return 1    
+        
+        return len(self.value)
     
     @property
     def min(self) -> jnp.array:
