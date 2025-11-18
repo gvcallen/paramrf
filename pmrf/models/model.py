@@ -523,7 +523,7 @@ class Model(eqx.Module):
         from pmrf.models.containers import Flipped
         return Flipped(self)
     
-    def terminated(self, load: 'Model' = None) -> 'Model':
+    def terminate(self, load: 'Model' = None) -> 'Model':
         """Terminate a 2-port model in a 1-port load (default: short).
 
         Parameters

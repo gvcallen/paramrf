@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import pkgutil
 import importlib
 from datetime import datetime
@@ -136,3 +137,34 @@ def explicit_kwargs():
                 if name in frame.f_locals and name not in bound.args:
                     result[name] = value
     return result
+
+def interp_tree(x_old, x_new, tree):
+    """Recursively interpolate any pytree of JAX arrays."""
+    if isinstance(tree, jnp.ndarray):
+        return jnp.interp(x_old, x_new, tree)
+    elif isinstance(tree, (float, int)):
+        return tree
+    elif isinstance(tree, dict):
+        return {k: interp_tree(x_old, x_new, v) for k, v in tree.items()}
+    elif isinstance(tree, (tuple, list)):
+        return type(tree)(interp_tree(x_old, x_new, v) for v in tree)
+    else:
+        raise TypeError(f"Cannot interpolate object of type {type(tree)}")
+
+
+def interp_distribution(x_old, x_new, d):
+    """
+    Interpolates a numpyro Distribution `d` by tree-interpolating
+    its internal parameter dictionary _params, then reconstructing
+    the same distribution class with the new parameters.
+    """
+    # Extract internal parameters (e.g., mean, scale, covariance, logits, etc.)
+    params = d._params
+
+    # Interpolate each parameter
+    new_params = {
+        k: interp_tree(x_old, x_new, v) for k, v in params.items()
+    }
+
+    # Rebuild distribution of same class with new parameters
+    return type(d)(**new_params)

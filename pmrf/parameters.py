@@ -8,7 +8,7 @@ import equinox as eqx
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
-from pmrf._util import field
+from pmrf._util import field, interp_distribution
 
 MIN_PERCENTILE = 0.01
 MAX_PERCENTILE = 0.99
@@ -72,7 +72,7 @@ class Parameter(eqx.Module):
         if self.fixed:
             return 0
         
-        return len(self.value)
+        return self.value.size
     
     @property
     def min(self) -> jnp.array:
@@ -163,6 +163,18 @@ class Parameter(eqx.Module):
             else:
                 priors_split = [None] * len(self.value)
             return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
+        
+    def interpolate(self, x_old, x_new) -> 'Parameter':
+        value = jnp.interp(x_old, x_new, self.value)
+        prior = interp_distribution(x_old, x_new, self.prior)
+
+        return Parameter(
+            value=value,
+            prior=prior,
+            fixed=self.fixed,
+            scale=self.scale,
+            name=self.name
+        )        
         
     def as_fixed(self) -> 'Parameter':
         r"""Returns a fixed copy of self.
@@ -309,7 +321,8 @@ class Parameter(eqx.Module):
             scale=d["scale"],
             name=d["name"]
         )
-        
+
+            
 @dataclass
 class ParameterGroup:
     r"""
