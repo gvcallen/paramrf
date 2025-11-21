@@ -8,7 +8,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 """
 
-from functools import cached_property
+from functools import cached_property, partial
 from copy import deepcopy
 from typing import Callable, Sequence, TypeVar
 import dataclasses
@@ -250,17 +250,20 @@ class Model(eqx.Module):
         """Convert a PyTree path to a fully-qualified parameter name."""
         fields = []
 
-        for i, key in enumerate(path):
-            if isinstance(key, GetAttrKey) or isinstance(key, DictKey):
-                fields.append(key.name)
-            elif isinstance(key, SequenceKey) or isinstance(key, FlattenedIndexKey):
+        for i, item in enumerate(path):
+            if isinstance(item, GetAttrKey):
+                fields.append(item.name)
+            elif isinstance(item, DictKey):
+                fields.pop() # don't include the dict variable name in the path
+                fields.append(item.key)
+            elif isinstance(item, SequenceKey) or isinstance(item, FlattenedIndexKey):
                 # This code adds the ability for models to be named and their names used for the parameter name instead of the list variable name and index
                 value = value_at_path(self, path[:i+1])
                 if hasattr(value, 'name') and not value.name is None:
                     fields.pop()
                     fields.append(value.name)
                 else:
-                    fields.append(str(key.idx))
+                    fields.append(str(item.idx))
         return self.separator.join(fields)
 
     def __pow__(self, other: 'Model') -> 'Model':
@@ -680,6 +683,10 @@ class Model(eqx.Module):
         """Joint prior distribution over (flattened) parameters."""        
         return JointParameterDistribution(self.param_groups(), self.flat_param_names())
     
+    @classmethod
+    def with_defaults(cls, *args, **kwargs):
+        return partial(cls, *args, **kwargs)
+
     def with_params(
         self: ModelT,
         params: dict[str, Parameter] | dict[str, float] | jnp.ndarray | None = None,
@@ -1059,7 +1066,7 @@ def wrap(
     *args,
     as_numpy: bool = False,
 ) -> Callable:
-    """Wrap a function/method ``(model, frequency, *args, **kwargs)`` to accept flat arrays.
+    """Wrap a function/method taking ``(model, frequency, *args, **kwargs)`` into one that accepts flat arrays.
 
     The wrapper accepts ``(theta, [f], *args, **kwargs)`` where ``theta`` is a flat
     parameter array, and optionally ``f`` is a frequency array with a provided unit.

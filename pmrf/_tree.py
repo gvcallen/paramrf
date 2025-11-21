@@ -114,18 +114,21 @@ def nodes_by_type_with_path(tree: Any, match_type: Type, path=()) -> List[Tuple[
 
 def value_at_path(pytree, path):
     node = pytree
-    for key in path:
-        if isinstance(key, GetAttrKey):
-            k = key.name
+    for item in path:
+        if isinstance(item, GetAttrKey):
+            k = item.name
             node = getattr(node, k)
-        elif isinstance(key, SequenceKey):
-            i = key.idx
+        elif isinstance(item, SequenceKey):
+            i = item.idx
             node = node[i]
-        elif isinstance(key, DictKey):
-            k = key.name
-            node = node[key]
+        elif isinstance(item, DictKey):
+            k = item.key
+            try:
+                node = node[k]
+            except:
+                raise Exception(f'Key error for path {path} with key "{k}"')
         else:
-            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <node_at_path> but '{type(key)}' was passed of value {key}")
+            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <node_at_path> but '{type(item)}' was passed of value {item}")
         
     return node
 

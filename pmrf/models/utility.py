@@ -51,6 +51,15 @@ class Measured(Model):
 
         return S_new
     
+class ListModel(Model):
+    models: list[Model]
+
+class DictModel(Model):
+    models: dict[str, Model]
+
+    def __post_init__(self):
+        for key, value in self.models:
+            setattr(self, key, value)
 
 class SModel(Model):
     """

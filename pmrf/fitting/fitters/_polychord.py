@@ -24,7 +24,7 @@ class PolyChordFitter(BayesianFitter):
         import pypolychord
         
         if not 'nlive' in kwargs and nlive_factor is not None:
-            kwargs['nlive'] = nlive_factor * (self.initial_model.num_flat_params + len(self.likelihood_params))
+            kwargs['nlive'] = nlive_factor * (self.num_model_params + len(self.likelihood_params))
         
         # Get the model parameters
         param_names = self._flat_param_names()

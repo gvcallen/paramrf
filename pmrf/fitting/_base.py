@@ -22,11 +22,10 @@ try:
 except ImportError:
     rank = 0
 
-from pmrf.models.model import Model
+from pmrf.models import Model, DictModel
 from pmrf.frequency import Frequency
 from pmrf.constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
-from pmrf.models.model import Model
 from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
@@ -63,7 +62,7 @@ class BaseFitter(ABC):
     """
     def __init__(
         self,
-        model: Model,
+        model: Model | dict[str, Model],
         measured: str | skrf.Network | dict[str, skrf.Network],
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
@@ -71,13 +70,15 @@ class BaseFitter(ABC):
         """Initializes the BaseFitter.
 
         Args:
-            model (Model):                                              The parametric `pmrf` model to be fitted.
-            measured (str | skrf.Network | dict[str, skrf.Network]):    The measured network data to fit the model against.
+            model (Model | dict[str, Model]):                           The parametric `pmrf` model to be fitted.
                                                                         A dict can optionally be passed, in which case
-                                                                        the keys of the networks must can be referenced during
+                                                                        the keys of the networks can be referenced during
                                                                         feature extraction by also specifying features as a dictionary.
                                                                         See the documentation for the `features` argument below.
-            frequency (Frequency | None, optional):                The frequency axis to perform the fit on. If `None`, the frequency
+            measured (str | skrf.Network | dict[str, skrf.Network]):    The measured network data to fit the model against.
+                                                                        A dict can optionally be passed, in which case
+                                                                        features can be extracted as for `model`.
+            frequency (Frequency | None, optional):                     The frequency axis to perform the fit on. If `None`, the frequency
                                                                         from the first measured network is used. All networks will be
                                                                         interpolated onto this single frequency axis. Defaults to `None`.
             features (FeatureInputT | None, optional):                  Defines the features to be extracted from the network data and model for fitting.
@@ -125,6 +126,9 @@ class BaseFitter(ABC):
         self.features = features
         
         # Initialize model parameters from user and store in flat array
+        if isinstance(model, dict):
+            model = DictModel(model)
+
         self.initial_model: Model = model
         self.measured: skrf.Network | dict[str, skrf.Network] = measured
         self.measured_features = extract_features(measured, None, features)
