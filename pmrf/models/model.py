@@ -857,12 +857,12 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: ModelT, *params, fix_others=True, check_unknown=True) -> ModelT:
+    def with_free_params(self: ModelT, *params, fix_others=False, check_unknown=True) -> ModelT:
         """Free the specified parameters.
 
         Parameters
         ----------
-        *params : str
+        *params : str | Sequence[str]
             Parameter names to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
@@ -872,9 +872,11 @@ class Model(eqx.Module):
         Returns
         -------
         ModelT
-        """       
+        """
         if isinstance(params, str):
             params = [params]
+        elif isinstance(params[0], Sequence) and len(params) == 1:
+            params = params[0]
         params = set(params)
         current_params = self.named_params(include_fixed=True)
         current_param_names = set(current_params.keys())

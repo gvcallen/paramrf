@@ -15,8 +15,7 @@ class AnestheticResults(BayesianResults):
         fig, axes = make_2d_axes(param_names, *args, **kwargs)
         if prior:
             self.nested_samples.prior().plot_2d(axes, color='grey', alpha=0.5)
-        self.nested_samples.plot_2d(axes)
-        plt.show()
+        return self.nested_samples.plot_2d(axes)
     
     @property
     def nested_samples(self) -> NestedSamples:
