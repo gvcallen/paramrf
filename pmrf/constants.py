@@ -4,6 +4,15 @@ import jax.numpy as jnp
 
 from skrf.constants import INF, LOG_OF_NEG
 
+try:
+    from mpi4py import MPI
+    MPI_AVAILABLE = True
+    COMM = MPI.COMM_WORLD
+    RANK = COMM.Get_rank()
+except:
+    RANK = 0
+    MPI_AVAILABLE = False
+
 NumberLike = Union[Number, Sequence[Number], jnp.ndarray]
 IndexArray = Union[int, slice, Sequence[int], jnp.ndarray, Tuple, None, type(Ellipsis)]
 

@@ -10,7 +10,11 @@ from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf.models.model import Model
 
-class RLGCLine(Model):
+class TLine(Model):
+    length: Parameter = 1.0
+    floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
+
+class RLGCLine(TLine):
     """
     **Overview**
 
@@ -24,7 +28,6 @@ class RLGCLine(Model):
     Derived classes must implement the `rlgc` method, which defines how the
     four distributed parameters (R, L, G, C) behave as a function of frequency.
     """
-    length: Parameter = 1.0
     floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
 
     @abstractmethod

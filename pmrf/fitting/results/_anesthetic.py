@@ -6,17 +6,32 @@ from pmrf.fitting._bayesian import BayesianResults
 
 class AnestheticResults(BayesianResults):
     from anesthetic import NestedSamples
+
+    def plot_params(self, param_names=None, prior=False, *args, **kwargs):
+        from anesthetic import make_2d_axes
+        import matplotlib.pyplot as plt
+
+        param_names = param_names or self.result_param_names
+        fig, axes = make_2d_axes(param_names, *args, **kwargs)
+        if prior:
+            self.nested_samples.prior().plot_2d(axes, color='grey', alpha=0.5)
+        self.nested_samples.plot_2d(axes)
+        plt.show()
     
     @property
     def nested_samples(self) -> NestedSamples:
         return self.solver_results    
     
-    def samples(self):
-        nested_samples = self.nested_samples
-        columns = nested_samples.columns
+    @property
+    def result_param_names(self) -> list[str]:
+        columns = self.nested_samples.columns
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]
-        return nested_samples.loc[:, param_names]
+        return param_names
+    
+    def samples(self):
+        nested_samples = self.nested_samples
+        return nested_samples.loc[:, self.result_param_names]
     
     def prior_samples(self):
         nested_samples = self.nested_samples.prior()

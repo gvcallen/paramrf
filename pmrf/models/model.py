@@ -265,18 +265,6 @@ class Model(eqx.Module):
                 else:
                     fields.append(str(item.idx))
         return self.separator.join(fields)
-
-    def __pow__(self, other: 'Model') -> 'Model':
-        """Cascade composition operator ``**``."""        
-        from pmrf.models.containers import Cascade
-        return Cascade([self, other])
-    
-    def connect(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
-        from pmrf.models.containers import Connected
-        if isinstance(others, Model):
-            others = [others]
-        models = [self, *others]
-        return Connected(models, ports)
     
     # ---- Defaults / Primary ---------------------------------------------------    
     
@@ -516,6 +504,19 @@ class Model(eqx.Module):
         """
         return nodes_by_type(self, Model)[1:]
 
+
+    def __pow__(self, other: 'Model') -> 'Model':
+        """Cascade composition operator ``**``."""        
+        from pmrf.models.containers import Cascade
+        return Cascade([self, other])
+    
+    def connected(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
+        from pmrf.models.containers import Connected
+        if isinstance(others, Model):
+            others = [others]
+        models = [self, *others]
+        return Connected(models, ports)
+
     def flipped(self) -> 'Model':
         """Return a version of the model with ports flipped.
 
@@ -526,7 +527,7 @@ class Model(eqx.Module):
         from pmrf.models.containers import Flipped
         return Flipped(self)
     
-    def terminate(self, load: 'Model' = None) -> 'Model':
+    def terminated(self, load: 'Model' = None) -> 'Model':
         """Terminate a 2-port model in a 1-port load (default: short).
 
         Parameters
@@ -796,7 +797,7 @@ class Model(eqx.Module):
         """Alias for :meth:`with_params` when passing a flat array."""        
         return self.with_params(*args, **kwargs)
     
-    def with_replaced(self: ModelT, *args, **kwargs) -> ModelT:
+    def with_fields(self: ModelT, *args, **kwargs) -> ModelT:
         """Return a copy with dataclass-style field replacements."""        
         return dataclasses.replace(self, *args, **kwargs)
     
@@ -848,7 +849,7 @@ class Model(eqx.Module):
         if check_unknown:
             for param_name in params:
                 if param_name not in current_param_names:
-                    raise Exception(f"Specified parameter '{param_name}'' not found in model")
+                    raise Exception(f"Specified parameter '{param_name}' not found in model")
         
         new_params = current_params.copy()
         for name, param in current_params.items():

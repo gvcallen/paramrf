@@ -144,6 +144,9 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
     X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
     for d, feature in enumerate(features):
         label, prop, (m, n) = feature[0], feature[1], feature[2]
+
+        if m >= model.nports or n >= model.nports:
+            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
         
         feature_model = model
         if label != '':
@@ -175,11 +178,15 @@ def _extract_measured_features(networks: dict[str, skrf.Network], features: list
     X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
     for d, feature in enumerate(features):
         label, prop, (m, n) = feature[0], feature[1], feature[2]
+
         x = None
         
         ntwk = networks[label]
         if ntwk.frequency != freq:
             ntwk = ntwk.interpolate(freq)
+
+        if m >= ntwk.nports or n >= ntwk.nports:
+            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {ntwk.nports}-port')
         
         if prop[2:4] == 'mn':
             i = prop.index('_')

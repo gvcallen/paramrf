@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from io import BytesIO
 from functools import partial
 
+import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -164,7 +165,100 @@ class FitResults:
     fitted_model: Model | None = None
     solver_results: Any = None
     settings: FitSettings | None = None
-    
+
+    def plot_s_db(self):
+        """
+        Plots the S-parameters (Magnitude in dB) of the Measured vs Fitted data.
+        Handles both single Network and dictionary of Networks.
+        """
+        if self.measured is None or self.fitted_model is None:
+            print("Missing measured data or fitted model.")
+            return
+
+        if self.settings is None:
+            print("Missing settings (frequency data) to generate fitted networks.")
+            return
+
+        # 1. Normalize input into a list of tuples: (Name, Measured_Network, Fitted_Network)
+        data_to_plot = []
+        
+        if isinstance(self.measured, dict):
+            for key, meas_nw in self.measured.items():
+                # Retrieve the specific sub-model using the key name
+                try:
+                    sub_model = getattr(self.fitted_model, key)
+                    fit_nw = sub_model.to_skrf(self.settings.frequency)
+                    data_to_plot.append((key, meas_nw, fit_nw))
+                except AttributeError:
+                    print(f"Warning: Could not find sub-model attribute '{key}' in fitted_model.")
+        else:
+            # Single network case
+            fit_nw = self.fitted_model.to_skrf(self.settings.frequency)
+            data_to_plot.append(("Main Model", self.measured, fit_nw))
+
+        if not data_to_plot:
+            return
+
+        # 2. Determine Grid Dimensions
+        # Rows = Number of Datasets (keys)
+        # Cols = Number of S-parameters (N_ports^2)
+        n_rows = len(data_to_plot)
+        
+        # We assume the first network is representative of port counts for layout purposes,
+        # but we will handle variable ports safely in the loop.
+        max_ports = max(d[1].number_of_ports for d in data_to_plot)
+        n_cols = max_ports * max_ports
+        
+        # Create Figure
+        # Adjust figsize: approx 4 inches per subplot width, 3.5 inches per row height
+        fig, axes = plt.subplots(
+            nrows=n_rows, 
+            ncols=n_cols, 
+            figsize=(4 * n_cols, 3.5 * n_rows), 
+            squeeze=False, # Ensures axes is always a 2D array
+            constrained_layout=True
+        )
+
+        # 3. Plotting Loop
+        for row_idx, (label, meas, fit) in enumerate(data_to_plot):
+            n_ports = meas.number_of_ports
+            
+            # Loop through all S-parameter combinations (S11, S12, S21, S22...)
+            # We flatten the port grid (i, j) into the subplot row
+            plot_col_idx = 0
+            
+            for i in range(n_ports):
+                for j in range(n_ports):
+                    ax = axes[row_idx, plot_col_idx]               
+                    
+                    # Plot Fitted (Solid line)
+                    # Ensure the fitted network has the same ports or handle gracefully
+                    if i < fit.number_of_ports and j < fit.number_of_ports:
+                        fit.plot_s_db(m=i, n=j, ax=ax, label="Model")
+
+                    # Plot Measured (Dashed line)
+                    meas.plot_s_db(m=i, n=j, ax=ax, label="Measured", linestyle='--', color='k')
+                    
+                    # Visual Polish
+                    s_param_label = f"S{i+1}{j+1}"
+                    ax.set_title(f"{label} - {s_param_label}")
+                    ax.grid(True, which="major", linestyle="-", alpha=0.5)
+                    
+                    # Only add legend to the first plot of the row to reduce clutter
+                    if plot_col_idx == 0:
+                        ax.legend(fontsize='small')
+                    else:
+                        # Clean up redundant legends if scikit-rf adds them automatically
+                        ax.get_legend().remove() if ax.get_legend() else None
+
+                    plot_col_idx += 1
+
+            # Hide any unused subplots in this row (if this network has fewer ports than the max)
+            for k in range(plot_col_idx, n_cols):
+                axes[row_idx, k].axis('off')
+
+        plt.show()
+   
     def encode_solver_results(self, group: h5py.Group):
         data = None
         if self.solver_results is not None:

@@ -429,6 +429,29 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
     values = (low + high) / 2.0 if value is None else value
     return Parameter(value=values, prior=priors, **kwargs)
 
+def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
+    r"""Creates a `Parameter` with a uniform distribution and a percentage width.
+
+    Parameters
+    ----------
+    mean : float | Sequence[float]
+        The mean of the distribution. Can be a sequence for a multi-valued Parameter.
+    perc : float | Sequence[float]
+        The percentage width to use to initialize the lower and upper bounds.
+    **kwargs
+        Additional keyword arguments passed to the `Normal` factory function.
+
+    Returns
+    -------
+    Parameter
+        The created Parameter object.
+    """
+    if isinstance(perc, Sequence):
+        delta = [p * mean[i] / 200.0 for i, p in enumerate(perc)]
+    else:
+        delta = perc * mean / 200.0
+    return Uniform(low=mean-delta, high=mean+delta, **kwargs)
+
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     r"""Creates a `Parameter` with a normal (Gaussian) prior distribution.
 

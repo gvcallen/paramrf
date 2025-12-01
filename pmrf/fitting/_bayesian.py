@@ -52,18 +52,16 @@ class BayesianFitter(BaseFitter):
             likelihood_params (dict[str, Parameter], optional):
                 A dictionary of likelihood parameters to use for the likelihood function.                
         """
-        feature_sigmas = kwargs.pop('feature_sigmas', None)        
+        feature_sigmas: list[str] = kwargs.pop('feature_sigmas', None)        
 
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
-            if likelihood_params is None:
-                raise Exception('Likelihood parameters must be provided for multivariate Gaussian likelihoods')
             if feature_sigmas is None:
-                raise Exception('Currently on feature_sigmas is supported for multivariate Gaussian likelihoods')
+                raise Exception('feature_sigmas must be passed for multivariate Gaussian likelihoods')
             self.feature_sigmas = feature_sigmas
             self.likelihood_kind = likelihood_kind
-            self.likelihood_params = likelihood_params
+            self.likelihood_params = likelihood_params if likelihood_params is not None else {sigma_name: Uniform(0.0, 50.0e-3, name=sigma_name) for sigma_name in feature_sigmas}
         elif likelihood_kind == 'gaussian':        
             if likelihood_params is not None and len(likelihood_params) > 1:
                 raise Exception("A gaussian likelihood only has a single likelihood parameter 'sigma'")

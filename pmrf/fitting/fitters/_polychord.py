@@ -29,7 +29,7 @@ class PolyChordFitter(BayesianFitter):
         # Get the model parameters
         param_names = self._flat_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
-        labeled_param_names = np.array([[name, f'\\theta_{{{name_replaced}}}'] for name, name_replaced in zip(param_names, dot_param_names)])
+        labeled_param_names = np.array([[name, f'{name_replaced}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
         x0 = np.array(self.initial_model.flat_params())
