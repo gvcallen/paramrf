@@ -582,6 +582,9 @@ class Model(eqx.Module):
                 filter_spec = self._free_value_spec
         return partition(self, filter_spec, shared_spec)
     
+    def params(self, *args, **kwargs) -> list[Parameter]:
+        return list(self.named_params(*args, **kwargs).values())
+    
     def named_params(self, include_fixed=False, flat=False, flat_params=False, values=False, scaled_values=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Return model parameters as a dict (or flattened array).
 
@@ -878,8 +881,8 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        *params : str | Sequence[str]
-            Parameter names to set free.
+        *params : str | Sequence[str] | Sequence[Parameter]
+            Parameters to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
         check_unknown : bool, default=True
@@ -889,10 +892,15 @@ class Model(eqx.Module):
         -------
         ModelT
         """
-        if isinstance(params, str):
-            params = [params]
-        elif isinstance(params[0], Sequence) and len(params) == 1:
+        if isinstance(params[0], Sequence) and len(params) == 1:
             params = params[0]
+        else:
+            params = [params]
+
+        if isinstance(params[0], Parameter):
+            param_id_to_name: dict[Parameter, str] = {id(v): k for k, v in self.named_params().items()}
+            params = [param_id_to_name[id(param)] for param in params]
+        
         params = set(params)
         current_params = self.named_params(include_fixed=True)
         current_param_names = set(current_params.keys())
