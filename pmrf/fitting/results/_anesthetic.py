@@ -11,7 +11,7 @@ class AnestheticResults(BayesianResults):
         from anesthetic import make_2d_axes
         import matplotlib.pyplot as plt
 
-        param_names = param_names or self.result_param_names
+        param_names = param_names or self.sample_param_names
         fig, axes = make_2d_axes(param_names, *args, **kwargs)
         if prior:
             self.nested_samples.prior().plot_2d(axes, color='grey', alpha=0.5)
@@ -22,7 +22,7 @@ class AnestheticResults(BayesianResults):
         return self.solver_results    
     
     @property
-    def result_param_names(self) -> list[str]:
+    def sample_param_names(self) -> list[str]:
         columns = self.nested_samples.columns
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]
@@ -30,7 +30,7 @@ class AnestheticResults(BayesianResults):
     
     def samples(self):
         nested_samples = self.nested_samples
-        return nested_samples.loc[:, self.result_param_names]
+        return nested_samples.loc[:, self.sample_param_names]
     
     def prior_samples(self):
         nested_samples = self.nested_samples.prior()

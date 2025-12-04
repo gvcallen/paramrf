@@ -525,15 +525,17 @@ class Model(eqx.Module):
         Model
         """
         from pmrf.models.containers import Flipped
+        if isinstance(self, Flipped):
+            return self.model
         return Flipped(self)
     
     def terminated(self, load: 'Model' = None) -> 'Model':
-        """Terminate a 2-port model in a 1-port load (default: short).
+        """Terminate a 2-port model in a 1-port load (default: SHORT).
 
         Parameters
         ----------
         load : Model, optional
-            Load network. Defaults to a short.
+            Load network. Defaults to a SHORT.
 
         Returns
         -------
@@ -686,7 +688,21 @@ class Model(eqx.Module):
     
     @classmethod
     def with_defaults(cls, *args, **kwargs):
-        return partial(cls, *args, **kwargs)
+        # return partial(cls, *args, **kwargs)
+        class DefaultsWrapper:
+            def __init__(self, p):
+                self.p = p   # underlying partial
+
+            def __call__(self, *args, **kwargs):
+                return self.p(*args, **kwargs)
+
+            # chaining
+            def with_defaults(self, *args, **kwargs):
+                # merge new defaults after existing ones
+                new_args = self.p.args + args
+                new_kwargs = {**self.p.keywords, **kwargs} if self.p.keywords else kwargs
+                return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
+        return DefaultsWrapper(partial(cls, *args, **kwargs))            
 
     def with_params(
         self: ModelT,

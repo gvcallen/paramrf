@@ -3,17 +3,20 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from numpyro.distributions import Distribution
+
 os.environ["TF_USE_LEGACY_KERAS"] = "True"
 
 from margarine.maf import MAF
 
-class MargarineMAFAdapter:
+class MargarineMAFDistribution(Distribution):
     """
     Adapter for MAF models from the 'margarine' library.
     """
-    def __init__(self, maf):
+    def __init__(self, maf, validate_args=None):
         self.maf: MAF = maf
-        self.event_dim = len(self.maf.theta_min)
+        event_shape = (len(self.maf.theta_min),)
+        super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
 
     def save(self, path: str):
         return self.maf.save(path)
@@ -30,19 +33,17 @@ class MargarineMAFAdapter:
         else:
             maf = MAF(data, **construct_kwargs)
         maf.train(**kwargs)
-        return maf
+
+        return MargarineMAFDistribution(maf)
 
     def sample(self, key, sample_shape):
         n_samples = int(jnp.prod(jnp.array(sample_shape))) or 1
         samples = self.maf.sample(length=n_samples)
         samples = jnp.array(samples, dtype=jnp.float32)
-        return samples.reshape(sample_shape + (self.event_dim,))
+        return samples.reshape(sample_shape + self.batch_shape + self.event_shape)
 
     def log_prob(self, value):
         value = jnp.atleast_2d(value)
-        if value.shape[-1] != self.event_dim:
-            raise ValueError(f"log_prob expected last dimension {self.event_dim}, got {value.shape[-1]}")
-
         def compute_logp(x_np):
             return self.maf.log_prob(x_np).astype(np.float32)
 
@@ -55,9 +56,6 @@ class MargarineMAFAdapter:
     def icdf(self, u):
         import tensorflow as tf
         u = jnp.atleast_2d(u)
-        if u.shape[-1] != self.event_dim:
-            raise ValueError(f"icdf expected last dimension {self.event_dim}, got {u.shape[-1]}")
-
         def tf_wrapper(u_np):
             x_tf = tf.convert_to_tensor(u_np, dtype=tf.float32)
             result = self.maf(x_tf)  # Assumes maf(u) maps uniform→target
