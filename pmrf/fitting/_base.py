@@ -29,7 +29,8 @@ from pmrf.constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
 from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
-from pmrf import extract_features, wrap, NetworkCollection
+from pmrf import extract_features, wrap
+from pmrf.network_collection import NetworkCollection
 
 def Fitter(
     name: str,
@@ -95,8 +96,8 @@ class BaseFitter(ABC):
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
         if not isinstance(features, Sequence) and not isinstance(features, dict):
             features = [features]
-        if isinstance(measured, dict) and not isinstance(features, dict):
-            features = {k: features for k in measured.keys()}
+        if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
+            features = {k: features for k in measured.names()}
         
         # All frequencies must be the same across all measurements (at least currently..). We copy the input dict
         measured = measured.copy()
@@ -291,23 +292,24 @@ class FitResults:
             # Measured data
             # TODO save network params
             def write_network(group: h5py.Group, ntwk: skrf.Network):
-                measured_grp['name'] = ntwk.name or 'network'
-                measured_grp.create_dataset('s', data=self.measured.s)
-                measured_grp.create_dataset('f', data=self.measured.f)
-                measured_grp.create_dataset('z0', data=self.measured.z0)
+                group['name'] = ntwk.name or 'network'
+                group.create_dataset('s', data=ntwk.s)
+                group.create_dataset('f', data=ntwk.f)
+                group.create_dataset('z0', data=ntwk.z0)
                 if ntwk.params is not None:
-                    measured_params_grp = measured_grp.create_group('params')
+                    measured_params_grp = group.create_group('params')
                     for key, value in ntwk.params.items():
                         measured_params_grp[key] = value
 
             if self.measured is not None:
                 measured_grp = f.create_group('measured')
                 if isinstance(self.measured, skrf.Network):
-                    write_network(self.measured, measured_grp)
+                    write_network(measured_grp, self.measured)
                 else:
                     measured_grp['name'] = self.measured.name or 'network_collection'
                     for ntwk in self.measured:
-                        write_network(ntwk, measured_grp)
+                        ntwk_grp = measured_grp.create_group(ntwk.name)
+                        write_network(ntwk_grp, ntwk)
                         
             # Solver results
             if self.solver_results is not None:

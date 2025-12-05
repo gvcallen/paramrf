@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from pmrf.constants import FeatureT, FeatureInputT
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
-from pmrf import NetworkCollection
+from pmrf.network_collection import NetworkCollection
 
 def extract_features(
     source: Model | skrf.Network | NetworkCollection,
@@ -52,7 +52,9 @@ def extract_features(
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
-        source = NetworkCollection(source)
+        source_cpy = source.copy()
+        source_cpy.name = ''
+        source = NetworkCollection([source_cpy])
         frequency = source.frequency
     elif isinstance(source, NetworkCollection):
         # Currently only support a single frequency across networks

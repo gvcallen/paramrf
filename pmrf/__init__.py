@@ -25,7 +25,7 @@ from pmrf.parameters import (
     ParameterGroup as ParameterGroup,
 )
 
-from pmrf._network_collection import (
+from pmrf.network_collection import (
     NetworkCollection,
 )
 
