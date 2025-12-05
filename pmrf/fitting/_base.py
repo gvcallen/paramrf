@@ -16,7 +16,7 @@ import skrf
 import h5py
 import jsonpickle
 import equinox as eqx
-import skrf
+from skrf import Network
 try:
     from mpi4py import MPI
     rank = MPI.COMM_WORLD.Get_rank()
@@ -29,7 +29,7 @@ from pmrf.constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
 from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
-from pmrf import extract_features, wrap
+from pmrf import extract_features, wrap, NetworkCollection
 
 def Fitter(
     name: str,
@@ -63,39 +63,34 @@ class BaseFitter(ABC):
     """
     def __init__(
         self,
-        model: Model | dict[str, Model],
-        measured: str | skrf.Network | dict[str, skrf.Network],
+        model: Model,
+        measured: str | Network | NetworkCollection,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
     ) -> None:
         """Initializes the BaseFitter.
 
         Args:
-            model (Model | dict[str, Model]):                           The parametric `pmrf` model to be fitted.
-                                                                        A dict can optionally be passed, in which case
-                                                                        the keys of the networks can be referenced during
-                                                                        feature extraction by also specifying features as a dictionary.
-                                                                        See the documentation for the `features` argument below.
-            measured (str | skrf.Network | dict[str, skrf.Network]):    The measured network data to fit the model against.
-                                                                        A dict can optionally be passed, in which case
-                                                                        features can be extracted as for `model`.
-            frequency (Frequency | None, optional):                     The frequency axis to perform the fit on. If `None`, the frequency
-                                                                        from the first measured network is used. All networks will be
-                                                                        interpolated onto this single frequency axis. Defaults to `None`.
-            features (FeatureInputT | None, optional):                  Defines the features to be extracted from the network data and model for fitting.
-                                                                        See `extract_features(..)` for a detail explanation. As an overview using string aliases,
-                                                                        this can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
-                                                                        or a dictionary with either of the above as value. In the dictionary case,
-                                                                        keys must be network names in the sequence passed by `measured`, which must also
-                                                                        correspond to submodels which are attributes of the model. As an example,
-                                                                        {'source_name1', ('s11'), {'source_name2', ('s21')} can be passed.
-                                                                        Note that if a sequence of networks is passed, but a dictionary is not.
-                                                                        it is assumed that those feature(s) should be extract for all measured networks/submodels.
+            model (Model):                                              The parametric `pmrf` Model to be fitted.
+            measured (skrf.Network | prf.NetworkCollection):            The measured network data to fit the model against.
+                                                                        Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
+                                                                        For the latter case the network names should be referenced during
+                                                                        feature extraction by specifying features as a dictionary.
+                                                                        See the documentation for the `features` argument below.                                                                        
+            features (FeatureInputT | None, optional):                  Defines the features to be extracted from the model and network(s).
                                                                         Defaults to `None`, in which case real and imaginary features for all ports are used.
+                                                                        Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
+                                                                        or a dictionary with either of the above as value. In the dictionary case,
+                                                                        keys must be network names in the collection passed by `measured`, which must also
+                                                                        correspond to submodels which are attributes of the model. For example,
+                                                                        {'name1', ('s11'), {'name2', ('s21')} can be passed.
+                                                                        Note that if a collection of networks is passed, but a feature dictionary is not,
+                                                                        it is assumed that those feature(s) should be extract for each networks/submodel.
+                                                                        See `extract_features(..)` more details.
+            frequency (Frequency | None, optional):                     The frequency axis to perform the fit on. Defaults to `None`, in which case
+                                                                        the measured frequency is used. Note that if a `NetworkCollection` is passed,
+                                                                        all networks must have the same frequency.
         """
-        if isinstance(measured, str):
-            measured = skrf.Network(measured)
-        
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
         if not isinstance(features, Sequence) and not isinstance(features, dict):
@@ -107,31 +102,19 @@ class BaseFitter(ABC):
         measured = measured.copy()
         if frequency is not None:
             measured_freq = frequency
-            if isinstance(measured, dict):
-                measured = {k: v.interpolate(frequency) for k, v in measured}
-            else:
-                measured = measured.interpolate(frequency)
+            measured = measured.interpolate(frequency)
         else:
-            measured_freq = None
-            if isinstance(measured, dict):
-                for ntwk in measured.values():
-                    if measured_freq is None:
-                        measured_freq = ntwk.frequency
-                    if ntwk.frequency != measured_freq and not len(ntwk.frequency) == 0:
-                        raise ValueError("Error: Currently `fit_frequency` must be passed for multi-measurement fits (i.e. all networks must be explicitly interpolated onto the same frequency for fitting)")
-            else:
+            try:
                 measured_freq = measured.frequency
+            except:
+                raise ValueError("All networks must have the same frequency")
         
         # Initialize settings
         self.frequency = frequency or Frequency.from_skrf(measured_freq)
         self.features = features
         
-        # Initialize model parameters from user and store in flat array
-        if isinstance(model, dict):
-            model = DictModel(model)
-
         self.initial_model: Model = model
-        self.measured: skrf.Network | dict[str, skrf.Network] = measured
+        self.measured: skrf.Network | NetworkCollection = measured
         self.measured_features = extract_features(measured, None, features)
         if rank == 0:
             self.logger = logging.getLogger("pmrf.fitting")
@@ -160,7 +143,7 @@ class BaseFitter(ABC):
     
 @dataclass
 class FitResults:
-    measured: skrf.Network | dict[str, skrf.Network] | None = None
+    measured: skrf.Network | NetworkCollection | None = None
     initial_model: Model | None = None
     fitted_model: Model | None = None
     solver_results: Any = None
@@ -182,13 +165,13 @@ class FitResults:
         # 1. Normalize input into a list of tuples: (Name, Measured_Network, Fitted_Network)
         data_to_plot = []
         
-        if isinstance(self.measured, dict):
-            for key, meas_nw in self.measured.items():
+        if isinstance(self.measured, NetworkCollection):
+            for meas_nw in self.measured:
                 # Retrieve the specific sub-model using the key name
                 try:
-                    sub_model = getattr(self.fitted_model, key)
+                    sub_model = getattr(self.fitted_model, meas_nw.name)
                     fit_nw = sub_model.to_skrf(self.settings.frequency)
-                    data_to_plot.append((key, meas_nw, fit_nw))
+                    data_to_plot.append((meas_nw.name, meas_nw, fit_nw))
                 except AttributeError:
                     print(f"Warning: Could not find sub-model attribute '{key}' in fitted_model.")
         else:
@@ -306,20 +289,25 @@ class FitResults:
                 self.initial_model.write_hdf(f.create_group('initial_model'))
 
             # Measured data
+            # TODO save network params
+            def write_network(group: h5py.Group, ntwk: skrf.Network):
+                measured_grp['name'] = ntwk.name or 'network'
+                measured_grp.create_dataset('s', data=self.measured.s)
+                measured_grp.create_dataset('f', data=self.measured.f)
+                measured_grp.create_dataset('z0', data=self.measured.z0)
+                if ntwk.params is not None:
+                    measured_params_grp = measured_grp.create_group('params')
+                    for key, value in ntwk.params.items():
+                        measured_params_grp[key] = value
+
             if self.measured is not None:
                 measured_grp = f.create_group('measured')
                 if isinstance(self.measured, skrf.Network):
-                    measured_grp['name'] = self.measured.name or 'ntwk'
-                    measured_grp.create_dataset('s', data=self.measured.s)
-                    measured_grp.create_dataset('f', data=self.measured.f)
-                    measured_grp.create_dataset('z0', data=self.measured.z0)
+                    write_network(self.measured, measured_grp)
                 else:
-                    for label, ntwk in self.measured.items():
-                        measured_ntwk_grp = measured_grp.create_group(label)
-                        measured_ntwk_grp['name'] = ntwk.name or 'ntwk'
-                        measured_ntwk_grp.create_dataset('s', data=ntwk.s)
-                        measured_ntwk_grp.create_dataset('f', data=ntwk.f)
-                        measured_ntwk_grp.create_dataset('z0', data=ntwk.z0)
+                    measured_grp['name'] = self.measured.name or 'network_collection'
+                    for ntwk in self.measured:
+                        write_network(ntwk, measured_grp)
                         
             # Solver results
             if self.solver_results is not None:
@@ -395,27 +383,35 @@ class FitResults:
                 measured_grp = settings_grp['measured']
             elif 'measured' in f:
                 measured_grp = f['measured']
+
+            def group_to_dict(group: h5py.Group):
+                result = {}
+                for key, item in group.items():
+                    if isinstance(item, h5py.Group):
+                        result[key] = group_to_dict(item)  # recurse
+                    else:  # Dataset
+                        result[key] = item[()]  # read dataset into memory
+                return result                
+            
+            def read_network(group: h5py.Group):
+                    name = group['name'][()]
+                    name = name.decode('utf-8') if isinstance(name, bytes) else name
+                    s = group['s'][()]
+                    f_data = group['f'][()]
+                    z0 = group['z0'][()]
+                    if 'params' in group:
+                        params = group_to_dict(group['params'])
+                    return skrf.Network(s=s, f=f_data, z0=z0, name=name, params=params)
             
             if measured_grp is not None:
                 if 'name' in measured_grp:
-                    net_grp = measured_grp
-                    name = net_grp['name'][()]
-                    name = name.decode('utf-8') if isinstance(name, bytes) else name
-                    s = net_grp['s'][()]
-                    f_data = net_grp['f'][()]
-                    z0 = net_grp['z0'][()]
-                    measured = skrf.Network(s=s, f=f_data, z0=z0, name=name)
+                    measured = read_network(measured_grp)
                 else:
-                    measured = {}
+                    params = group_to_dict(measured_grp['params']) if 'params' in measured_grp else None
+                    measured = NetworkCollection(params=params)
                     for label in measured_grp.keys():
-                        net_grp = measured_grp[label]
-                        name = net_grp['name'][()]
-                        name = name.decode('utf-8') if isinstance(name, bytes) else name
-                        s = net_grp['s'][()]
-                        f_data = net_grp['f'][()]
-                        z0 = net_grp['z0'][()]
-                        network = skrf.Network(s=s, f=f_data, z0=z0, name=name)
-                        measured[str(label)] = network
+                        network = read_network(measured_grp[label])
+                        measured.add(network)
 
             ## Frequency and features
             frequency = None

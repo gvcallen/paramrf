@@ -7,9 +7,10 @@ import jax.numpy as jnp
 from pmrf.constants import FeatureT, FeatureInputT
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
+from pmrf import NetworkCollection
 
 def extract_features(
-    source: Model | skrf.Network | dict[str, skrf.Network],
+    source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
     features: FeatureInputT,
     dtype: jnp.dtype = jnp.complex128,
@@ -34,7 +35,7 @@ def extract_features(
     - For a list of features, specify a list of any of the above (or, equivalently, a dictionary of lists).
 
     Args:
-        source (Model | skrf.Network | dict[str, skrf.Network]):        The source model or network(s) to extract the features from,
+        source (Model | skrf.Network | NetworkCollection):              The source model or network(s) to extract the features from,
                                                                         with missing networks specified using integers for the number of ports at that index.
                                                                         Lists of networks are treated as forming one, stack network with isolated ports.
         features (FeatureInputT):                                       The features to extract, as described in detail above.
@@ -51,11 +52,11 @@ def extract_features(
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
+        source = NetworkCollection(source)
         frequency = source.frequency
-        source = {'': source}
-    elif isinstance(source, dict):
+    elif isinstance(source, NetworkCollection):
         # Currently only support a single frequency across networks
-        frequency = list(source.values())[0].frequency
+        frequency = source.frequency
     elif isinstance(source, Model):
         if frequency is None:
             raise Exception("Frequency must be passed when extracting features from a model")
@@ -168,7 +169,7 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
         
     return X
 
-def _extract_measured_features(networks: dict[str, skrf.Network], features: list[FeatureT], freq: Frequency | skrf.Frequency, dtype: jnp.dtype) -> jnp.ndarray:
+def _extract_measured_features(networks: NetworkCollection, features: list[FeatureT], freq: Frequency | skrf.Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     n_frequencies = len(freq)
     n_features = len(features)
     
