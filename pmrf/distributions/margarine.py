@@ -23,7 +23,7 @@ class MargarineMAFDistribution(Distribution):
     
     @staticmethod
     def load(path: str):
-        return MAF.load(path)
+        return MargarineMAFDistribution(MAF.load(path))
     
     @staticmethod
     def generate(data, weights=None, construct_kwargs: dict = {}, **kwargs):

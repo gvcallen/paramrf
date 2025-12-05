@@ -22,7 +22,11 @@ from pmrf._features import (
 
 from pmrf.parameters import (
     Parameter as Parameter,
-    ParameterGroup as ParameterGroup
+    ParameterGroup as ParameterGroup,
+)
+
+from pmrf._network_collection import (
+    NetworkCollection,
 )
 
 from pmrf.functions import *
