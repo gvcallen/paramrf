@@ -18,13 +18,16 @@ class PolyChordFitter(BayesianFitter):
     
     Polychord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
-    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, base_dir='chains', **kwargs) -> AnestheticResults:
+    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np
         import pypolychord
         
         if not 'nlive' in kwargs and nlive_factor is not None:
-            kwargs['nlive'] = nlive_factor * (self.num_model_params + len(self.likelihood_params))
+            kwargs['nlive'] = nlive_factor * self.num_params
+
+        kwargs.setdefault('base_dir', f'{self.output_path}/chains')
+        kwargs.setdefault('file_root', self.output_root)
         
         # Get the model parameters
         param_names = self._flat_param_names()
@@ -46,7 +49,6 @@ class PolyChordFitter(BayesianFitter):
             dumper=dumper,
             prior=prior_fn,
             paramnames=labeled_param_names,
-            base_dir=base_dir,
             **kwargs
         )
         

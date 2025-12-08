@@ -18,6 +18,7 @@ from pmrf.frequency import (
 
 from pmrf._features import (
     extract_features,
+    format_features,
 )
 
 from pmrf.parameters import (

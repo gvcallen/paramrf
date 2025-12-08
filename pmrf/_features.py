@@ -8,6 +8,7 @@ from pmrf.constants import FeatureT, FeatureInputT
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
+from pmrf._util import defining_class
 
 def extract_features(
     source: Model | skrf.Network | NetworkCollection,
@@ -23,7 +24,7 @@ def extract_features(
     
     Features can either be specified by convenient aliases using strings, or by their full structure.
     As some examples to demonstrate the possibilities:
-    - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db' (0, 0))`.
+    - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db', (0, 0))`.
       Note that, for the tuple, the empty string at the beginning represents the base model (expanded on below).
     - To extract e.g. the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
     - To extract any other feature in the model that is a function of frequency (e.g. a custom user function), simply use 'myfeature' instead of 's11'.
@@ -48,7 +49,7 @@ def extract_features(
         np.ndarray: The feature matrix of size M x N, where M is the number of frequencies and N is the number of features.
     """    
     # We format the features to be flat (and parse them in the process)
-    features = _format_features(features)
+    features = format_features(features, source=source)
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
@@ -73,18 +74,17 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
-def _format_features(features: FeatureInputT) -> list[FeatureT]:
+def format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None) -> list[FeatureT]:
+    # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
-        raw_features = []
-        for label, value in features.items():
-            if isinstance(value, str):
-                bodies = [value]
-            elif isinstance(value, tuple):
-                bodies = [value]
-            else: # Sequence
-                bodies = value
-            raw_features.extend([(label, body) if isinstance(body, str) else (label, *body) for body in bodies])
-    elif isinstance(features, str):
+        features_out = []
+        for attr, attr_features in features.items():
+            src_obj = getattr(source, attr, None)
+            features_out.extend(format_features(attr_features, base_label=attr, source=src_obj))
+        return features_out
+    
+    # For the general case we get the features into a sequence of aliases or feature tuples and then expand
+    if isinstance(features, str):
         raw_features = [features]
     elif not isinstance(features, Sequence):
         raw_features = [features]
@@ -93,36 +93,53 @@ def _format_features(features: FeatureInputT) -> list[FeatureT]:
 
     features_out = []
     for raw_feature in raw_features:
-        # Options now are 'alias', ('label', 'alias'), ('feature', ports), ('label', 'feature', ports)
+        # Allowed options for each raw feature are:
+        #   1) 'alias'
+        #   2) ('label', 'alias')
+        #   3) ('feature', ports)
+        #   4) ('label', 'feature', ports)
+
+        # Option 1:
         if isinstance(raw_feature, str):
             raw_feature_split = raw_feature.split('.')
             if len(raw_feature_split) > 1:
                 label = ''.join(raw_feature_split[0:-1])
                 raw_feature = raw_feature_split[-1]
             else:
-                label = ''
+                label = base_label
             feature, ports = _parse_feature_alias(raw_feature)
+        # Option 2
+        elif len(raw_feature) == 2 and isinstance(raw_feature[1], str):
+            label = raw_feature[0]
+            feature, ports = _parse_feature_alias(raw_feature[1])
+        # Option 3
         elif len(raw_feature) == 2:
-            if isinstance(raw_feature[1], str):
-                label = raw_feature[0]
-                feature, ports = _parse_feature_alias(raw_feature[1])
-            else:
-                label = ''
-                feature, ports = raw_feature
+            label = base_label
+            feature, ports = raw_feature
+        # Option 4
         else:
-            label, feature, ports = raw_feature
-        
+            label, feature, ports = raw_feature    
         features_out.append((label, feature, ports))
+
+    if source is not None:
+        no_ports_passed = all([feature_out[2] == (-1, -1) for feature_out in features_out])
+        all_labels_equal = all([feature_out[0] == features_out[0][0] for feature_out in features_out])
+        # TODO fix defining_class (not working for e.g. s_mag currently)
+        # base_features_only = all([defining_class(source, feature_out[1]) is Model for feature_out in features_out])
+        if no_ports_passed and all_labels_equal:
+            label = features_out[0][0]
+            port_tuples = source.port_tuples
+            features_out = [(label, feature_out[1], ports) for ports in port_tuples for feature_out in features_out]
 
     return features_out
 
-def _parse_feature_alias(alias: str) -> FeatureT:
+def _parse_feature_alias(alias: str) -> tuple[FeatureT, tuple[int, int]]:
     """
     Converts a feature alias like 's11_mag' to a feature tuple like ('s_mag', (0, 0)).
     Supports:
-      - Feature names with or without two-digit port numbers
+      - Feature names with or without two-digit port numbers.
       - Optional suffixes (e.g., '_mag', '_db')
-      - Returns (-1, -1) for features without ports
+      - Returns (-1, -1) for features without ports.
     """
     match = re.match(r'^([a-zA-Z]+)(\d)?(\d)?(.*)$', alias)
     if not match:
@@ -200,4 +217,4 @@ def _extract_measured_features(networks: NetworkCollection, features: list[Featu
         
         x = getattr(ntwk, prop)[:,m,n]
         X = X.at[:, d].set(x)
-    return X    
+    return X

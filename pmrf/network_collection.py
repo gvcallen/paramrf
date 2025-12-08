@@ -64,7 +64,7 @@ class NetworkCollection:
             raise KeyError(f"No network named '{key}'")
         else:
             raise TypeError("Key must be int or str")
-
+    
     def __len__(self):
         return len(self.networks)
 

@@ -1,7 +1,4 @@
 import numpy as np
-from typing import Any
-import jsonpickle
-import h5py
 
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
 from pmrf.fitting.results._scipy import ScipyMinimizeResults
@@ -10,11 +7,10 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """
-    def run(self, log_every=500, **kwargs) -> FrequentistResults:
+    def run(self, max_iterations=None, log_every=500, **kwargs) -> FrequentistResults:
         from scipy.optimize import minimize, Bounds
         
         # Extract parameter values and bounds from the model
-        params = self.initial_model.flat_params()
         param_names = self.initial_model.flat_param_names()
         
         minimums, maximums = self._bounds()
@@ -44,6 +40,11 @@ class SciPyMinimizeFitter(FrequentistFitter):
                 self.logger.info(f"fevel = {i}, cost = {cost:.2f}")
             callback_args['fevel'] += 1
             return cost
+        
+        options = kwargs.get('options', {})
+        if max_iterations is not None:
+            options.setdefault('maxiter', max_iterations)
+        kwargs['options'] = options
 
         callback_args = {'fevel': 0}
         self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")

@@ -33,7 +33,7 @@ fitter = PolyChordFitter(
 )
 
 # Run the fit and plot the results. We use 10x the number of parameters for the live fit
-result = fitter.run(base_dir='output/fit_cable_polychord/chains', nlive=10)
+result = fitter.run(output_path='output/fit_cable_polychord/chains', nlive=10)
 if rank == 0:
     result.save_hdf('output/fit_cable_polychord/defaultnlive.hdf5')
     result.fitted_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)

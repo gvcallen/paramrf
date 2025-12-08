@@ -86,6 +86,12 @@ def is_overridden(cls, baseclass, method_name):
             break
     return result
 
+def defining_class(obj, attr):
+    for cls in obj.__class__.__mro__:
+        if attr in cls.__dict__:
+            return cls
+    return None
+
 def is_instance_of_annotated_type(instance, annotated_type) -> bool:
     origin = get_origin(annotated_type)
     args = get_args(annotated_type)

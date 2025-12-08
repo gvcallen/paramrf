@@ -68,6 +68,8 @@ class BaseFitter(ABC):
         measured: str | Network | NetworkCollection,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
+        output_path: str | None = None,
+        output_root: str | None = None,
     ) -> None:
         """Initializes the BaseFitter.
 
@@ -91,6 +93,8 @@ class BaseFitter(ABC):
             frequency (Frequency | None, optional):                     The frequency axis to perform the fit on. Defaults to `None`, in which case
                                                                         the measured frequency is used. Note that if a `NetworkCollection` is passed,
                                                                         all networks must have the same frequency.
+            output_path (str | None):                                   The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
+            output_root (str | None):                                   The root name used for output files in the output path. Not used by all fitters. Defaults to `None`.
         """
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
@@ -98,6 +102,11 @@ class BaseFitter(ABC):
             features = [features]
         if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
             features = {k: features for k in measured.names()}
+
+        # if measured is collection:
+            # {'east': ['s', 's_mag'], 'west': ['s', 's_mag']} -> {'east': ['s11', 's11_mag'], 'west': ['s11', 's11_mag', 's12', 's12_mag', 's21', 's21_mag', 's22', 's22_mag']}
+        # else:
+            # ['s', 's_mag'] -> ['s11', 's11_mag', 's12', 's12_mag', 's21', 's21_mag', 's22', 's22_mag']
         
         # All frequencies must be the same across all measurements (at least currently..). We copy the input dict
         measured = measured.copy()
@@ -113,6 +122,8 @@ class BaseFitter(ABC):
         # Initialize settings
         self.frequency = frequency or Frequency.from_skrf(measured_freq)
         self.features = features
+        self.output_path = output_path
+        self.output_root = output_root
         
         self.initial_model: Model = model
         self.measured: skrf.Network | NetworkCollection = measured
@@ -121,6 +132,7 @@ class BaseFitter(ABC):
             self.logger = logging.getLogger("pmrf.fitting")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
+        
     
     def _settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
         return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)
@@ -184,8 +196,6 @@ class FitResults:
             return
 
         # 2. Determine Grid Dimensions
-        # Rows = Number of Datasets (keys)
-        # Cols = Number of S-parameters (N_ports^2)
         n_rows = len(data_to_plot)
         
         # We assume the first network is representative of port counts for layout purposes,
@@ -241,8 +251,8 @@ class FitResults:
             for k in range(plot_col_idx, n_cols):
                 axes[row_idx, k].axis('off')
 
-        plt.show()
-   
+        fig.tight_layout()
+
     def encode_solver_results(self, group: h5py.Group):
         data = None
         if self.solver_results is not None:
