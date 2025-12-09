@@ -1,15 +1,18 @@
+from typing import BinaryIO
 import os
 import jax
 import jax.numpy as jnp
 import numpy as np
+import tempfile
 
 from pmrf.distributions.trainable import TrainableDistribution
+from pmrf.distributions.serializable import SerializableDistribution
 
 os.environ["TF_USE_LEGACY_KERAS"] = "True"
 
 from margarine.maf import MAF
 
-class MargarineMAFDistribution(TrainableDistribution):
+class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     """
     Adapter for MAF models from the 'margarine' library.
     """
@@ -17,16 +20,20 @@ class MargarineMAFDistribution(TrainableDistribution):
         self.maf: MAF = maf
         event_shape = (len(self.maf.theta_min),)
         super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
-
-    def save(self, path: str):
-        return self.maf.save(path)
-    
-    @staticmethod
-    def load(path: str):
-        return MargarineMAFDistribution(MAF.load(path))
+        
+    def save(self, target: str | BinaryIO):
+        if isinstance(target, str):
+            return self.maf.save(target)
+        return self.write(target)
     
     @classmethod
-    def from_samples(samples: jnp.ndarray, construct_kwargs: dict | None = None, **kwargs):
+    def load(cls, source: str | BinaryIO) -> 'MargarineMAFDistribution':
+        if isinstance(source, str):
+            return MargarineMAFDistribution(MAF.load(source))
+        return cls.read(source)
+    
+    @classmethod
+    def from_samples(cls, samples: jnp.ndarray, construct_kwargs: dict | None = None, **kwargs):
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, **construct_kwargs)
         maf.train(**kwargs)

@@ -18,7 +18,8 @@ import jax.numpy as jnp
 import numpy as np
 import jsonpickle
 from collections.abc import Sequence
-from typing import Sequence, Callable
+from typing import Sequence, Callable, BinaryIO, TypeVar
+import os
 
 import skrf as skrf
 import numpy as np
@@ -998,6 +999,7 @@ class Model(eqx.Module):
         params_tree, static_tree = self.partition(include_fixed=True, param_objects=True)
         params = self.named_params()
         model_raw_grp = group.create_group('raw')
+        model_raw_grp.create_dataset('combined', data=jsonpickle.encode(self))
         model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
         model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
         
@@ -1020,10 +1022,20 @@ class Model(eqx.Module):
             The decoded model, or ``None`` if decoding fails.
         """        
         model_raw_grp = group['raw']
+        if 'combined' in model_raw_grp:
+            combined_json = model_raw_grp['combined'][()]
+            combined_json = combined_json.decode('utf-8') if isinstance(combined_json, bytes) else combined_json
+            combined_tree = jsonpickle.decode(combined_json)
+            return combined_tree
+        
         params_json = model_raw_grp['params'][()]
         params_json = params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json
         static_json = model_raw_grp['static'][()]
         static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
+        
+        # params_tree = jsonpickle.decode(params_json)
+        # static_tree = jsonpickle.decode(static_json)
+        # return eqx.combine(params_tree, static_tree)
         
         try:
             params_tree = jsonpickle.decode(params_json)
@@ -1036,10 +1048,12 @@ class Model(eqx.Module):
             # static_tree = dataclasses.replace(static_tree)
             
             return eqx.combine(params_tree, static_tree)
-        except:
+        except Exception as e:
+            import logging
+            logging.warning(f'Error while trying to load model: {e}')
             return None
         
-    def save(self, filepath: str):
+    def save(self, target: str | BinaryIO):
         """Serialize the model to disk in pickle format.
 
         Parameters
@@ -1047,12 +1061,16 @@ class Model(eqx.Module):
         filepath : str
             Destination file path.
         """        
-        json = jsonpickle.encode(self)
-        with open(filepath, 'w') as f:
-            f.write(json)
+        data = jsonpickle.encode(self)
+        
+        if isinstance(target, (str, os.PathLike)):
+            with open(target, "w", encoding="utf8") as f:
+                f.write(data)
+        else:
+            target.write(data)
             
     @classmethod
-    def load(cls: ModelT, filepath: str) -> ModelT:
+    def load(cls: ModelT, source: str | BinaryIO) -> ModelT:
         """Load a model from a pickled file.
 
         Parameters
@@ -1064,8 +1082,14 @@ class Model(eqx.Module):
         -------
         ModelT
         """        
-        with open(filepath, 'r') as f:            
-            return jsonpickle.decode(f.read())
+        if isinstance(source, (str, os.PathLike)):
+            with open(source, "r", encoding="utf8") as f:
+                data = f.read()
+        else:
+            # file-like text object
+            data = source.read()
+
+        return jsonpickle.decode(data)
     
     def export_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.

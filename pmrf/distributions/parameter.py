@@ -9,10 +9,9 @@ class JointParameterDistribution(Distribution):
     reparametrized_params = []
     has_rsample = True
 
-    def __init__(self, param_groups: list[ParameterGroup], param_names: list[str], kind='prior'):
+    def __init__(self, param_groups: list[ParameterGroup], param_names: list[str]):
         self.param_groups = param_groups
         self.param_names = param_names
-        self.kind = kind
         self.name_to_index = {name: i for i, name in enumerate(param_names)}
         self._validate_groups()
 
@@ -22,18 +21,16 @@ class JointParameterDistribution(Distribution):
 
     def _validate_groups(self):
         for group in self.param_groups:
-            if not hasattr(group, self.kind):
-                raise ValueError(f"Parameter group {group} has no {self.kind} defined.")
-            dist: Distribution = getattr(group, self.kind)
+            dist: Distribution = group.distribution
             if not hasattr(dist, "sample") or not hasattr(dist, "log_prob"):
-                raise ValueError(f"Parameter group prior must support sample and log_prob.")
+                raise ValueError(f"Parameter group distribution must support sample and log_prob.")
 
     def sample(self, key, sample_shape=()):
         values = [None] * len(self.param_names)
         for group in self.param_groups:
             group_names = group.parameter_names
             subkey, key = jax.random.split(key)
-            dist: Distribution = getattr(group, self.kind)
+            dist: Distribution = group.distribution
             samples = dist.sample(subkey, sample_shape)
             for i, name in enumerate(group_names):
                 idx = self.name_to_index[name]
@@ -46,7 +43,7 @@ class JointParameterDistribution(Distribution):
             group_names = group.parameter_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_vals = value[..., idxs]
-            dist: Distribution = getattr(group, self.kind)
+            dist: Distribution = group.distribution
             logp = dist.log_prob(group_vals)
             total_logp += logp
         return total_logp
@@ -57,7 +54,7 @@ class JointParameterDistribution(Distribution):
             group_names = group.parameter_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_u = u[..., idxs]
-            dist: Distribution = getattr(group, self.kind)
+            dist: Distribution = group.distribution
             group_x = dist.icdf(group_u)
             for i, name in enumerate(group_names):
                 values[self.name_to_index[name]] = group_x[..., i]
@@ -69,7 +66,7 @@ class JointParameterDistribution(Distribution):
             group_names = group.parameter_names
             idxs = [self.name_to_index[name] for name in group_names]
             group_x = x[..., idxs]
-            dist: Distribution = getattr(group, self.kind)
+            dist: Distribution = group.distribution
             group_u = dist.cdf(group_x)
             for i, name in enumerate(group_names):
                 values[self.name_to_index[name]] = group_u[..., i]

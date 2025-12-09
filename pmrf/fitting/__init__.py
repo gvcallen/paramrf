@@ -14,8 +14,8 @@ from pmrf.fitting._frequentist import (
 
 from pmrf.fitting._bayesian import (
     BayesianFitter,
-    BayesianSamplingFitter,
-    BayesianSamplingResults,
+    BayesianFitter,
+    BayesianResults,
     BayesianResults,
 )
 

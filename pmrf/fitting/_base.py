@@ -311,7 +311,6 @@ class FitResults:
                 if isinstance(self.measured, skrf.Network):
                     write_network(measured_grp, self.measured)
                 else:
-                    measured_grp['name'] = self.measured.name or 'network_collection'
                     for ntwk in self.measured:
                         ntwk_grp = measured_grp.create_group(ntwk.name)
                         write_network(ntwk_grp, ntwk)
@@ -401,17 +400,17 @@ class FitResults:
                 return result                
             
             def read_network(group: h5py.Group):
-                    name = group['name'][()]
-                    name = name.decode('utf-8') if isinstance(name, bytes) else name
-                    s = group['s'][()]
-                    f_data = group['f'][()]
-                    z0 = group['z0'][()]
-                    if 'params' in group:
-                        params = group_to_dict(group['params'])
-                    return skrf.Network(s=s, f=f_data, z0=z0, name=name, params=params)
+                name = group['name'][()]
+                name = name.decode('utf-8') if isinstance(name, bytes) else name
+                s = group['s'][()]
+                f_data = group['f'][()]
+                z0 = group['z0'][()]
+                if 'params' in group:
+                    params = group_to_dict(group['params'])
+                return skrf.Network(s=s, f=f_data, z0=z0, name=name, params=params)
             
             if measured_grp is not None:
-                if 'name' in measured_grp:
+                if 's' in measured_grp and 'f' in measured_grp and 'z0' in measured_grp:
                     measured = read_network(measured_grp)
                 else:
                     params = group_to_dict(measured_grp['params']) if 'params' in measured_grp else None
