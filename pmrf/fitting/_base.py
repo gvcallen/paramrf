@@ -70,6 +70,7 @@ class BaseFitter(ABC):
         features: FeatureInputT | None = None,
         output_path: str | None = None,
         output_root: str | None = None,
+        sparam_kind: str = 'both',
     ) -> None:
         """Initializes the BaseFitter.
 
@@ -95,7 +96,7 @@ class BaseFitter(ABC):
                                                                         all networks must have the same frequency.
             output_path (str | None):                                   The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
             output_root (str | None):                                   The root name used for output files in the output path. Not used by all fitters. Defaults to `None`.
-            sparam_data (str | None):                                   The S-parameter data to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
+            sparam_kind (str | None):                                   The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
                                                                         See `extract_features` for more details.
         """
         # Set the default features and ensure it is not a scalar
@@ -119,12 +120,13 @@ class BaseFitter(ABC):
         # Initialize settings
         self.frequency = frequency or Frequency.from_skrf(measured_freq)
         self.features = features
+        self.sparam_kind = sparam_kind
         self.output_path = output_path
         self.output_root = output_root
         
         self.initial_model: Model = model
         self.measured: skrf.Network | NetworkCollection = measured
-        self.measured_features = extract_features(measured, None, features)
+        self.measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
         if rank == 0:
             self.logger = logging.getLogger("pmrf.fitting")
         else:
@@ -148,7 +150,7 @@ class BaseFitter(ABC):
     
     def _make_feature_function(self, as_numpy=False):
         general_feature_fn = wrap(extract_features, self.initial_model, self.frequency, as_numpy=as_numpy)
-        feature_fn = lambda theta: general_feature_fn(theta, self.features)
+        feature_fn = lambda theta: general_feature_fn(theta, self.features, sparam_kind=self.sparam_kind)
         return jax.jit(feature_fn)
     
 @dataclass

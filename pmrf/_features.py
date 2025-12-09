@@ -14,7 +14,7 @@ def extract_features(
     source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
     features: FeatureInputT,
-    sparam_data: str = 'both',
+    sparam_kind: str = 'both',
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
@@ -45,7 +45,7 @@ def extract_features(
         frequency (pmrf.Frequency | skrf.Frequency, optional):          The frequency to extract the features at. This will become the row dimension of the resultant matrix.
                                                                         This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
                                                                         in which case the network's internal frequency is used. Otherwise, the network is interpolated.
-        sparam_data (str | None):                                       The S-parameter data to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
+        sparam_kind (str | None):                                       The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
                                                                         Port expansion happens if features such as ['s_re', 's_mag'] are passed i.e. without ports.
         dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
 
@@ -53,7 +53,7 @@ def extract_features(
         np.ndarray: The feature matrix of size M x N, where M is the number of frequencies and N is the number of features.
     """    
     # We format the features to be flat (and parse them in the process)
-    features = _format_features(features, source=source, sparam_data=sparam_data)
+    features = _format_features(features, source=source, sparam_kind=sparam_kind)
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
@@ -78,7 +78,7 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
-def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_data: str = 'both') -> list[FeatureT]:
+def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'both') -> list[FeatureT]:
     # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
         features_out = []
@@ -87,7 +87,7 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
                 src_obj = source[attr]
             else:
                 src_obj = getattr(source, attr)
-            features_out.extend(_format_features(attr_features, base_label=attr, source=src_obj))
+            features_out.extend(_format_features(attr_features, base_label=attr, source=src_obj, sparam_kind=sparam_kind))
         return features_out
     
     # For the general case we get the features into a sequence of aliases or feature tuples and then expand
@@ -134,11 +134,11 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
         # TODO fix defining_class (not working for e.g. s_mag currently)
         # base_features_only = all([defining_class(source, feature_out[1]) is Model for feature_out in features_out])
         if no_ports_passed and all_labels_equal:
-            if sparam_data == 'both':
+            if sparam_kind == 'both':
                 port_tuples = source.port_tuples
-            elif sparam_data == 'reflection':
+            elif sparam_kind == 'reflection':
                 port_tuples = [pt for pt in source.port_tuples if pt[0] == pt[1]]
-            elif sparam_data == 'transmission':
+            elif sparam_kind == 'transmission':
                 port_tuples = [pt for pt in source.port_tuples if pt[0] != pt[1]]
             else:
                 raise Exception('Unknown S-parameter type for port expansion')
