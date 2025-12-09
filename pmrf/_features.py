@@ -14,6 +14,7 @@ def extract_features(
     source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
     features: FeatureInputT,
+    sparam_data: str = 'both',
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
@@ -23,6 +24,7 @@ def extract_features(
     are combined column-by-column into a matrix with frequency in the row dimension.
     
     Features can either be specified by convenient aliases using strings, or by their full structure.
+
     As some examples to demonstrate the possibilities:
     - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db', (0, 0))`.
       Note that, for the tuple, the empty string at the beginning represents the base model (expanded on below).
@@ -42,14 +44,16 @@ def extract_features(
         features (FeatureInputT):                                       The features to extract, as described in detail above.
         frequency (pmrf.Frequency | skrf.Frequency, optional):          The frequency to extract the features at. This will become the row dimension of the resultant matrix.
                                                                         This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
-                                                                        in which case the network's internal frequency is used. Otherwise, the network is i508e76ad-05af-4e71-8c22-053f37e3a62dnterpolated.
+                                                                        in which case the network's internal frequency is used. Otherwise, the network is interpolated.
+        sparam_data (str | None):                                       The S-parameter data to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
+                                                                        Port expansion happens if features such as ['s_re', 's_mag'] are passed i.e. without ports.
         dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
 
     Returns:
         np.ndarray: The feature matrix of size M x N, where M is the number of frequencies and N is the number of features.
     """    
     # We format the features to be flat (and parse them in the process)
-    features = format_features(features, source=source)
+    features = _format_features(features, source=source, sparam_data=sparam_data)
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
@@ -74,7 +78,7 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
-def format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None) -> list[FeatureT]:
+def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_data: str = 'both') -> list[FeatureT]:
     # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
         features_out = []
@@ -83,7 +87,7 @@ def format_features(features: FeatureInputT, *, base_label='', source: Model | s
                 src_obj = source[attr]
             else:
                 src_obj = getattr(source, attr)
-            features_out.extend(format_features(attr_features, base_label=attr, source=src_obj))
+            features_out.extend(_format_features(attr_features, base_label=attr, source=src_obj))
         return features_out
     
     # For the general case we get the features into a sequence of aliases or feature tuples and then expand
@@ -130,8 +134,16 @@ def format_features(features: FeatureInputT, *, base_label='', source: Model | s
         # TODO fix defining_class (not working for e.g. s_mag currently)
         # base_features_only = all([defining_class(source, feature_out[1]) is Model for feature_out in features_out])
         if no_ports_passed and all_labels_equal:
+            if sparam_data == 'both':
+                port_tuples = source.port_tuples
+            elif sparam_data == 'reflection':
+                port_tuples = [pt for pt in source.port_tuples if pt[0] == pt[1]]
+            elif sparam_data == 'transmission':
+                port_tuples = [pt for pt in source.port_tuples if pt[0] != pt[1]]
+            else:
+                raise Exception('Unknown S-parameter type for port expansion')
+
             label = features_out[0][0]
-            port_tuples = source.port_tuples
             features_out = [(label, feature_out[1], ports) for ports in port_tuples for feature_out in features_out]
 
     return features_out
