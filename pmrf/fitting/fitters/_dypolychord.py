@@ -91,6 +91,7 @@ class dyPolyChordFitter(BayesianFitter):
             fitted_model=fitted_model,
             solver_results=nested_samples,
             settings=settings,
+            fitter=self,
         )
 
         return self.results

@@ -155,6 +155,7 @@ class FitResults:
     fitted_model: Model | None = None
     solver_results: Any = None
     settings: FitSettings | None = None
+    fitter: BaseFitter | None = None
 
     def plot_s_db(self):
         """

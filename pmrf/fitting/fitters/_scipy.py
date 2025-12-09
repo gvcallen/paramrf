@@ -63,6 +63,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
             fitted_model=fitted_model,
             solver_results=scipy_result,
             settings=settings,
+            fitter=self,
         )                
 
         return self.results

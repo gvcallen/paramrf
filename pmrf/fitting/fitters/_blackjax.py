@@ -109,7 +109,8 @@ class BlackJAXNSFitter(BayesianFitter):
             settings=self._settings,
             solver_results=nested_samples,
             solver_args=(),
-            fitter_kwargs={'best_param_method': best_param_method}
+            fitter_kwargs={'best_param_method': best_param_method},
+            fitter=self,
         )
 
         return self.results

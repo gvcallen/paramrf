@@ -209,9 +209,8 @@ class BayesianSamplingFitter(BayesianFitter):
         posterior_samples: jnp.ndarray = results.posterior_samples()
         model_param_names: list[str] = self._model_param_names()
         model_posterior_samples: jnp.ndarray = posterior_samples[:,0:self.num_model_params]
-        model_posterior_dist = dist.from_samples(model_posterior_samples)
+        model_posterior_dist = dist.from_samples(model_posterior_samples, **train_kwargs)
         model_param_group = ParameterGroup(model_param_names, model_posterior_dist)
         
         results.fitted_model = results.fitted_model.with_param_groups(model_param_group)
-
         return results

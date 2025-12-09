@@ -115,6 +115,7 @@ class NumPyroNSFitter(NumPyroFitter):
             fitted_model=fitted_model,
             solver_results=samples,
             settings=settings,
+            fitter=self,
         )   
 
         return self.results

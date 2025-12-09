@@ -196,6 +196,7 @@ class OptaxFitter(FrequentistFitter):
             fitted_model=fitted_model,
             solver_results=solver_results,
             settings=settings,
+            fitter=self,
         )
 
         return self.results
