@@ -79,13 +79,12 @@ class NetworkCollection:
     # Utility functions
     # -----------------------------------------------------------
 
-    def filter(self, predicate: Callable[[rf.Network, dict], bool]):
+    def filter(self, predicate: Callable[[rf.Network], bool]):
         """Return a new NetworkCollection of items where predicate(ntwk, params) is True."""
         out = NetworkCollection()
         for ntwk in self.networks:
-            params = ntwk.params
-            if predicate(ntwk, params):
-                out.add(ntwk, **params)
+            if predicate(ntwk):
+                out.add(ntwk)
         return out
 
     def apply(self, fn: Callable[[rf.Network], rf.Network],

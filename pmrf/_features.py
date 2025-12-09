@@ -79,7 +79,10 @@ def format_features(features: FeatureInputT, *, base_label='', source: Model | s
     if isinstance(features, dict):
         features_out = []
         for attr, attr_features in features.items():
-            src_obj = getattr(source, attr, None)
+            if isinstance(source, NetworkCollection):
+                src_obj = source[attr]
+            else:
+                src_obj = getattr(source, attr)
             features_out.extend(format_features(attr_features, base_label=attr, source=src_obj))
         return features_out
     

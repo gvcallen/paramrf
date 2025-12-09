@@ -210,7 +210,7 @@ class FitResults:
             ncols=n_cols, 
             figsize=(4 * n_cols, 3.5 * n_rows), 
             squeeze=False, # Ensures axes is always a 2D array
-            constrained_layout=True
+            # constrained_layout=True
         )
 
         # 3. Plotting Loop

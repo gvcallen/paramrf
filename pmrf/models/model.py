@@ -918,7 +918,7 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)    
     
-    def with_free_submodels(self: ModelT, free_submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> ModelT:
+    def with_free_submodels(self: ModelT, free_submodels: 'Model' | Sequence['Model'] | str | Sequence[str], fix_others=False) -> ModelT:
         """Fix all parameters **except** those appearing in the given submodels.
 
         The submodels can be any models that reference the parameters in this model.
@@ -947,7 +947,7 @@ class Model(eqx.Module):
         allowed_free_param_values = [param for source in free_submodels for param in source.named_params().values()]
         allowed_free_params = {k: v for k, v in self.named_params().items() if any(v is p for p in allowed_free_param_values)}
 
-        return self.with_params(allowed_free_params, fix_others=True)          
+        return self.with_params(allowed_free_params, fix_others=fix_others)          
     
     def to_skrf(self, frequency: Frequency | skrf.Frequency, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
