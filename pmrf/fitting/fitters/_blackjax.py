@@ -103,7 +103,7 @@ class BlackJAXNSFitter(BayesianFitter):
             
         fitted_model = self.initial_model.with_flat_params(x0)
                 
-        return AnestheticResults(
+        self.results = AnestheticResults(
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             settings=self._settings,
@@ -111,3 +111,5 @@ class BlackJAXNSFitter(BayesianFitter):
             solver_args=(),
             fitter_kwargs={'best_param_method': best_param_method}
         )
+
+        return self.results

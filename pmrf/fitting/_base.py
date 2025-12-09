@@ -1,21 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from collections import Counter
 import importlib
 import logging
 from typing import Any, Sequence
-from io import BytesIO
-from functools import partial
 
 import matplotlib.pyplot as plt
 import jax
-import jax.numpy as jnp
-import numpy as np
 import json
 import skrf
 import h5py
 import jsonpickle
-import equinox as eqx
 from skrf import Network
 try:
     from mpi4py import MPI
@@ -23,7 +17,7 @@ try:
 except ImportError:
     rank = 0
 
-from pmrf.models import Model, DictModel
+from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.constants import FeatureT
 from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
@@ -131,8 +125,9 @@ class BaseFitter(ABC):
             self.logger = logging.getLogger("pmrf.fitting")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
+
+        self.results: FitResults | None = None
         
-    
     def _settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
         return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)
     

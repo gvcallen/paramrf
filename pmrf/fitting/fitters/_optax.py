@@ -190,10 +190,12 @@ class OptaxFitter(FrequentistFitter):
 
         self.logger.info(f"Finished optax-{optimizer}: steps={solver_results['nit']}, "f"best_cost={final_cost:.6g}")
 
-        return FrequentistResults(
+        self.results = FrequentistResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             solver_results=solver_results,
             settings=settings,
         )
+
+        return self.results

@@ -3,13 +3,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from numpyro.distributions import Distribution
+from pmrf.distributions.trainable import TrainableDistribution
 
 os.environ["TF_USE_LEGACY_KERAS"] = "True"
 
 from margarine.maf import MAF
 
-class MargarineMAFDistribution(Distribution):
+class MargarineMAFDistribution(TrainableDistribution):
     """
     Adapter for MAF models from the 'margarine' library.
     """
@@ -25,15 +25,18 @@ class MargarineMAFDistribution(Distribution):
     def load(path: str):
         return MargarineMAFDistribution(MAF.load(path))
     
-    @staticmethod
-    def generate(data, weights=None, construct_kwargs: dict = {}, **kwargs):
-        from margarine.maf import MAF
-        if weights is not None:
-            maf = MAF(data, weights=weights, **construct_kwargs)
-        else:
-            maf = MAF(data, **construct_kwargs)
+    @classmethod
+    def from_samples(samples: jnp.ndarray, construct_kwargs: dict | None = None, **kwargs):
+        construct_kwargs = construct_kwargs or {}
+        maf = MAF(samples, **construct_kwargs)
         maf.train(**kwargs)
-
+        return MargarineMAFDistribution(maf)
+    
+    @classmethod
+    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, **kwargs):
+        construct_kwargs = construct_kwargs or {}
+        maf = MAF(samples, weights=weights, **construct_kwargs)
+        maf.train(**kwargs)
         return MargarineMAFDistribution(maf)
 
     def sample(self, key, sample_shape):

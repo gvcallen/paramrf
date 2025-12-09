@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -5,14 +6,23 @@ import skrf
 import numpyro.distributions as dist
 import dataclasses
 
-from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
+from pmrf.models import Model
+from pmrf.parameters import Parameter, ParameterGroup, Uniform
+from pmrf.distributions import TrainableDistribution, TrainableDistributionT
 from pmrf.fitting._base import BaseFitter, FitResults
-
 
 class BayesianResults(FitResults):
     pass
+
+class BayesianSamplingResults(BayesianResults):
+    @abstractmethod
+    def prior_samples(self) -> jnp.ndarray:
+        pass
+
+    @abstractmethod
+    def posterior_samples(self) -> jnp.ndarray:
+        pass
     
 class BayesianFitter(BaseFitter):
     """
@@ -24,11 +34,12 @@ class BayesianFitter(BaseFitter):
         self,
         model: Model,
         measured: skrf.Network | dict[str, skrf.Network],
+        *args,
         frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
         likelihood_kind: str | None = "gaussian",
         likelihood_params: dict[str, Parameter] = None,
-        *args, **kwargs
+        **kwargs
     ) -> None:
         """Initializes the BayesianFitter.
 
@@ -50,7 +61,9 @@ class BayesianFitter(BaseFitter):
                 or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
                 of size N containing the names of the likelihood parameters to use for each feature.
             likelihood_params (dict[str, Parameter], optional):
-                A dictionary of likelihood parameters to use for the likelihood function.                
+                A dictionary of likelihood parameters to use for the likelihood function.
+            train_posteriors (bool, optional):
+                Whether or not model posteriors should be trained and set for the fitted model.
         """
         feature_sigmas: list[str] = kwargs.pop('feature_sigmas', None)        
 
@@ -82,9 +95,15 @@ class BayesianFitter(BaseFitter):
     @property
     def num_likelihood_params(self) -> int:
         return len(self.likelihood_params)
+    
+    def _model_param_names(self) -> list[str]:
+        return self.initial_model.flat_param_names()
+    
+    def _likelihood_param_names(self) -> list[str]:
+        return list(self.likelihood_params.keys())
         
     def _flat_param_names(self) -> list[str]:
-        return self.initial_model.flat_param_names() + list(self.likelihood_params.keys())
+        return self._model_param_names() + self._likelihood_param_names()
     
     def _make_prior_transform_fn(self, as_numpy=False):
         model_prior = self.initial_model.prior()
@@ -94,7 +113,7 @@ class BayesianFitter(BaseFitter):
         @jax.jit
         def prior_transform_fn(u):
             theta_model = model_prior.icdf(u[0:num_model_params])
-            theta_likelihood = jnp.array([param.prior.icdf(u[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
+            theta_likelihood = jnp.array([param.distribution.icdf(u[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
             return jnp.concat((theta_model, theta_likelihood))
             
         if as_numpy:
@@ -114,7 +133,7 @@ class BayesianFitter(BaseFitter):
         @jax.jit
         def logprior_fn(params: jax.Array) -> float:
             logprob_model = model_prior.log_prob(params[0:num_model_params])
-            logprob_likelihood = jnp.array([param.prior.log_prob(params[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
+            logprob_likelihood = jnp.array([param.distribution.log_prob(params[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
             return jnp.sum(logprob_model) + jnp.sum(logprob_likelihood)
         
         if as_numpy:
@@ -134,7 +153,7 @@ class BayesianFitter(BaseFitter):
         else:
             raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
 
-        x0 = jnp.array(list(self.initial_model.flat_params()) + [param.prior.mean for param in self.likelihood_params.values()])
+        x0 = jnp.array(list(self.initial_model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
         if as_numpy:
             log_likelihood_fn_jax = log_likelihood_fn
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
@@ -175,3 +194,24 @@ class BayesianFitter(BaseFitter):
             return logL
         
         return loglikelihood_fn
+    
+    @abstractmethod
+    def update_posteriors(self) -> BayesianResults:
+        raise Exception('Update posteriors is an abstract method and must be implemented in a Bayesian fitter')
+    
+class BayesianSamplingFitter(BayesianFitter):
+    def run(self, *args, **kwargs) -> BayesianSamplingResults:
+        return super().run(*args, **kwargs)
+
+    def update_posteriors(self, dist: TrainableDistributionT, **train_kwargs) -> BayesianSamplingResults:
+        results: BayesianSamplingResults = self.results
+
+        posterior_samples: jnp.ndarray = results.posterior_samples()
+        model_param_names: list[str] = self._model_param_names()
+        model_posterior_samples: jnp.ndarray = posterior_samples[:,0:self.num_model_params]
+        model_posterior_dist = dist.from_samples(model_posterior_samples)
+        model_param_group = ParameterGroup(model_param_names, model_posterior_dist)
+        
+        results.fitted_model = results.fitted_model.with_param_groups(model_param_group)
+
+        return results

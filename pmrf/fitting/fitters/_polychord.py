@@ -67,10 +67,12 @@ class PolyChordFitter(BayesianFitter):
         
         # settings = self._settings(kwargs, explicit_kwargs())
         settings = self._settings(kwargs)
-        return AnestheticResults(
+        self.results = AnestheticResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             solver_results=nested_samples,
             settings=settings,
         )
+
+        return self.results

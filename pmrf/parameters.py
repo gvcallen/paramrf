@@ -32,7 +32,7 @@ class Parameter(eqx.Module):
     - Use in mathematical operations just like a JAX/numpy array
     - `Parameter` objects are JAX PyTrees, making them compatible with JAX's transformations (`jit`, `grad`, etc.).
     - Mark as `fixed` (which is honoured by fitting and sampling routines)
-    - Associate priors, specified as numpyro distributions (uniform, normal etc.)
+    - Associate distribution, specified as numpyro distributions (uniform, normal etc.)
 
     Examples
     --------
@@ -51,7 +51,7 @@ class Parameter(eqx.Module):
         # A parameter that is fixed and will not be optimized during a fit
         p2 = prf.Parameter(value=50.0, fixed=True, name='Z0')
 
-        # A parameter with a uniform distribution prior
+        # A parameter with a uniform distribution
         # Factory functions are a convenient way to create these
         p3 = prf.Uniform(min=0.9e-9, max=1.1e-9, name='L1')
 
@@ -61,7 +61,7 @@ class Parameter(eqx.Module):
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     # None of these are marked static so we can update them if we want to
     value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
-    prior: Distribution | None = field(default=None)
+    distribution: Distribution | None = field(default=None)
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
     name: str | None = field(default=None, static=True)
@@ -83,11 +83,11 @@ class Parameter(eqx.Module):
         jnp.array
             The minimum value, or -np.inf if no distribution is set.
         """
-        if self.prior is not None:
-            if isinstance(self.prior, dist.Uniform):
-                return self.prior.low
+        if self.distribution is not None:
+            if isinstance(self.distribution, dist.Uniform):
+                return self.distribution.low
             else:
-                return self.prior.icdf(MIN_PERCENTILE)
+                return self.distribution.icdf(MIN_PERCENTILE)
             
         if jnp.isscalar(self.value):
             return -jnp.inf
@@ -102,11 +102,11 @@ class Parameter(eqx.Module):
         jnp.array
             The maximum value, or np.inf if no distribution is set.
         """
-        if self.prior is not None:
-            if isinstance(self.prior, dist.Uniform):
-                return self.prior.high
+        if self.distribution is not None:
+            if isinstance(self.distribution, dist.Uniform):
+                return self.distribution.high
             else:
-                return self.prior.icdf(MAX_PERCENTILE)
+                return self.distribution.icdf(MAX_PERCENTILE)
             
         if jnp.isscalar(self.value):
             return -jnp.inf
@@ -127,28 +127,28 @@ class Parameter(eqx.Module):
         """
         return dataclasses.replace(self, value=value)
     
-    def with_prior(self, prior: Distribution) -> 'Parameter':
-        r"""Return a copy with a new prior distribution.
+    def with_dist(self, dist: Distribution) -> 'Parameter':
+        r"""Return a copy with a new distribution.
 
         Parameters
         ----------
-        prior : numpyro.distributions.Distribution
-            The prior to associate with this parameter.
+        dist : numpyro.distributions.Distribution
+            The distribution to associate with this parameter.
 
         Returns
         -------
         Parameter
-            A copy of this object with ``prior`` replaced.
+            A copy of this object with ``distribution`` replaced.
         """
-        if not isinstance(prior, Distribution):
-            raise Exception('Only numpyro distributions are supported as priors')
+        if not isinstance(dist, Distribution):
+            raise Exception('Only numpyro distributions are supported as parameter distributions')
         
-        return dataclasses.replace(self, prior=prior)
+        return dataclasses.replace(self, distribution=dist)
     
     def flatten(self, separator='_') -> 'Parameter | list[Parameter]':
         r"""Flattens self, either returning a single Parameter
         if the internal parameter is scalar, or a list.
-        If the internal prior cannot be separated, this will raise an Exception.
+        If the internal distribution cannot be separated, this will raise an Exception.
         
         Returns
         -------
@@ -158,19 +158,19 @@ class Parameter(eqx.Module):
         if jnp.isscalar(self.value):
             return self
         else:
-            if self.prior is not None:
-                priors_split = _split_vectorized_distribution(self.prior)
+            if self.distribution is not None:
+                dists_split = _split_vectorized_distribution(self.distribution)
             else:
-                priors_split = [None] * len(self.value)
-            return [Parameter(value=val, prior=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, priors_split))]
+                dists_split = [None] * len(self.value)
+            return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
     def interpolate(self, x_old, x_new) -> 'Parameter':
         value = jnp.interp(x_old, x_new, self.value)
-        prior = interp_distribution(x_old, x_new, self.prior)
+        dist = interp_distribution(x_old, x_new, self.distribution)
 
         return Parameter(
             value=value,
-            prior=prior,
+            distribution=dist,
             fixed=self.fixed,
             scale=self.scale,
             name=self.name
@@ -288,11 +288,11 @@ class Parameter(eqx.Module):
         Returns
         -------
         str
-            A JSON-formatted string containing value, prior, fixed, scale and name.
+            A JSON-formatted string containing value, distribution, fixed, scale and name.
         """
         d = {
             "value": self.value.tolist(),
-            "prior": _serialize_distribution(self.prior),
+            "distribution": _serialize_distribution(self.distribution),
             "fixed": self.fixed,
             "scale": self.scale,
             "name": self.name
@@ -316,7 +316,7 @@ class Parameter(eqx.Module):
         d = json.loads(s)
         return cls(
             value=jnp.asarray(d["value"]),
-            prior=_deserialize_distribution(d["prior"]),
+            distribution=_deserialize_distribution(d["distribution"]),
             fixed=d["fixed"],
             scale=d["scale"],
             name=d["name"]
@@ -328,21 +328,21 @@ class ParameterGroup:
     r"""
     A metadata class that groups a set of named flat parameters and defines any relationships between them.
     """
-    param_names: list[str]
-    prior: dist.Distribution | None = field(default=None)
+    parameter_names: list[str]
+    distribution: dist.Distribution | None = field(default=None)
     
-    def __init__(self, param_names: list[str] | dict[str, Parameter], prior: dist.Distribution | None = None):
+    def __init__(self, param_names: list[str] | dict[str, Parameter], dist: dist.Distribution | None = None):
         r"""Construct a :class:`ParameterGroup`.
 
         Parameters
         ----------
         param_names : list[str] | dict[str, Parameter]
             The names of the flattened parameters (or a mapping to parameters).
-        prior : numpyro.distributions.Distribution, optional
-            An optional prior over the flattened parameters.
+        dist : numpyro.distributions.Distribution, optional
+            An optional joint distribution over the flattened parameters.
         """
-        self.param_names = param_names
-        self.prior = prior
+        self.parameter_names = param_names
+        self.distribution = dist
         
     @property
     def num_flat_params(self):
@@ -353,7 +353,7 @@ class ParameterGroup:
         int
             The count of names in ``param_names``.
         """
-        return len(self.param_names)
+        return len(self.parameter_names)
             
     @property
     def min(self) -> jnp.array:
@@ -364,14 +364,14 @@ class ParameterGroup:
         jnp.array
             The minimum value, or -np.inf if no distribution is set.
         """
-        if self.prior is not None:
-            if hasattr(self.prior, 'min'):
-                return self.prior.min.reshape((self.num_flat_params))
-            elif hasattr(self.prior, 'low'):
-                return self.prior.low.reshape((self.num_flat_params))
+        if self.distribution is not None:
+            if hasattr(self.distribution, 'min'):
+                return self.distribution.min.reshape((self.num_flat_params))
+            elif hasattr(self.distribution, 'low'):
+                return self.distribution.low.reshape((self.num_flat_params))
             else:
                 # TODO implement optimization to determine minima
-                return self.prior.icdf(jnp.array([MIN_PERCENTILE] * self.num_flat_params))
+                return self.distribution.icdf(jnp.array([MIN_PERCENTILE] * self.num_flat_params))
             
         return jnp.array([-jnp.inf] * self.num_flat_params)
     
@@ -384,20 +384,20 @@ class ParameterGroup:
         jnp.array
             The maximum value, or np.inf if no distribution is set.
         """
-        if self.prior is not None:
-            if hasattr(self.prior, 'max'):
-                return self.prior.max.reshape((self.num_flat_params))
-            elif hasattr(self.prior, 'high'):
-                return self.prior.high.reshape((self.num_flat_params))
+        if self.distribution is not None:
+            if hasattr(self.distribution, 'max'):
+                return self.distribution.max.reshape((self.num_flat_params))
+            elif hasattr(self.distribution, 'high'):
+                return self.distribution.high.reshape((self.num_flat_params))
             else:
                 # TODO implement optimization to determine maximum
-                return self.prior.icdf(jnp.array([MAX_PERCENTILE] * self.num_flat_params))
+                return self.distribution.icdf(jnp.array([MAX_PERCENTILE] * self.num_flat_params))
             
         return jnp.array([jnp.inf] * self.num_flat_params)
     
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a uniform prior distribution.
+    r"""Creates a `Parameter` with a uniform distribution.
 
     Parameters
     ----------
@@ -425,9 +425,9 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
     else:
         low, high = jnp.array(low), jnp.array(high)
     
-    priors = dist.Uniform(low, high)
+    dists = dist.Uniform(low, high)
     values = (low + high) / 2.0 if value is None else value
-    return Parameter(value=values, prior=priors, **kwargs)
+    return Parameter(value=values, distribution=dists, **kwargs)
 
 def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
     r"""Creates a `Parameter` with a uniform distribution and a percentage width.
@@ -453,7 +453,7 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
     return Uniform(low=mean-delta, high=mean+delta, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a normal (Gaussian) prior distribution.
+    r"""Creates a `Parameter` with a normal (Gaussian) distribution.
 
     Parameters
     ----------
@@ -480,9 +480,9 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
     else:
         mean, std = jnp.array(mean), jnp.array(std)
     
-    priors = dist.Normal(mean, std)
+    dists = dist.Normal(mean, std)
     values = jnp.array(mean) if value is None else value
-    return Parameter(value=values, prior=priors, **kwargs)
+    return Parameter(value=values, distribution=dists, **kwargs)
     
 def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
     r"""Creates a `Parameter` with a normal (Gaussian) distribution and a percentage standard deviation.

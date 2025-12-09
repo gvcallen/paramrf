@@ -57,10 +57,12 @@ class SciPyMinimizeFitter(FrequentistFitter):
         fitted_model = self.initial_model.with_flat_params(scipy_result.x)
         
         settings = self._settings(kwargs)
-        return ScipyMinimizeResults(
+        self.results = ScipyMinimizeResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             solver_results=scipy_result,
             settings=settings,
         )                
+
+        return self.results

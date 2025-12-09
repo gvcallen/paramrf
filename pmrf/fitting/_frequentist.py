@@ -26,10 +26,11 @@ class FrequentistFitter(BaseFitter):
         self,
         model: Model,
         measured: skrf.Network | dict[str, skrf.Network],
+        *args,
         frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
         cost: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
-        *args, **kwargs
+        **kwargs
     ) -> None:
         """Initializes the FrequentistFitter.
 
@@ -96,7 +97,7 @@ class FrequentistFitter(BaseFitter):
         
         for param_group in param_groups:
             group_minimums, group_maximums = param_group.min, param_group.max
-            group_param_names = param_group.param_names
+            group_param_names = param_group.parameter_names
             for i, name in enumerate(group_param_names):
                 name_to_minimum[name] = group_minimums[i]
                 name_to_maximum[name] = group_maximums[i]

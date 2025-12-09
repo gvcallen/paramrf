@@ -33,7 +33,7 @@ class NumPyroFitter(BayesianFitter):
 
             y_pred = feature_fn(x)
             y_real, y_imag = jnp.real(y_pred), jnp.imag(y_pred)
-            sigma = numpyro.sample('sigma', self.likelihood_params['sigma'].prior)
+            sigma = numpyro.sample('sigma', self.likelihood_params['sigma'].distribution)
 
             numpyro.sample('obs_real', dist.Normal(y_real, sigma), obs=obs_real)
             numpyro.sample('obs_imag', dist.Normal(y_imag, sigma), obs=obs_imag)       
@@ -74,13 +74,14 @@ class NumPyroMCMCFitter(NumPyroFitter):
         
         # Return the results
         settings = self._settings(kwargs, explicit_kwargs())
-        return NumPyroResults(
+        self.results = NumPyroResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             solver_results=samples,
             settings=settings,
         )   
+        return self.results
         
 class NumPyroNSFitter(NumPyroFitter):
     def run(self, *, constructor_kwargs=None, terminated_kwargs=None, **kwargs) -> NumPyroResults:
@@ -108,10 +109,12 @@ class NumPyroNSFitter(NumPyroFitter):
         
         # Return the results
         settings = self._settings(kwargs, explicit_kwargs())
-        return NumPyroResults(
+        self.results = NumPyroResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,
             solver_results=samples,
             settings=settings,
         )   
+
+        return self.results

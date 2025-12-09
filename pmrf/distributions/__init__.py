@@ -6,6 +6,9 @@ from numpyro.distributions import (
     MultivariateNormal as MultivariateNormalDistribution,
     LogNormal as LogNormalDistribution,
 )
+
+from pmrf.distributions.trainable import TrainableDistribution, TrainableDistributionT
+
 try:
     from pmrf.distributions.margarine import MargarineMAFDistribution
 except ImportError:

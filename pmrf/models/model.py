@@ -678,10 +678,10 @@ class Model(eqx.Module):
         params = self.named_params(flat=True, flat_params=True, include_fixed=include_fixed)
         groups = [group for group in self._param_groups]
 
-        grouped_param_names = {name for group in groups for name in group.param_names}
+        grouped_param_names = {name for group in groups for name in group.parameter_names}
         for name, param in params.items():
             if name not in grouped_param_names:
-                groups.append(ParameterGroup(param_names=[name], prior=param.prior))
+                groups.append(ParameterGroup(param_names=[name], dist=param.distribution))
         
         return groups
     
