@@ -62,8 +62,8 @@ class BaseFitter(ABC):
         measured: str | Network | NetworkCollection,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
-        output_path: str | None = None,
-        output_root: str | None = None,
+        output_path: str = 'output',
+        output_root: str = 'fit',
         sparam_kind: str = 'both',
     ) -> None:
         """Initializes the BaseFitter.
@@ -157,12 +157,14 @@ class FitResults:
     settings: FitSettings | None = None
     fitter: BaseFitter | None = None
 
-    def plot_s_db(self):
+    def plot_s_db(self, use_initial_model=False):
         """
         Plots the S-parameters (Magnitude in dB) of the Measured vs Fitted data.
         Handles both single Network and dictionary of Networks.
         """
-        if self.measured is None or self.fitted_model is None:
+        model = self.initial_model if use_initial_model else self.fitted_model
+        
+        if self.measured is None or model is None:
             print("Missing measured data or fitted model.")
             return
 
@@ -177,14 +179,14 @@ class FitResults:
             for meas_nw in self.measured:
                 # Retrieve the specific sub-model using the key name
                 try:
-                    sub_model = getattr(self.fitted_model, meas_nw.name)
+                    sub_model = getattr(model, meas_nw.name)
                     fit_nw = sub_model.to_skrf(self.settings.frequency)
                     data_to_plot.append((meas_nw.name, meas_nw, fit_nw))
                 except AttributeError:
                     print(f"Warning: Could not find sub-model attribute '{key}' in fitted_model.")
         else:
             # Single network case
-            fit_nw = self.fitted_model.to_skrf(self.settings.frequency)
+            fit_nw = model.to_skrf(self.settings.frequency)
             data_to_plot.append(("Main Model", self.measured, fit_nw))
 
         if not data_to_plot:

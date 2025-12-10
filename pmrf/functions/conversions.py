@@ -170,6 +170,13 @@ def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
         G = G.at[:, diag_idx, diag_idx].set(z0)        
         z = jnp.linalg.solve(nudge_eig((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
         # z = jnp.linalg.solve((Id - s) @ F, (s @ G + jnp.conjugate(G)) @ F)
+    elif s_def == 'traveling':
+        # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
+        # Creating diagonal matrices of shape (nports, nports) for each nfreqs
+        sqrtz0 = jnp.zeros_like(s)
+        diag_idx = jnp.arange(s.shape[1])
+        sqrtz0 = sqrtz0.at[:, diag_idx, diag_idx].set(jnp.sqrt(z0))
+        z = sqrtz0 @ jnp.linalg.solve(nudge_eig(Id - s), (Id + s) @ sqrtz0)        
     else:
         raise ValueError(f'Unknown s_def: {s_def}')
 
@@ -190,17 +197,23 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
         F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
         G = G.at[:, diag_idx, diag_idx].set(z0)
         s = rsolve(F @ (z + G), F @ (z - jnp.conjugate(G)))
+    elif s_def == 'traveling':
+        # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
+        # Creating Identity matrices of shape (nports,nports) for each nfreqs
+        Id, sqrty0 = jnp.zeros_like(z), jnp.zeros_like(z) # (nfreqs, nports, nports)
+        diag_idx = jnp.arange(z.shape[1])
+        Id = Id.at[:, diag_idx, diag_idx].set(1.0)
+        sqrty0 = sqrty0.at[:, diag_idx, diag_idx].set(jnp.sqrt(1.0/z0))
+        s = rsolve(sqrty0 @ z @ sqrty0 + Id, sqrty0 @ z @ sqrty0 - Id)        
     else:
         raise ValueError(f'Unknown s_def: {s_def}')
 
     return s
 
-def renormalize_s(
-        s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike,
-        ) -> jnp.ndarray:
-    return z2s(s2z(s, z0=z_old, s_def='power'), z0=z_new, s_def='power')
+def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power') -> jnp.ndarray:
+    return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
 
-# def renormalize_s(
+# def renormalize_s_direct(
 #     s: jnp.ndarray,
 #     z_old: NumberLike,
 #     z_new: NumberLike,

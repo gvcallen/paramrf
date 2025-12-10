@@ -13,6 +13,7 @@ from pmrf.models.model import Model
 class TLine(Model):
     length: Parameter = 1.0
     floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
+    renormalize: bool = True
 
 class RLGCLine(TLine):
     """
@@ -44,33 +45,46 @@ class RLGCLine(TLine):
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")    
 
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the ABCD-matrix from the line's RLGC parameters.
+    # def a(self, freq: Frequency) -> jnp.ndarray:
+    #     """Calculates the ABCD-matrix from the line's RLGC parameters.
+
+    #     Args:
+    #         freq (Frequency): The frequency axis for the calculation.
+
+    #     Returns:
+    #         np.ndarray: The resultant ABCD-matrix.
+    #     """
+    #     import numpy as np
+
+    #     if self.floating:
+    #         raise Exception('Cannot calculate ABCD matrix for a floating line')
+
+    #     w = freq.w
+    #     R, L, G, C = self.rlgc(freq)
+    #     gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
+    #     Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+
+    #     gL = gamma*self.length
+        
+    #     a = jnp.array([
+    #         [jnp.cosh(gL), Zc * jnp.sinh(gL)],
+    #         [1 / Zc * jnp.sinh(gL), jnp.cosh(gL)]
+    #     ]).transpose(2, 0, 1)
+
+    #     return a
+    
+    def z0_characteristic(self, frequency: Frequency) -> jnp.ndarray:
+        """Calculates the characteristic impedance from the line's RLGC parameters.
 
         Args:
-            freq (Frequency): The frequency axis for the calculation.
+            frequency (Frequency): The frequency axis for the calculation.
 
         Returns:
             np.ndarray: The resultant ABCD-matrix.
         """
-        import numpy as np
-
-        if self.floating:
-            raise Exception('Cannot calculate ABCD matrix for a floating line')
-
-        w = freq.w
-        R, L, G, C = self.rlgc(freq)
-        gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-        Zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
-
-        gL = gamma*self.length
-        
-        a = jnp.array([
-            [jnp.cosh(gL), Zc * jnp.sinh(gL)],
-            [1 / Zc * jnp.sinh(gL), jnp.cosh(gL)]
-        ]).transpose(2, 0, 1)
-
-        return a
+        w = frequency.w
+        R, L, G, C = self.rlgc(frequency)
+        return jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))        
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         """Calculates the S-matrix from the line's RLGC parameters.
@@ -109,7 +123,13 @@ class RLGCLine(TLine):
                 [s21, s11],
             ]).transpose(2, 0, 1)
 
-        return renormalize_s(s, Zc, self.z0)
+        if self.renormalize:
+            # from skrf import renormalize_s as renormalize_s_skrf
+            # return jnp.array(renormalize_s_skrf(s, Zc, self.z0, 'traveling', 'traveling'))
+            # According to scikit-rf, all the above is defined in terms of traveling S-parameters
+            # (see e.g. skrf.media.Media.line)
+            return renormalize_s(s, Zc, self.z0, 'traveling', 'traveling')
+        return s
     
 class ConstantRLGCLine(RLGCLine):
     """
