@@ -127,7 +127,7 @@ class Parameter(eqx.Module):
         """
         return dataclasses.replace(self, value=value)
     
-    def with_dist(self, dist: Distribution) -> 'Parameter':
+    def with_distribution(self, dist: Distribution) -> 'Parameter':
         r"""Return a copy with a new distribution.
 
         Parameters

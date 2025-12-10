@@ -38,7 +38,13 @@ class AnestheticResults(BayesianResults):
     def posterior_samples(self) -> jnp.ndarray:
         nested_samples = self.nested_samples.posterior_points()
         prior_samples = nested_samples.loc[:, self.sample_param_names].to_numpy()
-        return jnp.array(prior_samples)    
+        return jnp.array(prior_samples)
+
+    def weighted_samples(self) -> jnp.ndarray:
+        return jnp.array(self.nested_samples.loc[:, self.sample_param_names].to_numpy())
+    
+    def weights(self) -> jnp.ndarray:
+        return jnp.array(self.nested_samples.get_weights())
     
     def encode_solver_results(self, group: h5py.Group):
         samples = self.solver_results

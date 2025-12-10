@@ -9,7 +9,7 @@ import dataclasses
 from pmrf.constants import FeatureInputT
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf.distributions import TrainableDistribution, TrainableDistributionT, MargarineMAFDistribution
+from pmrf.distributions.trainable import TrainableDistributionT
 from pmrf.fitting._base import BaseFitter, FitResults
 
 class BayesianResults(FitResults):
@@ -21,10 +21,14 @@ class BayesianResults(FitResults):
     def posterior_samples(self) -> jnp.ndarray:
         pass
     
-    def update_posteriors(self, Distribution: TrainableDistributionT = MargarineMAFDistribution, **train_kwargs):
+    def update_priors(self, train_dist: TrainableDistributionT | None = None, **train_kwargs):
+        if train_dist is None:
+            from pmrf.distributions import MargarineMAFDistribution
+            train_dist = MargarineMAFDistribution
+        
         param_names: list[str] = self.fitted_model.flat_param_names()
         samples: jnp.ndarray = self.posterior_samples()[:,0:self.fitted_model.num_flat_params]
-        dist = Distribution.from_samples(samples, **train_kwargs)
+        dist = train_dist.from_samples(samples, **train_kwargs)
         param_group = ParameterGroup(param_names, dist)
         
         self.fitted_model = self.fitted_model.with_param_groups(param_group)

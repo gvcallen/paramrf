@@ -10,13 +10,12 @@ from pmrf.distributions.serializable import SerializableDistribution
 
 os.environ["TF_USE_LEGACY_KERAS"] = "True"
 
-from margarine.maf import MAF
-
 class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     """
     Adapter for MAF models from the 'margarine' library.
     """
     def __init__(self, maf, validate_args=None):
+        from margarine.maf import MAF
         self.maf: MAF = maf
         event_shape = (len(self.maf.theta_min),)
         super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
@@ -28,12 +27,14 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     
     @classmethod
     def load(cls, source: str | BinaryIO) -> 'MargarineMAFDistribution':
+        from margarine.maf import MAF
         if isinstance(source, str):
             return MargarineMAFDistribution(MAF.load(source))
         return cls.read(source)
     
     @classmethod
     def from_samples(cls, samples: jnp.ndarray, construct_kwargs: dict | None = None, **kwargs):
+        from margarine.maf import MAF
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, **construct_kwargs)
         maf.train(**kwargs)
@@ -41,6 +42,7 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     
     @classmethod
     def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, **kwargs):
+        from margarine.maf import MAF
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, weights=weights, **construct_kwargs)
         maf.train(**kwargs)
