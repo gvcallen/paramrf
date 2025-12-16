@@ -409,6 +409,8 @@ class FitResults:
                 z0 = group['z0'][()]
                 if 'params' in group:
                     params = group_to_dict(group['params'])
+                else:
+                    params = None
                 return skrf.Network(s=s, f=f_data, z0=z0, name=name, params=params)
             
             if measured_grp is not None:
