@@ -1,43 +1,28 @@
-import jax
-from jax import vmap
 import skrf
 
 import jax.numpy as jnp
+from pmrf._util import field
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.models.lumped import MATCH, SHORT
-from pmrf._util import field
 
 class Measured(Model):
-    s_measured: jnp.ndarray
-    f_measured: jnp.ndarray
-
-    def __init__(self, ntwk: skrf.Network | str):
-        if isinstance(ntwk, str):
-            ntwk = skrf.Network(ntwk)
-
-        self.s_measured = jnp.array(ntwk.s)
-        self.f_measured = jnp.array(ntwk.f)
+    network: skrf.Network = field(static=True)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        S, f = self.s_measured, self.f_measured
+        S_old = jnp.array(self.network.s)
+        f_old = jnp.array(self.network.f)
         f_new = freq.f
-        
-        n_ports = S.shape[1]
-
-        # Clip f_new to be within f bounds
-        f_min, f_max = f[0], f[-1]
-        f_new_clipped = jnp.clip(f_new, f_min, f_max)
+        n_ports = S_old.shape[1]
 
         # Split into real and imaginary parts
-        S_real = jnp.real(S)
-        S_imag = jnp.imag(S)
+        S_real = jnp.real(S_old)
+        S_imag = jnp.imag(S_old)
 
         # Interpolate each real/imag component independently
         def interp_component(S_comp):
             return jnp.stack([
                 jnp.stack([
-                    jnp.interp(f_new_clipped, f, S_comp[:, i, j])
+                    jnp.interp(f_new, f_old, S_comp[:, i, j], left=jnp.nan, right=jnp.nan)
                     for j in range(n_ports)
                 ], axis=0)
                 for i in range(n_ports)

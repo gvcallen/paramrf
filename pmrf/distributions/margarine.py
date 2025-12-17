@@ -37,6 +37,7 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
         from margarine.maf import MAF
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, **construct_kwargs)
+        kwargs.setdefault('epochs', 20000)
         maf.train(**kwargs)
         return MargarineMAFDistribution(maf)
     
@@ -45,7 +46,7 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
         from margarine.maf import MAF
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, weights=weights, **construct_kwargs)
-        maf.train(**kwargs)
+        kwargs.setdefault('epochs', 20000)
         return MargarineMAFDistribution(maf)
 
     def sample(self, key, sample_shape):

@@ -100,7 +100,7 @@ class BaseSampler(ABC):
         D = len(params)
 
         U = self._generate_hypercube_samples(N, D)
-        prior = self.model.prior()
+        prior = self.model.distribution()
         
         X = []
         for i in range(N):

@@ -115,7 +115,7 @@ class BayesianFitter(BaseFitter):
         return self._model_param_names() + self._likelihood_param_names()
     
     def _make_prior_transform_fn(self, as_numpy=False):
-        model_prior = self.initial_model.prior()
+        model_prior = self.initial_model.distribution()
         num_model_params = len(self.initial_model.flat_params())
         num_likelihood_params = len(self.likelihood_params)
         
@@ -135,7 +135,7 @@ class BayesianFitter(BaseFitter):
         return prior_transform_fn
     
     def _make_log_prior_fn(self, as_numpy=False):
-        model_prior = self.initial_model.prior()
+        model_prior = self.initial_model.distribution()
         num_model_params = self.initial_model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
         

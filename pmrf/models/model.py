@@ -651,6 +651,17 @@ class Model(eqx.Module):
         """Flat parameter names (matching :meth:`flat_params` order)."""        
         return list(self.named_params(flat_params=True).keys())
     
+    def submodel_params(self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], **kwargs):
+        if isinstance(submodels, Model) or isinstance(submodels, str):
+            submodels: list[Model] = [submodels]
+        
+        if len(submodels) != 0 and isinstance(submodels[0], str):
+            submodels: list[Model] = [getattr(self, name) for name in submodels]
+
+        param_values = [param for source in submodels for param in source.named_params(**kwargs).values()]
+        params = {k: v for k, v in self.named_params(**kwargs).items() if any(v is p for p in param_values)}        
+        return params
+    
     def param_names(self, *args, **kwargs):
         """Parameter names for current (possibly filtered) selection."""        
         params = self.named_params(*args, **kwargs)
@@ -686,8 +697,8 @@ class Model(eqx.Module):
         
         return groups
     
-    def prior(self) -> Distribution:
-        """Joint prior distribution over (flattened) parameters."""        
+    def distribution(self) -> Distribution:
+        """Joint distribution over (flattened) parameters."""        
         return JointParameterDistribution(self.param_groups(), self.flat_param_names())
     
     @classmethod
@@ -845,12 +856,12 @@ class Model(eqx.Module):
         param_groups_new = [param_group for param_group in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         
-    def with_fixed_params(self: ModelT, *params, check_unknown=True) -> ModelT:
+    def with_fixed_params(self: ModelT, params, check_unknown=True) -> ModelT:
         """Return a model with specified parameters fixed.
 
         Parameters
         ----------
-        *params : str
+        params : list[str]
             Parameter names to fix.
         check_unknown : bool, default=True
             Error if any provided name does not exist.
@@ -877,12 +888,12 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: ModelT, *params, fix_others=False, check_unknown=True) -> ModelT:
+    def with_free_params(self: ModelT, params, fix_others=False, check_unknown=True) -> ModelT:
         """Free the specified parameters.
 
         Parameters
         ----------
-        *params : str | Sequence[str] | Sequence[Parameter]
+        params : Sequence[str] | Sequence[Parameter]
             Parameters to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
@@ -893,11 +904,6 @@ class Model(eqx.Module):
         -------
         ModelT
         """
-        if isinstance(params[0], Sequence) and len(params) == 1:
-            params = params[0]
-        else:
-            params = [params]
-
         if isinstance(params[0], Parameter):
             param_id_to_name: dict[Parameter, str] = {id(v): k for k, v in self.named_params().items()}
             params = [param_id_to_name[id(param)] for param in params]
@@ -919,36 +925,41 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)    
     
-    def with_free_submodels(self: ModelT, free_submodels: 'Model' | Sequence['Model'] | str | Sequence[str], fix_others=False) -> ModelT:
-        """Fix all parameters **except** those appearing in the given submodels.
+    def with_free_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> ModelT:
+        """Free all parameters in the given submodels.
 
-        The submodels can be any models that reference the parameters in this model.
-        Specifically, `free_submodels` can consist of direct children of this model,
-        submodels of those direct children, and any models that are built using the
-        parameters of this model. Then, only the parameters that are found in both
-        the submodels and this model are set to be free, and all others are fixed.
+        Submodels parameters are obtained using ``Model.submodel_params``,
+        and subsequently freed using ``Model.with_free_params``.
         
         Parameters
         ----------
         free_submodels : Model | Sequence[Model] | str | Sequence[str]
-            Submodels whose parameters should remain free. If strings are
-            provided, they are resolved via ``getattr(self, name)``.
+            Submodels whose parameters should be free.
 
         Returns
         -------
         ModelT
         """        
-        # TODO this function ends up error in `delias` if `free_submodels` is empty
-        if isinstance(free_submodels, Model) or isinstance(free_submodels, str):
-            free_submodels: list[Model] = [free_submodels]
+        model_params = self.submodel_params(submodels, include_fixed=include_fixed)
+        return self.with_free_params(list(model_params.keys()), fix_others=fix_others)
+    
+    def with_fixed_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> ModelT:
+        """Fixed all parameters in the given submodels.
+
+        Submodels parameters are obtained using ``Model.submodel_params``,
+        and subsequently fixed using ``Model.with_fixed_params``.
         
-        if len(free_submodels) != 0 and isinstance(free_submodels[0], str):
-            free_submodels: list[Model] = [getattr(self, name) for name in free_submodels]
+        Parameters
+        ----------
+        free_submodels : Model | Sequence[Model] | str | Sequence[str]
+            Submodels whose parameters should be free.
 
-        allowed_free_param_values = [param for source in free_submodels for param in source.named_params().values()]
-        allowed_free_params = {k: v for k, v in self.named_params().items() if any(v is p for p in allowed_free_param_values)}
-
-        return self.with_params(allowed_free_params, fix_others=fix_others)          
+        Returns
+        -------
+        ModelT
+        """        
+        model_params = self.submodel_params(submodels)
+        return self.with_fixed_params(list(model_params.keys()))
     
     def to_skrf(self, frequency: Frequency | skrf.Frequency, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
@@ -1091,7 +1102,7 @@ class Model(eqx.Module):
 
         return jsonpickle.decode(data)
     
-    def export_touchstone(self, frequency: Frequency | skrf.Frequency, filename: str, sigma: float = 0.0, **skrf_kwargs):
+    def export_touchstone(self, filename: str, frequency: Frequency | skrf.Frequency, sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.
 
         Parameters
@@ -1108,6 +1119,9 @@ class Model(eqx.Module):
         Any
             Return value of ``Network.write_touchstone``.
         """        
+        if not isinstance(filename, str):
+            raise Exception('Filename must be a string')
+        
         ntwk = self.to_skrf(frequency, sigma=sigma)
         retval = ntwk.write_touchstone(filename, **skrf_kwargs)
         return retval
