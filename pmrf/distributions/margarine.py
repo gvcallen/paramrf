@@ -42,11 +42,12 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
         return MargarineMAFDistribution(maf)
     
     @classmethod
-    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, **kwargs):
+    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, construct_kwargs: dict | None = None, **kwargs):
         from margarine.maf import MAF
         construct_kwargs = construct_kwargs or {}
         maf = MAF(samples, weights=weights, **construct_kwargs)
         kwargs.setdefault('epochs', 20000)
+        maf.train(**kwargs)
         return MargarineMAFDistribution(maf)
 
     def sample(self, key, sample_shape):

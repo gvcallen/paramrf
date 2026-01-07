@@ -14,21 +14,30 @@ from pmrf.fitting._base import BaseFitter, FitResults
 
 class BayesianResults(FitResults):
     @abstractmethod
-    def prior_samples(self) -> jnp.ndarray:
+    def prior_samples(self, equal_weights=False) -> jnp.ndarray:
         pass
 
     @abstractmethod
-    def posterior_samples(self) -> jnp.ndarray:
+    def posterior_samples(self, equal_weights=False) -> jnp.ndarray:
+        pass
+
+    @abstractmethod
+    def weights(self) -> jnp.ndarray:
         pass
     
-    def update_priors(self, train_dist: TrainableDistributionT | None = None, **train_kwargs):
+    def fit_posterior(self, train_dist: TrainableDistributionT | None = None, equal_weights=True, **train_kwargs):
         if train_dist is None:
             from pmrf.distributions import MargarineMAFDistribution
             train_dist = MargarineMAFDistribution
         
         param_names: list[str] = self.fitted_model.flat_param_names()
-        samples: jnp.ndarray = self.posterior_samples()[:,0:self.fitted_model.num_flat_params]
-        dist = train_dist.from_samples(samples, **train_kwargs)
+        samples: jnp.ndarray = self.posterior_samples(equal_weights=equal_weights)[:,0:self.fitted_model.num_flat_params]
+        
+        if equal_weights:
+            dist = train_dist.from_samples(samples, **train_kwargs)
+        else:
+            weights = self.weights()
+            dist = train_dist.from_weighted_samples(samples, weights, **train_kwargs)
         param_group = ParameterGroup(param_names, dist)
         
         self.fitted_model = self.fitted_model.with_param_groups(param_group)

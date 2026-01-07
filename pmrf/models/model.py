@@ -347,26 +347,6 @@ class Model(eqx.Module):
         freq = Frequency(1, 2, 2)
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
-    
-    @cached_property
-    def num_flat_params(self) -> int:
-        """Number of free, **flattened** parameters.
-
-        Returns
-        -------
-        int
-        """
-        return len(self.flat_params())
-    
-    @cached_property
-    def num_params(self) -> int:
-        """Number of free parameters.
-
-        Returns
-        -------
-        int
-        """
-        return len(self.named_params())
 
     @property
     def nports(self) -> int:
@@ -392,6 +372,26 @@ class Model(eqx.Module):
         jnp.ndarray
         """
         return jnp.array(self._z0)
+    
+    @cached_property
+    def num_params(self) -> int:
+        """Number of free parameters.
+
+        Returns
+        -------
+        int
+        """
+        return len(self.named_params())   
+
+    @cached_property
+    def num_flat_params(self) -> int:
+        """Number of free, **flattened** parameters.
+
+        Returns
+        -------
+        int
+        """
+        return len(self.flat_params()) 
     
     # ---- Core API -------------------------------------------------------------
     
@@ -643,6 +643,11 @@ class Model(eqx.Module):
                 return {k: p.value for k, p in _params.items()}
         return _params
     
+    def named_param_values(self, scaled=False, *args, **kwargs) -> dict[str, jnp.ndarray]:
+        kwargs['values'] = True
+        kwargs['scaled_values'] = scaled
+        return self.named_params(*args, **kwargs)
+    
     def flat_params(self, *args, **kwargs) -> jnp.ndarray:
         """Shorthand for ``named_params(flat=True, ...)``."""        
         return self.named_params(*args, flat=True, **kwargs)
@@ -832,6 +837,11 @@ class Model(eqx.Module):
         """Return a copy with dataclass-style field replacements."""        
         return dataclasses.replace(self, *args, **kwargs)
     
+    def with_submodel_fields(self: ModelT, submodel_name: str, *args, **kwargs) -> ModelT:
+        """Return a copy with dataclass-style field replacements on a submodel."""        
+        with_field_kwargs = {submodel_name: getattr(self, submodel_name).with_fields(*args, **kwargs)}
+        return self.with_fields(**with_field_kwargs)
+    
     def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
         """Return a a model with parameter groups appended.
         
@@ -856,7 +866,7 @@ class Model(eqx.Module):
         param_groups_new = [param_group for param_group in param_groups_new]
         return dataclasses.replace(self, _param_groups=param_groups_new)
         
-    def with_fixed_params(self: ModelT, params, check_unknown=True) -> ModelT:
+    def with_fixed_params(self: ModelT, params: list[str] | Callable[[str], bool], check_unknown=True) -> ModelT:
         """Return a model with specified parameters fixed.
 
         Parameters
@@ -870,8 +880,13 @@ class Model(eqx.Module):
         -------
         ModelT
         """
+        # For legacy callers
         if isinstance(params, str):
             params = [params]
+            
+        if isinstance(params, Callable):
+            params = [p for p in self.param_names() if params(p)]
+        
         params = set(params)
             
         current_params = self.named_params()        
@@ -888,7 +903,10 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: ModelT, params, fix_others=False, check_unknown=True) -> ModelT:
+    def with_free_params_only(self: ModelT, params: list[str] | Callable[[str], bool]) -> ModelT:
+        return self.with_free_params(params, fix_others=True)
+    
+    def with_free_params(self: ModelT, params: list[str] | Callable[[str], bool], fix_others=False) -> ModelT:
         """Free the specified parameters.
 
         Parameters
@@ -897,13 +915,14 @@ class Model(eqx.Module):
             Parameters to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
-        check_unknown : bool, default=True
-            Error if any provided name does not exist.
 
         Returns
         -------
         ModelT
         """
+        if isinstance(params, Callable):
+            params = [p for p in self.param_names() if params(p)]        
+        
         if isinstance(params[0], Parameter):
             param_id_to_name: dict[Parameter, str] = {id(v): k for k, v in self.named_params().items()}
             params = [param_id_to_name[id(param)] for param in params]
@@ -912,10 +931,9 @@ class Model(eqx.Module):
         current_params = self.named_params(include_fixed=True)
         current_param_names = set(current_params.keys())
         
-        if check_unknown:
-            for param_name in params:
-                if param_name not in current_param_names:
-                    raise Exception(f"Specified parameter '{param_name}'' not found in model")
+        for param_name in params:
+            if param_name not in current_param_names:
+                raise Exception(f"Specified parameter '{param_name}'' not found in model")
         
         new_params = current_params.copy()
         for name, param in current_params.items():
@@ -1058,7 +1076,7 @@ class Model(eqx.Module):
             # params_tree = dataclasses.replace(params_tree)
             # static_tree = dataclasses.replace(static_tree)
             
-            return eqx.combine(params_tree, static_tree)
+            return cls(eqx.combine(params_tree, static_tree))
         except Exception as e:
             import logging
             logging.warning(f'Error while trying to load model: {e}')

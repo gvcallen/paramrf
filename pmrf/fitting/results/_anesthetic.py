@@ -30,13 +30,19 @@ class AnestheticResults(BayesianResults):
             self.nested_samples.prior().plot_2d(axes, color='grey', alpha=0.5)
         return self.nested_samples.plot_2d(axes)    
     
-    def prior_samples(self) -> jnp.ndarray:
-        nested_samples = self.nested_samples.prior_points()
-        prior_samples = nested_samples.loc[:, self.sample_param_names].to_numpy()
-        return jnp.array(prior_samples)
+    def prior_samples(self, equal_weights=False) -> jnp.ndarray:
+        if equal_weights:
+            nested_samples = self.nested_samples.prior_points()
+        else:
+            nested_samples = self.nested_samples.prior()
+        samples = nested_samples.loc[:, self.sample_param_names].to_numpy()
+        return jnp.array(samples)
     
-    def posterior_samples(self) -> jnp.ndarray:
-        nested_samples = self.nested_samples.posterior_points()
+    def posterior_samples(self, equal_weights=False) -> jnp.ndarray:
+        if equal_weights:
+            nested_samples = self.nested_samples.posterior_points()
+        else:
+            nested_samples = self.nested_samples
         prior_samples = nested_samples.loc[:, self.sample_param_names].to_numpy()
         return jnp.array(prior_samples)
 
@@ -45,6 +51,9 @@ class AnestheticResults(BayesianResults):
     
     def weights(self) -> jnp.ndarray:
         return jnp.array(self.nested_samples.get_weights())
+    
+    def prior_weights(self) -> jnp.ndarray:
+        return jnp.array(self.nested_samples.prior().get_weights())
     
     def encode_solver_results(self, group: h5py.Group):
         samples = self.solver_results

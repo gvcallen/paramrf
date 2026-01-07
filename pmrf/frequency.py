@@ -132,6 +132,7 @@ class Frequency(eqx.Module):
         >>> f = np.linspace(75,100,101)
         >>> rf.Frequency.from_f(f, unit='GHz')
         """
+        unit = unit or 'Hz'
         if jnp.isscalar(f):
             f = [f]
         temp_freq =  cls(0,0,0,unit=unit)
