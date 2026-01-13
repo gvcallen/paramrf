@@ -25,19 +25,31 @@ class BayesianResults(FitResults):
     def weights(self) -> jnp.ndarray:
         pass
     
-    def fit_posterior(self, train_dist: TrainableDistributionT | None = None, equal_weights=True, **train_kwargs):
+    def fit_posterior(self, train_dist: TrainableDistributionT | None = None, equal_weights=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs):
+        param_names: list[str] = self.fitted_model.flat_param_names()
+        training_data: jnp.ndarray = self.posterior_samples(equal_weights=equal_weights)[:,0:self.fitted_model.num_flat_params]        
+
+        if drift_sigma != 0.0:
+            if boost_method == 'kde':
+                from margarine.kde import KDE
+                kde = KDE(training_data)
+                kde.generate_kde()
+                training_data = kde.sample(boost_samples)
+            elif boost_method != None:
+                raise Exception('Unknown posterior training data boost method')
+                
+            scale = np.abs(np.mean(training_data, axis=0)) * drift_sigma
+            training_data += np.random.normal(loc=0.0, scale=scale, size=training_data.shape)
+
         if train_dist is None:
             from pmrf.distributions import MargarineMAFDistribution
             train_dist = MargarineMAFDistribution
         
-        param_names: list[str] = self.fitted_model.flat_param_names()
-        samples: jnp.ndarray = self.posterior_samples(equal_weights=equal_weights)[:,0:self.fitted_model.num_flat_params]
-        
         if equal_weights:
-            dist = train_dist.from_samples(samples, **train_kwargs)
+            dist = train_dist.from_samples(training_data, **train_kwargs)
         else:
             weights = self.weights()
-            dist = train_dist.from_weighted_samples(samples, weights, **train_kwargs)
+            dist = train_dist.from_weighted_samples(training_data, weights, **train_kwargs)
         param_group = ParameterGroup(param_names, dist)
         
         self.fitted_model = self.fitted_model.with_param_groups(param_group)

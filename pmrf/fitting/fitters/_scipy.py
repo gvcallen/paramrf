@@ -1,7 +1,7 @@
 import numpy as np
 
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
-from pmrf.fitting.results._scipy import ScipyMinimizeResults
+from pmrf.fitting.results._scipy import SciPyMinimizeResults
 
 class SciPyMinimizeFitter(FrequentistFitter):
     """
@@ -57,7 +57,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         fitted_model = self.initial_model.with_flat_params(scipy_result.x)
         
         settings = self._settings(kwargs)
-        self.results = ScipyMinimizeResults(
+        self.results = SciPyMinimizeResults(
             measured=self.measured,
             initial_model=self.initial_model,
             fitted_model=fitted_model,

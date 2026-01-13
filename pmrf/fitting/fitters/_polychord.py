@@ -42,6 +42,7 @@ class PolyChordFitter(BayesianFitter):
 
         self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
         self.logger.info(f'Parameter names: {param_names}')
+        self.logger.info(f'Features: {self.features}')
         self.logger.info(f'PolyChord started at {time_string()}')
         nested_samples = pypolychord.run(
             loglikelihood_fn,

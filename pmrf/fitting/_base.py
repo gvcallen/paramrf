@@ -64,7 +64,7 @@ class BaseFitter(ABC):
         features: FeatureInputT | None = None,
         output_path: str = 'output',
         output_root: str = 'fit',
-        sparam_kind: str = 'both',
+        sparam_kind: str = 'all',
     ) -> None:
         """Initializes the BaseFitter.
 
@@ -90,7 +90,7 @@ class BaseFitter(ABC):
                                                                         all networks must have the same frequency.
             output_path (str | None):                                   The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
             output_root (str | None):                                   The root name used for output files in the output path. Not used by all fitters. Defaults to `None`.
-            sparam_kind (str | None):                                   The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
+            sparam_kind (str | None):                                   The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
                                                                         See `extract_features` for more details.
         """
         # Set the default features and ensure it is not a scalar

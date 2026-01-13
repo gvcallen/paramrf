@@ -4,8 +4,9 @@ import jsonpickle
 import h5py
 
 from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
+from pmrf.distributions import UniformDistribution
 
-class ScipyMinimizeResults(FrequentistResults):
+class SciPyMinimizeResults(FrequentistResults):
     def encode_solver_results(self, grp: h5py.Group):
         for key, val in self.solver_results.items():
             if isinstance(val, (int, float, str, np.number)):
@@ -25,3 +26,5 @@ class ScipyMinimizeResults(FrequentistResults):
             
         from scipy.optimize import OptimizeResult
         return OptimizeResult(result_dict)
+    
+ScipyMinimizeResults = SciPyMinimizeResults

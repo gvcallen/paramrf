@@ -31,7 +31,7 @@ from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
-from numpyro.distributions import Distribution
+from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
@@ -828,6 +828,14 @@ class Model(eqx.Module):
             
             params_tree_recon = unravel_fn(params)
             return combine(params_tree_recon, static)   
+        
+    def with_uniform_distributions(self, width_frac=0.01):
+        updates = {}
+        for name, param in self.named_params().items():
+            distribution = UniformDistribution(param * (1.0 - width_frac) / param.scale, param * (1.0 + width_frac) / param.scale)
+            updates[name] = param.with_distribution(distribution)
+            
+        return self.with_params(updates)
         
     def with_flat_params(self, *args, **kwargs):
         """Alias for :meth:`with_params` when passing a flat array."""        

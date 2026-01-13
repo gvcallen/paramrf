@@ -10,11 +10,11 @@ from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf._util import defining_class
 
-def extract_features(
+def  extract_features(
     source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
     features: FeatureInputT,
-    sparam_kind: str = 'both',
+    sparam_kind: str = 'all',
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """Extracts features from a model or a network.
@@ -45,7 +45,7 @@ def extract_features(
         frequency (pmrf.Frequency | skrf.Frequency, optional):          The frequency to extract the features at. This will become the row dimension of the resultant matrix.
                                                                         This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
                                                                         in which case the network's internal frequency is used. Otherwise, the network is interpolated.
-        sparam_kind (str | None):                                       The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'both'.
+        sparam_kind (str | None):                                       The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
                                                                         Port expansion happens if features such as ['s_re', 's_mag'] are passed i.e. without ports.
         dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
 
@@ -78,7 +78,7 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
-def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'both') -> list[FeatureT]:
+def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'all') -> list[FeatureT]:
     # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
         features_out = []
@@ -134,7 +134,7 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
         # TODO fix defining_class (not working for e.g. s_mag currently)
         # base_features_only = all([defining_class(source, feature_out[1]) is Model for feature_out in features_out])
         if no_ports_passed and all_labels_equal:
-            if sparam_kind == 'both':
+            if sparam_kind == 'all':
                 port_tuples = source.port_tuples
             elif sparam_kind == 'reflection':
                 port_tuples = [pt for pt in source.port_tuples if pt[0] == pt[1]]
