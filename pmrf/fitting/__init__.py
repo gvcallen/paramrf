@@ -1,5 +1,8 @@
 from fitting.base import (
     Fitter,
+    fit,
+    fit_bayesian,
+    fit_frequentist,
     BaseFitter,
     FitResults,
     is_frequentist,
