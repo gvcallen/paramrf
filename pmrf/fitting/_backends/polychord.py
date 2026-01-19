@@ -5,22 +5,18 @@ import io
 import h5py
 import numpy as np
 
-from pmrf.fitting._bayesian import BayesianFitter
-from pmrf.fitting.results import AnestheticResults
-from pmrf._util import time_string, explicit_kwargs
+from fitting.bayesian import BayesianFitter
+from pmrf.fitting._backends.anesthetic import AnestheticResults
+from pmrf._util import time_string
    
-# For legacy imports
-PolyChordResults = AnestheticResults
-
 class PolyChordFitter(BayesianFitter):
     """
     Polychord fitter using pypolychord.run.
     
     Polychord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
-    def run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
+    def _run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
-        import numpy as np
         import pypolychord
         
         if not 'nlive' in kwargs and nlive_factor is not None:
@@ -66,15 +62,4 @@ class PolyChordFitter(BayesianFitter):
                 
         fitted_model = self.initial_model.with_flat_params(x0)
         
-        # settings = self._settings(kwargs, explicit_kwargs())
-        settings = self._settings(kwargs)
-        self.results = AnestheticResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=nested_samples,
-            settings=settings,
-            fitter=self,
-        )
-
-        return self.results
+        return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)        

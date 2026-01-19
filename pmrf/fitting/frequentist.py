@@ -4,12 +4,14 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.functions import l2_norm_ax0, mag_2_db
+from pmrf.functions import l2_norm_ax0, mag_2_db, conv_inter
 from pmrf.models.model import Model
-from pmrf.parameters import Parameter, ParameterGroup
 from pmrf.constants import FeatureInputT, ArrayFuncT
 
-from pmrf.fitting._base import BaseFitter, FitResults
+from fitting.base import BaseFitter, FitResults
+
+L2_COST = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
+CONVOLUTIONAL_COST = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
 
 class FrequentistResults(FitResults):
     pass
@@ -30,6 +32,7 @@ class FrequentistFitter(BaseFitter):
         frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
         cost: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
+        cost_kind: str | None = None,
         **kwargs
     ) -> None:
         """Initializes the FrequentistFitter.
@@ -48,7 +51,29 @@ class FrequentistFitter(BaseFitter):
                 of functions is provided, they are composed sequentially. If `None`, a
                 default cost function (typically L2 norm on the dB magnitude difference)
                 is used. Defaults to `None`.
+            cost_kind (str, optional):
+                A cost 'kind' alias to initialize the feature extractors and cost function from.
+                Can be one of 'convolutional', 'complex', or 'magnitude'.
         """
+        default_features = None
+        default_cost = None
+        if cost_kind == 'convolutional':
+            default_features = ['s', 's_mag']
+            default_cost = CONVOLUTIONAL_COST
+        elif cost_kind == 'complex':
+            default_features = ['s']
+            default_cost = L2_COST
+        elif cost_kind == 'magnitude':
+            default_features = ['s_mag']
+            default_cost = L2_COST
+        else:
+            raise Exception("Unknown cost kind alias passed to frequentist fitter")
+
+        if features is None:
+            features = default_features
+        if cost is None:
+            cost = default_cost
+        
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
 
         features = self.features
@@ -61,6 +86,7 @@ class FrequentistFitter(BaseFitter):
                 cost = [l2_norm_ax0, mag_2_db]
         
         self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
+
         
     def _make_cost_function(self, as_numpy=False):
         x0_jax = self.initial_model.flat_params()
@@ -84,9 +110,7 @@ class FrequentistFitter(BaseFitter):
             x0 = x0_np
             
         self.logger.info(f"Compiling cost function...")
-        _c0 = cost_fn(x0)
-        
-        return cost_fn
+        return cost_fn(x0)
     
     def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         param_groups = self.initial_model.param_groups()

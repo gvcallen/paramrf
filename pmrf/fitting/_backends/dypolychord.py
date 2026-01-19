@@ -5,17 +5,15 @@ import io
 import h5py
 import numpy as np
 
-from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
-from pmrf.fitting.results import AnestheticResults
+from fitting.bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting._backends.anesthetic import AnestheticResults
 from pmrf._util import time_string, explicit_kwargs
    
-PolychordResults = AnestheticResults
-
 class dyPolyChordFitter(BayesianFitter):
     """
     dyPolychord fitter using dyPolyChord.run_dypolychord.
     """
-    def run(self, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, **kwargs) -> AnestheticResults:
+    def _run(self, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import numpy as np
         import dyPolyChord.pypolychord_utils
@@ -84,14 +82,4 @@ class dyPolyChordFitter(BayesianFitter):
                 
         fitted_model = self.initial_model.with_flat_params(x0)
                 
-        settings = self._settings(kwargs, explicit_kwargs())
-        self.results = AnestheticResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=nested_samples,
-            settings=settings,
-            fitter=self,
-        )
-
-        return self.results
+        return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)

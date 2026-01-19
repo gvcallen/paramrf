@@ -1,14 +1,43 @@
 import numpy as np
 
-from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
-from pmrf.fitting.results._scipy import SciPyMinimizeResults
+from fitting.frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting._backends.scipy import SciPyMinimizeResults
 
+import numpy as np
+from typing import Any
+import h5py
+
+from fitting.frequentist import FrequentistFitter, FrequentistResults
+
+class SciPyMinimizeResults(FrequentistResults):
+    def encode_solver_results(self, grp: h5py.Group):
+        for key, val in self.solver_results.items():
+            if isinstance(val, (int, float, str, np.number)):
+                grp.attrs[key] = val
+            elif isinstance(val, np.ndarray):
+                grp.create_dataset(key, data=val)
+            elif val is None:
+                grp.attrs[key] = "None"
+            else:
+                grp.attrs[key] = str(val)  # fallback for e.g. status messages
+    
+    @classmethod
+    def decode_solver_results(cls, grp: h5py.Group) -> Any:
+        result_dict = dict(grp.attrs)
+        for key in grp:
+            result_dict[key] = grp[key][()]
+            
+        from scipy.optimize import OptimizeResult
+        return OptimizeResult(result_dict)
+    
 class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """
-    def run(self, max_iterations=None, log_every=500, **kwargs) -> FrequentistResults:
+    def _run(self, max_iterations=None, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
         from scipy.optimize import minimize, Bounds
+
+        kwargs.setdefault('method', optimizer)
         
         # Extract parameter values and bounds from the model
         param_names = self.initial_model.flat_param_names()
@@ -47,8 +76,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         kwargs['options'] = options
 
         callback_args = {'fevel': 0}
-        self.logger.info(f"Fitting for {len(x0)} parameters with scipy-minimize-{kwargs.get('method', 'default')}")
-        self.logger.info(f"Parameter names: {param_names}")
+        self.logger.info(f"Using scipy-minimize-{kwargs.get('method', 'default')}")
         scipy_result = minimize(cost_scipy_fn, x0, args=(callback_args,), bounds=bounds, **kwargs)
         self.logger.info(f"fevel = {callback_args['fevel']}, cost = {scipy_result.fun:.2f}")
         self.logger.info(f"Optimization finished: {scipy_result.message}")
@@ -56,14 +84,4 @@ class SciPyMinimizeFitter(FrequentistFitter):
         # Reconstruct the final model with optimized parameters
         fitted_model = self.initial_model.with_flat_params(scipy_result.x)
         
-        settings = self._settings(kwargs)
-        self.results = SciPyMinimizeResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=scipy_result,
-            settings=settings,
-            fitter=self,
-        )                
-
-        return self.results
+        return SciPyMinimizeResults(fitted_model=fitted_model, solver_results=scipy_result)

@@ -1,14 +1,13 @@
 # pmrf/fitting/_optax.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, List
+from typing import Optional, List
 
 import jax
 import jax.numpy as jnp
 import optax
 
-from pmrf.fitting._frequentist import FrequentistFitter, FrequentistResults
+from fitting.frequentist import FrequentistFitter, FrequentistResults
 
 class OptaxFitter(FrequentistFitter):
     """
@@ -41,7 +40,7 @@ class OptaxFitter(FrequentistFitter):
 
         return optax.chain(*chain)    
 
-    def run(
+    def _run(
         self,
         *,
         optimizer: str = "adam",
@@ -52,8 +51,6 @@ class OptaxFitter(FrequentistFitter):
         plateau_patience: int = 2_000,
         plateau_tol: float = 1e-6,
         grad_tol: Optional[float] = 1e-6,
-        seed: int = 0,
-        **kwargs,
     ) -> FrequentistResults:
         """
         Parameters
@@ -80,7 +77,6 @@ class OptaxFitter(FrequentistFitter):
             Reserved for compatibility; ignored here (you can plumb extra knobs if needed).
         """
         x0 = jnp.asarray(self.initial_model.flat_params(), dtype=jnp.float64)
-        param_names = self.initial_model.flat_param_names()
         mins, maxs = self._bounds()
         mins = jnp.asarray(mins, dtype=jnp.float64)
         maxs = jnp.asarray(maxs, dtype=jnp.float64)
@@ -113,11 +109,7 @@ class OptaxFitter(FrequentistFitter):
         steps_since_improve = 0
 
         # Logging
-        self.logger.info(
-            f"Fitting {len(x0)} parameters with optax-{optimizer} "
-            f"(lr={learning_rate}, max_steps={max_steps})"
-        )
-        self.logger.info(f"Parameter names: {param_names}")
+        self.logger.info(f"Fitting with optax-{optimizer} (lr={learning_rate}, max_steps={max_steps})")
 
         # --- Main loop
         history_cost: List[float] = []
@@ -163,23 +155,8 @@ class OptaxFitter(FrequentistFitter):
         final_cost = float(best_val)
 
         fitted_model = self.initial_model.with_flat_params(jnp.asarray(final_x))
-        settings = self._settings(
-            dict(
-                optimizer=optimizer,
-                learning_rate=learning_rate,
-                max_steps=max_steps,
-                log_every=log_every,
-                grad_clip_norm=grad_clip_norm,
-                plateau_patience=plateau_patience,
-                plateau_tol=plateau_tol,
-                grad_tol=grad_tol,
-                seed=seed,
-                **kwargs,
-            )
-        )
 
-        solver_results = dict(
-            message="Optimization finished",
+        solver_results = dict(message="Optimization finished",
             status=0,  # 0=OK (mimic SciPy style)
             nit=len(history_cost),
             fun=final_cost,
@@ -190,13 +167,4 @@ class OptaxFitter(FrequentistFitter):
 
         self.logger.info(f"Finished optax-{optimizer}: steps={solver_results['nit']}, "f"best_cost={final_cost:.6g}")
 
-        self.results = FrequentistResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=solver_results,
-            settings=settings,
-            fitter=self,
-        )
-
-        return self.results
+        return FrequentistResults(fitted_model=fitted_model, solver_results=solver_results)

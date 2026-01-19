@@ -1,8 +1,10 @@
+import glob
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import importlib
 import logging
-from typing import Any, Sequence
+from typing import Any, Sequence, Callable
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import jax
@@ -11,23 +13,21 @@ import skrf
 import h5py
 import jsonpickle
 from skrf import Network
-try:
-    from mpi4py import MPI
-    rank = MPI.COMM_WORLD.Get_rank()
-except ImportError:
-    rank = 0
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.constants import FeatureT
-from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string
+from pmrf._util import LevelFilteredLogger, iter_submodules, load_class_from_string, RANK
 from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 from pmrf.network_collection import NetworkCollection
+from fitting.base import FitResults
+from fitting.frequentist import FrequentistResults
+from fitting.bayesian import BayesianResults
 
 def Fitter(
-    name: str,
+    backend: str,
     *args,
     **kwargs
 ) -> 'BaseFitter':
@@ -37,12 +37,12 @@ def Fitter(
     See the relevant fitter classes for detailed documentation.
 
     Args:
-        name (str): The name of the fitter to create, specified as either e.g. 'ScipyMinimize' or 'scipy-minimize'.
+        backend (str): The backend of the fitter to create, specified as either e.g. 'SciPyMinimize' or 'scipy-minimize'.
 
     Returns:
         BaseFitter: The concrete fitter instance.
     """
-    cls = get_fitter_class(name)
+    cls = get_fitter_class(backend)
     return cls(*args, **kwargs)
     
 @dataclass
@@ -69,30 +69,40 @@ class BaseFitter(ABC):
         """Initializes the BaseFitter.
 
         Args:
-            model (Model):                                              The parametric `pmrf` Model to be fitted.
-            measured (skrf.Network | prf.NetworkCollection):            The measured network data to fit the model against.
-                                                                        Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
-                                                                        For the latter case the network names should be referenced during
-                                                                        feature extraction by specifying features as a dictionary.
-                                                                        See the documentation for the `features` argument below.                                                                        
-            features (FeatureInputT | None, optional):                  Defines the features to be extracted from the model and network(s).
-                                                                        Defaults to `None`, in which case real and imaginary features for all ports are used.
-                                                                        Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
-                                                                        or a dictionary with either of the above as value. In the dictionary case,
-                                                                        keys must be network names in the collection passed by `measured`, which must also
-                                                                        correspond to submodels which are attributes of the model. For example,
-                                                                        {'name1', ('s11'), {'name2', ('s21')} can be passed.
-                                                                        Note that if a collection of networks is passed, but a feature dictionary is not,
-                                                                        it is assumed that those feature(s) should be extract for each networks/submodel.
-                                                                        See `extract_features(..)` more details.
-            frequency (Frequency | None, optional):                     The frequency axis to perform the fit on. Defaults to `None`, in which case
-                                                                        the measured frequency is used. Note that if a `NetworkCollection` is passed,
-                                                                        all networks must have the same frequency.
-            output_path (str | None):                                   The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
-            output_root (str | None):                                   The root name used for output files in the output path. Not used by all fitters. Defaults to `None`.
-            sparam_kind (str | None):                                   The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
-                                                                        See `extract_features` for more details.
+            model (Model):
+                The parametric `pmrf` Model to be fitted.
+            measured (skrf.Network | prf.NetworkCollection):
+                The measured network data to fit the model against.
+                Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
+                For the latter case the network names should be referenced during
+                feature extraction by specifying features as a dictionary.
+                See the documentation for the `features` argument below.                                                                        
+            features (FeatureInputT | None, optional):
+                Defines the features to be extracted from the model and network(s).
+                Defaults to `None`, in which case real and imaginary features for all ports are used.
+                Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
+                or a dictionary with either of the above as value. In the dictionary case,
+                keys must be network names in the collection passed by `measured`, which must also
+                correspond to submodels which are attributes of the model. For example,
+                {'name1', ('s11'), {'name2', ('s21')} can be passed.
+                Note that if a collection of networks is passed, but a feature dictionary is not,
+                it is assumed that those feature(s) should be extract for each networks/submodel.
+                See `extract_features(..)` more details.
+            frequency (Frequency | None, optional):
+                The frequency axis to perform the fit on. Defaults to `None`, in which case
+                the measured frequency is used. Note that if a `NetworkCollection` is passed,
+                all networks must have the same frequency.
+            output_path (str | None):
+                The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
+            output_root (str | None):
+                The root name used for output files in the output path. Not used by all fitters. Defaults to `None`.
+            sparam_kind (str | None):
+                The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
+                See `extract_features` for more details.
         """
+        if isinstance(measured, str):
+            measured = skrf.Network(measured)
+
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
         if not isinstance(features, Sequence) and not isinstance(features, dict):
@@ -121,7 +131,7 @@ class BaseFitter(ABC):
         self.initial_model: Model = model
         self.measured: skrf.Network | NetworkCollection = measured
         self.measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
-        if rank == 0:
+        if RANK == 0:
             self.logger = logging.getLogger("pmrf.fitting")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
@@ -131,8 +141,79 @@ class BaseFitter(ABC):
     def _settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
         return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)
     
+    def run(
+        self,
+        *args,
+        load_previous: bool = True, 
+        save_hdf: bool = True,
+        plot_s_db: bool = True,
+        callback: Callable[[FitResults], None] | None = None,
+        new_uniform_frac: float | None = 0.01,
+        **kwargs
+    ) -> 'FitResults':
+        """Runs the fitting algorithm.
+
+        This method runs the fitting algorithm implemented by the sub-class.
+        It also contains several convenience parameters, allowing for automatic saving
+        and plotting of results.
+
+        Additional arguments are forwarded to the underlying fitter.
+
+        Args:
+            load_previous (bool):
+                Whether or not to try and load previous results from file.
+            new_uniform_frac (float, optional):
+                The fraction to update model distribution bounds uniformly around the fitted model values.
+            save_hdf (bool):
+                Saves the results to hdf in the output path.
+            plot_s_db (bool):
+                Plots the S-parameters in db and save the results in the output path.
+            callback (Callable[[FitResults], None] | None):
+                A callback to run after fitting but before saving and plotting.
+
+        Returns:
+            FitResults: An object containing the results of the fit.
+        """
+        if load_previous and self.output_path is not None:
+            try:
+                filename = glob.glob(f"{self.output_path}/*.hdf5")[0]
+                results = FitResults.load_hdf(filename)
+                logging.info(f"Loaded previous results.")
+                return results
+            except:
+                pass
+
+        save_output = (plot_s_db or save_hdf) and RANK == 0
+        if save_output:
+            Path(self.output_path).mkdir(parents=True, exist_ok=True)      
+
+        self.logger.info(f"Fitting for {self.initial_model.num_flat_params()} parameters")
+        self.logger.info(f"Parameter names: {self.initial_model.flat_param_names()}")
+        
+        results = self._run(*args, **kwargs)
+        results.measured = self.measured
+        results.initial_model = self.initial_model
+        results.settings = self._settings(solver_kwargs=kwargs)
+        results.fitter = self
+
+        if new_uniform_frac is not None:
+            results.fitted_model = results.fitted_model.with_uniform_distributions(new_uniform_frac)
+
+        if callback:
+            callback(results)
+
+        if save_hdf:
+            results.save_hdf(f'{self.output_path}/results.hdf5')
+        
+        if plot_s_db:
+            results.plot_s_db()
+            plt.savefig(f'{self.output_path}/s_db.png', dpi=400)
+            plt.close()     
+        
+        return results
+    
     @abstractmethod
-    def run(self, *args, **kwargs) -> 'FitResults':
+    def _run(self, *args, **kwargs) -> 'FitResults':
         """Executes the fitting algorithm.
 
         This method must be implemented by all concrete subclasses. It is the
@@ -140,8 +221,8 @@ class BaseFitter(ABC):
 
         Returns:
             FitResults: An object containing the results of the fit.
-        """
-        pass
+        """        
+        raise NotImplementedError
     
     def _make_feature_function(self, as_numpy=False):
         general_feature_fn = wrap(extract_features, self.initial_model, self.frequency, as_numpy=as_numpy)
@@ -160,7 +241,7 @@ class FitResults:
     def plot_s_db(self, use_initial_model=False):
         """
         Plots the S-parameters (Magnitude in dB) of the Measured vs Fitted data.
-        Handles both single Network and dictionary of Networks.
+        Handles both single Network and a `NetworkCollection`.
         """
         model = self.initial_model if use_initial_model else self.fitted_model
         
@@ -456,12 +537,12 @@ class FitResults:
             )
     
 def is_frequentist(solver) -> bool:
-    from pmrf.fitting._frequentist import FrequentistFitter
+    from fitting.frequentist import FrequentistFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, FrequentistFitter)
 
 def is_bayesian(solver) -> bool:
-    from pmrf.fitting._bayesian import BayesianFitter
+    from fitting.bayesian import BayesianFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, BayesianFitter)
 
@@ -490,3 +571,129 @@ def get_fitter_class(solver: str):
                     return getattr(fitter_submodel, class_name)
     except (ImportError, AttributeError):
         raise Exception(f'Could not find solver named {solver}')
+    
+def fit_frequentist(
+    model: Model,
+    measured: NetworkCollection | skrf.Network | str,
+    *,
+    backend: str = 'scipy-minimize',
+    cost_kind: str = 'convolutional',
+    optimizer: str = 'SLSQP',
+    max_iterations: int = 1000,
+    init_kwargs: dict | None = None,
+    run_kwargs: dict | None = None,
+) -> FrequentistResults:
+    """Fit a model using frequentist inference.
+
+    This is a non-object-orientated interface to the fitting API, which creates a frequentist fitter and provides easy passing of commonly-used arguments.
+
+    Args:
+        model (prf.Model):
+            The model to fit the data to.
+        measured (prf.NetworkCollection):
+            The measured data.
+        backend (str, optional):
+            The fitter backend to use. Defaults to 'scipy-minimize'.
+        cost_kind (str, optional):
+            A cost 'kind' alias to initialize the feature extractors and cost function from.
+            Can be one of 'convolutional', 'complex', or 'magnitude'.
+        optimizer (str, optional):
+            The backend optimizer algorithm to use. Defaults to 'SLSQP'.
+        max_iterations (int, optional):
+            The maximum optimizer iterations to run. Defaults to 1000.
+        init_kwargs (dict | None, optional):
+            Key-word arguments to forward to `pmrf.Fitter(...)`.
+        run_kwargs (dict | None, optional):
+            Key-word arguments to forward to `pmrf.FrequentistFitter.run(...)`.
+
+    Returns:
+        FrequentistResults: The frequentist results from the fit.
+    """
+    if backend != 'scipy-minimize':
+        raise Exception('Currently only SciPy minimize is supported for frequentist inference')
+    
+    init_kwargs = init_kwargs if init_kwargs is not None else {}
+    run_kwargs = run_kwargs if run_kwargs is not None else {}
+    
+    init_kwargs.setdefault('cost_kind', cost_kind)
+    run_kwargs.setdefault('optimizer', optimizer)
+    run_kwargs.setdefault('max_iterations', max_iterations)
+
+    return Fitter(backend=backend, model=model, measured=measured, **init_kwargs).run(**run_kwargs)
+
+def fit_bayesian(
+    model: Model,
+    measured: NetworkCollection | skrf.Network | str,
+    *,
+    backend: str = 'polychord',
+    likelihood_kind: str | None = None,
+    nlive_factor: int = 25,
+    init_kwargs: dict | None = None,
+    run_kwargs: dict | None = None,
+) -> BayesianResults:
+    """Fit a model using Bayesian inference.
+
+    This is a non-object-orientated interface to the fitting API, which creates a frequentist fitter and provides easy passing of commonly-used arguments.
+
+    Args:
+        model (prf.Model):
+            The model to fit the data to.
+        measured (prf.NetworkCollection):
+            The measured data.
+        backend (str, optional):
+            The bayesian sampling backend. Defaults to 'polychord'.
+        likelihood_kind (str, optional):
+            The kind of likelihood function to use. Can be 'gaussian' or 'multivariate_gaussian'. Defaults to None, in which case the kind is picked based on `sparam_kind`.
+        nlive_factor (int, optional):
+            The number of live points to use for the default `PolyChordFitter`, as a factor of the number of parameters. Defaults to 25.
+        init_kwargs (dict | None, optional):
+            Key-word arguments to forward to `pmrf.Fitter(...)`.
+        run_kwargs (dict | None, optional):
+            Key-word arguments to forward to `pmrf.FrequentistFitter.run(...)`.
+
+    Returns:
+        BayesianResults: The frequentist results from the fit.
+    """
+    init_kwargs = init_kwargs if init_kwargs is not None else {}
+    run_kwargs = run_kwargs if run_kwargs is not None else {}
+    
+    init_kwargs.setdefault('likelihood_kind', likelihood_kind)
+    run_kwargs.setdefault('nlive_factor', nlive_factor)
+
+    return Fitter(backend=backend, model=model, measured=measured, **init_kwargs).run(**run_kwargs)
+
+def fit(
+    model: Model,
+    measured: NetworkCollection | skrf.Network | str,
+    inference: str | None = 'frequentist',
+    *args,
+    **kwargs,
+) -> FitResults:
+    """Fit a model using either frequentist or Bayesian inference.
+
+    This is a non-object-orientated interface to the fitting API, which creates a fitter and provides easy passing of commonly-used arguments.
+    Either `fit_frequentist` or `fit_bayesian` is called based on `inference`, and the rest of the arguments are forwarded.
+
+    Args:
+        model (prf.Model):
+            The model to fit the data to.
+        measured (prf.NetworkCollection):
+            The measured data.
+        inference (str, optional):
+            The type of inference to use, either 'frequentist' or 'bayesian'.
+        likelihood_kind (str, optional):
+            The kind of likelihood function to use. Can be 'gaussian' or 'multivariate_gaussian'. Defaults to None, in which case the kind is picked based on `sparam_kind`.
+        nlive_factor (int, optional):
+            The number of live points to use for the default `PolyChordFitter`, as a factor of the number of parameters. Defaults to 25.
+        **kwargs (dict | None, optional):
+            Key-word arguments to forward to `fit_general`.
+
+    Returns:
+        BayesianResults: The frequentist results from the fit.
+    """    
+    if inference == 'bayesian':
+        return fit_bayesian(model, measured, *args, **kwargs)
+    elif inference == 'frequentist':
+        return fit_frequentist(model, measured, *args, **kwargs)
+    else:
+        raise Exception(f"Unknown inference type: '{inference}'")

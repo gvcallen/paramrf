@@ -1,16 +1,21 @@
+from functools import partial
 from abc import abstractmethod
 import numpy as np
 import jax
 import jax.numpy as jnp
 import skrf
 import numpyro.distributions as dist
-import dataclasses
+import matplotlib.pyplot as plt
 
+from pmrf.network_collection import NetworkCollection
+from pmrf._util import RANK, wait_for_all_ranks
 from pmrf.constants import FeatureInputT
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf.distributions.trainable import TrainableDistributionT
-from pmrf.fitting._base import BaseFitter, FitResults
+from fitting.base import BaseFitter, FitResults
+
+DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
 
 class BayesianResults(FitResults):
     @abstractmethod
@@ -67,8 +72,10 @@ class BayesianFitter(BaseFitter):
         *args,
         frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
-        likelihood_kind: str | None = "gaussian",
+        likelihood_kind: str | None = None,
         likelihood_params: dict[str, Parameter] = None,
+        sparam_kind: str | None = 'all',
+        feature_sigmas: list[str] | None = None,
         **kwargs
     ) -> None:
         """Initializes the BayesianFitter.
@@ -85,18 +92,54 @@ class BayesianFitter(BaseFitter):
                 Note that note all features make sense for all likelihoods, but no error checking is done for this.
                 Defaults to `None`, in which case real and imaginary feature for all model ports are used.
             likelihood_kind (str, optional):
-                The kind of likelihood to use. Defaults to "gaussian" for a one-dimensional Gaussian likelihood
-                requiring a single likelihood parameter 'sigma'. Can also be "multivariate_gaussian", in which case either
-                multiple standard deviations 'sigma_0', 'sigma_1', ..., 'sigma_N' may be passed, where N is the number of features,
+                The kind of likelihood to use. Can be either 'gaussian' or 'multivariate_gaussian'.
+                Defaults internally to 'gaussian' for one-port fits, and 'multivariate_gaussian' for greater port fits.
+                For 'gaussian', a single likelihood parameter, 'sigma', is needed. For 'multivariate_gaussian',
+                either multiple standard deviations 'sigma_0', 'sigma_1', ..., 'sigma_N' may be passed, where N is the number of features,
                 or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
                 of size N containing the names of the likelihood parameters to use for each feature.
             likelihood_params (dict[str, Parameter], optional):
                 A dictionary of likelihood parameters to use for the likelihood function.
-            train_posteriors (bool, optional):
-                Whether or not model posteriors should be trained and set for the fitted model.
+            feature_sigmas (list[str], optional):
+                A list of sigma names for each feature when `likelihood_kind` is 'multivariate_gaussian'.
         """
-        feature_sigmas: list[str] = kwargs.pop('feature_sigmas', None)        
+        if isinstance(measured, str):
+            measured = skrf.Network(measured)
+        
+        is_two_port = all([ntwk.nports == 2 for ntwk in measured]) if isinstance(measured, NetworkCollection) else measured.nports == 2
+        is_one_port = all([ntwk.nports == 1 for ntwk in measured]) if isinstance(measured, NetworkCollection) else measured.nports == 1
+        
+        if is_one_port and sparam_kind == 'all':
+            sparam_kind = 'reflection'
+        likelihood_kind = likelihood_kind if likelihood_kind is not None else 'multivariate_gaussian' if sparam_kind == 'all' and not is_one_port else 'gaussian'
+        
+        default_likelihood_params = default_features = default_feature_sigmas = None
+        if likelihood_kind == 'gaussian':
+            default_likelihood_params = {'sigma': DefaultSigmaPrior()}
+            if is_two_port:
+                if sparam_kind == 'all':
+                    default_features = ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
+                elif sparam_kind == 'reflection':
+                    default_features = ['s11_re', 's11_im', 's22_re', 's22_im']
+                elif sparam_kind == 'transmission':
+                    default_features = ['s12_re', 's12_im', 's21_re', 's21_im']
+            else:
+                default_features = ['s_re', 's_im']
+        elif likelihood_kind == 'multivariate_gaussian':
+            if is_two_port:
+                default_likelihood_params = {sigma_name: DefaultSigmaPrior() for sigma_name in ['sigma_gamma', 'sigma_tau']}
+                if sparam_kind == 'all':
+                    default_features = ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
+                    default_feature_sigmas = ['sigma_gamma', 'sigma_gamma', 'sigma_tau', 'sigma_tau', 'sigma_tau', 'sigma_tau', 'sigma_gamma', 'sigma_gamma']
+                else:
+                    raise Exception('No need to use multivariate gaussian when fitting only transmission or reflection coefficients')
+            else:
+                pass
 
+        likelihood_params = likelihood_params if likelihood_params is not None else default_likelihood_params
+        features = features if features is not None else default_features
+        feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
+            
         super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
@@ -104,15 +147,43 @@ class BayesianFitter(BaseFitter):
                 raise Exception('feature_sigmas must be passed for multivariate Gaussian likelihoods')
             self.feature_sigmas = feature_sigmas
             self.likelihood_kind = likelihood_kind
-            self.likelihood_params = likelihood_params if likelihood_params is not None else {sigma_name: Uniform(0.0, 50.0e-3, name=sigma_name) for sigma_name in feature_sigmas}
+            self.likelihood_params = likelihood_params if likelihood_params is not None else {sigma_name: DefaultSigmaPrior(name=sigma_name) for sigma_name in feature_sigmas}
         elif likelihood_kind == 'gaussian':        
             if likelihood_params is not None and len(likelihood_params) > 1:
                 raise Exception("A gaussian likelihood only has a single likelihood parameter 'sigma'")
 
-            self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': Uniform(0.0, 50.0e-3, name='sigma')}
+            self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': DefaultSigmaPrior(name='sigma')}
             self.likelihood_kind = likelihood_kind
         else:
             raise Exception(f"Unsupported likelihood kind: {likelihood_kind}")
+        
+    def run(self, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
+        user_callback = kwargs.get('callback', None)
+        fit_posterior_kwargs = fit_posterior_kwargs or {}
+        
+        def callback(results: BayesianResults):
+            nonlocal user_callback
+            nonlocal fit_posterior_dist
+            
+            if RANK == 0:
+                from pmrf.distributions import MargarineMAFDistribution
+                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
+                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
+            wait_for_all_ranks()
+            if user_callback:
+                kwargs['callback'](results)
+        
+        if fit_posterior:
+            user_callback = kwargs.pop('callback', None)
+            kwargs['callback'] = callback
+
+        results: BayesianResults = super().run(*args, **kwargs)
+
+        if plot_params:
+            results.plot_params()
+            plt.savefig(f'{self.output_path}/params.png')
+
+        return results               
         
     @property
     def num_params(self) -> int:

@@ -8,6 +8,20 @@ import logging
 import inspect
 from types import GenericAlias, UnionType
 from equinox import field
+
+try:
+    from mpi4py import MPI
+    MPI_AVAILABLE = True
+    COMM = MPI.COMM_WORLD
+    RANK = COMM.Get_rank()
+except:
+    RANK = 0
+    MPI_AVAILABLE = False
+
+def wait_for_all_ranks():
+    if not MPI_AVAILABLE:
+        return
+    COMM.Barrier()
         
 class classproperty:
     def __init__(self, func):

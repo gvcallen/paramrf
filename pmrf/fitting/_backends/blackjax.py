@@ -1,23 +1,19 @@
-import numpyro.distributions as dist
-import jax
 import time
-import jax.numpy as jnp
 import jax
 import jax.numpy as jnp
+from jax.extend.backend import get_backend
+from tqdm import tqdm
 
-from pmrf.fitting._bayesian import BayesianFitter
-from pmrf.fitting.results import AnestheticResults
+from fitting.bayesian import BayesianFitter
+from pmrf.fitting._backends.anesthetic import AnestheticResults
 
 class BlackJAXNSFitter(BayesianFitter):
     """
     A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
     """
-    def run(self, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
+    def _run(self, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         import blackjax
         from anesthetic import NestedSamples
-        from tqdm import tqdm
-        # from jax.lib import xla_bridge
-        from jax.extend.backend import get_backend
         
         start_time = time.time()
         rng_key = jax.random.PRNGKey(seed)
@@ -61,8 +57,6 @@ class BlackJAXNSFitter(BayesianFitter):
         state = init_fn(initial_particles)
         dead_points_list = []
 
-        self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
-        self.logger.info(f'Parameter names: {param_names}')
         self.logger.info(f"Starting nested sampling with {n_live} live points and {num_delete} delete points...")
         with tqdm(desc="Sampling", unit=" dead points") as pbar:
             while not state.logZ_live - state.logZ < logZ_convergence:
@@ -102,15 +96,5 @@ class BlackJAXNSFitter(BayesianFitter):
             x0 = x0.at[i].set(val_new)
             
         fitted_model = self.initial_model.with_flat_params(x0)
-                
-        self.results = AnestheticResults(
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            settings=self._settings,
-            solver_results=nested_samples,
-            solver_args=(),
-            fitter_kwargs={'best_param_method': best_param_method},
-            fitter=self,
-        )
 
-        return self.results
+        return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)

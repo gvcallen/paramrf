@@ -447,8 +447,8 @@ class MicrostripLine(RLGCLine):
     """
     A microstrip line defined by its geometric and material properties (i.e. width, height, dielectric constant, tan delta, rho).
     """
-    W: Parameter = 3e-3
-    H: Parameter = 1.6e-3
+    w: Parameter = 3e-3
+    h: Parameter = 1.6e-3
     epr: Parameter = 4.3
     tand: Parameter = 0.0
     rho: Parameter = 0.0
@@ -463,7 +463,7 @@ class MicrostripLine(RLGCLine):
         Returns:
             tuple: The calculated R, L, G, and C parameter vectors.
         """
-        W, H = self.W, self.H
+        W, H = self.w, self.h
         epr, tand, rho = self.epr, self.tand, self.rho
         
         u = W / H

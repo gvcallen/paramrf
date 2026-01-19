@@ -722,7 +722,14 @@ class Model(eqx.Module):
                 new_args = self.p.args + args
                 new_kwargs = {**self.p.keywords, **kwargs} if self.p.keywords else kwargs
                 return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
-        return DefaultsWrapper(partial(cls, *args, **kwargs))            
+        return DefaultsWrapper(partial(cls, *args, **kwargs))
+    
+    def with_models(self: ModelT, other_models: list[ModelT]):
+        combined = self
+        for other in other_models:
+            combined = combined.with_params(other.named_params())
+            combined = combined.with_param_groups(other.param_groups())
+        return combined
 
     def with_params(
         self: ModelT,

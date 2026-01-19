@@ -3,9 +3,16 @@ import jax.numpy as jnp
 from typing import Any
 import h5py
 
-from pmrf.fitting._bayesian import BayesianFitter, BayesianResults
-from pmrf.fitting.results._numpyro import NumPyroResults
-from pmrf._util import explicit_kwargs
+from pmrf.fitting.bayesian import BayesianFitter, BayesianResults
+
+class NumPyroResults(BayesianResults):
+    def encode_solver_results(self, group: h5py.Group):
+        samples = self.solver_results
+        group['samples'] = samples
+        
+    @classmethod
+    def decode_solver_results(cls, group: h5py.Group) -> Any:
+        group['samples']
         
 class NumPyroFitter(BayesianFitter):
     def _make_numpyro_model(self):
@@ -44,7 +51,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
     """
     NumPyro fitter using numpyro.infer.MCMC.
     """        
-    def run(self, kernel=None, **kwargs) -> NumPyroResults:
+    def _run(self, kernel=None, **kwargs) -> NumPyroResults:
         from numpyro.infer import MCMC, NUTS
         
         if kernel is None:
@@ -72,19 +79,10 @@ class NumPyroMCMCFitter(NumPyroFitter):
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
         fitted_model = self.initial_model.with_flat_params(x_mean)
         
-        # Return the results
-        settings = self._settings(kwargs, explicit_kwargs())
-        self.results = NumPyroResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=samples,
-            settings=settings,
-        )   
-        return self.results
+        return NumPyroResults(fitted_model=fitted_model, solver_results=samples)
         
 class NumPyroNSFitter(NumPyroFitter):
-    def run(self, *, constructor_kwargs=None, terminated_kwargs=None, **kwargs) -> NumPyroResults:
+    def _run(self, *, constructor_kwargs=None, terminated_kwargs=None) -> NumPyroResults:
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
@@ -108,14 +106,4 @@ class NumPyroNSFitter(NumPyroFitter):
         fitted_model = self.initial_model.with_flat_params(x_mean)
         
         # Return the results
-        settings = self._settings(kwargs, explicit_kwargs())
-        self.results = NumPyroResults(
-            measured=self.measured,
-            initial_model=self.initial_model,
-            fitted_model=fitted_model,
-            solver_results=samples,
-            settings=settings,
-            fitter=self,
-        )   
-
-        return self.results
+        return NumPyroResults(fitted_model=fitted_model, solver_results=samples)

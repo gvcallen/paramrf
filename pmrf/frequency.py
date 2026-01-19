@@ -160,6 +160,9 @@ class Frequency(eqx.Module):
         """
         import numpy as np
         return skrf.Frequency.from_f(np.array(self.f_scaled), self._unit)
+    
+    def __eq__(self, other: Frequency):
+        return jnp.array_equal(self._f, other._f) and self.unit == other.unit
 
     def __len__(self) -> int:
         """The number of frequency points."""

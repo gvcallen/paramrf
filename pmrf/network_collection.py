@@ -40,18 +40,38 @@ class NetworkCollection:
 
     def __add__(self, other: "NetworkCollection") -> "NetworkCollection":
         """
-        Combine two collections into a new one.
-        Networks with duplicate names are auto-renamed.
+        Concatenate two collections into a new one.
+        Handles name collisions by appending a suffix.
         """
         if not isinstance(other, NetworkCollection):
-            raise TypeError("Can only add another NetworkCollection.")
+            raise TypeError(f"Can only add NetworkCollection, not {type(other)}")
 
-        new = NetworkCollection(name=self.name + ' + ' + other.name, params=self.params | other.params)
-        for ntwk in self:
-            new.add(ntwk)
-        for ntwk in other:
-            new.add(ntwk)
-        return new    
+        # Create new collection and merge params
+        if self.name == other.name:
+            new_name = self.name
+        elif self.name is None or other.name is None:
+            new_name = self.name if other.name is None else other.name
+        else:
+            new_name = f"{self.name} + {other.name}"
+        new_params = (self.params or {}).copy()
+        new_params.update(other.params or {})
+        
+        new = NetworkCollection(name=new_name, params=new_params)
+
+        # Add networks from both
+        for ntwk in list(self.networks) + list(other.networks):
+            temp_ntwk = ntwk.copy()
+            base_name = temp_ntwk.name
+            counter = 1
+            
+            # Resolve name collisions
+            while temp_ntwk.name in new.keys():
+                temp_ntwk.name = f"{base_name}_{counter}"
+                counter += 1
+            
+            new.add(temp_ntwk)
+            
+        return new
 
     def __getitem__(self, key):
         """Index by integer or string name."""
