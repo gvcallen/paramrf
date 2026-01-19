@@ -28,7 +28,6 @@ class FrequentistFitter(BaseFitter):
         model: Model,
         measured: skrf.Network | dict[str, skrf.Network],
         *args,
-        frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
         cost: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
         cost_kind: str | None = None,
@@ -41,8 +40,6 @@ class FrequentistFitter(BaseFitter):
                 The parametric `pmrf` model to be fitted.
             measured (skrf.Network | list[skrf.Network]):
                 The measured network data to fit the model against.
-            frequency (skrf.Frequency | None, optional):
-                The frequency axis to perform the fit on. Defaults to `None`.
             features (FeatureT | FeatureListT | None, optional),
                 The features to extract for comparison. Defaults to `None`.
             cost (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
@@ -72,7 +69,7 @@ class FrequentistFitter(BaseFitter):
         if cost is None:
             cost = default_cost
         
-        super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
+        super().__init__(model=model, measured=measured, features=features, *args, **kwargs)
 
         features = self.features
         if cost is not None and not isinstance(cost, list):

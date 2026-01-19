@@ -57,7 +57,6 @@ class BaseFitter(ABC):
         self,
         model: Model,
         measured: str | Network | NetworkCollection,
-        frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         output_path: str = 'output',
         output_root: str = 'fit',
@@ -73,6 +72,7 @@ class BaseFitter(ABC):
                 Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
                 For the latter case the network names should be referenced during
                 feature extraction by specifying features as a dictionary.
+                If networks do not have the same frequency, a common frequency is used.
                 See the documentation for the `features` argument below.                                                                        
             features (FeatureInputT | None, optional):
                 Defines the features to be extracted from the model and network(s).
@@ -85,10 +85,6 @@ class BaseFitter(ABC):
                 Note that if a collection of networks is passed, but a feature dictionary is not,
                 it is assumed that those feature(s) should be extract for each networks/submodel.
                 See `extract_features(..)` more details.
-            frequency (Frequency | None, optional):
-                The frequency axis to perform the fit on. Defaults to `None`, in which case
-                the measured frequency is used. Note that if a `NetworkCollection` is passed,
-                all networks must have the same frequency.
             output_path (str | None):
                 The path for fitters to write output data to. Not used by all fitters. Defaults to `None`.
             output_root (str | None):
@@ -105,21 +101,18 @@ class BaseFitter(ABC):
         if not isinstance(features, Sequence) and not isinstance(features, dict):
             features = [features]
         if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
-            features = {k: features for k in measured.names()}
+            features = {ntwk.name: features for ntwk in measured}
 
         # All frequencies must be the same across all measurements (at least currently..). We copy the input dict
         measured = measured.copy()
-        if frequency is not None:
-            measured_freq = frequency
-            measured = measured.interpolate(frequency)
+        if isinstance(measured, NetworkCollection):
+            measured.interpolate_self()
+            frequency = measured.common_frequency()
         else:
-            try:
-                measured_freq = measured.frequency
-            except:
-                raise ValueError("All networks must have the same frequency")
+            frequency = measured.frequency
         
         # Initialize settings
-        self.frequency = frequency or Frequency.from_skrf(measured_freq)
+        self.frequency = Frequency.from_skrf(frequency)
         self.features = features
         self.sparam_kind = sparam_kind
         self.output_path = output_path

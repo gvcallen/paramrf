@@ -70,7 +70,6 @@ class BayesianFitter(BaseFitter):
         model: Model,
         measured: skrf.Network | dict[str, skrf.Network],
         *args,
-        frequency: skrf.Frequency | None = None,
         features: FeatureInputT | None = None,
         likelihood_kind: str | None = None,
         likelihood_params: dict[str, Parameter] = None,
@@ -85,8 +84,6 @@ class BayesianFitter(BaseFitter):
                 The parametric `pmrf` model to be fitted.
             measured (skrf.Network | list[skrf.Network]):
                 The measured network data to fit the model against.
-            frequency (skrf.Frequency | None, optional):
-                The frequency axis to perform the fit on. Defaults to `None`.
             features (FeatureT | FeatureListT | None = None, optional):
                 The features to extract for comparison.
                 Note that note all features make sense for all likelihoods, but no error checking is done for this.
@@ -140,7 +137,7 @@ class BayesianFitter(BaseFitter):
         features = features if features is not None else default_features
         feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
             
-        super().__init__(model=model, measured=measured, frequency=frequency, features=features, *args, **kwargs)
+        super().__init__(model=model, measured=measured, features=features, *args, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
             if feature_sigmas is None:

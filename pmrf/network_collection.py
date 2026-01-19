@@ -1,224 +1,404 @@
+import os
+import zipfile
+import glob
 from copy import deepcopy
+from typing import List, Optional, Callable, Iterable, Union, Dict
 
 import numpy as np
-import skrf as rf
-from typing import List, Optional, Callable, Iterable
 import pandas as pd
+import skrf as rf
 
 class NetworkCollection:
     """
-    A clean container for heterogeneous scikit-rf Networks.
-    - List-like for ordering
-    - Dict-like lookup by network.name
-    - Optional per-item metadata
+    A container for a collection of scikit-rf Networks.
+
+    Unlike :class:`~skrf.networkSet.NetworkSet`, which is designed for 
+    statistical analysis of a set of networks with identical topology and 
+    frequency (e.g., Monte Carlo analysis), a :class:`NetworkCollection` 
+    is a general-purpose container. It supports networks with different 
+    frequencies, port counts, and names.
+
+    It behaves like a list (ordered) and a dictionary (lookup by name).
+
+    Parameters
+    ----------
+    networks : list of :class:`~skrf.network.Network`, optional
+        A list of Networks to initialize the collection. 
+    name : str, optional
+        A name for the collection. 
+    params : dict, optional
+        A dictionary of parameters associated with the collection itself.
+
+    Attributes
+    ----------
+    networks : list
+        The list of Network objects.
+    name : str
+        The name of the collection.
     """
 
-    def __init__(self, networks: Iterable[rf.Network] | None = None, *, name: str | None = None, params: dict = None):
+    def __init__(self, networks: Optional[Iterable[rf.Network]] = None, 
+                 name: Optional[str] = None, params: Optional[dict] = None):
         self.networks: List[rf.Network] = []
-        self.params = params
+        self.params = params or {}
         self.name = name
+
         if networks:
             for ntwk in networks:
                 self.add(ntwk)
 
-    # -----------------------------------------------------------
-    # Core API
-    # -----------------------------------------------------------
+    def __repr__(self):
+        return f"<NetworkCollection: {self.name or 'Unnamed'} ({len(self)} networks)>"
 
-    def add(self, ntwk: rf.Network):
-        """Add a Network. name must be unique."""
-        if not isinstance(ntwk, rf.Network):
-            raise TypeError("Only scikit-rf Networks may be added")
+    def __str__(self):
+        return self.summary()
 
-        if ntwk.name is None:
-            raise ValueError("Network must have a 'name' attribute before adding")
-        
-        if ntwk.name in self.keys():
-            raise ValueError(f"Network with name {ntwk.name} already exists")
-
-        self.networks.append(ntwk)
-
-    def __add__(self, other: "NetworkCollection") -> "NetworkCollection":
-        """
-        Concatenate two collections into a new one.
-        Handles name collisions by appending a suffix.
-        """
-        if not isinstance(other, NetworkCollection):
-            raise TypeError(f"Can only add NetworkCollection, not {type(other)}")
-
-        # Create new collection and merge params
-        if self.name == other.name:
-            new_name = self.name
-        elif self.name is None or other.name is None:
-            new_name = self.name if other.name is None else other.name
-        else:
-            new_name = f"{self.name} + {other.name}"
-        new_params = (self.params or {}).copy()
-        new_params.update(other.params or {})
-        
-        new = NetworkCollection(name=new_name, params=new_params)
-
-        # Add networks from both
-        for ntwk in list(self.networks) + list(other.networks):
-            temp_ntwk = ntwk.copy()
-            base_name = temp_ntwk.name
-            counter = 1
-            
-            # Resolve name collisions
-            while temp_ntwk.name in new.keys():
-                temp_ntwk.name = f"{base_name}_{counter}"
-                counter += 1
-            
-            new.add(temp_ntwk)
-            
-        return new
-
-    def __getitem__(self, key):
-        """Index by integer or string name."""
-        if isinstance(key, int):
-            return self.networks[key]
-        elif isinstance(key, str):
-            for ntwk in self.networks:
-                if ntwk.name == key:
-                    return ntwk
-            raise KeyError(f"No network named '{key}'")
-        else:
-            raise TypeError("Key must be int or str")
-    
     def __len__(self):
         return len(self.networks)
 
     def __iter__(self):
         return iter(self.networks)
-    
-    def keys(self):
-        return [ntwk.name for ntwk in self.networks]
+
+    def __getitem__(self, key: Union[int, str, slice]) -> Union[rf.Network, "NetworkCollection"]:
+        """
+        Get a network by index or name.
         
+        Parameters
+        ----------
+        key : int, str, or slice
+            If int, returns the network at that index.
+            If str, returns the network with that name.
+            If slice, returns a new NetworkCollection.
+        """
+        if isinstance(key, (int, slice)):
+            item = self.networks[key]
+            if isinstance(item, list):
+                # Handle slice returning a list of networks
+                return NetworkCollection(item, name=self.name, params=self.params)
+            return item
+        elif isinstance(key, str):
+            for ntwk in self.networks:
+                if ntwk.name == key:
+                    return ntwk
+            raise KeyError(f"No network named '{key}' in this collection.")
+        else:
+            raise TypeError(f"Key must be int, str, or slice, not {type(key)}")
+
+    def __add__(self, other: "NetworkCollection") -> "NetworkCollection":
+        """
+        Concatenate two collections into a new one.
+        
+        Handles name collisions by appending an incrementing suffix 
+        (e.g., `_1`, `_2`) to the incoming networks.
+        """
+        if not isinstance(other, NetworkCollection):
+            return NotImplemented
+
+        # Determine new name
+        if self.name == other.name:
+            new_name = self.name
+        elif not self.name or not other.name:
+            new_name = self.name or other.name
+        else:
+            new_name = f"{self.name} + {other.name}"
+
+        # Merge params
+        new_params = self.params.copy()
+        new_params.update(other.params)
+
+        new_collection = NetworkCollection(name=new_name, params=new_params)
+
+        # Add all networks
+        for ntwk in self.networks:
+            new_collection.add(ntwk.copy())
+
+        for ntwk in other.networks:
+            ntwk_copy = ntwk.copy()
+            # Resolve collisions
+            base_name = ntwk_copy.name
+            counter = 1
+            while ntwk_copy.name in new_collection.keys():
+                ntwk_copy.name = f"{base_name}_{counter}"
+                counter += 1
+            new_collection.add(ntwk_copy)
+
+        return new_collection
 
     # -----------------------------------------------------------
-    # Utility functions
+    # Constructors / IO
+    # -----------------------------------------------------------
+    
+    @classmethod
+    def from_dir(cls, directory: str, pattern: str = "*.s*p", 
+                 name: Optional[str] = None) -> "NetworkCollection":
+        """
+        Create a NetworkCollection from a directory of Touchstone files.
+
+        Parameters
+        ----------
+        directory : str
+            Path to the directory.
+        pattern : str, optional
+            Glob pattern to match files. Default is "*.s*p".
+        name : str, optional
+            Name of the collection. Defaults to directory name.
+
+        Returns
+        -------
+        NetworkCollection
+        """
+        directory = os.path.expanduser(directory)
+        if name is None:
+            name = os.path.basename(os.path.abspath(directory))
+            
+        files = sorted(glob.glob(os.path.join(directory, pattern)))
+        networks = [rf.Network(f) for f in files]
+        return cls(networks, name=name)
+
+    @classmethod
+    def from_zip(cls, zip_file: str, name: Optional[str] = None) -> "NetworkCollection":
+        """
+        Create a NetworkCollection from a zip file of Touchstone files.
+        """
+        if name is None:
+            name = os.path.basename(zip_file)
+            
+        networks = []
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            for filename in sorted(z.namelist()):
+                if filename.lower().endswith(('.s1p', '.s2p', '.s3p', '.s4p', '.snp')):
+                    # skrf can read from file-like objects usually, but sometimes 
+                    # requires a wrapper. Reading into BytesIO is safest.
+                    from io import BytesIO
+                    data = BytesIO(z.read(filename))
+                    data.name = filename # Network needs a filename for extension guessing
+                    try:
+                        networks.append(rf.Network(data, name=os.path.splitext(filename)[0]))
+                    except Exception:
+                        continue
+        return cls(networks, name=name)
+
+    def write(self, directory: str = ".") -> None:
+        """
+        Write all networks in the collection to Touchstone files in the specified directory.
+        """
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        for ntwk in self.networks:
+            ntwk.write_touchstone(dir=directory)
+
+    # -----------------------------------------------------------
+    # Management
     # -----------------------------------------------------------
 
-    def filter(self, predicate: Callable[[rf.Network], bool]):
-        """Return a new NetworkCollection of items where predicate(ntwk, params) is True."""
-        out = NetworkCollection()
-        for ntwk in self.networks:
-            if predicate(ntwk):
-                out.add(ntwk)
-        return out
+    def add(self, ntwk: rf.Network) -> None:
+        """
+        Add a Network to the collection.
+        
+        Parameters
+        ----------
+        ntwk : skrf.Network
+            The network to add. Its `.name` attribute must be set and unique 
+            within the collection.
+            
+        Raises
+        ------
+        ValueError
+            If the network has no name or the name already exists.
+        TypeError
+            If ntwk is not a scikit-rf Network.
+        """
+        if not isinstance(ntwk, rf.Network):
+            raise TypeError(f"Expected scikit-rf Network, got {type(ntwk)}")
 
-    def apply(self, fn: Callable[[rf.Network], rf.Network],
-              names: Optional[Iterable[str]] = None):
-        """Apply a function to selected networks in-place."""
-        targets = names if names else [ntwk.name for ntwk in self.networks]
+        if not ntwk.name:
+            raise ValueError("Network must have a 'name' attribute.")
+        
+        # Check uniqueness. (Linear scan is acceptable for typical collection sizes)
+        if any(n.name == ntwk.name for n in self.networks):
+            raise ValueError(f"Network with name '{ntwk.name}' already exists.")
 
-        for ntwk in self.networks:
-            if ntwk.name in targets:
-                new_ntwk = fn(ntwk)
-                if not isinstance(new_ntwk, rf.Network):
-                    raise TypeError("apply() must return a Network")
-                # preserve name & metadata
-                self.networks[self.networks.index(ntwk)] = new_ntwk
+        self.networks.append(ntwk)
 
-    def copy(self):
+    def keys(self) -> List[str]:
+        """Return a list of network names."""
+        return [ntwk.name for ntwk in self.networks]
+
+    def copy(self) -> "NetworkCollection":
+        """Return a deep copy of the collection."""
         return deepcopy(self)
 
-    def names(self):
-        return [ntwk.name for ntwk in self.networks]
+    def filter(self, func: Callable[[rf.Network], bool]) -> "NetworkCollection":
+        """
+        Return a new NetworkCollection containing only networks where `func(ntwk)` is True.
 
-    def summary(self):
-        """Readable dataset summary."""
-        lines = [f"NetworkCollection: {len(self)} networks\n"]
-        for ntwk in self.networks:
-            f = ntwk.frequency.f
-            lines.append(
-                f"- {ntwk.name}: {ntwk.nports}-port, "
-                f"{f[0]/1e9:.2f}-{f[-1]/1e9:.2f} GHz, "
-            )
-        return "\n".join(lines)
-    
-    def to_dict(self) -> dict[str, rf.Network]:
-        return {ntwk.name: ntwk for ntwk in self.networks}    
+        Parameters
+        ----------
+        func : callable
+            A function that accepts a Network and returns a boolean.
+        
+        Returns
+        -------
+        NetworkCollection
+        """
+        subset = [n for n in self.networks if func(n)]
+        return NetworkCollection(subset, name=self.name, params=self.params)
 
-    def to_dataframe(self):
-        """Convert to a pandas DataFrame for ML or metadata analysis."""
+    def apply(self, func: Callable[[rf.Network], rf.Network]) -> None:
+        """
+        Apply a function to every network in the collection in-place.
+        
+        Parameters
+        ----------
+        func : callable
+            A function that accepts a Network and returns a Network.
+        """
+        for i, ntwk in enumerate(self.networks):
+            res = func(ntwk)
+            if not isinstance(res, rf.Network):
+                raise TypeError("Function passed to apply() must return a Network.")
+            self.networks[i] = res
+
+    def to_dataframe(self, attrs: Optional[List[str]] = None) -> pd.DataFrame:
+        """
+        Convert the collection summary to a pandas DataFrame.
+        
+        Parameters
+        ----------
+        attrs : list of str, optional
+            List of attributes to extract from each network (e.g. ['name', 'nports']).
+            Defaults to name, ports, and frequency range.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
         rows = []
         for ntwk in self.networks:
-            row = {"name": ntwk.name, "network": ntwk}
+            if attrs:
+                row = {attr: getattr(ntwk, attr) for attr in attrs}
+            else:
+                f = ntwk.frequency
+                row = {
+                    "name": ntwk.name,
+                    "nports": ntwk.nports,
+                    "f_start": f.f[0] if len(f) > 0 else np.nan,
+                    "f_stop": f.f[-1] if len(f) > 0 else np.nan,
+                    "npoints": len(f),
+                }
+            # Add network params if they exist
+            if hasattr(ntwk, 'params'):
+                row.update(ntwk.params)
             rows.append(row)
         return pd.DataFrame(rows)
-    # -----------------------------------------------------------
-    # Frequency Utilities
-    # -----------------------------------------------------------
-
-    @property
-    def frequency(self) -> rf.Frequency:
-        frequency = None
+    
+    def summary(self) -> str:
+        """Return a string summary of the collection."""
+        header = f"NetworkCollection: {self.name or 'Unnamed'} ({len(self)} networks)"
+        lines = [header, "-" * len(header)]
         for ntwk in self.networks:
-            if frequency is None:
-                frequency = ntwk.frequency.copy()
+            f = ntwk.frequency
+            # Format frequency nicely
+            if len(f.f) > 0:
+                f_str = f"{f.f[0]/1e9:.2f}-{f.f[-1]/1e9:.2f} GHz"
             else:
-                if frequency != ntwk.frequency:
-                    raise Exception('"frequency" called on NetworkCollection but not all networks have the same frequency')
-        return frequency    
+                f_str = "No Freq"
+            lines.append(f"{ntwk.name:<20} | {ntwk.nports} ports | {f_str}")
+        return "\n".join(lines)
 
-    def frequency_ranges(self):
-        return {ntwk.name: (ntwk.f[0], ntwk.f[-1], len(ntwk.f))
-                for ntwk in self.networks}
+    # -----------------------------------------------------------
+    # Frequency Operations
+    # -----------------------------------------------------------
 
-    def common_frequency(self, mode="intersection", npoints=None):
-        freqs = [ntwk.frequency.f for ntwk in self.networks]
-        f_starts = [f[0] for f in freqs]
-        f_stops  = [f[-1] for f in freqs]
+    def common_frequency(self, mode: str = "intersection", npoints: Optional[int] = None) -> np.ndarray:
+        """
+        Compute a common frequency vector for the collection.
 
-        if mode == "preserve":
-            return None
+        Parameters
+        ----------
+        mode : {'intersection', 'union', 'min_npoints', 'max_npoints'}, optional
+        npoints : int, optional
+        """
+        if not self.networks:
+            raise ValueError("Collection is empty.")
+
+        freqs = [n.f for n in self.networks]
+        starts = [f[0] for f in freqs]
+        stops = [f[-1] for f in freqs]
+        points = [len(f) for f in freqs]
 
         if mode == "intersection":
-            fmin = max(f_starts)
-            fmax = min(f_stops)
-            if fmin >= fmax:
-                raise ValueError("No overlapping frequency region available.")
+            f_start, f_stop = max(starts), min(stops)
             if npoints is None:
-                npoints = min(len(f) for f in freqs)
-            return np.linspace(fmin, fmax, npoints)
-
-        if mode == "union":
-            fmin = min(f_starts)
-            fmax = max(f_stops)
+                npoints = min(points)
+        elif mode == "union":
+            f_start, f_stop = min(starts), max(stops)
             if npoints is None:
-                npoints = max(len(f) for f in freqs)
-            return np.linspace(fmin, fmax, npoints)
+                npoints = max(points)
+        elif mode == "min_npoints":
+            f_start, f_stop = max(starts), min(stops)
+            npoints = min(points)
+        else:
+            raise ValueError(f"Unknown mode '{mode}'")
 
-        if mode in ("min_npoints", "max_npoints"):
-            if mode == "min_npoints":
-                n = min(len(f) for f in freqs)
-            else:
-                n = max(len(f) for f in freqs)
-            fmin = max(f_starts)
-            fmax = min(f_stops)
-            if fmin >= fmax:
-                raise ValueError("No overlapping region.")
-            return np.linspace(fmin, fmax, n)
+        if f_start >= f_stop:
+            raise ValueError("Frequency ranges do not overlap.")
 
-        raise ValueError(f"Unknown mode '{mode}'")
+        unit = self.networks[0].frequency.unit
+        scaler = rf.Frequency.multiplier_dict[unit.lower()]
+        f_scaled = np.linspace(f_start, f_stop, npoints) / scaler
+        return rf.Frequency.from_f(f_scaled, unit=unit)
 
-    def interpolate_to(self, frequency_vector):
-        new = NetworkCollection()
+    def _resolve_frequency(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str], 
+                           npoints: Optional[int] = None) -> rf.Frequency:
+        """Helper to resolve user input into a skrf.Frequency object."""
+        if isinstance(freq_or_mode, str):
+            return self.common_frequency(mode=freq_or_mode, npoints=npoints)
+        elif isinstance(freq_or_mode, rf.Frequency):
+            return freq_or_mode
+        else:
+            return rf.Frequency.from_f(freq_or_mode, unit='Hz')
+
+    def interpolate(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str] = "intersection", 
+                    npoints: Optional[int] = None, **kwargs) -> "NetworkCollection":
+        """
+        Return a new NetworkCollection where all networks are interpolated to a common frequency.
+
+        Parameters
+        ----------
+        freq_or_mode : skrf.Frequency, np.ndarray, or str
+            If 'intersection' or 'union', calculates the common vector.
+            If a vector/Frequency object, uses that explicitly.
+        npoints : int, optional
+            Number of points (if using mode string).
+        kwargs : 
+            Passed to `Network.interpolate`.
+
+        Returns
+        -------
+        NetworkCollection
+        """
+        freq_obj = self._resolve_frequency(freq_or_mode, npoints)
+        new_coll = self.copy()
+        new_coll.interpolate_self(freq_obj, **kwargs)
+        return new_coll
+
+    def interpolate_self(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str] = "intersection", 
+                         npoints: Optional[int] = None, **kwargs) -> None:
+        """
+        Interpolate all networks in the collection in-place to a common frequency.
+
+        Parameters
+        ----------
+        freq_or_mode : skrf.Frequency, np.ndarray, or str
+            If 'intersection' or 'union', calculates the common vector.
+            If a vector/Frequency object, uses that explicitly.
+        npoints : int, optional
+            Number of points (if using mode string).
+        kwargs : 
+            Passed to `Network.interpolate_self`.
+        """
+        freq_obj = self._resolve_frequency(freq_or_mode, npoints)
+        
         for ntwk in self.networks:
-            ntwk_i = ntwk.copy()
-            ntwk_i.interpolate_self(frequency_vector)
-            new.add(ntwk_i, **self._meta[ntwk.name])
-        return new
-
-    def interpolate_self(self, frequency_vector):
-        for i, ntwk in enumerate(self.networks):
-            ntwk_i = ntwk.copy()
-            ntwk_i.interpolate_self(frequency_vector)
-            self.networks[i] = ntwk_i
-
-    def interpolate(self, mode="intersection", npoints=None):
-        f_vec = self.common_frequency(mode=mode, npoints=npoints)
-        if f_vec is not None:
-            self.interpolate_self(f_vec)
-        return f_vec
+            ntwk.interpolate_self(freq_obj, **kwargs)

@@ -63,7 +63,7 @@ def  extract_features(
         frequency = source.frequency
     elif isinstance(source, NetworkCollection):
         # Currently only support a single frequency across networks
-        frequency = source.frequency
+        frequency = source.common_frequency()
     elif isinstance(source, Model):
         if frequency is None:
             raise Exception("Frequency must be passed when extracting features from a model")
