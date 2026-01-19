@@ -32,9 +32,6 @@ class PolyChordFitter(BayesianFitter):
         prior_fn = self._make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
 
-        self.logger.info(f'Fitting for {len(param_names)} parameter(s)...')
-        self.logger.info(f'Parameter names: {param_names}')
-        self.logger.info(f'Features: {self.features}')
         self.logger.info(f'PolyChord started at {time_string()}')
         nested_samples = pypolychord.run(
             loglikelihood_fn,

@@ -47,9 +47,8 @@ class FrequentistFitter(BaseFitter):
                 The features to extract for comparison. Defaults to `None`.
             cost (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
                 A function or sequence of functions defining the cost metric. If a list
-                of functions is provided, they are composed sequentially. If `None`, a
-                default cost function (typically L2 norm on the dB magnitude difference)
-                is used. Defaults to `None`.
+                of functions is provided, they are composed sequentially. If `None`,
+                then `cost_kind` defines the cost function. Defaults to `None`.
             cost_kind (str, optional):
                 A cost 'kind' alias to initialize the feature extractors and cost function from.
                 Can be one of 'convolutional', 'complex', or 'magnitude'.

@@ -186,6 +186,7 @@ class BaseFitter(ABC):
 
         self.logger.info(f"Fitting for {self.initial_model.num_flat_params} parameters")
         self.logger.info(f"Parameter names: {self.initial_model.flat_param_names()}")
+        self.logger.info(f'Features: {self.features}')
         
         results = self._run(*args, **kwargs)
         results.measured = self.measured
