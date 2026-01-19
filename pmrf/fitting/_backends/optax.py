@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from fitting.frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults
 
 class OptaxFitter(FrequentistFitter):
     """

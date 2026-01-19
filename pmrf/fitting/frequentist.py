@@ -7,8 +7,7 @@ import equinox as eqx
 from pmrf.functions import l2_norm_ax0, mag_2_db, conv_inter
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT, ArrayFuncT
-
-from fitting.base import BaseFitter, FitResults
+from pmrf.fitting.base import BaseFitter, FitResults
 
 L2_COST = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
 CONVOLUTIONAL_COST = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
@@ -110,7 +109,8 @@ class FrequentistFitter(BaseFitter):
             x0 = x0_np
             
         self.logger.info(f"Compiling cost function...")
-        return cost_fn(x0)
+        _cost_val = cost_fn(x0)
+        return cost_fn
     
     def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         param_groups = self.initial_model.param_groups()

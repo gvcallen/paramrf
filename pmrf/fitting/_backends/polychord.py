@@ -1,11 +1,7 @@
-from typing import Any
-import jax
 import jax.numpy as jnp
-import io   
-import h5py
 import numpy as np
 
-from fitting.bayesian import BayesianFitter
+from pmrf.fitting.bayesian import BayesianFitter
 from pmrf.fitting._backends.anesthetic import AnestheticResults
 from pmrf._util import time_string
    

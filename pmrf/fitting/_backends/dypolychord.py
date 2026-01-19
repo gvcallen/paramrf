@@ -5,7 +5,7 @@ import io
 import h5py
 import numpy as np
 
-from fitting.bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting.bayesian import BayesianFitter, BayesianResults
 from pmrf.fitting._backends.anesthetic import AnestheticResults
 from pmrf._util import time_string, explicit_kwargs
    

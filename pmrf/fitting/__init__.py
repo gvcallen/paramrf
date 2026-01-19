@@ -1,4 +1,4 @@
-from fitting.base import (
+from pmrf.fitting.base import (
     Fitter,
     fit,
     fit_bayesian,
@@ -10,12 +10,12 @@ from fitting.base import (
     is_inference_kind,
 )
 
-from fitting.frequentist import (
+from pmrf.fitting.frequentist import (
     FrequentistFitter,
     FrequentistResults,
 )
 
-from fitting.bayesian import (
+from pmrf.fitting.bayesian import (
     BayesianFitter,
     BayesianFitter,
     BayesianResults,

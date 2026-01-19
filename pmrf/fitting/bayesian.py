@@ -13,7 +13,7 @@ from pmrf.constants import FeatureInputT
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf.distributions.trainable import TrainableDistributionT
-from fitting.base import BaseFitter, FitResults
+from pmrf.fitting.base import BaseFitter, FitResults
 
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
 

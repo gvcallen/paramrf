@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax.extend.backend import get_backend
 from tqdm import tqdm
 
-from fitting.bayesian import BayesianFitter
+from pmrf.fitting.bayesian import BayesianFitter
 from pmrf.fitting._backends.anesthetic import AnestheticResults
 
 class BlackJAXNSFitter(BayesianFitter):

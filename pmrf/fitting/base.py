@@ -22,9 +22,6 @@ from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 from pmrf.network_collection import NetworkCollection
-from fitting.base import FitResults
-from fitting.frequentist import FrequentistResults
-from fitting.bayesian import BayesianResults
 
 def Fitter(
     backend: str,
@@ -147,7 +144,7 @@ class BaseFitter(ABC):
         load_previous: bool = True, 
         save_hdf: bool = True,
         plot_s_db: bool = True,
-        callback: Callable[[FitResults], None] | None = None,
+        callback: Callable[['FitResults'], None] | None = None,
         new_uniform_frac: float | None = 0.01,
         **kwargs
     ) -> 'FitResults':
@@ -187,7 +184,7 @@ class BaseFitter(ABC):
         if save_output:
             Path(self.output_path).mkdir(parents=True, exist_ok=True)      
 
-        self.logger.info(f"Fitting for {self.initial_model.num_flat_params()} parameters")
+        self.logger.info(f"Fitting for {self.initial_model.num_flat_params} parameters")
         self.logger.info(f"Parameter names: {self.initial_model.flat_param_names()}")
         
         results = self._run(*args, **kwargs)
@@ -561,16 +558,13 @@ def get_fitter_class(solver: str):
     class_names = [solver + 'Fitter']
     class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
     try:
-        for submodule_name, _ in iter_submodules('pmrf.fitting.fitters'):
-            try:
-                fitter_submodel = importlib.import_module(submodule_name)
-            except:
-                continue
+        for submodule_name, _ in iter_submodules('pmrf.fitting._backends'):
+            fitter_submodel = importlib.import_module(submodule_name)
             for class_name in class_names:
                 if hasattr(fitter_submodel, class_name):
                     return getattr(fitter_submodel, class_name)
-    except (ImportError, AttributeError):
-        raise Exception(f'Could not find solver named {solver}')
+    except (ImportError, AttributeError) as e:
+        raise Exception(f'Could not find solver named {solver} with error: {e}')
     
 def fit_frequentist(
     model: Model,
@@ -580,12 +574,13 @@ def fit_frequentist(
     cost_kind: str = 'convolutional',
     optimizer: str = 'SLSQP',
     max_iterations: int = 1000,
-    init_kwargs: dict | None = None,
     run_kwargs: dict | None = None,
-) -> FrequentistResults:
+    **kwargs,
+) -> FitResults:
     """Fit a model using frequentist inference.
 
     This is a non-object-orientated interface to the fitting API, which creates a frequentist fitter and provides easy passing of commonly-used arguments.
+    Key-word arguments are forwarded to `pmrf.Fitter(...)`.
 
     Args:
         model (prf.Model):
@@ -601,25 +596,19 @@ def fit_frequentist(
             The backend optimizer algorithm to use. Defaults to 'SLSQP'.
         max_iterations (int, optional):
             The maximum optimizer iterations to run. Defaults to 1000.
-        init_kwargs (dict | None, optional):
-            Key-word arguments to forward to `pmrf.Fitter(...)`.
         run_kwargs (dict | None, optional):
             Key-word arguments to forward to `pmrf.FrequentistFitter.run(...)`.
 
     Returns:
         FrequentistResults: The frequentist results from the fit.
     """
-    if backend != 'scipy-minimize':
-        raise Exception('Currently only SciPy minimize is supported for frequentist inference')
-    
-    init_kwargs = init_kwargs if init_kwargs is not None else {}
     run_kwargs = run_kwargs if run_kwargs is not None else {}
     
-    init_kwargs.setdefault('cost_kind', cost_kind)
+    kwargs.setdefault('cost_kind', cost_kind)
     run_kwargs.setdefault('optimizer', optimizer)
     run_kwargs.setdefault('max_iterations', max_iterations)
 
-    return Fitter(backend=backend, model=model, measured=measured, **init_kwargs).run(**run_kwargs)
+    return Fitter(backend=backend, model=model, measured=measured, **kwargs).run(**run_kwargs)
 
 def fit_bayesian(
     model: Model,
@@ -628,12 +617,13 @@ def fit_bayesian(
     backend: str = 'polychord',
     likelihood_kind: str | None = None,
     nlive_factor: int = 25,
-    init_kwargs: dict | None = None,
     run_kwargs: dict | None = None,
-) -> BayesianResults:
+    **kwargs,
+) -> FitResults:
     """Fit a model using Bayesian inference.
 
     This is a non-object-orientated interface to the fitting API, which creates a frequentist fitter and provides easy passing of commonly-used arguments.
+    Key-word arguments are forwarded to `pmrf.Fitter(...)`.
 
     Args:
         model (prf.Model):
@@ -646,21 +636,18 @@ def fit_bayesian(
             The kind of likelihood function to use. Can be 'gaussian' or 'multivariate_gaussian'. Defaults to None, in which case the kind is picked based on `sparam_kind`.
         nlive_factor (int, optional):
             The number of live points to use for the default `PolyChordFitter`, as a factor of the number of parameters. Defaults to 25.
-        init_kwargs (dict | None, optional):
-            Key-word arguments to forward to `pmrf.Fitter(...)`.
         run_kwargs (dict | None, optional):
             Key-word arguments to forward to `pmrf.FrequentistFitter.run(...)`.
 
     Returns:
         BayesianResults: The frequentist results from the fit.
     """
-    init_kwargs = init_kwargs if init_kwargs is not None else {}
     run_kwargs = run_kwargs if run_kwargs is not None else {}
     
-    init_kwargs.setdefault('likelihood_kind', likelihood_kind)
+    kwargs.setdefault('likelihood_kind', likelihood_kind)
     run_kwargs.setdefault('nlive_factor', nlive_factor)
 
-    return Fitter(backend=backend, model=model, measured=measured, **init_kwargs).run(**run_kwargs)
+    return Fitter(backend=backend, model=model, measured=measured, **kwargs).run(**run_kwargs)
 
 def fit(
     model: Model,
@@ -685,8 +672,6 @@ def fit(
             The kind of likelihood function to use. Can be 'gaussian' or 'multivariate_gaussian'. Defaults to None, in which case the kind is picked based on `sparam_kind`.
         nlive_factor (int, optional):
             The number of live points to use for the default `PolyChordFitter`, as a factor of the number of parameters. Defaults to 25.
-        **kwargs (dict | None, optional):
-            Key-word arguments to forward to `fit_general`.
 
     Returns:
         BayesianResults: The frequentist results from the fit.

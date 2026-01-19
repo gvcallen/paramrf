@@ -1,13 +1,9 @@
-import numpy as np
-
-from fitting.frequentist import FrequentistFitter, FrequentistResults
-from pmrf.fitting._backends.scipy import SciPyMinimizeResults
-
-import numpy as np
 from typing import Any
+
+import numpy as np
 import h5py
 
-from fitting.frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults
 
 class SciPyMinimizeResults(FrequentistResults):
     def encode_solver_results(self, grp: h5py.Group):

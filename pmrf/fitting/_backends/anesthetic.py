@@ -4,7 +4,7 @@ import io
 import h5py
 import jax.numpy as jnp
 
-from fitting.bayesian import BayesianResults
+from pmrf.fitting.bayesian import BayesianResults
 
 class AnestheticResults(BayesianResults):
     from anesthetic import NestedSamples
