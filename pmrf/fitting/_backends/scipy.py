@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import h5py
 
-from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, FrequentistContext
 
 class SciPyMinimizeResults(FrequentistResults):
     def encode_solver_results(self, grp: h5py.Group):
@@ -30,20 +30,20 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """
-    def _run(self, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
+    def _run(self, ctx: FrequentistContext, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
         from scipy.optimize import minimize, Bounds
 
         kwargs.setdefault('method', optimizer)
         
         # Extract parameter values and bounds from the model
-        param_names = self._active_model.flat_param_names()
+        param_names = ctx.model.flat_param_names()
         
-        minimums, maximums = self._bounds()
+        minimums, maximums = ctx.bounds()
         minimums, maximums = np.array(minimums), np.array(maximums)
         bounds = Bounds(minimums, maximums)
         
-        x0 = np.array(self._active_model.flat_params())
-        cost_fn = self._make_cost_function(as_numpy=True)
+        x0 = np.array(ctx.model.flat_params())
+        cost_fn = ctx.make_cost_function(as_numpy=True)
 
         too_low, too_high = x0 < minimums, x0 > maximums
         if np.any(too_low | too_high):
@@ -78,6 +78,6 @@ class SciPyMinimizeFitter(FrequentistFitter):
         self.logger.info(f"Optimization finished: {scipy_result.message}")
         
         # Reconstruct the final model with optimized parameters
-        fitted_model = self._active_model.with_flat_params(scipy_result.x)
+        fitted_model = ctx.model.with_flat_params(scipy_result.x)
         
         return SciPyMinimizeResults(fitted_model=fitted_model, solver_results=scipy_result)

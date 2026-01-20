@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from typing import Any
 import h5py
 
-from pmrf.fitting.bayesian import BayesianFitter, BayesianResults
+from pmrf.fitting.bayesian import BayesianFitter, BayesianResults, BayesianContext
 
 class NumPyroResults(BayesianResults):
     def encode_solver_results(self, group: h5py.Group):
@@ -15,26 +15,26 @@ class NumPyroResults(BayesianResults):
         group['samples']
         
 class NumPyroFitter(BayesianFitter):
-    def _make_numpyro_model(self):
+    def make_numpyro_model(self, ctx: BayesianContext):
         import numpyro
         import numpyro.distributions as dist
         
         # Get the model parameters
-        params = self._active_model.flat_params()
-        self._make_log_prior_fn()
+        params = ctx.model.flat_params()
+        ctx.make_log_prior_fn()
         
         param_names = list(params.keys())
         param_priors = [param.prior for param in params.values()]
         
         # Generate feature function and prepare the obs
         self.logger.info("Compiling model and likelihood function...")
-        x0 = self._active_model.flat_params()
-        feature_fn = self._make_feature_function()
+        x0 = ctx.model.flat_params()
+        feature_fn = ctx.make_feature_function()
         feature_fn = jax.jit(feature_fn)
         _y0 = feature_fn(x0)
         
         # Define the numpyro model
-        obs_real, obs_imag = jnp.real(self._active_measured_features), jnp.imag(self._active_measured_features)
+        obs_real, obs_imag = jnp.real(ctx.measured_features), jnp.imag(ctx.measured_features)
         def numpyro_model():
             x = jnp.stack([numpyro.sample(param_name, prior) for param_name, prior in zip(param_names, param_priors)])
 
@@ -51,17 +51,17 @@ class NumPyroMCMCFitter(NumPyroFitter):
     """
     NumPyro fitter using numpyro.infer.MCMC.
     """        
-    def _run(self, kernel=None, **kwargs) -> NumPyroResults:
+    def _run(self, ctx: BayesianContext, *, kernel=None, **kwargs) -> NumPyroResults:
         from numpyro.infer import MCMC, NUTS
         
         if kernel is None:
             kernel = NUTS
         
         # Get the model parameters
-        param_names = self._active_model.flat_param_names()
+        param_names = ctx.model.flat_param_names()
         
         # Define the numpyro model
-        numpyro_model = self._make_numpyro_model()
+        numpyro_model = self.make_numpyro_model(ctx)
         
         # Run MCMC
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s)...')
@@ -77,20 +77,20 @@ class NumPyroMCMCFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = self._active_model.with_flat_params(x_mean)
+        fitted_model = ctx.model.with_flat_params(x_mean)
         
         return NumPyroResults(fitted_model=fitted_model, solver_results=samples)
         
 class NumPyroNSFitter(NumPyroFitter):
-    def _run(self, *, constructor_kwargs=None, terminated_kwargs=None) -> NumPyroResults:
+    def _run(self, ctx: BayesianContext, *, constructor_kwargs=None, terminated_kwargs=None) -> NumPyroResults:
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
-        params = self._active_model.flat_params()
+        params = ctx.model.flat_params()
         param_names = list(params.keys())
         
         # Define the numpyro model
-        numpyro_model = self._make_numpyro_model()
+        numpyro_model = ctx.make_numpyro_model()
         
         # Run MCMC
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s)...')
@@ -103,7 +103,7 @@ class NumPyroNSFitter(NumPyroFitter):
 
         # Posterior means
         x_mean = jnp.stack([samples[param_name].mean() for param_name in param_names])
-        fitted_model = self._active_model.with_flat_params(x_mean)
+        fitted_model = ctx.model.with_flat_params(x_mean)
         
         # Return the results
         return NumPyroResults(fitted_model=fitted_model, solver_results=samples)

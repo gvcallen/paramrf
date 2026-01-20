@@ -1,3 +1,5 @@
+import dataclasses
+from dataclasses import dataclass
 from functools import partial
 from abc import abstractmethod
 
@@ -9,14 +11,12 @@ import skrf
 import numpyro.distributions as dist
 import matplotlib.pyplot as plt
 
-from pmrf.constants import ArrayFuncT
 from pmrf.network_collection import NetworkCollection
 from pmrf._util import RANK, wait_for_all_ranks
-from pmrf.constants import FeatureInputT
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf.distributions.trainable import TrainableDistributionT
-from pmrf.fitting.base import BaseFitter, FitResults
+from pmrf.fitting.base import BaseFitter, FitResults, FitContext
 
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
 
@@ -61,6 +61,121 @@ class BayesianResults(FitResults):
         param_group = ParameterGroup(param_names, dist)
         
         self.fitted_model = self.fitted_model.with_param_groups(param_group)
+        
+@dataclass
+class BayesianContext(FitContext):
+    likelihood_kind: str = None
+    likelihood_params: dict[str, Parameter] = None
+    feature_sigmas: list[str] | None = None
+    
+    @property
+    def num_params(self) -> int:
+        return self.num_model_params + self.num_likelihood_params
+    
+    @property
+    def num_model_params(self) -> int:
+        return self.model.num_flat_params
+    
+    @property
+    def num_likelihood_params(self) -> int:
+        return len(self.likelihood_params)
+    
+    def likelihood_param_names(self) -> list[str]:
+        return list(self.likelihood_params.keys())
+        
+    def flat_param_names(self) -> list[str]:
+        return self.model_param_names() + self.likelihood_param_names()
+    
+    def make_prior_transform_fn(self, as_numpy=False):
+        model_prior = self.model.distribution()
+        num_model_params = len(self.model.flat_params())
+        num_likelihood_params = len(self.likelihood_params)
+        
+        @jax.jit
+        def prior_transform_fn(u):
+            theta_model = model_prior.icdf(u[0:num_model_params])
+            theta_likelihood = jnp.array([param.distribution.icdf(u[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
+            return jnp.concat((theta_model, theta_likelihood))
+            
+        if as_numpy:
+            prior_transform_fn_jax = prior_transform_fn
+            prior_transform_fn = lambda hypercube: np.array(prior_transform_fn_jax(hypercube))
+        
+        self.logger.info('Compiling prior transform...')
+        _prior = prior_transform_fn(jnp.array([0.5] * (num_model_params + num_likelihood_params)))
+        
+        return prior_transform_fn
+    
+    def make_log_prior_fn(self, as_numpy=False):
+        model_prior = self.model.distribution()
+        num_model_params = self.model.num_flat_params
+        num_likelihood_params = len(self.likelihood_params)
+        
+        @jax.jit
+        def logprior_fn(params: jax.Array) -> float:
+            logprob_model = model_prior.log_prob(params[0:num_model_params])
+            logprob_likelihood = jnp.array([param.distribution.log_prob(params[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
+            return jnp.sum(logprob_model) + jnp.sum(logprob_likelihood)
+        
+        if as_numpy:
+            logprior_fn_jax = logprior_fn
+            logprior_fn = lambda x: float(logprior_fn_jax(jnp.array(x)))
+
+        self.logger.info('Compiling log prior...')
+        _prior = logprior_fn(jnp.array([0.5] * (num_model_params + num_likelihood_params)))
+            
+        return logprior_fn
+        
+    def make_log_likelihood_fn(self, as_numpy=False):
+        if self.likelihood_kind == 'gaussian':        
+            log_likelihood_fn = self.make_gaussian_log_likelihood_fn()        
+        elif self.likelihood_kind == 'multivariate_gaussian':
+            log_likelihood_fn = self.make_multivariate_gaussian_log_likelihood_fn()
+        else:
+            raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
+
+        x0 = jnp.array(list(self.model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
+        if as_numpy:
+            log_likelihood_fn_jax = log_likelihood_fn
+            log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
+            x0 = np.array(x0)
+            
+        self.logger.info(f"Compiling likelihood function...")
+        _log_likelihood = log_likelihood_fn(x0)
+
+        return log_likelihood_fn
+    
+    def make_gaussian_log_likelihood_fn(self):
+        feature_fn_jax = self.make_feature_function() 
+        
+        @jax.jit
+        def loglikelihood_fn(flat_params) -> float:
+            theta, sigma = flat_params[0:-1], flat_params[-1]
+            y_pred = jnp.real(feature_fn_jax(theta))
+            y_meas = jnp.real(self._active_measured_features)
+            logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
+            return logL
+        
+        return loglikelihood_fn
+    
+    def make_multivariate_gaussian_log_likelihood_fn(self):
+        feature_fn_jax = self.make_feature_function()
+        
+        @jax.jit
+        def loglikelihood_fn(flat_params) -> float:
+            num_sigma = len(self.likelihood_params)
+            theta, sigmas = flat_params[0:-num_sigma], flat_params[-num_sigma:]
+            y_pred = jnp.real(feature_fn_jax(theta))
+            y_meas = jnp.real(self._active_measured_features)
+            
+            param_keys = list(self.likelihood_params.keys())
+            sigma_indices = jnp.array([param_keys.index(key) for key in self.feature_sigmas])
+            scales = sigmas[sigma_indices]
+            logL = dist.Normal(loc=y_pred, scale=scales).log_prob(y_meas).sum()
+            return logL
+        
+        return loglikelihood_fn    
+    
     
 class BayesianFitter(BaseFitter):
     """
@@ -71,12 +186,7 @@ class BayesianFitter(BaseFitter):
     def __init__(
         self,
         model: Model,
-        measured: skrf.Network | dict[str, skrf.Network],
         *,
-        features: FeatureInputT | None = None,
-        output_path: str | None = None,
-        output_root: str = 'fit',
-        sparam_kind: str = 'all',        
         likelihood_kind: str | None = None,
         likelihood_params: dict[str, Parameter] = None,
         feature_sigmas: list[str] | None = None,
@@ -87,19 +197,6 @@ class BayesianFitter(BaseFitter):
         Args:
             model (Model):
                 The parametric `pmrf` model to be fitted.
-            measured (skrf.Network | list[skrf.Network]):
-                The measured network data to fit the model against.
-            features (FeatureT | FeatureListT | None = None, optional):
-                The features to extract for comparison.
-                Note that note all features make sense for all likelihoods, but no error checking is done for this.
-                Defaults to `None`, in which case real and imaginary feature for all model ports are used.
-            output_path (str | None):
-                The path for fitters to write output data to. Defaults to `None`.
-            output_root (str | None):
-                The root name used for output files in the output path. Defaults to `None`.
-            sparam_kind (str | None):
-                The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
-                See `extract_features` for more details.                
             likelihood_kind (str, optional):
                 The kind of likelihood to use. Can be either 'gaussian' or 'multivariate_gaussian'.
                 Defaults internally to 'gaussian' for one-port fits, and 'multivariate_gaussian' for greater port fits.
@@ -112,6 +209,46 @@ class BayesianFitter(BaseFitter):
             feature_sigmas (list[str], optional):
                 A list of sigma names for each feature. Only used when `likelihood_kind` is 'multivariate_gaussian'.
         """
+        self.likelihood_kind = likelihood_kind
+        self.likelihood_params = likelihood_params
+        self.feature_sigmas = feature_sigmas
+
+        super().__init__(model, **kwargs)
+        
+    def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
+        user_callback = kwargs.get('callback', None)
+        fit_posterior_kwargs = fit_posterior_kwargs or {}
+        
+        def callback(results: BayesianResults):
+            nonlocal user_callback
+            nonlocal fit_posterior_dist
+            
+            if RANK == 0:
+                from pmrf.distributions import MargarineMAFDistribution
+                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
+                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
+            wait_for_all_ranks()
+            if user_callback:
+                kwargs['callback'](results)
+        
+        if fit_posterior:
+            user_callback = kwargs.pop('callback', None)
+            kwargs['callback'] = callback
+
+        results: BayesianResults = super().run(*args, **kwargs)
+
+        if plot_params:
+            results.plot_params()
+            plt.savefig(f'{ctx.output_path}/params.png')
+
+        return results
+    
+    def create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
+        features = kwargs.pop('features', None) or self.features
+        likelihood_kind = likelihood_kind or self.likelihood_kind
+        likelihood_params = likelihood_params or self.likelihood_params
+        feature_sigmas = feature_sigmas or self.feature_sigmas
+        
         if isinstance(measured, str):
             measured = skrf.Network(measured)
         
@@ -148,159 +285,31 @@ class BayesianFitter(BaseFitter):
         likelihood_params = likelihood_params if likelihood_params is not None else default_likelihood_params
         features = features if features is not None else default_features
         feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
-            
-        super().__init__(model=model, measured=measured, features=features, output_path=output_path, output_root=output_root, sparam_kind=sparam_kind, **kwargs)
         
+        base_ctx = super().create_context(measured, features=features, **kwargs)
+    
         if likelihood_kind == 'multivariate_gaussian':
             if feature_sigmas is None:
                 raise Exception('feature_sigmas must be passed for multivariate Gaussian likelihoods')
-            self.feature_sigmas = feature_sigmas
-            self.likelihood_kind = likelihood_kind
-            self.likelihood_params = likelihood_params if likelihood_params is not None else {sigma_name: DefaultSigmaPrior(name=sigma_name) for sigma_name in feature_sigmas}
+            likelihood_params = likelihood_params if likelihood_params is not None else {sigma_name: DefaultSigmaPrior(name=sigma_name) for sigma_name in feature_sigmas}
         elif likelihood_kind == 'gaussian':        
             if likelihood_params is not None and len(likelihood_params) > 1:
                 raise Exception("A gaussian likelihood only has a single likelihood parameter 'sigma'")
 
-            self.likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': DefaultSigmaPrior(name='sigma')}
-            self.likelihood_kind = likelihood_kind
+            likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': DefaultSigmaPrior(name='sigma')}
         else:
             raise Exception(f"Unsupported likelihood kind: {likelihood_kind}")
         
-    def run(self, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
-        user_callback = kwargs.get('callback', None)
-        fit_posterior_kwargs = fit_posterior_kwargs or {}
-        
-        def callback(results: BayesianResults):
-            nonlocal user_callback
-            nonlocal fit_posterior_dist
-            
-            if RANK == 0:
-                from pmrf.distributions import MargarineMAFDistribution
-                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
-                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
-            wait_for_all_ranks()
-            if user_callback:
-                kwargs['callback'](results)
-        
-        if fit_posterior:
-            user_callback = kwargs.pop('callback', None)
-            kwargs['callback'] = callback
-
-        results: BayesianResults = super().run(*args, **kwargs)
-
-        if plot_params:
-            results.plot_params()
-            plt.savefig(f'{self._active_output_path}/params.png')
-
-        return results               
-        
-    @property
-    def _num_params(self) -> int:
-        return self._num_model_params + self._num_likelihood_params
-    
-    @property
-    def _num_model_params(self) -> int:
-        return self._active_model.num_flat_params
-    
-    @property
-    def _num_likelihood_params(self) -> int:
-        return len(self.likelihood_params)
-    
-    def _model_param_names(self) -> list[str]:
-        return self._active_model.flat_param_names()
-    
-    def _likelihood_param_names(self) -> list[str]:
-        return list(self.likelihood_params.keys())
-        
-    def _flat_param_names(self) -> list[str]:
-        return self._model_param_names() + self._likelihood_param_names()
-    
-    def _make_prior_transform_fn(self, as_numpy=False):
-        model_prior = self._active_model.distribution()
-        num_model_params = len(self._active_model.flat_params())
-        num_likelihood_params = len(self.likelihood_params)
-        
-        @jax.jit
-        def prior_transform_fn(u):
-            theta_model = model_prior.icdf(u[0:num_model_params])
-            theta_likelihood = jnp.array([param.distribution.icdf(u[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
-            return jnp.concat((theta_model, theta_likelihood))
-            
-        if as_numpy:
-            prior_transform_fn_jax = prior_transform_fn
-            prior_transform_fn = lambda hypercube: np.array(prior_transform_fn_jax(hypercube))
-        
-        self.logger.info('Compiling prior transform...')
-        _prior = prior_transform_fn(jnp.array([0.5] * (num_model_params + num_likelihood_params)))
-        
-        return prior_transform_fn
-    
-    def _make_log_prior_fn(self, as_numpy=False):
-        model_prior = self._active_model.distribution()
-        num_model_params = self._active_model.num_flat_params
-        num_likelihood_params = len(self.likelihood_params)
-        
-        @jax.jit
-        def logprior_fn(params: jax.Array) -> float:
-            logprob_model = model_prior.log_prob(params[0:num_model_params])
-            logprob_likelihood = jnp.array([param.distribution.log_prob(params[num_model_params:][i]) for i, param in enumerate(self.likelihood_params.values())])
-            return jnp.sum(logprob_model) + jnp.sum(logprob_likelihood)
-        
-        if as_numpy:
-            logprior_fn_jax = logprior_fn
-            logprior_fn = lambda x: float(logprior_fn_jax(jnp.array(x)))
-
-        self.logger.info('Compiling log prior...')
-        _prior = logprior_fn(jnp.array([0.5] * (num_model_params + num_likelihood_params)))
-            
-        return logprior_fn
-        
-    def _make_log_likelihood_fn(self, as_numpy=False):
-        if self.likelihood_kind == 'gaussian':        
-            log_likelihood_fn = self._make_gaussian_log_likelihood_fn()        
-        elif self.likelihood_kind == 'multivariate_gaussian':
-            log_likelihood_fn = self._make_multivariate_gaussian_log_likelihood_fn()
-        else:
-            raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
-
-        x0 = jnp.array(list(self._active_model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
-        if as_numpy:
-            log_likelihood_fn_jax = log_likelihood_fn
-            log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
-            x0 = np.array(x0)
-            
-        self.logger.info(f"Compiling likelihood function...")
-        _log_likelihood = log_likelihood_fn(x0)
-
-        return log_likelihood_fn
-    
-    def _make_gaussian_log_likelihood_fn(self):
-        feature_fn_jax = self._make_feature_function() 
-        
-        @jax.jit
-        def loglikelihood_fn(flat_params) -> float:
-            theta, sigma = flat_params[0:-1], flat_params[-1]
-            y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self._active_measured_features)
-            logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
-            return logL
-        
-        return loglikelihood_fn
-    
-    def _make_multivariate_gaussian_log_likelihood_fn(self):
-        feature_fn_jax = self._make_feature_function()
-        
-        @jax.jit
-        def loglikelihood_fn(flat_params) -> float:
-            num_sigma = len(self.likelihood_params)
-            theta, sigmas = flat_params[0:-num_sigma], flat_params[-num_sigma:]
-            y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self._active_measured_features)
-            
-            param_keys = list(self.likelihood_params.keys())
-            sigma_indices = jnp.array([param_keys.index(key) for key in self.feature_sigmas])
-            scales = sigmas[sigma_indices]
-            logL = dist.Normal(loc=y_pred, scale=scales).log_prob(y_meas).sum()
-            return logL
-        
-        return loglikelihood_fn
+        return BayesianContext(
+            model=base_ctx.model,
+            measured=base_ctx.measured,
+            frequency=base_ctx.frequency,
+            features=base_ctx.features,
+            measured_features=base_ctx.measured_features,
+            output_path=base_ctx.output_path,
+            output_root=base_ctx.output_root,
+            sparam_kind=base_ctx.sparam_kind,
+            likelihood_kind=likelihood_kind,
+            likelihood_params=likelihood_params,
+            feature_sigmas=feature_sigmas,
+        )

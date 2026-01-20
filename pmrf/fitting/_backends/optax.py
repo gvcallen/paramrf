@@ -7,14 +7,14 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults
+from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, FrequentistContext
 
 class OptaxFitter(FrequentistFitter):
     """
     JAX/Optax-based fitter. Uses gradient-based optimization on a flat
     parameter vector with box constraints handled by projection.
     """
-    def _make_optimizer(
+    def make_optimizer(
         self,
         name: str,
         lr: float,
@@ -42,6 +42,7 @@ class OptaxFitter(FrequentistFitter):
 
     def _run(
         self,
+        ctx: FrequentistContext,
         *,
         optimizer: str = "adam",
         learning_rate: float = 1e-2,
@@ -76,16 +77,16 @@ class OptaxFitter(FrequentistFitter):
         kwargs:
             Reserved for compatibility; ignored here (you can plumb extra knobs if needed).
         """
-        x0 = jnp.asarray(self._active_model.flat_params(), dtype=jnp.float64)
-        mins, maxs = self._bounds()
+        x0 = jnp.asarray(ctx.model.flat_params(), dtype=jnp.float64)
+        mins, maxs = ctx.bounds()
         mins = jnp.asarray(mins, dtype=jnp.float64)
         maxs = jnp.asarray(maxs, dtype=jnp.float64)
 
         if jnp.any((maxs - x0) < 0.0) or jnp.any((x0 - mins) < 0.0):
             raise Exception("Bad prior bounds")
 
-        cost_fn = self._make_cost_function()
-        opt = self._make_optimizer(optimizer, learning_rate, grad_clip_norm)
+        cost_fn = ctx.make_cost_function()
+        opt = self.make_optimizer(optimizer, learning_rate, grad_clip_norm)
         value_and_grad = jax.jit(jax.value_and_grad(cost_fn))
 
         @jax.jit
@@ -154,7 +155,7 @@ class OptaxFitter(FrequentistFitter):
         final_x = best_x  # use best parameters encountered
         final_cost = float(best_val)
 
-        fitted_model = self._active_model.with_flat_params(jnp.asarray(final_x))
+        fitted_model = ctx.model.with_flat_params(jnp.asarray(final_x))
 
         solver_results = dict(message="Optimization finished",
             status=0,  # 0=OK (mimic SciPy style)

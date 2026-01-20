@@ -4,28 +4,28 @@ import jax.numpy as jnp
 from jax.extend.backend import get_backend
 from tqdm import tqdm
 
-from pmrf.fitting.bayesian import BayesianFitter
+from pmrf.fitting.bayesian import BayesianFitter, BayesianContext
 from pmrf.fitting._backends.anesthetic import AnestheticResults
 
 class BlackJAXNSFitter(BayesianFitter):
     """
     A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
     """
-    def _run(self, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
+    def _run(self, ctx: BayesianContext, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         import blackjax
         from anesthetic import NestedSamples
         
         start_time = time.time()
         rng_key = jax.random.PRNGKey(seed)
 
-        param_names = self._flat_param_names()
+        param_names = ctx.flat_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         
-        x0 = self._active_model.flat_params()
-        prior_fn = jax.jit(self._make_prior_transform_fn())
-        logprior_fn = jax.jit(self._make_log_prior_fn())
-        loglikelihood_fn = jax.jit(self._make_log_likelihood_fn())
+        x0 = ctx.model.flat_params()
+        prior_fn = jax.jit(ctx.make_prior_transform_fn())
+        logprior_fn = jax.jit(ctx.make_log_prior_fn())
+        loglikelihood_fn = jax.jit(ctx.make_log_likelihood_fn())
 
         d = len(param_names)
         nlive_factor = nlive_factor if nlive_factor is not None else 25
@@ -84,7 +84,7 @@ class BlackJAXNSFitter(BayesianFitter):
         self.logger.info(f"Sampling finished in {total_time:.2f} seconds.")
         self.logger.info(f"Final logZ = {nested_samples.logZ()}")
         
-        model_param_names = list(self._active_model.flat_param_names())
+        model_param_names = list(ctx.model.flat_param_names())
         for i, param_name in enumerate(model_param_names):
             if best_param_method == 'mean':
                 val_new = nested_samples[param_name].mean()
@@ -95,6 +95,6 @@ class BlackJAXNSFitter(BayesianFitter):
                 self.logger.warning("Unknown best parameter method. Skipping")
             x0 = x0.at[i].set(val_new)
             
-        fitted_model = self._active_model.with_flat_params(x0)
+        fitted_model = ctx.model.with_flat_params(x0)
 
         return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)

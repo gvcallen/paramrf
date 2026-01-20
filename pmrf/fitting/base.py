@@ -6,6 +6,7 @@ import logging
 from typing import Any, Sequence, Callable
 from pathlib import Path
 
+import numpy as np
 import matplotlib.pyplot as plt
 import jax
 import json
@@ -22,82 +23,6 @@ from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 from pmrf.network_collection import NetworkCollection
-
-def Fitter(
-    model: Model,
-    measured: str | Network | NetworkCollection,        
-    inference: str | None = None,
-    backend: str | None = None,
-    **kwargs
-) -> 'BaseFitter':
-    """Fitter factory function.
-    
-    This allows the creator of a fitter by simply specifying the inference type or fitter backend and having all arguments forwarded.
-    See the relevant fitter classes for detailed documentation.
-
-    Args:
-        model (Model):
-            The parametric `pmrf` Model to be fitted.
-            See the documentation for `BaseFitter`.
-        measured (skrf.Network | prf.NetworkCollection):
-            The measured network data to fit the model against.
-            See the documentation for `BaseFitter`.
-        inference (str, optional):
-            High-level inference mode. Can be either 'frequentist' or 'bayesian'.
-            If provided and ``backend`` is ``None``, a suitable default backend
-            is selected automatically.
-        backend (str, optional)
-            Explicit fitter backend name. If provided, this takes precedence over
-            ``inference`` and must be compatible with it.
-
-    Returns:
-        BaseFitter: The concrete fitter instance.
-    """
-    if inference is None and backend is None:
-        inference = 'frequentist'
-    if inference not in [None, 'frequentist', 'bayesian']:
-        raise Exception('Unknown inference type')
-    if backend is None:
-        backend = 'scipy-minimize' if inference == 'frequentist' else 'polychord'
-    
-    if not is_inference_kind(backend, inference):
-        raise Exception('Inference type incompatible with backend')
-
-    cls = get_fitter_class(backend)
-    return cls(model=model, measured=measured, **kwargs)
-
-def is_frequentist(solver) -> bool:
-    from fitting.frequentist import FrequentistFitter
-    cls = get_fitter_class(solver)
-    return issubclass(cls, FrequentistFitter)
-
-def is_bayesian(solver) -> bool:
-    from fitting.bayesian import BayesianFitter
-    cls = get_fitter_class(solver)
-    return issubclass(cls, BayesianFitter)
-
-def is_inference_kind(solver, inference: str):
-    if inference == 'frequentist':
-        return is_frequentist(solver)
-    elif inference == 'bayesian':
-        return is_bayesian(solver)
-    else:
-        raise Exception(f"Unknown inference type '{inference}'")
-
-def get_fitter_class(solver: str):
-    solver = solver.replace('scipy', 'sciPy')
-    solver = solver.replace('polychord', 'polyChord')
-
-    class_names = [solver + 'Fitter']
-    class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
-    try:
-        for submodule_name, _ in iter_submodules('pmrf.fitting._backends'):
-            fitter_submodel = importlib.import_module(submodule_name)
-            for class_name in class_names:
-                if hasattr(fitter_submodel, class_name):
-                    return getattr(fitter_submodel, class_name)
-    except (ImportError, AttributeError) as e:
-        raise Exception(f'Could not find solver named {solver} with error: {e}')
     
 @dataclass
 class FitSettings:
@@ -105,6 +30,29 @@ class FitSettings:
     features: list[FeatureT] | None = None
     fitter_kwargs: dict | None = None
     solver_kwargs: dict | None = None    
+
+@dataclass
+class FitContext:
+    model: Model
+    measured: skrf.Network | NetworkCollection
+    frequency: skrf.Frequency
+    features: list[FeatureT]
+    measured_features: np.ndarray
+    output_path: str | None = None
+    output_root: str | None = None
+    sparam_kind: str | None = None
+    logger: logging.Logger | None = None
+    
+    def model_param_names(self) -> list[str]:
+        return self.model.flat_param_names()
+    
+    def make_feature_function(self, as_numpy=False):
+        general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=as_numpy)
+        feature_fn = lambda theta: general_feature_fn(theta, self.features, sparam_kind=self.sparam_kind)
+        return jax.jit(feature_fn)
+    
+    def settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
+        return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)    
 
 class BaseFitter(ABC):
     """
@@ -143,22 +91,13 @@ class BaseFitter(ABC):
                 The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
                 See `extract_features` for more details.
         """
-        # Set user fields
+        # Populate parameters
         self.model: Model = model
-        self.feature_spec: FeatureInputT | None = features
+        self.features: FeatureInputT | None = features
         self.output_path = output_path
         self.output_root = output_root
         self.sparam_kind = sparam_kind
         
-        # Set active fields
-        self._active_model: Model | None = None
-        self._active_measured: skrf.Network | NetworkCollection | None = None
-        self._active_feature_spec = None
-        self._active_measured_features = None
-        self._active_output_path = output_path
-        self._active_output_root = output_root
-        self._active_frequency: skrf.Frequency | None = None
-
         if RANK == 0:
             self.logger = logging.getLogger("pmrf.fitting")
         else:
@@ -167,7 +106,6 @@ class BaseFitter(ABC):
     def fit(
         self,
         measured: str | Network | NetworkCollection,
-        *args,
         **kwargs         
     ) -> Model:
         """Fits the model.
@@ -188,19 +126,17 @@ class BaseFitter(ABC):
         Returns:
             Model: The fitted model.
         """
-        self._updated_measured(measured)
-        self._active_model = self.model        
-        self._active_output_path = self.output_path
-        self._active_output_root = self.output_root
-
-        fitted_model = self.run(*args, **kwargs)
+        if isinstance(measured, str):
+            measured = skrf.Network(measured)
+        
+        ctx = self.create_context(measured)
+        fitted_model = self.run(ctx, **kwargs)
 
         return fitted_model
     
     def fit_submodels(
         self,
-        measured: str | Network | NetworkCollection,
-        *args,
+        measured: NetworkCollection,
         **kwargs         
     ) -> Model:
         """Fits the submodels.
@@ -210,35 +146,30 @@ class BaseFitter(ABC):
         Arguments are forwarded `self.run(...)`.
 
         Parameters:
-            measured (skrf.Network | prf.NetworkCollection):
+            measured (prf.NetworkCollection):
                 The measured network data to fit the model against.
-                Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
-                For the latter case the network names should be referenced during
+                Must be a ParamRF `NetworkCollection`. Network names should be referenced during
                 feature extraction by specifying features as a dictionary.
                 If networks do not have the same frequency, a common frequency is used.
-                See the documentation for the `features` argument below.             
 
         Returns:
             Model: The fitted model.
-        """  
-        self._updated_measured(measured)
-
+        """
         save_model = kwargs.get('save_model', True)
-        fitted_model = self.model
         
         # Fit the components sequentially
-        for comp_ntwk in self.measured:
+        for comp_ntwk in measured:
             name = comp_ntwk.name
             if RANK == 0:
                 logging.info(f'Fitting {name}...')
             
-            self._active_model = fitted_model.with_free_submodels([name], fix_others=True)
-            self._active_measured = self.measured.filter(lambda ntwk: ntwk.name == name)
-            self._active_output_path = f'{self.output_path}/submodels/{name}' if self.output_path is not None else None
-            self._active_output_root = self.output_root
-            self._update_features()
+            model = self.model.with_free_submodels([name], fix_others=True)
+            comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
+            output_path = f'{self.output_path}/submodels/{name}' if self.output_path is not None else None
+            
+            ctx = self.create_context(comp_measured, model=model, output_path=output_path)
 
-            fitted_model = self.run(*args, **kwargs)
+            fitted_model = self.run(ctx, **kwargs).fitted_model
 
         fitted_model = fitted_model.with_free_params_only(self.model.param_names())
         
@@ -250,26 +181,29 @@ class BaseFitter(ABC):
     
     def run(
         self,
-        *args,
+        context: FitContext,
         load_previous: bool = True, 
+        *,
         new_uniform_frac: float | None = 0.01,
         save_model: bool = True,
         save_hdf: bool = True,
         plot_s_db: bool = True,
         callback: Callable[['FitResults'], None] | None = None,
         **kwargs
-    ) -> Model:
-        """Runs the fitting algorithm on the active model and measured data.
+    ) -> 'FitResults':
+        """Runs the fitting algorithm for the specific context.
 
         This is a low-level method and should seldom be used directly.
 
-        This method runs the fitting algorithm implemented by the sub-class.
-        It also contains several convenience parameters, allowing for automatic saving
+        This method runs the fitting algorithm implemented by the underlying sub-class.
+        It contains several convenience parameters, allowing for e.g. automatic saving
         and plotting of results.
 
         Additional arguments are forwarded to the underlying fitter.
 
         Args:
+            context: (FitContext):
+                The fitting context.
             load_previous (bool):
                 Whether or not to try and load previous results from the output path.
             new_uniform_frac (float, optional):
@@ -286,14 +220,10 @@ class BaseFitter(ABC):
         Returns:
             Model: The fitted model.
         """
-        # Ensure necessary active parameters are populated
-        if self._active_model is None or self._active_feature_spec is None or self._active_measured is None or self._active_measured_features is None:
-            raise Exception('The run method should no longer be called directly. Instead, call one of the `fit` functions.')
-
         # Try load from previous results
-        if load_previous and self._active_output_path is not None:
+        if load_previous and context.output_path is not None:
             try:
-                filename = glob.glob(f"{self._active_output_path}/*.hdf5")[0]
+                filename = glob.glob(f"{context.output_path}/*.hdf5")[0]
                 results = FitResults.load_hdf(filename)
                 logging.info(f"Loaded previous results.")
                 return results
@@ -301,14 +231,14 @@ class BaseFitter(ABC):
                 pass
 
         # Output fit parameters and features
-        self.logger.info(f"Fitting for {self._active_model.num_flat_params} parameters")
-        self.logger.info(f"Parameter names: {self._active_model.flat_param_names()}")
-        self.logger.info(f'Features: {self._active_feature_spec}')
+        self.logger.info(f"Fitting for {context.model.num_flat_params} parameters")
+        self.logger.info(f"Parameter names: {context.model.flat_param_names()}")
+        self.logger.info(f'Features: {context.features}')
         
-        results = self._run(*args, **kwargs)
-        results.measured = self._active_measured
-        results.initial_model = self._active_model
-        results.settings = self._settings(solver_kwargs=kwargs)
+        results = self._run(context, **kwargs)
+        results.measured = context.measured
+        results.initial_model = context.model
+        results.settings = context.settings(solver_kwargs=kwargs)
         results.fitter = self
 
         if new_uniform_frac is not None:
@@ -317,50 +247,36 @@ class BaseFitter(ABC):
         if callback:
             callback(results)
 
-        save_output = self._active_output_path is not None and (save_model or save_hdf or plot_s_db) and RANK == 0
+        save_output = context.output_path is not None and (save_model or save_hdf or plot_s_db) and RANK == 0
         if save_output:
-            Path(self._active_output_path).mkdir(parents=True, exist_ok=True)                
+            Path(context.output_path).mkdir(parents=True, exist_ok=True)                
 
         if save_model:
             fitted_model = results.fitted_model
             model_name = fitted_model.name or 'model'
-            fitted_model.save(f'{self._active_output_path}/fitted_{model_name}.prf')
+            fitted_model.save(f'{context.output_path}/fitted_{model_name}.prf')
 
         if save_hdf:
-            results.save_hdf(f'{self._active_output_path}/results.hdf5')
+            results.save_hdf(f'{context.output_path}/results.hdf5')
         
         if plot_s_db:
             results.plot_s_db()
-            plt.savefig(f'{self._active_output_path}/s_db.png', dpi=400)
+            plt.savefig(f'{context.output_path}/s_db.png', dpi=400)
             plt.close()
 
         model_metadata = results.fitted_model.metadata
         model_metadata['fit_results'] = results
-        results.fitted_model = results.fitted_model.with_fields(metadata=model_metadata)            
+        results.fitted_model = results.fitted_model.with_fields(metadata=model_metadata)
         
-        return results.fitted_model
-    
-    @abstractmethod
-    def _run(self, *args, **kwargs) -> 'FitResults':
-        """Executes the fitting algorithm.
+        return results
 
-        This method must be implemented by all concrete subclasses. It is the
-        main entry point to start the optimization or sampling process.
-
-        Returns:
-            FitResults: An object containing the results of the fit.
-        """        
-        raise NotImplementedError
-    
-    def _make_feature_function(self, as_numpy=False):
-        general_feature_fn = wrap(extract_features, self._active_model, self._active_frequency, as_numpy=as_numpy)
-        feature_fn = lambda theta: general_feature_fn(theta, self._active_feature_spec, sparam_kind=self.sparam_kind)
-        return jax.jit(feature_fn)
-    
-    def _settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
-        return FitSettings(frequency=self._active_frequency, features=self._active_feature_spec, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)
-
-    def _updated_measured(self, measured):
+    def create_context(self, measured, *,  model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
+        model = model or self.model
+        features = features or self.features
+        sparam_kind = sparam_kind or self.sparam_kind
+        output_path = output_path or self.output_path
+        output_root = output_root or self.output_root
+        
         # Make sure measured is loaded, and that all frequencies are the same
         if isinstance(measured, str):
             measured = skrf.Network(measured)
@@ -371,18 +287,28 @@ class BaseFitter(ABC):
         else:
             frequency = measured.frequency        
 
-        self._active_measured = self.measured = measured
-        self._active_frequency = frequency
-
         # Set the default features and ensure it is not a scalar
-        feature_spec = self.feature_spec if self.feature_spec is not None else [port_feature for m, n in self.model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
-        if not isinstance(feature_spec, Sequence) and not isinstance(feature_spec, dict):
-            feature_spec = [feature_spec]
-        if isinstance(self._active_measured, NetworkCollection) and not isinstance(feature_spec, dict):
-            feature_spec = {ntwk.name: feature_spec for ntwk in self._active_measured}
+        features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
+        if not isinstance(features, Sequence) and not isinstance(features, dict):
+            features = [features]
+        if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
+            features = {ntwk.name: features for ntwk in measured}
 
-        self._active_feature_spec = feature_spec
-        self._active_measured_features = extract_features(self._active_measured, None, self._active_feature_spec, sparam_kind=self.sparam_kind)        
+        measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
+        
+        return FitContext(measured=measured, model=model, frequency=frequency, features=features, measured_features=measured_features, logger=self.logger, output_path=output_path, output_root=output_root)
+    
+    @abstractmethod
+    def _run(self, context: FitContext, **kwargs) -> 'FitResults':
+        """Executes the fitting algorithm.
+
+        This method must be implemented by all concrete subclasses. It is the
+        main entry point to start the optimization or sampling process.
+
+        Returns:
+            FitResults: An object containing the results of the fit.
+        """        
+        raise NotImplementedError    
     
 @dataclass
 class FitResults:
@@ -690,3 +616,76 @@ class FitResults:
                 solver_results=solver_results,
                 settings=settings,
             )
+
+def Fitter(
+    model: Model,
+    *,
+    inference: str | None = None,
+    backend: str | None = None,
+    **kwargs
+) -> 'BaseFitter':
+    """Fitter factory function.
+    
+    This allows the creator of a fitter by simply specifying the inference type or fitter backend and having all arguments forwarded.
+    See the relevant fitter classes for detailed documentation.
+
+    Args:
+        model (Model):
+            The parametric `pmrf` Model to be fitted.
+            See the documentation for `BaseFitter`.
+        inference (str, optional):
+            High-level inference mode. Can be either 'frequentist' or 'bayesian'.
+            If provided and ``backend`` is ``None``, a suitable default backend
+            is selected automatically.
+        backend (str, optional)
+            Explicit fitter backend name. If provided, this takes precedence over
+            ``inference`` and must be compatible with it.
+
+    Returns:
+        BaseFitter: The concrete fitter instance.
+    """
+    if inference is None and backend is None:
+        inference = 'frequentist'
+    if inference not in [None, 'frequentist', 'bayesian']:
+        raise Exception('Unknown inference type')
+    if backend is None:
+        backend = 'scipy-minimize' if inference == 'frequentist' else 'polychord'
+    
+    if not is_inference_kind(backend, inference):
+        raise Exception('Inference type incompatible with backend')
+
+    cls = get_fitter_class(backend)
+    return cls(model, **kwargs)
+
+def is_frequentist(solver) -> bool:
+    from fitting.frequentist import FrequentistFitter
+    cls = get_fitter_class(solver)
+    return issubclass(cls, FrequentistFitter)
+
+def is_bayesian(solver) -> bool:
+    from fitting.bayesian import BayesianFitter
+    cls = get_fitter_class(solver)
+    return issubclass(cls, BayesianFitter)
+
+def is_inference_kind(solver, inference: str):
+    if inference == 'frequentist':
+        return is_frequentist(solver)
+    elif inference == 'bayesian':
+        return is_bayesian(solver)
+    else:
+        raise Exception(f"Unknown inference type '{inference}'")
+
+def get_fitter_class(solver: str):
+    solver = solver.replace('scipy', 'sciPy')
+    solver = solver.replace('polychord', 'polyChord')
+
+    class_names = [solver + 'Fitter']
+    class_names.append(''.join(part[0].upper() + part[1:] for part in solver.split('-')) + 'Fitter')
+    try:
+        for submodule_name, _ in iter_submodules('pmrf.fitting._backends'):
+            fitter_submodel = importlib.import_module(submodule_name)
+            for class_name in class_names:
+                if hasattr(fitter_submodel, class_name):
+                    return getattr(fitter_submodel, class_name)
+    except (ImportError, AttributeError) as e:
+        raise Exception(f'Could not find solver named {solver} with error: {e}')
