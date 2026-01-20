@@ -178,6 +178,34 @@ class BaseFitter(ABC):
             fitted_model.save(f'{self.output_path}/fitted_{name}.prf')
 
         return fitted_model
+
+    def create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
+        model = model or self.model
+        features = features or self.features
+        sparam_kind = sparam_kind or self.sparam_kind
+        output_path = output_path or self.output_path
+        output_root = output_root or self.output_root
+        
+        # Make sure measured is loaded, and that all frequencies are the same
+        if isinstance(measured, str):
+            measured = skrf.Network(measured)
+        measured = measured.copy()
+        if isinstance(measured, NetworkCollection):
+            measured.interpolate_self()
+            frequency = measured.common_frequency()
+        else:
+            frequency = measured.frequency        
+
+        # Set the default features and ensure it is not a scalar
+        features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
+        if not isinstance(features, Sequence) and not isinstance(features, dict):
+            features = [features]
+        if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
+            features = {ntwk.name: features for ntwk in measured}
+
+        measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
+        
+        return FitContext(measured=measured, model=model, frequency=frequency, features=features, measured_features=measured_features, logger=self.logger, output_path=output_path, output_root=output_root)    
     
     def run(
         self,
@@ -269,34 +297,6 @@ class BaseFitter(ABC):
         results.fitted_model = results.fitted_model.with_fields(metadata=model_metadata)
         
         return results
-
-    def create_context(self, measured, *,  model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
-        model = model or self.model
-        features = features or self.features
-        sparam_kind = sparam_kind or self.sparam_kind
-        output_path = output_path or self.output_path
-        output_root = output_root or self.output_root
-        
-        # Make sure measured is loaded, and that all frequencies are the same
-        if isinstance(measured, str):
-            measured = skrf.Network(measured)
-        measured = measured.copy()
-        if isinstance(measured, NetworkCollection):
-            measured.interpolate_self()
-            frequency = measured.common_frequency()
-        else:
-            frequency = measured.frequency        
-
-        # Set the default features and ensure it is not a scalar
-        features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
-        if not isinstance(features, Sequence) and not isinstance(features, dict):
-            features = [features]
-        if isinstance(measured, NetworkCollection) and not isinstance(features, dict):
-            features = {ntwk.name: features for ntwk in measured}
-
-        measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
-        
-        return FitContext(measured=measured, model=model, frequency=frequency, features=features, measured_features=measured_features, logger=self.logger, output_path=output_path, output_root=output_root)
     
     @abstractmethod
     def _run(self, context: FitContext, **kwargs) -> 'FitResults':

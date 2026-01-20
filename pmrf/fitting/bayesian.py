@@ -213,35 +213,7 @@ class BayesianFitter(BaseFitter):
         self.likelihood_params = likelihood_params
         self.feature_sigmas = feature_sigmas
 
-        super().__init__(model, **kwargs)
-        
-    def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
-        user_callback = kwargs.get('callback', None)
-        fit_posterior_kwargs = fit_posterior_kwargs or {}
-        
-        def callback(results: BayesianResults):
-            nonlocal user_callback
-            nonlocal fit_posterior_dist
-            
-            if RANK == 0:
-                from pmrf.distributions import MargarineMAFDistribution
-                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
-                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
-            wait_for_all_ranks()
-            if user_callback:
-                kwargs['callback'](results)
-        
-        if fit_posterior:
-            user_callback = kwargs.pop('callback', None)
-            kwargs['callback'] = callback
-
-        results: BayesianResults = super().run(*args, **kwargs)
-
-        if plot_params:
-            results.plot_params()
-            plt.savefig(f'{ctx.output_path}/params.png')
-
-        return results
+        super().__init__(model, **kwargs)    
     
     def create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
         features = kwargs.pop('features', None) or self.features
@@ -313,3 +285,31 @@ class BayesianFitter(BaseFitter):
             likelihood_params=likelihood_params,
             feature_sigmas=feature_sigmas,
         )
+        
+    def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
+        user_callback = kwargs.get('callback', None)
+        fit_posterior_kwargs = fit_posterior_kwargs or {}
+        
+        def callback(results: BayesianResults):
+            nonlocal user_callback
+            nonlocal fit_posterior_dist
+            
+            if RANK == 0:
+                from pmrf.distributions import MargarineMAFDistribution
+                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
+                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
+            wait_for_all_ranks()
+            if user_callback:
+                kwargs['callback'](results)
+        
+        if fit_posterior:
+            user_callback = kwargs.pop('callback', None)
+            kwargs['callback'] = callback
+
+        results: BayesianResults = super().run(*args, **kwargs)
+
+        if plot_params:
+            results.plot_params()
+            plt.savefig(f'{ctx.output_path}/params.png')
+
+        return results        
