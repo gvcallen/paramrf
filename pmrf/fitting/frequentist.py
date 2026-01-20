@@ -70,8 +70,8 @@ class FrequentistFitter(BaseFitter):
     """
     A base class for frequentist (classical) optimization methods.
 
-    This class extends `BaseFitter` by adding the concept of a `cost_fn`,
-    a function that takes the difference between model features and measured
+    This class extends `BaseFitter` by adding the concept of a cost function,
+    wehich takes the difference between model features and measured
     features and computes a single scalar value representing the "cost" or "error".
     """
     def __init__(
@@ -88,7 +88,7 @@ class FrequentistFitter(BaseFitter):
             model (Model):
                 The parametric `pmrf` Model to be fitted.
             cost_kind (str, optional):
-                A cost 'kind' alias to initialize the feature extractors and cost function from.
+                A cost 'kind' alias to initialize the features and cost function from.
                 Can be one of 'convolutional', 'complex', or 'magnitude'.
             cost_function (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
                 A function or sequence of functions defining the cost metric. If a list

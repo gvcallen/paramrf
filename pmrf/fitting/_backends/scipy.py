@@ -30,7 +30,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     Scipy fitter using scipy.minimize.
     """
-    def _run(self, ctx: FrequentistContext, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
+    def _run(self, ctx: FrequentistContext, *, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
         from scipy.optimize import minimize, Bounds
 
         kwargs.setdefault('method', optimizer)

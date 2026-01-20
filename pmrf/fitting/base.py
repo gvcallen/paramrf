@@ -121,7 +121,6 @@ class BaseFitter(ABC):
                 For the latter case the network names should be referenced during
                 feature extraction by specifying features as a dictionary.
                 If networks do not have the same frequency, a common frequency is used.
-                See the documentation for the `features` argument below.            
 
         Returns:
             Model: The fitted model.
@@ -130,9 +129,9 @@ class BaseFitter(ABC):
             measured = skrf.Network(measured)
         
         ctx = self.create_context(measured)
-        fitted_model = self.run(ctx, **kwargs)
+        results = self.run(ctx, **kwargs)
 
-        return fitted_model
+        return results.fitted_model
     
     def fit_submodels(
         self,
@@ -156,22 +155,22 @@ class BaseFitter(ABC):
             Model: The fitted model.
         """
         save_model = kwargs.get('save_model', True)
+        results: dict[str, FitResults] = {}
         
         # Fit the components sequentially
-        for comp_ntwk in measured:
-            name = comp_ntwk.name
-            if RANK == 0:
-                logging.info(f'Fitting {name}...')
+        for ntwk in measured:
+            name = ntwk.name
+            
+            self.logger.info(f'Fitting {name}...')
             
             model = self.model.with_free_submodels([name], fix_others=True)
             comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
             output_path = f'{self.output_path}/submodels/{name}' if self.output_path is not None else None
             
             ctx = self.create_context(comp_measured, model=model, output_path=output_path)
+            results[name] = self.run(ctx, **kwargs)
 
-            fitted_model = self.run(ctx, **kwargs).fitted_model
-
-        fitted_model = fitted_model.with_free_params_only(self.model.param_names())
+        fitted_model = self.model.with_models([result.fitted_model for result in results.values()])
         
         if RANK == 0 and self.output_path is not None and save_model:
             name = fitted_model.name or 'model'
@@ -210,8 +209,8 @@ class BaseFitter(ABC):
     def run(
         self,
         context: FitContext,
-        load_previous: bool = True, 
         *,
+        load_previous: bool = True, 
         new_uniform_frac: float | None = 0.01,
         save_model: bool = True,
         save_hdf: bool = True,
