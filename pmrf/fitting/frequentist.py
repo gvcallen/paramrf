@@ -20,7 +20,7 @@ class FrequentistResults(FitResults):
 
 @dataclass
 class FrequentistContext(FitContext):
-    cost_function: eqx.Module
+    cost_function: eqx.Module | None = None
     
     def make_cost_function(self, as_numpy=False):
         x0_jax = self.model.flat_params()
@@ -79,7 +79,7 @@ class FrequentistFitter(BaseFitter):
         model: Model,
         *,
         cost_kind: str | None = None,
-        cost_function: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
+        cost_function: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
         **kwargs
     ) -> None:
         """Initializes the FrequentistFitter.

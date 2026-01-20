@@ -23,6 +23,8 @@ from pmrf.frequency import Frequency, MULTIPLIER_DICT
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 from pmrf.network_collection import NetworkCollection
+
+INIT_PARAMS = ['features', 'output_path', 'output_root', 'sparam_kind', 'cost_kind', 'cost_function' 'likelihood_kind', 'likelihood_params', 'feature_sigmas']
     
 @dataclass
 class FitSettings:

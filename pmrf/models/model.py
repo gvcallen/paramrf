@@ -184,7 +184,7 @@ class Model(eqx.Module):
                 m._pmrf_auto = True
                 setattr(cls, func_name, m)
 
-    # ---- Private PyTree specs -------------------------------------------------
+    # ---- PyTree manipulation and helpers -------------------------------------------------
     
     @property
     def _param_value_spec(self) -> PyTree:
@@ -247,9 +247,7 @@ class Model(eqx.Module):
         # A Pytree filter for all free Model `Parameter` objects.
         return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
     
-    # ---- Helpers --------------------------------------------------------------
-    
-    def _path_to_param_name(self, path) -> str | list[str]:
+    def path_to_param_name(self, path) -> str | list[str]:
         """Convert a PyTree path to a fully-qualified parameter name."""
         fields = []
 
@@ -267,7 +265,39 @@ class Model(eqx.Module):
                     fields.append(value.name)
                 else:
                     fields.append(str(item.idx))
-        return self.separator.join(fields)
+        return self.separator.join(fields)        
+    
+    def partition(self: ModelT, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:        
+        """Partition model into (parameters, static) trees.
+        
+        This is useful for internal use, or for inspecting the model
+        and its parameters.
+        
+        Parameters
+        ----------
+        include_fixed : bool, default=False
+            Include fixed parameters in the parameter tree.
+        param_objects : bool, default=False
+            If ``True``, keep full :class:`Parameter` objects; otherwise filter to ``.value``.
+
+        Returns
+        -------
+        (ModelT, ModelT)
+            ``(params_tree, static_tree)``
+        """        
+        if param_objects:
+            shared_spec = self._param_object_spec
+            if include_fixed:
+                filter_spec = self._core_object_spec
+            else:
+                filter_spec = self._free_object_spec
+        else:
+            shared_spec = self._param_value_spec
+            if include_fixed:
+                filter_spec = self._core_value_spec
+            else:
+                filter_spec = self._free_value_spec
+        return partition(self, filter_spec, shared_spec)        
     
     # ---- Defaults / Primary ---------------------------------------------------    
     
@@ -334,6 +364,9 @@ class Model(eqx.Module):
             if is_overridden(type(self), Model, property):
                 return property
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+    
+    def copy(self: ModelT) -> ModelT:
+        return deepcopy(self)    
 
     # ---- Introspection --------------------------------------------------------
     
@@ -506,7 +539,8 @@ class Model(eqx.Module):
         list[Model]
         """
         return nodes_by_type(self, Model)[1:]
-
+    
+    # ---- Container model building --------------------------------------------------    
 
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade composition operator ``**``."""        
@@ -514,6 +548,12 @@ class Model(eqx.Module):
         return Cascade([self, other])
     
     def connected(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
+        """Return a version of the model with some ports connected.
+
+        Returns
+        -------
+        Model
+        """        
         from pmrf.models.containers import Connected
         if isinstance(others, Model):
             others = [others]
@@ -533,7 +573,7 @@ class Model(eqx.Module):
         return Flipped(self)
     
     def terminated(self, load: 'Model' = None) -> 'Model':
-        """Terminate a 2-port model in a 1-port load (default: SHORT).
+        """Returns a new model that contains this 2-port model terminated in a 1-port load (default: SHORT).
 
         Parameters
         ----------
@@ -550,10 +590,14 @@ class Model(eqx.Module):
         terminated_model = Cascade((self, load))
         return terminated_model
     
+    # ---- Model fitting --------------------------------------------------    
+    
     def fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
-        """Fits the model to measured data.
+        """Returns a new model fitted to measured data.
 
-        This calls `pmrf.fitting.fit_model(model=self, measured=measured, **kwargs)`.
+        This is an alternative API to the fitting submodule.
+        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit(...)` is called.
+        Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
 
         Parameters
         ----------
@@ -563,43 +607,30 @@ class Model(eqx.Module):
         Returns:
             Model: The fitted model.
         """        
-        from pmrf.fitting import Fitter
-        return Fitter(model=self, measured=measured, **kwargs)
-    
-    def copy(self: ModelT) -> ModelT:
-        return deepcopy(self)
-    
-    def partition(self: ModelT, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:        
-        """Partition model into (parameters, static) trees.
-        
-        This is useful for internal use, or for inspecting the model
-        and its parameters.
-        
+        from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
+        init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
+        return Fitter(self, **init_kwargs).fit(measured, **kwargs)
+
+    def with_submodels_fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
+        """Returns a new model with its submodels fitted to measured data.
+
+        This is an alternative API to the fitting submodule.
+        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit_submodels(...)` is called.
+        Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
+
         Parameters
         ----------
-        include_fixed : bool, default=False
-            Include fixed parameters in the parameter tree.
-        param_objects : bool, default=False
-            If ``True``, keep full :class:`Parameter` objects; otherwise filter to ``.value``.
+        measured (prf.NetworkCollection | skrf.Network | str):
+            The measured data.
 
-        Returns
-        -------
-        (ModelT, ModelT)
-            ``(params_tree, static_tree)``
+        Returns:
+            Model: The fitted model.
         """        
-        if param_objects:
-            shared_spec = self._param_object_spec
-            if include_fixed:
-                filter_spec = self._core_object_spec
-            else:
-                filter_spec = self._free_object_spec
-        else:
-            shared_spec = self._param_value_spec
-            if include_fixed:
-                filter_spec = self._core_value_spec
-            else:
-                filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)
+        from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
+        init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
+        return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs)
+    
+    # ---- Parameter querying --------------------------------------------------        
     
     def params(self, *args, **kwargs) -> list[Parameter]:
         return list(self.named_params(*args, **kwargs).values())
@@ -630,7 +661,7 @@ class Model(eqx.Module):
         spec = self._core_object_spec if include_fixed else self._free_object_spec
         params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
         path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
-        _params: dict[str, Parameter] = {self._path_to_param_name(path): param for path, param in path_and_params[0]}          
+        _params: dict[str, Parameter] = {self.path_to_param_name(path): param for path, param in path_and_params[0]}          
 
         if flat | flat_params:
             flat_params_dict = {}
@@ -724,30 +755,7 @@ class Model(eqx.Module):
         """Joint distribution over (flattened) parameters."""        
         return JointParameterDistribution(self.param_groups(), self.flat_param_names())
     
-    @classmethod
-    def with_defaults(cls, *args, **kwargs):
-        # return partial(cls, *args, **kwargs)
-        class DefaultsWrapper:
-            def __init__(self, p):
-                self.p = p   # underlying partial
-
-            def __call__(self, *args, **kwargs):
-                return self.p(*args, **kwargs)
-
-            # chaining
-            def with_defaults(self, *args, **kwargs):
-                # merge new defaults after existing ones
-                new_args = self.p.args + args
-                new_kwargs = {**self.p.keywords, **kwargs} if self.p.keywords else kwargs
-                return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
-        return DefaultsWrapper(partial(cls, *args, **kwargs))
-    
-    def with_models(self: ModelT, other_models: list[ModelT]):
-        combined = self
-        for other in other_models:
-            combined = combined.with_params(other.named_params())
-            combined = combined.with_param_groups(other.param_groups())
-        return combined
+    # ---- Parameter manipulation --------------------------------------------------            
 
     def with_params(
         self: ModelT,
@@ -852,28 +860,19 @@ class Model(eqx.Module):
                 raise Exception("Error: no free model parameters found to make feature function")
             
             params_tree_recon = unravel_fn(params)
-            return combine(params_tree_recon, static)   
+            return combine(params_tree_recon, static)           
         
+    def with_flat_params(self, *args, **kwargs):
+        """Alias for :meth:`with_params` when passing a flat array."""        
+        return self.with_params(*args, **kwargs)
+    
     def with_uniform_distributions(self, width_frac=0.01):
         updates = {}
         for name, param in self.named_params().items():
             distribution = UniformDistribution(param * (1.0 - width_frac) / param.scale, param * (1.0 + width_frac) / param.scale)
             updates[name] = param.with_distribution(distribution)
             
-        return self.with_params(updates)
-        
-    def with_flat_params(self, *args, **kwargs):
-        """Alias for :meth:`with_params` when passing a flat array."""        
-        return self.with_params(*args, **kwargs)
-    
-    def with_fields(self: ModelT, *args, **kwargs) -> ModelT:
-        """Return a copy with dataclass-style field replacements."""        
-        return dataclasses.replace(self, *args, **kwargs)
-    
-    def with_submodel_fields(self: ModelT, submodel_name: str, *args, **kwargs) -> ModelT:
-        """Return a copy with dataclass-style field replacements on a submodel."""        
-        with_field_kwargs = {submodel_name: getattr(self, submodel_name).with_fields(*args, **kwargs)}
-        return self.with_fields(**with_field_kwargs)
+        return self.with_params(updates)    
     
     def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
         """Return a a model with parameter groups appended.
@@ -936,9 +935,6 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params_only(self: ModelT, params: list[str] | Callable[[str], bool]) -> ModelT:
-        return self.with_free_params(params, fix_others=True)
-    
     def with_free_params(self: ModelT, params: list[str] | Callable[[str], bool], fix_others=False) -> ModelT:
         """Free the specified parameters.
 
@@ -974,7 +970,46 @@ class Model(eqx.Module):
                 new_params[name] = param.as_free()
             elif fix_others:
                 new_params[name] = param.as_fixed()
-        return self.with_params(new_params)    
+        return self.with_params(new_params)
+    
+    def with_free_params_only(self: ModelT, params: list[str] | Callable[[str], bool]) -> ModelT:
+        return self.with_free_params(params, fix_others=True)    
+    
+    # ---- Field and model manipulation --------------------------------------------------            
+    
+    @classmethod
+    def with_defaults(cls, *args, **kwargs):
+        # return partial(cls, *args, **kwargs)
+        class DefaultsWrapper:
+            def __init__(self, p):
+                self.p = p   # underlying partial
+
+            def __call__(self, *args, **kwargs):
+                return self.p(*args, **kwargs)
+
+            # chaining
+            def with_defaults(self, *args, **kwargs):
+                # merge new defaults after existing ones
+                new_args = self.p.args + args
+                new_kwargs = {**self.p.keywords, **kwargs} if self.p.keywords else kwargs
+                return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
+        return DefaultsWrapper(partial(cls, *args, **kwargs))
+    
+    def with_models(self: ModelT, other_models: list[ModelT]):
+        combined = self
+        for other in other_models:
+            combined = combined.with_params(other.named_params())
+            combined = combined.with_param_groups(other.param_groups())
+        return combined
+    
+    def with_fields(self: ModelT, *args, **kwargs) -> ModelT:
+        """Return a copy with dataclass-style field replacements."""        
+        return dataclasses.replace(self, *args, **kwargs)
+    
+    def with_submodel_fields(self: ModelT, submodel_name: str, *args, **kwargs) -> ModelT:
+        """Return a copy with dataclass-style field replacements on a submodel."""        
+        with_field_kwargs = {submodel_name: getattr(self, submodel_name).with_fields(*args, **kwargs)}
+        return self.with_fields(**with_field_kwargs)    
     
     def with_free_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> ModelT:
         """Free all parameters in the given submodels.
@@ -1010,7 +1045,9 @@ class Model(eqx.Module):
         ModelT
         """        
         model_params = self.submodel_params(submodels)
-        return self.with_fixed_params(list(model_params.keys()))
+        return self.with_fixed_params(list(model_params.keys()))        
+    
+    # ---- File and conversion utilities  --------------------------------------------------            
     
     def to_skrf(self, frequency: Frequency | skrf.Frequency, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
@@ -1095,19 +1132,9 @@ class Model(eqx.Module):
         static_json = model_raw_grp['static'][()]
         static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
         
-        # params_tree = jsonpickle.decode(params_json)
-        # static_tree = jsonpickle.decode(static_json)
-        # return eqx.combine(params_tree, static_tree)
-        
         try:
             params_tree = jsonpickle.decode(params_json)
             static_tree = jsonpickle.decode(static_json)
-            
-            # NB the following hack actually also BREAKS some model loading... we need to investigate further
-            # The following fixes some quirks when e.g. the original model contains lambdas.
-            # Not sure 100% why but some fields seem to be in a "bad" state when jsonpickle cant deserialize them
-            # params_tree = dataclasses.replace(params_tree)
-            # static_tree = dataclasses.replace(static_tree)
             
             return cls(eqx.combine(params_tree, static_tree))
         except Exception as e:
@@ -1150,7 +1177,6 @@ class Model(eqx.Module):
             with open(source, "r", encoding="utf8") as f:
                 data = f.read()
         else:
-            # file-like text object
             data = source.read()
 
         return jsonpickle.decode(data)
