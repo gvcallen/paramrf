@@ -11,15 +11,16 @@ class PolyChordFitter(BayesianFitter):
     
     Polychord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
-    def _run(self, best_param_method='maximum-likelihood', nlive_factor=None, **kwargs) -> AnestheticResults:
+    def _run(self, best_param_method='maximum-likelihood', nlive_factor=25, **kwargs) -> AnestheticResults:
         # Dynamic imports
         import pypolychord
         
         if not 'nlive' in kwargs and nlive_factor is not None:
-            kwargs['nlive'] = nlive_factor * self.num_params
+            kwargs['nlive'] = nlive_factor * self._num_params
 
-        kwargs.setdefault('base_dir', f'{self.output_path}/chains')
-        kwargs.setdefault('file_root', self.output_root)
+        if self._active_output_path is not None:
+            kwargs.setdefault('base_dir', f'{self._active_output_path}/chains')
+        kwargs.setdefault('file_root', self._active_output_root)
         
         # Get the model parameters
         param_names = self._flat_param_names()
@@ -27,7 +28,7 @@ class PolyChordFitter(BayesianFitter):
         labeled_param_names = np.array([[name, f'{name_replaced}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
-        x0 = np.array(self.initial_model.flat_params())
+        x0 = np.array(self._active_model.flat_params())
         loglikelihood_fn = self._make_log_likelihood_fn(as_numpy=True)
         prior_fn = self._make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
@@ -44,7 +45,7 @@ class PolyChordFitter(BayesianFitter):
         
         self.logger.info(f'PolyChord finished at {time_string()}')
         
-        for i, param_name in enumerate(param_names[0:-self.num_likelihood_params]):
+        for i, param_name in enumerate(param_names[0:-self._num_likelihood_params]):
             if best_param_method == 'mean':
                 x0[i] = nested_samples[param_name].mean()
             elif best_param_method == 'maximum-likelihood':
@@ -53,6 +54,6 @@ class PolyChordFitter(BayesianFitter):
             else:
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
-        fitted_model = self.initial_model.with_flat_params(x0)
+        fitted_model = self._active_model.with_flat_params(x0)
         
         return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)        

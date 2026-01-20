@@ -76,7 +76,7 @@ class OptaxFitter(FrequentistFitter):
         kwargs:
             Reserved for compatibility; ignored here (you can plumb extra knobs if needed).
         """
-        x0 = jnp.asarray(self.initial_model.flat_params(), dtype=jnp.float64)
+        x0 = jnp.asarray(self._active_model.flat_params(), dtype=jnp.float64)
         mins, maxs = self._bounds()
         mins = jnp.asarray(mins, dtype=jnp.float64)
         maxs = jnp.asarray(maxs, dtype=jnp.float64)
@@ -154,7 +154,7 @@ class OptaxFitter(FrequentistFitter):
         final_x = best_x  # use best parameters encountered
         final_cost = float(best_val)
 
-        fitted_model = self.initial_model.with_flat_params(jnp.asarray(final_x))
+        fitted_model = self._active_model.with_flat_params(jnp.asarray(final_x))
 
         solver_results = dict(message="Optimization finished",
             status=0,  # 0=OK (mimic SciPy style)

@@ -1,8 +1,7 @@
 from pmrf.fitting.base import (
     Fitter,
-    fit,
-    fit_bayesian,
-    fit_frequentist,
+    fit_model,
+    fit_submodels,
     BaseFitter,
     FitResults,
     is_frequentist,

@@ -1,5 +1,7 @@
 from functools import partial
 from abc import abstractmethod
+
+import equinox as eqx
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -7,6 +9,7 @@ import skrf
 import numpyro.distributions as dist
 import matplotlib.pyplot as plt
 
+from pmrf.constants import ArrayFuncT
 from pmrf.network_collection import NetworkCollection
 from pmrf._util import RANK, wait_for_all_ranks
 from pmrf.constants import FeatureInputT
@@ -69,11 +72,13 @@ class BayesianFitter(BaseFitter):
         self,
         model: Model,
         measured: skrf.Network | dict[str, skrf.Network],
-        *args,
+        *,
         features: FeatureInputT | None = None,
+        output_path: str | None = None,
+        output_root: str = 'fit',
+        sparam_kind: str = 'all',        
         likelihood_kind: str | None = None,
         likelihood_params: dict[str, Parameter] = None,
-        sparam_kind: str | None = 'all',
         feature_sigmas: list[str] | None = None,
         **kwargs
     ) -> None:
@@ -88,6 +93,13 @@ class BayesianFitter(BaseFitter):
                 The features to extract for comparison.
                 Note that note all features make sense for all likelihoods, but no error checking is done for this.
                 Defaults to `None`, in which case real and imaginary feature for all model ports are used.
+            output_path (str | None):
+                The path for fitters to write output data to. Defaults to `None`.
+            output_root (str | None):
+                The root name used for output files in the output path. Defaults to `None`.
+            sparam_kind (str | None):
+                The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
+                See `extract_features` for more details.                
             likelihood_kind (str, optional):
                 The kind of likelihood to use. Can be either 'gaussian' or 'multivariate_gaussian'.
                 Defaults internally to 'gaussian' for one-port fits, and 'multivariate_gaussian' for greater port fits.
@@ -98,7 +110,7 @@ class BayesianFitter(BaseFitter):
             likelihood_params (dict[str, Parameter], optional):
                 A dictionary of likelihood parameters to use for the likelihood function.
             feature_sigmas (list[str], optional):
-                A list of sigma names for each feature when `likelihood_kind` is 'multivariate_gaussian'.
+                A list of sigma names for each feature. Only used when `likelihood_kind` is 'multivariate_gaussian'.
         """
         if isinstance(measured, str):
             measured = skrf.Network(measured)
@@ -137,7 +149,7 @@ class BayesianFitter(BaseFitter):
         features = features if features is not None else default_features
         feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
             
-        super().__init__(model=model, measured=measured, features=features, *args, **kwargs)
+        super().__init__(model=model, measured=measured, features=features, output_path=output_path, output_root=output_root, sparam_kind=sparam_kind, **kwargs)
         
         if likelihood_kind == 'multivariate_gaussian':
             if feature_sigmas is None:
@@ -178,24 +190,24 @@ class BayesianFitter(BaseFitter):
 
         if plot_params:
             results.plot_params()
-            plt.savefig(f'{self.output_path}/params.png')
+            plt.savefig(f'{self._active_output_path}/params.png')
 
         return results               
         
     @property
-    def num_params(self) -> int:
-        return self.num_model_params + self.num_likelihood_params
+    def _num_params(self) -> int:
+        return self._num_model_params + self._num_likelihood_params
     
     @property
-    def num_model_params(self) -> int:
-        return self.initial_model.num_flat_params
+    def _num_model_params(self) -> int:
+        return self._active_model.num_flat_params
     
     @property
-    def num_likelihood_params(self) -> int:
+    def _num_likelihood_params(self) -> int:
         return len(self.likelihood_params)
     
     def _model_param_names(self) -> list[str]:
-        return self.initial_model.flat_param_names()
+        return self._active_model.flat_param_names()
     
     def _likelihood_param_names(self) -> list[str]:
         return list(self.likelihood_params.keys())
@@ -204,8 +216,8 @@ class BayesianFitter(BaseFitter):
         return self._model_param_names() + self._likelihood_param_names()
     
     def _make_prior_transform_fn(self, as_numpy=False):
-        model_prior = self.initial_model.distribution()
-        num_model_params = len(self.initial_model.flat_params())
+        model_prior = self._active_model.distribution()
+        num_model_params = len(self._active_model.flat_params())
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
@@ -224,8 +236,8 @@ class BayesianFitter(BaseFitter):
         return prior_transform_fn
     
     def _make_log_prior_fn(self, as_numpy=False):
-        model_prior = self.initial_model.distribution()
-        num_model_params = self.initial_model.num_flat_params
+        model_prior = self._active_model.distribution()
+        num_model_params = self._active_model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
@@ -251,7 +263,7 @@ class BayesianFitter(BaseFitter):
         else:
             raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
 
-        x0 = jnp.array(list(self.initial_model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
+        x0 = jnp.array(list(self._active_model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
         if as_numpy:
             log_likelihood_fn_jax = log_likelihood_fn
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
@@ -269,7 +281,7 @@ class BayesianFitter(BaseFitter):
         def loglikelihood_fn(flat_params) -> float:
             theta, sigma = flat_params[0:-1], flat_params[-1]
             y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self.measured_features)
+            y_meas = jnp.real(self._active_measured_features)
             logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
             return logL
         
@@ -283,7 +295,7 @@ class BayesianFitter(BaseFitter):
             num_sigma = len(self.likelihood_params)
             theta, sigmas = flat_params[0:-num_sigma], flat_params[-num_sigma:]
             y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self.measured_features)
+            y_meas = jnp.real(self._active_measured_features)
             
             param_keys = list(self.likelihood_params.keys())
             sigma_indices = jnp.array([param_keys.index(key) for key in self.feature_sigmas])

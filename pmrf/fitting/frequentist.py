@@ -26,29 +26,45 @@ class FrequentistFitter(BaseFitter):
     def __init__(
         self,
         model: Model,
-        measured: skrf.Network | dict[str, skrf.Network],
-        *args,
+        *,
         features: FeatureInputT | None = None,
-        cost: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
+        output_path: str | None = None,
+        output_root: str = 'fit',
+        sparam_kind: str = 'all',        
         cost_kind: str | None = None,
+        cost_function: ArrayFuncT | list[ArrayFuncT] | eqx.Module = None,
         **kwargs
     ) -> None:
         """Initializes the FrequentistFitter.
 
         Args:
             model (Model):
-                The parametric `pmrf` model to be fitted.
-            measured (skrf.Network | list[skrf.Network]):
-                The measured network data to fit the model against.
-            features (FeatureT | FeatureListT | None, optional),
-                The features to extract for comparison. Defaults to `None`.
-            cost (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
-                A function or sequence of functions defining the cost metric. If a list
-                of functions is provided, they are composed sequentially. If `None`,
-                then `cost_kind` defines the cost function. Defaults to `None`.
+                The parametric `pmrf` Model to be fitted.
+            features (FeatureInputT | None, optional):
+                Defines the features to be extracted from the model and network(s).
+                Defaults to `None`, in which case real and imaginary features for all ports are used.
+                Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
+                or a dictionary with either of the above as value. In the dictionary case,
+                keys must be network names in the collection passed by `measured`, which must also
+                correspond to submodels which are attributes of the model. For example,
+                {'name1', ('s11'), {'name2', ('s21')} can be passed.
+                Note that if a collection of networks is passed, but a feature dictionary is not,
+                it is assumed that those feature(s) should be extract for each networks/submodel.
+                See `extract_features(..)` more details.
+            output_path (str | None):
+                The path for fitters to write output data to. Defaults to `None`.
+            output_root (str | None):
+                The root name used for output files in the output path. Defaults to `None`.
+            sparam_kind (str | None):
+                The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
+                See `extract_features` for more details.              
             cost_kind (str, optional):
                 A cost 'kind' alias to initialize the feature extractors and cost function from.
                 Can be one of 'convolutional', 'complex', or 'magnitude'.
+            cost_function (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
+                A function or sequence of functions defining the cost metric. If a list
+                of functions is provided, they are composed sequentially. If `None`,
+                then `cost_kind` defines the cost function. Defaults to `None`.
         """
         default_features = None
         default_cost = None
@@ -66,32 +82,32 @@ class FrequentistFitter(BaseFitter):
 
         if features is None:
             features = default_features
-        if cost is None:
-            cost = default_cost
+        if cost_function is None:
+            cost_function = default_cost
         
-        super().__init__(model=model, measured=measured, features=features, *args, **kwargs)
+        super().__init__(model=model, features=features, output_path=output_path, output_root=output_root, sparam_kind=sparam_kind, **kwargs)
 
-        features = self.features
-        if cost is not None and not isinstance(cost, list):
-            cost = [cost]
-        if cost is None:
+        features = self._active_feature_spec
+        if cost_function is not None and not isinstance(cost_function, list):
+            cost_function = [cost_function]
+        if cost_function is None:
             if len(features) > 1:
-                cost = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
+                cost_function = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
             else:
-                cost = [l2_norm_ax0, mag_2_db]
+                cost_function = [l2_norm_ax0, mag_2_db]
         
-        self.cost_metric_fn = cost if isinstance(cost, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost])
+        self.cost_metric_fn = cost_function if isinstance(cost_function, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost_function])
 
         
     def _make_cost_function(self, as_numpy=False):
-        x0_jax = self.initial_model.flat_params()
+        x0_jax = self._active_model.flat_params()
         feature_fn_jax = self._make_feature_function()
 
         # Define the JAX cost function to be minimized
         @jax.jit
         def cost_fn(flat_params) -> jnp.ndarray:
             model_features = feature_fn_jax(flat_params)
-            error = self.measured_features - model_features
+            error = self._active_measured_features - model_features
             cost_val = self.cost_metric_fn(error)
             if jnp.isscalar(self.cost_metric_fn(error)):
                 return cost_val
@@ -109,8 +125,8 @@ class FrequentistFitter(BaseFitter):
         return cost_fn
     
     def _bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
-        param_groups = self.initial_model.param_groups()
-        param_names = self.initial_model.flat_param_names()
+        param_groups = self._active_model.param_groups()
+        param_names = self._active_model.flat_param_names()
         
         name_to_minimum = {name: None for name in param_names}
         name_to_maximum = {name: None for name in param_names}

@@ -10,7 +10,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, Sequence, TypeVar
+from typing import Callable, Sequence, TypeVar, Any
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
@@ -33,6 +33,7 @@ from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, Flatten
 import equinox as eqx
 from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
+from pmrf.network_collection import NetworkCollection
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
@@ -108,6 +109,7 @@ class Model(eqx.Module):
     # Instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
     separator: str = field(default='_', kw_only=True, static=True)
+    metadata: dict = field(default_factory=lambda: dict(), kw_only=True, static=True)
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
@@ -547,6 +549,22 @@ class Model(eqx.Module):
         load = load or SHORT
         terminated_model = Cascade((self, load))
         return terminated_model
+    
+    def fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
+        """Fits the model to measured data.
+
+        This calls `pmrf.fitting.fit_model(model=self, measured=measured, **kwargs)`.
+
+        Parameters
+        ----------
+        measured (prf.NetworkCollection | skrf.Network | str):
+            The measured data.
+
+        Returns:
+            Model: The fitted model.
+        """        
+        from pmrf.fitting import Fitter
+        return Fitter(model=self, measured=measured, **kwargs)
     
     def copy(self: ModelT) -> ModelT:
         return deepcopy(self)
@@ -1104,8 +1122,10 @@ class Model(eqx.Module):
         ----------
         filepath : str
             Destination file path.
-        """        
-        data = jsonpickle.encode(self)
+        """
+        model_save = self.with_fields(metadata=None)
+
+        data = jsonpickle.encode(model_save)
         
         if isinstance(target, (str, os.PathLike)):
             with open(target, "w", encoding="utf8") as f:
