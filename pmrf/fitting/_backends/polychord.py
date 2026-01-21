@@ -7,11 +7,34 @@ from pmrf._util import time_string
    
 class PolyChordFitter(BayesianFitter):
     """
-    Polychord fitter using pypolychord.run.
+    Polychord fitter using ``pypolychord.run``.
     
-    Polychord has its own license available at https://github.com/PolyChord/PolyChordLite.
+    PolyChord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
     def _run(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_factor=25, **kwargs) -> AnestheticResults:
+        """
+        Executes the PolyChord nested sampling run.
+
+        Parameters
+        ----------
+        ctx : BayesianContext
+            The Bayesian fitting context containing model, priors, and likelihoods.
+        best_param_method : str, optional, default='maximum-likelihood'
+            The method used to determine the "fitted" model parameters from the posterior.
+            Options are 'maximum-likelihood' (takes the sample with highest logL)
+            or 'mean' (takes the weighted mean of the posterior samples).
+        nlive_factor : int, optional, default=25
+            Factor to multiply by the number of parameters to determine `nlive` (number of live points).
+            Only used if `nlive` is not explicitly provided in ``**kwargs``.
+        **kwargs
+            Additional keyword arguments passed directly to ``pypolychord.run``.
+            Common arguments include ``nlive``, ``num_repeats``, etc.
+
+        Returns
+        -------
+        AnestheticResults
+            The results object containing the fitted model and the `anesthetic.NestedSamples` object.
+        """
         # Dynamic imports
         import pypolychord
         
@@ -56,4 +79,4 @@ class PolyChordFitter(BayesianFitter):
                 
         fitted_model = ctx.model.with_params(x0)
         
-        return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)        
+        return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)

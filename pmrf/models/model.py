@@ -655,12 +655,14 @@ class Model(eqx.Module):
     # ---- Model fitting --------------------------------------------------    
     
     def fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
-        """Returns a new model fitted to measured data.
+        """Returns a new model with its submodels fitted to measured data.
 
-        This is an alternative API to the fitting submodule.
-        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit(...)` is called,
-        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+        This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
+        See the :func:`fit <pmrf.fitting.BaseFitter.fit>` method for more details.
         
+        Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit(...)` is called,
+        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+
         Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
 
         Parameters
@@ -668,13 +670,13 @@ class Model(eqx.Module):
         measured : prf.NetworkCollection | skrf.Network | str
             The measured data.
         **kwargs
-            Additional arguments for initialization or fitting.
+            Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit`.
 
         Returns
         -------
         Model
             The fitted model.
-        """         
+        """           
         from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
         init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
         return Fitter(self, **init_kwargs).fit(measured, **kwargs).fitted_model
@@ -682,8 +684,10 @@ class Model(eqx.Module):
     def with_submodels_fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
         """Returns a new model with its submodels fitted to measured data.
 
-        This is an alternative API to the fitting submodule.
-        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit_submodels(...)` is called,
+        This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
+        See the :func:`fit_submodels <pmrf.fitting.BaseFitter.fit_submodels>` method for more details.
+        
+        Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit_submodels(...)` is called,
         with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
 
         Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
@@ -693,7 +697,7 @@ class Model(eqx.Module):
         measured : prf.NetworkCollection | skrf.Network | str
             The measured data.
         **kwargs
-            Additional arguments for initialization or fitting.
+            Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit_submodels`.
 
         Returns
         -------
@@ -1394,39 +1398,43 @@ def wrap(
     *args,
     as_numpy: bool = False,
 ) -> Callable:
-    """Wrap a function/method taking ``(model, frequency, *args, **kwargs)`` into one that accepts flat arrays.
+    """
+    Wrap a function/method taking ``(model, frequency, *args, **kwargs)`` into one that accepts flat arrays.
 
     The wrapper accepts ``(theta, [f], *args, **kwargs)`` where ``theta`` is a flat
     parameter array, and optionally ``f`` is a frequency array with a provided unit.
 
-    Supported calls
-    ---------------
-    - ``wrap(userfunc, model, "MHz")``
-    - ``wrap(userfunc, model, freq)``
-    - ``wrap(model.userfunc, "MHz")``
-    - ``wrap(model.userfunc, freq)``
+    If a :class:`Frequency` object is passed in ``*args``, it is closed over and
+    the wrapped function only accepts ``theta``.
 
-    If a :class:`Frequency` object is passed, it is closed over and the wrapped
-    function only accepts ``theta``.
+    Supported call signatures:
+    
+    * ``wrap(userfunc, model, "MHz")``
+    * ``wrap(userfunc, model, freq)``
+    * ``wrap(model.userfunc, "MHz")``
+    * ``wrap(model.userfunc, freq)``
 
     Parameters
     ----------
-    func : Callable
+    func : callable
         Function or bound method taking ``(model, frequency, ...)``.
     *args : tuple
-        Either ``(model, Frequency|unit)`` or just ``(Frequency|unit)`` if ``func`` is bound.
-    as_numpy : bool, default=False
-        If ``True``, JIT the wrapper and convert inputs/outputs to NumPy arrays.
+        Variable length argument list. Expects either ``(model, Frequency)``,
+        ``(model, unit_str)``, or just ``(Frequency,)`` / ``(unit_str,)``
+        if ``func`` is a bound method.
+    as_numpy : bool, optional
+        If True, JIT the wrapper and convert inputs/outputs to NumPy arrays.
+        Default is False.
 
     Returns
     -------
-    Callable
+    wrapper : callable
         Wrapped function accepting ``(theta_array, [f_array], *args, **kwargs)``.
 
     Raises
     ------
     TypeError
-        If the frequency argument is neither a unit string nor ``Frequency``.
+        If the frequency argument is neither a unit string nor a ``Frequency`` object.
     """
     # Determine if func is a bound method
     if hasattr(func, '__self__') and func.__self__ is not None:

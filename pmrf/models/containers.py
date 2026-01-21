@@ -9,11 +9,35 @@ from pmrf.functions.connections import connect_one, connect_many
 from pmrf._util import field
 
 class Circuit(Model):
+    """
+    Represents an arbitrary circuit defined by component connections.
+
+    This model allows for the definition of a circuit by specifying how the ports
+    of various sub-models are connected together.
+
+    Attributes
+    ----------
+    models : list[Model]
+        The list of unique models involved in the circuit.
+    indexed_connections : list[list[tuple[int, int]]]
+        Internal representation of connections using model indices instead of objects.
+    port_idxs : list[int]
+        Indices of the models that act as external ports for the circuit.
+    """
     models: list[Model]
     indexed_connections: list[list[tuple[int, int]]] = field(static=True)
     port_idxs: list[int] = field(static=True)
 
     def __init__(self, connections: list[list[tuple[Model, int]]]):
+        """
+        Initialize the Circuit.
+
+        Parameters
+        ----------
+        connections : list[list[tuple[Model, int]]]
+            A list of connections (nodes). Each connection is a list of
+            `(model_instance, port_index)` tuples that are electrically connected.
+        """
         super().__init__()
 
         self.models = []
@@ -34,8 +58,6 @@ class Circuit(Model):
             if isinstance(model, Port):
                 self.port_idxs.append(id_to_index[id(model)])
 
-        # connections: list[list[tuple[Model, int]]]
-
     def s(self, freq: Frequency) -> jnp.array:
         Smats = [model.s(freq) for model in self.models]
         z0s = [model.z0 for model in self.models]
@@ -44,9 +66,16 @@ class Circuit(Model):
 
 class Connected(Model):
     """
-    Represents a connection of multiple models.
+    Represents a connection of multiple models at a single intersection.
 
-    The algorithm in :meth:``pmrf.functions.connections.connect_one`` is used.
+    The algorithm in :func:`pmrf.functions.connections.connect_one` is used.
+
+    Attributes
+    ----------
+    models : Sequence[Model] | Model
+        The models to connect.
+    ports : Sequence[int | Sequence[int]]
+        The port indices on each model that are connected to the common node.
     """    
     models: Sequence[Model] | Model
     ports: Sequence[int | Sequence[int]]
@@ -78,6 +107,11 @@ class Cascade(Model):
     to maintain a simple, linear chain of models. The number of ports of the
     resulting `Cascade` network depends on the port count of the final model
     in the chain.
+
+    Attributes
+    ----------
+    models : tuple[Model]
+        The sequence of models in the cascade.
 
     Examples
     --------
@@ -133,17 +167,17 @@ class Cascade(Model):
 
     @property
     def first_model(self) -> Model:
-        """The first model in the cascade chain."""
+        """Model: The first model in the cascade chain."""
         return self.models[0]
     
     @property
     def inner_models(self) -> tuple['Model']:
-        """A tuple of the inner models in the cascade chain."""
+        """tuple[Model]: A tuple of the inner models in the cascade chain."""
         return tuple(self.models[1:-1])
     
     @property
     def last_model(self) -> Model:
-        """The last model in the cascade chain."""
+        """Model: The last model in the cascade chain."""
         return self.models[-1]
 
     def a(self, freq: Frequency) -> jnp.ndarray:
@@ -156,23 +190,6 @@ class Cascade(Model):
         return a
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """
-        Calculates the S-parameter matrix.
-
-        If the cascade is terminated in a one-port, this computes the
-        resultant one-port reflection coefficient. Otherwise, it converts
-        the cascaded ABCD-matrix to S-parameters.
-
-        Parameters
-        ----------
-        freq : Frequency
-            Specifies the frequency to calculate the parameters at.
-
-        Returns
-        -------
-        jnp.ndarray
-            The resultant S-parameter matrix.
-        """
         # We only implement s when we are terminating in a one-port.
         # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
         if self.last_model.nports != 1:
@@ -199,6 +216,15 @@ class Renumbered(Model):
 
     This is useful for creating complex network topologies by explicitly
     re-mapping the port indices of a sub-network.
+    
+    Attributes
+    ----------
+    model : Model
+        The underlying model to renumber.
+    to_ports : tuple[int]
+        The new port indices.
+    from_ports : tuple[int]
+        The original port indices that map to `to_ports`.
     """
     model: Model
     to_ports: tuple[int]
@@ -239,35 +265,9 @@ class Renumbered(Model):
         return p_new
     
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """
-        Calculates the renumbered ABCD-parameter matrix.
-
-        Parameters
-        ----------
-        freq : Frequency
-            Specifies the frequency to calculate the parameters at.
-
-        Returns
-        -------
-        jnp.ndarray
-            The resultant renumbered ABCD-parameter matrix.
-        """
         return self.renumber(self.model.a(freq))
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """
-        Calculates the renumbered S-parameter matrix.
-
-        Parameters
-        ----------
-        freq : Frequency
-            Specifies the frequency to calculate the parameters at.
-
-        Returns
-        -------
-        jnp.ndarray
-            The resultant renumbered S-parameter matrix.
-        """
         return self.renumber(self.model.s(freq))
     
 class Flipped(Renumbered):
@@ -282,14 +282,6 @@ class Flipped(Renumbered):
     from_ports: tuple[int] = field(init=False)
 
     def __post_init__(self):
-        """
-        Initializes the Flipped model container.
-
-        Parameters
-        ----------
-        model : Model
-            The model whose ports are to be flipped.
-        """
         if self.model.nports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
         
@@ -309,6 +301,11 @@ class Stacked(Model):
     the individual S-parameter matrices are placed along the diagonal of the
     combined S-parameter matrix. This represents a set of unconnected
     networks treated as a single component.
+
+    Attributes
+    ----------
+    models : tuple[Model, ...]
+        The models to stack.
     """
     models: tuple[Model, ...]
     
@@ -316,19 +313,6 @@ class Stacked(Model):
         self.name = 'stacked'
         
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """
-        Calculates the stacked S-parameter matrix.
-
-        Parameters
-        ----------
-        freq : Frequency
-            Specifies the frequency to calculate the parameters at.
-
-        Returns
-        -------
-        jnp.ndarray
-            The resultant block-diagonal S-parameter matrix.
-        """
         num_ports = sum(model.nports for model in self.models)
 
         s = jnp.zeros((freq.npoints, num_ports, num_ports), dtype=jnp.complex128)

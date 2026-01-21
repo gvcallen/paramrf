@@ -1,11 +1,8 @@
 from typing import Sequence
-from copy import copy
 from itertools import chain
 
 import numpy as np
-import jax
 import jax.numpy as jnp
-from pmrf.models.model import Model
 from pmrf.functions.conversions import fix_z0_shape, s2s
 
 def _C(
@@ -14,6 +11,26 @@ def _C(
     port_connection_indices: Sequence[int],
     s_def = 'power',    
 ):
+    """
+    Construct the connection scattering matrix [C].
+
+    Parameters
+    ----------
+    networks : Sequence[tuple[jnp.ndarray, jnp.ndarray]]
+        A sequence of (S-parameter, z0) tuples for the component networks.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        A list of connections, where each connection is a list of (network_index, port_index) tuples
+        representing ports connected at a single node.
+    port_connection_indices : Sequence[int]
+        Indices of the ports in the flattened connection list that are designated as external ports.
+    s_def : str, default='power'
+        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
+
+    Returns
+    -------
+    jnp.ndarray
+        The connection scattering matrix with shape `(Nf, dim, dim)`.
+    """
     Nf = networks[0][0].shape[0]
     dim = np.sum(np.array([len(cnx) for cnx in connections]))  # not JAX because dim is static
     connections_list = list(enumerate(chain.from_iterable(connections)))
@@ -51,6 +68,25 @@ def _X(
     inverse: bool = False,
     s_def = 'power',    
 ) -> jnp.ndarray:
+    """
+    Construct the block diagonal matrix [X] of component S-matrices, adjusted for node impedances.
+
+    Parameters
+    ----------
+    networks : Sequence[tuple[jnp.ndarray, jnp.ndarray]]
+        A sequence of (S-parameter, z0) tuples.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        Topology definitions.
+    inverse : bool, optional, default=False
+        If True, return the conjugate of X.
+    s_def : str, default='power'
+        The S-parameter definition.
+
+    Returns
+    -------
+    jnp.ndarray
+        The global X matrix with shape `(Nf, dim, dim)`.
+    """
     def _Xk(cnx_k):
         y0s = jnp.array([1/networks[idx][1][:,port] for (idx, port) in cnx_k]).T
         y_k = y0s.sum(axis=1)
@@ -82,6 +118,25 @@ def _X_and_T(
     port_connection_indices: Sequence[int],       
     s_def = 'power',    
 ):
+    """
+    Compute the [X] and [T] matrices required for the connection algorithm.
+
+    Parameters
+    ----------
+    networks : Sequence[tuple[jnp.ndarray, jnp.ndarray]]
+        Component networks and impedances.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        Topology connections.
+    port_connection_indices : Sequence[int]
+        Indices of external ports.
+    s_def : str, default='power'
+        S-parameter definition.
+
+    Returns
+    -------
+    tuple
+        A tuple `(X, T)` of JAX arrays.
+    """
     X = _X(networks, connections, s_def=s_def)
     C = _C(networks, connections, port_connection_indices, s_def=s_def)
 
@@ -113,6 +168,34 @@ def connect_many(
     port_indices: Sequence[int],
     s_def = 'power',
 ) -> jnp.ndarray:
+    """
+    Connect multiple S-parameter networks together based on a specified topology.
+
+    This function constructs a global S-matrix by connecting ports from various
+    sub-networks at common nodes (intersections).
+
+    Parameters
+    ----------
+    Smats : Sequence[jnp.ndarray]
+        A sequence of S-parameter matrices for the component networks.
+        Each element has shape `(Nf, n_ports, n_ports)`.
+    z0s : Sequence[jnp.ndarray]
+        A sequence of characteristic impedances (z0) for the component networks.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        A list of connection nodes. Each node is a list of `(network_index, port_index)`
+        tuples indicating which ports are electrically connected at that node.
+    port_indices : Sequence[int]
+        A list of network indices. Any port belonging to a network in this list
+        that appears in `connections` is treated as an external port of the
+        resulting connected network.
+    s_def : str, optional, default='power'
+        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
+
+    Returns
+    -------
+    jnp.ndarray
+        The resulting S-parameter matrix of the connected system.
+    """
     dim = np.sum(np.array([len(cnx) for cnx in connections]))  # not JAX because dim is static
     Nf = Smats[0].shape[0]
     z0s = [fix_z0_shape(z0, Nf, S.shape[1]) for (S, z0) in zip(Smats, z0s)]
@@ -184,24 +267,25 @@ def connect_one(
     ports: Sequence[int | Sequence[int]],
 ) -> jnp.ndarray:
     """
-    Connects a series of multi-port S-parameter matrices using Hallbjörner's method at one intersection,
-    ensuring that the specified port indices share the concatenated intersection.
+    Connect a series of multi-port S-parameter matrices using Hallbjörner's method at one intersection.
+    
+    Ensures that the specified port indices share the concatenated intersection, implying they are
+    electrically common.
 
     Parameters
     ----------
-    Smats : :class:`numpy.ndarray`
-            S-parameter matrices, shape of each matrix is fxnxn
-    z0s: :class:`numpy.ndarray`
-            z0 of each `S` in `Smats`.
-    ports : Sequence[int  |  Sequence[int]]
-            A sequence of port indices, where each entry can be an int or a sequence of ints
-            corresponding to the ports of the respective network. The length of `ports` should
-            match the length of `S`. Each specified port index is connect to the
-            concatenated intersection, implying they are electrically common.
+    Smats : jnp.ndarray or Sequence[jnp.ndarray]
+        S-parameter matrices. Shape of each matrix is `(Nf, n, n)`.
+    z0s: jnp.ndarray or Sequence[jnp.ndarray]
+        Characteristic impedances (z0) of each `S` in `Smats`.
+    ports : Sequence[int | Sequence[int]]
+        A sequence of port indices. Each entry corresponds to the ports of the respective 
+        network in `Smats`. The length of `ports` should match the length of `Smats`.
 
     Returns
-    ----------
-    The combine S matrix and z0 matrix as a tuple
+    -------
+    tuple
+        A tuple `(S, z0)` containing the combined S-matrix and z0 matrix.
 
     References
     ----------

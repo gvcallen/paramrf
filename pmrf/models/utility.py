@@ -6,6 +6,18 @@ from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 
 class Measured(Model):
+    """
+    A model wrapping a static Measured Network (e.g., from a Touchstone file).
+
+    This model takes a `skrf.Network` and interpolates its S-parameters to the
+    frequency grid requested during simulation.
+
+    Attributes
+    ----------
+    network : skrf.Network
+        The static network data containing S-parameters and frequency information.
+        Marked as static to avoid tracing overhead in JAX.
+    """
     network: skrf.Network = field(static=True)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -35,34 +47,19 @@ class Measured(Model):
         S_new = (S_real_new + 1j * S_imag_new).transpose(2, 0, 1)
 
         return S_new
-    
-class ListModel(Model):
-    models: list[Model]
-
-class DictModel(Model):
-    models: dict[str, Model]
-
-    def __post_init__(self):
-        for key, value in self.models:
-            setattr(self, key, value)
 
 class SModel(Model):
     """
-    **Overview**
-
     A general model defined by a constant S-parameter matrix.
+
+    Attributes
+    ----------
+    s_array : jnp.array
+        The static S-parameter array.
     """
     s_array: jnp.array
     
     def s(self, _freq: Frequency) -> jnp.ndarray:
-        """Returns the S-parameter matrix.
-
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
-
-        Returns:
-            jnp.ndarray: The resultant block-diagonal S-parameter matrix.
-        """
         nports = self.s_array.shape[1]
         nfreq = _freq.npoints
 
@@ -74,24 +71,48 @@ class SModel(Model):
 
 class AModel(Model):
     """
-    **Overview**
-
     A general model defined by a constant ABCD matrix.
+
+    Attributes
+    ----------
+    a_array : jnp.array
+        The static ABCD-parameter array.
     """
     a_array: jnp.array
     
     def a(self, _freq: Frequency) -> jnp.ndarray:
-        """Returns the ABCD matrix.
-
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
-
-        Returns:
-            jnp.ndarray: The resultant block-diagonal ABCD matrix.
-        """
         nports = self.a_array.shape[1]
         nfreq = _freq.npoints
         if nfreq != self.a_array.shape[0]:
             return jnp.zeros((nfreq, nports, nports))
         
         return self.a_array
+    
+class ListModel(Model):
+    """
+    A container model that holds a list of sub-models.
+
+    Attributes
+    ----------
+    models : list[Model]
+        The list of child models.
+    """
+    models: list[Model]
+
+class DictModel(Model):
+    """
+    A container model that holds a dictionary of sub-models.
+
+    Attributes
+    ----------
+    models : dict[str, Model]
+        A dictionary mapping names to child models.
+    """
+    models: dict[str, Model]
+
+    def __post_init__(self):
+        """
+        Automatically sets the dictionary items as attributes of the instance.
+        """
+        for key, value in self.models:
+            setattr(self, key, value)

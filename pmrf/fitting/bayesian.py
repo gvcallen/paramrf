@@ -21,19 +21,77 @@ from pmrf.fitting.base import BaseFitter, FitResults, FitContext
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
 
 class BayesianResults(FitResults):
+    """
+    Abstract base class for results obtained from a Bayesian fitting process.
+    
+    This class extends `FitResults` to include methods specific to posterior sampling
+    and distribution training.
+    """
     @abstractmethod
     def prior_samples(self, equal_weights=False) -> jnp.ndarray:
+        """
+        Retrieve samples drawn from the prior distribution.
+
+        Parameters
+        ----------
+        equal_weights : bool, optional, default=False
+            If True, returns unweighted (resampled) samples.
+
+        Returns
+        -------
+        jnp.ndarray
+            The array of prior samples.
+        """
         pass
 
     @abstractmethod
     def posterior_samples(self, equal_weights=False) -> jnp.ndarray:
+        """
+        Retrieve samples drawn from the posterior distribution.
+
+        Parameters
+        ----------
+        equal_weights : bool, optional, default=False
+            If True, returns unweighted (resampled) samples.
+
+        Returns
+        -------
+        jnp.ndarray
+            The array of posterior samples.
+        """
         pass
 
     @abstractmethod
     def weights(self) -> jnp.ndarray:
+        """
+        Retrieve the weights associated with the posterior samples.
+
+        Returns
+        -------
+        jnp.ndarray
+            Array of sample weights.
+        """
         pass
     
     def fit_posterior(self, train_dist: TrainableDistributionT | None = None, equal_weights=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs):
+        """
+        Fit a trainable distribution to the posterior samples.
+
+        Parameters
+        ----------
+        train_dist : TrainableDistributionT or None, optional
+            The distribution class to train. If None, defaults to `MargarineMAFDistribution`.
+        equal_weights : bool, optional, default=False
+            If True, uses equal weights for training; otherwise uses sample weights.
+        drift_sigma : float, optional, default=0.0
+            Standard deviation for drift augmentation to broaden the posterior support.
+        boost_method : str or None, optional
+            Method to boost sample count ('kde' or None).
+        boost_samples : int, optional, default=10000
+            Number of samples to generate if boosting is enabled.
+        **train_kwargs
+            Additional keyword arguments passed to the distribution's training method.
+        """
         param_names: list[str] = self.fitted_model.flat_param_names()
         training_data: jnp.ndarray = self.posterior_samples(equal_weights=equal_weights)[:,0:self.fitted_model.num_flat_params]        
 
@@ -64,29 +122,73 @@ class BayesianResults(FitResults):
         
 @dataclass
 class BayesianContext(FitContext):
+    """
+    Context object for Bayesian fitting, containing likelihood configurations.
+
+    Attributes
+    ----------
+    likelihood_kind : str or None
+        The type of likelihood function (e.g., 'gaussian', 'multivariate_gaussian').
+    likelihood_params : dict[str, Parameter] or None
+        Parameters governing the likelihood function (e.g., noise standard deviation).
+    feature_sigmas : list[str] or None
+        Mapping of feature names to likelihood parameter names for multivariate cases.
+    """
     likelihood_kind: str = None
     likelihood_params: dict[str, Parameter] = None
     feature_sigmas: list[str] | None = None
     
     @property
     def num_params(self) -> int:
+        """int: Total number of parameters (model + likelihood)."""
         return self.num_model_params + self.num_likelihood_params
     
     @property
     def num_model_params(self) -> int:
+        """int: Number of flat parameters in the model."""
         return self.model.num_flat_params
     
     @property
     def num_likelihood_params(self) -> int:
+        """int: Number of parameters in the likelihood function."""
         return len(self.likelihood_params)
     
     def likelihood_param_names(self) -> list[str]:
+        """
+        Get names of the likelihood parameters.
+
+        Returns
+        -------
+        list of str
+            The names of the likelihood parameters.
+        """
         return list(self.likelihood_params.keys())
         
     def flat_param_names(self) -> list[str]:
+        """
+        Get names of all parameters (model and likelihood).
+
+        Returns
+        -------
+        list of str
+            Combined list of parameter names.
+        """
         return self.model_param_names() + self.likelihood_param_names()
     
     def make_prior_transform_fn(self, as_numpy=False):
+        """
+        Create the prior transform function (unit hypercube to parameter space).
+
+        Parameters
+        ----------
+        as_numpy : bool, optional, default=False
+            If True, returns a function compatible with NumPy arrays; otherwise JAX arrays.
+
+        Returns
+        -------
+        callable
+            Function transforming a unit hypercube vector `u` to parameter vector `theta`.
+        """
         model_prior = self.model.distribution()
         num_model_params = self.model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
@@ -107,6 +209,19 @@ class BayesianContext(FitContext):
         return prior_transform_fn
     
     def make_log_prior_fn(self, as_numpy=False):
+        """
+        Create the log-prior probability density function.
+
+        Parameters
+        ----------
+        as_numpy : bool, optional, default=False
+            If True, returns a function compatible with NumPy arrays.
+
+        Returns
+        -------
+        callable
+            Function returning the log-probability of the given parameters.
+        """
         model_prior = self.model.distribution()
         num_model_params = self.model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
@@ -127,6 +242,24 @@ class BayesianContext(FitContext):
         return logprior_fn
         
     def make_log_likelihood_fn(self, as_numpy=False):
+        """
+        Create the log-likelihood function based on the context configuration.
+
+        Parameters
+        ----------
+        as_numpy : bool, optional, default=False
+            If True, returns a function compatible with NumPy arrays.
+
+        Returns
+        -------
+        callable
+            Function returning the log-likelihood of the parameters given the data.
+
+        Raises
+        ------
+        Exception
+            If the `likelihood_kind` is unsupported.
+        """
         if self.likelihood_kind == 'gaussian':        
             log_likelihood_fn = self.make_gaussian_log_likelihood_fn()        
         elif self.likelihood_kind == 'multivariate_gaussian':
@@ -146,6 +279,14 @@ class BayesianContext(FitContext):
         return log_likelihood_fn
     
     def make_gaussian_log_likelihood_fn(self):
+        """
+        Create a simple Gaussian log-likelihood function (single sigma).
+
+        Returns
+        -------
+        callable
+            JIT-compiled log-likelihood function.
+        """
         feature_fn_jax = self.make_feature_function() 
         
         @jax.jit
@@ -159,6 +300,14 @@ class BayesianContext(FitContext):
         return loglikelihood_fn
     
     def make_multivariate_gaussian_log_likelihood_fn(self):
+        """
+        Create a multivariate Gaussian log-likelihood function (multiple sigmas).
+
+        Returns
+        -------
+        callable
+            JIT-compiled log-likelihood function.
+        """
         feature_fn_jax = self.make_feature_function()
         
         @jax.jit
@@ -192,22 +341,26 @@ class BayesianFitter(BaseFitter):
         feature_sigmas: list[str] | None = None,
         **kwargs
     ) -> None:
-        """Initializes the BayesianFitter.
+        """
+        Initializes the BayesianFitter.
 
-        Args:
-            model (Model):
-                The parametric `pmrf` model to be fitted.
-            likelihood_kind (str, optional):
-                The kind of likelihood to use. Can be either 'gaussian' or 'multivariate_gaussian'.
-                Defaults internally to 'gaussian' for one-port fits, and 'multivariate_gaussian' for greater port fits.
-                For 'gaussian', a single likelihood parameter, 'sigma', is needed. For 'multivariate_gaussian',
-                either multiple standard deviations 'sigma_0', 'sigma_1', ..., 'sigma_N' may be passed, where N is the number of features,
-                or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
-                of size N containing the names of the likelihood parameters to use for each feature.
-            likelihood_params (dict[str, Parameter], optional):
-                A dictionary of likelihood parameters to use for the likelihood function.
-            feature_sigmas (list[str], optional):
-                A list of sigma names for each feature. Only used when `likelihood_kind` is 'multivariate_gaussian'.
+        Parameters
+        ----------
+        model : Model
+            The parametric `pmrf` model to be fitted.
+        likelihood_kind : str, optional
+            The kind of likelihood to use. Can be either 'gaussian' or 'multivariate_gaussian'.
+            Defaults internally to 'gaussian' for one-port fits, and 'multivariate_gaussian' for greater port fits.
+            For 'gaussian', a single likelihood parameter, 'sigma', is needed. For 'multivariate_gaussian',
+            either multiple standard deviations 'sigma_0', 'sigma_1', ..., 'sigma_N' may be passed, where N is the number of features,
+            or an arbitrary number of arbitrarily named likelihood parameters may be passed, along with a list of strings `feature_sigmas`
+            of size N containing the names of the likelihood parameters to use for each feature.
+        likelihood_params : dict[str, Parameter], optional
+            A dictionary of likelihood parameters to use for the likelihood function.
+        feature_sigmas : list[str], optional
+            A list of sigma names for each feature. Only used when `likelihood_kind` is 'multivariate_gaussian'.
+        **kwargs
+            Additional arguments forwarded to :class:`BaseFitter`.
         """
         self.likelihood_kind = likelihood_kind
         self.likelihood_params = likelihood_params
@@ -216,6 +369,32 @@ class BayesianFitter(BaseFitter):
         super().__init__(model, **kwargs)    
     
     def create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
+        """
+        Create a BayesianContext for the fitting process.
+
+        Parameters
+        ----------
+        measured : skrf.Network or NetworkCollection
+            The measured data.
+        likelihood_kind : str, optional
+            Override for the likelihood kind.
+        likelihood_params : dict, optional
+            Override for the likelihood parameters.
+        feature_sigmas : list, optional
+            Override for the feature sigmas.
+        **kwargs
+            Additional context arguments (e.g., `features`, `sparam_kind`).
+
+        Returns
+        -------
+        BayesianContext
+            The configured Bayesian context.
+        
+        Raises
+        ------
+        Exception
+            If feature sigmas are missing for multivariate likelihoods or if multiple params are passed for a simple gaussian.
+        """
         features = kwargs.pop('features', None) or self.features
         sparam_kind = kwargs.pop('sparam_kind', None) or self.sparam_kind
         likelihood_kind = likelihood_kind or self.likelihood_kind
@@ -289,6 +468,29 @@ class BayesianFitter(BaseFitter):
         )
         
     def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
+        """
+        Execute the Bayesian fitting process.
+
+        Parameters
+        ----------
+        ctx : BayesianContext
+            The execution context.
+        plot_params : bool, optional, default=False
+            If True, saves a plot of the parameter distributions.
+        fit_posterior : bool, optional, default=False
+            If True, fits a trainable distribution to the posterior samples after the run.
+        fit_posterior_dist : TrainableDistributionT, optional
+            The specific distribution class to fit to the posterior.
+        fit_posterior_kwargs : dict, optional
+            Arguments passed to the posterior fitting method.
+        *args, **kwargs
+            Additional arguments forwarded to the parent `run` method.
+
+        Returns
+        -------
+        BayesianResults
+            The results of the fit.
+        """
         user_callback = kwargs.get('callback', None)
         fit_posterior_kwargs = fit_posterior_kwargs or {}
         
@@ -314,4 +516,4 @@ class BayesianFitter(BaseFitter):
             results.plot_params()
             plt.savefig(f'{ctx.output_path}/params.png')
 
-        return results        
+        return results

@@ -10,6 +10,29 @@ from pmrf.functions import rsolve, nudge_eig
 ZERO = 1e-4
 
 def s2s(s: NumberLike, z0: NumberLike, s_def_new, s_def_old):
+    """
+    Convert S-parameters between different definitions (e.g., Power waves vs Traveling waves).
+
+    This function handles the conversion logic defined by `s_def_old` to `s_def_new`.
+    It supports complex characteristic impedances.
+
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    z0 : NumberLike
+        The characteristic impedance. Can be a scalar, or an array broadcastable
+        to `(nfreqs, nports)`.
+    s_def_new : str
+        The target S-parameter definition. Options: 'power', 'traveling'.
+    s_def_old : str
+        The source S-parameter definition. Options: 'power', 'traveling'.
+
+    Returns
+    -------
+    jnp.ndarray
+        The converted S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    """
     if s_def_new == s_def_old:
         return s
 
@@ -66,6 +89,26 @@ def s2s(s: NumberLike, z0: NumberLike, s_def_new, s_def_old):
     return jax.lax.cond(all_real, real_branch, imag_branch)
 
 def a2s(a: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
+    """
+    Convert ABCD parameters to S-parameters.
+
+    Parameters
+    ----------
+    a : jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, 2, 2)`.
+
+    Raises
+    ------
+    IndexError
+        If the input is not a 2-port network.
+    """
     # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
     nfreqs, nports, nports = a.shape
 
@@ -94,6 +137,26 @@ def a2s(a: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     return s
 
 def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
+    """
+    Convert S-parameters to ABCD parameters.
+
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, 2, 2)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+
+    Raises
+    ------
+    IndexError
+        If the input is not a 2-port network.
+    """
     # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
     nfreqs, nports, nports = s.shape
 
@@ -117,6 +180,23 @@ def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     return a
 
 def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+    """
+    Convert Admittance (Y) parameters to S-parameters.
+
+    Parameters
+    ----------
+    y : jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+    s_def : str, optional, default='power'
+        The S-parameter definition ('power' or 'traveling').
+
+    Returns
+    -------
+    jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    """
     nfreqs, nports, nports = y.shape
     z0 = fix_z0_shape(z0, nfreqs, nports)
     z0 = z0.astype(dtype=complex)
@@ -148,6 +228,23 @@ def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     return s
 
 def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+    """
+    Convert S-parameters to Impedance (Z) parameters.
+
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+    s_def : str, optional, default='power'
+        The S-parameter definition ('power' or 'traveling').
+
+    Returns
+    -------
+    jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+    """
     nfreqs, nports, nports = s.shape
     z0 = fix_z0_shape(z0, nfreqs, nports)
     z0 = z0.astype(dtype=complex)
@@ -183,6 +280,23 @@ def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     return z
 
 def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+    """
+    Convert Impedance (Z) parameters to S-parameters.
+
+    Parameters
+    ----------
+    z : jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+    s_def : str, optional, default='power'
+        The S-parameter definition ('power' or 'traveling').
+
+    Returns
+    -------
+    jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    """
     nfreqs, nports, nports = z.shape
     z0 = fix_z0_shape(z0, nfreqs, nports)
     z0 = z0.astype(dtype=complex)
@@ -211,6 +325,29 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     return s
 
 def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power') -> jnp.ndarray:
+    """
+    Renormalize S-parameters from one impedance/definition to another.
+
+    This function chains `s2z` and `z2s` to perform the transformation.
+
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The input S-parameter matrix.
+    z_old : NumberLike
+        The original characteristic impedance.
+    z_new : NumberLike
+        The new characteristic impedance.
+    s_def_old : str, optional, default='power'
+        The original S-parameter definition.
+    s_def_new : str, optional, default='power'
+        The new S-parameter definition.
+
+    Returns
+    -------
+    jnp.ndarray
+        The renormalized S-parameter matrix.
+    """
     return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
 
 # def renormalize_s_direct(
@@ -273,6 +410,29 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
 #         return jax.vmap(renorm_per_freq, in_axes=(0, 0, 0))(s, Z_A, Z_B)
 
 def fix_z0_shape(z0: NumberLike, nfreqs: int, nports: int) -> jnp.ndarray:
+    """
+    Broadcast the characteristic impedance `z0` to shape `(nfreqs, nports)`.
+
+    Parameters
+    ----------
+    z0 : NumberLike
+        Input impedance. Can be a scalar, a 1D array of length `nports`,
+        a 1D array of length `nfreqs`, or a 2D array of shape `(nfreqs, nports)`.
+    nfreqs : int
+        The number of frequency points.
+    nports : int
+        The number of ports.
+
+    Returns
+    -------
+    jnp.ndarray
+        The broadcasted impedance array with shape `(nfreqs, nports)`.
+
+    Raises
+    ------
+    IndexError
+        If `z0` has an incompatible shape.
+    """
     # Adapted from scikit-rf. See the copyright notice in pmrf._frequency.py
     if jnp.shape(z0) == (nfreqs, nports):
         return z0.copy()
@@ -284,4 +444,3 @@ def fix_z0_shape(z0: NumberLike, nfreqs: int, nports: int) -> jnp.ndarray:
         return jnp.array(nports * [z0]).T
     else:
         raise IndexError('z0 is not an acceptable shape')
-        

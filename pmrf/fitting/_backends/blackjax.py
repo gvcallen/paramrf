@@ -9,9 +9,42 @@ from pmrf.fitting._backends.anesthetic import AnestheticResults
 
 class BlackJAXNSFitter(BayesianFitter):
     """
-    A fitter that uses the blackjax nested slice sampler in `blackjax.nss`.
+    A fitter that uses the BlackJAX nested slice sampler in `blackjax.nss`.
     """
     def _run(self, ctx: BayesianContext, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
+        """
+        Executes the nested sampling process using BlackJAX.
+
+        Parameters
+        ----------
+        ctx : BayesianContext
+            The Bayesian fitting context containing model, priors, and likelihoods.
+        best_param_method : str, optional, default='maximum-likelihood'
+            The method used to determine the "fitted" model parameters from the posterior.
+            Options are 'maximum-likelihood' (takes the sample with highest logL)
+            or 'mean' (takes the weighted mean of the posterior samples).
+        nlive_factor : int or None, optional
+            Multiplier to determine the number of live points (`n_live`).
+            `n_live` is calculated as `nlive_factor * num_params`.
+            If None, defaults to 25.
+        num_delete : int or None, optional
+            Number of live points to delete and replace in each iteration.
+            If None, defaults to 10% of `n_live` on CPU, or 50% of `n_live` on GPU/TPU
+            to leverage vectorization.
+        num_inner_steps : int or None, optional
+            The number of MCMC steps taken to generate a new live point.
+            If None, defaults to `3 * num_params`.
+        logZ_convergence : float, optional, default=-3
+            The convergence threshold for the log-evidence (`logZ`).
+            The loop terminates when `logZ_live - logZ < logZ_convergence`.
+        seed : int, optional, default=0
+            Random seed for JAX RNG.
+
+        Returns
+        -------
+        AnestheticResults
+            The results object containing the fitted model and the `anesthetic.NestedSamples` object.
+        """
         import blackjax
         from anesthetic import NestedSamples
         

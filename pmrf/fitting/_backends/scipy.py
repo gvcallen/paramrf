@@ -7,9 +7,22 @@ from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, Freq
 
 class SciPyResults(FrequentistResults):
     """
-    Results return by SciPy fitters.
+    Results returned by SciPy fitters.
+
+    This class provides specific serialization logic for `scipy.optimize.OptimizeResult` objects.
     """    
     def encode_solver_results(self, grp: h5py.Group):
+        """
+        Encode the SciPy solver results into an HDF5 group.
+        
+        This method iterates over the `OptimizeResult` attributes, storing scalars/strings
+        as HDF5 attributes and arrays as HDF5 datasets.
+
+        Parameters
+        ----------
+        grp : h5py.Group
+            The HDF5 group to write the results to.
+        """
         for key, val in self.solver_results.items():
             if isinstance(val, (int, float, str, np.number)):
                 grp.attrs[key] = val
@@ -22,6 +35,19 @@ class SciPyResults(FrequentistResults):
     
     @classmethod
     def decode_solver_results(cls, grp: h5py.Group) -> Any:
+        """
+        Decode SciPy solver results from an HDF5 group.
+
+        Parameters
+        ----------
+        grp : h5py.Group
+            The HDF5 group to read the results from.
+
+        Returns
+        -------
+        scipy.optimize.OptimizeResult
+            The reconstructed optimization result object.
+        """
         result_dict = dict(grp.attrs)
         for key in grp:
             result_dict[key] = grp[key][()]
@@ -31,9 +57,35 @@ class SciPyResults(FrequentistResults):
     
 class SciPyMinimizeFitter(FrequentistFitter):
     """
-    Scipy fitter using scipy.minimize.
+    Fitter implementation using `scipy.optimize.minimize`.
     """
     def _run(self, ctx: FrequentistContext, *, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
+        """
+        Executes the optimization using SciPy.
+
+        Parameters
+        ----------
+        ctx : FrequentistContext
+            The context containing the model, data, and cost function.
+        max_iterations : int, optional, default=1000
+            The maximum number of iterations allowed for the optimizer.
+        optimizer : str, optional, default='SLSQP'
+            The name of the SciPy optimizer method to use (e.g., 'SLSQP', 'Nelder-Mead', 'BFGS').
+        log_every : int, optional, default=500
+            The interval (in function evaluations) at which to log the current cost.
+        **kwargs
+            Additional keyword arguments passed directly to `scipy.optimize.minimize`.
+
+        Returns
+        -------
+        FrequentistResults
+            The results containing the fitted model and the raw `OptimizeResult`.
+
+        Raises
+        ------
+        Exception
+            If the initial model parameters (`x0`) are outside the defined bounds.
+        """
         from scipy.optimize import minimize, Bounds
 
         kwargs.setdefault('method', optimizer)

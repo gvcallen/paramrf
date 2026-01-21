@@ -1,28 +1,55 @@
-import dataclasses
 from dataclasses import dataclass
 
 import numpy as np
-import skrf
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.functions import l2_norm_ax0, mag_2_db, conv_inter
 from pmrf.models.model import Model
-from pmrf.constants import FeatureInputT, ArrayFuncT
+from pmrf.constants import ArrayFuncT
 from pmrf.fitting.base import BaseFitter, FitResults, FitContext
 
 L2_COST = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
 CONVOLUTIONAL_COST = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
 
 class FrequentistResults(FitResults):
+    """
+    Results obtained from a Frequentist (classical) fitting process.
+    
+    This class is a marker subclass of `FitResults` and currently shares the same structure.
+    """
     pass
 
 @dataclass
 class FrequentistContext(FitContext):
+    """
+    Context object for Frequentist fitting, containing the cost function.
+
+    Attributes
+    ----------
+    cost_function : eqx.Module or None
+        The sequence of functions defining the error metric.
+    """
     cost_function: eqx.Module | None = None
     
     def make_cost_function(self, as_numpy=False):
+        """
+        Create the cost function to be minimized.
+
+        The cost function calculates the error between measured and model features,
+        applies the defined `cost_function` transformation, and returns a scalar value.
+
+        Parameters
+        ----------
+        as_numpy : bool, optional, default=False
+            If True, returns a function compatible with NumPy arrays; otherwise JAX arrays.
+
+        Returns
+        -------
+        callable
+            The JIT-compiled cost function taking flat parameters and returning a scalar cost.
+        """
         x0_jax = self.model.flat_param_values()
         feature_fn_jax = self.make_feature_function()
 
@@ -48,6 +75,19 @@ class FrequentistContext(FitContext):
         return cost_fn
     
     def bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
+        """
+        Retrieve the lower and upper bounds for all model parameters.
+
+        Returns
+        -------
+        tuple of jnp.ndarray
+            A tuple containing (lower_bounds, upper_bounds).
+
+        Raises
+        ------
+        Exception
+            If any parameter is not associated with a parameter group.
+        """
         param_groups = self.model.param_groups()
         param_names = self.model.flat_param_names()
         
@@ -71,7 +111,7 @@ class FrequentistFitter(BaseFitter):
     A base class for frequentist (classical) optimization methods.
 
     This class extends `BaseFitter` by adding the concept of a cost function,
-    wehich takes the difference between model features and measured
+    which takes the difference between model features and measured
     features and computes a single scalar value representing the "cost" or "error".
     """
     def __init__(
@@ -82,25 +122,53 @@ class FrequentistFitter(BaseFitter):
         cost_function: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
         **kwargs
     ) -> None:
-        """Initializes the FrequentistFitter.
+        """
+        Initializes the FrequentistFitter.
 
-        Args:
-            model (Model):
-                The parametric `pmrf` Model to be fitted.
-            cost_kind (str, optional):
-                A cost 'kind' alias to initialize the features and cost function from.
-                Can be one of 'convolutional', 'complex', or 'magnitude'.
-            cost_function (ArrayFuncT | list[ArrayFuncT] | eqx.Module, optional):
-                A function or sequence of functions defining the cost metric. If a list
-                of functions is provided, they are composed sequentially. If `None`,
-                then `cost_kind` defines the cost function. Defaults to `None`.
+        Parameters
+        ----------
+        model : Model
+            The parametric `pmrf` Model to be fitted.
+        cost_kind : str, optional
+            A cost 'kind' alias to initialize the features and cost function from.
+            Can be one of 'convolutional', 'complex', or 'magnitude'.
+        cost_function : ArrayFuncT, list[ArrayFuncT] or eqx.Module, optional
+            A function or sequence of functions defining the cost metric. If a list
+            of functions is provided, they are composed sequentially. If `None`,
+            then `cost_kind` defines the cost function. Defaults to `None`.
+        **kwargs
+            Additional arguments forwarded to :class:`BaseFitter`.
         """
         self.cost_kind = cost_kind
         self.cost_function = cost_function
-                           
+                            
         super().__init__(model, **kwargs)
 
     def create_context(self, measured, *, cost_kind=None, cost_function=None, **kwargs) -> FrequentistContext:
+        """
+        Create a FrequentistContext for the fitting process.
+
+        Parameters
+        ----------
+        measured : skrf.Network or NetworkCollection
+            The measured data.
+        cost_kind : str, optional
+            Override for the cost kind alias.
+        cost_function : callable or list of callables, optional
+            Override for the cost function.
+        **kwargs
+            Additional context arguments (e.g., `features`).
+
+        Returns
+        -------
+        FrequentistContext
+            The configured Frequentist context.
+        
+        Raises
+        ------
+        Exception
+            If an unknown `cost_kind` alias is provided.
+        """
         features = kwargs.pop('features', None) or self.features
         cost_kind = cost_kind or self.cost_kind
         cost_function = cost_function or self.cost_function
@@ -148,4 +216,4 @@ class FrequentistFitter(BaseFitter):
             sparam_kind=base_ctx.sparam_kind,
             cost_function=cost_function,
             logger=self.logger,
-        )        
+        )

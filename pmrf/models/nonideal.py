@@ -9,8 +9,7 @@ from pmrf.frequency import Frequency
 
 class NonIdealResistor(Model):
     """
-    An abstract base class for creating realistic resistor models that include
-    parasitic effects.
+    An abstract base class for creating realistic resistor models that include parasitic effects.
 
     This class provides a framework for representing a physical resistor as a
     combination of an ideal resistive element and a network of parasitic
@@ -23,10 +22,7 @@ class NonIdealResistor(Model):
     @abstractmethod
     def ideal(self) -> Model:
         """
-        An abstract property representing the ideal part of the component.
-
-        Returns:
-            Model: The model for the ideal resistor.
+        Model: The ideal part of the component (e.g., the pure resistance).
         """
         raise Exception("Subclasses must implement the 'ideal' property.")
 
@@ -34,10 +30,7 @@ class NonIdealResistor(Model):
     @abstractmethod
     def parasitics(self) -> Model:
         """
-        An abstract property representing the parasitic network of the component.
-
-        Returns:
-            Model: The model for the parasitic network.
+        Model: The parasitic network of the component.
         """
         raise Exception("Subclasses must implement the 'parasitics' property.")
 
@@ -45,13 +38,19 @@ class CLCResistor(NonIdealResistor):
     """
     A model for a non-ideal resistor with parasitic capacitance and inductance.
 
-    This model represents a physical resistor as an ideal resistive element
-    cascaded with a Pi-network (Capacitor-Inductor-Capacitor). This topology
-    is common for modeling SMD resistors at high frequencies.
+    This model represents a physical resistor as a parasitic Pi-network 
+    (Capacitor-Inductor-Capacitor) cascaded with an ideal resistive element. 
+    This topology is common for modeling SMD resistors at high frequencies.
 
-    Example
-    -------
+    Attributes
+    ----------
+    res : Resistor
+        The ideal resistor model.
+    clc : PiCLC
+        The parasitic Pi-network model (C-L-C).
 
+    Examples
+    --------
     .. code-block:: python
     
         import pmrf as prf
@@ -70,18 +69,18 @@ class CLCResistor(NonIdealResistor):
         s = non_ideal_r.s(freq)
 
         print(f"S11 at 10 GHz: {s[freq.center_idx, 0, 0]:.2f}")
-
-    .. code-block:: python
     """
     res: Resistor = Resistor()
     clc: PiCLC = PiCLC()
 
     @property
     def ideal(self) -> Model:
+        """Model: The ideal resistor component."""
         return self.res
     
     @property
     def parasitics(self) -> Model:
+        """Model: The parasitic C-L-C network."""
         return self.clc
     
     def a(self, freq: Frequency) -> jnp.ndarray:

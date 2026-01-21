@@ -15,11 +15,25 @@ class PiCLC(Model):
     for various filters and matching networks, and is also commonly used to
     model the parasitic effects of physical components like SMD resistors.
 
+    
+
     The parameter `three_port` determines whether all four ports are exposed or not.
 
     To ensure numerical stability when using with JAX, this model provides a
     special case for when the series inductance `L` is zero, where the network
     behaves as a single shunt capacitor.
+
+    Attributes
+    ----------
+    C1 : Parameter, default=1.0e-12
+        The value of the first shunt capacitor in Farads.
+    L : Parameter, default=1.0e-9
+        The value of the series inductor in Henrys.
+    C2 : Parameter, default=1.0e-12
+        The value of the second shunt capacitor in Farads.
+    three_port : bool, default=False
+        If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
+        If False, treats it as a standard 2-port network.
     """
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
@@ -53,6 +67,19 @@ class PiCLC(Model):
         )
 
     def a_general(self, freq: Frequency):
+        """
+        Internal calculation for the general case (L != 0).
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency points.
+
+        Returns
+        -------
+        jnp.ndarray
+            The ABCD matrix.
+        """
         # Internal method for the general case where L is non-zero.
         C1, C2, L = self.C1, self.C2, self.L
         w = freq.w
@@ -66,6 +93,21 @@ class PiCLC(Model):
         ]).transpose(2, 0, 1)
 
     def a_zero_inductance(self, freq: Frequency):
+        """
+        Internal calculation for the zero inductance case (L == 0).
+
+        The network simplifies to a single shunt capacitor C = C1 + C2.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency points.
+
+        Returns
+        -------
+        jnp.ndarray
+            The ABCD matrix.
+        """
         # Internal method for the special case where L is zero.
         # The network simplifies to a single shunt capacitor C = C1 + C2.
         C1, C2 = self.C1, self.C2
@@ -92,9 +134,22 @@ class BoxCLCC(Model):
     A 3-port or 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
 
     This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
-    a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
+    and a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
 
     The parameter `four_port` determines whether all four ports are exposed or not.
+
+    Attributes
+    ----------
+    C1 : Parameter, default=1.0e-12
+        First shunt capacitor.
+    L : Parameter, default=1.0e-9
+        Series inductor.
+    C2 : Parameter, default=1.0e-12
+        Second shunt capacitor.
+    C3 : Parameter, default=1.0e-12
+        Bridging capacitor.
+    four_port : bool, default=False
+        If True, exposes the network as a 4-port model.
     """    
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
@@ -104,7 +159,7 @@ class BoxCLCC(Model):
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         if not self.four_port:
-            raise Exception('y only available for pi-CLC for four_port == True')
+            raise NotImplementedError('y only available for pi-CLC for four_port == True')
 
         return jax.lax.cond(
             jnp.array(self.L) <= 1e-18,
@@ -113,6 +168,19 @@ class BoxCLCC(Model):
         )
     
     def y_general(self, freq: Frequency) -> jnp.ndarray:        
+        """
+        Internal calculation for the general case (L > 1e-18).
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency points.
+
+        Returns
+        -------
+        jnp.ndarray
+            The Y matrix.
+        """
         Y1 = 1j * freq.w * self.C1
         Y2 = 1j * freq.w * self.C2
         Y3 = 1 / (1j * freq.w * self.L)
@@ -128,6 +196,22 @@ class BoxCLCC(Model):
         ]).transpose(2, 0, 1)
     
     def y_zero_inductance(self, freq: Frequency) -> jnp.ndarray:        
+        """
+        Internal calculation for the zero inductance case.
+
+        Uses a small epsilon for L to avoid division by zero while approximating
+        the behavior.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency points.
+
+        Returns
+        -------
+        jnp.ndarray
+            The Y matrix.
+        """
         Y1 = 1j * freq.w * self.C1
         Y2 = 1j * freq.w * self.C2
 
@@ -143,10 +227,10 @@ class BoxCLCC(Model):
             [-Y3,           Y2 + Y3,        zero,              -Y2],
             [-Y1,           zero,              Y1 + Y4,        -Y4],
             [zero,             -Y2,            -Y4,            Y2 + Y4]
-        ]).transpose(2, 0, 1)     
+        ]).transpose(2, 0, 1)    
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         if not self.four_port:
-            raise Exception('Box-CLCC network not yet available for four_port == False')
+            raise NotImplementedError('Box-CLCC network not yet available for four_port == False')
         
         return y2s(self.y(freq), self.z0)

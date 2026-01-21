@@ -28,6 +28,20 @@ INIT_PARAMS = ['features', 'output_path', 'output_root', 'sparam_kind', 'cost_ki
     
 @dataclass
 class FitSettings:
+    """
+    Configuration settings for the fitting process.
+
+    Attributes
+    ----------
+    frequency : Frequency or None
+        The frequency grid used for the fit.
+    features : list of FeatureT or None
+        The list of features extracted for the fit.
+    fitter_kwargs : dict or None
+        Keyword arguments passed to the specific fitter backend.
+    solver_kwargs : dict or None
+        Keyword arguments passed to the numerical solver.
+    """
     frequency: Frequency | None = None
     features: list[FeatureT] | None = None
     fitter_kwargs: dict | None = None
@@ -35,6 +49,30 @@ class FitSettings:
 
 @dataclass
 class FitContext:
+    """
+    Context object holding the state and data required for a fit execution.
+
+    Attributes
+    ----------
+    model : Model
+        The parametric model being fitted.
+    measured : skrf.Network or NetworkCollection
+        The target measured data.
+    frequency : Frequency
+        The frequency object defining the domain.
+    features : list of FeatureT
+        The specific features to match against.
+    measured_features : np.ndarray
+        The values of the features extracted from the measured data.
+    output_path : str or None
+        Directory path for output files.
+    output_root : str or None
+        Root filename for outputs.
+    sparam_kind : str or None
+        The S-parameter representation kind (e.g., 'all', 'transmission').
+    logger : logging.Logger or None
+        Logger instance for tracking progress.
+    """
     model: Model
     measured: skrf.Network | NetworkCollection
     frequency: Frequency
@@ -46,14 +84,50 @@ class FitContext:
     logger: logging.Logger | None = None
     
     def model_param_names(self) -> list[str]:
+        """
+        Get the names of the flat parameters of the model.
+
+        Returns
+        -------
+        list of str
+            The list of parameter names.
+        """
         return self.model.flat_param_names()
     
     def make_feature_function(self, as_numpy=False):
+        """
+        Create a JIT-compiled function to extract features from model parameters.
+
+        Parameters
+        ----------
+        as_numpy : bool, default=False
+            If True, the returned function handles NumPy arrays; otherwise JAX arrays.
+
+        Returns
+        -------
+        callable
+            A function taking ``theta`` and returning feature values.
+        """
         general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=as_numpy)
         feature_fn = lambda theta: general_feature_fn(theta, self.features, sparam_kind=self.sparam_kind)
         return jax.jit(feature_fn)
     
     def settings(self, solver_kwargs=None, fitter_kwargs=None) -> FitSettings:
+        """
+        Create a FitSettings object from the current context.
+
+        Parameters
+        ----------
+        solver_kwargs : dict, optional
+            Solver specific arguments.
+        fitter_kwargs : dict, optional
+            Fitter specific arguments.
+
+        Returns
+        -------
+        FitSettings
+            The populated settings object.
+        """
         return FitSettings(frequency=self.frequency, features=self.features, fitter_kwargs=fitter_kwargs, solver_kwargs=solver_kwargs)    
 
 class BaseFitter(ABC):
@@ -69,29 +143,31 @@ class BaseFitter(ABC):
         output_root: str = 'fit',
         sparam_kind: str = 'all',
     ) -> None:
-        """Initializes the BaseFitter.
+        """
+        Initializes the BaseFitter.
 
-        Args:
-            model (Model):
-                The parametric `pmrf` Model to be fitted.                                                                    
-            features (FeatureInputT | None, optional):
-                Defines the features to be extracted from the model and network(s).
-                Defaults to `None`, in which case real and imaginary features for all ports are used.
-                Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
-                or a dictionary with either of the above as value. In the dictionary case,
-                keys must be network names in the collection passed by `measured` during fitting, which must also
-                correspond to submodels which are attributes of the model. For example,
-                {'name1', ('s11'), {'name2', ('s21')} can be passed.
-                Note that if a collection of networks is passed, but a feature dictionary is not,
-                it is assumed that those feature(s) should be extract for each networks/submodel.
-                See `extract_features(..)` more details.
-            output_path (str | None):
-                The path for fitters to write output data to. Defaults to `None`.
-            output_root (str | None):
-                The root name used for output files in the output path. Defaults to `None`.
-            sparam_kind (str | None):
-                The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
-                See `extract_features` for more details.
+        Parameters
+        ----------
+        model : Model
+            The parametric `pmrf` Model to be fitted.                                                                            
+        features : FeatureInputT or None, optional
+            Defines the features to be extracted from the model and network(s).
+            Defaults to `None`, in which case real and imaginary features for all ports are used.
+            Can be a single feature e.g. 's11', a list of features (e.g., `['s11', 's11_mag']`),
+            or a dictionary with either of the above as value. In the dictionary case,
+            keys must be network names in the collection passed by `measured` during fitting, which must also
+            correspond to submodels which are attributes of the model. For example,
+            {'name1', ('s11'), {'name2', ('s21')} can be passed.
+            Note that if a collection of networks is passed, but a feature dictionary is not,
+            it is assumed that those feature(s) should be extract for each networks/submodel.
+            See `extract_features(..)` more details.
+        output_path : str or None
+            The path for fitters to write output data to. Defaults to `None`.
+        output_root : str or None
+            The root name used for output files in the output path. Defaults to `None`.
+        sparam_kind : str or None
+            The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
+            See `extract_features` for more details.
         """
         # Populate parameters
         self.model: Model = model
@@ -104,28 +180,34 @@ class BaseFitter(ABC):
             self.logger = logging.getLogger("pmrf.fitting")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
-           
+            
     def fit(
         self,
         measured: str | Network | NetworkCollection,
         **kwargs         
     ) -> 'FitResults':
-        """Fits the model to measured data.
+        """
+        Fits the model to measured data.
 
         This method fits the full model using the original features specified.
 
         Arguments are forwarded to `self.run(...)`.
 
-        Parameters:
-            measured (skrf.Network | prf.NetworkCollection):
-                The measured network data to fit the model against.
-                Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
-                For the latter case the network names should be referenced during
-                feature extraction by specifying features as a dictionary.
-                If networks do not have the same frequency, a common frequency is used.
+        Parameters
+        ----------
+        measured : skrf.Network or prf.NetworkCollection
+            The measured network data to fit the model against.
+            Can be a scikit-rf `Network` or a paramrf `NetworkCollection`.
+            For the latter case the network names should be referenced during
+            feature extraction by specifying features as a dictionary.
+            If networks do not have the same frequency, a common frequency is used.
+        **kwargs
+            Additional arguments forwarded to `self.run`.
 
-        Returns:
-            FitResults: The fit results.
+        Returns
+        -------
+        FitResults
+            The fit results.
         """
         if isinstance(measured, str):
             measured = skrf.Network(measured)
@@ -140,21 +222,27 @@ class BaseFitter(ABC):
         measured: NetworkCollection,
         **kwargs         
     ) -> 'FitResults':
-        """Fits the submodels.
+        """
+        Fits the submodels.
          
         This method fits the model to the measured data by fitting its submodels in a sequential manner.
 
         Arguments are forwarded `self.run(...)`.
 
-        Parameters:
-            measured (prf.NetworkCollection):
-                The measured network data to fit the model against.
-                Must be a ParamRF `NetworkCollection`. Network names should be referenced during
-                feature extraction by specifying features as a dictionary.
-                If networks do not have the same frequency, a common frequency is used.
+        Parameters
+        ----------
+        measured : prf.NetworkCollection
+            The measured network data to fit the model against.
+            Must be a ParamRF `NetworkCollection`. Network names should be referenced during
+            feature extraction by specifying features as a dictionary.
+            If networks do not have the same frequency, a common frequency is used.
+        **kwargs
+            Additional arguments forwarded to `self.run`.
 
-        Returns:
-            FitResults: The fit results. `solver_results` contains a dictionary of the individual submodel results.
+        Returns
+        -------
+        FitResults
+            The fit results. `solver_results` contains a dictionary of the individual submodel results.
         """
         all_results: dict[str, FitResults] = {}
         
@@ -192,6 +280,29 @@ class BaseFitter(ABC):
         return fit_results
 
     def create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
+        """
+        Creates a FitContext from the provided measurement and optional overrides.
+
+        Parameters
+        ----------
+        measured : skrf.Network or NetworkCollection
+            The measured data.
+        model : Model, optional
+            Model override. Defaults to self.model.
+        features : FeatureInputT, optional
+            Features override. Defaults to self.features.
+        output_path : str, optional
+            Output path override. Defaults to self.output_path.
+        output_root : str, optional
+            Output root override. Defaults to self.output_root.
+        sparam_kind : str, optional
+            S-parameter kind override. Defaults to self.sparam_kind.
+
+        Returns
+        -------
+        FitContext
+            The initialized context object.
+        """
         model = model or self.model
         features = features or self.features
         sparam_kind = sparam_kind or self.sparam_kind
@@ -241,7 +352,8 @@ class BaseFitter(ABC):
         callback: Callable[['FitResults'], None] | None = None,
         **kwargs
     ) -> 'FitResults':
-        """Runs the fitting algorithm for the specific context.
+        """
+        Runs the fitting algorithm for the specific context.
 
         This is a low-level method and should seldom be used directly.
 
@@ -251,24 +363,29 @@ class BaseFitter(ABC):
 
         Additional arguments are forwarded to the underlying fitter.
 
-        Args:
-            context: (FitContext):
-                The fitting context.
-            load_previous (bool):
-                Whether or not to try and load previous results from the output path.
-            new_uniform_frac (float, optional):
-                The fraction to update model distribution bounds uniformly around the fitted model values.
-            save_model (bool):
-                Saves the model to the output path (if provided).
-            save_results (bool):
-                Saves the results to hdf format in the output path (if provided).
-            plot_s_db (bool):
-                Plots the S-parameters in db and save the results in the output path (if provided]).
-            callback (Callable[[FitResults], None] | None):
-                A callback to run after fitting but before saving and plotting.
+        Parameters
+        ----------
+        context: FitContext
+            The fitting context.
+        load_previous : bool, default=True
+            Whether or not to try and load previous results from the output path.
+        new_uniform_frac : float or None, optional, default=0.01
+            The fraction to update model distribution bounds uniformly around the fitted model values.
+        save_model : bool, default=True
+            Saves the model to the output path (if provided).
+        save_results : bool, default=True
+            Saves the results to hdf format in the output path (if provided).
+        plot_s_db : bool, default=True
+            Plots the S-parameters in db and save the results in the output path (if provided]).
+        callback : Callable[[FitResults], None] or None, optional
+            A callback to run after fitting but before saving and plotting.
+        **kwargs
+            Additional arguments forwarded to the underlying fitter.
 
-        Returns:
-            Model: The fitted model.
+        Returns
+        -------
+        FitResults
+            The fitted results object.
         """
         # Try load from previous results
         if load_previous and context.output_path is not None:
@@ -320,28 +437,62 @@ class BaseFitter(ABC):
     
     @abstractmethod
     def _run(self, context: FitContext, **kwargs) -> 'FitResults':
-        """Executes the fitting algorithm.
+        """
+        Executes the fitting algorithm.
 
         This method must be implemented by all concrete subclasses. It is the
         main entry point to start the optimization or sampling process.
 
-        Returns:
-            FitResults: An object containing the results of the fit.
+        Parameters
+        ----------
+        context : FitContext
+            The context containing data and model.
+        **kwargs
+            Additional keyword arguments.
+
+        Returns
+        -------
+        FitResults
+            An object containing the results of the fit.
         """        
         raise NotImplementedError    
     
 @dataclass
 class FitResults:
+    """
+    Container for the results of a model fitting process.
+    
+    This class holds the state of the model before and after optimization,
+    the original data, and the raw output from the solver.
+
+    Attributes
+    ----------
+    measured : skrf.Network, NetworkCollection, or None
+        The original measured data (target) against which the model was fit.
+    initial_model : Model or None
+        The model with the initial parameters.
+    fitted_model : Model or None
+        The model with the fitted parameters.
+    solver_results : Any
+        The raw result object returned by the optimization backend.
+    settings : FitSettings or None
+        The configuration and hyperparameters used to execute the fit.
+    """    
     measured: skrf.Network | NetworkCollection | None = None
     initial_model: Model | None = None
     fitted_model: Model | None = None
     solver_results: Any = None
-    settings: FitSettings | None = None
+    settings: FitSettings | None = None 
 
     def plot_s_db(self, use_initial_model=False):
         """
         Plots the S-parameters (Magnitude in dB) of the Measured vs Fitted data.
         Handles both single Network and a `NetworkCollection`.
+
+        Parameters
+        ----------
+        use_initial_model : bool, optional, default=False
+            Whether or not to use the initial model.
         """
         model = self.initial_model if use_initial_model else self.fitted_model
         
@@ -401,7 +552,7 @@ class FitResults:
             
             for i in range(n_ports):
                 for j in range(n_ports):
-                    ax = axes[row_idx, plot_col_idx]               
+                    ax = axes[row_idx, plot_col_idx]              
                     
                     # Plot Fitted (Solid line)
                     # Ensure the fitted network has the same ports or handle gracefully
@@ -432,6 +583,14 @@ class FitResults:
         fig.tight_layout()
 
     def encode_solver_results(self, group: h5py.Group):
+        """
+        Encode solver results into an HDF5 group.
+
+        Parameters
+        ----------
+        group : h5py.Group
+            The HDF5 group to write to.
+        """
         data = None
         if self.solver_results is not None:
             try:
@@ -442,6 +601,19 @@ class FitResults:
     
     @classmethod
     def decode_solver_results(cls, group: h5py.Group) -> Any:
+        """
+        Decode solver results from an HDF5 group.
+
+        Parameters
+        ----------
+        group : h5py.Group
+            The HDF5 group to read from.
+
+        Returns
+        -------
+        Any
+            The decoded solver results object or None.
+        """
         if 'data' in group:
             try:
                 return jsonpickle.decode(group['data'][()])
@@ -450,6 +622,16 @@ class FitResults:
         return None
     
     def save_hdf(self, path: str, metadata: dict | None = None):
+        """
+        Save the fit results to an HDF5 file.
+
+        Parameters
+        ----------
+        path : str
+            The file path to save to.
+        metadata : dict, optional
+            Additional metadata to save.
+        """
         version = 4
         
         with h5py.File(path, 'w') as f:
@@ -522,6 +704,19 @@ class FitResults:
 
     @classmethod
     def load_hdf(cls, path: str) -> "FitResults":
+        """
+        Load fit results from an HDF5 file.
+
+        Parameters
+        ----------
+        path : str
+            The file path to load from.
+
+        Returns
+        -------
+        FitResults
+            The loaded results object.
+        """
         with h5py.File(path, 'r') as f:
             # Metadata
             if 'metadata' in f:
@@ -643,25 +838,31 @@ def Fitter(
     backend: str | None = None,
     **kwargs
 ) -> 'BaseFitter':
-    """Fitter factory function.
+    """
+    Fitter factory function.
     
     This allows the creator of a fitter by simply specifying the inference type or fitter backend and having all arguments forwarded.
     See the relevant fitter classes for detailed documentation.
 
-    Args:
-        model (Model):
-            The parametric `pmrf` Model to be fitted.
-            See the documentation for `BaseFitter`.
-        inference (str, optional):
-            High-level inference mode. Can be either 'frequentist' or 'bayesian'.
-            If provided and ``backend`` is ``None``, a suitable default backend
-            is selected automatically.
-        backend (str, optional)
-            Explicit fitter backend name. If provided, this takes precedence over
-            ``inference`` and must be compatible with it.
+    Parameters
+    ----------
+    model : Model
+        The parametric `pmrf` Model to be fitted.
+        See the documentation for `BaseFitter`.
+    inference : str, optional
+        High-level inference mode. Can be either 'frequentist' or 'bayesian'.
+        If provided and ``backend`` is ``None``, a suitable default backend
+        is selected automatically.
+    backend : str, optional
+        Explicit fitter backend name. If provided, this takes precedence over
+        ``inference`` and must be compatible with it.
+    **kwargs
+        Additional arguments forwarded to the fitter constructor.
 
-    Returns:
-        BaseFitter: The concrete fitter instance.
+    Returns
+    -------
+    BaseFitter
+        The concrete fitter instance.
     """
     if inference is None and backend is None:
         inference = 'frequentist'
@@ -677,16 +878,62 @@ def Fitter(
     return cls(model, **kwargs)
 
 def is_frequentist(solver) -> bool:
+    """
+    Check if a solver is a Frequentist fitter.
+
+    Parameters
+    ----------
+    solver : str
+        The name of the solver.
+
+    Returns
+    -------
+    bool
+        True if the solver corresponds to a FrequentistFitter subclass.
+    """
     from fitting.frequentist import FrequentistFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, FrequentistFitter)
 
 def is_bayesian(solver) -> bool:
+    """
+    Check if a solver is a Bayesian fitter.
+
+    Parameters
+    ----------
+    solver : str
+        The name of the solver.
+
+    Returns
+    -------
+    bool
+        True if the solver corresponds to a BayesianFitter subclass.
+    """
     from fitting.bayesian import BayesianFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, BayesianFitter)
 
 def is_inference_kind(solver, inference: str):
+    """
+    Check if a solver matches a specific inference kind.
+
+    Parameters
+    ----------
+    solver : str
+        The name of the solver.
+    inference : str
+        The inference kind ('frequentist' or 'bayesian').
+
+    Returns
+    -------
+    bool
+        True if the solver matches the inference kind.
+
+    Raises
+    ------
+    Exception
+        If the inference kind is unknown.
+    """
     if inference == 'frequentist':
         return is_frequentist(solver)
     elif inference == 'bayesian':
@@ -695,6 +942,24 @@ def is_inference_kind(solver, inference: str):
         raise Exception(f"Unknown inference type '{inference}'")
 
 def get_fitter_class(solver: str):
+    """
+    Retrieve the Fitter class corresponding to a solver name.
+
+    Parameters
+    ----------
+    solver : str
+        The name of the solver (e.g., 'scipy-minimize').
+
+    Returns
+    -------
+    class
+        The fitter class found in the backends.
+
+    Raises
+    ------
+    Exception
+        If the solver class cannot be found or imported.
+    """
     solver = solver.replace('scipy', 'sciPy')
     solver = solver.replace('polychord', 'polyChord')
 

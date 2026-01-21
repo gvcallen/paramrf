@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, List
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
@@ -11,8 +12,10 @@ from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, Freq
 
 class OptaxFitter(FrequentistFitter):
     """
-    JAX/Optax-based fitter. Uses gradient-based optimization on a flat
-    parameter vector with box constraints handled by projection.
+    JAX/Optax-based fitter. 
+    
+    Uses gradient-based optimization on a flat parameter vector with box 
+    constraints handled by projection.
     """
     def make_optimizer(
         self,
@@ -20,6 +23,29 @@ class OptaxFitter(FrequentistFitter):
         lr: float,
         grad_clip_norm: Optional[float],
     ) -> optax.GradientTransformation:
+        """
+        Create the Optax optimizer chain.
+
+        Parameters
+        ----------
+        name : str
+            The name of the optimizer to use. 
+            Options: 'adam', 'adamw', 'rmsprop', 'sgd'.
+        lr : float
+            The learning rate.
+        grad_clip_norm : float or None
+            The maximum global norm for gradient clipping. If None, no clipping is applied.
+
+        Returns
+        -------
+        optax.GradientTransformation
+            The composed optimizer transformation.
+
+        Raises
+        ------
+        ValueError
+            If the optimizer name is unknown.
+        """
         chain: List[optax.GradientTransformation] = []
         if grad_clip_norm is not None:
             chain.append(optax.clip_by_global_norm(grad_clip_norm))
@@ -33,8 +59,6 @@ class OptaxFitter(FrequentistFitter):
             chain.append(optax.rmsprop(lr))
         elif name_l == "sgd":
             chain.append(optax.sgd(lr))
-        elif name_l == "lbfgs":
-            chain.append(optax.lbfgs(lr))
         else:
             raise ValueError(f"Unknown optimizer '{name}'; use one of: adam, adamw, rmsprop, sgd")
 
@@ -54,28 +78,33 @@ class OptaxFitter(FrequentistFitter):
         grad_tol: Optional[float] = 1e-6,
     ) -> FrequentistResults:
         """
+        Execute the optimization loop.
+
         Parameters
         ----------
-        optimizer:
-            One of {"adam", "adamw", "rmsprop", "sgd", "lbfgs"}.
-        learning_rate:
+        ctx : FrequentistContext
+            The fitting context containing the model and cost function.
+        optimizer : str, optional, default='adam'
+            One of {"adam", "adamw", "rmsprop", "sgd"}.
+        learning_rate : float, optional, default=1e-2
             Base learning rate for the optimizer.
-        max_steps:
+        max_steps : int, optional, default=20_000
             Hard cap on total optimization steps.
-        log_every:
+        log_every : int, optional, default=500
             Print progress every N steps.
-        grad_clip_norm:
+        grad_clip_norm : float or None, optional, default=None
             If provided, clip gradient global norm to this value.
-        plateau_patience:
+        plateau_patience : int, optional, default=2_000
             Stop if best cost hasn't improved by >= plateau_tol over the last `plateau_patience` steps.
-        plateau_tol:
+        plateau_tol : float, optional, default=1e-6
             Absolute improvement threshold used for plateau detection.
-        grad_tol:
+        grad_tol : float or None, optional, default=1e-6
             If provided, stop when ||grad||_2 <= grad_tol.
-        seed:
-            For any stochastic components (kept for future compatibility).
-        kwargs:
-            Reserved for compatibility; ignored here (you can plumb extra knobs if needed).
+        
+        Returns
+        -------
+        FrequentistResults
+            The results containing the fitted model and optimization history.
         """
         x0 = jnp.asarray(ctx.model.flat_param_values(), dtype=jnp.float64)
         mins, maxs = ctx.bounds()
@@ -155,15 +184,17 @@ class OptaxFitter(FrequentistFitter):
         final_x = best_x  # use best parameters encountered
         final_cost = float(best_val)
 
-        fitted_model = ctx.model.with_params(jnp.asarray(final_x))
+        fitted_model = ctx.model.with_params(np.array(final_x))
 
-        solver_results = dict(message="Optimization finished",
+        # Convert JAX arrays to NumPy for serialization compatibility
+        solver_results = dict(
+            message="Optimization finished",
             status=0,  # 0=OK (mimic SciPy style)
             nit=len(history_cost),
             fun=final_cost,
-            x=jnp.asarray(final_x),
-            cost_history=jnp.asarray(history_cost),
-            grad_norm_history=jnp.asarray(history_grad_norm),
+            x=np.array(final_x),
+            cost_history=np.array(history_cost),
+            grad_norm_history=np.array(history_grad_norm),
         )
 
         self.logger.info(f"Finished optax-{optimizer}: steps={solver_results['nit']}, "f"best_cost={final_cost:.6g}")
