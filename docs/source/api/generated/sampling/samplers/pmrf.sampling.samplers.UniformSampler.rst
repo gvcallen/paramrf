@@ -13,6 +13,7 @@
 
    .. autosummary::
    
+      ~UniformSampler.__class_getitem__
       ~UniformSampler.__delattr__
       ~UniformSampler.__dir__
       ~UniformSampler.__eq__
@@ -56,6 +57,8 @@
       ~UniformSampler.__dict__
       ~UniformSampler.__doc__
       ~UniformSampler.__module__
+      ~UniformSampler.__orig_bases__
+      ~UniformSampler.__parameters__
       ~UniformSampler.__slots__
       ~UniformSampler.__weakref__
       ~UniformSampler._abc_impl

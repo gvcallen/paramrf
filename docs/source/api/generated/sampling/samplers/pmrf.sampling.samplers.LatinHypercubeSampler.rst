@@ -13,6 +13,7 @@
 
    .. autosummary::
    
+      ~LatinHypercubeSampler.__class_getitem__
       ~LatinHypercubeSampler.__delattr__
       ~LatinHypercubeSampler.__dir__
       ~LatinHypercubeSampler.__eq__
@@ -56,6 +57,8 @@
       ~LatinHypercubeSampler.__dict__
       ~LatinHypercubeSampler.__doc__
       ~LatinHypercubeSampler.__module__
+      ~LatinHypercubeSampler.__orig_bases__
+      ~LatinHypercubeSampler.__parameters__
       ~LatinHypercubeSampler.__slots__
       ~LatinHypercubeSampler.__weakref__
       ~LatinHypercubeSampler._abc_impl

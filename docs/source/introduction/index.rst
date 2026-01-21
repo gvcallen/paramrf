@@ -167,48 +167,8 @@ Fitting Example
 
 The following provides a complete example of fitting the built in ``CoaxialLine`` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
 
-.. code-block:: python
-
-    import jax.numpy as jnp
-    import skrf as rf
-
-    import pmrf as prf
-    from pmrf.models import CoaxialLine
-    from pmrf.parameters import Uniform, Fixed, PercentNormal
-    from pmrf.fitting import SciPyMinimizeFitter
-
-    # Load the measured data and setup the model
-    measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
-    model = CoaxialLine(
-        din = PercentNormal(1.12, 5.0, scale=1e-3),
-        dout = PercentNormal(3.2, 5.0, scale=1e-3),
-        epr = PercentNormal(1.45, 5.0, n=2),
-        rho = PercentNormal(1.6, 5.0, scale=1e-8),
-        tand = Uniform(0.0, 0.01, value=0.0, scale=0.01, n=2),
-        mur = Fixed(1.0),
-        length = PercentNormal(10.0, 5.0),
-        epr_model='bpoly',
-        tand_model='bpoly',
-    )
-
-    # Initialize the fitter. We fit on the real and imaginary and combine their results
-    fitter = SciPyMinimizeFitter(
-        model=model,
-        features=['s11_re', 's11_im'],
-        cost_function=[l2_norm_ax0, jnp.sum, mag_2_db],
-    )
-
-    # Run the fit
-    results = fitter.fit(measured, optimizer='Nelder-Mead')
-    model_ntwk = results.fitted_model.to_skrf(measured.frequency)
-
-    # Run the fit. Arguments are passed through to the underlying solver
-    results = fitter.fit(measured, method='Nelder-Mead')
-
-    # Convert the model to an skrf Network and plot the resultant S11
-    model_ntwk = results.model.to_skrf(measured.frequency)
-    model_ntwk.plot_s_db(m=0, n=0, ax=axes[0])
-    measured.plot_s_db(m=0, n=0, ax=axes[0])
+.. literalinclude:: ../../../examples/fit_cable_scipy.py
+   :language: python
 
 Sampling
 ~~~~~~~~~~~~~~~~~~~~
@@ -217,17 +177,5 @@ A secondary application of ``pmrf`` is the random sampling or simulation of mode
 
 The below example demonstrates a very simple example of simulating 10 different resistor networks with uniform resistance between 9 and 11 ohms.
 
-.. code-block:: python
-
-    import pmrf as prf
-    from pmrf.models import Resistor
-    from pmrf.parameters import Uniform
-    from pmrf.sampling import LatinHypercubeSampler
-
-    resistor = Resistor(R=Uniform(9.0, 11.0))
-    sampler = LatinHypercubeSampler(resistor)
-    resistors = sampler.generate_models(10)
-    freq = prf.Frequency(10, 20, 100, 'MHz')
-
-    for i, res in enumerate(resistors):
-        res.export_touchstone(freq, f'resistors_{i}')
+.. literalinclude:: ../../../examples/simulate_resistor.py
+   :language: python

@@ -1,4 +1,4 @@
-from typing import Iterator, TypeVar
+from typing import Iterator, TypeVar, Generic
 from abc import ABC, abstractmethod
 import logging
 
@@ -16,7 +16,7 @@ from pmrf.constants import FeatureInputT
 
 ModelT = TypeVar('ModelT', bound='Model')
 
-class BaseSampler(ABC):
+class BaseSampler(ABC, Generic[ModelT]):
     """
     Abstract base class for parameter sampling engines.
 
@@ -46,11 +46,11 @@ class BaseSampler(ABC):
         model : Model
             The model to sample from.
         """
-        self.model: Model = model
+        self.model: ModelT = model
         self.N = None
         self.logger = logging.getLogger(__name__)
 
-    def __iter__(self) -> Iterator[Model]:
+    def __iter__(self) -> Iterator[ModelT]:
         """
         Iterate over generated models.
 
@@ -96,7 +96,7 @@ class BaseSampler(ABC):
             raise Exception('Error: to use this class as an iterator, call e.g. enumerate (CircuitSampler.range(n))')
         return self.N
 
-    def range(self, N) -> ModelT:
+    def range(self, N) -> 'BaseSampler[ModelT]':
         """
         Configure the sampler for iteration over `N` samples.
 

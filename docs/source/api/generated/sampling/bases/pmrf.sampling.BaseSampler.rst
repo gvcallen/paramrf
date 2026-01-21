@@ -13,6 +13,7 @@
 
    .. autosummary::
    
+      ~BaseSampler.__class_getitem__
       ~BaseSampler.__delattr__
       ~BaseSampler.__dir__
       ~BaseSampler.__eq__
@@ -56,6 +57,8 @@
       ~BaseSampler.__dict__
       ~BaseSampler.__doc__
       ~BaseSampler.__module__
+      ~BaseSampler.__orig_bases__
+      ~BaseSampler.__parameters__
       ~BaseSampler.__slots__
       ~BaseSampler.__weakref__
       ~BaseSampler._abc_impl
