@@ -1,16 +1,21 @@
 pmrf.models
 ===========
 
-All built-in **pmrf.models** models.
+.. automodule:: pmrf.models
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+This module contains all of ParamRF's built-in models.
 
 .. autosummary::
    :toctree: generated/models
    :caption: Submodules
    :recursive:
 
-   pmrf.models.containers
-   pmrf.models.lines
-   pmrf.models.lumped
-   pmrf.models.nonideal
-   pmrf.models.topological
-   pmrf.models.utility
+   containers
+   lines
+   lumped
+   nonideal
+   topological
+   utility

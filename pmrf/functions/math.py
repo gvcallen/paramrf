@@ -1142,9 +1142,9 @@ def comb(N: jnp.ndarray, k: jnp.ndarray, exact: bool = False, repetition: bool =
     When exact=False, the result is approximately and efficiently computed using the following formula:
     
     .. math::
-    \begin{equation}
-    \exp\left\{\ln{\Gamma(N+1)} - [\ln{\Gamma(k+1)} + \ln{\Gamma(N+1-k)}]\right\}
-    \end{equation}    
+    
+        \exp\left\{\ln{\Gamma(N+1)} - [\ln{\Gamma(k+1)} + \ln{\Gamma(N+1-k)}]\right\}
+
     using the Gamma function. 
 
 

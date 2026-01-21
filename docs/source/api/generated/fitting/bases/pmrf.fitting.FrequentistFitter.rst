@@ -35,11 +35,11 @@
       ~FrequentistFitter.__sizeof__
       ~FrequentistFitter.__str__
       ~FrequentistFitter.__subclasshook__
-      ~FrequentistFitter._run
-      ~FrequentistFitter.create_context
+      ~FrequentistFitter._create_context
+      ~FrequentistFitter._run_algorithm
+      ~FrequentistFitter._run_context
       ~FrequentistFitter.fit
       ~FrequentistFitter.fit_submodels
-      ~FrequentistFitter.run
    
    
 

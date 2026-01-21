@@ -35,12 +35,12 @@
       ~NumPyroNSFitter.__sizeof__
       ~NumPyroNSFitter.__str__
       ~NumPyroNSFitter.__subclasshook__
-      ~NumPyroNSFitter._run
-      ~NumPyroNSFitter.create_context
+      ~NumPyroNSFitter._create_context
+      ~NumPyroNSFitter._run_algorithm
+      ~NumPyroNSFitter._run_context
       ~NumPyroNSFitter.fit
       ~NumPyroNSFitter.fit_submodels
       ~NumPyroNSFitter.make_numpyro_model
-      ~NumPyroNSFitter.run
    
    
 

@@ -25,10 +25,11 @@ class Parameter(eqx.Module):
 
     Usage
     -----
-    - Use in mathematical operations just like a JAX/numpy array.
-    - `Parameter` objects are JAX PyTrees, compatible with JAX transformations (`jit`, `grad`).
-    - Mark as `fixed` (honoured by fitting and sampling routines).
-    - Associate distributions, specified as numpyro distributions (uniform, normal, etc.).
+    
+    * Use in mathematical operations just like a JAX/numpy array.
+    * ``Parameter`` objects are JAX PyTrees, compatible with JAX transformations (jit, grad).
+    * Mark as ``fixed`` (honoured by fitting and sampling routines).
+    * Associate distributions, specified as numpyro distributions (uniform, normal, etc.).
 
     Attributes
     ----------

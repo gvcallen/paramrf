@@ -1,11 +1,6 @@
 pmrf.fitting
 ============
 
-.. automodule:: pmrf.fitting
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 The **fitting** module, with built-in fitting algorithms and results.
 
 All fitters accept the same base initialization arguments as :class:`BaseFitter <pmrf.fitting.BaseFitter>`.
@@ -22,40 +17,37 @@ Fitters
 .. autosummary::
    :toctree: generated/fitting/fitters
    :caption: Submodules
-   :recursive:
 
-   BlackJAXNSFitter
-   dyPolyChordFitter
-   NumPyroMCMCFitter
-   NumPyroNSFitter
-   OptaxFitter
-   PolyChordFitter
-   SciPyMinimizeFitter
+   pmrf.fitting.BlackJAXNSFitter
+   pmrf.fitting.dyPolyChordFitter
+   pmrf.fitting.NumPyroMCMCFitter
+   pmrf.fitting.NumPyroNSFitter
+   pmrf.fitting.OptaxFitter
+   pmrf.fitting.PolyChordFitter
+   pmrf.fitting.SciPyMinimizeFitter
 
 Results
 -----------
 .. autosummary::
    :toctree: generated/fitting/results
    :caption: Submodules
-   :recursive:
 
-   AnestheticResults
-   NumPyroResults
-   SciPyResults
+   pmrf.fitting.AnestheticResults
+   pmrf.fitting.NumPyroResults
+   pmrf.fitting.SciPyResults
 
 Bases
 -----------
 .. autosummary::
    :toctree: generated/fitting/bases
    :caption: Submodules
-   :recursive:
 
-   BaseFitter
-   FrequentistFitter
-   BayesianFitter
-   FitResults
-   FrequentistResults
-   BayesianResults
-   FitContext
-   FrequentistContext
-   BayesianContext
+   pmrf.fitting.BaseFitter
+   pmrf.fitting.FrequentistFitter
+   pmrf.fitting.BayesianFitter
+   pmrf.fitting.FitResults
+   pmrf.fitting.FrequentistResults
+   pmrf.fitting.BayesianResults
+   pmrf.fitting.FitContext
+   pmrf.fitting.FrequentistContext
+   pmrf.fitting.BayesianContext

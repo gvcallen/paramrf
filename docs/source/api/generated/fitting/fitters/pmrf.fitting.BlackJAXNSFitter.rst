@@ -35,11 +35,11 @@
       ~BlackJAXNSFitter.__sizeof__
       ~BlackJAXNSFitter.__str__
       ~BlackJAXNSFitter.__subclasshook__
-      ~BlackJAXNSFitter._run
-      ~BlackJAXNSFitter.create_context
+      ~BlackJAXNSFitter._create_context
+      ~BlackJAXNSFitter._run_algorithm
+      ~BlackJAXNSFitter._run_context
       ~BlackJAXNSFitter.fit
       ~BlackJAXNSFitter.fit_submodels
-      ~BlackJAXNSFitter.run
    
    
 

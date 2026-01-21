@@ -12,7 +12,7 @@ from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, Freq
 
 class OptaxFitter(FrequentistFitter):
     """
-    JAX/Optax-based fitter. 
+    Optax: Classical optimization using ``optax``.
     
     Uses gradient-based optimization on a flat parameter vector with box 
     constraints handled by projection.
@@ -64,7 +64,7 @@ class OptaxFitter(FrequentistFitter):
 
         return optax.chain(*chain)    
 
-    def _run(
+    def _run_algorithm(
         self,
         ctx: FrequentistContext,
         *,

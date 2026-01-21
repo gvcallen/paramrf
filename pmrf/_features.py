@@ -17,12 +17,14 @@ def extract_features(
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
     """
-    Extracts frequency-dependent features from a model or network into a unified matrix.
+    Extract frequency-dependent features from a model or network into a unified matrix.
 
     Features are combined column-by-column, resulting in a matrix where rows correspond
     to frequency points and columns to the requested features. This supports extracting
     scalars (e.g., 's11_mag'), complex parameters, or custom functions from both
     simulation models and measured networks.
+
+    
 
     Parameters
     ----------
@@ -30,13 +32,14 @@ def extract_features(
         The source object. If a list of networks is provided, it is treated as a
         single stacked network with isolated ports. Missing networks in a collection
         should be specified using integers representing the port count at that index.
-    features : str, list, dict, or tuple
-        The features to extract. See Notes for formatting syntax.
     frequency : pmrf.Frequency or skrf.Frequency, optional
         The frequency points for extraction.
-        - **Required** if `source` is a Model.
-        - **Optional** if `source` is a Network; defaults to the Network's native
-        frequency points. If provided, the Network is interpolated to these points.
+        
+        * **Required** if `source` is a Model.
+        * **Optional** if `source` is a Network; defaults to the Network's native
+          frequency points. If provided, the Network is interpolated to these points.
+    features : str, list, dict, or tuple
+        The features to extract. See Notes for formatting syntax.
     sparam_kind : {'transmission', 'reflection', 'all'} or None, optional
         Filters port expansion when generic features are requested (e.g., 's_re'
         without specific indices).
@@ -58,23 +61,24 @@ def extract_features(
 
     * **String Aliases:** Convenient shorthands for standard parameters.
 
-    * *Example:* ``'s11_db'``, ``'a21_deg'``, ``'s11_mag'``.
-    * *Custom:* Any model attribute dependent on frequency can be accessed by name
+      * *Example:* ``'s11_db'``, ``'a21_deg'``, ``'s11_mag'``.
+      * *Custom:* Any model attribute dependent on frequency can be accessed by name
         (e.g., ``'my_custom_gain'``).
 
     * **Explicit Tuples:** Defined as ``(path, parameter, index)``.
 
-    * *Example:* ``('', 's_db', (0, 0))`` is equivalent to ``'s11_db'``.
-    * The empty string ``''`` denotes the base model.
+      * *Example:* ``('', 's_db', (0, 0))`` is equivalent to ``'s11_db'``.
+      * The empty string ``''`` denotes the base model.
 
     * **Dictionaries:** Used to target submodels (via ``getattr``) or specific networks.
 
-    * *Example:* ``{'lna': 's21_db'}`` extracts S21 from the 'lna' submodel.
-    * *Nested:* ``{'front_end.lna': 's11'}`` accesses deep submodels.
-    * *Measurement:* Maps to the label of a specific network in a collection.
+      * *Example:* ``{'lna': 's21_db'}`` extracts S21 from the 'lna' submodel.
+      * *Nested:* ``{'front_end.lna': 's11'}`` accesses deep submodels.
+      * *Measurement:* Maps to the label of a specific network in a collection.
 
     * **Lists:** A list containing any combination of the above will be flattened
-    into columns.
+      into columns.
+
     """
     # We format the features to be flat (and parse them in the process)
     features = _format_features(features, source=source, sparam_kind=sparam_kind)
@@ -174,7 +178,8 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
 
 def _parse_feature_alias(alias: str) -> tuple[FeatureT, tuple[int, int]]:
     """
-    Converts a feature alias like 's11_mag' to a feature tuple like ('s_mag', (0, 0)).
+    Convert a feature alias like 's11_mag' to a feature tuple like ('s_mag', (0, 0)).
+    
     Supports:
       - Feature names with or without two-digit port numbers.
       - Optional suffixes (e.g., '_mag', '_db')

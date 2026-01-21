@@ -35,11 +35,11 @@
       ~BayesianFitter.__sizeof__
       ~BayesianFitter.__str__
       ~BayesianFitter.__subclasshook__
-      ~BayesianFitter._run
-      ~BayesianFitter.create_context
+      ~BayesianFitter._create_context
+      ~BayesianFitter._run_algorithm
+      ~BayesianFitter._run_context
       ~BayesianFitter.fit
       ~BayesianFitter.fit_submodels
-      ~BayesianFitter.run
    
    
 

@@ -8,7 +8,7 @@ from pmrf.fitting.bayesian import BayesianResults
 
 class AnestheticResults(BayesianResults):
     """
-    Results container for Nested Sampling runs using the `anesthetic` library.
+    anesthetic: Nested sampling results using the `anesthetic` library.
     
     This class wraps `anesthetic.NestedSamples` to provide a consistent interface
     for accessing posterior samples, weights, and plotting within the `pmrf` framework.

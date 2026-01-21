@@ -191,7 +191,7 @@ class BaseFitter(ABC):
 
         This method fits the full model using the original features specified.
 
-        Arguments are forwarded to `self.run(...)`.
+        Arguments are forwarded to ``self.run_context(...)``.
 
         Parameters
         ----------
@@ -202,18 +202,18 @@ class BaseFitter(ABC):
             feature extraction by specifying features as a dictionary.
             If networks do not have the same frequency, a common frequency is used.
         **kwargs
-            Additional arguments forwarded to `self.run`.
+            Additional arguments forwarded to the underlying algorithm via ``self.run_context``.
 
         Returns
         -------
         FitResults
-            The fit results.
+            The fit results object.
         """
         if isinstance(measured, str):
             measured = skrf.Network(measured)
         
-        ctx = self.create_context(measured)
-        results = self.run(ctx, **kwargs)
+        ctx = self._create_context(measured)
+        results = self._run_context(ctx, **kwargs)
 
         return results
     
@@ -227,7 +227,7 @@ class BaseFitter(ABC):
          
         This method fits the model to the measured data by fitting its submodels in a sequential manner.
 
-        Arguments are forwarded `self.run(...)`.
+        Arguments are forwarded to ``self.run_context(...)``.
 
         Parameters
         ----------
@@ -237,12 +237,12 @@ class BaseFitter(ABC):
             feature extraction by specifying features as a dictionary.
             If networks do not have the same frequency, a common frequency is used.
         **kwargs
-            Additional arguments forwarded to `self.run`.
+            Additional arguments forwarded to the underlying algorithm via ``self.run_context``.
 
         Returns
         -------
         FitResults
-            The fit results. `solver_results` contains a dictionary of the individual submodel results.
+            The fit results object. `solver_results` contains a dictionary of the individual submodel results.
         """
         all_results: dict[str, FitResults] = {}
         
@@ -256,8 +256,8 @@ class BaseFitter(ABC):
             comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
             output_path = f'{self.output_path}/submodels/{name}' if self.output_path is not None else None
             
-            ctx = self.create_context(comp_measured, model=model, output_path=output_path)
-            all_results[name] = self.run(ctx, **kwargs)
+            ctx = self._create_context(comp_measured, model=model, output_path=output_path)
+            all_results[name] = self._run_context(ctx, **kwargs)
 
         fitted_model = self.model.with_models([result.fitted_model for result in all_results.values()])
         fit_results = FitResults(
@@ -279,7 +279,7 @@ class BaseFitter(ABC):
 
         return fit_results
 
-    def create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
+    def _create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
         """
         Creates a FitContext from the provided measurement and optional overrides.
 
@@ -340,7 +340,7 @@ class BaseFitter(ABC):
             output_root=output_root
         )
     
-    def run(
+    def _run_context(
         self,
         context: FitContext,
         *,
@@ -353,7 +353,7 @@ class BaseFitter(ABC):
         **kwargs
     ) -> 'FitResults':
         """
-        Runs the fitting algorithm for the specific context.
+        Executes the fitting context.
 
         This is a low-level method and should seldom be used directly.
 
@@ -361,7 +361,7 @@ class BaseFitter(ABC):
         It contains several convenience parameters, allowing for e.g. automatic saving
         and plotting of results.
 
-        Additional arguments are forwarded to the underlying fitter.
+        Additional arguments are forwarded to the underlying algorithm via ``self.run_algorithm``.
 
         Parameters
         ----------
@@ -380,12 +380,12 @@ class BaseFitter(ABC):
         callback : Callable[[FitResults], None] or None, optional
             A callback to run after fitting but before saving and plotting.
         **kwargs
-            Additional arguments forwarded to the underlying fitter.
+            Additional arguments forwarded to the underlying fitter via ``self.run_algorithm``.
 
         Returns
         -------
         FitResults
-            The fitted results object.
+            The fit results object.
         """
         # Try load from previous results
         if load_previous and context.output_path is not None:
@@ -402,7 +402,7 @@ class BaseFitter(ABC):
         self.logger.info(f"Parameter names: {context.model.flat_param_names()}")
         self.logger.info(f'Features: {context.features}')
         
-        results = self._run(context, **kwargs)
+        results = self._run_algorithm(context, **kwargs)
         results.measured = context.measured
         results.initial_model = context.model
         results.settings = context.settings(solver_kwargs=kwargs)
@@ -436,9 +436,11 @@ class BaseFitter(ABC):
         return results
     
     @abstractmethod
-    def _run(self, context: FitContext, **kwargs) -> 'FitResults':
+    def _run_algorithm(self, context: FitContext, **kwargs) -> 'FitResults':
         """
         Executes the fitting algorithm.
+
+        This is a low-level method and should seldom be used directly.
 
         This method must be implemented by all concrete subclasses. It is the
         main entry point to start the optimization or sampling process.
@@ -446,14 +448,14 @@ class BaseFitter(ABC):
         Parameters
         ----------
         context : FitContext
-            The context containing data and model.
+            The fitting context.
         **kwargs
             Additional keyword arguments.
 
         Returns
         -------
         FitResults
-            An object containing the results of the fit.
+            The fit results object.
         """        
         raise NotImplementedError    
     

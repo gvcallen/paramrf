@@ -59,23 +59,25 @@ extensions = [
 ]
 
 autosummary_generate = True
-autoclass_content = 'both'
+autoclass_content = 'class'
 autodoc_typehints = 'description'
 autodoc_member_order = 'bysource'
 autodoc_default_options = {
     "members": True,
-    "undoc-members": True,
+    "undoc-members": False,
+    "private-members": False,
+    "special-members": "__init__",
     "inherited-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
-    "property-doc-from-class": True,   # <--- important
+    "exclude-members": "__weakref__"
 }
 
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
 napoleon_use_param = True
 napoleon_use_rtype = True
-napoleon_use_ivar = True   # use :ivar: style instead of Attributes table
+napoleon_use_ivar = False
 
 myst_enable_extensions = ['colon_fence', 'deflist', 'linkify']
 myst_heading_anchors = 3

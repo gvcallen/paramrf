@@ -35,12 +35,12 @@
       ~OptaxFitter.__sizeof__
       ~OptaxFitter.__str__
       ~OptaxFitter.__subclasshook__
-      ~OptaxFitter._run
-      ~OptaxFitter.create_context
+      ~OptaxFitter._create_context
+      ~OptaxFitter._run_algorithm
+      ~OptaxFitter._run_context
       ~OptaxFitter.fit
       ~OptaxFitter.fit_submodels
       ~OptaxFitter.make_optimizer
-      ~OptaxFitter.run
    
    
 

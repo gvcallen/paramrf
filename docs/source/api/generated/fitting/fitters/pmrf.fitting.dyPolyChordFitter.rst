@@ -35,11 +35,11 @@
       ~dyPolyChordFitter.__sizeof__
       ~dyPolyChordFitter.__str__
       ~dyPolyChordFitter.__subclasshook__
-      ~dyPolyChordFitter._run
-      ~dyPolyChordFitter.create_context
+      ~dyPolyChordFitter._create_context
+      ~dyPolyChordFitter._run_algorithm
+      ~dyPolyChordFitter._run_context
       ~dyPolyChordFitter.fit
       ~dyPolyChordFitter.fit_submodels
-      ~dyPolyChordFitter.run
    
    
 

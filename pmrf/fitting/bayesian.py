@@ -368,7 +368,7 @@ class BayesianFitter(BaseFitter):
 
         super().__init__(model, **kwargs)    
     
-    def create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
+    def _create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
         """
         Create a BayesianContext for the fitting process.
 
@@ -438,7 +438,7 @@ class BayesianFitter(BaseFitter):
         features = features if features is not None else default_features
         feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
         
-        base_ctx = super().create_context(measured, features=features, sparam_kind=sparam_kind, **kwargs)
+        base_ctx = super()._create_context(measured, features=features, sparam_kind=sparam_kind, **kwargs)
     
         if likelihood_kind == 'multivariate_gaussian':
             if feature_sigmas is None:
@@ -467,9 +467,9 @@ class BayesianFitter(BaseFitter):
             logger=self.logger,
         )
         
-    def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
+    def _run_context(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
         """
-        Execute the Bayesian fitting process.
+        Execute the Bayesian fitting process within a context
 
         Parameters
         ----------
@@ -510,7 +510,7 @@ class BayesianFitter(BaseFitter):
             user_callback = kwargs.pop('callback', None)
             kwargs['callback'] = callback
 
-        results: BayesianResults = super().run(ctx, *args, **kwargs)
+        results: BayesianResults = super()._run_context(ctx, *args, **kwargs)
 
         if plot_params:
             results.plot_params()

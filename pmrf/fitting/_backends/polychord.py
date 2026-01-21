@@ -7,11 +7,11 @@ from pmrf._util import time_string
    
 class PolyChordFitter(BayesianFitter):
     """
-    Polychord fitter using ``pypolychord.run``.
+    PolyChord: Nested slice sampling using ``pypolychord``.
     
     PolyChord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
-    def _run(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_factor=25, **kwargs) -> AnestheticResults:
+    def _run_algorithm(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_factor=25, **kwargs) -> AnestheticResults:
         """
         Executes the PolyChord nested sampling run.
 

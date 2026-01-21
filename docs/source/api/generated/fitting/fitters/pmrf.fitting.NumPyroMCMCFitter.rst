@@ -35,12 +35,12 @@
       ~NumPyroMCMCFitter.__sizeof__
       ~NumPyroMCMCFitter.__str__
       ~NumPyroMCMCFitter.__subclasshook__
-      ~NumPyroMCMCFitter._run
-      ~NumPyroMCMCFitter.create_context
+      ~NumPyroMCMCFitter._create_context
+      ~NumPyroMCMCFitter._run_algorithm
+      ~NumPyroMCMCFitter._run_context
       ~NumPyroMCMCFitter.fit
       ~NumPyroMCMCFitter.fit_submodels
       ~NumPyroMCMCFitter.make_numpyro_model
-      ~NumPyroMCMCFitter.run
    
    
 

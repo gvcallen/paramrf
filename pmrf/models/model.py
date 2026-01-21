@@ -68,6 +68,19 @@ class Model(eqx.Module):
 
     See also the :mod:`pmrf.fitting` and :mod:`pmrf.sampling` modules for details on model fitting and sampling.
 
+    Attributes
+    ----------
+    name : str or None
+        An optional name for the model instance. Marked as static.
+    separator : str
+        The separator character used when flattening nested parameter names (default is '_'). Marked as static.
+    metadata : dict
+        A dictionary for storing arbitrary metadata associated with the model (e.g., fit results). Marked as static.
+    _z0 : complex
+        The characteristic impedance of the model ports (default is 50.0+0j). Internal use. Marked as static.
+    _param_groups : list[ParameterGroup]
+        A list of parameter groups defining joint distributions or logical groupings. Internal use. Marked as static.
+
     Examples
     --------
     A ``PiCLC`` network ("foundational" model with fixed parameters and equations):

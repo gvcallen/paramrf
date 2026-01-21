@@ -7,9 +7,9 @@ from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, Freq
 
 class SciPyResults(FrequentistResults):
     """
-    Results returned by SciPy fitters.
+    SciPy: Results from ``scipy.optimize``.
 
-    This class provides specific serialization logic for `scipy.optimize.OptimizeResult` objects.
+    This class provides specific serialization logic for ``scipy.optimize.OptimizeResult`` objects.
     """    
     def encode_solver_results(self, grp: h5py.Group):
         """
@@ -57,9 +57,9 @@ class SciPyResults(FrequentistResults):
     
 class SciPyMinimizeFitter(FrequentistFitter):
     """
-    Fitter implementation using `scipy.optimize.minimize`.
+    SciPy Minimize: Classical optimization using ``scipy.optimize.minimize``.
     """
-    def _run(self, ctx: FrequentistContext, *, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
+    def _run_algorithm(self, ctx: FrequentistContext, *, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
         """
         Executes the optimization using SciPy.
 

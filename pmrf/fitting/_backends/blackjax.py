@@ -9,9 +9,9 @@ from pmrf.fitting._backends.anesthetic import AnestheticResults
 
 class BlackJAXNSFitter(BayesianFitter):
     """
-    A fitter that uses the BlackJAX nested slice sampler in `blackjax.nss`.
+    BlackJAX: Nested slice sampling using ``blackjax.nss``.
     """
-    def _run(self, ctx: BayesianContext, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
+    def _run_algorithm(self, ctx: BayesianContext, best_param_method = 'maximum-likelihood', nlive_factor = None, num_delete = None, num_inner_steps = None, logZ_convergence: float = -3, seed: int = 0) -> AnestheticResults:
         """
         Executes the nested sampling process using BlackJAX.
 

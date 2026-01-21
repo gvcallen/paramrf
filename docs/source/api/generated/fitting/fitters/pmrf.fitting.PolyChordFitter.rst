@@ -35,11 +35,11 @@
       ~PolyChordFitter.__sizeof__
       ~PolyChordFitter.__str__
       ~PolyChordFitter.__subclasshook__
-      ~PolyChordFitter._run
-      ~PolyChordFitter.create_context
+      ~PolyChordFitter._create_context
+      ~PolyChordFitter._run_algorithm
+      ~PolyChordFitter._run_context
       ~PolyChordFitter.fit
       ~PolyChordFitter.fit_submodels
-      ~PolyChordFitter.run
    
    
 

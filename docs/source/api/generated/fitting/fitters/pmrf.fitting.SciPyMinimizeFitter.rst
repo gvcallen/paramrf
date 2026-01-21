@@ -35,11 +35,11 @@
       ~SciPyMinimizeFitter.__sizeof__
       ~SciPyMinimizeFitter.__str__
       ~SciPyMinimizeFitter.__subclasshook__
-      ~SciPyMinimizeFitter._run
-      ~SciPyMinimizeFitter.create_context
+      ~SciPyMinimizeFitter._create_context
+      ~SciPyMinimizeFitter._run_algorithm
+      ~SciPyMinimizeFitter._run_context
       ~SciPyMinimizeFitter.fit
       ~SciPyMinimizeFitter.fit_submodels
-      ~SciPyMinimizeFitter.run
    
    
 

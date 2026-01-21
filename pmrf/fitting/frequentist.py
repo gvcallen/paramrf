@@ -144,7 +144,7 @@ class FrequentistFitter(BaseFitter):
                             
         super().__init__(model, **kwargs)
 
-    def create_context(self, measured, *, cost_kind=None, cost_function=None, **kwargs) -> FrequentistContext:
+    def _create_context(self, measured, *, cost_kind=None, cost_function=None, **kwargs) -> FrequentistContext:
         """
         Create a FrequentistContext for the fitting process.
 
@@ -192,7 +192,7 @@ class FrequentistFitter(BaseFitter):
         if cost_function is None:
             cost_function = default_cost        
         
-        base_ctx = super().create_context(measured, features=features, **kwargs)
+        base_ctx = super()._create_context(measured, features=features, **kwargs)
     
         feature_spec = base_ctx.features
         if cost_function is not None and not isinstance(cost_function, list):

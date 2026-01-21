@@ -7,9 +7,9 @@ from pmrf._util import time_string
 
 class dyPolyChordFitter(BayesianFitter):
     """
-    Fitter using the dynamic nested sampling algorithm via ``dyPolyChord``.
+    dyPolyChord: Dynamic nested sampling using ``dyPolyChord``.
     """
-    def _run(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, dynamic_goal=1.0, **kwargs) -> AnestheticResults:
+    def _run_algorithm(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_init_factor=None, nlive_factor=None, dynamic_goal=1.0, **kwargs) -> AnestheticResults:
         """
         Executes the dynamic nested sampling run.
 
