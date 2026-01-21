@@ -12,6 +12,19 @@ from pmrf.constants import TreeAxisSpec
 
 # Dummy node used for array sharing in a model. See partition(..)
 class RefNode:
+    """
+    A placeholder node used to represent a reference to another node in a PyTree.
+
+    This is used during partitioning/de-aliasing to handle shared parameters
+    (object identity) within a model. Instead of duplicating a shared array,
+    one instance is kept and others are replaced by a `RefNode` pointing to
+    the path of the original instance.
+
+    Attributes
+    ----------
+    path : tuple
+        The JAX key path (e.g., tuple of GetAttrKey, etc.) to the referenced node.
+    """
     def __init__(self, path):
         self.path = path
     def __repr__(self):
@@ -22,6 +35,33 @@ def flatten_one_level_with_path(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
     is_leaf_takes_path: bool = False,
 ) -> tuple[list[PyTree], PyTreeDef]:
+    """
+    Flatten a PyTree one level deep, returning values paired with their paths.
+
+    This is similar to `equinox.tree_flatten_one_level`, but utilizes JAX's
+    path-tracking capabilities.
+
+    Parameters
+    ----------
+    pytree : Any
+        The PyTree to flatten.
+    is_leaf : Callable, optional
+        A function to determine if a node is a leaf.
+    is_leaf_takes_path : bool, optional, default=False
+        If True, `is_leaf` accepts the path as a second argument.
+
+    Returns
+    -------
+    list
+        A list of `(path, child)` tuples.
+    PyTreeDef
+        The tree definition.
+
+    Raises
+    ------
+    ValueError
+        If the PyTree is immediately self-referential.
+    """
     # See eqx.tree_flatten_one_level
     seen_pytree = False
     
@@ -51,6 +91,30 @@ def flatten_one_level_with_metadata(
     pytree: Any, is_leaf: Callable[..., bool] | None = None,
     is_leaf_takes_path: bool = False,
 ) -> tuple[list[PyTree], PyTreeDef]:
+    """
+    Flatten a Dataclass PyTree one level, associating field metadata with values.
+
+    Parameters
+    ----------
+    pytree : Any
+        The dataclass instance to flatten.
+    is_leaf : Callable, optional
+        Leaf predicate.
+    is_leaf_takes_path : bool, optional, default=False
+        If True, `is_leaf` accepts the path.
+
+    Returns
+    -------
+    list
+        A list of `(metadata, value)` tuples.
+    PyTreeDef
+        The tree definition.
+
+    Raises
+    ------
+    Exception
+        If a field name in the flattened path is not found in the dataclass fields.
+    """
     path_vals, treedef = flatten_one_level_with_path(pytree, is_leaf=is_leaf, is_leaf_takes_path=is_leaf_takes_path)
     name_to_metadata = {}
     for field in fields(pytree):
@@ -66,6 +130,21 @@ def flatten_one_level_with_metadata(
     return flattened_metadata, treedef
 
 def nodes_by_type(tree: Any, match_type: Type) -> List[Tuple[Tuple[Any, ...], Any]]:
+    """
+    Recursively search a PyTree for nodes matching a specific type.
+
+    Parameters
+    ----------
+    tree : Any
+        The PyTree to search.
+    match_type : Type
+        The class type to match.
+
+    Returns
+    -------
+    List[Any]
+        A list of matching node instances.
+    """
     matches = []
 
     if isinstance(tree, match_type):
@@ -90,6 +169,23 @@ def nodes_by_type(tree: Any, match_type: Type) -> List[Tuple[Tuple[Any, ...], An
     return matches
 
 def nodes_by_type_with_path(tree: Any, match_type: Type, path=()) -> List[Tuple[Tuple[Any, ...], Any]]:
+    """
+    Recursively search a PyTree for nodes matching a specific type, including their paths.
+
+    Parameters
+    ----------
+    tree : Any
+        The PyTree to search.
+    match_type : Type
+        The class type to match.
+    path : tuple, optional
+        The current path (accumulator).
+
+    Returns
+    -------
+    List[Tuple[tuple, Any]]
+        A list of `(path, node)` tuples.
+    """
     # TODO upgrade to ENSURE our paths are 100% jax compatible
     matches = []
 
@@ -113,6 +209,26 @@ def nodes_by_type_with_path(tree: Any, match_type: Type, path=()) -> List[Tuple[
     return matches
 
 def value_at_path(pytree, path):
+    """
+    Retrieve a node from a PyTree using a JAX key path.
+
+    Parameters
+    ----------
+    pytree : Any
+        The root PyTree.
+    path : tuple
+        A sequence of JAX keys (`GetAttrKey`, `SequenceKey`, or `DictKey`).
+
+    Returns
+    -------
+    Any
+        The value found at the specified path.
+
+    Raises
+    ------
+    Exception
+        If the path contains unsupported key types or invalid keys.
+    """
     node = pytree
     for item in path:
         if isinstance(item, GetAttrKey):
@@ -133,12 +249,40 @@ def value_at_path(pytree, path):
     return node
 
 def values_at_paths(pytree, paths):
+    """
+    Retrieve multiple nodes from a PyTree given a list of paths.
+
+    Parameters
+    ----------
+    pytree : Any
+        The root PyTree.
+    paths : list[tuple]
+        A list of JAX key paths.
+
+    Returns
+    -------
+    list
+        A list of values corresponding to the paths.
+    """
     nodes = []
     for path in paths:
         nodes.append(value_at_path(pytree, path))
     return nodes
 
 def path_repr(path):
+    """
+    Convert a JAX key path into a readable string representation.
+
+    Parameters
+    ----------
+    path : tuple
+        The JAX key path.
+
+    Returns
+    -------
+    str
+        String representation (e.g., ``['layer'][0]['weight']``).
+    """
     repr = ""
     for key in path:
         if isinstance(key, GetAttrKey) or isinstance(key, DictKey):
@@ -155,6 +299,32 @@ def dealias(
     core_spec: PyTree[TreeAxisSpec],
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
+    """
+    Split a PyTree into a 'core' and a 'ref' tree, handling object aliasing.
+
+    This function identifies nodes that exist in the `core` partition (defined by
+    `core_spec`). If those same nodes (identified by `id()`) appear in the `alias`
+    partition, they are replaced in the `alias` partition by a `RefNode` pointing
+    to their location in the `core`.
+
+    This allows maintaining shared parameters (pointers) when partitioning models.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The input tree.
+    core_spec : PyTree[TreeAxisSpec]
+        Specification defining which nodes belong to the core.
+    is_leaf : Callable, optional
+        Leaf predicate.
+
+    Returns
+    -------
+    core : PyTree
+        The partitioned core tree.
+    ref : PyTree
+        The partitioned alias tree, with shared nodes replaced by `RefNode`.
+    """
     core, alias = eqx.partition(tree, core_spec, is_leaf=is_leaf)
     
     base_ids = jax.tree.map(lambda node: id(node), core, is_leaf=is_leaf)
@@ -180,6 +350,26 @@ def restore(
     core: PyTree | None = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> PyTree:
+    """
+    Restore aliased references in a tree using values from a core tree.
+
+    Replaces any `RefNode` found in `ref` with the actual value located at
+    `RefNode.path` within `core`.
+
+    Parameters
+    ----------
+    ref : PyTree
+        The tree containing `RefNode`s.
+    core : PyTree, optional
+        The source tree containing the actual values. If None, `ref` is used as source.
+    is_leaf : Callable, optional
+        Leaf predicate.
+
+    Returns
+    -------
+    PyTree
+        The restored tree with aliases resolved.
+    """
     core = core if not core is None else ref
     def _is_leaf(node):
         is_leaf_val = False if is_leaf is None else is_leaf(node)
@@ -195,6 +385,31 @@ def partition(
     replace: Any = None,
     is_leaf: Callable[[Any], bool] | None = None,
 ) -> tuple[PyTree, PyTree]:
+    """
+    Partition a PyTree with support for shared references.
+
+    Combines standard `equinox.partition` with `dealias` logic. If `shared_spec`
+    is provided, it partitions the tree and ensures that shared nodes are
+    represented by references rather than duplicates.
+
+    Parameters
+    ----------
+    pytree : PyTree
+        The tree to partition.
+    filter_spec : PyTree[TreeAxisSpec]
+        The specification for the primary partition.
+    shared_spec : PyTree[TreeAxisSpec], optional
+        The specification used for de-aliasing. If None, behaves like standard partition.
+    replace : Any, optional
+        Value to replace filtered nodes with (default None).
+    is_leaf : Callable, optional
+        Leaf predicate.
+
+    Returns
+    -------
+    tuple[PyTree, PyTree]
+        The partitioned (and potentially de-aliased) trees.
+    """
     if shared_spec is None or filter_spec == shared_spec:
         return eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
 
@@ -204,6 +419,23 @@ def partition(
     return first_core, eqx.combine(first_ref, second)
 
 def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
+    """
+    Combine multiple PyTrees, optionally restoring shared references.
+
+    Parameters
+    ----------
+    *pytrees : PyTree
+        The trees to combine.
+    restore : bool, optional, default=True
+        If True, resolves `RefNode` aliases after combination.
+    is_leaf : Callable, optional
+        Leaf predicate.
+
+    Returns
+    -------
+    PyTree
+        The combined tree.
+    """
     combined = eqx.combine(*pytrees, is_leaf=is_leaf)
     from pmrf import _tree
     if restore:

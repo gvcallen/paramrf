@@ -15,9 +15,6 @@ MAX_PERCENTILE = 0.99
 
 class Parameter(eqx.Module):
     """
-    Overview
-    --------
-
     A container for a parameter, usually used within a `Model`.
 
     This class serves as the fundamental building block for defining the
@@ -27,12 +24,24 @@ class Parameter(eqx.Module):
     fitting and analysis.
 
     Usage
-    --------
-    
-    - Use in mathematical operations just like a JAX/numpy array
-    - `Parameter` objects are JAX PyTrees, making them compatible with JAX's transformations (`jit`, `grad`, etc.).
-    - Mark as `fixed` (which is honoured by fitting and sampling routines)
-    - Associate distribution, specified as numpyro distributions (uniform, normal etc.)
+    -----
+    - Use in mathematical operations just like a JAX/numpy array.
+    - `Parameter` objects are JAX PyTrees, compatible with JAX transformations (`jit`, `grad`).
+    - Mark as `fixed` (honoured by fitting and sampling routines).
+    - Associate distributions, specified as numpyro distributions (uniform, normal, etc.).
+
+    Attributes
+    ----------
+    value : jnp.ndarray
+        The underlying unscaled value. Automatically converted to a float64 array.
+    distribution : numpyro.distributions.Distribution or None
+        The prior distribution associated with this parameter.
+    fixed : bool
+        If True, the parameter is treated as a constant during optimization/sampling.
+    scale : float
+        A scaling factor. The effective value used in calculations is ``value * scale``.
+    name : str or None
+        An optional name for the parameter (marked as static).
 
     Examples
     --------
@@ -68,7 +77,11 @@ class Parameter(eqx.Module):
     
     @property
     def ndim(self) -> int:
-        """The number of free dimensions for this parameter."""
+        """
+        The number of free dimensions for this parameter.
+        
+        Returns 0 if the parameter is fixed.
+        """
         if self.fixed:
             return 0
         
@@ -76,12 +89,15 @@ class Parameter(eqx.Module):
     
     @property
     def min(self) -> jnp.array:
-        r"""The unscaled minimum value of the parameter's distribution (MIN_PERCENTILE quantile).
+        r"""
+        The unscaled minimum value of the parameter's distribution.
+
+        This is determined by the `MIN_PERCENTILE` quantile of the distribution.
 
         Returns
         -------
         jnp.array
-            The minimum value, or -np.inf if no distribution is set.
+            The minimum value, or -inf if no distribution is set.
         """
         if self.distribution is not None:
             if isinstance(self.distribution, dist.Uniform):
@@ -95,12 +111,15 @@ class Parameter(eqx.Module):
     
     @property
     def max(self) -> jnp.array:
-        r"""The unscaled maximum value of the parameter's distribution (MAX_PERCENTILE quantile).
+        r"""
+        The unscaled maximum value of the parameter's distribution.
+        
+        This is determined by the `MAX_PERCENTILE` quantile of the distribution.
 
         Returns
         -------
         jnp.array
-            The maximum value, or np.inf if no distribution is set.
+            The maximum value, or inf if no distribution is set.
         """
         if self.distribution is not None:
             if isinstance(self.distribution, dist.Uniform):
@@ -113,7 +132,8 @@ class Parameter(eqx.Module):
         return jnp.array([-jnp.inf] * self.value.shape[0])
     
     def with_value(self, value: jnp.array) -> 'Parameter':
-        r"""Return a copy with a new unscaled value.
+        r"""
+        Return a copy of the parameter with a new unscaled value.
 
         Parameters
         ----------
@@ -128,7 +148,8 @@ class Parameter(eqx.Module):
         return dataclasses.replace(self, value=value)
     
     def with_distribution(self, dist: Distribution) -> 'Parameter':
-        r"""Return a copy with a new distribution.
+        r"""
+        Return a copy of the parameter with a new distribution.
 
         Parameters
         ----------
@@ -139,6 +160,11 @@ class Parameter(eqx.Module):
         -------
         Parameter
             A copy of this object with ``distribution`` replaced.
+
+        Raises
+        ------
+        Exception
+            If ``dist`` is not a numpyro Distribution.
         """
         if not isinstance(dist, Distribution):
             raise Exception('Only numpyro distributions are supported as parameter distributions')
@@ -146,17 +172,26 @@ class Parameter(eqx.Module):
         return dataclasses.replace(self, distribution=dist)
     
     def flattened(self, separator='_') -> 'list[Parameter]':
-        r"""Flattens self into a list of Parameters.
+        r"""
+        Flatten self into a list of scalar Parameters.
         
         If the internal parameter is scalar, the list will contain self.
-        Otherwise, the parameter is split de-vectorized if possible
+        Otherwise, the parameter is split (de-vectorized) if possible.
         
-        If any internal distributions cannot be de-vectorized, this will raise an Exception.
-        
+        Parameters
+        ----------
+        separator : str, optional, default='_'
+            Separator used for naming split parameters (e.g., name_0, name_1).
+
         Returns
         -------
-        'Parameter' | list['Parameter']
-            The raveled parameters.
+        list[Parameter]
+            The list of individual parameters.
+
+        Raises
+        ------
+        ValueError
+            If any internal distributions cannot be de-vectorized.
         """
         if jnp.isscalar(self.value):
             return [self]
@@ -168,6 +203,23 @@ class Parameter(eqx.Module):
             return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
     def interpolated(self, x_old, x_new) -> 'Parameter':
+        """
+        Return a new parameter interpolated to a new domain.
+
+        Interpolates both the value and the distribution parameters.
+
+        Parameters
+        ----------
+        x_old : array_like
+            The original domain coordinates.
+        x_new : array_like
+            The new domain coordinates.
+
+        Returns
+        -------
+        Parameter
+            The interpolated parameter.
+        """
         value = jnp.interp(x_old, x_new, self.value)
         dist = interp_distribution(x_old, x_new, self.distribution)
 
@@ -180,7 +232,8 @@ class Parameter(eqx.Module):
         )        
         
     def as_fixed(self) -> 'Parameter':
-        r"""Returns a fixed copy of self.
+        r"""
+        Return a copy of self with ``fixed=True``.
 
         Returns
         -------
@@ -190,18 +243,20 @@ class Parameter(eqx.Module):
         return dataclasses.replace(self, fixed=True)
     
     def as_free(self) -> 'Parameter':
-        r"""Returns a copy of self with fixed set to False.
+        r"""
+        Return a copy of self with ``fixed=False``.
 
         Returns
         -------
         Parameter
-            The new, fixed parameter.
+            The new, free parameter.
         """
         return dataclasses.replace(self, fixed=False)
     
     # Arithmetic and array conversions
     def __array__(self, dtype=None):
-        r"""NumPy array interface.
+        r"""
+        NumPy array interface.
 
         Parameters
         ----------
@@ -211,12 +266,13 @@ class Parameter(eqx.Module):
         Returns
         -------
         jnp.ndarray
-            The scaled value as an array.
+            The scaled value as an array (``value * scale``).
         """
         return jnp.asarray(self.value * self.scale, dtype=dtype)
     
     def __jax_array__(self, dtype=None):
-        r"""JAX array interface.
+        r"""
+        JAX array interface.
 
         Parameters
         ----------
@@ -226,12 +282,13 @@ class Parameter(eqx.Module):
         Returns
         -------
         jnp.ndarray
-            The scaled value as an array.
+            The scaled value as an array (``value * scale``).
         """
         return jnp.asarray(self.value * self.scale, dtype=dtype)
     
     def __len__(self):
-        r"""Length of the parameter value.
+        r"""
+        Length of the parameter value.
 
         Returns
         -------
@@ -275,7 +332,8 @@ class Parameter(eqx.Module):
         return jnp.divide(jnp.array(other), jnp.array(self))
     
     def copy(self):
-        r"""Return a shallow copy.
+        r"""
+        Return a shallow copy.
 
         Returns
         -------
@@ -286,12 +344,13 @@ class Parameter(eqx.Module):
     
      # Serialization
     def to_json(self) -> str:
-        r"""Serialize the parameter to a JSON string.
+        r"""
+        Serialize the parameter to a JSON string.
 
         Returns
         -------
         str
-            A JSON-formatted string containing value, distribution, fixed, scale and name.
+            A JSON-formatted string containing value, distribution, fixed, scale, and name.
         """
         d = {
             "value": self.value.tolist(),
@@ -304,7 +363,8 @@ class Parameter(eqx.Module):
 
     @classmethod
     def from_json(cls, s: str) -> "Parameter":
-        r"""Deserialize a parameter from a JSON string.
+        r"""
+        Deserialize a parameter from a JSON string.
 
         Parameters
         ----------
@@ -330,12 +390,20 @@ class Parameter(eqx.Module):
 class ParameterGroup:
     r"""
     A metadata class that groups a set of named flat parameters and defines any relationships between them.
+
+    Attributes
+    ----------
+    parameter_names : list[str]
+        The names of the parameters included in this group.
+    distribution : dist.Distribution or None
+        An optional joint distribution over the flattened parameters.
     """
     parameter_names: list[str]
     distribution: dist.Distribution | None = field(default=None)
     
     def __init__(self, param_names: list[str] | dict[str, Parameter], dist: dist.Distribution | None = None):
-        r"""Construct a :class:`ParameterGroup`.
+        r"""
+        Construct a :class:`ParameterGroup`.
 
         Parameters
         ----------
@@ -349,23 +417,27 @@ class ParameterGroup:
         
     @property
     def num_flat_params(self):
-        r"""Number of flattened parameters.
+        r"""
+        Number of flattened parameters in the group.
 
         Returns
         -------
         int
-            The count of names in ``param_names``.
+            The count of names in ``parameter_names``.
         """
         return len(self.parameter_names)
             
     @property
     def min(self) -> jnp.array:
-        r"""The unscaled minimum value of the parameter group's distribution (MIN_PERCENTILE quantile).
+        r"""
+        The unscaled minimum value of the parameter group's distribution.
+        
+        Determined by the `MIN_PERCENTILE` quantile.
 
         Returns
         -------
         jnp.array
-            The minimum value, or -np.inf if no distribution is set.
+            The minimum value, or -inf if no distribution is set.
         """
         if self.distribution is not None:
             if hasattr(self.distribution, 'min'):
@@ -380,12 +452,15 @@ class ParameterGroup:
     
     @property
     def max(self) -> jnp.array:
-        r"""The unscaled maximum value of the parameter's distribution (MAX_PERCENTILE quantile).
+        r"""
+        The unscaled maximum value of the parameter group's distribution.
+        
+        Determined by the `MAX_PERCENTILE` quantile.
 
         Returns
         -------
         jnp.array
-            The maximum value, or np.inf if no distribution is set.
+            The maximum value, or inf if no distribution is set.
         """
         if self.distribution is not None:
             if hasattr(self.distribution, 'max'):
@@ -400,13 +475,14 @@ class ParameterGroup:
     
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a uniform distribution.
+    r"""
+    Create a `Parameter` with a uniform distribution.
 
     Parameters
     ----------
     low : float | Sequence[float]
         The lower value of the distribution. Can be a sequence for a multi-valued Parameter.
-    upper : float | Sequence[float]
+    high : float | Sequence[float]
         The upper value of the distribution. Can be a sequence for a multi-valued Parameter.
     n : int, optional
         The number of identical parameters to create in an array. Defaults to None.
@@ -433,7 +509,8 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
     return Parameter(value=values, distribution=dists, **kwargs)
 
 def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a uniform distribution and a percentage width.
+    r"""
+    Create a `Parameter` with a uniform distribution defined by a percentage width.
 
     Parameters
     ----------
@@ -441,8 +518,9 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
         The mean of the distribution. Can be a sequence for a multi-valued Parameter.
     perc : float | Sequence[float]
         The percentage width to use to initialize the lower and upper bounds.
+        Bounds are calculated as `mean +/- (perc * mean / 200)`.
     **kwargs
-        Additional keyword arguments passed to the `Normal` factory function.
+        Additional keyword arguments passed to the `Uniform` factory function.
 
     Returns
     -------
@@ -456,7 +534,8 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
     return Uniform(low=mean-delta, high=mean+delta, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a normal (Gaussian) distribution.
+    r"""
+    Create a `Parameter` with a normal (Gaussian) distribution.
 
     Parameters
     ----------
@@ -488,7 +567,8 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
     return Parameter(value=values, distribution=dists, **kwargs)
     
 def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` with a normal (Gaussian) distribution and a percentage standard deviation.
+    r"""
+    Create a `Parameter` with a normal (Gaussian) distribution and a percentage standard deviation.
 
     Parameters
     ----------
@@ -496,8 +576,8 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
         The mean of the distribution. Can be a sequence for a multi-valued Parameter.
     perc : float | Sequence[float]
         The percentage width to use to initialize the standard deviation,
-        assuming the percentage represents +-2*sigma (95% coverage).
-        As an example, passing `5.0` results in `std = 0.025*mean`.
+        assuming the percentage represents +/- 2*sigma (95% coverage).
+        As an example, passing `5.0` results in `std = 0.025 * mean`.
         Can be a sequence for a multi-valued Parameter.
     **kwargs
         Additional keyword arguments passed to the `Normal` factory function.
@@ -514,7 +594,8 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
     return Normal(mean=mean, std=std, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` that is marked as fixed.
+    r"""
+    Create a `Parameter` that is marked as fixed.
 
     Parameters
     ----------
@@ -537,7 +618,8 @@ def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     return Parameter(value=value, fixed=True, **kwargs)
 
 def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
-    r"""Creates a `Parameter` that is marked as not fixed (i.e., free to vary).
+    r"""
+    Create a `Parameter` that is marked as not fixed (i.e., free to vary).
 
     Parameters
     ----------
@@ -560,7 +642,8 @@ def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
     return Parameter(value=value, **kwargs)
 
 def is_param(x) -> bool:
-    r"""Checks if an object is an instance of a `Parameter`.
+    r"""
+    Check if an object is an instance of a `Parameter`.
 
     Parameters
     ----------
@@ -575,8 +658,8 @@ def is_param(x) -> bool:
     return isinstance(x, Parameter)
 
 def is_valid_param(x) -> bool:
-    r"""Checks if an object is an instance of a `Parameter`,
-    and if its value is not None.
+    r"""
+    Check if an object is an instance of a `Parameter` and if its value is not None.
 
     Parameters
     ----------
@@ -591,7 +674,8 @@ def is_valid_param(x) -> bool:
     return isinstance(x, Parameter) and x.value is not None
 
 def is_free_param(x) -> bool:
-    r"""Checks if an object is a non-fixed `Parameter`.
+    r"""
+    Check if an object is a non-fixed `Parameter`.
 
     Parameters
     ----------
@@ -606,7 +690,8 @@ def is_free_param(x) -> bool:
     return isinstance(x, Parameter) and not x.fixed
 
 def is_fixed_param(x) -> bool:
-    r"""Checks if an object is a fixed `Parameter`.
+    r"""
+    Check if an object is a fixed `Parameter`.
 
     Parameters
     ----------
@@ -621,7 +706,8 @@ def is_fixed_param(x) -> bool:
     return isinstance(x, Parameter) and x.fixed
 
 def asparam(x, **kwargs) -> Parameter:
-    r"""Ensures an object is a `Parameter`.
+    r"""
+    Ensure an object is a `Parameter`.
 
     If the object is already a `Parameter`, it is returned unchanged.
     Otherwise, the object is converted into a new `Parameter`.
@@ -630,20 +716,21 @@ def asparam(x, **kwargs) -> Parameter:
     ----------
     x
         The object to convert.
-    name : str, optional
-        The name to assign to a newly created `Parameter`. Defaults to None.
+    **kwargs
+        Additional keyword arguments passed to the `Parameter` constructor (e.g. `name`).
 
     Returns
     -------
     Parameter
-        The object as a `Parameter`.
+        The object wrapped as a `Parameter`.
     """
     if isinstance(x, Parameter):
         return x
     return Parameter(value=x, **kwargs)
 
 def _split_vectorized_distribution(dist):
-    r"""Split a 1D batch of univariate numpyro distributions into a list.
+    r"""
+    Split a 1D batch of univariate numpyro distributions into a list.
 
     Parameters
     ----------
@@ -682,7 +769,8 @@ def _split_vectorized_distribution(dist):
     return [dist_class(**params) for params in split_params]
 
 def _serialize_distribution(d: Distribution | None) -> dict | None:
-    r"""Serialize a numpyro distribution to a lightweight dictionary.
+    r"""
+    Serialize a numpyro distribution to a lightweight dictionary.
 
     Parameters
     ----------
@@ -703,7 +791,8 @@ def _serialize_distribution(d: Distribution | None) -> dict | None:
 
 # Helper to deserialize a numpyro Distribution
 def _deserialize_distribution(dct: dict | None) -> Distribution | None:
-    r"""Deserialize a numpyro distribution from a dictionary.
+    r"""
+    Deserialize a numpyro distribution from a dictionary.
 
     Parameters
     ----------
@@ -714,6 +803,11 @@ def _deserialize_distribution(dct: dict | None) -> Distribution | None:
     -------
     numpyro.distributions.Distribution or None
         The reconstructed distribution, or ``None``.
+    
+    Raises
+    ------
+    ValueError
+        If the distribution class is unknown.
     """
     if dct is None:
         return None
