@@ -1,7 +1,7 @@
-﻿pmrf.fitting.results.AnestheticResults
-======================================
+﻿pmrf.fitting.AnestheticResults
+==============================
 
-.. currentmodule:: pmrf.fitting.results
+.. currentmodule:: pmrf.fitting
 
 .. autoclass:: AnestheticResults
 
@@ -36,11 +36,15 @@
       ~AnestheticResults.__subclasshook__
       ~AnestheticResults.decode_solver_results
       ~AnestheticResults.encode_solver_results
+      ~AnestheticResults.fit_posterior
       ~AnestheticResults.load_hdf
+      ~AnestheticResults.plot_params
+      ~AnestheticResults.plot_s_db
+      ~AnestheticResults.posterior_samples
       ~AnestheticResults.prior_samples
       ~AnestheticResults.prior_weights
-      ~AnestheticResults.samples
       ~AnestheticResults.save_hdf
+      ~AnestheticResults.weighted_samples
       ~AnestheticResults.weights
    
    
@@ -64,6 +68,7 @@
       ~AnestheticResults.initial_model
       ~AnestheticResults.measured
       ~AnestheticResults.nested_samples
+      ~AnestheticResults.sample_param_names
       ~AnestheticResults.settings
       ~AnestheticResults.solver_results
    

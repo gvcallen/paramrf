@@ -11,9 +11,8 @@
       Capacitor
       Inductor
       Load
-      Match
-      Open
       Resistor
-      Short
-      Transformer
+      ShuntCapacitor
+      ShuntInductor
+      ShuntResistor
    

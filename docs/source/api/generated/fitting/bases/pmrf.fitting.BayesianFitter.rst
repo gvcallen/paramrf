@@ -35,14 +35,10 @@
       ~BayesianFitter.__sizeof__
       ~BayesianFitter.__str__
       ~BayesianFitter.__subclasshook__
-      ~BayesianFitter._flat_param_names
-      ~BayesianFitter._make_feature_function
-      ~BayesianFitter._make_gaussian_log_likelihood_fn
-      ~BayesianFitter._make_log_likelihood_fn
-      ~BayesianFitter._make_log_prior_fn
-      ~BayesianFitter._make_multivariate_gaussian_log_likelihood_fn
-      ~BayesianFitter._make_prior_transform_fn
-      ~BayesianFitter._settings
+      ~BayesianFitter._run
+      ~BayesianFitter.create_context
+      ~BayesianFitter.fit
+      ~BayesianFitter.fit_submodels
       ~BayesianFitter.run
    
    
@@ -61,8 +57,5 @@
       ~BayesianFitter.__slots__
       ~BayesianFitter.__weakref__
       ~BayesianFitter._abc_impl
-      ~BayesianFitter.num_likelihood_params
-      ~BayesianFitter.num_model_params
-      ~BayesianFitter.num_params
    
    

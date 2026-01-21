@@ -22,7 +22,7 @@ class BlackJAXNSFitter(BayesianFitter):
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         
-        x0 = ctx.model.flat_params()
+        x0 = ctx.model.flat_param_values()
         prior_fn = jax.jit(ctx.make_prior_transform_fn())
         logprior_fn = jax.jit(ctx.make_log_prior_fn())
         loglikelihood_fn = jax.jit(ctx.make_log_likelihood_fn())

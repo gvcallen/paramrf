@@ -35,10 +35,10 @@
       ~FrequentistFitter.__sizeof__
       ~FrequentistFitter.__str__
       ~FrequentistFitter.__subclasshook__
-      ~FrequentistFitter._bounds
-      ~FrequentistFitter._make_cost_function
-      ~FrequentistFitter._make_feature_function
-      ~FrequentistFitter._settings
+      ~FrequentistFitter._run
+      ~FrequentistFitter.create_context
+      ~FrequentistFitter.fit
+      ~FrequentistFitter.fit_submodels
       ~FrequentistFitter.run
    
    

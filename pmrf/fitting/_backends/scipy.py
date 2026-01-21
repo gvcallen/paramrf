@@ -5,7 +5,10 @@ import h5py
 
 from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, FrequentistContext
 
-class SciPyMinimizeResults(FrequentistResults):
+class SciPyResults(FrequentistResults):
+    """
+    Results return by SciPy fitters.
+    """    
     def encode_solver_results(self, grp: h5py.Group):
         for key, val in self.solver_results.items():
             if isinstance(val, (int, float, str, np.number)):
@@ -42,7 +45,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         minimums, maximums = np.array(minimums), np.array(maximums)
         bounds = Bounds(minimums, maximums)
         
-        x0 = np.array(ctx.model.flat_params())
+        x0 = np.array(ctx.model.flat_param_values())
         cost_fn = ctx.make_cost_function(as_numpy=True)
 
         too_low, too_high = x0 < minimums, x0 > maximums
@@ -80,4 +83,4 @@ class SciPyMinimizeFitter(FrequentistFitter):
         # Reconstruct the final model with optimized parameters
         fitted_model = ctx.model.with_flat_params(scipy_result.x)
         
-        return SciPyMinimizeResults(fitted_model=fitted_model, solver_results=scipy_result)
+        return SciPyResults(fitted_model=fitted_model, solver_results=scipy_result)

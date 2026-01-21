@@ -1,16 +1,12 @@
 from typing import Sequence
 
-import jax
-from jax import vmap
 import jax.numpy as jnp
-import numpy as np
 
 from pmrf.frequency import Frequency
-from pmrf.parameters import Parameter
 from pmrf.models.model import Model
 from pmrf.models.misc import Port
-from pmrf._util import field
 from pmrf.functions.connections import connect_one, connect_many
+from pmrf._util import field
 
 class Circuit(Model):
     models: list[Model]
@@ -66,8 +62,6 @@ class Connected(Model):
 
 class Cascade(Model):
     """
-    **Overview**
-
     Represents a cascade, or series connection, of two or more `Model` objects.
 
     This container connects multiple models end-to-end. The output port of
@@ -80,34 +74,33 @@ class Cascade(Model):
     resulting `Cascade` network depends on the port count of the final model
     in the chain.
 
-    **Example:**
-
+    Examples
+    --------
     Cascading models is most easily done using the `**` operator, which is
     an alias for creating a `Cascade` model.
 
-    ```python
-    import pmrf as prf
-    from pmrf.models import Resistor, Capacitor, Inductor
+    >>> import pmrf as prf
+    >>> from pmrf.models import Resistor, Capacitor, Inductor
 
     # Create individual component models
-    res = Resistor(50)
-    cap = Capacitor(1e-12)
-    ind = Inductor(1e-9)
+    >>> res = Resistor(50)
+    >>> cap = Capacitor(1e-12)
+    >>> ind = Inductor(1e-9)
 
     # Cascade them together in a series R-L-C configuration
     # This is equivalent to Cascade(models=(res, ind, cap))
-    rlc_series = res ** ind ** cap
+    >>> rlc_series = res ** ind ** cap
 
     # Define a frequency axis
-    freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
+    >>> freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
 
     # Calculate the S-parameters of the cascaded network
-    s_params = rlc_series.s(freq)
+    >>> s_params = rlc_series.s(freq)
 
-    print(f"Cascaded model has {rlc_series.nports} ports.")
-    print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
-    ```
+    >>> print(f"Cascaded model has {rlc_series.nports} ports.")
+    >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
+
     models: tuple[Model]
     
     def __post_init__(self):
@@ -149,14 +142,6 @@ class Cascade(Model):
         return self.models[-1]
 
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the cascaded ABCD-parameter matrix.
-
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
-
-        Returns:
-            jnp.ndarray: The resultant ABCD-parameter matrix.
-        """
         a = self.first_model.a(freq)
         for model in self.models[1:]:
             a = a @ model.a(freq)
@@ -166,17 +151,22 @@ class Cascade(Model):
         return a
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the S-parameter matrix.
+        """
+        Calculates the S-parameter matrix.
 
         If the cascade is terminated in a one-port, this computes the
         resultant one-port reflection coefficient. Otherwise, it converts
         the cascaded ABCD-matrix to S-parameters.
 
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
+        Parameters
+        ----------
+        freq : Frequency
+            Specifies the frequency to calculate the parameters at.
 
-        Returns:
-            jnp.ndarray: The resultant S-parameter matrix.
+        Returns
+        -------
+        jnp.ndarray
+            The resultant S-parameter matrix.
         """
         # We only implement s when we are terminating in a one-port.
         # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
@@ -200,8 +190,6 @@ class Cascade(Model):
     
 class Renumbered(Model):
     """
-    **Overview**
-
     A container that re-numbers the ports of a given `Model`.
 
     This is useful for creating complex network topologies by explicitly
@@ -227,13 +215,18 @@ class Renumbered(Model):
 
 
     def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
-        """Applies the port renumbering to a parameter matrix.
+        """
+        Applies the port renumbering to a parameter matrix.
 
-        Args:
-            p (jnp.ndarray): The parameter matrix to renumber (e.g., S-parameters).
+        Parameters
+        ----------
+        p : jnp.ndarray
+            The parameter matrix to renumber (e.g., S-parameters).
 
-        Returns:
-            jnp.ndarray: The renumbered parameter matrix.
+        Returns
+        -------
+        jnp.ndarray
+            The renumbered parameter matrix.
         """
         p_new = p.copy()
         p_new = p_new.at[:, self.to_ports, :].set(p[:, self.from_ports, :])
@@ -241,31 +234,39 @@ class Renumbered(Model):
         return p_new
     
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the renumbered ABCD-parameter matrix.
+        """
+        Calculates the renumbered ABCD-parameter matrix.
 
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
+        Parameters
+        ----------
+        freq : Frequency
+            Specifies the frequency to calculate the parameters at.
 
-        Returns:
-            jnp.ndarray: The resultant renumbered ABCD-parameter matrix.
+        Returns
+        -------
+        jnp.ndarray
+            The resultant renumbered ABCD-parameter matrix.
         """
         return self.renumber(self.model.a(freq))
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the renumbered S-parameter matrix.
+        """
+        Calculates the renumbered S-parameter matrix.
 
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
+        Parameters
+        ----------
+        freq : Frequency
+            Specifies the frequency to calculate the parameters at.
 
-        Returns:
-            jnp.ndarray: The resultant renumbered S-parameter matrix.
+        Returns
+        -------
+        jnp.ndarray
+            The resultant renumbered S-parameter matrix.
         """
         return self.renumber(self.model.s(freq))
     
 class Flipped(Renumbered):
     """
-    **Overview**
-
     A model container that flips the ports of a multi-port network.
 
     For a 2-port network, this is equivalent to swapping port 1 and port 2.
@@ -276,10 +277,13 @@ class Flipped(Renumbered):
     from_ports: tuple[int] = field(init=False)
 
     def __post_init__(self):
-        """Initializes the Flipped model container.
+        """
+        Initializes the Flipped model container.
 
-        Args:
-            model (Model): The model whose ports are to be flipped.
+        Parameters
+        ----------
+        model : Model
+            The model whose ports are to be flipped.
         """
         if self.model.nports % 2 != 0:
             raise ValueError("You can only flip multiple-of-two-port Networks")
@@ -294,8 +298,6 @@ class Flipped(Renumbered):
         
 class Stacked(Model):
     """
-    **Overview**
-
     A container that stacks multiple models in a block-diagonal fashion.
 
     This combines several `Model` objects into a single, larger model where
@@ -309,13 +311,18 @@ class Stacked(Model):
         self.name = 'stacked'
         
     def s(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the stacked S-parameter matrix.
+        """
+        Calculates the stacked S-parameter matrix.
 
-        Args:
-            freq (Frequency): Specifies the frequency to calculate the parameters at.
+        Parameters
+        ----------
+        freq : Frequency
+            Specifies the frequency to calculate the parameters at.
 
-        Returns:
-            jnp.ndarray: The resultant block-diagonal S-parameter matrix.
+        Returns
+        -------
+        jnp.ndarray
+            The resultant block-diagonal S-parameter matrix.
         """
         num_ports = sum(model.nports for model in self.models)
 
@@ -329,4 +336,3 @@ class Stacked(Model):
             
             i += n_sub
         return s
-    

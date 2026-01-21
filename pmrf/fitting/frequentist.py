@@ -23,7 +23,7 @@ class FrequentistContext(FitContext):
     cost_function: eqx.Module | None = None
     
     def make_cost_function(self, as_numpy=False):
-        x0_jax = self.model.flat_params()
+        x0_jax = self.model.flat_param_values()
         feature_fn_jax = self.make_feature_function()
 
         # Define the JAX cost function to be minimized

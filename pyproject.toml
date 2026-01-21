@@ -48,6 +48,7 @@ docs = [
     "sphinx",
     "myst-parser",
     "ghp-import",
+    "sphinx-rtd-theme",
 ]
 
 [project.urls]

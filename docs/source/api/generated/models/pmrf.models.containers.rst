@@ -9,6 +9,8 @@
    .. autosummary::
    
       Cascade
+      Circuit
+      Connected
       Flipped
       Renumbered
       Stacked

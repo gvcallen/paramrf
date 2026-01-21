@@ -9,6 +9,8 @@
    .. autosummary::
    
       AModel
+      DictModel
+      ListModel
       Measured
       SModel
    

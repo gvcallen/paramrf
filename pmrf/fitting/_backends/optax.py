@@ -77,7 +77,7 @@ class OptaxFitter(FrequentistFitter):
         kwargs:
             Reserved for compatibility; ignored here (you can plumb extra knobs if needed).
         """
-        x0 = jnp.asarray(ctx.model.flat_params(), dtype=jnp.float64)
+        x0 = jnp.asarray(ctx.model.flat_param_values(), dtype=jnp.float64)
         mins, maxs = ctx.bounds()
         mins = jnp.asarray(mins, dtype=jnp.float64)
         maxs = jnp.asarray(maxs, dtype=jnp.float64)

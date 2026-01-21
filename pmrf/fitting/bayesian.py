@@ -88,7 +88,7 @@ class BayesianContext(FitContext):
     
     def make_prior_transform_fn(self, as_numpy=False):
         model_prior = self.model.distribution()
-        num_model_params = len(self.model.flat_params())
+        num_model_params = self.model.num_flat_params
         num_likelihood_params = len(self.likelihood_params)
         
         @jax.jit
@@ -134,7 +134,7 @@ class BayesianContext(FitContext):
         else:
             raise Exception(f"Unsupported likelihood kind: {self.likelihood_kind}")
 
-        x0 = jnp.array(list(self.model.flat_params()) + [param.distribution.mean for param in self.likelihood_params.values()])
+        x0 = jnp.array(list(self.model.flat_param_values()) + [param.distribution.mean for param in self.likelihood_params.values()])
         if as_numpy:
             log_likelihood_fn_jax = log_likelihood_fn
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))

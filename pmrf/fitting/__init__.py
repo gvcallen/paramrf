@@ -5,6 +5,7 @@ from pmrf.fitting.base import (
     INIT_PARAMS,
     BaseFitter,
     FitResults,
+    FitContext,
     is_frequentist,
     is_bayesian,
     is_inference_kind,
@@ -13,13 +14,13 @@ from pmrf.fitting.base import (
 from pmrf.fitting.frequentist import (
     FrequentistFitter,
     FrequentistResults,
+    FrequentistContext,
 )
 
 from pmrf.fitting.bayesian import (
     BayesianFitter,
-    BayesianFitter,
     BayesianResults,
-    BayesianResults,
+    BayesianContext,
 )
 
 from pmrf.fitting._backends import *

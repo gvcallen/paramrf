@@ -28,7 +28,7 @@ class PolyChordFitter(BayesianFitter):
         labeled_param_names = np.array([[name, f'{name_replaced}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
         # Generate prior and likelihood functions
-        x0 = np.array(ctx.model.flat_params())
+        x0 = np.array(ctx.model.flat_param_values())
         loglikelihood_fn = ctx.make_log_likelihood_fn(as_numpy=True)
         prior_fn = ctx.make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')

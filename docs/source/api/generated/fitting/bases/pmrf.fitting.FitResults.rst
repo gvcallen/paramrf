@@ -37,6 +37,7 @@
       ~FitResults.decode_solver_results
       ~FitResults.encode_solver_results
       ~FitResults.load_hdf
+      ~FitResults.plot_s_db
       ~FitResults.save_hdf
    
    

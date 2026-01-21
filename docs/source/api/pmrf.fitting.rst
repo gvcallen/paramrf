@@ -10,8 +10,8 @@ Fitters
    :caption: Submodules
    :recursive:
 
-   pmrf.fitting.BlackjaxNSFitter
-   pmrf.fitting.dyPolychordFitter
+   pmrf.fitting.BlackJAXNSFitter
+   pmrf.fitting.dyPolyChordFitter
    pmrf.fitting.NumPyroMCMCFitter
    pmrf.fitting.NumPyroNSFitter
    pmrf.fitting.OptaxFitter
@@ -27,7 +27,7 @@ Results
 
    pmrf.fitting.AnestheticResults
    pmrf.fitting.NumPyroResults
-   pmrf.fitting.SciPyMinimizeResults
+   pmrf.fitting.SciPyResults
 
 Bases
 -----------

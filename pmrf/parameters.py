@@ -145,10 +145,13 @@ class Parameter(eqx.Module):
         
         return dataclasses.replace(self, distribution=dist)
     
-    def flatten(self, separator='_') -> 'Parameter | list[Parameter]':
-        r"""Flattens self, either returning a single Parameter
-        if the internal parameter is scalar, or a list.
-        If the internal distribution cannot be separated, this will raise an Exception.
+    def flattened(self, separator='_') -> 'list[Parameter]':
+        r"""Flattens self into a list of Parameters.
+        
+        If the internal parameter is scalar, the list will contain self.
+        Otherwise, the parameter is split de-vectorized if possible
+        
+        If any internal distributions cannot be de-vectorized, this will raise an Exception.
         
         Returns
         -------
@@ -156,7 +159,7 @@ class Parameter(eqx.Module):
             The raveled parameters.
         """
         if jnp.isscalar(self.value):
-            return self
+            return [self]
         else:
             if self.distribution is not None:
                 dists_split = _split_vectorized_distribution(self.distribution)
@@ -164,7 +167,7 @@ class Parameter(eqx.Module):
                 dists_split = [None] * len(self.value)
             return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
-    def interpolate(self, x_old, x_new) -> 'Parameter':
+    def interpolated(self, x_old, x_new) -> 'Parameter':
         value = jnp.interp(x_old, x_new, self.value)
         dist = interp_distribution(x_old, x_new, self.distribution)
 

@@ -8,8 +8,10 @@
 
    .. autosummary::
    
+      CoaxialLine
       ConstantRLGCLine
-      DatasheetCoaxial
-      PhysicalCoaxial
+      DatasheetLine
+      MicrostripLine
       RLGCLine
+      TLine
    

@@ -43,7 +43,7 @@ class dyPolyChordFitter(BayesianFitter):
         settings_dict_in.setdefault('file_root', 'test')
         
         # Generate prior and likelihood functions
-        x0 = np.array(ctx.model.flat_params())
+        x0 = np.array(ctx.model.flat_param_values())
         loglikelihood_fn = ctx.make_log_likelihood_fn(as_numpy=True)
         prior_fn = ctx.make_prior_transform_fn(as_numpy=True)
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')

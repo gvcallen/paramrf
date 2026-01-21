@@ -1,7 +1,7 @@
-﻿pmrf.fitting.fitters.NumPyroMCMCFitter
-======================================
+﻿pmrf.fitting.NumPyroMCMCFitter
+==============================
 
-.. currentmodule:: pmrf.fitting.fitters
+.. currentmodule:: pmrf.fitting
 
 .. autoclass:: NumPyroMCMCFitter
 
@@ -35,15 +35,11 @@
       ~NumPyroMCMCFitter.__sizeof__
       ~NumPyroMCMCFitter.__str__
       ~NumPyroMCMCFitter.__subclasshook__
-      ~NumPyroMCMCFitter._flat_param_names
-      ~NumPyroMCMCFitter._make_feature_function
-      ~NumPyroMCMCFitter._make_gaussian_log_likelihood_fn
-      ~NumPyroMCMCFitter._make_log_likelihood_fn
-      ~NumPyroMCMCFitter._make_log_prior_fn
-      ~NumPyroMCMCFitter._make_multivariate_gaussian_log_likelihood_fn
-      ~NumPyroMCMCFitter._make_numpyro_model
-      ~NumPyroMCMCFitter._make_prior_transform_fn
-      ~NumPyroMCMCFitter._settings
+      ~NumPyroMCMCFitter._run
+      ~NumPyroMCMCFitter.create_context
+      ~NumPyroMCMCFitter.fit
+      ~NumPyroMCMCFitter.fit_submodels
+      ~NumPyroMCMCFitter.make_numpyro_model
       ~NumPyroMCMCFitter.run
    
    
@@ -62,8 +58,5 @@
       ~NumPyroMCMCFitter.__slots__
       ~NumPyroMCMCFitter.__weakref__
       ~NumPyroMCMCFitter._abc_impl
-      ~NumPyroMCMCFitter.num_likelihood_params
-      ~NumPyroMCMCFitter.num_model_params
-      ~NumPyroMCMCFitter.num_params
    
    

@@ -178,7 +178,7 @@ def magnitude_2_db(z: NumberLike, zero_nan: bool = True):
     Returns
     -------
     z : number or array_like
-       Magnitude in dB given by 20*log10(|z|)
+       Magnitude in dB given by :math:`20 \log_{10}(|z|)`
     """
     out = 20 * jnp.log10(z)
     if zero_nan:
@@ -202,7 +202,7 @@ def mag_2_db10(z: NumberLike, zero_nan:bool = True):
     Returns
     -------
     z : array_like
-       Magnitude in dB given by 10*log10(|z|)
+       Magnitude in dB given by :math:`10 \log_{10}(|z|)`
     """
     out = 10 * jnp.log10(z)
     if zero_nan:
@@ -953,30 +953,35 @@ def round_sig(x, sig=3):
     return round(x, sig - int(jnp.floor(jnp.log10(abs(x)))) - 1)
 
 def comb(N: jnp.ndarray, k: jnp.ndarray, exact: bool = False, repetition: bool = False):
-    r"""The number of combinations of N things taken k at a time.
+    r"""
+    The number of combinations of N things taken k at a time.
 
     This is often expressed as "N choose k".
 
-    Args:
-    N: The number of things.
-    k: The number of elements taken.
-    exact: If `True`, the result is computed exactly and returned as an integer type.
-        Currently, vectorization is not supported for exact=True.
-    repetition: If `repetition` is True, then the number of combinations with
-        repetition is computed.
-
-    Returns:
-    The number of combinations of N things taken k at a time.
-
-    Notes:
     When exact=False, the result is approximately and efficiently computed using the following formula:
-
     .. math::
     \begin{equation}
     \exp\left\{\ln{\Gamma(N+1)} - [\ln{\Gamma(k+1)} + \ln{\Gamma(N+1-k)}]\right\}
-    \end{equation}
+    \end{equation}    
+    using the Gamma function. 
 
-    Where we use the Gamma function. 
+
+    Parameters
+    ----------
+    N : np.ndarray
+        The number of things.
+    k : np.ndarray
+        The number of elements taken.
+    exact : bool, optional
+        If `True`, the result is computed exactly and returned as an integer type.
+        Currently, vectorization is not supported for exact=True.
+    repetition : bool, optional
+        If `repetition` is True, then the number of combinations with
+        repetition is computed.
+    Returns
+    -------
+    comb : np.ndarray
+        The number of combinations of N things taken k at a time.
     """
     if repetition:
         return comb(N + k - 1, k, exact=exact, repetition=False)

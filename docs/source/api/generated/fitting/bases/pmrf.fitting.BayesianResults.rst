@@ -36,8 +36,13 @@
       ~BayesianResults.__subclasshook__
       ~BayesianResults.decode_solver_results
       ~BayesianResults.encode_solver_results
+      ~BayesianResults.fit_posterior
       ~BayesianResults.load_hdf
+      ~BayesianResults.plot_s_db
+      ~BayesianResults.posterior_samples
+      ~BayesianResults.prior_samples
       ~BayesianResults.save_hdf
+      ~BayesianResults.weights
    
    
 

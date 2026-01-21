@@ -37,6 +37,7 @@
       ~FrequentistResults.decode_solver_results
       ~FrequentistResults.encode_solver_results
       ~FrequentistResults.load_hdf
+      ~FrequentistResults.plot_s_db
       ~FrequentistResults.save_hdf
    
    

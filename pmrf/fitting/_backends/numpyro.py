@@ -20,15 +20,15 @@ class NumPyroFitter(BayesianFitter):
         import numpyro.distributions as dist
         
         # Get the model parameters
-        params = ctx.model.flat_params()
+        params = ctx.model.named_flat_params()
         ctx.make_log_prior_fn()
         
         param_names = list(params.keys())
-        param_priors = [param.prior for param in params.values()]
+        param_priors = [param.distribution for param in params.values()]
         
         # Generate feature function and prepare the obs
         self.logger.info("Compiling model and likelihood function...")
-        x0 = ctx.model.flat_params()
+        x0 = ctx.model.flat_param_values()
         feature_fn = ctx.make_feature_function()
         feature_fn = jax.jit(feature_fn)
         _y0 = feature_fn(x0)
@@ -86,11 +86,11 @@ class NumPyroNSFitter(NumPyroFitter):
         from numpyro.contrib.nested_sampling import NestedSampler
         
         # Get the model parameters
-        params = ctx.model.flat_params()
+        params = ctx.model.named_flat_params()
         param_names = list(params.keys())
         
         # Define the numpyro model
-        numpyro_model = ctx.make_numpyro_model()
+        numpyro_model = self.make_numpyro_model(ctx)
         
         # Run MCMC
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s)...')

@@ -35,8 +35,10 @@
       ~BaseFitter.__sizeof__
       ~BaseFitter.__str__
       ~BaseFitter.__subclasshook__
-      ~BaseFitter._make_feature_function
-      ~BaseFitter._settings
+      ~BaseFitter._run
+      ~BaseFitter.create_context
+      ~BaseFitter.fit
+      ~BaseFitter.fit_submodels
       ~BaseFitter.run
    
    

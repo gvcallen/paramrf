@@ -1,7 +1,7 @@
-﻿pmrf.fitting.results.NumPyroResults
-===================================
+﻿pmrf.fitting.NumPyroResults
+===========================
 
-.. currentmodule:: pmrf.fitting.results
+.. currentmodule:: pmrf.fitting
 
 .. autoclass:: NumPyroResults
 
@@ -36,8 +36,13 @@
       ~NumPyroResults.__subclasshook__
       ~NumPyroResults.decode_solver_results
       ~NumPyroResults.encode_solver_results
+      ~NumPyroResults.fit_posterior
       ~NumPyroResults.load_hdf
+      ~NumPyroResults.plot_s_db
+      ~NumPyroResults.posterior_samples
+      ~NumPyroResults.prior_samples
       ~NumPyroResults.save_hdf
+      ~NumPyroResults.weights
    
    
 

@@ -10,7 +10,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, Sequence, TypeVar, Any
+from typing import Callable, Sequence, TypeVar, Union, Iterator
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
@@ -49,7 +49,7 @@ class Model(eqx.Module):
     """
     Overview
     --------
-    Base class representing a computable RF network, referred to in
+    This base class is used to represent any computable RF network, referred to in
     **ParamRF** as a "Model". This class is abstract and should not be
     instantiated directly. Derive from :class:`Model` and override one of
     the primary property functions (e.g. :meth:`__call__`, :meth:`s`, :meth:`a`).
@@ -59,16 +59,17 @@ class Model(eqx.Module):
     field syntax with types like :class:`pmrf.Parameter`.
 
     Usage
-    -------------
-    - Define sub-classes with custom parameters and sub-models
+    -----
+    - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
-    - Use `with_xxx` functions to update the model e.g. :meth:`with_params`, :meth:`with_replaced`.
     - Retrieve parameter information via methods such as :meth:`named_params`, :meth:`param_names`, :meth:`flat_params`, etc..
+    - Use `with_xxx` functions to modify fields, models and parameters within the model e.g. :meth:`with_params`, :meth:`with_fields`.
+    - Use "past tense" functions to modify the model in conjuction with another model or data e.g. :meth:`terminated`, :meth:`fitted`.
 
     See also the :mod:`pmrf.fitting` and :mod:`pmrf.sampling` modules for details on model fitting and sampling.
 
     Examples
-    -------
+    --------
     A ``PiCLC`` network ("foundational" model with fixed parameters and equations):
 
     .. code-block:: python
@@ -184,7 +185,7 @@ class Model(eqx.Module):
                 m._pmrf_auto = True
                 setattr(cls, func_name, m)
 
-    # ---- PyTree manipulation and helpers -------------------------------------------------
+    # ---- Internal PyTree manipulation and helpers -------------------------------------------------
     
     @property
     def _param_value_spec(self) -> PyTree:
@@ -247,7 +248,7 @@ class Model(eqx.Module):
         # A Pytree filter for all free Model `Parameter` objects.
         return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
     
-    def path_to_param_name(self, path) -> str | list[str]:
+    def _path_to_param_name(self, path) -> str | list[str]:
         """Convert a PyTree path to a fully-qualified parameter name."""
         fields = []
 
@@ -267,7 +268,7 @@ class Model(eqx.Module):
                     fields.append(str(item.idx))
         return self.separator.join(fields)        
     
-    def partition(self: ModelT, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:        
+    def _partition(self: ModelT, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:        
         """Partition model into (parameters, static) trees.
         
         This is useful for internal use, or for inspecting the model
@@ -297,7 +298,44 @@ class Model(eqx.Module):
                 filter_spec = self._core_value_spec
             else:
                 filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)        
+        return partition(self, filter_spec, shared_spec)
+    
+    def _iter_params(
+        self,
+        *,
+        include_fixed: bool = False,
+        flatten: bool = False,
+        submodels: 'Model | Sequence[Model] | str | Sequence[str] | None' = None,
+    ) -> Iterator[tuple[str, Parameter]]:
+        """Iterate over (name, Parameter) pairs in internal order."""
+        spec = self._core_object_spec if include_fixed else self._free_object_spec
+        params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
+        path_and_params, _ = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
+        params: list[str, Parameter] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
+
+        # Submodel filtering
+        if submodels is not None:
+            if isinstance(submodels, (Model, str)):
+                submodels: list[Model] = [submodels]
+            if submodels and isinstance(submodels[0], str):
+                submodels: list[Model] = [getattr(self, name) for name in submodels]
+
+            allowed = {p for sm in submodels for p in sm.params(include_fixed=include_fixed)}
+            params = [(k, v) for k, v in params if v in allowed]
+
+        # Flatten multi-dimensional parameters if requested
+        if flatten:
+            flat_params: list[str, Parameter] = []
+            for name, param in params:
+                if param.ndim > 1:
+                    flattened_params = param.flattened(separator=self.separator)
+                    for i, subparam in enumerate(flattened_params):
+                        flat_params.append((f"{name}{self.separator}{i}", subparam))
+                else:
+                    flat_params.append((name, param))
+            params = flat_params
+
+        yield from params
     
     # ---- Defaults / Primary ---------------------------------------------------    
     
@@ -416,7 +454,7 @@ class Model(eqx.Module):
         -------
         int
         """
-        return len(self.named_params())   
+        return len(self.params())
 
     @cached_property
     def num_flat_params(self) -> int:
@@ -426,12 +464,16 @@ class Model(eqx.Module):
         -------
         int
         """
-        return len(self.flat_params()) 
+        return len(self.flat_params())
     
     # ---- Core API -------------------------------------------------------------
     
     def __call__(self) -> 'Model':
-        """Build a compositional circuit representing this model.
+        """Build the model.
+
+        This function should be over-ridden by sub-classes.
+        It is useful in defining complex models that are built
+        using several sub-models (as opposed to equation-based models).
 
         Returns
         -------
@@ -453,9 +495,9 @@ class Model(eqx.Module):
     
     @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """ABCD parameter matrix.
+        """Calculates the ABCD parameter matrix.
 
-        If only :meth:`s` is implemented, converts via :func:`pmrf.functions.conversions.s2a`.
+        If only :meth:`s` is implemented, this is calculated using the conversion :func:`pmrf.functions.conversions.s2a`.
 
         Parameters
         ----------
@@ -603,12 +645,16 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        measured (prf.NetworkCollection | skrf.Network | str):
+        measured : prf.NetworkCollection | skrf.Network | str
             The measured data.
+        **kwargs
+            Additional arguments for initialization or fitting.
 
-        Returns:
-            Model: The fitted model.
-        """        
+        Returns
+        -------
+        Model
+            The fitted model.
+        """         
         from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
         init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
         return Fitter(self, **init_kwargs).fit(measured, **kwargs).fitted_model
@@ -624,107 +670,157 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        measured (prf.NetworkCollection | skrf.Network | str):
+        measured : prf.NetworkCollection | skrf.Network | str
             The measured data.
+        **kwargs
+            Additional arguments for initialization or fitting.
 
-        Returns:
-            Model: The fitted model.
-        """        
+        Returns
+        -------
+        Model
+            The fitted model.
+        """         
         from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
         init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
         return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs).fitted_model
     
-    # ---- Parameter querying --------------------------------------------------        
+    # ---- Parameter inspection -------------------------------------------------- 
     
-    def params(self, *args, **kwargs) -> list[Parameter]:
-        return list(self.named_params(*args, **kwargs).values())
-    
-    def named_params(self, include_fixed=False, flat=False, flat_params=False, values=False, scaled_values=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
-        """Return model parameters as a dict (or flattened array).
+    def named_params(self, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+        """Named model parameters as a dict.
 
-        Keys are fully-qualified parameter names. The order matches the internal
-        flattened array order.
+        Keys are fully-qualified parameter names.
+        The order matches the internal flattened array order.
 
         Parameters
         ----------
         include_fixed : bool, default=False
             Include fixed parameters.
-        flat : bool, default=False
-            If ``True``, return a 1D ``jnp.ndarray`` of parameter **values**.
-        flat_params : bool, default=False
-            If ``True``, return a dict of **manufactured** parameter objects
-            (flattened) instead of an array.
         submodels : Model | Sequence[Model] | str | Sequence[str] | None, optional
             Restrict to parameters used by the given submodel(s). If strings are
             provided, ``getattr(self, name)`` is used.
 
         Returns
         -------
-        dict[str, Parameter] or jnp.ndarray
+        dict[str, Parameter]
         """
-        spec = self._core_object_spec if include_fixed else self._free_object_spec
-        params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
-        path_and_params = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
-        _params: dict[str, Parameter] = {self.path_to_param_name(path): param for path, param in path_and_params[0]}          
+        return dict(self._iter_params(include_fixed=include_fixed, submodels=submodels))
+    
+    def named_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
+        """Named model parameter values as a dict of jax arrays.
 
-        if flat | flat_params:
-            flat_params_dict = {}
-            for name, param in _params.items():
-                if param.ndim > 1:
-                    param_flattened = param.flatten(separator=self.separator)
-                    for i, subparam in enumerate(param_flattened):
-                        flat_params_dict[f'{name}{self.separator}{i}'] = subparam
-                else:
-                    flat_params_dict[name] = param
-            _params = flat_params_dict
+        See :meth:`named_params`.
 
-        if submodels is not None:
-            if isinstance(submodels, Model) or isinstance(submodels, str):
-                submodels = [submodels]
-            if len(submodels) != 0 and isinstance(submodels[0], str):
-                submodels = [getattr(self, name) for name in submodels]
-            submodel_param_values = [param for submodel in submodels for param in submodel.params(include_fixed=include_fixed, flat=flat).values()]
-            _params = {k: v for k, v in _params.items() if any(v is p for p in submodel_param_values)}
-            
-        if flat and not flat_params:
-            return jnp.array([p.value for p in _params.values()])
-        
-        if values or scaled_values:
-            if scaled_values:
-                return {k: jnp.array(p) for k, p in _params.items()}
-            else:
-                return {k: p.value for k, p in _params.items()}
-        return _params
-    
-    def named_param_values(self, scaled=False, *args, **kwargs) -> dict[str, jnp.ndarray]:
-        kwargs['values'] = True
-        kwargs['scaled_values'] = scaled
-        return self.named_params(*args, **kwargs)
-    
-    def flat_params(self, *args, **kwargs) -> jnp.ndarray:
-        """Shorthand for ``named_params(flat=True, ...)``."""        
-        return self.named_params(*args, flat=True, **kwargs)
-    
-    def flat_param_names(self) -> list[str]:
-        """Flat parameter names (matching :meth:`flat_params` order)."""        
-        return list(self.named_params(flat_params=True).keys())
-    
-    def submodel_params(self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], **kwargs):
-        if isinstance(submodels, Model) or isinstance(submodels, str):
-            submodels: list[Model] = [submodels]
-        
-        if len(submodels) != 0 and isinstance(submodels[0], str):
-            submodels: list[Model] = [getattr(self, name) for name in submodels]
+        Parameters
+        ----------
+        scaled : bool, default=False
+            Whether or not to scale the returned values by the parameter scales.
+        **kwargs
+            Additional key-word arguments as in  :meth:`named_params`.
 
-        param_values = [param for source in submodels for param in source.named_params(**kwargs).values()]
-        params = {k: v for k, v in self.named_params(**kwargs).items() if any(v is p for p in param_values)}        
-        return params
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+        """     
+        if scaled:
+            return {n: jnp.array(p) for n, p in (self._iter_params(**kwargs))}
+        else:
+            return {n: p.value for n, p in (self._iter_params(**kwargs))}    
+
+    def param_names(self, *args, **kwargs) -> list[str]:
+        """
+        Return model parameter names as a list.
+
+        See :meth:`named_params`.
+        """
+        return list(self.named_params(*args, **kwargs).keys())
+
+    def params(self, *args, **kwargs) -> list[Parameter]:
+        """
+        Return model parameters as a list.
+
+        See :meth:`named_params`.
+        """
+        return list(self.named_params(*args, **kwargs).values())
+
+    def params_values(self, *args, **kwargs) -> list[jnp.ndarray]:
+        """
+        Return model parameter values as a list of jax arrays.
+
+        See :meth:`named_param_values`.
+        """
+        return list(self.named_param_values(*args, **kwargs).values())
     
-    def param_names(self, *args, **kwargs):
-        """Parameter names for current (possibly filtered) selection."""        
-        params = self.named_params(*args, **kwargs)
-        return list(params.keys())
+    def named_flat_params(self, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+        """Named flattened model parameters as a dict.
+
+        Flat parameters are a de-vectorized version of
+        the internal parameters of the model. The returned
+        parameter objects therefore are not necessarily
+        equal to the internal model objects.
         
+        Keys are fully-qualified parameter names with de-vectorized suffixes added.
+        The order matches the internal flattened array order.
+
+        Parameters
+        ----------
+        include_fixed : bool, default=False
+            Include fixed parameters.
+        submodels : Model | Sequence[Model] | str | Sequence[str] | None, optional
+            Restrict to parameters used by the given submodel(s). If strings are
+            provided, ``getattr(self, name)`` is used.
+
+        Returns
+        -------
+        dict[str, Parameter]
+        """
+        return dict(self._iter_params(flatten=True, include_fixed=include_fixed, submodels=submodels))
+    
+    def named_flat_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
+        """Named flattened model parameter values as a dict of jax arrays.
+
+        See :meth:`named_flat_params`.
+
+        Parameters
+        ----------
+        scaled : bool, default=False
+            Whether or not to scale the returned values by the parameter scales.
+        **kwargs
+            Additional key-word arguments as in  :meth:`named_params`.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+        """     
+        if scaled:
+            return {n: jnp.array(p) for n, p in (self._iter_params(flatten=True, **kwargs))}
+        else:
+            return {n: p.value for n, p in (self._iter_params(flatten=True, **kwargs))}
+         
+    def flat_param_names(self, *args, **kwargs) -> list[str]:
+        """
+        Return flattened parameter names as a list.
+
+        See :meth:`named_flat_params`.
+        """
+        return list(self.named_flat_params(*args, **kwargs).keys())    
+    
+    def flat_params(self, *args, **kwargs) -> list[Parameter]:
+        """
+        Return flattened parameters as a list.
+
+        See :meth:`named_flat_params`.
+        """
+        return list(self.named_flat_params(*args, **kwargs).values())
+    
+    def flat_param_values(self, *args, **kwargs) -> jnp.ndarray:
+        """
+        Return flattened model parameter values as a jax arrays.
+
+        See :meth:`named_flat_param_values`.
+        """
+        return jnp.ndarray(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
+    
     def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
         """Return all parameter groups relevant to this model.
 
@@ -745,7 +841,7 @@ class Model(eqx.Module):
         list[ParameterGroup]
         """        
         
-        params = self.named_params(flat=True, flat_params=True, include_fixed=include_fixed)
+        params = self.named_flat_params(include_fixed=include_fixed)
         groups = [group for group in self._param_groups]
 
         grouped_param_names = {name for group in groups for name in group.parameter_names}
@@ -857,7 +953,7 @@ class Model(eqx.Module):
 
             if params.shape[0] != self.num_flat_params:
                 raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {params.shape[0]}')
-            params_tree, static = self.partition(include_fixed=include_fixed)
+            params_tree, static = self._partition(include_fixed=include_fixed)
             params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
             
             if jnp.isscalar(params_out) or params_out.shape[0] == 0:
@@ -1018,38 +1114,42 @@ class Model(eqx.Module):
     def with_free_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> ModelT:
         """Free all parameters in the given submodels.
 
-        Submodels parameters are obtained using ``Model.submodel_params``,
-        and subsequently freed using ``Model.with_free_params``.
+        Submodels parameters are obtained using :meth:`param_names`.,
+        and subsequently freed using :meth:``with_free_params``.
         
         Parameters
         ----------
-        free_submodels : Model | Sequence[Model] | str | Sequence[str]
+        submodels : Model | Sequence[Model] | str | Sequence[str]
             Submodels whose parameters should be free.
+        include_fixed : bool, default=False
+            Also free parameters that are currently fixed in the submodels.
+        fix_others : bool, default=False
+            Fix all other submodels.
 
         Returns
         -------
         ModelT
         """        
-        model_params = self.submodel_params(submodels, include_fixed=include_fixed)
-        return self.with_free_params(list(model_params.keys()), fix_others=fix_others)
+        model_param_names = self.param_names(include_fixed=include_fixed, submodels=submodels)
+        return self.with_free_params(model_param_names, fix_others=fix_others)
     
     def with_fixed_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> ModelT:
         """Fixed all parameters in the given submodels.
 
-        Submodels parameters are obtained using ``Model.submodel_params``,
-        and subsequently fixed using ``Model.with_fixed_params``.
+        Submodels parameters are obtained using :meth:`param_names`.,
+        and subsequently fixed using :meth:``with_fixed_params``.
         
         Parameters
         ----------
-        free_submodels : Model | Sequence[Model] | str | Sequence[str]
-            Submodels whose parameters should be free.
+        submodels : Model | Sequence[Model] | str | Sequence[str]
+            Submodels whose parameters should be fixed.
 
         Returns
         -------
         ModelT
         """        
-        model_params = self.submodel_params(submodels)
-        return self.with_fixed_params(list(model_params.keys()))        
+        model_param_names = self.param_names(submodels=submodels)
+        return self.with_fixed_params(model_param_names)        
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
@@ -1099,7 +1199,7 @@ class Model(eqx.Module):
         group : h5py.Group
             Target group. Two subgroups are created: ``raw`` and ``params``.
         """        
-        params_tree, static_tree = self.partition(include_fixed=True, param_objects=True)
+        params_tree, static_tree = self._partition(include_fixed=True, param_objects=True)
         params = self.named_params()
         model_raw_grp = group.create_group('raw')
         model_raw_grp.create_dataset('combined', data=jsonpickle.encode(self))

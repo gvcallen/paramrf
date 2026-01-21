@@ -69,7 +69,7 @@ class BaseSampler(ABC):
         params_matrix = self._generate_params(N)
 
         models = []
-        params, static = self.model.partition()
+        params, static = self.model._partition()
         _, ravel_fn = flatten_util.ravel_pytree(params)
         for i in range(N):
             models.append(eqx.combine(ravel_fn(params_matrix[i,:]), static))
@@ -80,7 +80,7 @@ class BaseSampler(ABC):
             frequency = Frequency.from_skrf(frequency)
         
         params_matrix = jnp.array(self._generate_params(N))
-        params = self.model.flat_params()
+        params = self.model.flat_param_values()
 
         feature_fn = wrap(extract_features, self.model, frequency, features)
         
@@ -96,7 +96,7 @@ class BaseSampler(ABC):
         return vectorized_fn(params_matrix)
     
     def _generate_params(self, N):
-        params = self.model.flat_params()
+        params = self.model.flat_param_values()
         D = len(params)
 
         U = self._generate_hypercube_samples(N, D)

@@ -8,7 +8,7 @@
 
    .. autosummary::
    
-      get_adapter
+      _get_backend_cls
    
    .. rubric:: Classes
 

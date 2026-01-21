@@ -110,7 +110,7 @@ class BaseFitter(ABC):
         measured: str | Network | NetworkCollection,
         **kwargs         
     ) -> 'FitResults':
-        """Fits the model.
+        """Fits the model to measured data.
 
         This method fits the full model using the original features specified.
 

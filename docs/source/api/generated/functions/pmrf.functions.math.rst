@@ -47,12 +47,14 @@
       multiply_every
       neuman
       np_2_db
+      nudge_eig
       null
       polar_2_rect
       radian_2_degree
       rect_2_polar
       rms
       round_sig
+      rsolve
       scalar2Complex
       sqrt_known_sign
       sqrt_phase_unwrap
