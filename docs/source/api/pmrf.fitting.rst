@@ -13,8 +13,9 @@ Fitters
    pmrf.fitting.BlackjaxNSFitter
    pmrf.fitting.dyPolychordFitter
    pmrf.fitting.NumPyroMCMCFitter
+   pmrf.fitting.NumPyroNSFitter
    pmrf.fitting.OptaxFitter
-   pmrf.fitting.PolychordFitter
+   pmrf.fitting.PolyChordFitter
    pmrf.fitting.SciPyMinimizeFitter
 
 Results
