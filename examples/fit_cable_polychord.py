@@ -28,14 +28,13 @@ model = CoaxialLine(
 # Initialize the fitter. Note that the features need to align with the likelihood
 fitter = PolyChordFitter(
     model=model,
-    measured=measured,
-    features=['s11_re', 's11_im'],
+    output_path='output_fit_cable_polychord',
 )
 
-# Run the fit and plot the results. We use 10x the number of parameters for the live fit
-result = fitter.run(output_path='output/fit_cable_polychord/chains', nlive=10)
+# Run the fit and plot the results. We use 1x the number of parameters for the live fit.
+# Note that you can should run this script using mpi if possible e.g. `mpirun -np 6 python fit_cable_polychord.py` for 6 processes.
+results = fitter.fit(measured, nlive_factor=1, save_results=True)
 if rank == 0:
-    result.save_hdf('output/fit_cable_polychord/defaultnlive.hdf5')
-    result.fitted_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
+    results.fitted_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
     measured.plot_s_db(m=0, n=0)
     plt.show()

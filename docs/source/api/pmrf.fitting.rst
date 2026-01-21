@@ -10,11 +10,12 @@ Fitters
    :caption: Submodules
    :recursive:
 
-   pmrf.fitting.fitters.ScipyMinimizeFitter
-   pmrf.fitting.fitters.PolychordFitter
-   pmrf.fitting.fitters.dyPolychordFitter
-   pmrf.fitting.fitters.BlackjaxNSFitter
-   pmrf.fitting.fitters.NumPyroMCMCFitter
+   pmrf.fitting.BlackjaxNSFitter
+   pmrf.fitting.dyPolychordFitter
+   pmrf.fitting.NumPyroMCMCFitter
+   pmrf.fitting.OptaxFitter
+   pmrf.fitting.PolychordFitter
+   pmrf.fitting.SciPyMinimizeFitter
 
 Results
 -----------
@@ -23,9 +24,9 @@ Results
    :caption: Submodules
    :recursive:
 
-   pmrf.fitting.results.ScipyMinimizeResults
-   pmrf.fitting.results.AnestheticResults
-   pmrf.fitting.results.NumPyroResults
+   pmrf.fitting.AnestheticResults
+   pmrf.fitting.NumPyroResults
+   pmrf.fitting.SciPyMinimizeResults
 
 Bases
 -----------
@@ -40,3 +41,6 @@ Bases
    pmrf.fitting.FitResults
    pmrf.fitting.FrequentistResults
    pmrf.fitting.BayesianResults
+   pmrf.fitting.FitContext
+   pmrf.fitting.FrequentistContext
+   pmrf.fitting.BayesianContext

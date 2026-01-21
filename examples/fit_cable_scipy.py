@@ -24,19 +24,16 @@ model = CoaxialLine(
     tand_model='bpoly',
 )
 
-print(model.flat_params().keys())
-
 # Initialize the fitter. We fit on the real and imaginary and combine their results
 fitter = SciPyMinimizeFitter(
     model=model,
-    measured=measured,
     features=['s11_re', 's11_im'],
-    cost=[l2_norm_ax0, jnp.sum, mag_2_db],
+    cost_function=[l2_norm_ax0, jnp.sum, mag_2_db],
 )
 
 # Run the fit
-result = fitter.run(method='Nelder-Mead')
-model_ntwk = result.fitted_model.to_skrf(measured.frequency)
+results = fitter.fit(measured, optimizer='Nelder-Mead')
+model_ntwk = results.fitted_model.to_skrf(measured.frequency)
 
 # Plot some results
 fig, axes = plt.subplots(2, 2)

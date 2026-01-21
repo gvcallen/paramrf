@@ -596,7 +596,9 @@ class Model(eqx.Module):
         """Returns a new model fitted to measured data.
 
         This is an alternative API to the fitting submodule.
-        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit(...)` is called.
+        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit(...)` is called,
+        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+        
         Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
 
         Parameters
@@ -609,13 +611,15 @@ class Model(eqx.Module):
         """        
         from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
         init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-        return Fitter(self, **init_kwargs).fit(measured, **kwargs)
+        return Fitter(self, **init_kwargs).fit(measured, **kwargs).fitted_model
 
     def with_submodels_fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
         """Returns a new model with its submodels fitted to measured data.
 
         This is an alternative API to the fitting submodule.
-        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit_submodels(...)` is called.
+        Internally, a fitter is first created using `pmrf.fitting.Fitter(...)`, and then `fitter.fit_submodels(...)` is called,
+        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+
         Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
 
         Parameters
@@ -628,7 +632,7 @@ class Model(eqx.Module):
         """        
         from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
         init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-        return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs)
+        return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs).fitted_model
     
     # ---- Parameter querying --------------------------------------------------        
     
@@ -1258,7 +1262,7 @@ def wrap(
 
     # Validate
     if not isinstance(frequency_or_unit, (str, Frequency)):
-        raise TypeError("Expected Frequency or unit string as second argument")
+        raise TypeError(f"Expected pmrf.Frequency or unit string as second argument, got type {type(frequency_or_unit)}")
 
     use_variable_frequency = isinstance(frequency_or_unit, str)
 

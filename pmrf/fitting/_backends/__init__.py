@@ -1,10 +1,28 @@
-import importlib
-
-backends = ['anesthetic', 'blackjax', 'dypolychord', 'numpyro', 'optax', 'polychord', 'scipy']
-
-for backend in backends:
-    try:
-        module = importlib.import_module(f"fitting._backends.{backend}")
-        globals().update({k: v for k, v in module.__dict__.items() if not k.startswith('_')})
-    except ImportError:
-        pass
+try:
+    from pmrf.fitting._backends.anesthetic import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.blackjax import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.dypolychord import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.numpyro import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.optax import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.polychord import *
+except:
+    pass
+try:
+    from pmrf.fitting._backends.scipy import *
+except:
+    pass

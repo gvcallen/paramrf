@@ -30,7 +30,7 @@ class FrequentistContext(FitContext):
         @jax.jit
         def cost_fn(flat_params) -> jnp.ndarray:
             model_features = feature_fn_jax(flat_params)
-            error = self.measured - model_features
+            error = self.measured_features - model_features
             cost_val = self.cost_function(error)
             if jnp.isscalar(self.cost_function(error)):
                 return cost_val
@@ -116,7 +116,7 @@ class FrequentistFitter(BaseFitter):
         elif cost_kind == 'magnitude':
             default_features = ['s_mag']
             default_cost = L2_COST
-        else:
+        elif cost_kind is not None:
             raise Exception("Unknown cost kind alias passed to frequentist fitter")
 
         if features is None:
@@ -147,4 +147,5 @@ class FrequentistFitter(BaseFitter):
             output_root=base_ctx.output_root,
             sparam_kind=base_ctx.sparam_kind,
             cost_function=cost_function,
+            logger=self.logger,
         )        

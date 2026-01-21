@@ -37,7 +37,7 @@ class FitSettings:
 class FitContext:
     model: Model
     measured: skrf.Network | NetworkCollection
-    frequency: skrf.Frequency
+    frequency: Frequency
     features: list[FeatureT]
     measured_features: np.ndarray
     output_path: str | None = None
@@ -109,7 +109,7 @@ class BaseFitter(ABC):
         self,
         measured: str | Network | NetworkCollection,
         **kwargs         
-    ) -> Model:
+    ) -> 'FitResults':
         """Fits the model.
 
         This method fits the full model using the original features specified.
@@ -125,7 +125,7 @@ class BaseFitter(ABC):
                 If networks do not have the same frequency, a common frequency is used.
 
         Returns:
-            Model: The fitted model.
+            FitResults: The fit results.
         """
         if isinstance(measured, str):
             measured = skrf.Network(measured)
@@ -133,13 +133,13 @@ class BaseFitter(ABC):
         ctx = self.create_context(measured)
         results = self.run(ctx, **kwargs)
 
-        return results.fitted_model
+        return results
     
     def fit_submodels(
         self,
         measured: NetworkCollection,
         **kwargs         
-    ) -> Model:
+    ) -> 'FitResults':
         """Fits the submodels.
          
         This method fits the model to the measured data by fitting its submodels in a sequential manner.
@@ -154,10 +154,9 @@ class BaseFitter(ABC):
                 If networks do not have the same frequency, a common frequency is used.
 
         Returns:
-            Model: The fitted model.
+            FitResults: The fit results. `solver_results` contains a dictionary of the individual submodel results.
         """
-        save_model = kwargs.get('save_model', True)
-        results: dict[str, FitResults] = {}
+        all_results: dict[str, FitResults] = {}
         
         # Fit the components sequentially
         for ntwk in measured:
@@ -170,15 +169,27 @@ class BaseFitter(ABC):
             output_path = f'{self.output_path}/submodels/{name}' if self.output_path is not None else None
             
             ctx = self.create_context(comp_measured, model=model, output_path=output_path)
-            results[name] = self.run(ctx, **kwargs)
+            all_results[name] = self.run(ctx, **kwargs)
 
-        fitted_model = self.model.with_models([result.fitted_model for result in results.values()])
+        fitted_model = self.model.with_models([result.fitted_model for result in all_results.values()])
+        fit_results = FitResults(
+            initial_model=self.model,
+            fitted_model=fitted_model,
+            solver_results=all_results,
+
+        )
+        metadata = fitted_model.metadata
+        metadata['fit_results'] = fit_results
+        fitted_model = fitted_model.with_fields(metadata=metadata)
         
-        if RANK == 0 and self.output_path is not None and save_model:
-            name = fitted_model.name or 'model'
-            fitted_model.save(f'{self.output_path}/fitted_{name}.prf')
+        if RANK == 0 and self.output_path is not None:
+            if kwargs.get('save_model', True):
+                name = fitted_model.name or 'model'
+                fitted_model.save(f'{self.output_path}/fitted_{name}.prf')
+            if kwargs.get('save_results', True):
+                fit_results.save_hdf(f'{self.output_path}/results.hdf5')
 
-        return fitted_model
+        return fit_results
 
     def create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
         model = model or self.model
@@ -195,7 +206,8 @@ class BaseFitter(ABC):
             measured.interpolate_self()
             frequency = measured.common_frequency()
         else:
-            frequency = measured.frequency        
+            frequency = measured.frequency
+        frequency = Frequency.from_skrf(frequency)
 
         # Set the default features and ensure it is not a scalar
         features = features if features is not None else [port_feature for m, n in model.port_tuples for port_feature in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')]
@@ -206,7 +218,16 @@ class BaseFitter(ABC):
 
         measured_features = extract_features(measured, None, features, sparam_kind=sparam_kind)
         
-        return FitContext(measured=measured, model=model, frequency=frequency, features=features, measured_features=measured_features, logger=self.logger, output_path=output_path, output_root=output_root)    
+        return FitContext(
+            measured=measured,
+            model=model,
+            frequency=frequency,
+            features=features,
+            measured_features=measured_features,
+            logger=self.logger,
+            output_path=output_path,
+            output_root=output_root
+        )
     
     def run(
         self,
@@ -215,7 +236,7 @@ class BaseFitter(ABC):
         load_previous: bool = True, 
         new_uniform_frac: float | None = 0.01,
         save_model: bool = True,
-        save_hdf: bool = True,
+        save_results: bool = True,
         plot_s_db: bool = True,
         callback: Callable[['FitResults'], None] | None = None,
         **kwargs
@@ -239,8 +260,8 @@ class BaseFitter(ABC):
                 The fraction to update model distribution bounds uniformly around the fitted model values.
             save_model (bool):
                 Saves the model to the output path (if provided).
-            save_hdf (bool):
-                Saves the results to hdf in the output path (if provided).
+            save_results (bool):
+                Saves the results to hdf format in the output path (if provided).
             plot_s_db (bool):
                 Plots the S-parameters in db and save the results in the output path (if provided]).
             callback (Callable[[FitResults], None] | None):
@@ -268,7 +289,6 @@ class BaseFitter(ABC):
         results.measured = context.measured
         results.initial_model = context.model
         results.settings = context.settings(solver_kwargs=kwargs)
-        results.fitter = self
 
         if new_uniform_frac is not None:
             results.fitted_model = results.fitted_model.with_uniform_distributions(new_uniform_frac)
@@ -276,22 +296,21 @@ class BaseFitter(ABC):
         if callback:
             callback(results)
 
-        save_output = context.output_path is not None and (save_model or save_hdf or plot_s_db) and RANK == 0
+        save_output = context.output_path is not None and (save_model or save_results or plot_s_db) and RANK == 0
         if save_output:
             Path(context.output_path).mkdir(parents=True, exist_ok=True)                
+            if save_model:
+                fitted_model = results.fitted_model
+                model_name = fitted_model.name or 'model'
+                fitted_model.save(f'{context.output_path}/fitted_{model_name}.prf')
 
-        if save_model:
-            fitted_model = results.fitted_model
-            model_name = fitted_model.name or 'model'
-            fitted_model.save(f'{context.output_path}/fitted_{model_name}.prf')
-
-        if save_hdf:
-            results.save_hdf(f'{context.output_path}/results.hdf5')
+            if save_results:
+                results.save_hdf(f'{context.output_path}/results.hdf5')
         
-        if plot_s_db:
-            results.plot_s_db()
-            plt.savefig(f'{context.output_path}/s_db.png', dpi=400)
-            plt.close()
+            if plot_s_db:
+                results.plot_s_db()
+                plt.savefig(f'{context.output_path}/s_db.png', dpi=400)
+                plt.close()
 
         model_metadata = results.fitted_model.metadata
         model_metadata['fit_results'] = results
@@ -318,7 +337,6 @@ class FitResults:
     fitted_model: Model | None = None
     solver_results: Any = None
     settings: FitSettings | None = None
-    fitter: BaseFitter | None = None
 
     def plot_s_db(self, use_initial_model=False):
         """

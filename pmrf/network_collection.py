@@ -211,7 +211,7 @@ class NetworkCollection:
         if not isinstance(ntwk, rf.Network):
             raise TypeError(f"Expected scikit-rf Network, got {type(ntwk)}")
 
-        if not ntwk.name:
+        if ntwk.name is None:
             raise ValueError("Network must have a 'name' attribute.")
         
         # Check uniqueness. (Linear scan is acceptable for typical collection sizes)

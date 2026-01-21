@@ -60,7 +60,7 @@ def  extract_features(
         source_cpy = source.copy()
         source_cpy.name = ''
         source = NetworkCollection([source_cpy])
-        frequency = source.frequency
+        frequency = source.common_frequency()
     elif isinstance(source, NetworkCollection):
         # Currently only support a single frequency across networks
         frequency = source.common_frequency()

@@ -152,15 +152,15 @@ The following example creates a PI-CLC model once again, but using the above met
 Fitting
 ~~~~~~~~~~~~~~~~~~~~
 
-A primary application of ``pmrf`` is the fitting of models and their parameters to measured data. The ``pmrf.fitting`` module provides a unified interface to perform this task using either traditional *frequentist* optimization, or *Bayesian* inference techniques.
+The primary application of ``pmrf`` is the fitting of models and their parameters to measured data. The ``pmrf.fitting`` module provides a unified interface to perform this task using either traditional *frequentist* optimization, or *Bayesian* inference techniques.
 
 The general workflow consists of defining a model, loading data via *scikit-rf*, and configuring and running the fitter with the specified settings.
 
 Main Fitters
 ^^^^^^^^^^^^^^^^^^^^
 
-* ``ScipyMinimizeFitter``: Provides access to gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*.
-* ``PolychordFitter``: Enables Bayesian inference through nested sampling. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
+* ``SciPyMinimizeFitter``: Provides access to gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*.
+* ``PolyChordFitter``: Enables Bayesian inference through nested sampling. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
 
 Fitting Example
 ^^^^^^^^^^^^^^^^^^^^
@@ -175,7 +175,7 @@ The following provides a complete example of fitting the built in ``CoaxialLine`
     import pmrf as prf
     from pmrf.models import CoaxialLine
     from pmrf.parameters import Uniform, Fixed, PercentNormal
-    from pmrf.fitting import ScipyMinimizeFitter
+    from pmrf.fitting import SciPyMinimizeFitter
 
     # Load the measured data and setup the model
     measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
@@ -191,17 +191,19 @@ The following provides a complete example of fitting the built in ``CoaxialLine`
         tand_model='bpoly',
     )
 
-    # Initialize the fitter. We fit on the real and imaginary "features",
-    # and combine their results using a custom cost function
-    fitter = ScipyMinimizeFitter(
+    # Initialize the fitter. We fit on the real and imaginary and combine their results
+    fitter = SciPyMinimizeFitter(
         model=model,
-        measured=measured,
         features=['s11_re', 's11_im'],
-        cost=[prf.l2_norm_ax0, jnp.mean, prf.mag_2_db],
+        cost_function=[l2_norm_ax0, jnp.sum, mag_2_db],
     )
 
+    # Run the fit
+    results = fitter.fit(measured, optimizer='Nelder-Mead')
+    model_ntwk = results.fitted_model.to_skrf(measured.frequency)
+
     # Run the fit. Arguments are passed through to the underlying solver
-    results = fitter.run(method='Nelder-Mead')
+    results = fitter.fit(measured, method='Nelder-Mead')
 
     # Convert the model to an skrf Network and plot the resultant S11
     model_ntwk = results.model.to_skrf(measured.frequency)

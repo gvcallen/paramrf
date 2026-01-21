@@ -152,7 +152,7 @@ class BayesianContext(FitContext):
         def loglikelihood_fn(flat_params) -> float:
             theta, sigma = flat_params[0:-1], flat_params[-1]
             y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self._active_measured_features)
+            y_meas = jnp.real(self.measured_features)
             logL = dist.Normal(loc=y_pred, scale=sigma).log_prob(y_meas).sum()
             return logL
         
@@ -166,7 +166,7 @@ class BayesianContext(FitContext):
             num_sigma = len(self.likelihood_params)
             theta, sigmas = flat_params[0:-num_sigma], flat_params[-num_sigma:]
             y_pred = jnp.real(feature_fn_jax(theta))
-            y_meas = jnp.real(self._active_measured_features)
+            y_meas = jnp.real(self.measured_features)
             
             param_keys = list(self.likelihood_params.keys())
             sigma_indices = jnp.array([param_keys.index(key) for key in self.feature_sigmas])
@@ -217,6 +217,7 @@ class BayesianFitter(BaseFitter):
     
     def create_context(self, measured, *, likelihood_kind=None, likelihood_params=None, feature_sigmas=None, **kwargs) -> BayesianContext:
         features = kwargs.pop('features', None) or self.features
+        sparam_kind = kwargs.pop('sparam_kind', None) or self.sparam_kind
         likelihood_kind = likelihood_kind or self.likelihood_kind
         likelihood_params = likelihood_params or self.likelihood_params
         feature_sigmas = feature_sigmas or self.feature_sigmas
@@ -258,7 +259,7 @@ class BayesianFitter(BaseFitter):
         features = features if features is not None else default_features
         feature_sigmas = feature_sigmas if feature_sigmas is not None else default_feature_sigmas
         
-        base_ctx = super().create_context(measured, features=features, **kwargs)
+        base_ctx = super().create_context(measured, features=features, sparam_kind=sparam_kind, **kwargs)
     
         if likelihood_kind == 'multivariate_gaussian':
             if feature_sigmas is None:
@@ -284,6 +285,7 @@ class BayesianFitter(BaseFitter):
             likelihood_kind=likelihood_kind,
             likelihood_params=likelihood_params,
             feature_sigmas=feature_sigmas,
+            logger=self.logger,
         )
         
     def run(self, ctx: BayesianContext, plot_params=False, fit_posterior=False, fit_posterior_dist=None, fit_posterior_kwargs=None, *args, **kwargs) -> BayesianResults:
@@ -306,7 +308,7 @@ class BayesianFitter(BaseFitter):
             user_callback = kwargs.pop('callback', None)
             kwargs['callback'] = callback
 
-        results: BayesianResults = super().run(*args, **kwargs)
+        results: BayesianResults = super().run(ctx, *args, **kwargs)
 
         if plot_params:
             results.plot_params()
