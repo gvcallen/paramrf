@@ -88,7 +88,7 @@ Any attributes of a model are classified as either *static* or *dynamic*. By def
 Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
 
 Equation-based Models
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 The following example demonstrates custom model definition by defining a capacitor from first principles. This could be used, for example, to implement more complex analytic or surrogate models. Here, one of the typical network properties, such as ``s``, ``a``, ``y`` etc., must be overriden, returning the resultant matrix directly.
 
 .. code-block:: python

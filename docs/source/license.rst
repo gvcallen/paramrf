@@ -33,6 +33,7 @@ The following license applies to those portions:
 
 ----------------------------------------------------------------------
 BSD 3-Clause License
+----------------------------------------------------------------------
 
 Copyright (c) 2011, Scikit-rf Developers
 All rights reserved.

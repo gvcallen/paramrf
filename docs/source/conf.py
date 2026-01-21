@@ -83,7 +83,7 @@ myst_heading_anchors = 3
 templates_path = ['_templates']
 exclude_patterns = []
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_static_path = []
 
 def skip_member(app, what, name, obj, skip, options):
     if what == "class" and getattr(obj, "_pmrf_auto", False):

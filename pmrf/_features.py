@@ -8,50 +8,74 @@ from pmrf.constants import FeatureT, FeatureInputT
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf._util import defining_class
 
-def  extract_features(
+def extract_features(
     source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
     features: FeatureInputT,
     sparam_kind: str = 'all',
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
-    """Extracts features from a model or a network.
-    
-    This function allows for an arbitrary number of features (e.g. ['s11', 'a21_mag'])
-    to be easily extracted from a model or a measured network. The resultant features
-    are combined column-by-column into a matrix with frequency in the row dimension.
-    
-    Features can either be specified by convenient aliases using strings, or by their full structure.
+    """
+        Extracts frequency-dependent features from a model or network into a unified matrix.
 
-    As some examples to demonstrate the possibilities:
-    - To extract S11 magnitude, specify either the alias 's11_db' or the full tuple `('', 's_db', (0, 0))`.
-      Note that, for the tuple, the empty string at the beginning represents the base model (expanded on below).
-    - To extract e.g. the phase of the B parameter of the ABCD matrix, specify 'a21_deg'.
-    - To extract any other feature in the model that is a function of frequency (e.g. a custom user function), simply use 'myfeature' instead of 's11'.
-    - To extract features from a submodel or specific network, specify a dictionary with the submodel as a key
-      e.g. {'submodel': 's11_db'}. For models, this extracts a feature from a submodel that must be retrievable via `getattr`.
-      Submodels can also be nested e.g. {'src1.submodel1.submodel2': 's11_db'}. For measured networks,
-      this extracts a feature from the corresponding network with that label in the dictionary.
-      For the above example, is is converted to the feature tuple ('src_name', 's_db', (0, 0)').
-    - For a list of features, specify a list of any of the above (or, equivalently, a dictionary of lists).
+        Features are combined column-by-column, resulting in a matrix where rows correspond
+        to frequency points and columns to the requested features. This supports extracting
+        scalars (e.g., 's11_mag'), complex parameters, or custom functions from both
+        simulation models and measured networks.
 
-    Args:
-        source (Model | skrf.Network | NetworkCollection):              The source model or network(s) to extract the features from,
-                                                                        with missing networks specified using integers for the number of ports at that index.
-                                                                        Lists of networks are treated as forming one, stack network with isolated ports.
-        features (FeatureInputT):                                       The features to extract, as described in detail above.
-        frequency (pmrf.Frequency | skrf.Frequency, optional):          The frequency to extract the features at. This will become the row dimension of the resultant matrix.
-                                                                        This must be passed for `Model` sources. Defaults to `None` e.g. for measured networks,
-                                                                        in which case the network's internal frequency is used. Otherwise, the network is interpolated.
-        sparam_kind (str | None):                                       The S-parameter data kind to use for port-expansion in feature extraction. Can either be 'transmission', 'reflection' or 'all'.
-                                                                        Port expansion happens if features such as ['s_re', 's_mag'] are passed i.e. without ports.
-        dtype (jnp.dtype, optional):                                    The data type of the final out feature matrix.
+        Parameters
+        ----------
+        source : Model, skrf.Network, or NetworkCollection
+            The source object. If a list of networks is provided, it is treated as a
+            single stacked network with isolated ports. Missing networks in a collection
+            should be specified using integers representing the port count at that index.
+        features : str, list, dict, or tuple
+            The features to extract. See Notes for formatting syntax.
+        frequency : pmrf.Frequency or skrf.Frequency, optional
+            The frequency points for extraction.
+            - **Required** if `source` is a Model.
+            - **Optional** if `source` is a Network; defaults to the Network's native
+            frequency points. If provided, the Network is interpolated to these points.
+        sparam_kind : {'transmission', 'reflection', 'all'} or None, optional
+            Filters port expansion when generic features are requested (e.g., 's_re'
+            without specific indices).
+        dtype : data-type, optional
+            The desired data-type for the output feature matrix.
 
-    Returns:
-        np.ndarray: The feature matrix of size M x N, where M is the number of frequencies and N is the number of features.
-    """    
+        Returns
+        -------
+        feature_matrix : ndarray
+            The extracted feature matrix of shape (M, N), where M is the number of
+            frequency points and N is the total number of features.
+
+        Notes
+        -----
+        **Feature Syntax**
+
+        Features can be specified using string aliases, explicit tuples, or dictionaries
+        for sub-components:
+
+        * **String Aliases:** Convenient shorthands for standard parameters.
+
+        * *Example:* ``'s11_db'``, ``'a21_deg'``, ``'s11_mag'``.
+        * *Custom:* Any model attribute dependent on frequency can be accessed by name
+            (e.g., ``'my_custom_gain'``).
+
+        * **Explicit Tuples:** Defined as ``(path, parameter, index)``.
+
+        * *Example:* ``('', 's_db', (0, 0))`` is equivalent to ``'s11_db'``.
+        * The empty string ``''`` denotes the base model.
+
+        * **Dictionaries:** Used to target submodels (via ``getattr``) or specific networks.
+
+        * *Example:* ``{'lna': 's21_db'}`` extracts S21 from the 'lna' submodel.
+        * *Nested:* ``{'front_end.lna': 's11'}`` accesses deep submodels.
+        * *Measurement:* Maps to the label of a specific network in a collection.
+
+        * **Lists:** A list containing any combination of the above will be flattened
+        into columns.
+        """
     # We format the features to be flat (and parse them in the process)
     features = _format_features(features, source=source, sparam_kind=sparam_kind)
     

@@ -1,5 +1,5 @@
 pmrf.sampling
-===========
+=============
 
 The **sampling** module, with built-in random sampling algorithms.
 

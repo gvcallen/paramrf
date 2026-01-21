@@ -114,6 +114,8 @@ class Model(eqx.Module):
     _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
+    # ---- Internal initialization methods -------------------------------------------------
+
     def __init_subclass__(cls, **kwargs):
         """Customize subclass construction.
 
@@ -159,7 +161,6 @@ class Model(eqx.Module):
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, eqx.field(**field_kwargs))
         
-                    
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
             for suffix, lookup in FUNC_LOOKUP.items():
@@ -185,7 +186,7 @@ class Model(eqx.Module):
                 m._pmrf_auto = True
                 setattr(cls, func_name, m)
 
-    # ---- Internal PyTree manipulation and helpers -------------------------------------------------
+    # ---- Internal PyTree manipulation, introspection and helpers -------------------------------------------------
     
     @property
     def _param_value_spec(self) -> PyTree:
@@ -340,8 +341,8 @@ class Model(eqx.Module):
     # ---- Defaults / Primary ---------------------------------------------------    
     
     @classproperty
-    def DEFAULT_PARAMS(cls) -> dict[str, Parameter]:
-        """Default parameters for the model.
+    def DEFAULT_NAMED_PARAMS(cls) -> dict[str, Parameter]:
+        """Default named parameters for the model.
 
         Returns
         -------
@@ -362,23 +363,43 @@ class Model(eqx.Module):
         instance = cls()
         return instance.param_names()
     
+    @classproperty
+    def DEFAULT_PARAMS(cls) -> list[Parameter]:
+        """Default parameters for the model.
+
+        Returns
+        -------
+        list[str]
+        """
+        instance = cls()
+        return instance.params()
+    
     @property
     def primary_function(self) -> Callable[[Frequency], jnp.ndarray]:
-        """Primary function (``s`` or ``a``) as a callable.
+        """The primary function (``s`` or ``a``) as a callable.
+
+        The primary function is the first overridden among
+        :data:`PRIMARY_PROPERTIES`, unless ``__call__`` is overridden,
+        in which case the primary function of the built model is returned.
 
         Returns
         -------
         Callable[[Frequency], jnp.ndarray]
+
+        Raises
+        ------
+        NotImplementedError
+            If no primary property is overridden.
         """
         return getattr(self, self.primary_property)
             
     @property
     def primary_property(self) -> str:
-        """Name of the primary property (e.g. ``"s"``, ``"a"``).
+        """The primary property (e.g. ``"s"``, ``"a"``) as a string.
 
         The primary property is the first overridden among
-        :data:`PRIMARY_PROPERTIES`. If ``__call__`` is overridden, delegation
-        occurs to the returned model.
+        :data:`PRIMARY_PROPERTIES`, unless ``__call__`` is overridden,
+        in which case the primary property of the built model is returned.
 
         Returns
         -------
@@ -404,9 +425,15 @@ class Model(eqx.Module):
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
     
     def copy(self: ModelT) -> ModelT:
+        """Returns a deepcopy of self.
+
+        Returns
+        -------
+        Model
+        """        
         return deepcopy(self)    
 
-    # ---- Introspection --------------------------------------------------------
+    # ---- Introspection properties --------------------------------------------------------
     
     @cached_property
     @eqx.filter_jit
@@ -564,15 +591,6 @@ class Model(eqx.Module):
         """
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
-    def named_children(self) -> dict[str, 'Model']:
-        """Immediate submodels keyed by their ``name`` attribute.
-
-        Returns
-        -------
-        dict[str, Model]
-        """
-        return {child.name: child for child in self.children()}
-    
     def submodels(self) -> list['Model']:
         """All nested submodels (depth-first), excluding ``self``.
 
@@ -590,7 +608,9 @@ class Model(eqx.Module):
         return Cascade([self, other])
     
     def connected(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
-        """Return a version of the model with some ports connected.
+        """Return a version of the model with specified ports connected.
+
+        See :class:``pmrf.models.containers.Connected``.
 
         Returns
         -------
@@ -851,8 +871,14 @@ class Model(eqx.Module):
         
         return groups
     
-    def distribution(self) -> Distribution:
-        """Joint distribution over (flattened) parameters."""        
+    def distribution(self) -> JointParameterDistribution:
+        """Joint distribution over (flattened) parameters.
+        
+        Returns
+        -------
+        JointParameterDistribution
+
+        """        
         return JointParameterDistribution(self.param_groups(), self.flat_param_names())
     
     # ---- Parameter manipulation --------------------------------------------------            
@@ -866,7 +892,10 @@ class Model(eqx.Module):
         include_fixed = False,
         **param_kwargs: dict[str, Parameter] | dict[str, float],
     ) -> ModelT:
-        """Return a new model with core parameters updated.
+        """Return a new model with parameters updated.
+
+        This is a multi-purpose function that updates parameters differently
+        based on the types pass.
 
         Parameters
         ----------
@@ -962,42 +991,6 @@ class Model(eqx.Module):
             params_tree_recon = unravel_fn(params)
             return combine(params_tree_recon, static)           
         
-    def with_flat_params(self, *args, **kwargs):
-        """Alias for :meth:`with_params` when passing a flat array."""        
-        return self.with_params(*args, **kwargs)
-    
-    def with_uniform_distributions(self, width_frac=0.01):
-        updates = {}
-        for name, param in self.named_params().items():
-            distribution = UniformDistribution(param * (1.0 - width_frac) / param.scale, param * (1.0 + width_frac) / param.scale)
-            updates[name] = param.with_distribution(distribution)
-            
-        return self.with_params(updates)    
-    
-    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
-        """Return a a model with parameter groups appended.
-        
-        Parmaeter groups can be used to specify relationships between parameters in the model,
-        such as joint priors.
-
-        Parameters
-        ----------
-        param_groups : ParameterGroup or list[ParameterGroup]
-            Group(s) to add.
-
-        Returns
-        -------
-        ModelT
-        """        
-        if not isinstance(param_groups, list):
-            param_groups = [param_groups]
-        
-        param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
-        param_groups_new = param_groups_old
-        param_groups_new.extend(param_groups)
-        param_groups_new = [param_group for param_group in param_groups_new]
-        return dataclasses.replace(self, _param_groups=param_groups_new)
-        
     def with_fixed_params(self: ModelT, params: list[str] | Callable[[str], bool], check_unknown=True) -> ModelT:
         """Return a model with specified parameters fixed.
 
@@ -1072,14 +1065,67 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params_only(self: ModelT, params: list[str] | Callable[[str], bool]) -> ModelT:
-        return self.with_free_params(params, fix_others=True)    
+    def with_free_params_only(self: ModelT, *args, **kwargs) -> ModelT:
+        """Returns a model with only the specified parameters freed.
+        
+        This is an alias for calling :meth:``with_free_params``
+        with `fix_others=True`.
+
+        See :meth:``with_free_params``.
+        """
+        kwargs.setdefault('fix_others', True)
+        if kwargs['fix_others'] == False:
+            raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
+        return self.with_free_params(*args, **kwargs)
+    
+    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
+        """Return a model with parameter groups appended.
+        
+        Parameter groups can be used to specify relationships between parameters in the model,
+        such as joint priors.
+
+        Parameters
+        ----------
+        param_groups : ParameterGroup or list[ParameterGroup]
+            Group(s) to add.
+
+        Returns
+        -------
+        ModelT
+        """        
+        if not isinstance(param_groups, list):
+            param_groups = [param_groups]
+        
+        param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
+        param_groups_new = param_groups_old
+        param_groups_new.extend(param_groups)
+        param_groups_new = [param_group for param_group in param_groups_new]
+        return dataclasses.replace(self, _param_groups=param_groups_new)    
+    
+    def with_uniform_distributions(self, width_frac=0.01):
+        updates = {}
+        for name, param in self.named_params().items():
+            distribution = UniformDistribution(param * (1.0 - width_frac) / param.scale, param * (1.0 + width_frac) / param.scale)
+            updates[name] = param.with_distribution(distribution)
+            
+        return self.with_params(updates)       
     
     # ---- Field and model manipulation --------------------------------------------------            
     
     @classmethod
-    def with_defaults(cls, *args, **kwargs):
-        # return partial(cls, *args, **kwargs)
+    def with_defaults(cls, *args, **kwargs) -> type['Model']:
+        """Return this model type with default initialization arguments.
+        
+        This method is very useful in utilizing an existing model
+        with default values, without having to create a new
+        model type via inheritance.
+
+        Arguments are forwarded as if they were passed to `__init__`.
+
+        Returns
+        -------
+        type[Model]
+        """            
         class DefaultsWrapper:
             def __init__(self, p):
                 self.p = p   # underlying partial
@@ -1095,20 +1141,50 @@ class Model(eqx.Module):
                 return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
         return DefaultsWrapper(partial(cls, *args, **kwargs))
     
-    def with_models(self: ModelT, other_models: list[ModelT]):
+    def with_models(self: ModelT, models: ModelT | Sequence[ModelT]) -> ModelT:
+        """Combines this model with free parameters in other models.
+        
+        This is useful to combine separate models obtained from fitting
+        the same initial model with different free parameters.
+
+        Parameters
+        ----------
+        models : Model or Sequence[Model]
+            The other models to combine this model with.
+
+        Returns
+        -------
+        Model
+        """  
+        if not isinstance(models, Sequence):
+            models = [models]
+
         combined = self
-        for other in other_models:
+        for other in models:
             combined = combined.with_params(other.named_params())
             combined = combined.with_param_groups(other.param_groups())
         return combined
     
     def with_fields(self: ModelT, *args, **kwargs) -> ModelT:
-        """Return a copy with dataclass-style field replacements."""        
+        """
+        Return a copy of this model with dataclass-style field replacements.
+
+        Parameters are forwarded to :func:`dataclasses.replace`.
+        """
         return dataclasses.replace(self, *args, **kwargs)
     
-    def with_submodel_fields(self: ModelT, submodel_name: str, *args, **kwargs) -> ModelT:
-        """Return a copy with dataclass-style field replacements on a submodel."""        
-        with_field_kwargs = {submodel_name: getattr(self, submodel_name).with_fields(*args, **kwargs)}
+    def with_submodel_fields(self: ModelT, submodel: str, *args, **kwargs) -> ModelT:
+        """
+        Return a copy of this model with dataclass-style field replacements on a sub-model.
+
+        Parameters are forwarded to :func:`dataclasses.replace`.
+
+        Parameters
+        ----------
+        submodels : str
+            The name of the submodel to replace the fields of.
+        """
+        with_field_kwargs = {submodel: getattr(self, submodel).with_fields(*args, **kwargs)}
         return self.with_fields(**with_field_kwargs)    
     
     def with_free_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> ModelT:
@@ -1249,6 +1325,8 @@ class Model(eqx.Module):
     def save(self, target: str | BinaryIO):
         """Serialize the model to disk in pickle format.
 
+        The recommended file extension for ParamRF models is `.prf`.
+
         Parameters
         ----------
         filepath : str
@@ -1267,6 +1345,8 @@ class Model(eqx.Module):
     @classmethod
     def load(cls: ModelT, source: str | BinaryIO) -> ModelT:
         """Load a model from a pickled file.
+
+        The recommended file extension for ParamRF models is `.prf`.
 
         Parameters
         ----------
@@ -1290,8 +1370,8 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        frequency : Frequency | skrf.Frequency
         filename : str
+        frequency : Frequency | skrf.Frequency
         sigma : float, default=0.0
             Additive complex noise std for S-parameters.
         **skrf_kwargs
@@ -1368,12 +1448,12 @@ def wrap(
 
     # Define wrapped function
     def wrapped_with_freq(theta: jnp.ndarray, f_array: jnp.ndarray, *f_args, **f_kwargs):
-        new_model = model.with_flat_params(theta)
+        new_model = model.with_params(theta)
         frequency = Frequency.from_f(f_array, unit=frequency_or_unit)
         return func(new_model, frequency, *f_args, **f_kwargs)
 
     def wrapped_fixed_freq(theta: jnp.ndarray, *f_args, **f_kwargs):
-        new_model = model.with_flat_params(theta)
+        new_model = model.with_params(theta)
         return func(new_model, frequency_or_unit, *f_args, **f_kwargs)
 
     wrapped_fn = wrapped_with_freq if use_variable_frequency else wrapped_fixed_freq

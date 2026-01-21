@@ -1,5 +1,5 @@
 pmrf.functions
-===========
+==============
 
 .. autosummary::
    :toctree: generated/functions

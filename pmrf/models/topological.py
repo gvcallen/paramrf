@@ -8,37 +8,18 @@ from pmrf.functions import y2s
 
 class PiCLC(Model):
     """
-    **Overview**
-
-    A 2-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
+    A 2-port or 3-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
 
     This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
     and a second shunt capacitor (`C2`). It is a fundamental building block
     for various filters and matching networks, and is also commonly used to
     model the parasitic effects of physical components like SMD resistors.
 
+    The parameter `three_port` determines whether all four ports are exposed or not.
+
     To ensure numerical stability when using with JAX, this model provides a
     special case for when the series inductance `L` is zero, where the network
     behaves as a single shunt capacitor.
-
-    **Example**
-
-    ```python
-    import pmrf as prf
-
-    # Create a Pi-network model, for example to represent parasitics
-    parasitics = prf.models.PiCLC(
-        C1=0.05e-12, # 50 fF
-        L=0.1e-9,    # 100 pH
-        C2=0.05e-12  # 50 fF
-    )
-
-    # Calculate its response over a frequency range
-    freq = prf.Frequency(start=1, stop=20, npoints=201, unit='ghz')
-    s_params = parasitics.s(freq)
-
-    print(f"S21 at 10 GHz: {abs(s_params[freq.center_idx, 1, 0]):.2f}")
-    ```
     """
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
@@ -60,17 +41,6 @@ class PiCLC(Model):
         ]).transpose(2, 0, 1)        
     
     def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the ABCD-matrix of the Pi-network.
-
-        This method dynamically chooses an appropriate calculation based on whether
-        the inductance `L` is zero, making it safe for JAX-based optimization.
-
-        Args:
-            freq (Frequency): The frequency axis for the calculation.
-
-        Returns:
-            np.ndarray: The resultant ABCD-matrix.
-        """
         if self.three_port:
             raise Exception('Cannot calculate ABCD matrix of pi network when three_port == True')
 
@@ -118,6 +88,14 @@ class PiCLC(Model):
         return y2s(self.y(freq), self.z0)
     
 class BoxCLCC(Model):
+    """
+    A 3-port or 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
+
+    This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
+    a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
+
+    The parameter `four_port` determines whether all four ports are exposed or not.
+    """    
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12

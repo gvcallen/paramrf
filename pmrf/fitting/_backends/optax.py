@@ -155,7 +155,7 @@ class OptaxFitter(FrequentistFitter):
         final_x = best_x  # use best parameters encountered
         final_cost = float(best_val)
 
-        fitted_model = ctx.model.with_flat_params(jnp.asarray(final_x))
+        fitted_model = ctx.model.with_params(jnp.asarray(final_x))
 
         solver_results = dict(message="Optimization finished",
             status=0,  # 0=OK (mimic SciPy style)

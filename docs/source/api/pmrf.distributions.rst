@@ -1,5 +1,5 @@
 pmrf.distributions
-===========
+==================
 
 .. autosummary::
    :toctree: generated/distributions

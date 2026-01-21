@@ -1,5 +1,5 @@
 pmrf.fitting
-===========
+============
 
 The **fitting** module, with built-in fitting algorithms and results
 

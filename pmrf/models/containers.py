@@ -43,6 +43,11 @@ class Circuit(Model):
         return connect_many(Smats, z0s, self.indexed_connections, self.port_idxs)
 
 class Connected(Model):
+    """
+    Represents a connection of multiple models.
+
+    The algorithm in :meth:``pmrf.functions.connections.connect_one`` is used.
+    """    
     models: Sequence[Model] | Model
     ports: Sequence[int | Sequence[int]]
 
