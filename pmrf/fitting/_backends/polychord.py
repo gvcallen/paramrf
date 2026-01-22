@@ -49,7 +49,7 @@ class PolyChordFitter(BayesianFitter):
             kwargs.setdefault('file_root', ctx.output_root)
         
         # Get the model parameters
-        param_names = ctx.flat_param_names()
+        param_names = ctx.combined_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = np.array([[name, f'{name_replaced}'] for name, name_replaced in zip(param_names, dot_param_names)])
         
@@ -83,7 +83,8 @@ class PolyChordFitter(BayesianFitter):
         fitted_model = ctx.model.with_params(x0)
         
         if update_param_groups:
-            param_group = ParameterGroup(param_names, AnestheticDistribution(nested_samples, param_names))
+            model_param_names = ctx.model_param_names()
+            param_group = ParameterGroup(model_param_names, AnestheticDistribution(nested_samples, model_param_names))
             fitted_model = fitted_model.with_param_groups(param_group)
         
         return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)

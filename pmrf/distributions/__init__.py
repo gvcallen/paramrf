@@ -8,6 +8,7 @@ from numpyro.distributions import (
 )
 
 from pmrf.distributions.trainable import TrainableDistribution, TrainableDistributionT
+from pmrf.distributions.sampled import SampledDistribution
 
 try:
     from pmrf.distributions.margarine import MargarineMAFDistribution

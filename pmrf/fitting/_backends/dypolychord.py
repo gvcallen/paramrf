@@ -100,7 +100,7 @@ class dyPolyChordFitter(BayesianFitter):
 
         # Apply parameter names manually as they aren't always preserved in the .txt output
         # unless written explicitly by the wrapper (which RunPyPolyChord does not do by default)
-        param_names = ctx.flat_param_names()
+        param_names = ctx.combined_param_names()
         
         # Ensure we don't overwrite internal anesthetic columns
         limit = min(len(param_names), len(nested_samples.columns))

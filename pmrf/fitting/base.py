@@ -360,11 +360,11 @@ class BaseFitter(ABC):
         self,
         context: FitContext,
         *,
-        load_previous: bool = True, 
+        load_previous: bool = False, 
         new_uniform_frac: float | None = 0.01,
         save_model: bool = True,
         save_results: bool = True,
-        plot_s_db: bool = True,
+        plot: str | list[str] | None = 's_db',
         figure_subfolder: str | None = None,
         callback: Callable[['FitResults'], None] | None = None,
         **kwargs
@@ -392,8 +392,8 @@ class BaseFitter(ABC):
             Saves the model to the output path (if provided).
         save_results : bool, default=True
             Saves the results to hdf format in the output path (if provided).
-        plot_s_db : bool, default=True
-            Plots the S-parameters in db and save the results in the output path (if provided]).
+        plot : str | list[str] | None, default=['s_db']
+            Features, such as S-parameters, to plot and save to the output path (if provided).
         callback : Callable[[FitResults], None] or None, optional
             A callback to run after fitting but before saving and plotting.
         **kwargs
@@ -429,9 +429,12 @@ class BaseFitter(ABC):
 
         if callback:
             callback(results)
+            
+        if plot is not None and not isinstance(plot, list):
+            plot = [plot]
 
         output_path = context.output_path
-        save_output = context.output_path is not None and (save_model or save_results or plot_s_db) and RANK == 0
+        save_output = context.output_path is not None and (save_model or save_results or plot is not None) and RANK == 0
         if save_output:
             output_prefix = f'{output_path}/{context.output_root}_' if context.output_root is not None else f'{output_path}/'
             fitted_model = results.fitted_model
@@ -446,16 +449,16 @@ class BaseFitter(ABC):
                 self.logger.info(f'Saving {name} results...')
                 results.save_hdf(Path(f'{output_prefix}results.hdf5').resolve())
         
-            if plot_s_db:
-                self.logger.info(f'Plotting {name} S-parameters in db...')
-
+            if plot is not None:
+                self.logger.info(f'Plotting {name} S-parameters...')
                 figure_path = f'{output_path}/{figure_subfolder}' if figure_subfolder is not None else output_path
                 figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
                 Path(figure_path).resolve().mkdir(parents=True, exist_ok=True)
-
-                results.plot_s_db()
-                plt.savefig(Path(f'{figure_prefix}s_db.png').resolve(), dpi=400)
-                plt.close()
+                for plot_feature in plot:
+                    func = getattr(results, f'plot_{plot_feature}')
+                    func()
+                    plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
+                    plt.close()
 
         model_metadata = results.fitted_model.metadata
         model_metadata['fit_results'] = results
@@ -514,9 +517,21 @@ class FitResults:
     # --------------------------------------------------------------------------
     # Plotting
     # --------------------------------------------------------------------------
-    def plot_s_db(self, use_initial_model=False):
+    def plot_s_db(self, **kwargs):
+        return self.plot_feature(feature='s_db', **kwargs)
+    
+    def plot_s_deg(self, **kwargs):
+        return self.plot_feature(feature='s_deg', **kwargs)
+    
+    def plot_s_re(self, **kwargs):
+        return self.plot_feature(feature='s_re', **kwargs)
+    
+    def plot_s_im(self, **kwargs):
+        return self.plot_feature(feature='s_im', **kwargs)
+    
+    def plot_feature(self, feature='s_db', use_initial_model=False):
         """
-        Plots the S-parameters (Magnitude in dB) of the Measured vs Fitted data.
+        Plots a feature (e.g. S-parameter magnitude in dB) of the Measured vs Fitted data.
         """
         import matplotlib.pyplot as plt
 
@@ -561,6 +576,7 @@ class FitResults:
         )
 
         # 3. Plotting Loop
+        feature_str = f'plot_{feature}'
         for row_idx, (label, meas, fit) in enumerate(data_to_plot):
             n_ports = meas.number_of_ports
             plot_col_idx = 0
@@ -570,9 +586,11 @@ class FitResults:
                     ax = axes[row_idx, plot_col_idx]              
                     
                     if i < fit.number_of_ports and j < fit.number_of_ports:
-                        fit.plot_s_db(m=i, n=j, ax=ax, label="Model")
+                        func = getattr(fit, feature_str)
+                        func(m=i, n=j, ax=ax, label="Model")
 
-                    meas.plot_s_db(m=i, n=j, ax=ax, label="Measured", linestyle='--', color='k')
+                    func = getattr(meas, feature_str)
+                    func(m=i, n=j, ax=ax, label="Measured", linestyle='--', color='k')
                     
                     s_param_label = f"S{i+1}{j+1}"
                     ax.set_title(f"{label} - {s_param_label}")

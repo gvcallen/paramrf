@@ -148,13 +148,13 @@ class Parameter(eqx.Module):
         """
         return dataclasses.replace(self, value=value)
     
-    def with_distribution(self, dist: Distribution) -> 'Parameter':
+    def with_distribution(self, distribution: Distribution) -> 'Parameter':
         r"""
         Return a copy of the parameter with a new distribution.
 
         Parameters
         ----------
-        dist : numpyro.distributions.Distribution
+        distribution : numpyro.distributions.Distribution
             The distribution to associate with this parameter.
 
         Returns
@@ -167,10 +167,10 @@ class Parameter(eqx.Module):
         Exception
             If ``dist`` is not a numpyro Distribution.
         """
-        if not isinstance(dist, Distribution):
+        if not isinstance(distribution, Distribution):
             raise Exception('Only numpyro distributions are supported as parameter distributions')
         
-        return dataclasses.replace(self, distribution=dist)
+        return dataclasses.replace(self, distribution=distribution)
     
     def flattened(self, separator='_') -> 'list[Parameter]':
         r"""
@@ -399,10 +399,10 @@ class ParameterGroup:
     distribution : dist.Distribution or None
         An optional joint distribution over the flattened parameters.
     """
-    parameter_names: list[str]
+    param_names: list[str]
     distribution: dist.Distribution | None = field(default=None)
     
-    def __init__(self, param_names: list[str] | dict[str, Parameter], dist: dist.Distribution | None = None):
+    def __init__(self, param_names: list[str] | dict[str, Parameter], distribution: dist.Distribution | None = None):
         r"""
         Construct a :class:`ParameterGroup`.
 
@@ -413,11 +413,11 @@ class ParameterGroup:
         dist : numpyro.distributions.Distribution, optional
             An optional joint distribution over the flattened parameters.
         """
-        self.parameter_names = param_names
-        self.distribution = dist
+        self.param_names = param_names
+        self.distribution = distribution
         
     @property
-    def num_flat_params(self):
+    def num_params(self):
         r"""
         Number of flattened parameters in the group.
 
@@ -426,7 +426,7 @@ class ParameterGroup:
         int
             The count of names in ``parameter_names``.
         """
-        return len(self.parameter_names)
+        return len(self.param_names)
             
     @property
     def min(self) -> jnp.array:
@@ -442,14 +442,14 @@ class ParameterGroup:
         """
         if self.distribution is not None:
             if hasattr(self.distribution, 'min'):
-                return self.distribution.min.reshape((self.num_flat_params))
+                return self.distribution.min.reshape((self.num_params))
             elif hasattr(self.distribution, 'low'):
-                return self.distribution.low.reshape((self.num_flat_params))
+                return self.distribution.low.reshape((self.num_params))
             else:
                 # TODO implement optimization to determine minima
-                return self.distribution.icdf(jnp.array([MIN_PERCENTILE] * self.num_flat_params))
+                return self.distribution.icdf(jnp.array([MIN_PERCENTILE] * self.num_params))
             
-        return jnp.array([-jnp.inf] * self.num_flat_params)
+        return jnp.array([-jnp.inf] * self.num_params)
     
     @property
     def max(self) -> jnp.array:
@@ -465,14 +465,38 @@ class ParameterGroup:
         """
         if self.distribution is not None:
             if hasattr(self.distribution, 'max'):
-                return self.distribution.max.reshape((self.num_flat_params))
+                return self.distribution.max.reshape((self.num_params))
             elif hasattr(self.distribution, 'high'):
-                return self.distribution.high.reshape((self.num_flat_params))
+                return self.distribution.high.reshape((self.num_params))
             else:
                 # TODO implement optimization to determine maximum
-                return self.distribution.icdf(jnp.array([MAX_PERCENTILE] * self.num_flat_params))
+                return self.distribution.icdf(jnp.array([MAX_PERCENTILE] * self.num_params))
             
-        return jnp.array([jnp.inf] * self.num_flat_params)
+        return jnp.array([jnp.inf] * self.num_params)
+    
+    def with_distribution(self, distribution: Distribution) -> 'Parameter':
+        r"""
+        Return a copy of the parameter group with a new distribution.
+
+        Parameters
+        ----------
+        distribution : numpyro.distributions.Distribution
+            The distribution to associate with this parameter.
+
+        Returns
+        -------
+        Parameter
+            A copy of this object with ``distribution`` replaced.
+
+        Raises
+        ------
+        Exception
+            If ``dist`` is not a numpyro Distribution.
+        """
+        if not isinstance(distribution, Distribution):
+            raise Exception('Only numpyro distributions are supported as parameter distributions')
+        
+        return dataclasses.replace(self, distribution=distribution)
     
     
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':

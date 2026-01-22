@@ -51,7 +51,7 @@ class BlackJAXNSFitter(BayesianFitter):
         start_time = time.time()
         rng_key = jax.random.PRNGKey(seed)
 
-        param_names = ctx.flat_param_names()
+        param_names = ctx.combined_param_names()
         dot_param_names = [name.replace('_', '.') for name in param_names]
         labeled_param_names = {name: f'\\theta_{{{name_replaced}}}' for name, name_replaced in zip(param_names, dot_param_names)}
         

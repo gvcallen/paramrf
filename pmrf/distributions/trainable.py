@@ -52,7 +52,7 @@ class TrainableDistribution(Distribution):
             scale = np.abs(np.mean(training_data, axis=0)) * drift_sigma
             training_data += np.random.normal(loc=0.0, scale=scale, size=training_data.shape)
 
-        if weighted:
+        if not weighted:
             dist = cls.from_samples(training_data, **train_kwargs)
         else:
             weights = sampled_distribution.weights()

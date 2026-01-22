@@ -138,7 +138,7 @@ class BayesianContext(FitContext):
         """
         return list(self.likelihood_params.keys())
         
-    def flat_param_names(self) -> list[str]:
+    def combined_param_names(self) -> list[str]:
         """
         Get names of all parameters (model and likelihood).
 

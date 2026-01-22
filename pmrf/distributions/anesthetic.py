@@ -1,3 +1,4 @@
+import io
 from typing import BinaryIO
 
 import jax.numpy as jnp
@@ -17,7 +18,7 @@ class AnestheticDistribution(SerializableDistribution, SampledDistribution):
         from anesthetic import NestedSamples
         
         if param_names:
-            nested_samples = nested_samples.loc[:, param_names]
+            nested_samples = nested_samples.loc[:, param_names + ['logL', 'logL_birth', 'nlive']]
         else:
             columns = nested_samples.columns
             param_names = [columns[i][0] for i in range(len(columns))]
@@ -35,10 +36,13 @@ class AnestheticDistribution(SerializableDistribution, SampledDistribution):
     
     @classmethod
     def load(cls, source: str | BinaryIO) -> 'AnestheticDistribution':
-        from anesthetic import read_csv
+        from anesthetic import NestedSamples, read_csv
         
         if isinstance(source, str):
-            return AnestheticDistribution(read_csv(source))
+            # NB: read_csv directly does NOT work for some reason
+            with open(source, 'r') as f:
+                csv_str = f.read()
+                return AnestheticDistribution(NestedSamples(read_csv(io.StringIO(csv_str))))
         return cls.read(source)
     
     def param_names(self) -> list[str]:
@@ -48,16 +52,16 @@ class AnestheticDistribution(SerializableDistribution, SampledDistribution):
         return param_names
 
     def samples(self, prior=False, weighted=False) -> jnp.ndarray:
-        if not weighted:
-            if prior:
-                nested_samples = self.nested_samples.prior_points()
-            else:
-                nested_samples = self.nested_samples.posterior_points()
-        else:
+        if weighted:
             if prior:
                 nested_samples = self.nested_samples.prior()
             else:
                 nested_samples = self.nested_samples
+        else:
+            if prior:
+                nested_samples = self.nested_samples.prior_points()
+            else:
+                nested_samples = self.nested_samples.posterior_points()
         
         prior_samples = nested_samples.loc[:, self.param_names()].to_numpy()
         return jnp.array(prior_samples)

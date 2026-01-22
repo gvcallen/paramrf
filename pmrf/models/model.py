@@ -908,15 +908,45 @@ class Model(eqx.Module):
         """
         return jnp.array(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
     
-    def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
-        """Return all parameter groups relevant to this model.
+    # def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
+    #     """Return all parameter groups relevant to this model.
 
-        This function is useful for fitters that need to take into account
-        e.g. any constraints or correlated priors. Only groups that were
-        create with the same `flat` flag are returned.
+    #     This function is useful for fitters that need to take into account
+    #     e.g. any constraints or correlated priors. Only groups that were
+    #     create with the same `flat` flag are returned.
         
-        Currently, only groups for the current model are considered
-        (i.e. groups in children models are ignored).
+    #     Currently, only groups for the current model are considered
+    #     (i.e. groups in children models are ignored).
+
+    #     Parameters
+    #     ----------
+    #     include_fixed : bool, default=False
+    #         Include groups involving fixed parameters.
+
+    #     Returns
+    #     -------
+    #     list[ParameterGroup]
+    #     """        
+        
+    #     params = self.named_flat_params(include_fixed=include_fixed)
+    #     groups = [group for group in self._param_groups]
+
+    #     grouped_param_names = {name for group in groups for name in group.parameter_names}
+    #     for name, param in params.items():
+    #         if name not in grouped_param_names:
+    #             groups.append(ParameterGroup(param_names=[name], dist=param.distribution))
+        
+    #     return groups
+    
+    def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
+        """Return all parameter groups relevant to this model, including submodels.
+
+        This function recursively traverses submodels to collect their parameter groups,
+        adjusting parameter names to match the current model's scope.
+
+        Priority is given to groups defined in the parent model. If a parameter is 
+        grouped explicitly in `self._param_groups`, it will be removed from any 
+        groups returned by submodels.
 
         Parameters
         ----------
@@ -926,17 +956,67 @@ class Model(eqx.Module):
         Returns
         -------
         list[ParameterGroup]
-        """        
-        
-        params = self.named_flat_params(include_fixed=include_fixed)
-        groups = [group for group in self._param_groups]
+        """
+        # 1. Start with local, explicit groups defined in this model
+        # We deepcopy to avoid mutating the stored private list
+        groups = [deepcopy(group) for group in self._param_groups]
 
-        grouped_param_names = {name for group in groups for name in group.parameter_names}
-        for name, param in params.items():
-            if name not in grouped_param_names:
-                groups.append(ParameterGroup(param_names=[name], dist=param.distribution))
+        # 2. Traverse submodels to get their groups recursively
+        # We use tree_flatten_with_path to find all Model instances within self.
+        # We treat Model instances as leaves so we don't traverse into their individual parameters here.
+        path_and_nodes, _ = jax.tree_util.tree_flatten_with_path(
+            self, 
+            is_leaf=lambda x: isinstance(x, Model) and x is not self
+        )
+
+        for path, node in path_and_nodes:
+            # Check if the node is a submodel (and not self, though is_leaf handles that mostly)
+            if isinstance(node, Model) and node is not self:
+                # Calculate the prefix for this submodel (e.g., "amplifier_")
+                relative_name = self._path_to_param_name(path)
+                prefix = f"{relative_name}{self.separator}" if relative_name else ""
+
+                # Recursively get groups from the submodel
+                sub_groups = node.param_groups(include_fixed=include_fixed)
+
+                # "Lift" the submodel groups into the current namespace
+                for sub_group in sub_groups:
+                    new_names = [prefix + name for name in sub_group.param_names]
+                    # Create a new group with the updated names
+                    lifted_group = dataclasses.replace(sub_group, param_names=new_names)
+                    groups.append(lifted_group)
+
+        # 3. Deduplication and Conflict Resolution
+        # We prioritize groups that appear earlier in the list (Parent groups > Submodel groups).
+        # We filter the list to ensure every parameter appears in exactly one group.
         
-        return groups
+        final_groups = []
+        seen_params = set()
+
+        for group in groups:
+            # Find parameters in this group that haven't been claimed by a higher-priority group
+            valid_names = [name for name in group.param_names if name not in seen_params]
+            
+            # If the group has valid parameters left, add it
+            if valid_names:
+                # If the group shrank (because parent claimed some params), update it
+                if len(valid_names) != len(group.param_names):
+                    group = dataclasses.replace(group, param_names=valid_names)
+                
+                final_groups.append(group)
+                seen_params.update(valid_names)
+
+        # 4. Handle Orphans
+        # Any parameter in the entire model that wasn't caught in the steps above 
+        # (mostly local parameters of `self` that weren't in `_param_groups`) gets a singleton group.
+        all_params = self.named_flat_params(include_fixed=include_fixed)
+        
+        for name, param in all_params.items():
+            if name not in seen_params:
+                final_groups.append(ParameterGroup(param_names=[name], distribution=param.distribution))
+                seen_params.add(name)
+
+        return final_groups     
     
     def distribution(self) -> JointParameterDistribution:
         """Joint distribution over (flattened) parameters.
@@ -1145,11 +1225,41 @@ class Model(eqx.Module):
             raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
         return self.with_free_params(*args, **kwargs)
     
-    def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
-        """Return a model with parameter groups appended.
+    # def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
+    #     """Return a model with parameter groups appended.
         
-        Parameter groups can be used to specify relationships between parameters in the model,
-        such as joint priors.
+    #     Parameter groups can be used to specify relationships between parameters in the model,
+    #     such as joint priors.
+
+    #     Parameters
+    #     ----------
+    #     param_groups : ParameterGroup or list[ParameterGroup]
+    #         Group(s) to add.
+
+    #     Returns
+    #     -------
+    #     Self
+    #     """        
+    #     if not isinstance(param_groups, list):
+    #         param_groups = [param_groups]
+        
+    #     param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
+    #     param_groups_new = param_groups_old
+    #     param_groups_new.extend(param_groups)
+    #     param_groups_new = [param_group for param_group in param_groups_new]
+    #     return dataclasses.replace(self, _param_groups=param_groups_new)    
+    
+    def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
+        """Return a model with parameter groups appended, replacing existing relationships.
+        
+        This method implements an "atomic replacement" policy. If *any* parameter in 
+        an existing group is claimed by a new group, the *entire* existing group is 
+        removed. 
+        
+        This ensures that groups defining joint distributions are not left in an 
+        invalid broken state (e.g. having a dimension removed). Parameters that were 
+        in the removed group but not in the new group will revert to being ungrouped 
+        (handled by `param_groups` as singleton groups).
 
         Parameters
         ----------
@@ -1159,15 +1269,39 @@ class Model(eqx.Module):
         Returns
         -------
         Self
-        """        
+        """       
         if not isinstance(param_groups, list):
             param_groups = [param_groups]
         
-        param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
-        param_groups_new = param_groups_old
-        param_groups_new.extend(param_groups)
-        param_groups_new = [param_group for param_group in param_groups_new]
-        return dataclasses.replace(self, _param_groups=param_groups_new)    
+        # 1. Identify all parameter names claimed by the NEW groups
+        new_claimed_params = set()
+        for group in param_groups:
+            # Assumes the field name is 'param_names' per your previous context
+            new_claimed_params.update(group.param_names)
+
+        # 2. Filter OLD groups (Atomic check)
+        current_groups = self._param_groups if self._param_groups is not None else []
+        kept_existing_groups = []
+        
+        for group in current_groups:
+            # Check for intersection: Does this existing group contain ANY parameter 
+            # that is now being redefined in the new groups?
+            existing_group_params = set(group.param_names)
+            
+            if existing_group_params.isdisjoint(new_claimed_params):
+                # No conflict: Keep this group entirely
+                kept_existing_groups.append(group)
+            else:
+                # Conflict found: Discard this group entirely. 
+                # Note: Parameters in this group that were NOT in 'new_claimed_params' 
+                # are now effectively "released" and will be treated as singletons 
+                # by the main param_groups() method.
+                pass
+
+        # 3. Combine
+        new_list = kept_existing_groups + param_groups
+        
+        return dataclasses.replace(self, _param_groups=new_list)    
     
     def with_uniform_distributions(self, width_frac=0.01):
         updates = {}
