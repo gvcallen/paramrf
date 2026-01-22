@@ -59,7 +59,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     SciPy Minimize: Classical optimization using ``scipy.optimize.minimize``.
     """
-    def _run_algorithm(self, ctx: FrequentistContext, *, max_iterations=1000, optimizer='SLSQP', log_every=500, **kwargs) -> FrequentistResults:
+    def _run_algorithm(self, ctx: FrequentistContext, *, optimizer='SLSQP', max_iterations=None, log_every=500, **kwargs) -> FrequentistResults:
         """
         Executes the optimization using SciPy.
 
@@ -67,10 +67,10 @@ class SciPyMinimizeFitter(FrequentistFitter):
         ----------
         ctx : FrequentistContext
             The context containing the model, data, and cost function.
-        max_iterations : int, optional, default=1000
-            The maximum number of iterations allowed for the optimizer.
         optimizer : str, optional, default='SLSQP'
             The name of the SciPy optimizer method to use (e.g., 'SLSQP', 'Nelder-Mead', 'BFGS').
+        max_iterations : int, optional, default=None
+            The maximum number of iterations allowed for the optimizer.
         log_every : int, optional, default=500
             The interval (in function evaluations) at which to log the current cost.
         **kwargs

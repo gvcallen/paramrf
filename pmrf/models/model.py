@@ -332,8 +332,8 @@ class Model(eqx.Module):
             if submodels and isinstance(submodels[0], str):
                 submodels: list[Model] = [getattr(self, name) for name in submodels]
 
-            allowed = [p for sm in submodels for p in sm.params(include_fixed=include_fixed)]
-            params = [(k, v) for k, v in params if v in allowed]
+            allowed = {id(p) for sm in submodels for p in sm.params(include_fixed=include_fixed)}
+            params = [(k, v) for k, v in params if id(v) in allowed]
 
         # Flatten multi-dimensional parameters if requested
         if flatten:
@@ -1287,11 +1287,13 @@ class Model(eqx.Module):
         ----------
         group : h5py.Group
             Target group. Two subgroups are created: ``raw`` and ``params``.
-        """        
-        params_tree, static_tree = self._partition(include_fixed=True, param_objects=True)
-        params = self.named_params()
+        """
+        model_save = self.with_fields(metadata=dict())
+
+        params_tree, static_tree = model_save._partition(include_fixed=True, param_objects=True)
+        params = model_save.named_params()
         model_raw_grp = group.create_group('raw')
-        model_raw_grp.create_dataset('combined', data=jsonpickle.encode(self))
+        model_raw_grp.create_dataset('combined', data=jsonpickle.encode(model_save))
         model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
         model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
         
@@ -1345,7 +1347,7 @@ class Model(eqx.Module):
         filepath : str
             Destination file path.
         """
-        model_save = self.with_fields(metadata=None)
+        model_save = self.with_fields(metadata=dict())
 
         data = jsonpickle.encode(model_save)
         

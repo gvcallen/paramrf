@@ -43,7 +43,8 @@ class PolyChordFitter(BayesianFitter):
 
         if ctx.output_path is not None:
             kwargs.setdefault('base_dir', f'{ctx.output_path}/chains')
-        kwargs.setdefault('file_root', ctx.output_root)
+        if ctx.output_root is not None:
+            kwargs.setdefault('file_root', ctx.output_root)
         
         # Get the model parameters
         param_names = ctx.flat_param_names()
