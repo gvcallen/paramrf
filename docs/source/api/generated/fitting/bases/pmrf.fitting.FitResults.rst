@@ -34,6 +34,16 @@
       ~FitResults.__sizeof__
       ~FitResults.__str__
       ~FitResults.__subclasshook__
+      ~FitResults._decode_recursive
+      ~FitResults._encode_recursive
+      ~FitResults._group_to_dict
+      ~FitResults._read_from_group
+      ~FitResults._read_network
+      ~FitResults._read_settings
+      ~FitResults._save_dict_to_group
+      ~FitResults._write_network
+      ~FitResults._write_settings
+      ~FitResults._write_to_group
       ~FitResults.decode_solver_results
       ~FitResults.encode_solver_results
       ~FitResults.load_hdf

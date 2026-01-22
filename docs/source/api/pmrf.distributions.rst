@@ -7,4 +7,7 @@ pmrf.distributions
    :recursive:
 
    pmrf.distributions.parameter
-   pmrf.distributions.maf
+   pmrf.distributions.trainable
+   pmrf.distributions.sampled
+   pmrf.distributions.margarine
+   pmrf.distributions.anesthetic

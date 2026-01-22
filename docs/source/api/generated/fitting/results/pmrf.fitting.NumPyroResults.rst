@@ -34,6 +34,16 @@
       ~NumPyroResults.__sizeof__
       ~NumPyroResults.__str__
       ~NumPyroResults.__subclasshook__
+      ~NumPyroResults._decode_recursive
+      ~NumPyroResults._encode_recursive
+      ~NumPyroResults._group_to_dict
+      ~NumPyroResults._read_from_group
+      ~NumPyroResults._read_network
+      ~NumPyroResults._read_settings
+      ~NumPyroResults._save_dict_to_group
+      ~NumPyroResults._write_network
+      ~NumPyroResults._write_settings
+      ~NumPyroResults._write_to_group
       ~NumPyroResults.decode_solver_results
       ~NumPyroResults.encode_solver_results
       ~NumPyroResults.fit_posterior

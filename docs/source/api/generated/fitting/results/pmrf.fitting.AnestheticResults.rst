@@ -34,6 +34,16 @@
       ~AnestheticResults.__sizeof__
       ~AnestheticResults.__str__
       ~AnestheticResults.__subclasshook__
+      ~AnestheticResults._decode_recursive
+      ~AnestheticResults._encode_recursive
+      ~AnestheticResults._group_to_dict
+      ~AnestheticResults._read_from_group
+      ~AnestheticResults._read_network
+      ~AnestheticResults._read_settings
+      ~AnestheticResults._save_dict_to_group
+      ~AnestheticResults._write_network
+      ~AnestheticResults._write_settings
+      ~AnestheticResults._write_to_group
       ~AnestheticResults.decode_solver_results
       ~AnestheticResults.encode_solver_results
       ~AnestheticResults.fit_posterior

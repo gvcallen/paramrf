@@ -34,6 +34,16 @@
       ~FrequentistResults.__sizeof__
       ~FrequentistResults.__str__
       ~FrequentistResults.__subclasshook__
+      ~FrequentistResults._decode_recursive
+      ~FrequentistResults._encode_recursive
+      ~FrequentistResults._group_to_dict
+      ~FrequentistResults._read_from_group
+      ~FrequentistResults._read_network
+      ~FrequentistResults._read_settings
+      ~FrequentistResults._save_dict_to_group
+      ~FrequentistResults._write_network
+      ~FrequentistResults._write_settings
+      ~FrequentistResults._write_to_group
       ~FrequentistResults.decode_solver_results
       ~FrequentistResults.encode_solver_results
       ~FrequentistResults.load_hdf

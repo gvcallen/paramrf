@@ -34,6 +34,16 @@
       ~SciPyResults.__sizeof__
       ~SciPyResults.__str__
       ~SciPyResults.__subclasshook__
+      ~SciPyResults._decode_recursive
+      ~SciPyResults._encode_recursive
+      ~SciPyResults._group_to_dict
+      ~SciPyResults._read_from_group
+      ~SciPyResults._read_network
+      ~SciPyResults._read_settings
+      ~SciPyResults._save_dict_to_group
+      ~SciPyResults._write_network
+      ~SciPyResults._write_settings
+      ~SciPyResults._write_to_group
       ~SciPyResults.decode_solver_results
       ~SciPyResults.encode_solver_results
       ~SciPyResults.load_hdf

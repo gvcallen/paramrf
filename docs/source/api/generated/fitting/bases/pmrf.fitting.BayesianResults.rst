@@ -34,6 +34,16 @@
       ~BayesianResults.__sizeof__
       ~BayesianResults.__str__
       ~BayesianResults.__subclasshook__
+      ~BayesianResults._decode_recursive
+      ~BayesianResults._encode_recursive
+      ~BayesianResults._group_to_dict
+      ~BayesianResults._read_from_group
+      ~BayesianResults._read_network
+      ~BayesianResults._read_settings
+      ~BayesianResults._save_dict_to_group
+      ~BayesianResults._write_network
+      ~BayesianResults._write_settings
+      ~BayesianResults._write_to_group
       ~BayesianResults.decode_solver_results
       ~BayesianResults.encode_solver_results
       ~BayesianResults.fit_posterior
