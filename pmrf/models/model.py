@@ -10,9 +10,9 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, Sequence, TypeVar, Union, Iterator
+from typing import Callable, Sequence, TypeVar, Iterator
 import dataclasses
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, MISSING
 from functools import update_wrapper
 import jax.numpy as jnp
 import numpy as np
@@ -31,14 +31,14 @@ from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
-from numpyro.distributions import Distribution, Uniform as UniformDistribution
+from numpyro.distributions import Uniform as UniformDistribution
 
 from pmrf.network_collection import NetworkCollection
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions.parameter import JointParameterDistribution
-from pmrf.constants import PRIMARY_PROPERTIES, IndexArray, ModelT
+from pmrf.constants import PRIMARY_PROPERTIES, ModelT
 from pmrf.frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, value_at_path, partition, combine
@@ -120,11 +120,13 @@ class Model(eqx.Module):
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
-    # Instance fields
+    # Public instance fields
     name: str | None = field(default=None, kw_only=True, static=True)
     separator: str = field(default='_', kw_only=True, static=True)
     metadata: dict = field(default_factory=lambda: dict(), kw_only=True, static=True)
-    _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+    
+    # Private instance fields
     _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
     # ---- Internal initialization methods -------------------------------------------------
@@ -198,6 +200,19 @@ class Model(eqx.Module):
                 m = make_dynamic_method(f"{prop}_mn", func)
                 m._pmrf_auto = True
                 setattr(cls, func_name, m)
+                
+    def __setstate__(self, state: dict):
+        # Restore serialized attributes
+        self.__dict__.update(state)
+
+        # Apply dataclass defaults (works for subclasses)
+        if is_dataclass(self):
+            for f in fields(self):
+                if not hasattr(self, f.name):
+                    if f.default is not MISSING:
+                        setattr(self, f.name, f.default)
+                    elif f.default_factory is not MISSING:
+                        setattr(self, f.name, f.default_factory())    
 
     # ---- Internal PyTree manipulation, introspection and helpers -------------------------------------------------
     
@@ -484,7 +499,7 @@ class Model(eqx.Module):
         -------
         jnp.ndarray
         """
-        return jnp.array(self._z0)
+        return jnp.array(self.z0)
     
     @cached_property
     def num_params(self) -> int:
@@ -668,7 +683,7 @@ class Model(eqx.Module):
     # ---- Model fitting --------------------------------------------------    
     
     def fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
-        """Returns a new model with its submodels fitted to measured data.
+        """Returns a new model fitted to measured data.
 
         This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
         See the :func:`fit <pmrf.fitting.BaseFitter.fit>` method for more details.
@@ -690,9 +705,8 @@ class Model(eqx.Module):
         Model
             The fitted model.
         """           
-        from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
-        init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-        return Fitter(self, **init_kwargs).fit(measured, **kwargs).fitted_model
+        from pmrf.fitting import fit
+        return fit(self, measured, **kwargs)
 
     def with_submodels_fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
         """Returns a new model with its submodels fitted to measured data.
@@ -717,9 +731,8 @@ class Model(eqx.Module):
         Model
             The fitted model.
         """         
-        from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
-        init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-        return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs).fitted_model
+        from pmrf.fitting import fit_submodels
+        return fit_submodels(self, measured, **kwargs)
     
     # ---- Parameter inspection -------------------------------------------------- 
     
@@ -1277,7 +1290,7 @@ class Model(eqx.Module):
             fname: fval,
             'frequency': measured_freq,
             'name': kwargs.get('name', self.name),
-            'z0': self._z0,
+            'z0': self.z0,
         })
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:

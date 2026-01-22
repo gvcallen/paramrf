@@ -2,13 +2,14 @@ import inspect
 
 from pmrf.fitting.base import (
     Fitter,
-    INIT_PARAMS,
     BaseFitter,
     FitResults,
     FitContext,
     is_frequentist,
     is_bayesian,
     is_inference_kind,
+    fit,
+    fit_submodels,
 )
 
 from pmrf.fitting.frequentist import (

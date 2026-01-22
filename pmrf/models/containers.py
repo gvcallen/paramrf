@@ -202,7 +202,7 @@ class Cascade(Model):
         
         # Terminated last in s11
         s11 = self.last_model.s(freq)[:,0,0]
-        z0 = self.first_model._z0
+        z0 = self.first_model.z0
         
         A, B, C, D = a[:,0,0], a[:,0,1], a[:,1,0], a[:,1,1]
         num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)

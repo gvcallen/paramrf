@@ -24,8 +24,6 @@ from pmrf.constants import FeatureInputT
 from pmrf import extract_features, wrap
 from pmrf.network_collection import NetworkCollection
 
-INIT_PARAMS = ['features', 'output_path', 'output_root', 'sparam_kind', 'cost_kind', 'cost_function' 'likelihood_kind', 'likelihood_params', 'feature_sigmas']
-    
 @dataclass
 class FitSettings:
     """
@@ -975,3 +973,61 @@ def get_fitter_class(solver: str):
                     return getattr(fitter_submodel, class_name)
     except (ImportError, AttributeError) as e:
         raise Exception(f'Could not find solver named {solver} with error: {e}')
+    
+def fit(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Model:
+    """Fits a model to measured data.
+
+    This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
+    See the :func:`fit <pmrf.fitting.BaseFitter.fit>` method for more details.
+    
+    Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit(...)` is called,
+    with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+
+    Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
+
+    Parameters
+    ----------
+    model: prf.Model
+        The model to fit.
+    measured : prf.NetworkCollection | skrf.Network | str
+        The measured data.
+    **kwargs
+        Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit`.
+
+    Returns
+    -------
+    Model
+        The fitted model.
+    """        
+    from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
+    init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
+    return Fitter(model, **init_kwargs).fit(measured, **kwargs).fitted_model
+
+def fit_submodels(self: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Model:
+    """Fits a model's submodels to measured data.
+
+    This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
+    See the :func:`fit_submodels <pmrf.fitting.BaseFitter.fit_submodels>` method for more details.
+    
+    Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit_submodels(...)` is called,
+    with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
+
+    Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
+
+    Parameters
+    ----------
+    model: prf.Model
+        The model to fit.    
+    measured : prf.NetworkCollection | skrf.Network | str
+        The measured data.
+    **kwargs
+        Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit_submodels`.
+
+    Returns
+    -------
+    Model
+        The fitted model.
+    """         
+    from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
+    init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
+    return Fitter(model=self, **init_kwargs).fit_submodels(measured, **kwargs).fitted_model
