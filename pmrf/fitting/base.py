@@ -433,9 +433,11 @@ class BaseFitter(ABC):
                 results.save_hdf(f'{output_prefix}results.hdf5')
         
             if plot_s_db:
-                results.plot_s_db()
                 figure_path = f'{context.output_path}/{figure_subfolder}' if figure_subfolder is not None else context.output_path
                 figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
+                Path(figure_path).mkdir(parents=True, exist_ok=True)
+
+                results.plot_s_db()
                 plt.savefig(f'{figure_prefix}s_db.png', dpi=400)
                 plt.close()
 
