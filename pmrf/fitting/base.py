@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import importlib
 import logging
 from typing import Any, Sequence, Callable
+import os
 from pathlib import Path
 
 import numpy as np
@@ -248,7 +249,7 @@ class BaseFitter(ABC):
         ctx_kwargs = kwargs.copy()
         ctx_kwargs['save_results'] = False
         ctx_kwargs['save_model'] = False
-        ctx_kwargs.setdefault('figure_subfolder', 'figures')
+        ctx_kwargs.setdefault('figure_subfolder', '../../figures')
 
         for ntwk in measured:
             name = ntwk.name
@@ -257,7 +258,7 @@ class BaseFitter(ABC):
             
             model = self.model.with_free_submodels([name], fix_others=True)
             comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
-            output_path = self.output_path
+            output_path = f'{self.output_path}/submodels/{ntwk.name}'
             
             ctx = self._create_context(comp_measured, model=model, output_path=output_path, output_root=name)
             all_results[name] = self._run_context(ctx, **ctx_kwargs)
@@ -278,7 +279,7 @@ class BaseFitter(ABC):
             if kwargs.get('save_model', True):
                 name = fitted_model.name or 'model'
                 fitted_model.save(f'{self.output_path}/fitted_{name}.prf')
-            self.logger.info(f'Saving results...')
+            self.logger.info(f'Saving combined results...')
             if kwargs.get('save_results', True):
                 fit_results.save_hdf(f'{self.output_path}/results.hdf5')
 
@@ -420,25 +421,31 @@ class BaseFitter(ABC):
         if callback:
             callback(results)
 
+        output_path = context.output_path
         save_output = context.output_path is not None and (save_model or save_results or plot_s_db) and RANK == 0
         if save_output:
-            Path(context.output_path).mkdir(parents=True, exist_ok=True)
-            output_prefix = f'{context.output_path}/{context.output_root}_' if context.output_root is not None else f'{context.output_path}/'
+            output_prefix = f'{output_path}/{context.output_root}_' if context.output_root is not None else f'{output_path}/'
+            fitted_model = results.fitted_model
+            name = results.measured[0].name or fitted_model.name or 'model'
             if save_model:
-                fitted_model = results.fitted_model
-                model_name = fitted_model.name or 'model'
-                fitted_model.save(f'{output_prefix}fitted_{model_name}.prf')
+                Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
+                self.logger.info(f'Saving {name} model...')
+                fitted_model.save(Path(f'{output_prefix}fitted_{name}.prf').resolve())
 
             if save_results:
-                results.save_hdf(f'{output_prefix}results.hdf5')
+                Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
+                self.logger.info(f'Saving {name} results...')
+                results.save_hdf(Path(f'{output_prefix}results.hdf5').resolve())
         
             if plot_s_db:
-                figure_path = f'{context.output_path}/{figure_subfolder}' if figure_subfolder is not None else context.output_path
+                self.logger.info(f'Plotting {name} S-parameters in db...')
+
+                figure_path = f'{output_path}/{figure_subfolder}' if figure_subfolder is not None else output_path
                 figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
-                Path(figure_path).mkdir(parents=True, exist_ok=True)
+                Path(figure_path).resolve().mkdir(parents=True, exist_ok=True)
 
                 results.plot_s_db()
-                plt.savefig(f'{figure_prefix}s_db.png', dpi=400)
+                plt.savefig(Path(f'{figure_prefix}s_db.png').resolve(), dpi=400)
                 plt.close()
 
         model_metadata = results.fitted_model.metadata
