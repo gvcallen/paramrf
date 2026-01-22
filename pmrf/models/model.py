@@ -10,7 +10,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, Sequence, TypeVar, Union, Iterator
+from typing import Callable, Sequence, TypeVar, Iterator, Self
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
@@ -31,19 +31,17 @@ from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
-from numpyro.distributions import Distribution, Uniform as UniformDistribution
+from numpyro.distributions import Uniform as UniformDistribution
 
 from pmrf.network_collection import NetworkCollection
 from pmrf.functions.conversions import a2s, s2a
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions.parameter import JointParameterDistribution
-from pmrf.constants import PRIMARY_PROPERTIES, IndexArray, ModelT
+from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
 from pmrf._tree import nodes_by_type, value_at_path, partition, combine
-
-ModelT = TypeVar('ModelT', bound='Model')
 
 class Model(eqx.Module):
     """
@@ -278,9 +276,65 @@ class Model(eqx.Module):
                     fields.append(value.name)
                 else:
                     fields.append(str(item.idx))
-        return self.separator.join(fields)        
+        return self.separator.join(fields)
     
-    def _partition(self: ModelT, include_fixed=False, param_objects=False) -> tuple[ModelT, ModelT]:        
+    def _with_stripped_metadata(self: Self) -> Self:
+        def strip_metadata_recursive(obj, memo=None):
+            if memo is None:
+                memo = {}
+            
+            # Return immediately if we've already processed this object (preserves shared references)
+            obj_id = id(obj)
+            if obj_id in memo:
+                return memo[obj_id]
+
+            # Case 1: It's an Equinox Module
+            if isinstance(obj, Model):
+                # 1. Recursively clean all fields first
+                new_fields = {}
+                for field in dataclasses.fields(obj):
+                    # Skip metadata, we will overwrite it later
+                    if field.name == 'metadata':
+                        continue
+                    
+                    # Recurse on the field's value
+                    val = getattr(obj, field.name)
+                    new_fields[field.name] = strip_metadata_recursive(val, memo)
+                
+                # 2. Create the new instance with updated children
+                # using dataclasses.replace (standard) or obj.with_fields (your custom method)
+                new_obj = dataclasses.replace(obj, **new_fields)
+                
+                # 3. Clear the metadata for this specific module
+                if hasattr(new_obj, "metadata"):
+                    new_obj = dataclasses.replace(new_obj, metadata=dict())
+                    
+                memo[obj_id] = new_obj
+                return new_obj
+
+            # Case 2: It's a list/tuple (standard container)
+            elif isinstance(obj, (list, tuple)):
+                # Reconstruct the list/tuple with cleaned items
+                new_obj = type(obj)(strip_metadata_recursive(x, memo) for x in obj)
+                memo[obj_id] = new_obj
+                return new_obj
+
+            # Case 3: It's a dict
+            elif isinstance(obj, dict):
+                new_obj = {k: strip_metadata_recursive(v, memo) for k, v in obj.items()}
+                memo[obj_id] = new_obj
+                return new_obj
+
+            # Case 4: It's a leaf (int, string, array, etc.) - leave as is
+            else:
+                return obj
+            
+        return strip_metadata_recursive(self)
+    
+    def _saveable(self: Self) -> Self:
+        return self._with_stripped_metadata()
+    
+    def _partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
         """Partition model into (parameters, static) trees.
         
         This is useful for internal use, or for inspecting the model
@@ -295,7 +349,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        (ModelT, ModelT)
+        (Self, Self)
             ``(params_tree, static_tree)``
         """        
         if param_objects:
@@ -435,7 +489,7 @@ class Model(eqx.Module):
                 return property
         raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
     
-    def copy(self: ModelT) -> ModelT:
+    def copy(self: Self) -> Self:
         """Returns a deepcopy of self.
 
         Returns
@@ -665,7 +719,7 @@ class Model(eqx.Module):
     
     # ---- Model fitting --------------------------------------------------    
     
-    def fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
+    def fitted(self: Self, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Self:
         """Returns a new model fitted to measured data.
 
         This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
@@ -691,7 +745,7 @@ class Model(eqx.Module):
         from pmrf.fitting import fit
         return fit(self, measured, **kwargs)
 
-    def with_submodels_fitted(self: ModelT, measured: str | skrf.Network | NetworkCollection, **kwargs) -> ModelT:
+    def with_submodels_fitted(self: Self, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Self:
         """Returns a new model with its submodels fitted to measured data.
 
         This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
@@ -897,14 +951,14 @@ class Model(eqx.Module):
     # ---- Parameter manipulation --------------------------------------------------            
 
     def with_params(
-        self: ModelT,
+        self: Self,
         params: dict[str, Parameter] | dict[str, float] | jnp.ndarray | None = None,
         check_missing: bool = False,
         check_unknown: bool = False,
         fix_others = False,
         include_fixed = False,
         **param_kwargs: dict[str, Parameter] | dict[str, float],
-    ) -> ModelT:
+    ) -> Self:
         """Return a new model with parameters updated.
 
         This is a multi-purpose function that updates parameters differently
@@ -928,7 +982,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
 
         Raises
         ------
@@ -1004,7 +1058,7 @@ class Model(eqx.Module):
             params_tree_recon = unravel_fn(params)
             return combine(params_tree_recon, static)           
         
-    def with_fixed_params(self: ModelT, params: list[str] | Callable[[str], bool], check_unknown=True) -> ModelT:
+    def with_fixed_params(self: Self, params: list[str] | Callable[[str], bool], check_unknown=True) -> Self:
         """Return a model with specified parameters fixed.
 
         Parameters
@@ -1016,7 +1070,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """
         # For legacy callers
         if isinstance(params, str):
@@ -1041,7 +1095,7 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: ModelT, params: list[str] | Callable[[str], bool], fix_others=False) -> ModelT:
+    def with_free_params(self: Self, params: list[str] | Callable[[str], bool], fix_others=False) -> Self:
         """Free the specified parameters.
 
         Parameters
@@ -1053,12 +1107,12 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """
         if isinstance(params, Callable):
             params = [p for p in self.param_names() if params(p)]        
         
-        if isinstance(params[0], Parameter):
+        if len(params) > 0 and isinstance(params[0], Parameter):
             param_id_to_name: dict[Parameter, str] = {id(v): k for k, v in self.named_params().items()}
             params = [param_id_to_name[id(param)] for param in params]
         
@@ -1078,7 +1132,7 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params_only(self: ModelT, *args, **kwargs) -> ModelT:
+    def with_free_params_only(self: Self, *args, **kwargs) -> Self:
         """Returns a model with only the specified parameters freed.
         
         This is an alias for calling :meth:``with_free_params``
@@ -1091,7 +1145,7 @@ class Model(eqx.Module):
             raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
         return self.with_free_params(*args, **kwargs)
     
-    def with_param_groups(self: ModelT, param_groups: ParameterGroup | list[ParameterGroup]) -> ModelT:
+    def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
         """Return a model with parameter groups appended.
         
         Parameter groups can be used to specify relationships between parameters in the model,
@@ -1104,7 +1158,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """        
         if not isinstance(param_groups, list):
             param_groups = [param_groups]
@@ -1154,7 +1208,7 @@ class Model(eqx.Module):
                 return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
         return DefaultsWrapper(partial(cls, *args, **kwargs))
     
-    def with_models(self: ModelT, models: ModelT | Sequence[ModelT]) -> ModelT:
+    def with_models(self: Self, models: Self | Sequence[Self]) -> Self:
         """Combines this model with free parameters in other models.
         
         This is useful to combine separate models obtained from fitting
@@ -1178,7 +1232,7 @@ class Model(eqx.Module):
             combined = combined.with_param_groups(other.param_groups())
         return combined
     
-    def with_fields(self: ModelT, *args, **kwargs) -> ModelT:
+    def with_fields(self: Self, *args, **kwargs) -> Self:
         """
         Return a copy of this model with dataclass-style field replacements.
 
@@ -1186,7 +1240,7 @@ class Model(eqx.Module):
         """
         return dataclasses.replace(self, *args, **kwargs)
     
-    def with_submodel_fields(self: ModelT, submodel: str, *args, **kwargs) -> ModelT:
+    def with_submodel_fields(self: Self, submodel: str, *args, **kwargs) -> Self:
         """
         Return a copy of this model with dataclass-style field replacements on a sub-model.
 
@@ -1200,7 +1254,7 @@ class Model(eqx.Module):
         with_field_kwargs = {submodel: getattr(self, submodel).with_fields(*args, **kwargs)}
         return self.with_fields(**with_field_kwargs)    
     
-    def with_free_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> ModelT:
+    def with_free_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> Self:
         """Free all parameters in the given submodels.
 
         Submodels parameters are obtained using :meth:`param_names`.,
@@ -1217,12 +1271,25 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """        
         model_param_names = self.param_names(include_fixed=include_fixed, submodels=submodels)
         return self.with_free_params(model_param_names, fix_others=fix_others)
+
+    def with_free_submodels_only(self: Self, *args, **kwargs) -> Self:
+        """Returns a model with only the specified submodels freed.
+        
+        This is an alias for calling :meth:``with_free_submodels``
+        with `fix_others=True`.
+
+        See :meth:``with_free_params``.
+        """     
+        kwargs.setdefault('fix_others', True)
+        if kwargs['fix_others'] == False:
+            raise Exception("Cannot pass fix_others == False for `with_free_submodels_only`.")
+        return self.with_free_submodels(*args, **kwargs)
     
-    def with_fixed_submodels(self: ModelT, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> ModelT:
+    def with_fixed_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> Self:
         """Fixed all parameters in the given submodels.
 
         Submodels parameters are obtained using :meth:`param_names`.,
@@ -1235,7 +1302,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """        
         model_param_names = self.param_names(submodels=submodels)
         return self.with_fixed_params(model_param_names)        
@@ -1288,7 +1355,7 @@ class Model(eqx.Module):
         group : h5py.Group
             Target group. Two subgroups are created: ``raw`` and ``params``.
         """
-        model_save = self.with_fields(metadata=dict())
+        model_save = self._saveable()
 
         params_tree, static_tree = model_save._partition(include_fixed=True, param_objects=True)
         params = model_save.named_params()
@@ -1302,7 +1369,7 @@ class Model(eqx.Module):
             params_grp[name] = initial_param.to_json()        
             
     @classmethod
-    def read_hdf(cls, group: h5py.Group) -> ModelT:
+    def read_hdf(cls, group: h5py.Group) -> Self:
         """Read model from an HDF5 group.
 
         Parameters
@@ -1312,7 +1379,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT | None
+        Self | None
             The decoded model, or ``None`` if decoding fails.
         """        
         model_raw_grp = group['raw']
@@ -1347,7 +1414,7 @@ class Model(eqx.Module):
         filepath : str
             Destination file path.
         """
-        model_save = self.with_fields(metadata=dict())
+        model_save = self._saveable()
 
         data = jsonpickle.encode(model_save)
         
@@ -1358,7 +1425,7 @@ class Model(eqx.Module):
             target.write(data)
             
     @classmethod
-    def load(cls: ModelT, source: str | BinaryIO) -> ModelT:
+    def load(cls, source: str | BinaryIO) -> Self:
         """Load a model from a pickled file.
 
         The recommended file extension for ParamRF models is `.prf`.
@@ -1370,7 +1437,7 @@ class Model(eqx.Module):
 
         Returns
         -------
-        ModelT
+        Self
         """        
         if isinstance(source, (str, os.PathLike)):
             with open(source, "r", encoding="utf8") as f:

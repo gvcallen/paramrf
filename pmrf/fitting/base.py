@@ -243,6 +243,15 @@ class BaseFitter(ABC):
         FitResults
             The fit results object. `solver_results` contains a dictionary of the individual submodel results.
         """
+        if len(measured) == 1:
+            name = measured[0].name
+            comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
+            self.logger.info(f'Fitting {name}...')
+            model = self.model.with_free_submodels([name], fix_others=True)
+
+            ctx = self._create_context(comp_measured, model=model)
+            return self._run_context(ctx, **kwargs)
+        
         all_results: dict[str, FitResults] = {}
         
         # Fit the components sequentially

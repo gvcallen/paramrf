@@ -209,14 +209,15 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
     for d, feature in enumerate(features):
         label, prop, (m, n) = feature[0], feature[1], feature[2]
 
-        if m >= model.nports or n >= model.nports:
-            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
         
         feature_model = model
         if label != '':
             sublabels = label.split('.')
             for sublabel in sublabels:
                 feature_model = getattr(feature_model, sublabel)
+
+        if m >= feature_model.nports or n >= feature_model.nports:
+            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
 
         if prop[2:4] == 'mn':
             xfn = getattr(feature_model, prop)
