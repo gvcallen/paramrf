@@ -1,8 +1,12 @@
 from typing import BinaryIO
 
-from pmrf.distributions.serializable import SerializableDistribution
+import jax.numpy as jnp
 
-class AnestheticDistribution(SerializableDistribution):
+from pmrf.distributions.serializable import SerializableDistribution
+from pmrf.distributions.trainable import TrainableDistribution, TrainableDistributionT
+from pmrf.distributions.sampled import SampledDistribution
+
+class AnestheticDistribution(SerializableDistribution, SampledDistribution):
     """
     Adapter for distributions represented by samples from the Anesthetic library.
     
@@ -42,12 +46,25 @@ class AnestheticDistribution(SerializableDistribution):
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]        
         return param_names
+
+    def samples(self, prior=False, weighted=False) -> jnp.ndarray:
+        if not weighted:
+            if prior:
+                nested_samples = self.nested_samples.prior_points()
+            else:
+                nested_samples = self.nested_samples.posterior_points()
+        else:
+            if prior:
+                nested_samples = self.nested_samples.prior()
+            else:
+                nested_samples = self.nested_samples
+        
+        prior_samples = nested_samples.loc[:, self.param_names()].to_numpy()
+        return jnp.array(prior_samples)
     
-    def sample(self, key, sample_shape):
-        raise NotImplementedError
-
-    def log_prob(self, value):
-        raise NotImplementedError
-
-    def icdf(self, u):
-        raise NotImplementedError
+    def weights(self, prior=False) -> jnp.ndarray:
+        if prior:
+            return jnp.array(self.nested_samples.prior().get_weights())
+        else:
+            return jnp.array(self.nested_samples.get_weights())
+        

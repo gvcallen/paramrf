@@ -15,7 +15,7 @@ from pmrf.network_collection import NetworkCollection
 from pmrf._util import RANK, wait_for_all_ranks
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf.distributions.trainable import TrainableDistributionT
+from pmrf.distributions.sampled import SampledDistribution, TrainableDistributionT
 from pmrf.fitting.base import BaseFitter, FitResults, FitContext
 
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
@@ -73,50 +73,24 @@ class BayesianResults(FitResults):
         """
         pass
     
-    def fit_posterior(self, train_dist: TrainableDistributionT | None = None, equal_weights=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs):
+    def fit_posterior(self, trainable_distribution: TrainableDistributionT | None = None, *args, **kwargs):
         """
         Fit a trainable distribution to the posterior samples.
-
-        Parameters
-        ----------
-        train_dist : TrainableDistributionT or None, optional
-            The distribution class to train. If None, defaults to `MargarineMAFDistribution`.
-        equal_weights : bool, optional, default=False
-            If True, uses equal weights for training; otherwise uses sample weights.
-        drift_sigma : float, optional, default=0.0
-            Standard deviation for drift augmentation to broaden the posterior support.
-        boost_method : str or None, optional
-            Method to boost sample count ('kde' or None).
-        boost_samples : int, optional, default=10000
-            Number of samples to generate if boosting is enabled.
-        **train_kwargs
-            Additional keyword arguments passed to the distribution's training method.
-        """
-        param_names: list[str] = self.fitted_model.flat_param_names()
-        training_data: jnp.ndarray = self.posterior_samples(equal_weights=equal_weights)[:,0:self.fitted_model.num_flat_params]        
-
-        if drift_sigma != 0.0:
-            if boost_method == 'kde':
-                from margarine.kde import KDE
-                kde = KDE(training_data)
-                kde.generate_kde()
-                training_data = kde.sample(boost_samples)
-            elif boost_method != None:
-                raise Exception('Unknown posterior training data boost method')
-                
-            scale = np.abs(np.mean(training_data, axis=0)) * drift_sigma
-            training_data += np.random.normal(loc=0.0, scale=scale, size=training_data.shape)
-
-        if train_dist is None:
-            from pmrf.distributions import MargarineMAFDistribution
-            train_dist = MargarineMAFDistribution
         
-        if equal_weights:
-            dist = train_dist.from_samples(training_data, **train_kwargs)
-        else:
-            weights = self.weights()
-            dist = train_dist.from_weighted_samples(training_data, weights, **train_kwargs)
-        param_group = ParameterGroup(param_names, dist)
+        Arguments are forward to :func:``pmrf.distributions.TrainableDistribution.from_sampled_distribution``.
+        """
+        if not hasattr(self, 'nested_samples'):
+            raise Exception('Posterior training currently only supported when nested_samples are present')
+        
+        if trainable_distribution is None:
+            from pmrf.distributions.margarine import MargarineMAFDistribution
+            trainable_distribution = MargarineMAFDistribution
+        from pmrf.distributions.anesthetic import AnestheticDistribution
+        
+        param_names = self.fitted_model.flat_param_names()
+        sampled_dist = AnestheticDistribution(self.nested_samples, param_names)
+        trained_dist = trainable_distribution.from_sampled_distribution(sampled_dist, *args, **kwargs)
+        param_group = ParameterGroup(param_names, trained_dist)
         
         self.fitted_model = self.fitted_model.with_param_groups(param_group)
         

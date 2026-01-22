@@ -11,7 +11,7 @@ class PolyChordFitter(BayesianFitter):
     
     PolyChord has its own license available at https://github.com/PolyChord/PolyChordLite.
     """
-    def _run_algorithm(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_factor=25, **kwargs) -> AnestheticResults:
+    def _run_algorithm(self, ctx: BayesianContext, *, best_param_method='maximum-likelihood', nlive_factor=25, update_param_groups=True, **kwargs) -> AnestheticResults:
         """
         Executes the PolyChord nested sampling run.
 
@@ -37,6 +37,8 @@ class PolyChordFitter(BayesianFitter):
         """
         # Dynamic imports
         import pypolychord
+        from pmrf.parameters import ParameterGroup
+        from pmrf.distributions import AnestheticDistribution
         
         if not 'nlive' in kwargs and nlive_factor is not None:
             kwargs['nlive'] = nlive_factor * ctx.num_params
@@ -79,5 +81,9 @@ class PolyChordFitter(BayesianFitter):
                 self.logger.warning("Unknown best parameter method. Skipping")
                 
         fitted_model = ctx.model.with_params(x0)
+        
+        if update_param_groups:
+            param_group = ParameterGroup(param_names, AnestheticDistribution(nested_samples, param_names))
+            fitted_model = fitted_model.with_param_groups(param_group)
         
         return AnestheticResults(fitted_model=fitted_model, solver_results=nested_samples)
