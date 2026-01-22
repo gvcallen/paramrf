@@ -1,11 +1,8 @@
 from abc import abstractmethod
 
-import numpy as np
 import jax.numpy as jnp
 from numpyro.distributions import Distribution
 
-from pmrf.distributions.trainable import TrainableDistribution, TrainableDistributionT
-    
 class SampledDistribution(Distribution):
     @property
     def num_params(self) -> int:

@@ -15,7 +15,7 @@ from pmrf.network_collection import NetworkCollection
 from pmrf._util import RANK, wait_for_all_ranks
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
-from pmrf.distributions.sampled import SampledDistribution, TrainableDistributionT
+from pmrf.distributions.trainable import TrainableDistributionT
 from pmrf.fitting.base import BaseFitter, FitResults, FitContext
 
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)

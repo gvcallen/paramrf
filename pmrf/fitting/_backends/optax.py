@@ -6,7 +6,6 @@ from typing import Optional, List
 import numpy as np
 import jax
 import jax.numpy as jnp
-import optax
 
 from pmrf.fitting.frequentist import FrequentistFitter, FrequentistResults, FrequentistContext
 
@@ -46,6 +45,7 @@ class OptaxFitter(FrequentistFitter):
         ValueError
             If the optimizer name is unknown.
         """
+        import optax
         chain: List[optax.GradientTransformation] = []
         if grad_clip_norm is not None:
             chain.append(optax.clip_by_global_norm(grad_clip_norm))
@@ -106,6 +106,8 @@ class OptaxFitter(FrequentistFitter):
         FrequentistResults
             The results containing the fitted model and optimization history.
         """
+        import optax
+        
         x0 = jnp.asarray(ctx.model.flat_param_values(), dtype=jnp.float64)
         mins, maxs = ctx.bounds()
         mins = jnp.asarray(mins, dtype=jnp.float64)
