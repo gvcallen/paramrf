@@ -43,6 +43,7 @@ __all__ = [
     "Frequency",
     "Parameter",
     "ParameterGroup",
+    "NetworkCollection",
     "wrap",
     "extract_features"
 ]
