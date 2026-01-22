@@ -250,7 +250,7 @@ def _extract_measured_features(networks: NetworkCollection, features: list[Featu
             ntwk = ntwk.interpolate(freq)
 
         if m >= ntwk.nports or n >= ntwk.nports:
-            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {ntwk.nports}-port')
+            raise Exception(f'Property {prop} for ports {m+1}{n+1} requested but network is a {ntwk.nports}-port')
         
         if prop[2:4] == 'mn':
             i = prop.index('_')

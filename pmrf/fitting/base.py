@@ -335,7 +335,8 @@ class BaseFitter(ABC):
             measured_features=measured_features,
             logger=self.logger,
             output_path=output_path,
-            output_root=output_root
+            output_root=output_root,
+            sparam_kind=sparam_kind,
         )
     
     def _run_context(
@@ -891,7 +892,7 @@ def is_frequentist(solver) -> bool:
     bool
         True if the solver corresponds to a FrequentistFitter subclass.
     """
-    from fitting.frequentist import FrequentistFitter
+    from pmrf.fitting.frequentist import FrequentistFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, FrequentistFitter)
 
@@ -909,7 +910,7 @@ def is_bayesian(solver) -> bool:
     bool
         True if the solver corresponds to a BayesianFitter subclass.
     """
-    from fitting.bayesian import BayesianFitter
+    from pmrf.fitting.bayesian import BayesianFitter
     cls = get_fitter_class(solver)
     return issubclass(cls, BayesianFitter)
 

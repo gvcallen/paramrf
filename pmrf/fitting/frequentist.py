@@ -131,7 +131,7 @@ class FrequentistFitter(BaseFitter):
             The parametric `pmrf` Model to be fitted.
         cost_kind : str, optional
             A cost 'kind' alias to initialize the features and cost function from.
-            Can be one of 'convolutional', 'complex', or 'magnitude'.
+            Can be one of 'convolutional', 'complex', 'magnitude' or None.
         cost_function : ArrayFuncT, list[ArrayFuncT] or eqx.Module, optional
             A function or sequence of functions defining the cost metric. If a list
             of functions is provided, they are composed sequentially. If `None`,
@@ -170,7 +170,7 @@ class FrequentistFitter(BaseFitter):
             If an unknown `cost_kind` alias is provided.
         """
         features = kwargs.pop('features', None) or self.features
-        cost_kind = cost_kind or self.cost_kind
+        cost_kind = cost_kind or self.cost_kind or 'convolutional'
         cost_function = cost_function or self.cost_function
         
         default_features = None

@@ -332,7 +332,7 @@ class Model(eqx.Module):
             if submodels and isinstance(submodels[0], str):
                 submodels: list[Model] = [getattr(self, name) for name in submodels]
 
-            allowed = {p for sm in submodels for p in sm.params(include_fixed=include_fixed)}
+            allowed = [p for sm in submodels for p in sm.params(include_fixed=include_fixed)]
             params = [(k, v) for k, v in params if v in allowed]
 
         # Flatten multi-dimensional parameters if requested
@@ -715,7 +715,7 @@ class Model(eqx.Module):
             The fitted model.
         """         
         from pmrf.fitting import fit_submodels
-        return fit(self, measured, **kwargs)
+        return fit_submodels(self, measured, **kwargs)
     
     # ---- Parameter inspection -------------------------------------------------- 
     
@@ -852,7 +852,7 @@ class Model(eqx.Module):
 
         See :meth:`named_flat_param_values`.
         """
-        return jnp.ndarray(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
+        return jnp.array(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
     
     def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
         """Return all parameter groups relevant to this model.
