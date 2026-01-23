@@ -12,7 +12,7 @@ import numpyro.distributions as dist
 import matplotlib.pyplot as plt
 
 from pmrf.network_collection import NetworkCollection
-from pmrf._util import RANK, wait_for_all_ranks
+from pmrf._util import RANK, sync_across_all_ranks
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf.distributions.trainable import TrainableDistributionT
@@ -82,17 +82,22 @@ class BayesianResults(FitResults):
         if not hasattr(self, 'nested_samples'):
             raise Exception('Posterior training currently only supported when nested_samples are present')
         
-        if trainable_distribution is None:
-            from pmrf.distributions.margarine import MargarineMAFDistribution
-            trainable_distribution = MargarineMAFDistribution
-        from pmrf.distributions.anesthetic import AnestheticDistribution
+        if RANK == 0:        
+            if trainable_distribution is None:
+                from pmrf.distributions.margarine import MargarineMAFDistribution
+                trainable_distribution = MargarineMAFDistribution
+            from pmrf.distributions.anesthetic import AnestheticDistribution
+
+            param_names = self.fitted_model.flat_param_names()
+            sampled_dist = AnestheticDistribution(self.nested_samples, param_names)
+            trained_dist = trainable_distribution.from_sampled_distribution(sampled_dist, *args, **kwargs)
+            param_group = ParameterGroup(param_names, trained_dist)
+
+            fitted_model = self.fitted_model.with_param_groups(param_group)
+        else:
+            fitted_model = None
         
-        param_names = self.fitted_model.flat_param_names()
-        sampled_dist = AnestheticDistribution(self.nested_samples, param_names)
-        trained_dist = trainable_distribution.from_sampled_distribution(sampled_dist, *args, **kwargs)
-        param_group = ParameterGroup(param_names, trained_dist)
-        
-        self.fitted_model = self.fitted_model.with_param_groups(param_group)
+        self.fitted_model = sync_across_all_ranks(fitted_model, root=0)
         
 @dataclass
 class BayesianContext(FitContext):
@@ -472,11 +477,9 @@ class BayesianFitter(BaseFitter):
             nonlocal user_callback
             nonlocal fit_posterior_dist
             
-            if RANK == 0:
-                from pmrf.distributions import MargarineMAFDistribution
-                fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
-                results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
-            wait_for_all_ranks()
+            from pmrf.distributions import MargarineMAFDistribution
+            fit_posterior_dist = fit_posterior_dist or MargarineMAFDistribution
+            results.fit_posterior(fit_posterior_dist, **fit_posterior_kwargs)
             if user_callback:
                 kwargs['callback'](results)
         

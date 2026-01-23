@@ -55,7 +55,7 @@ class JointParameterDistribution(Distribution):
             idxs = [self.name_to_index[name] for name in group_names]
             group_u = u[..., idxs]
             dist: Distribution = group.distribution
-            group_x = dist.icdf(group_u)
+            group_x = jnp.array(dist.icdf(group_u).reshape(-1))
             for i, name in enumerate(group_names):
                 values[self.name_to_index[name]] = group_x[..., i]
         return jnp.stack(values, axis=-1).reshape(u.shape)
