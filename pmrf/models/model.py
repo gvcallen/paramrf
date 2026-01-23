@@ -931,10 +931,10 @@ class Model(eqx.Module):
     #     params = self.named_flat_params(include_fixed=include_fixed)
     #     groups = [group for group in self._param_groups]
 
-    #     grouped_param_names = {name for group in groups for name in group.parameter_names}
+    #     grouped_param_names = {name for group in groups for name in group.param_names}
     #     for name, param in params.items():
     #         if name not in grouped_param_names:
-    #             groups.append(ParameterGroup(param_names=[name], dist=param.distribution))
+    #             groups.append(ParameterGroup(param_names=[name], distribution=param.distribution))
         
     #     return groups
     
@@ -957,9 +957,22 @@ class Model(eqx.Module):
         -------
         list[ParameterGroup]
         """
+        # 0. Identify valid parameters for the current mode (Free vs All)
+        # We use named_flat_params to get the definitive list of "active" parameters.
+        # This handles the logic for whether parameters are fixed or not.
+        all_valid_params = self.named_flat_params(include_fixed=include_fixed)
+        valid_param_names = set(all_valid_params.keys())
+
         # 1. Start with local, explicit groups defined in this model
-        # We deepcopy to avoid mutating the stored private list
-        groups = [deepcopy(group) for group in self._param_groups]
+        # We only keep groups that contain at least one parameter that is valid 
+        # (i.e. not fixed, unless include_fixed=True).
+        groups = []
+        for group in self._param_groups:
+            # We check if the group overlaps with the valid parameters.
+            # If the intersection is empty, it means all parameters in the group 
+            # are fixed (or don't exist), so we exclude the group.
+            if not set(group.param_names).isdisjoint(valid_param_names):
+                groups.append(deepcopy(group))
 
         # 2. Traverse submodels to get their groups recursively
         # We use tree_flatten_with_path to find all Model instances within self.
@@ -1016,7 +1029,7 @@ class Model(eqx.Module):
                 final_groups.append(ParameterGroup(param_names=[name], distribution=param.distribution))
                 seen_params.add(name)
 
-        return final_groups     
+        return final_groups
     
     def distribution(self) -> JointParameterDistribution:
         """Joint distribution over (flattened) parameters.
@@ -1363,7 +1376,7 @@ class Model(eqx.Module):
         combined = self
         for other in models:
             combined = combined.with_params(other.named_params())
-            combined = combined.with_param_groups(other.param_groups())
+            combined = combined.with_param_groups(other._param_groups)
         return combined
     
     def with_fields(self: Self, *args, **kwargs) -> Self:

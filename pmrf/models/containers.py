@@ -237,13 +237,7 @@ class Renumbered(Model):
         to_ports, from_ports = self.to_ports, self.from_ports
 
         if model.primary_property == 'a' and len(from_ports) != 2 and len(to_ports) != 2:
-            raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")
-        
-        # TODO upgrade for matrix z0
-        # new_z0 = jnp.copy(self.z0)
-        # new_z0 = new_z0.at[:, to_ports].set(new_z0[:, from_ports])
-        object.__setattr__(self, '_z0', self.z0)
-
+            raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")        
 
     def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
         """

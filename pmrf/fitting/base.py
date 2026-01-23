@@ -607,6 +607,7 @@ class FitResults:
                 axes[row_idx, k].axis('off')
 
         fig.tight_layout()
+        return fig, axes
 
     # --------------------------------------------------------------------------
     # Public HDF5 IO Interface
