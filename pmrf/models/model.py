@@ -1237,6 +1237,29 @@ class Model(eqx.Module):
         if kwargs['fix_others'] == False:
             raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
         return self.with_free_params(*args, **kwargs)
+
+    def with_all_params_fixed(self: Self, **kwargs) -> Self:
+        """Returns a model with all parameters fixed.
+        
+        This is an alias for calling :meth:``with_free_params``
+        with `fix_others=True` and no parameters passed.
+
+        See :meth:``with_free_params``.
+        """
+        kwargs.setdefault('fix_others', True)
+        if kwargs['fix_others'] == False:
+            raise Exception("Cannot pass fix_others == False for `with_all_params_fixed`.")
+        return self.with_free_params({}, **kwargs)
+
+    def with_all_params_free(self: Self, **kwargs) -> Self:
+        """Returns a model with all parameters free.
+        
+        This is an alias for calling :meth:``with_free_params``
+        with all parameters passed.
+
+        See :meth:``with_free_params``.
+        """
+        return self.with_free_params(self.named_params(include_fixed=True), **kwargs)
     
     # def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
     #     """Return a model with parameter groups appended.
@@ -1387,19 +1410,41 @@ class Model(eqx.Module):
         """
         return dataclasses.replace(self, *args, **kwargs)
     
-    def with_submodel_fields(self: Self, submodel: str, *args, **kwargs) -> Self:
+    def with_submodel_fields(self: Self, submodel: str | Sequence[str], *args, **kwargs) -> Self:
         """
-        Return a copy of this model with dataclass-style field replacements on a sub-model.
+        Return a copy of this model with dataclass-style field replacements on a nested sub-model.
 
         Parameters are forwarded to :func:`dataclasses.replace`.
 
         Parameters
         ----------
-        submodels : str
-            The name of the submodel to replace the fields of.
+        submodel : str | Sequence[str]
+            The name of the submodel (or sequence of names) to traverse.
+            Can be a single string with a path e.g. 'submodel1.submodel2',
+            or a list of submodels e.g. ['submodel1', 'submodel2'].
         """
-        with_field_kwargs = {submodel: getattr(self, submodel).with_fields(*args, **kwargs)}
-        return self.with_fields(**with_field_kwargs)    
+        # Normalize input to a list of strings
+        if isinstance(submodel, str) and submodel.find('.'):
+            path = submodel.split('.')
+        else:
+            path = [submodel] if isinstance(submodel, str) else list(submodel)
+        
+        if not path:
+            # If path is empty, apply fields to self (standard with_fields behavior)
+            return self.with_fields(*args, **kwargs)
+
+        target_key = path[0]
+
+        if len(path) == 1:
+            # Base case: We are at the parent of the final target submodel
+            updated_child = getattr(self, target_key).with_fields(*args, **kwargs)
+        else:
+            # Recursive step: Tell the child to handle the rest of the path
+            child = getattr(self, target_key)
+            updated_child = child.with_submodel_fields(path[1:], *args, **kwargs)
+
+        # Return a copy of 'self' with the new version of the child
+        return self.with_fields(**{target_key: updated_child})
     
     def with_free_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> Self:
         """Free all parameters in the given submodels.

@@ -98,7 +98,6 @@ class SciPyMinimizeFitter(FrequentistFitter):
         bounds = Bounds(minimums, maximums)
         
         x0 = np.array(ctx.model.flat_param_values())
-        cost_fn = ctx.make_cost_function(as_numpy=True)
 
         too_low, too_high = x0 < minimums, x0 > maximums
         if np.any(too_low | too_high):
@@ -113,6 +112,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
             raise Exception(f"Bad prior bounds:\n{bad_param_report}")
         
         # Define a wrapper function compatible with SciPy's interface
+        cost_fn = ctx.make_cost_function(as_numpy=True)
         def cost_scipy_fn(x, callback_args):
             cost = cost_fn(x)
             i = callback_args['fevel']

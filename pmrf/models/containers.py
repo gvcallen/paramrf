@@ -15,12 +15,15 @@ class Circuit(Model):
     This model allows for the definition of a circuit by specifying how the ports
     of various sub-models are connected together.
 
+    NB: The ports are exposed in the order they appear in the connections list.
+
     Attributes
     ----------
     models : list[Model]
         The list of unique models involved in the circuit.
     indexed_connections : list[list[tuple[int, int]]]
         Internal representation of connections using model indices instead of objects.
+        Ports are exposed in the order they appear in the list.
     port_idxs : list[int]
         Indices of the models that act as external ports for the circuit.
     """
