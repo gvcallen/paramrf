@@ -31,7 +31,7 @@ from jaxtyping import PyTree
 from jax import flatten_util
 from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
-from numpyro.distributions import Uniform as UniformDistribution
+from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.network_collection import NetworkCollection
 from pmrf.functions.conversions import a2s, s2a
@@ -1346,6 +1346,36 @@ class Model(eqx.Module):
             updates[name] = param.with_distribution(distribution)
             
         return self.with_params(updates)       
+
+    def with_param_groups_mapped(self, map_fn: Callable[[ParameterGroup], ParameterGroup], filter_fn: Callable[[ParameterGroup], bool] | None = None, include_implicit=False):
+        mapped_model = self
+        if include_implicit:
+            param_groups = self._param_groups
+        else:
+            param_groups = self.param_groups()
+        
+        for group in param_groups:
+            do_map = True if filter_fn is None else filter_fn(group)
+            if do_map:
+                mapped_model = mapped_model.with_param_groups(map_fn(group))
+        return mapped_model
+
+    def with_distributions_mapped(self, map_fn: Callable[[Distribution], Distribution], filter_fn: Callable[[Distribution], bool] | None = None, param_groups=False, explicit_only=False):
+        mapped_model = self
+
+        if param_groups:
+            param_groups = self._param_groups if explicit_only else self.param_groups()
+
+            for group in param_groups:
+                do_map = True if filter_fn is None else filter_fn(group.distribution)
+                if do_map:
+                    mapped_model = mapped_model.with_param_groups(group.with_distribution(map_fn(group.distribution)))
+        else:
+            for name, param in self.named_params().items():
+                do_map = True if filter_fn is None else filter_fn(param.distribution)
+                if do_map:
+                    mapped_model = mapped_model.with_params({name: param.with_distribution(param.distribution)})
+        return mapped_model
     
     # ---- Field and model manipulation --------------------------------------------------            
     

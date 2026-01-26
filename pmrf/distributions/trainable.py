@@ -1,3 +1,4 @@
+import logging
 from typing import TypeVar
 from abc import abstractmethod
 import jax.numpy as jnp
@@ -10,16 +11,16 @@ from pmrf.distributions.sampled import SampledDistribution
 class TrainableDistribution(Distribution):
     @classmethod
     @abstractmethod
-    def from_samples(cls, samples: jnp.ndarray, *args, **kwargs):
+    def from_samples(cls, samples: jnp.ndarray, key=None, init_kwargs=None, **train_kwargs):
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, *args, **kwargs):
+    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, key=None, init_kwargs=None, **train_kwargs):
         raise NotImplementedError
     
     @classmethod
-    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, weighted=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs) -> 'TrainableDistribution':
+    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, key=None, weighted=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs) -> 'TrainableDistribution':
         """
         Train this distribution from a sampled distribution.
 
@@ -38,13 +39,15 @@ class TrainableDistribution(Distribution):
         **train_kwargs
             Additional keyword arguments passed to the distribution's training method.
         """
+        logging.info(f'Training distribution on {sampled_distribution.param_names()}')
+        
         training_data: jnp.ndarray = sampled_distribution.samples(weighted=weighted)[:,0:sampled_distribution.num_params]
 
         if drift_sigma != 0.0:
             if boost_method == 'kde':
-                from margarine.kde import KDE
+                from margarine.estimators.kde import KDE
                 kde = KDE(training_data)
-                kde.generate_kde()
+                kde.train()
                 training_data = kde.sample(boost_samples)
             elif boost_method != None:
                 raise Exception('Unknown posterior training data boost method')
@@ -53,10 +56,10 @@ class TrainableDistribution(Distribution):
             training_data += np.random.normal(loc=0.0, scale=scale, size=training_data.shape)
 
         if not weighted:
-            dist = cls.from_samples(training_data, **train_kwargs)
+            dist = cls.from_samples(training_data, key=key, **train_kwargs)
         else:
             weights = sampled_distribution.weights()
-            dist = cls.from_weighted_samples(training_data, weights, **train_kwargs)
+            dist = cls.from_weighted_samples(training_data, weights, key=key, **train_kwargs)
         
         return dist
     

@@ -50,6 +50,9 @@ class AnestheticDistribution(SerializableDistribution, SampledDistribution):
         param_names = [columns[i][0] for i in range(len(columns))]
         param_names = [name for name in param_names if name not in {'logL', 'logL_birth', 'nlive'}]        
         return param_names
+    
+    def sample(self, key, sample_shape):
+        raise NotImplementedError    
 
     def samples(self, prior=False, weighted=False) -> jnp.ndarray:
         if weighted:

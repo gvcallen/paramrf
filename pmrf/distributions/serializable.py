@@ -18,11 +18,11 @@ class SerializableDistribution(Distribution):
             tmp.write(source.read())
             return cls.load(tmp.name)
     
-    def save(self, path: str | BinaryIO):
+    def save(self, target: str | BinaryIO):
         raise NotImplementedError
     
     @classmethod
-    def load(cls, path: str | BinaryIO) -> 'SerializableDistribution':
+    def load(cls, source: str | BinaryIO) -> 'SerializableDistribution':
         raise NotImplementedError
     
     def __getstate__(self):

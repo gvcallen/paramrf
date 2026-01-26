@@ -13,6 +13,7 @@ os.environ["TF_USE_LEGACY_KERAS"] = "True"
 class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     """
     Adapter for MAF models from the 'margarine' library.
+    Only works for margarine version < 2
     """
     def __init__(self, maf, validate_args=None):
         from margarine.maf import MAF
@@ -88,3 +89,75 @@ class MargarineMAFDistribution(TrainableDistribution, SerializableDistribution):
     @property
     def max(self):
         return jnp.array(self.maf.theta_max, dtype=jnp.float32)
+
+
+class MargarineDistribution(TrainableDistribution, SerializableDistribution):
+    """
+    Adapter for arbitrary models from the 'margarine' library.
+    
+    Currently only support's RealNVP.
+    Only for margarine version >= 2.
+    """
+    def __init__(self, estimator, validate_args=None):
+        from margarine.estimators.realnvp import RealNVP
+        self.estimator: RealNVP = estimator
+        event_shape = (len(self.estimator.theta),)
+        super().__init__(batch_shape=(), event_shape=event_shape, validate_args=validate_args)
+        
+    def save(self, target: str | BinaryIO):
+        if isinstance(target, str):
+            return self.estimator.save(target)
+        return self.write(target)
+    
+    @classmethod
+    def load(cls, source: str | BinaryIO) -> 'MargarineDistribution':
+        from margarine.estimators.realnvp import RealNVP
+        if isinstance(source, str):
+            return RealNVP(RealNVP.load(source))
+        return cls.read(source)
+    
+    @classmethod
+    def from_samples(cls, samples: jnp.ndarray, key=None, init_kwargs: dict | None = None, **train_kwargs):
+        from margarine.estimators.realnvp import RealNVP
+        if key is None:
+            raise Exception('Need key to train Margarine RealNVP')
+        
+        init_kwargs = init_kwargs or {}
+        
+        if 'in_size' in init_kwargs and init_kwargs['in_size'] != len(samples):
+            raise Exception('In size must be equal to number of sample parameters')
+        init_kwargs['in_size'] = len(samples)
+        
+        estimator = RealNVP(key, samples, **init_kwargs)
+        estimator.train(**train_kwargs)
+        return MargarineDistribution(estimator)
+    
+    @classmethod
+    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, key=None, init_kwargs: dict | None = None, **train_kwargs):
+        from margarine.estimators.realnvp import RealNVP
+        if key is None:
+            raise Exception('Need key to train Margarine RealNVP')        
+        
+        init_kwargs = init_kwargs or {}
+        
+        if 'in_size' in init_kwargs and init_kwargs['in_size'] != len(samples):
+            raise Exception('In size must be equal to number of sample parameters')
+        init_kwargs['in_size'] = len(samples)        
+        
+        estimator = RealNVP(samples, weights=weights, **init_kwargs)
+        estimator.train(key, **train_kwargs)
+        return MargarineDistribution(estimator)
+
+    def sample(self, key, sample_shape):
+        n_samples = int(jnp.prod(jnp.array(sample_shape))) or 1
+        samples = self.estimator.sample(key, num_samples=n_samples)
+        samples = jnp.array(samples, dtype=jnp.float32)
+        return samples.reshape(sample_shape + self.batch_shape + self.event_shape)
+
+    def log_prob(self, value):
+        value = jnp.atleast_2d(value)
+        return self.estimator.log_prob(value).astype(np.float32)
+
+    def icdf(self, u):
+        u = jnp.atleast_2d(u)
+        return self.estimator(u)

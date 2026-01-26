@@ -438,7 +438,11 @@ class BaseFitter(ABC):
         if save_output:
             output_prefix = f'{output_path}/{context.output_root}_' if context.output_root is not None else f'{output_path}/'
             fitted_model = results.fitted_model
-            name = results.measured[0].name or fitted_model.name or 'model'
+            
+            if isinstance(results.measured, NetworkCollection):
+                name = results.measured[0].name or fitted_model.name or 'model'
+            else:
+                name = results.measured.name or fitted_model.name or 'model'
             if save_model:
                 Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
                 self.logger.info(f'Saving {name} model...')

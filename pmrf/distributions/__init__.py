@@ -11,7 +11,7 @@ from pmrf.distributions.trainable import TrainableDistribution, TrainableDistrib
 from pmrf.distributions.sampled import SampledDistribution
 
 try:
-    from pmrf.distributions.margarine import MargarineMAFDistribution
+    from pmrf.distributions.margarine import MargarineDistribution
 except ImportError:
     pass
 
