@@ -13,57 +13,6 @@ import equinox as eqx
 from pmrf.distributions.trainable import TrainableDistribution
 from pmrf.distributions.serializable import SerializableDistribution
 
-def _make_flow(samples: jnp.ndarray, key=None, kind='coupling', **init_kwargs):
-    from flowjax.flows import coupling_flow, masked_autoregressive_flow
-    from flowjax.distributions import Transformed, Normal
-    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain        
-    import paramax
-    
-    # Choose the flow kind
-    if kind == 'coupling':
-        init_fn = coupling_flow
-    elif kind == 'masked_autoregressive':
-        init_fn = masked_autoregressive_flow
-    else:
-        raise Exception(f"Unsupported kind {kind} passed to initialize the FlowJAX flow")
-    
-    # Setup the flow hyperparameters
-    init_kwargs.setdefault('base_dist', Normal(jnp.zeros(samples.shape[1])))
-    init_kwargs.setdefault('transformer', RationalQuadraticSpline(knots=10, interval=10))
-    init_kwargs.setdefault('nn_width', 64)
-    init_kwargs.setdefault('nn_depth', 4)
-    init_kwargs.setdefault('invert', False)
-    if init_kwargs['base_dist'].shape[0] != samples.shape[1]:
-        raise Exception("Base distribution must have shape equal to the number of parameters")        
-    
-    # Initialize the flow        
-    flow = init_fn(
-        key,
-        **init_kwargs,
-    )                
-    
-    # Augment the flow to also normalize the input data
-    min, max = samples.min(axis=0), samples.max(axis=0)
-    loc, scale = (min + max) / 2, (max - min) / 2
-    norm_layer = paramax.NonTrainable(Affine(loc=loc, scale=scale))
-    augmented_bijection = Chain([flow.bijection, norm_layer])
-    flow = Transformed(flow.base_dist, augmented_bijection)
-    
-    init_kwargs['kind'] = kind
-    return flow, init_kwargs
-    
-def _train_flow(flow, samples: jnp.ndarray, key=None, **train_kwargs):
-    from flowjax.train import fit_to_data
-    from flowjax.distributions import Transformed, Normal
-    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain
-
-    train_kwargs.setdefault('learning_rate', 1e-3)
-    train_kwargs.setdefault('batch_size', 64)
-    train_kwargs.setdefault('max_patience', 10)
-    flow, _losses = fit_to_data(key, flow, samples, **train_kwargs)
-    
-    return flow
-
 class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
     """
     JAX-native wrapper for FlowJax's `Transformed` class.
@@ -71,11 +20,11 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
     It is assumed that the flow performs an N:N mapping from the base distribution
     to the output distribution.
     """
-    def __init__(self, flow, init_kwargs=None):
+    def __init__(self, flow, hyper_params=None):
         from flowjax.distributions import Transformed
         
         self.flow: Transformed = flow        
-        self.init_kwargs = init_kwargs
+        self.hyper_params = hyper_params
         event_shape = (self.flow.base_dist.shape[0],)
         super().__init__(batch_shape=(), event_shape=event_shape)
         
@@ -89,20 +38,113 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
         z = jax.scipy.special.ndtri(u)
         return self.flow.bijection.transform(z)
     
-    def save(self, target: str | Path) -> None:
-        if self.init_kwargs is None:
-            raise Exception('Cannot save flow without init_kwargs')
+    def save(self, target: str | BinaryIO) -> None:
+        if not isinstance(target, str):
+            return self.write(target)
         
+        if self.hyper_params is None:
+            raise Exception('Cannot save flow without hyper_params')
         
+        target = Path(target)
+        
+        # We use a ZipFile to combine the json config and binary weights into one file
+        with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            frozen_params = jsonpickle.encode(self.hyper_params)
+            zf.writestr('hyper_params.json', frozen_params)
+            
+            with zf.open('weights.eqx', 'w') as f:
+                eqx.tree_serialise_leaves(f, self.flow)
 
     @classmethod
-    def load(cls, path: str | Path) -> 'FlowJAXDistribution':
-        raise NotImplementedError
+    def load(cls, source: str | BinaryIO) -> 'FlowJAXDistribution':
+        if not isinstance(source, str):
+            return cls.read(source)
+        
+        source = Path(source)
+        
+        if not source.exists():
+            raise FileNotFoundError(f"Could not find flow file: {source}")
+
+        with zipfile.ZipFile(source, 'r') as zf:
+            hp_json = zf.read('hyper_params.json').decode('utf-8')
+            hyper_params = jsonpickle.decode(hp_json)
+
+            key = jr.key(0)
+            skeleton_flow = _make_flow(key, **hyper_params)
+
+            with zf.open('weights.eqx', 'r') as f:
+                flow = eqx.tree_deserialise_leaves(f, skeleton_flow)
+
+        return FlowJAXDistribution(flow, hyper_params=hyper_params)
         
     @classmethod
     def from_samples(cls, samples: jnp.ndarray, key=None, kind='coupling', init_kwargs: dict | None = None, **train_kwargs):        
         init_key, train_key = jr.split(key)
-        flow, init_kwargs = _make_flow(init_key, kind=kind, init_kwargs=init_kwargs)
+        
+        theta_min, theta_max, num_params = samples.min(axis=0), samples.max(axis=0), samples.shape[1]
+        flow, hyper_params = _make_flow(init_key, theta_min, theta_max, num_params, kind=kind, init_kwargs=init_kwargs)
         flow = _train_flow(flow, samples, train_key, **train_kwargs)
         
-        return FlowJAXDistribution(flow, init_kwargs=init_kwargs)
+        return FlowJAXDistribution(flow, kind=kind, hyper_params=hyper_params)
+    
+def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, init_kwargs: dict | None = None):
+    from flowjax.flows import coupling_flow, masked_autoregressive_flow
+    from flowjax.distributions import Transformed, Normal
+    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain        
+    import paramax
+
+    # Set defaults and check inputs
+    if theta_min is None or theta_max is None or num_params is None:
+        raise Exception('Number of parameters and bounds must be passed to construct a flow')
+    kind = kind if kind is not None else 'coupling'
+    init_kwargs = init_kwargs if init_kwargs is not None else {}
+
+    # Choose the flow function
+    if kind == 'coupling':
+        init_fn = coupling_flow
+    elif kind == 'masked_autoregressive':
+        init_fn = masked_autoregressive_flow
+    else:
+        raise Exception(f"Unsupported kind {kind} passed to initialize the FlowJAX flow")
+    
+    # Setup the flow init parameters
+    init_kwargs.setdefault('base_dist', Normal(jnp.zeros(num_params)))
+    init_kwargs.setdefault('transformer', RationalQuadraticSpline(knots=10, interval=10))
+    init_kwargs.setdefault('nn_width', 64)
+    init_kwargs.setdefault('nn_depth', 4)
+    init_kwargs.setdefault('invert', False)
+    if init_kwargs['base_dist'].shape[0] != num_params:
+        raise Exception("Base distribution must have shape equal to the number of parameters")        
+    
+    # Initialize the flow        
+    flow = init_fn(
+        key,
+        **init_kwargs,
+    )                
+    
+    # Augment the flow to also normalize the input data
+    loc, scale = (theta_min + theta_max) / 2, (theta_max - theta_min) / 2
+    norm_layer = paramax.NonTrainable(Affine(loc=loc, scale=scale))
+    augmented_bijection = Chain([flow.bijection, norm_layer])
+    flow = Transformed(flow.base_dist, augmented_bijection)
+
+    # Return the hyper-parameters to be saved
+    hyper_params = {}
+    hyper_params['theta_min'] = theta_min
+    hyper_params['theta_max'] = theta_max
+    hyper_params['num_params'] = num_params
+    hyper_params['kind'] = kind
+    hyper_params['init_kwargs'] = init_kwargs
+    return flow, hyper_params
+    
+def _train_flow(flow, samples: jnp.ndarray, key=None, **train_kwargs):
+    from flowjax.train import fit_to_data
+    from flowjax.distributions import Transformed, Normal
+    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain
+
+    train_kwargs.setdefault('learning_rate', 1e-3)
+    train_kwargs.setdefault('batch_size', 64)
+    train_kwargs.setdefault('max_patience', 10)
+    flow, _losses = fit_to_data(key, flow, samples, **train_kwargs)
+    
+    return flow    
