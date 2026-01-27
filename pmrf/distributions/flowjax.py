@@ -70,7 +70,7 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
             hyper_params = jsonpickle.decode(hp_json)
 
             key = jr.key(0)
-            skeleton_flow = _make_flow(key, **hyper_params)
+            skeleton_flow, hyper_params = _make_flow(key, **hyper_params)
 
             with zf.open('weights.eqx', 'r') as f:
                 flow = eqx.tree_deserialise_leaves(f, skeleton_flow)
@@ -78,26 +78,54 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
         return FlowJAXDistribution(flow, hyper_params=hyper_params)
         
     @classmethod
-    def from_samples(cls, samples: jnp.ndarray, key=None, kind='coupling', init_kwargs: dict | None = None, **train_kwargs):        
+    def from_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray | None = None, key=None, kind='coupling', transformer_cls=None, transformer_kwargs=None, init_kwargs: dict | None = None, **train_kwargs):        
         init_key, train_key = jr.split(key)
         
         theta_min, theta_max, num_params = samples.min(axis=0), samples.max(axis=0), samples.shape[1]
-        flow, hyper_params = _make_flow(init_key, theta_min, theta_max, num_params, kind=kind, init_kwargs=init_kwargs)
-        flow = _train_flow(flow, samples, train_key, **train_kwargs)
-        
-        return FlowJAXDistribution(flow, kind=kind, hyper_params=hyper_params)
+        flow, hyper_params = _make_flow(
+            init_key,
+            theta_min=theta_min,
+            theta_max=theta_max,
+            num_params=num_params,
+            kind=kind,
+            transformer_cls=transformer_cls,
+            transformer_kwargs=transformer_kwargs,
+            init_kwargs=init_kwargs,
+        )
+        flow = _train_flow(train_key, flow, samples, weights=weights, **train_kwargs)
+        return FlowJAXDistribution(flow, hyper_params=hyper_params)
     
-def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, init_kwargs: dict | None = None):
+def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, transformer_cls=None, transformer_args=None, transformer_kwargs=None, init_kwargs: dict | None = None):
     from flowjax.flows import coupling_flow, masked_autoregressive_flow
     from flowjax.distributions import Transformed, Normal
-    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain        
+    import flowjax.bijections as fjb
     import paramax
 
-    # Set defaults and check inputs
-    if theta_min is None or theta_max is None or num_params is None:
-        raise Exception('Number of parameters and bounds must be passed to construct a flow')
+    # We allow a transformer to be passed if it is Affine or RationalQuadaraticSpline
+    if init_kwargs is not None and 'transformer' in init_kwargs:
+        transformer = init_kwargs.pop('transformer')
+        if isinstance(transformer, fjb.RationalQuadraticSpline):
+            transformer_cls = 'RationalQuadraticSpline'
+            transformer_kwargs = {'knots': transformer.knots, 'interval': transformer.interval, 'softmax_adjust': transformer.softmax_adjust, 'min_derivative': transformer.min_derivative}
+        elif isinstance(transformer, fjb.Affine):
+            transformer_cls = 'Affine'
+            transformer_kwargs = {'loc': transformer.loc, 'scale': transformer.scale}
+        else:
+            raise Exception("Only RationalQuadraticSpline and Affine supported as transformers for FlowJAXDistribution")
+
+
+    # Set defaults
     kind = kind if kind is not None else 'coupling'
     init_kwargs = init_kwargs if init_kwargs is not None else {}
+    transformer_cls = transformer_cls if transformer_cls is not None else 'RationalQuadraticSpline'
+    transformer_args = transformer_args if transformer_args is not None else ()
+    transformer_kwargs = transformer_kwargs if transformer_kwargs is not None else {'knots': 10, 'interval': 10}
+    
+    # Validate input
+    if theta_min is None or theta_max is None or num_params is None:
+        raise Exception('Number of parameters and bounds must be passed to construct a flow')
+    if 'base_dist' in init_kwargs:
+        raise Exception("base_dist not supporterd as an init param in FlowJAXDistribution init_kwargs")
 
     # Choose the flow function
     if kind == 'coupling':
@@ -108,8 +136,9 @@ def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, 
         raise Exception(f"Unsupported kind {kind} passed to initialize the FlowJAX flow")
     
     # Setup the flow init parameters
+    transformer = getattr(fjb, transformer_cls)(*transformer_args, **transformer_kwargs)
     init_kwargs.setdefault('base_dist', Normal(jnp.zeros(num_params)))
-    init_kwargs.setdefault('transformer', RationalQuadraticSpline(knots=10, interval=10))
+    init_kwargs.setdefault('transformer', transformer)
     init_kwargs.setdefault('nn_width', 64)
     init_kwargs.setdefault('nn_depth', 4)
     init_kwargs.setdefault('invert', False)
@@ -124,27 +153,58 @@ def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, 
     
     # Augment the flow to also normalize the input data
     loc, scale = (theta_min + theta_max) / 2, (theta_max - theta_min) / 2
-    norm_layer = paramax.NonTrainable(Affine(loc=loc, scale=scale))
-    augmented_bijection = Chain([flow.bijection, norm_layer])
+    norm_layer = paramax.NonTrainable(fjb.Affine(loc=loc, scale=scale))
+    augmented_bijection = fjb.Chain([flow.bijection, norm_layer])
     flow = Transformed(flow.base_dist, augmented_bijection)
 
-    # Return the hyper-parameters to be saved
+    # Setup and return the hyper-parameters to be saved
+    init_kwargs.pop('base_dist')
+    init_kwargs.pop('transformer')
     hyper_params = {}
     hyper_params['theta_min'] = theta_min
     hyper_params['theta_max'] = theta_max
     hyper_params['num_params'] = num_params
     hyper_params['kind'] = kind
+    hyper_params['transformer_cls'] = transformer_cls
+    hyper_params['transformer_args'] = transformer_args
+    hyper_params['transformer_kwargs'] = transformer_kwargs
     hyper_params['init_kwargs'] = init_kwargs
-    return flow, hyper_params
-    
-def _train_flow(flow, samples: jnp.ndarray, key=None, **train_kwargs):
+    return flow, hyper_params    
+
+def _train_flow(key, flow, samples: jnp.ndarray, weights: jnp.ndarray | None = None, **train_kwargs):
     from flowjax.train import fit_to_data
-    from flowjax.distributions import Transformed, Normal
-    from flowjax.bijections import RationalQuadraticSpline, Affine, Chain
+    
+    try:
+        from paramax import unwrap 
+    except ImportError:
+        from flowjax.distributions import unwrap
 
     train_kwargs.setdefault('learning_rate', 1e-3)
     train_kwargs.setdefault('batch_size', 64)
     train_kwargs.setdefault('max_patience', 10)
-    flow, _losses = fit_to_data(key, flow, samples, **train_kwargs)
+
+    if weights is not None:
+        # Scale weights so they sum to N (the number of samples).
+        # This prevents gradients from vanishing if weights are normalized to 1.0
+        n_samples = weights.shape[0]
+        sum_weights = weights.sum()
+        
+        # Avoid division by zero
+        scale_factor = n_samples / (sum_weights + 1e-10)
+        weights = weights * scale_factor
+
+        def weighted_loss_fn(params, static, x, w, key=None):
+            dist = unwrap(eqx.combine(params, static))
+            # We use sum() here because we divide by the batch size 
+            # implicit in the optimizer or loop logic, effectively calculating the mean.
+            # reducing by mean over a batch of weighted samples preserves the scale.
+            return -(w * dist.log_prob(x)).mean()
+
+        data = (samples, weights)
+        train_kwargs["loss_fn"] = weighted_loss_fn
+    else:
+        data = samples
+
+    flow, _losses = fit_to_data(key, flow, data, **train_kwargs)
     
-    return flow    
+    return flow

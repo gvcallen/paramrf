@@ -11,16 +11,11 @@ from pmrf.distributions.sampled import SampledDistribution
 class TrainableDistribution(Distribution):
     @classmethod
     @abstractmethod
-    def from_samples(cls, samples: jnp.ndarray, key=None, init_kwargs=None, **train_kwargs):
+    def from_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray | None = None, key=None, init_kwargs=None, **train_kwargs):
         raise NotImplementedError
 
     @classmethod
-    @abstractmethod
-    def from_weighted_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray, key=None, init_kwargs=None, **train_kwargs):
-        raise NotImplementedError
-    
-    @classmethod
-    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, key=None, weighted=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, **train_kwargs) -> 'TrainableDistribution':
+    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, weighted=False, drift_sigma=0.0, boost_method=None, boost_samples=10000, key=None, **train_kwargs) -> 'TrainableDistribution':
         """
         Train this distribution from a sampled distribution.
 
