@@ -1004,15 +1004,24 @@ class Model(eqx.Module):
 
         return final_groups
     
-    def distribution(self) -> JointParameterDistribution:
+    def distribution(self, param_groups: bool = True) -> JointParameterDistribution:
         """Joint distribution over (flattened) parameters.
+        
+        Parameters
+        ----------
+        param_grous : bool, optional
+            Whether or not to use the internal parameter groups
+            to create the joint distribution. Defaults to ``True``.
         
         Returns
         -------
         JointParameterDistribution
-
-        """        
-        return JointParameterDistribution(self.param_groups(), self.flat_param_names())
+        """
+        if param_groups:        
+            return JointParameterDistribution(self.param_groups(), self.flat_param_names())
+        else:
+            param_groups = [ParameterGroup(param_names=[name], distribution=param.distribution) for name, param in self.named_flat_params().items()]
+            return JointParameterDistribution(param_groups, self.flat_param_names())
     
     # ---- Parameter manipulation --------------------------------------------------            
 
