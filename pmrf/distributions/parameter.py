@@ -24,7 +24,11 @@ class JointParameterDistribution(Distribution):
             dist: Distribution = group.distribution
             if not hasattr(dist, "sample") or not hasattr(dist, "log_prob"):
                 raise ValueError(f"Parameter group distribution must support sample and log_prob.")
-
+            
+    @property
+    def num_params(self) -> int:
+        return len(self.param_names)
+            
     def sample(self, key, sample_shape=()):
         values = [None] * len(self.param_names)
         for group in self.param_groups:

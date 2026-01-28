@@ -908,37 +908,7 @@ class Model(eqx.Module):
         """
         return jnp.array(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
     
-    # def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
-    #     """Return all parameter groups relevant to this model.
-
-    #     This function is useful for fitters that need to take into account
-    #     e.g. any constraints or correlated priors. Only groups that were
-    #     create with the same `flat` flag are returned.
-        
-    #     Currently, only groups for the current model are considered
-    #     (i.e. groups in children models are ignored).
-
-    #     Parameters
-    #     ----------
-    #     include_fixed : bool, default=False
-    #         Include groups involving fixed parameters.
-
-    #     Returns
-    #     -------
-    #     list[ParameterGroup]
-    #     """        
-        
-    #     params = self.named_flat_params(include_fixed=include_fixed)
-    #     groups = [group for group in self._param_groups]
-
-    #     grouped_param_names = {name for group in groups for name in group.param_names}
-    #     for name, param in params.items():
-    #         if name not in grouped_param_names:
-    #             groups.append(ParameterGroup(param_names=[name], distribution=param.distribution))
-        
-    #     return groups
-    
-    def param_groups(self, include_fixed=False) -> list[ParameterGroup]:
+    def param_groups(self, include_fixed=False, explicit_only=False) -> list[ParameterGroup]:
         """Return all parameter groups relevant to this model, including submodels.
 
         This function recursively traverses submodels to collect their parameter groups,
@@ -957,6 +927,9 @@ class Model(eqx.Module):
         -------
         list[ParameterGroup]
         """
+        if explicit_only:
+            return deepcopy(self._param_groups)
+        
         # 0. Identify valid parameters for the current mode (Free vs All)
         # We use named_flat_params to get the definitive list of "active" parameters.
         # This handles the logic for whether parameters are fixed or not.
@@ -1261,29 +1234,7 @@ class Model(eqx.Module):
         """
         return self.with_free_params(self.named_params(include_fixed=True), **kwargs)
     
-    # def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
-    #     """Return a model with parameter groups appended.
-        
-    #     Parameter groups can be used to specify relationships between parameters in the model,
-    #     such as joint priors.
-
-    #     Parameters
-    #     ----------
-    #     param_groups : ParameterGroup or list[ParameterGroup]
-    #         Group(s) to add.
-
-    #     Returns
-    #     -------
-    #     Self
-    #     """        
-    #     if not isinstance(param_groups, list):
-    #         param_groups = [param_groups]
-        
-    #     param_groups_old = self._param_groups.copy() if self._param_groups is not None else []
-    #     param_groups_new = param_groups_old
-    #     param_groups_new.extend(param_groups)
-    #     param_groups_new = [param_group for param_group in param_groups_new]
-    #     return dataclasses.replace(self, _param_groups=param_groups_new)    
+    # ---- Parameter group manipulation --------------------------------------------------            
     
     def with_param_groups(self: Self, param_groups: ParameterGroup | list[ParameterGroup]) -> Self:
         """Return a model with parameter groups appended, replacing existing relationships.
@@ -1337,44 +1288,158 @@ class Model(eqx.Module):
         # 3. Combine
         new_list = kept_existing_groups + param_groups
         
-        return dataclasses.replace(self, _param_groups=new_list)    
+        return dataclasses.replace(self, _param_groups=new_list)
     
-    def with_uniform_distributions(self, width_frac=0.01):
+    def with_param_groups_demoted(self: Self) -> Self:
+        """Recursively demote parameter groups to the deepest possible submodel.
+
+        This method identifies parameter groups where every parameter belongs to the same 
+        immediate submodel. It moves those groups to the submodel, stripping the prefix.
+        It then recursively calls this method on the submodels to ensure groups continue 
+        moving down the hierarchy as far as possible.
+
+        Returns
+        -------
+        Self
+            A new model instance with parameter groups distributed to their lowest 
+            relevant submodels.
+        """
+        # 1. Identify immediate submodels and their prefixes
+        submodel_prefixes = {} 
+        for f in dataclasses.fields(self):
+            if isinstance(getattr(self, f.name), Model):
+                prefix = f.name + self.separator
+                submodel_prefixes[prefix] = f.name
+
+        # 2. Sort current groups into "keep" (stay here) or "demote" (move to child)
+        groups_to_keep = []
+        submodel_groups = {name: [] for name in submodel_prefixes.values()}
+        
+        current_groups = self._param_groups if self._param_groups is not None else []
+
+        for group in current_groups:
+            demoted = False
+            for prefix, field_name in submodel_prefixes.items():
+                # Check if ALL parameters in the group belong to this submodel
+                if all(name.startswith(prefix) for name in group.param_names):
+                    # Strip prefix
+                    new_names = [name[len(prefix):] for name in group.param_names]
+                    new_group = dataclasses.replace(group, param_names=new_names)
+                    submodel_groups[field_name].append(new_group)
+                    demoted = True
+                    break
+            
+            if not demoted:
+                groups_to_keep.append(group)
+
+        # 3. Apply updates to submodels AND recurse
+        new_fields = {}
+        
+        # We iterate over all submodels (even if they didn't receive new groups from us)
+        # because they might have their *own* local groups that need demoting further down.
+        for prefix, field_name in submodel_prefixes.items():
+            child_model: Model = getattr(self, field_name)
+            
+            # A. Push: Add the groups we demoted from the current level
+            groups_to_push = submodel_groups[field_name]
+            if groups_to_push:
+                child_model = child_model.with_param_groups(groups_to_push)
+            
+            # B. Recurse: Ask the child to demote its groups (including the ones we just pushed)
+            child_model = child_model.with_param_groups_demoted()
+            
+            new_fields[field_name] = child_model
+
+        # 4. Return updated model
+        return dataclasses.replace(self, _param_groups=groups_to_keep, **new_fields)
+    
+    # ---- Distribution manipulation --------------------------------------------------            
+    
+    def with_uniform_distributions(self, percentage=0.01):
+        """Return a model with uniform distributions set centered on current parameter values.
+
+        The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.
+
+        Parameters
+        ----------
+        percentage : float, default=0.01
+            The fractional width of the uniform distribution (e.g. 0.01 = 1%).
+
+        Returns
+        -------
+        Self
+            A new model with updated parameter distributions.
+        """        
         updates = {}
         for name, param in self.named_params().items():
-            distribution = UniformDistribution(param * (1.0 - width_frac) / param.scale, param * (1.0 + width_frac) / param.scale)
+            distribution = UniformDistribution(param * (1.0 - percentage) / param.scale, param * (1.0 + percentage) / param.scale)
             updates[name] = param.with_distribution(distribution)
             
         return self.with_params(updates)       
 
-    def with_param_groups_mapped(self, map_fn: Callable[[ParameterGroup], ParameterGroup], filter_fn: Callable[[ParameterGroup], bool] | None = None, include_implicit=False):
-        mapped_model = self
-        if include_implicit:
-            param_groups = self._param_groups
-        else:
-            param_groups = self.param_groups()
-        
-        for group in param_groups:
-            do_map = True if filter_fn is None else filter_fn(group)
-            if do_map:
-                mapped_model = mapped_model.with_param_groups(map_fn(group))
-        return mapped_model
+    def with_distributions_mapped(self, map_fn: Callable[[Distribution], Distribution], filter_fn: Callable[[Distribution], bool] | None = None, param_groups=False):
+        """Return a model with a function applied to its parameter distributions.
 
-    def with_distributions_mapped(self, map_fn: Callable[[Distribution], Distribution], filter_fn: Callable[[Distribution], bool] | None = None, param_groups=False, explicit_only=False):
+        This method allows for bulk-updates of distributions, such as widening variances 
+        or changing distribution types.
+
+        If ``param_groups`` is False, the mapping is applied to the distributions 
+        of individual parameters (flattened).
+
+        If ``param_groups`` is True, the mapping is applied to the distributions 
+        of :class:`ParameterGroup` objects. This mode is recursive: it will traverse 
+        the model tree and apply the mapping to all explicit parameter groups in all submodels.
+
+        Parameters
+        ----------
+        map_fn : Callable[[Distribution], Distribution]
+            Function that takes a distribution and returns a new one.
+        filter_fn : Callable[[Distribution], bool], optional
+            A predicate function. If provided, the mapping is only applied to 
+            distributions where ``filter_fn(dist)`` is True.
+        param_groups : bool, default=False
+            If True, map distributions on parameter groups (recursively). 
+            If False, map distributions on individual parameters (flat).
+
+        Returns
+        -------
+        Self
+            A new model with updated distributions.
+        """
         mapped_model = self
 
         if param_groups:
-            param_groups = self._param_groups if explicit_only else self.param_groups()
-
-            for group in param_groups:
+            # 1. Map Local Groups (Current Level)
+            current_groups = self._param_groups if self._param_groups is not None else []
+            for group in current_groups:
                 do_map = True if filter_fn is None else filter_fn(group.distribution)
                 if do_map:
+                    # Update local groups using existing method to ensure safe replacement
                     mapped_model = mapped_model.with_param_groups(group.with_distribution(map_fn(group.distribution)))
+
+            # 2. Recurse into Submodels
+            new_submodels = {}
+            for f in dataclasses.fields(mapped_model):
+                child = getattr(mapped_model, f.name)
+                # Check if the field is a direct submodel
+                if isinstance(child, Model):
+                    # Recursive call
+                    updated_child = child.with_distributions_mapped(map_fn, filter_fn, param_groups=True)
+                    new_submodels[f.name] = updated_child
+            
+            # Apply submodel updates if any
+            if new_submodels:
+                mapped_model = dataclasses.replace(mapped_model, **new_submodels)
+
         else:
+            # Existing logic for individual params (Global via named_params)
             for name, param in self.named_params().items():
                 do_map = True if filter_fn is None else filter_fn(param.distribution)
                 if do_map:
-                    mapped_model = mapped_model.with_params({name: param.with_distribution(param.distribution)})
+                    # Fixed: Added 'map_fn' wrapper which was missing in the snippet
+                    new_param = param.with_distribution(map_fn(param.distribution))
+                    mapped_model = mapped_model.with_params({name: new_param})
+                    
         return mapped_model
     
     # ---- Field and model manipulation --------------------------------------------------            

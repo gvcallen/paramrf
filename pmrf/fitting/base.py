@@ -243,15 +243,6 @@ class BaseFitter(ABC):
         FitResults
             The fit results object. `solver_results` contains a dictionary of the individual submodel results.
         """
-        if len(measured) == 1:
-            name = measured[0].name
-            comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
-            self.logger.info(f'Fitting {name}...')
-            model = self.model.with_free_submodels([name], fix_others=True)
-
-            ctx = self._create_context(comp_measured, model=model)
-            return self._run_context(ctx, **kwargs)
-        
         all_results: dict[str, FitResults] = {}
         
         # Fit the components sequentially
@@ -263,16 +254,24 @@ class BaseFitter(ABC):
         for ntwk in measured:
             name = ntwk.name
             
+            # Setup the submodel
             self.logger.info(f'Fitting {name}...')
-            
             model = self.model.with_free_submodels([name], fix_others=True)
             comp_measured = measured.filter(lambda ntwk: ntwk.name == name)
             output_path = f'{self.output_path}/submodels/{ntwk.name}'
             
+            # Run the fit
             ctx = self._create_context(comp_measured, model=model, output_path=output_path, output_root=name)
-            all_results[name] = self._run_context(ctx, **ctx_kwargs)
+            comp_results = self._run_context(ctx, **ctx_kwargs)
+            
+            # Append the results
+            all_results[name] = comp_results
 
+        # Combine the models. We demote the parameter groups so that the belong to the submodel and not the parent model
         fitted_model = self.model.with_models([result.fitted_model for result in all_results.values()])
+        fitted_model = fitted_model.with_param_groups_demoted()
+        
+        # Create the fit results and metadata
         fit_results = FitResults(
             initial_model=self.model,
             fitted_model=fitted_model,
@@ -283,6 +282,7 @@ class BaseFitter(ABC):
         metadata['fit_results'] = fit_results
         fitted_model = fitted_model.with_fields(metadata=metadata)
         
+        # Save the models and results
         if RANK == 0 and self.output_path is not None:
             self.logger.info(f'Saving combined model...')
             if kwargs.get('save_model', True):
