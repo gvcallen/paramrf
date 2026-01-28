@@ -31,7 +31,7 @@ class TrainableDistribution(Distribution):
         raise NotImplementedError
 
     @classmethod
-    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, weighted: bool = False, key: jnp.array | None = None, init_kwargs: dict | None = None, **train_kwargs) -> 'TrainableDistribution':
+    def from_sampled_distribution(cls, sampled_distribution: SampledDistribution, weighted: bool = False, key: jnp.ndarray | None = None, init_kwargs: dict | None = None, **train_kwargs) -> 'TrainableDistribution':
         """
         Train this distribution on a sampled distribution.
 
@@ -59,7 +59,7 @@ class TrainableDistribution(Distribution):
         return dist
     
     @classmethod
-    def from_distribution(cls, distribution: Distribution, num_samples: int = 10000, key: jnp.array | None = None, init_kwargs: dict | None = None, **train_kwargs) -> 'TrainableDistribution':
+    def from_distribution(cls, distribution: Distribution, num_samples: int = 10000, key: jnp.ndarray | None = None, init_kwargs: dict | None = None, **train_kwargs) -> 'TrainableDistribution':
         """
         Train this distribution on another distribution.
 
