@@ -79,6 +79,8 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
         
     @classmethod
     def from_samples(cls, samples: jnp.ndarray, weights: jnp.ndarray | None = None, key=None, kind='coupling', transformer_cls=None, transformer_kwargs=None, init_kwargs: dict | None = None, **train_kwargs):        
+        if key is None:
+            key = jr.key(0)
         init_key, train_key = jr.split(key)
         
         theta_min, theta_max, num_params = samples.min(axis=0), samples.max(axis=0), samples.shape[1]
