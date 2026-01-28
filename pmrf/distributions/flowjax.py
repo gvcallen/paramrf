@@ -1,10 +1,8 @@
 from pathlib import Path
-import dill
-from typing import BinaryIO, TypeVar
+from typing import BinaryIO
 
-import zipfile
-import cloudpickle
-import jsonpickle
+import json
+import numpy as np
 import jax.numpy as jnp
 import jax.random as jr
 import jax
@@ -45,36 +43,21 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
         if self.hyper_params is None:
             raise Exception('Cannot save flow without hyper_params')
         
-        target = Path(target)
+        with open(target, "wb") as f:
+            hyperparam_str = json.dumps(self.hyper_params)
+            f.write((hyperparam_str + "\n").encode())
+            eqx.tree_serialise_leaves(f, self.flow)
         
-        # We use a ZipFile to combine the json config and binary weights into one file
-        with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-            frozen_params = jsonpickle.encode(self.hyper_params)
-            zf.writestr('hyper_params.json', frozen_params)
-            
-            with zf.open('weights.eqx', 'w') as f:
-                eqx.tree_serialise_leaves(f, self.flow)
-
     @classmethod
     def load(cls, source: str | BinaryIO) -> 'FlowJAXDistribution':
         if not isinstance(source, str):
             return cls.read(source)
+  
+        with open(source, "rb") as f:
+            hyper_params = json.loads(f.readline().decode())
+            model, _ = _make_flow(jr.key(0), **hyper_params)
+            flow = eqx.tree_deserialise_leaves(f, model)  
         
-        source = Path(source)
-        
-        if not source.exists():
-            raise FileNotFoundError(f"Could not find flow file: {source}")
-
-        with zipfile.ZipFile(source, 'r') as zf:
-            hp_json = zf.read('hyper_params.json').decode('utf-8')
-            hyper_params = jsonpickle.decode(hp_json)
-
-            key = jr.key(0)
-            skeleton_flow, hyper_params = _make_flow(key, **hyper_params)
-
-            with zf.open('weights.eqx', 'r') as f:
-                flow = eqx.tree_deserialise_leaves(f, skeleton_flow)
-
         return FlowJAXDistribution(flow, hyper_params=hyper_params)
         
     @classmethod
@@ -93,7 +76,8 @@ class FlowJAXDistribution(TrainableDistribution, SerializableDistribution):
             transformer_cls=transformer_cls,
             transformer_kwargs=transformer_kwargs,
             init_kwargs=init_kwargs,
-        )
+        )    
+        
         flow = _train_flow(train_key, flow, samples, weights=weights, **train_kwargs)
         return FlowJAXDistribution(flow, hyper_params=hyper_params)
     
@@ -102,30 +86,34 @@ def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, 
     from flowjax.distributions import Transformed, Normal
     import flowjax.bijections as fjb
     import paramax
-
+    
     # We allow a transformer to be passed if it is Affine or RationalQuadaraticSpline
     if init_kwargs is not None and 'transformer' in init_kwargs:
         transformer = init_kwargs.pop('transformer')
-        if isinstance(transformer, fjb.RationalQuadraticSpline):
+        if isinstance(transformer, fjb.Affine):
+            if not isinstance(transformer.scale, paramax.Parameterize):
+                raise Exception(f"Expected Affine scale to be Parameterize but found {transformer.scale}")
+            
+            transformer_cls = 'Affine'
+            transformer_kwargs = {'loc': transformer.loc, 'scale': transformer.scale.fn(transformer.scale.args[0])}
+        elif isinstance(transformer, fjb.RationalQuadraticSpline):
             transformer_cls = 'RationalQuadraticSpline'
             transformer_kwargs = {'knots': transformer.knots, 'interval': transformer.interval, 'softmax_adjust': transformer.softmax_adjust, 'min_derivative': transformer.min_derivative}
-        elif isinstance(transformer, fjb.Affine):
-            transformer_cls = 'Affine'
-            transformer_kwargs = {'loc': transformer.loc, 'scale': transformer.scale}
         else:
-            raise Exception("Only RationalQuadraticSpline and Affine supported as transformers for FlowJAXDistribution")
+            raise Exception("Only Affine and RationalQuadraticSpline are currently supported as transformers for FlowJAXDistribution")
 
 
     # Set defaults
     kind = kind if kind is not None else 'coupling'
     init_kwargs = init_kwargs if init_kwargs is not None else {}
-    transformer_cls = transformer_cls if transformer_cls is not None else 'RationalQuadraticSpline'
+    transformer_cls = transformer_cls if transformer_cls is not None else 'Affine'
     transformer_args = transformer_args if transformer_args is not None else ()
-    transformer_kwargs = transformer_kwargs if transformer_kwargs is not None else {'knots': 10, 'interval': 10}
+    transformer_kwargs = transformer_kwargs if transformer_kwargs is not None else {'loc': 0, 'scale': 1}
     
     # Validate input
     if theta_min is None or theta_max is None or num_params is None:
         raise Exception('Number of parameters and bounds must be passed to construct a flow')
+    theta_min, theta_max = jnp.array(theta_min), jnp.array(theta_max)
     if 'base_dist' in init_kwargs:
         raise Exception("base_dist not supporterd as an init param in FlowJAXDistribution init_kwargs")
 
@@ -141,8 +129,9 @@ def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, 
     transformer = getattr(fjb, transformer_cls)(*transformer_args, **transformer_kwargs)
     init_kwargs.setdefault('base_dist', Normal(jnp.zeros(num_params)))
     init_kwargs.setdefault('transformer', transformer)
-    init_kwargs.setdefault('nn_width', 64)
-    init_kwargs.setdefault('nn_depth', 4)
+    init_kwargs.setdefault('nn_width', 50)
+    init_kwargs.setdefault('nn_depth', 1)
+    init_kwargs.setdefault('flow_layers', 8)
     init_kwargs.setdefault('invert', False)
     if init_kwargs['base_dist'].shape[0] != num_params:
         raise Exception("Base distribution must have shape equal to the number of parameters")        
@@ -163,8 +152,8 @@ def _make_flow(key, theta_min=None, theta_max=None, num_params=None, kind=None, 
     init_kwargs.pop('base_dist')
     init_kwargs.pop('transformer')
     hyper_params = {}
-    hyper_params['theta_min'] = theta_min
-    hyper_params['theta_max'] = theta_max
+    hyper_params['theta_min'] = [float(x) for x in theta_min]
+    hyper_params['theta_max'] = [float(x) for x in theta_max]
     hyper_params['num_params'] = num_params
     hyper_params['kind'] = kind
     hyper_params['transformer_cls'] = transformer_cls

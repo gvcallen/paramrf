@@ -1209,8 +1209,6 @@ def evaluate_power_basis(x, coeffs, lower_bound, upper_bound):
 def evaluate_bernstein_basis(x, coeffs, lower_bound, upper_bound):
     """
     Evaluate a polynomial in the Bernstein basis.
-    
-    
 
     Parameters
     ----------
@@ -1243,6 +1241,34 @@ def evaluate_bernstein_basis(x, coeffs, lower_bound, upper_bound):
     
     result = jax.vmap(_eval_single)(jnp.atleast_1d(t))
     return result
+
+def broaden(key, x, percentage=0.1):
+    """
+    Broaden data using gaussian noise by a specified percentage.
+    
+    The broadening is relative to the standard deviation of each column in the data.
+    Since standard deviations add with the square, random noise is added
+    with noise_std = data_std * (sqrt ((1.0 + percentage)**2) - 1.0).
+
+    Parameters
+    ----------
+    x : jnp.ndarray
+        Input data.
+    percentage : float
+        The percentage to broaden the data by.
+
+    Returns
+    -------
+    jnp.ndarray
+        The broadened data.
+    """    
+    ratio = 1 + percentage
+    scale = jnp.sqrt(ratio**2 - 1)
+    
+    stds = jnp.std(x, axis=0, keepdims=True)
+    noise = jax.random.normal(key, shape=x.shape)
+    scaled_noise = noise * stds * scale
+    return x + scaled_noise
 
 # Aliases, lookups and partials
 conv_inter = convolve_interleaved
