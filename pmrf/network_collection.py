@@ -259,6 +259,17 @@ class NetworkCollection:
                 raise TypeError("Function passed to apply() must return a Network.")
             self.networks[i] = res
 
+    def to_dict(self) -> Dict[str, rf.Network]:
+        """
+        Convert the collection to a dictionary {name: network}.
+
+        Returns
+        -------
+        dict
+            A dictionary where keys are network names and values are the Network objects.
+        """
+        return {ntwk.name: ntwk for ntwk in self.networks}            
+
     def to_dataframe(self, attrs: Optional[List[str]] = None) -> pd.DataFrame:
         """
         Convert the collection summary to a pandas DataFrame.

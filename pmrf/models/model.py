@@ -665,12 +665,24 @@ class Model(eqx.Module):
         """
         return nodes_by_type(self, Model)[1:]
     
-    # ---- Container model building --------------------------------------------------    
-
+    # ---- Magic methods --------------------------------------------------    
+    
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade composition operator ``**``."""        
         from pmrf.models.containers import Cascade
         return Cascade([self, other])
+    
+    def __getitem__(self, key: str | Sequence[str]):
+        if isinstance(key, str):
+            return self.param_value(key)
+        else:
+            named_param_values = self.named_param_values()
+            for k in key:
+                if k not in named_param_values.keys():
+                    raise Exception(f"Parameter name '{k}' was passed but is not a free parameter")
+            return [v for k, v in named_param_values.items() if k in key]
+        
+    # ---- Container model building --------------------------------------------------    
     
     def connected(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
         """Return a version of the model with specified ports connected.
@@ -822,6 +834,14 @@ class Model(eqx.Module):
         """
         return list(self.named_params(*args, **kwargs).keys())
 
+    def param(self, name: str, *args, **kwargs) -> Parameter:
+        """
+        Return a single model parameter by name.
+
+        See :meth:`named_params`.
+        """
+        return self.named_params(*args, **kwargs)[name]
+    
     def params(self, *args, **kwargs) -> list[Parameter]:
         """
         Return model parameters as a list.
@@ -829,8 +849,16 @@ class Model(eqx.Module):
         See :meth:`named_params`.
         """
         return list(self.named_params(*args, **kwargs).values())
+    
+    def param_value(self, name: str, *args, **kwargs) -> jnp.ndarray:
+        """
+        Return a single model parameter value by name as a single jax array.
 
-    def params_values(self, *args, **kwargs) -> list[jnp.ndarray]:
+        See :meth:`named_param_values`.
+        """
+        return self.named_param_values(*args, **kwargs)[name]
+
+    def param_values(self, *args, **kwargs) -> list[jnp.ndarray]:
         """
         Return model parameter values as a list of jax arrays.
 
@@ -1101,7 +1129,7 @@ class Model(eqx.Module):
             if all(is_convertible_to_float(v) for v in params.values()):            
                 for name, value in params.items():
                     # TODO create specs for the full parameter objects such that we can get and use the built-in scales
-                    new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value), scale=1.0)
+                    new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value))
             else:
                 new_params.update(params)
             new_flat_params = list(new_params.values())
@@ -1133,12 +1161,12 @@ class Model(eqx.Module):
             params_tree_recon = unravel_fn(params)
             return combine(params_tree_recon, static)           
         
-    def with_fixed_params(self: Self, params: list[str] | Callable[[str], bool], check_unknown=True) -> Self:
+    def with_fixed_params(self: Self, params: str | Sequence[str] | Callable[[str], bool], check_unknown=True) -> Self:
         """Return a model with specified parameters fixed.
 
         Parameters
         ----------
-        params : list[str]
+        params : str | Sequence[str] | Callable[[str], bool]
             Parameter names to fix.
         check_unknown : bool, default=True
             Error if any provided name does not exist.
@@ -1147,7 +1175,6 @@ class Model(eqx.Module):
         -------
         Self
         """
-        # For legacy callers
         if isinstance(params, str):
             params = [params]
             
@@ -1170,12 +1197,12 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: Self, params: list[str] | Callable[[str], bool], fix_others=False) -> Self:
+    def with_free_params(self: Self, params: str | list[str] | Callable[[str], bool], fix_others=False) -> Self:
         """Free the specified parameters.
 
         Parameters
         ----------
-        params : Sequence[str] | Sequence[Parameter]
+        params : str | Sequence[str] | Sequence[Parameter]
             Parameters to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
@@ -1184,6 +1211,9 @@ class Model(eqx.Module):
         -------
         Self
         """
+        if isinstance(params, str):
+            params = [params]
+
         if isinstance(params, Callable):
             params = [p for p in self.param_names() if params(p)]        
         
@@ -1197,7 +1227,7 @@ class Model(eqx.Module):
         
         for param_name in params:
             if param_name not in current_param_names:
-                raise Exception(f"Specified parameter '{param_name}'' not found in model")
+                raise Exception(f"Specified parameter '{param_name}' not found in model")
         
         new_params = current_params.copy()
         for name, param in current_params.items():
