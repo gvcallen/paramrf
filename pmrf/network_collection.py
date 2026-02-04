@@ -1,3 +1,4 @@
+import glob
 import os
 import zipfile
 import glob
@@ -36,9 +37,11 @@ class NetworkCollection:
     name : str
         The name of the collection.
     """
-
-    def __init__(self, networks: Optional[Iterable[rf.Network]] = None, 
+    def __init__(self, networks: Optional[Iterable[rf.Network]] | str | None = None, 
                  name: Optional[str] = None, params: Optional[dict] = None):
+        if isinstance(networks, str):
+            networks = [rf.Network(f) for f in sorted(glob.glob(os.path.join(networks, "*.s*p")))]
+        
         self.networks: List[rf.Network] = []
         self.params = params or {}
         self.name = name

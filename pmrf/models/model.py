@@ -1271,7 +1271,7 @@ class Model(eqx.Module):
 
         See :meth:``with_free_params``.
         """
-        return self.with_free_params(self.named_params(include_fixed=True), **kwargs)
+        return self.with_free_params(self.param_names(include_fixed=True), **kwargs)
     
     # ---- Parameter group manipulation --------------------------------------------------            
     
