@@ -18,6 +18,13 @@ except:
     RANK = 0
     MPI_AVAILABLE = False
 
+def is_convertible_to_float(x):
+    try:
+        float(x)
+        return True
+    except (ValueError, TypeError):
+        return False
+
 def wait_for_all_ranks():
     if not MPI_AVAILABLE:
         return

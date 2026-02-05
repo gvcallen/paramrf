@@ -75,6 +75,7 @@ class Parameter(eqx.Module):
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
     name: str | None = field(default=None, static=True)
+    flat_names: list[str] | None = field(default=None, static=True)
     
     @property
     def ndim(self) -> int:
@@ -201,7 +202,9 @@ class Parameter(eqx.Module):
                 dists_split = _split_vectorized_distribution(self.distribution)
             else:
                 dists_split = [None] * len(self.value)
-            return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=f"{self.name}{separator}{i}") for i, (val, p) in enumerate(zip(self.value, dists_split))]
+
+            flat_names = self.flat_names if self.flat_names is not None else [f"{self.name}{separator}{i}" for i in range(len(self.value))]
+            return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
     def interpolated(self, x_old, x_new) -> 'Parameter':
         """

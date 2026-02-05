@@ -40,7 +40,7 @@ from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions.parameter import JointParameterDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
-from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type
+from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
 from pmrf._tree import nodes_by_type, value_at_path, partition, combine
 
 class Model(eqx.Module):
@@ -396,7 +396,8 @@ class Model(eqx.Module):
                 if param.ndim > 1:
                     flattened_params = param.flattened(separator=self.separator)
                     for i, subparam in enumerate(flattened_params):
-                        flat_params.append((f"{name}{self.separator}{i}", subparam))
+                        suffix = subparam.name if subparam.name is not None else str(i)
+                        flat_params.append((f"{name}{self.separator}{suffix}", subparam))
                 else:
                     flat_params.append((name, param))
             params = flat_params
@@ -665,7 +666,30 @@ class Model(eqx.Module):
         """
         return nodes_by_type(self, Model)[1:]
     
-    # ---- Magic methods --------------------------------------------------    
+    # ---- Magic methods --------------------------------------------------
+
+    def __getattr__(self, name: str):
+        """
+        Dynamic dispatch for scikit-rf plotting methods.
+        
+        Captures calls like `model.plot_s_db(freq)` and redirects them 
+        to `model.to_skrf(freq).plot_s_db()`.
+        """
+        if name.startswith('plot_'):
+            def plotter(freq: Frequency, *args, **kwargs):
+                # 1. Convert to scikit-rf Network at the specified frequency
+                ntwk = self.to_skrf(freq)
+                
+                # 2. Check if the generated Network actually supports this plot type
+                if not hasattr(ntwk, name):
+                    raise AttributeError(f"scikit-rf Network object has no attribute '{name}'")
+                
+                # 3. Call the scikit-rf plot method with remaining args (e.g. labels, colors)
+                return getattr(ntwk, name)(*args, **kwargs)
+            return plotter
+            
+        # Standard fallback if the attribute isn't a plot command
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade composition operator ``**``."""        
@@ -1057,7 +1081,7 @@ class Model(eqx.Module):
         self: Self,
         params: dict[str, Parameter] | dict[str, float] | jnp.ndarray | None = None,
         check_missing: bool = False,
-        check_unknown: bool = False,
+        check_unknown: bool = True,
         fix_others = False,
         include_fixed = False,
         **param_kwargs: dict[str, Parameter] | dict[str, float],
@@ -1074,7 +1098,7 @@ class Model(eqx.Module):
             (matching ``flat_params`` order). You may also pass keyword args.
         check_missing : bool, default=False
             Require that all model parameters are specified.
-        check_unknown : bool, default=False
+        check_unknown : bool, default=True
             Error if unknown parameter keys are provided.
         fix_others : bool, default=False
             Fix any parameters not explicitly passed.
@@ -1093,61 +1117,11 @@ class Model(eqx.Module):
             If shape/order mismatches, unknown/missing names (when checked),
             or if arrays are found outside of Parameters.
         """
-        # Prepare input
-        if isinstance(params, dict) or len(param_kwargs) != 0:
-            if include_fixed:
-                raise Exception('Not yet supported')
-            
-            params = params if params is not None else {}
-            params.update(param_kwargs)
+        if include_fixed:
+            raise Exception('Not yet supported')
         
-            # Generate an ordered, input flat params array for verification
-            new_params = self.named_params(include_fixed=True)
-        
-            # Validate the callers's input
-            unknown_params = set(params.keys() - new_params.keys())
-            if check_unknown and len(unknown_params) != 0:
-                raise Exception(f"Error: the following parameters were passed but are not in the model: {unknown_params}")
-            params = {k: v for k, v in params.items() if k not in unknown_params}
-        
-            if check_missing or fix_others:
-                missing_params = set(new_params.keys() - params.keys())
-                if check_missing and len(missing_params) != 0:
-                    raise Exception(f"Error: the following model parameters were missing: {missing_params}")
-                if fix_others:
-                    for missing_param_name in missing_params:
-                        new_params[missing_param_name] = dataclasses.replace(new_params[missing_param_name], fixed=True)
-                        
-            def is_convertible_to_float(x):
-                try:
-                    float(x)
-                    return True
-                except (ValueError, TypeError):
-                    return False
-
-            # Convert to an array of parameters instead of floats
-            if all(is_convertible_to_float(v) for v in params.values()):            
-                for name, value in params.items():
-                    # TODO create specs for the full parameter objects such that we can get and use the built-in scales
-                    new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value))
-            else:
-                new_params.update(params)
-            new_flat_params = list(new_params.values())
-        
-            # Get the current flat parameter object
-            params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
-            flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
-            
-            # We allow the caller to pass None for name and then we update the name. Otherwise names should match
-            for i, param in enumerate(flat_params):
-                if new_flat_params[i].name == None:
-                    new_flat_params[i] = dataclasses.replace(new_flat_params[i], name=param.name)
-            
-            # Create the update tree and return
-            new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
-            combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
-            return combined
-        else:
+        # Deal with the sample case i.e. an array-like object
+        if not isinstance(params, dict) and len(param_kwargs) == 0:
             params = jnp.array(params)
 
             if params.shape[0] != self.num_flat_params:
@@ -1159,7 +1133,107 @@ class Model(eqx.Module):
                 raise Exception("Error: no free model parameters found to make feature function")
             
             params_tree_recon = unravel_fn(params)
-            return combine(params_tree_recon, static)           
+            return combine(params_tree_recon, static)
+
+        params = params if params is not None else {}
+        params.update(param_kwargs)
+    
+        # Generate an ordered, input flat params array for verification
+        new_params = self.named_params(include_fixed=True)
+
+        # ---- NEW: Pre-process to handle flattened keys with suffixes (e.g., 'z_real') ----
+        # We must identify keys in `params` that are not in `new_params` (parents)
+        # but ARE in the flattened view.
+        
+        parent_keys = set(new_params.keys())
+        input_keys = set(params.keys())
+        
+        # Keys that are not top-level parameters
+        potential_flat_keys = input_keys - parent_keys
+        
+        if potential_flat_keys:
+            # Iterate over parents to find which flattened keys belong to them.
+            # We only search parents that aren't ALREADY being fully replaced.
+            parents_to_scan = [p for p in parent_keys if p not in params]
+            
+            for parent_name in parents_to_scan:
+                parent_param = new_params[parent_name]
+                
+                # Optimization: only checking multi-dimensional parameters
+                if parent_param.ndim > 0: 
+                    # We must replicate the _iter_params name generation logic exactly
+                    sub_params = parent_param.flattened(separator=self.separator)
+                    
+                    updates_found = False
+                    new_sub_values = []
+                    
+                    # Reconstruct the value array from current values + updates
+                    for i, sub_p in enumerate(sub_params):
+                        suffix = sub_p.name if sub_p.name is not None else str(i)
+                        flat_name = f"{parent_name}{self.separator}{suffix}"
+                        
+                        if flat_name in params:
+                            val = params[flat_name]
+                            # Handle single-element arrays or scalars
+                            if hasattr(val, 'item') and val.size == 1:
+                                val = val.item()
+                            try:
+                                val = float(val)
+                            except:
+                                raise Exception(f"Value for flat parameter '{flat_name}' must be convertible to float. Got: {val}")
+                            new_sub_values.append(val)
+                            
+                            # Remove the flat key so it doesn't trigger 'unknown parameter' errors
+                            del params[flat_name]
+                            updates_found = True
+                        else:
+                            new_sub_values.append(sub_p.value)
+                    
+                    if updates_found:
+                        # Re-assemble the parent parameter
+                        new_val_flat = jnp.array(new_sub_values)
+                        new_val_shaped = new_val_flat.reshape(parent_param.value.shape)
+                        
+                        # Update the params dict with the FULL parent object
+                        # This ensures it hits the "Case 1" logic in the rest of the function
+                        params[parent_name] = dataclasses.replace(parent_param, value=new_val_shaped)            
+    
+        # Validate the callers's input
+        unknown_params = set(params.keys() - new_params.keys())
+        if check_unknown and len(unknown_params) != 0:
+            raise Exception(f"Error: the following parameters were passed but are not in the model: {unknown_params}")
+        params = {k: v for k, v in params.items() if k not in unknown_params}
+    
+        if check_missing or fix_others:
+            missing_params = set(new_params.keys() - params.keys())
+            if check_missing and len(missing_params) != 0:
+                raise Exception(f"Error: the following model parameters were missing: {missing_params}")
+            if fix_others:
+                for missing_param_name in missing_params:
+                    new_params[missing_param_name] = dataclasses.replace(new_params[missing_param_name], fixed=True)                    
+
+        # Convert to an array of parameters instead of floats
+        if all(is_convertible_to_float(v) for v in params.values()):            
+            for name, value in params.items():
+                # TODO create specs for the full parameter objects such that we can get and use the built-in scales
+                new_params[name] = dataclasses.replace(new_params[name], value=jnp.array(value))
+        else:
+            new_params.update(params)
+        new_flat_params = list(new_params.values())
+    
+        # Get the current flat parameter object
+        params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
+        flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
+        
+        # We allow the caller to pass None for name and then we update the name. Otherwise names should match
+        for i, param in enumerate(flat_params):
+            if new_flat_params[i].name == None:
+                new_flat_params[i] = dataclasses.replace(new_flat_params[i], name=param.name)
+        
+        # Create the update tree and return
+        new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
+        combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
+        return combined         
         
     def with_fixed_params(self: Self, params: str | Sequence[str] | Callable[[str], bool], check_unknown=True) -> Self:
         """Return a model with specified parameters fixed.

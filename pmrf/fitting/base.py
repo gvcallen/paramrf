@@ -361,7 +361,7 @@ class BaseFitter(ABC):
         context: FitContext,
         *,
         load_previous: bool = False, 
-        new_uniform_frac: float | None = 0.01,
+        new_uniform_frac: float | None = 0.1,
         save_model: bool = True,
         save_results: bool = True,
         plot: str | list[str] | None = 's_db',
@@ -439,22 +439,18 @@ class BaseFitter(ABC):
             output_prefix = f'{output_path}/{context.output_root}_' if context.output_root is not None else f'{output_path}/'
             fitted_model = results.fitted_model
             
-            if isinstance(results.measured, NetworkCollection):
-                name = results.measured[0].name or fitted_model.name or 'model'
-            else:
-                name = results.measured.name or fitted_model.name or 'model'
             if save_model:
                 Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
-                self.logger.info(f'Saving {name} model...')
-                fitted_model.save(Path(f'{output_prefix}fitted_{name}.prf').resolve())
+                self.logger.info(f'Saving model...')
+                fitted_model.save(Path(f'{output_prefix}fitted_model.prf').resolve())
 
             if save_results:
                 Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
-                self.logger.info(f'Saving {name} results...')
+                self.logger.info(f'Saving results...')
                 results.save_hdf(Path(f'{output_prefix}results.hdf5').resolve())
         
             if plot is not None:
-                self.logger.info(f'Plotting {name} S-parameters...')
+                self.logger.info(f'Plotting S-parameters...')
                 figure_path = f'{output_path}/{figure_subfolder}' if figure_subfolder is not None else output_path
                 figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
                 Path(figure_path).resolve().mkdir(parents=True, exist_ok=True)
