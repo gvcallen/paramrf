@@ -203,7 +203,7 @@ class Parameter(eqx.Module):
             else:
                 dists_split = [None] * len(self.value)
 
-            flat_names = self.flat_names if self.flat_names is not None else [f"{self.name}{separator}{i}" for i in range(len(self.value))]
+            flat_names = self.flat_names if self.flat_names is not None else [f"{self.name}{separator}{i}" for i in range(len(self.value))] if self.name is not None else [None] * len(self.value)
             return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
     def interpolated(self, x_old, x_new) -> 'Parameter':
