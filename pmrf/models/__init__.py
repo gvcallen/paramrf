@@ -5,4 +5,5 @@ from pmrf.models.lines import *
 from pmrf.models.lumped import *
 from pmrf.models.nonideal import *
 from pmrf.models.topological import *
+from pmrf.models.trainable import *
 from pmrf.models.misc import *
