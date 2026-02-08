@@ -179,6 +179,9 @@ def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ]).transpose()
     return a
 
+def s2y(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+    raise NotImplementedError
+
 def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     """
     Convert Admittance (Y) parameters to S-parameters.

@@ -23,7 +23,7 @@ FREQ_UNITS: dict[FrequencyUnitT, float] = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "G
 UNIT_DICT: dict[str] = {k.lower(): k for k in FREQ_UNITS}
 MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
-PRIMARY_PROPERTIES = ('s', 'a')
+PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
 # Flat, structured feature type
 FeatureT = tuple[str, str, tuple[int, int]]

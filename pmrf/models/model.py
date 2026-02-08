@@ -34,7 +34,7 @@ import equinox as eqx
 from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.network_collection import NetworkCollection
-from pmrf.functions.conversions import a2s, s2a
+from pmrf.functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
 from pmrf.distributions.parameter import JointParameterDistribution
@@ -587,40 +587,10 @@ class Model(eqx.Module):
         return primary_function(freq)
     
     @eqx.filter_jit
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        """Calculates the ABCD parameter matrix.
-
-        If only :meth:`s` is implemented, this is calculated using the conversion :func:`pmrf.functions.conversions.s2a`.
-
-        Parameters
-        ----------
-        freq : Frequency
-            Frequency grid.
-
-        Returns
-        -------
-        jnp.ndarray
-            ABCD matrix with shape ``(nf, 2, 2)``.
-
-        Raises
-        ------
-        NotImplementedError
-            If neither ``a`` nor ``s`` is implemented in a subclass.
-        """        
-        if is_overridden(type(self), Model, '__call__'):
-            return self().a(freq)
-
-        if not is_overridden(type(self), Model, 's'):
-            raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
-        
-        s = self.s(freq)
-        return s2a(s, self.z0)
-    
-    @eqx.filter_jit
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Scattering parameter matrix.
 
-        If only :meth:`a` is implemented, converts via :func:`pmrf.functions.conversions.a2s`.
+        If a different parameter type (a, z, y) is primary, this converts it to S.
 
         Parameters
         ----------
@@ -631,20 +601,142 @@ class Model(eqx.Module):
         -------
         jnp.ndarray
             S-parameter matrix with shape ``(nf, n, n)``.
-
-        Raises
-        ------
-        NotImplementedError
-            If neither ``a`` nor ``s`` is implemented in a subclass.
         """
         if is_overridden(type(self), Model, '__call__'):
             return self().s(freq)
 
-        if not is_overridden(type(self), Model, 'a'):
-            raise NotImplementedError(f"Error: model sub-classes currently *have* to implement the 's' or the 'a' function, but class {type(self)} has neither")
+        # 1. Fetch primary
+        primary_prop = self.primary_property
+        val = self.primary(freq)
+
+        # 2. Return or Convert
+        if primary_prop == 's':
+            return val
+        elif primary_prop == 'a':
+            return a2s(val, self.z0)
+        elif primary_prop == 'z':
+            return z2s(val, self.z0)
+        elif primary_prop == 'y':
+            return y2s(val, self.z0)
         
-        a = self.a(freq)
-        return a2s(a, self.z0)
+        raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
+    
+    @eqx.filter_jit
+    def a(self, freq: Frequency) -> jnp.ndarray:
+        """ABCD parameter matrix.
+
+        If a different parameter type is primary, this converts it to A.
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequency grid.
+
+        Returns
+        -------
+        jnp.ndarray
+            ABCD matrix with shape ``(nf, 2, 2)``.
+        """        
+        if is_overridden(type(self), Model, '__call__'):
+            return self().a(freq)
+        
+        # 1. Fetch primary
+        primary_prop = self.primary_property
+        val = self.primary(freq)
+
+        # 2. Return or Convert
+        if primary_prop == 'a':
+            return val
+        
+        # Convert via S parameters (Hub strategy)
+        if primary_prop == 's':
+            s = val
+        elif primary_prop == 'z':
+            s = z2s(val, self.z0)
+        elif primary_prop == 'y':
+            s = y2s(val, self.z0)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'a' is not implemented.")
+            
+        return s2a(s, self.z0)
+
+    @eqx.filter_jit
+    def z(self, freq: Frequency) -> jnp.ndarray:
+        """Impedance (Z) parameter matrix.
+
+        If a different parameter type is primary, this converts it to Z.
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequency grid.
+
+        Returns
+        -------
+        jnp.ndarray
+            Z matrix with shape ``(nf, n, n)``.
+        """
+        if is_overridden(type(self), Model, '__call__'):
+            return self().z(freq)
+
+        # 1. Fetch primary
+        primary_prop = self.primary_property
+        val = self.primary(freq)
+
+        # 2. Return or Convert
+        if primary_prop == 'z':
+            return val
+
+        # Convert via S parameters (Hub strategy)
+        if primary_prop == 's':
+            s = val
+        elif primary_prop == 'a':
+            s = a2s(val, self.z0)
+        elif primary_prop == 'y':
+            s = y2s(val, self.z0)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'z' is not implemented.")
+
+        return s2z(s, self.z0)
+
+    @eqx.filter_jit
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        """Admittance (Y) parameter matrix.
+
+        If a different parameter type is primary, this converts it to Y.
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequency grid.
+
+        Returns
+        -------
+        jnp.ndarray
+            Y matrix with shape ``(nf, n, n)``.
+        """
+        if is_overridden(type(self), Model, '__call__'):
+            return self().y(freq)
+
+        # 1. Fetch primary
+        primary_prop = self.primary_property
+        val = self.primary(freq)
+
+        # 2. Return or Convert
+        if primary_prop == 'y':
+            return val
+
+        # Convert via S parameters (Hub strategy)
+        if primary_prop == 's':
+            s = val
+        elif primary_prop == 'a':
+            s = a2s(val, self.z0)
+        elif primary_prop == 'z':
+            s = z2s(val, self.z0)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
+
+        return s2y(s, self.z0)    
     
     # ---- Structure utilities --------------------------------------------------    
     
@@ -752,61 +844,7 @@ class Model(eqx.Module):
         load = load or SHORT
         terminated_model = Cascade((self, load))
         return terminated_model
-    
-    # ---- Model fitting --------------------------------------------------    
-    
-    def fitted(self: Self, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Self:
-        """Returns a new model fitted to measured data.
-
-        This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
-        See the :func:`fit <pmrf.fitting.BaseFitter.fit>` method for more details.
-        
-        Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit(...)` is called,
-        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
-
-        Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
-
-        Parameters
-        ----------
-        measured : prf.NetworkCollection | skrf.Network | str
-            The measured data.
-        **kwargs
-            Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit`.
-
-        Returns
-        -------
-        Model
-            The fitted model.
-        """           
-        from pmrf.fitting import fit
-        return fit(self, measured, **kwargs)
-
-    def with_submodels_fitted(self: Self, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Self:
-        """Returns a new model with its submodels fitted to measured data.
-
-        This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
-        See the :func:`fit_submodels <pmrf.fitting.BaseFitter.fit_submodels>` method for more details.
-        
-        Internally, a fitter is first created using :func:`pmrf.fitting.Fitter`, and then :func:`fitter.fit_submodels(...)` is called,
-        with the fitted model being returned. Fit results are stored in the model's metadata with key 'fit_results'.
-
-        Key-word arguments are split into 'init' and 'fit' key-word arguments appropriately.
-
-        Parameters
-        ----------
-        measured : prf.NetworkCollection | skrf.Network | str
-            The measured data.
-        **kwargs
-            Additional arguments forwarded to :func:`pmrf.fitting.Fitter` and :func:`pmrf.fitting.BaseFitter.fit_submodels`.
-
-        Returns
-        -------
-        Model
-            The fitted model.
-        """         
-        from pmrf.fitting import fit_submodels
-        return fit_submodels(self, measured, **kwargs)
-    
+       
     # ---- Parameter inspection -------------------------------------------------- 
     
     def named_params(self, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
