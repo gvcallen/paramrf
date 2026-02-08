@@ -2,6 +2,7 @@ from typing import Self
 from abc import ABC, abstractmethod
 import jax.numpy as jnp
 
+import jax
 import skrf as rf
 from pmrf.models import Model
 from pmrf._util import remove_constant_params
@@ -25,8 +26,10 @@ class BlackBox(Model, ABC):
     def predict(self, freq: Frequency) -> Self:
         f_new, f_old = freq.f_scaled, self.frequency.f_scaled
         sample = self.predict_sample()
-        jnp.interp(f_new, f_old, sample)
-        return sample.reshape(freq.npoints, 1, 1)
+        
+        vmap_m = jax.vmap(jnp.interp, in_axes=(None, None, 1), out_axes=1)
+        vmap_mn = jax.vmap(vmap_m, in_axes=(None, None, 2), out_axes=2)
+        return vmap_mn(f_new, f_old, sample)
     
     def transform(self, ntwk: rf.Network) -> Self:
         ntwk_interp = ntwk.interpolate(self.frequency.to_skrf())
@@ -43,25 +46,25 @@ class BlackBox(Model, ABC):
     
     def a(self, freq: Frequency) -> jnp.ndarray:
         if self.feature == 'a':
-            return self.predict_sample(freq)
+            return self.predict(freq)
         else:
             return super().a(freq)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         if self.feature == 's':
-            return self.predict_sample(freq)
+            return self.predict(freq)
         else:
             return super().s(freq)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         if self.feature == 'y':
-            return self.predict_sample(freq)
+            return self.predict(freq)
         else:
             return super().y(freq)
 
     def z(self, freq: Frequency) -> jnp.ndarray:
         if self.feature == 'z':
-            return self.predict_sample(freq)
+            return self.predict(freq)
         else:
             return super().z(freq)
 

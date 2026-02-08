@@ -28,9 +28,15 @@ class BasisExpansion(UnsupervisedBlackBox):
         return coefficients    
     
     def predict_sample(self) -> jnp.ndarray:
-        X = self.coefficients_complex @ self.basis
+        # X = self.coefficients_complex @ self.basis
+        
+        # This multiplies the coefficients onto the basis vector for each port (m, n)
+        coeff = self.coefficients_complex
+        X = jnp.einsum('imn,ikmn->kmn', coeff, self.basis)
+        
         if self.offset is not None:
-            X += self.offset
+            offset = self.offset.reshape(X.shape)
+            X += offset
 
         return X
     
