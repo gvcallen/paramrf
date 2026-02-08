@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 import jax.numpy as jnp
 
 import skrf as rf
-import pmrf as prf
 from pmrf.models import Model
 from pmrf._util import remove_constant_params
 
