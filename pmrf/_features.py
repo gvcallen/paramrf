@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Callable
 import re
 
 import skrf
@@ -80,6 +80,9 @@ def extract_features(
       into columns.
 
     """
+    if isinstance(features, Callable):
+        return features(source)
+    
     # We format the features to be flat (and parse them in the process)
     features = _format_features(features, source=source, sparam_kind=sparam_kind)
     

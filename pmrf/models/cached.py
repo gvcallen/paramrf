@@ -13,7 +13,8 @@ from joblib import Memory
 import os
 from typing import Any
 
-import pmrf as prf
+from pmrf.frequency import Frequency
+from pmrf.models.model import Model
 
 # -----------------------------------------------------------------------------
 # 1. Setup Joblib Memory
@@ -29,7 +30,7 @@ memory = Memory(location=CACHE_DIR, verbose=0)
 # 2. Define the Cached Executor
 # -----------------------------------------------------------------------------
 @memory.cache
-def _run_cached_simulation(model: 'Cached', freq: prf.Frequency) -> np.ndarray:
+def _run_cached_simulation(model: 'Cached', freq: Frequency) -> np.ndarray:
     """
     This is the function that Joblib actually caches. 
     
@@ -46,7 +47,7 @@ def _run_cached_simulation(model: 'Cached', freq: prf.Frequency) -> np.ndarray:
 # -----------------------------------------------------------------------------
 # 3. The Cached Class
 # -----------------------------------------------------------------------------
-class Cached(prf.Model):
+class Cached(Model):
     """
     A base class for models that require expensive, non-JAX simulations 
     (e.g., CST, HFSS, FEKO) and need persistent disk caching.
@@ -72,7 +73,7 @@ class Cached(prf.Model):
     def primary_property(self):
         return 's'    
 
-    def simulate(self, freq: prf.Frequency) -> np.ndarray | jnp.ndarray:
+    def simulate(self, freq: Frequency) -> np.ndarray | jnp.ndarray:
         """
         The expensive simulation logic goes here.
 
@@ -80,7 +81,7 @@ class Cached(prf.Model):
         
         Parameters
         ----------
-        freq : prf.Frequency
+        freq : Frequency
             The frequency grid for the simulation.
 
         Returns
@@ -90,7 +91,7 @@ class Cached(prf.Model):
         """
         raise NotImplementedError("Subclasses of Cached must implement 'simulate'.")
 
-    def primary(self, freq: prf.Frequency) -> jnp.ndarray:
+    def primary(self, freq: Frequency) -> jnp.ndarray:
         """
         The entry point for all parameter calculations.
         

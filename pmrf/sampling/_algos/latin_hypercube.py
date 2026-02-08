@@ -11,7 +11,7 @@ class LatinHypercubeSampler(OneshotSampler):
     more evenly distributed across the hypercube than standard random sampling.
     This implementation uses `scipy.stats.qmc.LatinHypercube`.
     """
-    def _generate(self, N: int, d: int, key=None) -> jnp.ndarray:
+    def _generate(self, N: int, d: int, key=None, **kwargs) -> jnp.ndarray:
         """
         Generate samples using Latin Hypercube Sampling.
 

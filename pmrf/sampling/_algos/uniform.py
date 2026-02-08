@@ -4,7 +4,7 @@ import jax
 from pmrf.sampling.oneshot import OneshotSampler
 
 class UniformSampler(OneshotSampler):
-    def _generate(self, N, D, key=None) -> jnp.ndarray:
+    def _generate(self, N, D, key=None, **kwargs) -> jnp.ndarray:
         """
         Generate samples using uniform random sampling.
 

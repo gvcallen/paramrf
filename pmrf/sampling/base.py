@@ -11,9 +11,9 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model
+from pmrf.models.model import Model, wrap
 from pmrf.constants import FeatureInputT, FeatureT
-from pmrf import extract_features, wrap
+from pmrf._features import extract_features
 
 @dataclass
 class SampleSettings:
@@ -68,9 +68,9 @@ class BaseSampler(ABC):
         params, self._static = self.model.partition()
         self._flat_params, self._ravel_fn = flatten_util.ravel_pytree(params)
         
-    def make_prior_transform_fn(self, as_numpy=False):
+    def make_inverse_cumulative_distribution_fn(self, as_numpy=False):
         """
-        Create the prior transform function (unit hypercube to parameter space).
+        Create the inverse cumulative distribution function (unit hypercube to parameter space).
 
         Parameters
         ----------
@@ -82,21 +82,48 @@ class BaseSampler(ABC):
         callable
             Function transforming a unit hypercube vector `u` to parameter vector `theta`.
         """
-        model_prior = self.model.distribution()
+        model_distribution = self.model.distribution()
         num_model_params = self.model.num_flat_params
         
         @jax.jit
-        def prior_transform_fn(u):
-            return model_prior.icdf(u)
+        def icdf_fn(u):
+            return model_distribution.icdf(u)
             
         if as_numpy:
-            prior_transform_fn_jax = prior_transform_fn
-            prior_transform_fn = lambda hypercube: np.array(prior_transform_fn_jax(hypercube))
+            icdf_transform_fn_jax = icdf_fn
+            icdf_fn = lambda hypercube: np.array(icdf_transform_fn_jax(hypercube))
         
-        self.logger.info('Compiling prior transform...')
-        _prior = prior_transform_fn(jnp.array([0.5] * (num_model_params)))
+        self.logger.info('Compiling inverse cumulative distribution function...')
+        _icdf_val = icdf_fn(jnp.array([0.5] * (num_model_params)))
+        return icdf_fn
+    
+    def make_cumulative_distribution_fn(self, as_numpy=False):
+        """
+        Create the cumulative distribution function (parameter space to unit hypercube).
+
+        Parameters
+        ----------
+        as_numpy : bool, optional, default=False
+            If True, returns a function compatible with NumPy arrays; otherwise JAX arrays.
+
+        Returns
+        -------
+        callable
+            Function transforming a parameter vector `theta` to a unit hypercube vector `u`.
+        """
+        model_distribution = self.model.distribution()
         
-        return prior_transform_fn
+        @jax.jit
+        def cdf_fn(u):
+            return model_distribution.cdf(u)
+            
+        if as_numpy:
+            cdf_fn_jax = cdf_fn
+            cdf_fn = lambda hypercube: np.array(cdf_fn_jax(hypercube))
+        
+        self.logger.info('Compiling cumulative distribution function...')
+        _cdf_val = cdf_fn(self.model.flat_param_values())
+        return cdf_fn    
         
     def make_feature_function(self, as_numpy=False, jit=True):
         """
