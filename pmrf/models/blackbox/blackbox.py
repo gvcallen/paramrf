@@ -49,7 +49,7 @@ class BlackBox(Model, ABC):
         else:
             return super().z(freq)
 
-class Unsupervised(BlackBox, ABC):
+class UnsupervisedBlackBox(BlackBox, ABC):
     """
     A model that can be trained in an unsupervised manner from output samples of some measured feature, such as S-parameters.
     """
@@ -66,7 +66,7 @@ class Unsupervised(BlackBox, ABC):
     def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, nominal_sample: jnp.ndarray | None = None, feature='s', **kwargs) -> Self:
         raise NotImplementedError
 
-class Supervised(BlackBox, ABC):
+class SupervisedBlackBox(BlackBox, ABC):
     """
     A model that can be trained in a supervised manner from parametric input-output samples of some measured feature, such as S-parameters.
     """    
