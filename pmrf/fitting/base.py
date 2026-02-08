@@ -511,7 +511,7 @@ class FitResults:
     measured: skrf.Network | NetworkCollection | None = None
     initial_model: Model | None = None
     fitted_model: Model | None = None
-    solver_results: Model = None
+    solver_results: Any = None
     settings: FitSettings | None = None
 
     # --------------------------------------------------------------------------

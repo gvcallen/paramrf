@@ -5,7 +5,7 @@ from jax.scipy.linalg import svd
 
 from pmrf.frequency import Frequency
 from pmrf._util import field
-from pmrf.models.blackbox import UnsupervisedBlackBox
+from pmrf.models.blackbox.blackbox import UnsupervisedBlackBox
 from pmrf.parameters import Parameter, Uniform
 
 class BasisExpansion(UnsupervisedBlackBox):
@@ -27,10 +27,8 @@ class BasisExpansion(UnsupervisedBlackBox):
             coefficients += 1j * self.coefficients_imag
         return coefficients    
     
-    def predict_sample(self) -> jnp.ndarray:
-        # X = self.coefficients_complex @ self.basis
-        
-        # This multiplies the coefficients onto the basis vector for each port (m, n)
+    def forward(self) -> jnp.ndarray:
+        # The forward model, which multiplies the current coefficients onto the basis vectors
         coeff = self.coefficients_complex
         X = jnp.einsum('imn,ikmn->kmn', coeff, self.basis)
         
@@ -40,7 +38,8 @@ class BasisExpansion(UnsupervisedBlackBox):
 
         return X
     
-    def transform_sample(self, sample: jnp.ndarray) -> Self:
+    def inverse(self, sample: jnp.ndarray) -> jnp.ndarray:
+        # The inverse model, which projects a sample onto the coefficients
         if self.offset is not None:
             sample = sample - self.offset
         basis_Tconj = self.basis.transpose(1, 0, 2, 3).conj()
@@ -49,10 +48,10 @@ class BasisExpansion(UnsupervisedBlackBox):
         coefficients = jnp.einsum('ifmn,fbmn->ibmn', sample, basis_Tconj).reshape(basis_Tconj.shape[1:])
 
         if self.coefficients_imag is not None:
-            flat_params = jnp.concat([coefficients.real, coefficients.imag])
+            coefficients = jnp.concat([coefficients.real, coefficients.imag])
         else:
-            flat_params = coefficients.real
-        return self.with_params(flat_params)        
+            coefficients = coefficients.real
+        return coefficients
     
     def plot_basis(self, component, m=0, n=0):
         import matplotlib.pyplot as plt
@@ -92,7 +91,7 @@ class BasisExpansion(UnsupervisedBlackBox):
         
 class SVDExpansion(BasisExpansion):
     @classmethod
-    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, feature='s', min_components=1, max_components=100, var_threshold=None) -> Self:
+    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, property='s', min_components=1, max_components=100, var_threshold=None) -> Self:
         """
         Creates an SVD expansion basis from samples with arbitrary dimensions.
         
@@ -159,5 +158,5 @@ class SVDExpansion(BasisExpansion):
             basis=basis_out,
             offset=offset_out,
             frequency=frequency,
-            feature=feature,
+            property=property,
         )

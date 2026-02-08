@@ -334,7 +334,7 @@ class Model(eqx.Module):
     def _saveable(self: Self) -> Self:
         return self._with_stripped_metadata()
     
-    def _partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
+    def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
         """Partition model into (parameters, static) trees.
         
         This is useful for internal use, or for inspecting the model
@@ -1164,7 +1164,7 @@ class Model(eqx.Module):
 
             if params.shape[0] != self.num_flat_params:
                 raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {params.shape[0]}')
-            params_tree, static = self._partition(include_fixed=include_fixed)
+            params_tree, static = self.partition(include_fixed=include_fixed)
             params_out, unravel_fn = flatten_util.ravel_pytree(params_tree)
             
             if jnp.isscalar(params_out) or params_out.shape[0] == 0:
@@ -1795,7 +1795,7 @@ class Model(eqx.Module):
         """
         model_save = self._saveable()
 
-        params_tree, static_tree = model_save._partition(include_fixed=True, param_objects=True)
+        params_tree, static_tree = model_save.partition(include_fixed=True, param_objects=True)
         params = model_save.named_params()
         model_raw_grp = group.create_group('raw')
         model_raw_grp.create_dataset('combined', data=jsonpickle.encode(model_save))
