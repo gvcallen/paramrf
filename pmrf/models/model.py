@@ -36,7 +36,7 @@ from numpyro.distributions import Distribution, Uniform as UniformDistribution
 from pmrf.network_collection import NetworkCollection
 from pmrf.functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.functions.math import FUNC_LOOKUP
-from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, asparam
+from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.parameter import JointParameterDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
@@ -159,7 +159,7 @@ class Model(eqx.Module):
                         raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
                     field_kwargs['default'] = default
                 
-                field_kwargs['converter'] = lambda x, field_name=field_name: asparam(x, name=field_name, fixed=True)
+                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, name=field_name, fixed=True)
                 # field_kwargs['default_factory'] = lambda default=default: default
             
             # Apply default_factory to avoid Python default mutable trap
@@ -377,7 +377,7 @@ class Model(eqx.Module):
         spec = self._core_object_spec if include_fixed else self._free_object_spec
         params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
         path_and_params, _ = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
-        params: list[str, Parameter] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
+        params: list[tuple[str, Parameter]] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
 
         # Submodel filtering
         if submodels is not None:
@@ -391,9 +391,9 @@ class Model(eqx.Module):
 
         # Flatten multi-dimensional parameters if requested
         if flatten:
-            flat_params: list[str, Parameter] = []
+            flat_params: list[tuple[str, Parameter]] = []
             for name, param in params:
-                if param.ndim > 1:
+                if param.size > 1:
                     flattened_params = param.flattened(separator=self.separator)
                     for i, subparam in enumerate(flattened_params):
                         suffix = subparam.name if subparam.name is not None else str(i)
@@ -1198,7 +1198,7 @@ class Model(eqx.Module):
                 parent_param = new_params[parent_name]
                 
                 # Optimization: only checking multi-dimensional parameters
-                if parent_param.ndim > 0: 
+                if parent_param.size > 0: 
                     # We must replicate the _iter_params name generation logic exactly
                     sub_params = parent_param.flattened(separator=self.separator)
                     

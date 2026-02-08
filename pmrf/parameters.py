@@ -76,9 +76,16 @@ class Parameter(eqx.Module):
     scale: float = field(default=1.0)
     name: str | None = field(default=None, static=True)
     flat_names: list[str] | None = field(default=None, static=True)
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """
+        The shape of  this parameter.
+        """
+        return self.value.shape
     
     @property
-    def ndim(self) -> int:
+    def size(self) -> int:
         """
         The number of free dimensions for this parameter.
         
@@ -107,9 +114,9 @@ class Parameter(eqx.Module):
             else:
                 return self.distribution.icdf(MIN_PERCENTILE)
             
-        if jnp.isscalar(self.value):
+        if self.value.ndim == 0:
             return -jnp.inf
-        return jnp.array([-jnp.inf] * self.value.shape[0])
+        return jnp.full(self.shape, -jnp.inf)
     
     @property
     def max(self) -> jnp.array:
@@ -129,9 +136,9 @@ class Parameter(eqx.Module):
             else:
                 return self.distribution.icdf(MAX_PERCENTILE)
             
-        if jnp.isscalar(self.value):
-            return -jnp.inf
-        return jnp.array([-jnp.inf] * self.value.shape[0])
+        if self.value.ndim == 0:
+            return jnp.inf
+        return jnp.full(self.shape, jnp.inf)
     
     def with_value(self, value: jnp.array) -> 'Parameter':
         r"""
@@ -195,16 +202,42 @@ class Parameter(eqx.Module):
         ValueError
             If any internal distributions cannot be de-vectorized.
         """
-        if jnp.isscalar(self.value):
-            return [self]
-        else:
-            if self.distribution is not None:
-                dists_split = _split_vectorized_distribution(self.distribution)
-            else:
-                dists_split = [None] * len(self.value)
+        # if jnp.isscalar(self.value):
+        #     return [self]
+        # else:
+        #     if self.distribution is not None:
+        #         dists_split = _split_vectorized_distribution(self.distribution)
+        #     else:
+        #         dists_split = [None] * len(self.value)
 
-            flat_names = self.flat_names if self.flat_names is not None else [f"{self.name}{separator}{i}" for i in range(len(self.value))] if self.name is not None else [None] * len(self.value)
-            return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
+        #     flat_names = self.flat_names if self.flat_names is not None else [f"{self.name}{separator}{i}" for i in range(len(self.value))] if self.name is not None else [None] * len(self.value)
+        #     return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
+        
+        # Handle scalar / 0-d array
+        if self.value.ndim == 0:
+            return [self]
+            
+        # Flatten the value
+        flat_val = jnp.ravel(self.value)
+        
+        # Split distribution if present
+        if self.distribution is not None:
+            dists_split = _split_vectorized_distribution(self.distribution)
+        else:
+            dists_split = [None] * flat_val.size
+
+        # Generate names
+        flat_names = self.flat_names
+        if flat_names is None:
+            if self.name is not None:
+                flat_names = [f"{self.name}{separator}{i}" for i in range(flat_val.size)]
+            else:
+                flat_names = [None] * flat_val.size
+                
+        return [
+            Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=n) 
+            for val, p, n in zip(flat_val, dists_split, flat_names)
+        ]        
         
     def interpolated(self, x_old, x_new) -> 'Parameter':
         """
@@ -524,11 +557,12 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
     Parameter
         The created Parameter object.
     """
-    
-    if n is not None and n != 1:
-        low, high = jnp.array([low] * n), jnp.array([high] * n)
+    if n is not None:
+        shape = (n,) if isinstance(n, int) else n
+        low = jnp.broadcast_to(jnp.array(low), shape)
+        high = jnp.broadcast_to(jnp.array(high), shape)
         if value is not None:
-            value = jnp.array([value] * n)
+            value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         low, high = jnp.array(low), jnp.array(high)
     
@@ -555,10 +589,10 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
     Parameter
         The created Parameter object.
     """
-    if isinstance(perc, Sequence):
-        delta = [p * mean[i] / 200.0 for i, p in enumerate(perc)]
+    if isinstance(perc, Sequence) or isinstance(perc, jnp.ndarray):
+        delta = jnp.array(perc) * jnp.array(mean) / 200.0
     else:
-        delta = perc * mean / 200.0
+        delta = perc * jnp.array(mean) / 200.0
     return Uniform(low=mean-delta, high=mean+delta, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
@@ -583,15 +617,17 @@ def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int |
     Parameter
         The created Parameter object.
     """
-    if n is not None and n != 1:
-        mean, std = jnp.array([mean] * n), jnp.array([std] * n)
+    if n is not None:
+        shape = (n,) if isinstance(n, int) else n
+        mean = jnp.broadcast_to(jnp.array(mean), shape)
+        std = jnp.broadcast_to(jnp.array(std), shape)
         if value is not None:
-            value = jnp.array([value] * n)
+            value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         mean, std = jnp.array(mean), jnp.array(std)
     
     dists = dist.Normal(mean, std)
-    values = jnp.array(mean) if value is None else value
+    values = mean if value is None else value
     return Parameter(value=values, distribution=dists, **kwargs)
     
 def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> 'Parameter':
@@ -615,10 +651,10 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
     Parameter
         The created Parameter object.
     """
-    if isinstance(perc, Sequence):
-        std = [p * mean[i] / 200.0 for i, p in enumerate(perc)]
+    if isinstance(perc, Sequence) or isinstance(perc, jnp.ndarray):
+        std = jnp.array(perc) * jnp.array(mean) / 200.0
     else:
-        std = perc * mean / 200.0
+        std = perc * jnp.array(mean) / 200.0
     return Normal(mean=mean, std=std, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
@@ -639,8 +675,9 @@ def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     Parameter
         The created fixed Parameter object.
     """
-    if n is not None and n != 1:
-        value = jnp.array([value] * n)
+    if n is not None:
+        shape = (n,) if isinstance(n, int) else n
+        value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         value = jnp.array(value)
     return Parameter(value=value, fixed=True, **kwargs)
@@ -663,8 +700,9 @@ def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
     Parameter
         The created free Parameter object.
     """
-    if n is not None and n != 1:
-        value = jnp.array([value] * n)
+    if n is not None:
+        shape = (n,) if isinstance(n, int) else n
+        value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         value = jnp.array(value)
     return Parameter(value=value, **kwargs)
@@ -733,7 +771,7 @@ def is_fixed_param(x) -> bool:
     """
     return isinstance(x, Parameter) and x.fixed
 
-def asparam(x, **kwargs) -> Parameter:
+def as_param(x, **kwargs) -> Parameter:
     r"""
     Ensure an object is a `Parameter`.
 
@@ -756,45 +794,65 @@ def asparam(x, **kwargs) -> Parameter:
         return x
     return Parameter(value=x, **kwargs)
 
-def _split_vectorized_distribution(dist):
-    r"""
-    Split a 1D batch of univariate numpyro distributions into a list.
-
+def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
+    """
+    Split an arbitrarily shaped batch of univariate numpyro distributions into a list of scalar distributions.
+    
+    Handles broadcasting of distribution parameters to the batch shape.
+    
     Parameters
     ----------
-    dist : numpyro.distributions.Distribution
-        A distribution with ``event_shape == ()`` and 1D ``batch_shape``.
+    d : numpyro.distributions.Distribution
+        A distribution with ``event_shape == ()`` and arbitrary ``batch_shape``.
 
     Returns
     -------
     list[numpyro.distributions.Distribution]
-        A list of per-element distributions.
-
-    Raises
-    ------
-    ValueError
-        If the distribution cannot be split (e.g., wrong shapes).
+        A flat list of scalar distributions corresponding to the flattened batch.
     """
-    if dist.event_shape != ():
-        raise ValueError(f"Cannot split distribution with event_shape={dist.event_shape} (likely an Independent)")
+    if d.event_shape != ():
+        raise ValueError(f"Cannot split distribution with event_shape={d.event_shape} (likely an Independent or Multivariate dist)")
 
-    batch_size = dist.batch_shape[0] if len(dist.batch_shape) == 1 else None
-    if batch_size is None:
-        raise ValueError("Distribution is not a 1D batch of univariate distributions")
+    batch_shape = d.batch_shape
+    if not batch_shape: # Scalar distribution
+        return [d]
 
-    # Get all init params used to construct the distribution
-    dist_class = dist.__class__
-    param_names = dist.arg_constraints.keys()
-    param_values = {name: getattr(dist, name) for name in param_names}
+    # Calculate total size to verify flatten length
+    total_size = 1
+    for dim in batch_shape:
+        total_size *= dim
 
-    # Split each parameter
-    split_params = [
-        {name: param[i] if isinstance(param, jnp.ndarray) else param
-         for name, param in param_values.items()}
-        for i in range(batch_size)
-    ]
+    # Get all init params used to construct the distribution (e.g., 'loc', 'scale', 'low', 'high')
+    # d.arg_constraints keys usually match the __init__ arguments
+    param_names = d.arg_constraints.keys()
+    
+    # Extract current values of parameters
+    param_values = {name: getattr(d, name) for name in param_names}
 
-    return [dist_class(**params) for params in split_params]
+    # Broadcast all parameters to the distribution's batch_shape and flatten them
+    flat_params = {}
+    for name, val in param_values.items():
+        val = jnp.asarray(val)
+        # Broadcast the parameter value to the distribution's batch shape.
+        # This handles cases where e.g. Normal(0, [1, 2]) has scalar loc and vector scale.
+        try:
+            val_broadcast = jnp.broadcast_to(val, batch_shape)
+        except ValueError:
+             # Fallback or error if shapes are strictly incompatible, though numpyro usually prevents this earlier
+             raise ValueError(f"Parameter '{name}' with shape {val.shape} cannot be broadcast to batch_shape {batch_shape}")
+             
+        flat_params[name] = jnp.ravel(val_broadcast)
+
+    # Reconstruct individual scalar distributions
+    split_dists = []
+    dist_class = d.__class__
+    
+    for i in range(total_size):
+        # Extract the i-th scalar value for each parameter
+        args = {name: vals[i] for name, vals in flat_params.items()}
+        split_dists.append(dist_class(**args))
+
+    return split_dists
 
 def _serialize_distribution(d: Distribution | None) -> dict | None:
     r"""
