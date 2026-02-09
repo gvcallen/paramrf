@@ -4,7 +4,7 @@ from abc import abstractmethod
 import jax.random as jr
 import jax.numpy as jnp
 
-from pmrf.sampling.base import BaseSampler
+from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
 from pmrf.models.model import Model
 
@@ -17,51 +17,50 @@ class AdaptiveSampler(BaseSampler):
         model: Model,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
-        sparam_kind: str = 'all',        
         initial_models: list[Model] | int = 10,
     ):    
         self.inital_models = list(initial_models) if not isinstance(initial_models, int) else LatinHypercubeSampler(model).run(initial_models)
-        super().__init__(model, frequency=frequency, features=features, sparam_kind=sparam_kind, initial_models=initial_models)
+        super().__init__(model, frequency=frequency, features=features, initial_models=initial_models)
         
-    def run(self, jit_feature=False, max_iterations: int = 100, key=None, **kwargs) -> list[Model]:
+    def run(self, N: int | None = None, max_iterations: int = 100, key=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             key = jr.key(0)
         
         models = self.inital_models
         
-        icdf_fn = self.make_inverse_cumulative_distribution_fn()
-        cdf_fn = self.make_cumulative_distribution_fn()
-        feature_fn = self.make_feature_function(jit=jit_feature)
-        
-        params = [model.flat_param_values() for model in models]
-        U_current = [cdf_fn(model.flat_param_values()) for model in models]
+        theta_current = [model.flat_param_values() for model in models]
+        U_current = [self.cumulative_distribution_fn(model.flat_param_values()) for model in models]
         features = []
         
         self.logger.info('Computing initial sample outputs...')
-        for u_next in params:
-            features_i = feature_fn(u_next)
+        for theta in theta_current:
+            features_i = self.feature_fn(theta, jit=jit_feature_fn)
             features.append(features_i)
         
         iteration = 0
         d = self.model.num_flat_params
         while iteration < max_iterations:
             U_next = self._generate(1, d, jnp.array(U_current), jnp.array(features), key=key, **kwargs)
-            
             if U_next is None == 0:
                 break
             
             U_current.extend([u_next for u_next in U_next])
             for u_next in U_next:
-                params_next = icdf_fn(u_next)
-                features_i = feature_fn(params_next)
+                theta_next = self.inverse_cumulative_distribution_fn(u_next)
+                theta_current.append(theta_next)
+                features_i = self.feature_fn(theta_next, jit=jit_feature_fn)
                 features.append(features_i)
             
+            if len(theta_current) >= N:
+                break
             iteration += 1
             
         if iteration == max_iterations:
             self.logger.warning("Maximum iterations were reached during adaptive sampling")
 
-        return models
+        results = SampleResults()
+        models = [self.model.with_params(theta) for theta in theta_current]
+        return models, results
     
     @abstractmethod
     def _generate(self, N: int, d: int, samples: jnp.ndarray, features: jnp.ndarray, key=None, **kwargs) -> jnp.ndarray:

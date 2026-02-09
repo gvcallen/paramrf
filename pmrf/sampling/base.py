@@ -56,19 +56,17 @@ class BaseSampler(ABC):
         self,
         model: Model,
         frequency: Frequency | None = None,
-        features: FeatureInputT | None = None,
-        sparam_kind: str = 'all',        
+        features: FeatureInputT | None = 's',
     ):
         self.model: Model = model
         self.frequency = frequency
         self.features = features
-        self.sparam_kind = sparam_kind
         self.logger = logging.getLogger(__name__)
         
         params, self._static = self.model.partition()
         self._flat_params, self._ravel_fn = flatten_util.ravel_pytree(params)
         
-    def make_inverse_cumulative_distribution_fn(self, as_numpy=False):
+    def inverse_cumulative_distribution_fn(self, u, as_numpy=False):
         """
         Create the inverse cumulative distribution function (unit hypercube to parameter space).
 
@@ -93,11 +91,11 @@ class BaseSampler(ABC):
             icdf_transform_fn_jax = icdf_fn
             icdf_fn = lambda hypercube: np.array(icdf_transform_fn_jax(hypercube))
         
-        self.logger.info('Compiling inverse cumulative distribution function...')
-        _icdf_val = icdf_fn(jnp.array([0.5] * (num_model_params)))
-        return icdf_fn
+        # self.logger.info('Compiling inverse cumulative distribution function...')
+        # _icdf_val = icdf_fn(jnp.array([0.5] * (num_model_params)))
+        return icdf_fn(u)
     
-    def make_cumulative_distribution_fn(self, as_numpy=False):
+    def cumulative_distribution_fn(self, theta, as_numpy=False):
         """
         Create the cumulative distribution function (parameter space to unit hypercube).
 
@@ -114,18 +112,18 @@ class BaseSampler(ABC):
         model_distribution = self.model.distribution()
         
         @jax.jit
-        def cdf_fn(u):
-            return model_distribution.cdf(u)
+        def cdf_fn(theta):
+            return model_distribution.cdf(theta)
             
         if as_numpy:
             cdf_fn_jax = cdf_fn
             cdf_fn = lambda hypercube: np.array(cdf_fn_jax(hypercube))
         
-        self.logger.info('Compiling cumulative distribution function...')
-        _cdf_val = cdf_fn(self.model.flat_param_values())
-        return cdf_fn    
+        # self.logger.info('Compiling cumulative distribution function...')
+        # _cdf_val = cdf_fn(self.model.flat_param_values())
+        return cdf_fn(theta)
         
-    def make_feature_function(self, as_numpy=False, jit=True):
+    def feature_fn(self, theta, as_numpy=False, jit=True):
         """
         Create a JIT-compiled function to extract features from model parameters.
         
@@ -141,15 +139,17 @@ class BaseSampler(ABC):
         callable
             A function taking ``theta`` and returning feature values.
         """
-        if self.frequency is None:
-            raise Exception('Cannot make a feature function without a sampling frequency')
+        if self.frequency is None or self.features is None:
+            raise Exception('Cannot make a feature function without a sampling frequency or features')
         
         general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=as_numpy)
-        feature_fn = lambda theta: general_feature_fn(theta, self.features, sparam_kind=self.sparam_kind)
+        feature_fn = lambda theta: general_feature_fn(theta, self.features)
         
         if jit:
-            return jax.jit(feature_fn)
-        return feature_fn
+            feature_fn_final = jax.jit(feature_fn)
+        else:
+            feature_fn_final = feature_fn
+        return feature_fn_final(theta)
     
     @abstractmethod
     def run(self, *args, **kwargs) -> tuple[list[Model], SampleResults]:

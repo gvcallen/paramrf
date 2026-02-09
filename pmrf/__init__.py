@@ -45,5 +45,6 @@ __all__ = [
     "ParameterGroup",
     "NetworkCollection",
     "wrap",
-    "extract_features"
+    "extract_features",
+    "learn",
 ]

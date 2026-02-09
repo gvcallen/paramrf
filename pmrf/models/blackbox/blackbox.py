@@ -76,16 +76,14 @@ class UnsupervisedBlackBox(BlackBox, ABC):
     """
     A model that can be trained in an unsupervised manner from output samples of some measured feature, such as S-parameters.
     """
-    @classmethod
-    def from_networks(cls, networks: NetworkCollection, property='s', **kwargs) -> Self:
+    def from_networks(self, networks: NetworkCollection, property='s', **kwargs) -> Self:
         networks = networks.interpolate()
         samples = jnp.stack([jnp.array(getattr(ntwk, property)) for ntwk in networks], dtype=getattr(networks[0], property).dtype)
         frequency = Frequency.from_skrf(networks[0].frequency)
-        return cls.from_samples(samples, frequency, property=property, **kwargs)
+        return self.from_samples(samples, frequency, property=property, **kwargs)
 
-    @classmethod
     @abstractmethod
-    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
+    def from_samples(cls, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
         raise NotImplementedError
 
 class SupervisedBlackBox(BlackBox, ABC):
@@ -105,5 +103,5 @@ class SupervisedBlackBox(BlackBox, ABC):
 
     @classmethod
     @abstractmethod
-    def from_samples(cls, params: jnp.ndarray, samples: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
+    def from_samples(cls, params: jnp.ndarray, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
         raise NotImplementedError

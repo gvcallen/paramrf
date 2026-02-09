@@ -13,7 +13,7 @@ class OneshotSampler(BaseSampler):
             key = jax.random.key(0)
         
         u_samples = self._generate(N, self.model.num_flat_params, key=key)
-        prior_fn = self.make_inverse_cumulative_distribution_fn()
+        prior_fn = self.inverse_cumulative_distribution_fn()
         params = jax.vmap(prior_fn)(u_samples)
         models = [self.model.with_params(params_i) for params_i in params]
         

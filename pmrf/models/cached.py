@@ -1,5 +1,5 @@
 """
-pmrf.cached_model
+pmrf.models.cached
 =================
 
 Utilities for wrapping and caching expensive simulations (e.g. CST/HFSS) within ParamRF.

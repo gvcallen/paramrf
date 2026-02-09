@@ -91,7 +91,7 @@ class BasisExpansion(UnsupervisedBlackBox):
         
 class SVDExpansion(BasisExpansion):
     @classmethod
-    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, property='s', min_components=1, max_components=100, var_threshold=None) -> Self:
+    def from_samples(cls, features: jnp.ndarray, frequency: Frequency, property='s', min_components=1, max_components=100, var_threshold=None) -> Self:
         """
         Creates an SVD expansion basis from samples with arbitrary dimensions.
         
@@ -100,8 +100,8 @@ class SVDExpansion(BasisExpansion):
         Returns:
             SVDExpansion with basis shape (ncomponents, nfreq, m, n)
         """
-        nsamples, nfreq, m, n = samples.shape
-        X = jnp.transpose(samples, (2, 3, 0, 1))
+        nsamples, nfreq, m, n = features.shape
+        X = jnp.transpose(features, (2, 3, 0, 1))
         X_mean = jnp.mean(X, axis=2, keepdims=True)
         Xc = X - X_mean
         full_max_components = min(nsamples, nfreq)
