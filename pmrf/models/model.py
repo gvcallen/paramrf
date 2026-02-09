@@ -393,7 +393,7 @@ class Model(eqx.Module):
         if flatten:
             flat_params: list[tuple[str, Parameter]] = []
             for name, param in params:
-                if param.size > 1:
+                if param.size > 1 or param.flat_names is not None:
                     flattened_params = param.flattened(separator=self.separator)
                     for i, subparam in enumerate(flattened_params):
                         suffix = subparam.name if subparam.name is not None else str(i)
@@ -953,7 +953,7 @@ class Model(eqx.Module):
         """
         return dict(self._iter_params(flatten=True, include_fixed=include_fixed, submodels=submodels))
     
-    def named_flat_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
+    def named_flat_param_values(self, scaled=False, return_floats=False, **kwargs) -> dict[str, jnp.ndarray]:
         """Named flattened model parameter values as a dict of jax arrays.
 
         See :meth:`named_flat_params`.
@@ -970,9 +970,14 @@ class Model(eqx.Module):
         dict[str, jnp.ndarray]
         """     
         if scaled:
-            return {n: jnp.array(p) for n, p in (self._iter_params(flatten=True, **kwargs))}
+            retval = {n: jnp.array(p) for n, p in (self._iter_params(flatten=True, **kwargs))}
         else:
-            return {n: p.value for n, p in (self._iter_params(flatten=True, **kwargs))}
+            retval = {n: p.value for n, p in (self._iter_params(flatten=True, **kwargs))}
+            
+            
+        if return_floats:
+            retval = {k: float(v) for k, v in retval.items()}
+        return retval
          
     def flat_param_names(self, *args, **kwargs) -> list[str]:
         """

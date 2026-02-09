@@ -43,10 +43,9 @@ class BlackBox(Model, ABC):
         # The forward model, which produces a sample for the current parameters
         raise NotImplementedError
         
-    @abstractmethod
     def inverse(self, sample: jnp.ndarray) -> jnp.ndarray:
         # The inverse model, which produces parameters for a given sample
-        raise NotImplementedError
+        raise NotImplementedError("BlackBox model does not implement `inverse`")
     
     def a(self, freq: Frequency) -> jnp.ndarray:
         if self.property == 'a':
@@ -102,6 +101,5 @@ class SupervisedBlackBox(BlackBox, ABC):
         return cls.from_samples(params, samples, frequency, property=property, **kwargs)
 
     @classmethod
-    @abstractmethod
     def from_samples(cls, params: jnp.ndarray, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
-        raise NotImplementedError
+        raise NotImplementedError("BlackBox model does not implement `from_samples`")

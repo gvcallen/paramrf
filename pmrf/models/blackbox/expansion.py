@@ -96,7 +96,7 @@ class SVDExpansion(BasisExpansion):
         Creates an SVD expansion basis from samples with arbitrary dimensions.
         
         Args:
-            samples: Shape (nsamples, nfreq, m, n)
+            features: Shape (nsamples, nfreq, m, n)
         Returns:
             SVDExpansion with basis shape (ncomponents, nfreq, m, n)
         """

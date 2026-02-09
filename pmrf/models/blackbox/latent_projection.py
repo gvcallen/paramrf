@@ -5,7 +5,7 @@ from pmrf.models.blackbox.blackbox import BlackBox, SupervisedBlackBox
 from pmrf.parameters import Parameter
 from pmrf.models import Model
 
-class LatentProjection(Model):
+class LatentProjection(SupervisedBlackBox):
     """
     A model that computes its output via projection into a latent space.
     

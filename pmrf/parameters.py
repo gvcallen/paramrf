@@ -214,7 +214,7 @@ class Parameter(eqx.Module):
         #     return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
         # Handle scalar / 0-d array
-        if self.value.ndim == 0:
+        if self.value.ndim == 0 and self.flat_names is None:
             return [self]
             
         # Flatten the value
