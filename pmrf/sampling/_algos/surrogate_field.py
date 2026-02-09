@@ -23,9 +23,6 @@ class SurrogateFieldSampler(AdaptiveSampler):
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Model], # params, features, frequency, and `key` is a key-word argument
         field_fn: Callable[[Model], float],
-        threshold,
-        num_success=3,
-        num_grid_per_dim=1000,
         initial_models: list[Model] | int = 10,
         grid_sampler: BaseSampler | None = None,
         *args,
@@ -36,14 +33,11 @@ class SurrogateFieldSampler(AdaptiveSampler):
 
         self.train_fn = train_fn
         self.field_fn = field_fn
-        self.threshold = threshold
-        self.num_grid_per_dim = num_grid_per_dim
-        self.num_success = num_success
         self.grid_sampler = grid_sampler if grid_sampler is not None else LatinHypercubeSampler(model)
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, threshold=1e-12, num_grid_per_dim=1000) -> jnp.ndarray | None:
         # For each pass, we train the surrogate model on the current samples and features.
         self.logger.info(f"Training surrogate...")
         theta_samples = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_samples])
@@ -52,7 +46,7 @@ class SurrogateFieldSampler(AdaptiveSampler):
         surrogate = self.train_fn(theta_samples, features, self.frequency, key=surrogate_key)
 
         # Next, we sample new points using the grid sampler (e.g. latin hupercube) to get grid_theta of shape (K, d)
-        K = self.num_grid_per_dim * d
+        K = num_grid_per_dim * d
         grid_models, _ = self.grid_sampler.run(K)
         grid_theta = jnp.array([model.flat_param_values() for model in grid_models])
 
@@ -67,11 +61,11 @@ class SurrogateFieldSampler(AdaptiveSampler):
         indices = jnp.argsort(grid_field, descending=True)
         max_field = grid_field[indices][0:N]
         
-        if jnp.all(max_field < self.threshold):
-            self.logger.info(f"Convergence reached. Maximum field value of {float(max_field)} is less than threshold {self.threshold}")
+        if jnp.all(max_field < threshold):
+            self.logger.info(f"Convergence reached. Maximum field value of {float(max_field)} is less than threshold {threshold}")
             return None
         else:
-            self.logger.info(f"Maximum = {float(max_field)}, threshold = {self.threshold}")
+            self.logger.info(f"Maximum = {float(max_field)}, threshold = {threshold}")
 
         # Return the next hypercube samples
         max_field_theta = grid_theta[indices][0:N]

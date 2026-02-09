@@ -20,7 +20,7 @@ class AdaptiveSampler(BaseSampler):
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
         super().__init__(model, frequency=frequency, features=features)
         
-    def run(self, N: int | None = None, max_iterations: int = 100, key=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
+    def run(self, N: int | None = None, max_iterations: int = 100, num_success: int = 3, key=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             key = jr.key(0)
             
@@ -50,10 +50,15 @@ class AdaptiveSampler(BaseSampler):
         
         iteration = 0
         d = self.model.num_flat_params
+        i_success = 0
         while iteration < max_iterations:
             U_next = self._generate(1, d, jnp.array(U_current), jnp.array(features), key=key, **kwargs)
             if U_next is None:
-                break
+                i_success += 1
+                if i_success >= num_success:
+                    break
+                
+            i_success = 0
             
             U_current.extend([u_next for u_next in U_next])
             for u in U_next:
