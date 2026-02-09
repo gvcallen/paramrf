@@ -75,7 +75,7 @@ class Parameter(eqx.Module):
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
     name: str | None = field(default=None, static=True)
-    flat_names: list[str] | None = field(default=None, static=True)
+    flat_names: list[str] | None = field(default=None, static=True, converter=lambda x: list(x) if x is not None else x)
 
     @property
     def shape(self) -> tuple[int, ...]:

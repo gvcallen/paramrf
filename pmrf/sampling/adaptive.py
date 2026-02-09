@@ -1,11 +1,9 @@
-from typing import Callable
 from abc import abstractmethod
 
 import jax.random as jr
 import jax.numpy as jnp
 
 from pmrf.sampling.base import BaseSampler, SampleResults
-from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
 from pmrf.models.model import Model
 
 from pmrf.constants import FeatureInputT
@@ -19,8 +17,10 @@ class AdaptiveSampler(BaseSampler):
         features: FeatureInputT | None = None,
         initial_models: list[Model] | int = 10,
     ):    
-        self.inital_models = list(initial_models) if not isinstance(initial_models, int) else LatinHypercubeSampler(model).run(initial_models)
-        super().__init__(model, frequency=frequency, features=features, initial_models=initial_models)
+        from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
+        
+        self.inital_models = list(initial_models) if not isinstance(initial_models, int) else LatinHypercubeSampler(model).run(initial_models)[0]
+        super().__init__(model, frequency=frequency, features=features)
         
     def run(self, N: int | None = None, max_iterations: int = 100, key=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:

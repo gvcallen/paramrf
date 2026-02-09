@@ -5,10 +5,10 @@ import jax.numpy as jnp
 import jax.random as jr
 
 from pmrf.frequency import Frequency
-from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.sampling.base import BaseSampler
-from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
+from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
+from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
 
 class SurrogateFieldSampler(AdaptiveSampler):
     """
@@ -31,8 +31,10 @@ class SurrogateFieldSampler(AdaptiveSampler):
         *args,
         **kwargs
     ):
-        self.train_fn = train_fn
+        if not 'frequency' in kwargs:
+            raise Exception("SurrogateFieldSampler without a frequency")
 
+        self.train_fn = train_fn
         self.field_fn = field_fn
         self.threshold = threshold
         self.num_grid_per_dim = num_grid_per_dim
