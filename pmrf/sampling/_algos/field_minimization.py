@@ -25,7 +25,7 @@ class FieldMinimizationSampler(AdaptiveSampler):
         self,
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any], # params, features, frequency, and `key` is a key-word argument
-        eval_fn: Callable[[Any, jnp.ndarray], float],
+        eval_fn: Callable[[Any, jnp.ndarray, Frequency], float],
         initial_models: list[Model] | int = 10,
         grid_sampler: BaseSampler | None = None,
         *args,
@@ -62,9 +62,10 @@ class FieldMinimizationSampler(AdaptiveSampler):
             theta_grid = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_grid)
 
         # We calculate the scalar field at each grid point to get grid_field of shape (K,)
+        key, field_key = jr.split(key)
         def field_theta_fn(theta) -> float:
             nonlocal self, field
-            return self.eval_fn(field, theta)
+            return self.eval_fn(field, theta, self.frequency, key=field_key)
         grid_field = jax.vmap(field_theta_fn)(theta_grid)
 
         # Get the largest field value

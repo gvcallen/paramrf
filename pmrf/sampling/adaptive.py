@@ -55,7 +55,7 @@ class AdaptiveSampler(BaseSampler):
             if len(plot) != 0 and len(plotters) == 0:
                 for p in plot:
                     for f in range(features_i.shape[-1]):
-                        plotters.append(LivePlotter(title=f"Sample Feature #{f} [{p}]", xlabel=f"Frequency ({self.frequency.unit})", ylabel="Samples"))
+                        plotters.append(LivePlotter(title=f"Sample Feature #{f}", xlabel=f"Frequency ({self.frequency.unit})", ylabel="Samples"))
             
             for f, (plotter, comp) in enumerate(zip(plotters, plot)):
                 y = features_i[..., f]
@@ -65,10 +65,10 @@ class AdaptiveSampler(BaseSampler):
                     raise Exception(f'{comp} component not supported yet in AdaptiveSampler')
                 
                 plotter.add_curve(f"#{sample_idx}, {params}", y, x_values=self.frequency.f_scaled)
+                plotter.ax.set_title(f"Sample Feature #{f}, num_samples = {sample_idx + 1}")
             
             return features_i
             
-        self.logger.info('Computing initial sample outputs...')
         for theta in theta_current:
             features.append(compute_sample(theta))
         

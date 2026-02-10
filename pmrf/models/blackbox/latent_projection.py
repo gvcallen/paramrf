@@ -19,7 +19,7 @@ class LatentProjection(SupervisedBlackBox):
     # The latent encoder. Must be callable with D inputs and must have K outputs
     encoder: eqx.Module = eqx.field(static=True)
     
-    # The latent decoder. This must have D flat parameters
+    # The latent decoder. This must have K flat parameters
     decoder: BlackBox = eqx.field(static=True)
     
     # The current parameters of length P
