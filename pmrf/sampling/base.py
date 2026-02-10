@@ -48,6 +48,8 @@ class SampleResults:
     """    
     initial_model: Model | None = None
     sampled_models: list[Model] | None = None
+    sampled_params: jnp.ndarray | None = None
+    sampled_features: jnp.ndarray | None = None
     backened_results: Any = None
     settings: SampleSettings | None = None
 

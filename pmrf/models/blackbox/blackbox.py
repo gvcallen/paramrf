@@ -20,7 +20,7 @@ class BlackBox(Model, ABC):
     A blackbox model is one that estimates a single property, such as 's', 'y' etc., using some underlying prediction method.
     Usually, the parameters for this prediction are trained directly from data as opposed to using some output-based fitting method.
     """
-    frequency: Frequency = field(static=True)
+    frequency: Frequency
     property: str = field(static=True)
     
     def predict(self, freq: Frequency) -> jnp.ndarray:
@@ -75,12 +75,14 @@ class UnsupervisedBlackBox(BlackBox, ABC):
     """
     A model that can be trained in an unsupervised manner from output samples of some measured feature, such as S-parameters.
     """
-    def from_networks(self, networks: NetworkCollection, property='s', **kwargs) -> Self:
+    @classmethod
+    def from_networks(cls, networks: NetworkCollection, property='s', **kwargs) -> Self:
         networks = networks.interpolate()
         samples = jnp.stack([jnp.array(getattr(ntwk, property)) for ntwk in networks], dtype=getattr(networks[0], property).dtype)
         frequency = Frequency.from_skrf(networks[0].frequency)
-        return self.from_samples(samples, frequency, property=property, **kwargs)
+        return cls.from_samples(samples, frequency, property=property, **kwargs)
 
+    @classmethod
     @abstractmethod
     def from_samples(cls, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
         raise NotImplementedError

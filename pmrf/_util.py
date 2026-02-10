@@ -1,4 +1,5 @@
-from typing import Any
+import numpy as np
+from typing import Any, Sequence
 import jax
 import jax.numpy as jnp
 import pkgutil
@@ -235,3 +236,116 @@ def lhs_sample(N: int, d: int, key=None) -> jnp.ndarray:
     lhs_unit = (perms + noise) / N
     lhs_unit = lhs_unit.T
     return lhs_unit    
+
+def no_recent_improvement(values, patience):
+    values = list(values)
+    best_idx = min(range(len(values)), key=lambda i: values[i])
+    return len(values) - 1 - best_idx >= patience
+
+def has_converged(
+    y_history: Sequence[float],
+    *,
+    window: int = 5,
+    rtol: float = 1e-6,
+    eps: float = 1e-12,
+) -> bool:
+    """
+    Robust convergence check using relative tolerance.
+
+    Converged if the maximum oscillation in the last `window`
+    iterations is small relative to the magnitude of the function.
+
+    max(|Δy|) / max(|y|) < rtol
+    """
+    if len(y_history) < window + 1:
+        return False
+
+    recent = jnp.asarray(y_history[-(window + 1):])
+    deltas = jnp.abs(jnp.diff(recent))
+
+    scale = jnp.max(jnp.abs(recent))
+    scale = max(scale, eps)  # avoid division by zero
+
+    return jnp.max(deltas) / scale < rtol
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+class LivePlotter:
+    def __init__(self, title="Live Plot", xlabel="X", ylabel="Y"):
+        plt.ion()  # interactive mode ON
+
+        self.fig, self.ax = plt.subplots()
+        self.ax.set_title(title)
+        self.ax.set_xlabel(xlabel)
+        self.ax.set_ylabel(ylabel)
+        self.ax.grid(True, linestyle='--', alpha=0.6)
+
+        # Dictionary to store data and line objects: 
+        # { "label_name": { "x": [], "y": [], "line": line_object } }
+        self.lines = {} 
+        
+        self.fig.show()
+
+    def _get_or_create_line(self, label, color=None):
+        """Helper to create a new line if the label doesn't exist."""
+        if label not in self.lines:
+            line, = self.ax.plot([], [], label=label, marker="o", markersize=3, color=color)
+            self.lines[label] = {
+                "x": [], 
+                "y": [], 
+                "line": line
+            }
+            self.ax.legend(loc='upper left')
+        return self.lines[label]
+
+    def _redraw(self):
+        """Handles the canvas refresh and scaling."""
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+    # MODE 1: Growing Axis (Stream)
+    def update_point(self, label, value, x_value=None):
+        """
+        Appends a single value to the plot. 
+        If x_value is None, it increments automatically based on list length.
+        """
+        data = self._get_or_create_line(label)
+        
+        # Append Y
+        data["y"].append(value)
+        
+        # Determine X
+        if x_value is not None:
+            data["x"].append(x_value)
+        else:
+            # If no X provided, use the current step index
+            data["x"].append(len(data["y"]) - 1)
+
+        # Update the specific line object
+        data["line"].set_data(data["x"], np.array(data["y"]))
+        
+        self._redraw()
+
+    # MODE 2: Full Curve (Snapshot)
+    def update_curve(self, label, y_values, x_values=None):
+        """
+        Replaces the entire curve for a specific label.
+        Useful for plotting functions or distributions that change over time.
+        """
+        data = self._get_or_create_line(label)
+        
+        # Generate X if not provided
+        if x_values is None:
+            x_values = np.arange(len(y_values))
+            
+        # Replace data
+        data["x"] = x_values
+        data["y"] = y_values
+        
+        # Update line
+        data["line"].set_data(data["x"], data["y"])
+        
+        self._redraw()
