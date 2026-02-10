@@ -290,13 +290,13 @@ class LivePlotter:
     def _get_or_create_line(self, label, color=None):
         """Helper to create a new line if the label doesn't exist."""
         if label not in self.lines:
-            line, = self.ax.plot([], [], label=label, marker="o", markersize=3, color=color)
+            line, = self.ax.plot([], [], label=label, lw=1.0, color=color)
             self.lines[label] = {
                 "x": [], 
                 "y": [], 
                 "line": line
             }
-            self.ax.legend(loc='upper left')
+            # self.ax.legend(loc='upper left')
         return self.lines[label]
 
     def _redraw(self):
@@ -307,7 +307,7 @@ class LivePlotter:
         self.fig.canvas.flush_events()
 
     # MODE 1: Growing Axis (Stream)
-    def update_point(self, label, value, x_value=None):
+    def add_point(self, label, value, x_value=None):
         """
         Appends a single value to the plot. 
         If x_value is None, it increments automatically based on list length.
@@ -330,7 +330,7 @@ class LivePlotter:
         self._redraw()
 
     # MODE 2: Full Curve (Snapshot)
-    def update_curve(self, label, y_values, x_values=None):
+    def add_curve(self, label, y_values, x_values=None):
         """
         Replaces the entire curve for a specific label.
         Useful for plotting functions or distributions that change over time.

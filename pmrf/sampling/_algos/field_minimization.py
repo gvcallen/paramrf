@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Any
 
 import jax
 import jax.numpy as jnp
@@ -11,19 +11,21 @@ from pmrf.models.model import Model
 from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
 from pmrf._util import has_converged, lhs_sample, no_recent_improvement
 
-class SurrogateFieldSampler(AdaptiveSampler):
+class FieldMinimizationSampler(AdaptiveSampler):
     """
-    Samples new points by minimizing a scalar field induced by a surrogate model.
+    Samples new points by minimizing a scalar field that is a function of the input parameters.
     
-    For example, if the surrogate model is able to predict the current variance for new samples,
-    this sampler will pick new points to minimize that variance until a threshold is met.
+    At each iteration, the scalar field can first be "trained" using the current samples, and then "evaluated" at new input points.
+    
+    For example, this sampler can be used to train a surrogate model that is able to predict the current variance at new sample points.
+    Then, this sampler will choose new sample points where that variance is a maximum.
 
     """
     def __init__(
         self,
         model: Model,
-        train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Model], # params, features, frequency, and `key` is a key-word argument
-        field_fn: Callable[[Model], float],
+        train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any], # params, features, frequency, and `key` is a key-word argument
+        eval_fn: Callable[[Any, jnp.ndarray], float],
         initial_models: list[Model] | int = 10,
         grid_sampler: BaseSampler | None = None,
         *args,
@@ -33,20 +35,20 @@ class SurrogateFieldSampler(AdaptiveSampler):
             raise Exception("SurrogateFieldSampler without a frequency")
 
         self.train_fn = train_fn
-        self.field_fn = field_fn
+        self.eval_fn = eval_fn
         self.grid_sampler = grid_sampler
         self.field_values = []
         self.figure = None
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, patience=5, threshold=None, num_grid_per_dim=1000) -> jnp.ndarray | None:
-        # For each pass, we train the surrogate model on the current samples and features.
-        self.logger.info(f"Training surrogate...")
+    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, patience=5, threshold=None, num_grid_per_dim=10000) -> jnp.ndarray | None:
+        # For each pass, we train the field model on the current samples and features.
         theta_samples = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_samples)
+        key, field_key = jr.split(key)
         
-        key, surrogate_key = jr.split(key)
-        surrogate = self.train_fn(theta_samples, features, self.frequency, key=surrogate_key)
+        self.logger.info(f"Training field...")
+        field = self.train_fn(theta_samples, features, self.frequency, key=field_key)
 
         # Next, we sample new points using the grid sampler (e.g. latin hupercube) to get grid_theta of shape (K, d)
         K = num_grid_per_dim * d
@@ -61,9 +63,8 @@ class SurrogateFieldSampler(AdaptiveSampler):
 
         # We calculate the scalar field at each grid point to get grid_field of shape (K,)
         def field_theta_fn(theta) -> float:
-            nonlocal self, surrogate
-            surrogate_with_params = surrogate.with_params(theta)
-            return self.field_fn(surrogate_with_params)
+            nonlocal self, field
+            return self.eval_fn(field, theta)
         grid_field = jax.vmap(field_theta_fn)(theta_grid)
 
         # Get the largest field value

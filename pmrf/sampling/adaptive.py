@@ -24,6 +24,8 @@ class AdaptiveSampler(BaseSampler):
     def run(self, N: int | None = None, max_iterations: int = 100, num_success: int = 1, key=None, plot=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             raise Exception('Key needed for AdaptiveSampler')
+        if plot is None:
+            plot = []
             
         if isinstance(self.initial_models, int):
             initial_key, key = jr.split(key)
@@ -37,31 +39,33 @@ class AdaptiveSampler(BaseSampler):
         U_current = [self.cumulative_distribution_fn(model.flat_param_values()) for model in models]
         features = []
         
-        # # Initialize the plotter
-        # plotter = LivePlotter(title="Function Samples", xlabel=f"Frequency ({self.frequency.unit})", ylabel="f(x)")
-
-        # x_axis = np.linspace(0, 10, 100)
-
-        # # Simulate 50 frames of animation
-        # for t in range(50):
-        #     # Create a sine wave that shifts over time
-        #     y_wave = np.sin(x_axis + t/5.0)
-            
-        #     # Create a 'noise' line that dampens over time
-        #     y_noise = np.random.normal(0, 1.0/(t+1), size=len(x_axis))
-            
-        #     # Update the curves completely
-        #     plotter.update_curve("Moving Wave", y_wave, x_values=x_axis)
-        #     plotter.update_curve("Dampening Noise", y_noise, x_values=x_axis)
-            
-        #     time.sleep(0.1)        
+        # Initialize the plotter list
+        plotters: list[LivePlotter] = []
         
         sample_idx = 0
         def compute_sample(theta: jnp.ndarray):
             nonlocal sample_idx
-            self.logger.info(f"Computing Sample #{sample_idx + 1} with {dict(zip(param_names, theta.tolist()))}")
+            
+            params = dict(zip(param_names, theta.tolist()))
+            self.logger.info(f"Computing Sample #{sample_idx + 1} with {params}")
             features_i = self.feature_fn(theta, jit=jit_feature_fn)
             sample_idx += 1
+            
+            # Create plotters lazily
+            if len(plot) != 0 and len(plotters) == 0:
+                for p in plot:
+                    for f in range(features_i.shape[-1]):
+                        plotters.append(LivePlotter(title=f"Sample Feature #{f} [{p}]", xlabel=f"Frequency ({self.frequency.unit})", ylabel="Samples"))
+            
+            for f, (plotter, comp) in enumerate(zip(plotters, plot)):
+                y = features_i[..., f]
+                if comp == 'db':
+                    y = 20*jnp.log10(jnp.abs(y))
+                else:
+                    raise Exception(f'{comp} component not supported yet in AdaptiveSampler')
+                
+                plotter.add_curve(f"#{sample_idx}, {params}", y, x_values=self.frequency.f_scaled)
+            
             return features_i
             
         self.logger.info('Computing initial sample outputs...')
