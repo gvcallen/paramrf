@@ -75,7 +75,7 @@ class Parameter(eqx.Module):
     fixed: bool = field(default=False)
     scale: float = field(default=1.0)
     name: str | None = field(default=None, static=True)
-    flat_names: list[str] | None = field(default=None, static=True)
+    flat_names: list[str] | None = field(default=None, static=True, converter=lambda x: list(x) if x is not None else x)
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -214,7 +214,7 @@ class Parameter(eqx.Module):
         #     return [Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=flat_names[i]) for i, (val, p) in enumerate(zip(self.value, dists_split))]
         
         # Handle scalar / 0-d array
-        if self.value.ndim == 0:
+        if self.value.ndim == 0 and self.flat_names is None:
             return [self]
             
         # Flatten the value

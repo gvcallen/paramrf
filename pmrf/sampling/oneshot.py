@@ -10,11 +10,10 @@ class OneshotSampler(BaseSampler):
     """Generates a fixed number of samples in one go."""
     def run(self, N: int, key=None) -> tuple[list[Model], SampleResults]:
         if key is None:
-            key = jax.random.key(0)
+            raise Exception('key needed for OneshotSampler')
         
         u_samples = self._generate(N, self.model.num_flat_params, key=key)
-        prior_fn = self.make_inverse_cumulative_distribution_fn()
-        params = jax.vmap(prior_fn)(u_samples)
+        params = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(u_samples)
         models = [self.model.with_params(params_i) for params_i in params]
         
         results = SampleResults(

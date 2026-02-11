@@ -1,15 +1,14 @@
-from typing import Callable
 from abc import abstractmethod
 
 import jax.random as jr
 import jax.numpy as jnp
 
-from pmrf.sampling.base import BaseSampler
-from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
+from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
+from pmrf._util import LivePlotter
 
 class AdaptiveSampler(BaseSampler):
     def __init__(
@@ -17,51 +16,92 @@ class AdaptiveSampler(BaseSampler):
         model: Model,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
-        sparam_kind: str = 'all',        
         initial_models: list[Model] | int = 10,
     ):    
-        self.inital_models = list(initial_models) if not isinstance(initial_models, int) else LatinHypercubeSampler(model).run(initial_models)
-        super().__init__(model, frequency=frequency, features=features, sparam_kind=sparam_kind, initial_models=initial_models)
+        self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
+        super().__init__(model, frequency=frequency, features=features)
         
-    def run(self, jit_feature=False, max_iterations: int = 100, key=None, **kwargs) -> list[Model]:
+    def run(self, N: int | None = None, max_iterations: int = 100, num_success: int = 1, key=None, plot=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
-            key = jr.key(0)
+            raise Exception('Key needed for AdaptiveSampler')
+        if plot is None:
+            plot = []
+            
+        if isinstance(self.initial_models, int):
+            initial_key, key = jr.split(key)
+            from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
+            self.initial_models = LatinHypercubeSampler(self.model).run(self.initial_models, key=initial_key)[0]
         
-        models = self.inital_models
+        models = self.initial_models
+        param_names = self.model.flat_param_names()
         
-        icdf_fn = self.make_inverse_cumulative_distribution_fn()
-        cdf_fn = self.make_cumulative_distribution_fn()
-        feature_fn = self.make_feature_function(jit=jit_feature)
-        
-        params = [model.flat_param_values() for model in models]
-        U_current = [cdf_fn(model.flat_param_values()) for model in models]
+        theta_current = [model.flat_param_values() for model in models]
+        U_current = [self.cumulative_distribution_fn(model.flat_param_values()) for model in models]
         features = []
         
-        self.logger.info('Computing initial sample outputs...')
-        for u_next in params:
-            features_i = feature_fn(u_next)
-            features.append(features_i)
+        # Initialize the plotter list
+        plotters: list[LivePlotter] = []
+        
+        sample_idx = 0
+        def compute_sample(theta: jnp.ndarray):
+            nonlocal sample_idx
+            
+            params = dict(zip(param_names, theta.tolist()))
+            self.logger.info(f"Computing Sample #{sample_idx + 1} with {params}")
+            features_i = self.feature_fn(theta, jit=jit_feature_fn)
+            sample_idx += 1
+            
+            # Create plotters lazily
+            if len(plot) != 0 and len(plotters) == 0:
+                for p in plot:
+                    for f in range(features_i.shape[-1]):
+                        plotters.append(LivePlotter(title=f"Sample Feature #{f}", xlabel=f"Frequency ({self.frequency.unit})", ylabel="Samples"))
+            
+            for f, (plotter, comp) in enumerate(zip(plotters, plot)):
+                y = features_i[..., f]
+                if comp == 'db':
+                    y = 20*jnp.log10(jnp.abs(y))
+                else:
+                    raise Exception(f'{comp} component not supported yet in AdaptiveSampler')
+                
+                plotter.add_curve(f"#{sample_idx}, {params}", y, x_values=self.frequency.f_scaled)
+                plotter.ax.set_title(f"Sample Feature #{f}, num_samples = {sample_idx + 1}")
+            
+            return features_i
+            
+        for theta in theta_current:
+            features.append(compute_sample(theta))
         
         iteration = 0
         d = self.model.num_flat_params
+        i_success = 0
         while iteration < max_iterations:
             U_next = self._generate(1, d, jnp.array(U_current), jnp.array(features), key=key, **kwargs)
-            
-            if U_next is None == 0:
-                break
+            if U_next is None:
+                i_success += 1
+                if i_success >= num_success:
+                    break
+                else:
+                    continue
+                
+            i_success = 0
             
             U_current.extend([u_next for u_next in U_next])
-            for u_next in U_next:
-                params_next = icdf_fn(u_next)
-                features_i = feature_fn(params_next)
-                features.append(features_i)
+            for u in U_next:
+                theta = self.inverse_cumulative_distribution_fn(u)
+                features.append(compute_sample(theta))
+                theta_current.append(theta)
             
+            if N is not None and len(theta_current) >= N:
+                break
             iteration += 1
             
         if iteration == max_iterations:
             self.logger.warning("Maximum iterations were reached during adaptive sampling")
 
-        return models
+        models = [self.model.with_params(theta) for theta in theta_current]
+        results = SampleResults(initial_model=self.model, sampled_models=models, sampled_features=jnp.array(features))
+        return models, results
     
     @abstractmethod
     def _generate(self, N: int, d: int, samples: jnp.ndarray, features: jnp.ndarray, key=None, **kwargs) -> jnp.ndarray:

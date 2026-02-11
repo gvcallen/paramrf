@@ -12,13 +12,18 @@ class BasisExpansion(UnsupervisedBlackBox):
     """An RF model where the S-parameters are modeled as a linear expansion of basis functions.
     The S-parameters are returned as offset + coefficients @ basis, where the coefficients are the parameters.
     """
-    # The parameters (coefficients)
+    # The coefficients parameters (coefficients)
     coefficients_real: Parameter
-    coefficients_imag: Parameter | None = None
     
     # The basis functions themselves and an optional offset
-    basis: jnp.ndarray = field(default_factory=lambda: 0.0, static=True)
-    offset: jnp.ndarray | None = field(default_factory=lambda: 0.0, static=True)
+    basis: jnp.ndarray
+    
+    coefficients_imag: Parameter | None = None
+    offset: jnp.ndarray | None = None
+    
+    @property
+    def num_basis(self) -> int:
+        return len(self.basis)
     
     @property
     def coefficients_complex(self) -> jnp.ndarray:
@@ -68,9 +73,11 @@ class BasisExpansion(UnsupervisedBlackBox):
             if component == 'mag':
                 basisi = jnp.abs(basisi)
             elif component == 're':
-                basisi = jnp.imag(basisi)
-            elif component == 'im':
                 basisi = jnp.real(basisi)
+            elif component == 'im':
+                basisi = jnp.imag(basisi)
+            elif component == 'db':
+                basisi = 20*jnp.log10(jnp.abs(basisi))
             
             axes[i].plot(self.frequency.f_scaled, basisi)
             axes[i].set_title(f'Basis {i}')
@@ -80,6 +87,9 @@ class BasisExpansion(UnsupervisedBlackBox):
 
         return fig
     
+    def plot_basis_db(self):
+        self.plot_basis('db')
+        
     def plot_basis_mag(self):
         self.plot_basis('mag')
 
@@ -89,19 +99,61 @@ class BasisExpansion(UnsupervisedBlackBox):
     def plot_basis_im(self):
         self.plot_basis('im')
         
+    def plot_error(self, samples: jnp.ndarray, component):
+        import matplotlib.pyplot as plt
+        
+        fig, ax = plt.subplots()
+        for i in range(len(samples)):
+            measured = samples[i]
+            coeff = self.inverse(measured)
+            model = self.with_params(coeff).forward()
+            
+            error = model - measured
+            error = error[:,0,0]
+            if component == 'mag':
+                error = jnp.abs(error)
+            elif component == 're':
+                error = jnp.real(error)
+            elif component == 'im':
+                error = jnp.imag(error)
+            elif component == 'db':
+                error = 20*jnp.log10(jnp.abs(error))
+            
+            ax.plot(self.frequency.f_scaled, error)
+        
+        ax.set_title(f'Sample Reprojection Error (num_basis = {self.num_basis})')
+        ax.set_xlabel(f'Frequency [{self.frequency.unit}]')
+        ax.set_ylabel(f'Error [{component}]')
+        fig.set_size_inches(10, 6)
+        fig.tight_layout()
+        return fig
+    
+    def plot_error_db(self, samples):
+        self.plot_error(samples, 'db')
+        
+    def plot_error_mag(self, samples):
+        self.plot_error(samples, 'mag')
+    
+    def plot_error_re(self, samples):
+        self.plot_error(samples, 're')
+    
+    def plot_error_im(self, samples):
+        self.plot_error(samples, 'im')
+        
+        
 class SVDExpansion(BasisExpansion):
     @classmethod
-    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, property='s', min_components=1, max_components=100, var_threshold=None) -> Self:
+    def from_samples(cls, features: jnp.ndarray, frequency: Frequency, property='s', min_components=1, max_components=1000, error_threshold=None) -> Self:
         """
         Creates an SVD expansion basis from samples with arbitrary dimensions.
         
         Args:
-            samples: Shape (nsamples, nfreq, m, n)
+            features: Shape (nsamples, nfreq, m, n)
         Returns:
             SVDExpansion with basis shape (ncomponents, nfreq, m, n)
         """
-        nsamples, nfreq, m, n = samples.shape
-        X = jnp.transpose(samples, (2, 3, 0, 1))
+        nsamples, nfreq, m, n = features.shape
+        X = jnp.transpose(features, (2, 3, 0, 1))
         X_mean = jnp.mean(X, axis=2, keepdims=True)
         Xc = X - X_mean
         full_max_components = min(nsamples, nfreq)
@@ -111,21 +163,15 @@ class SVDExpansion(BasisExpansion):
         min_components = min(min_components, full_max_components)
         n_components = min_components
 
-        if var_threshold is not None:
-            total_variance = jnp.var(Xc, axis=2).sum(axis=-1)
-            for k in range(min_components, max_components + 1):
-                current_comps = Vh[..., :k, :]
-                Z = jnp.einsum('mnbf,mnkf->mnbk', Xc, jnp.conj(current_comps))
-
-                # Explained variance is the variance of the projections
-                explained_variance = jnp.var(Z, axis=2).sum(axis=-1)
-                ratios = explained_variance / total_variance
-
-                if jnp.min(ratios) >= var_threshold:
-                    n_components = k
+        if error_threshold is not None:
+            for n_components in range(min_components, max_components + 1):
+                current_comps = Vh[..., :n_components, :]
+                current_coeff = jnp.einsum('mnbf,mnkf->mnbk', Xc, jnp.conj(current_comps))
+                Xc_reproj = jnp.einsum('mnsc,mncf->mnsf', current_coeff, current_comps)
+                X_reproj = Xc_reproj + X_mean
+                X_error = jnp.abs(X - X_reproj)
+                if jnp.max(X_error) < error_threshold:
                     break
-                
-                n_components = k
         else:
             n_components = min_components
 

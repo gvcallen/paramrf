@@ -20,7 +20,7 @@ class BlackBox(Model, ABC):
     A blackbox model is one that estimates a single property, such as 's', 'y' etc., using some underlying prediction method.
     Usually, the parameters for this prediction are trained directly from data as opposed to using some output-based fitting method.
     """
-    frequency: Frequency = field(static=True)
+    frequency: Frequency
     property: str = field(static=True)
     
     def predict(self, freq: Frequency) -> jnp.ndarray:
@@ -43,10 +43,9 @@ class BlackBox(Model, ABC):
         # The forward model, which produces a sample for the current parameters
         raise NotImplementedError
         
-    @abstractmethod
     def inverse(self, sample: jnp.ndarray) -> jnp.ndarray:
         # The inverse model, which produces parameters for a given sample
-        raise NotImplementedError
+        raise NotImplementedError("BlackBox model does not implement `inverse`")
     
     def a(self, freq: Frequency) -> jnp.ndarray:
         if self.property == 'a':
@@ -85,7 +84,7 @@ class UnsupervisedBlackBox(BlackBox, ABC):
 
     @classmethod
     @abstractmethod
-    def from_samples(cls, samples: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
+    def from_samples(cls, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
         raise NotImplementedError
 
 class SupervisedBlackBox(BlackBox, ABC):
@@ -104,6 +103,5 @@ class SupervisedBlackBox(BlackBox, ABC):
         return cls.from_samples(params, samples, frequency, property=property, **kwargs)
 
     @classmethod
-    @abstractmethod
-    def from_samples(cls, params: jnp.ndarray, samples: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
-        raise NotImplementedError
+    def from_samples(cls, params: jnp.ndarray, features: jnp.ndarray, frequency: Frequency, property='s', **kwargs) -> Self:
+        raise NotImplementedError("BlackBox model does not implement `from_samples`")
