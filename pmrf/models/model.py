@@ -383,8 +383,10 @@ class Model(eqx.Module):
         if submodels is not None:
             if isinstance(submodels, (Model, str)):
                 submodels: list[Model] = [submodels]
-            if submodels and isinstance(submodels[0], str):
+            if isinstance(submodels[0], str):
                 submodels: list[Model] = [getattr(self, name) for name in submodels]
+            if not isinstance(submodels[0], Model):
+                raise Exception(f"Got unknown type when expecting a model or string. Type was: {submodels}")
 
             allowed = {id(p) for sm in submodels for p in sm.params(include_fixed=include_fixed)}
             params = [(k, v) for k, v in params if id(v) in allowed]
@@ -605,22 +607,19 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().s(freq)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
-        val = self.primary(freq)
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
 
-        # 2. Return or Convert
-        if primary_prop == 's':
-            return val
-        elif primary_prop == 'a':
-            return a2s(val, self.z0)
-        elif primary_prop == 'z':
-            return z2s(val, self.z0)
-        elif primary_prop == 'y':
-            return y2s(val, self.z0)
+        for prop in prioritized + unprioritized:
+            if prop == 's': continue
+            if is_overridden(type(self), Model, prop):
+                val = getattr(self, prop)(freq)
+                if prop == 'a': return a2s(val, self.z0)
+                if prop == 'z': return z2s(val, self.z0)
+                if prop == 'y': return y2s(val, self.z0)
         
-        raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
-    
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+
     @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
@@ -640,25 +639,18 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().a(freq)
         
-        # 1. Fetch primary
-        primary_prop = self.primary_property
-        val = self.primary(freq)
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
 
-        # 2. Return or Convert
-        if primary_prop == 'a':
-            return val
-        
-        # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
-            s = val
-        elif primary_prop == 'z':
-            s = z2s(val, self.z0)
-        elif primary_prop == 'y':
-            s = y2s(val, self.z0)
-        else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'a' is not implemented.")
-            
-        return s2a(s, self.z0)
+        for prop in prioritized + unprioritized:
+            if prop == 'a': continue
+            if is_overridden(type(self), Model, prop):
+                val = getattr(self, prop)(freq)
+                if prop == 's': return s2a(val, self.z0)
+                if prop == 'z': return s2a(z2s(val, self.z0), self.z0)
+                if prop == 'y': return s2a(y2s(val, self.z0), self.z0)
+
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
 
     @eqx.filter_jit
     def z(self, freq: Frequency) -> jnp.ndarray:
@@ -679,25 +671,18 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().z(freq)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
-        val = self.primary(freq)
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
 
-        # 2. Return or Convert
-        if primary_prop == 'z':
-            return val
+        for prop in prioritized + unprioritized:
+            if prop == 'z': continue
+            if is_overridden(type(self), Model, prop):
+                val = getattr(self, prop)(freq)
+                if prop == 's': return s2z(val, self.z0)
+                if prop == 'a': return s2z(a2s(val, self.z0), self.z0)
+                if prop == 'y': return s2z(y2s(val, self.z0), self.z0)
 
-        # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
-            s = val
-        elif primary_prop == 'a':
-            s = a2s(val, self.z0)
-        elif primary_prop == 'y':
-            s = y2s(val, self.z0)
-        else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'z' is not implemented.")
-
-        return s2z(s, self.z0)
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
 
     @eqx.filter_jit
     def y(self, freq: Frequency) -> jnp.ndarray:
@@ -718,25 +703,18 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().y(freq)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
-        val = self.primary(freq)
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
 
-        # 2. Return or Convert
-        if primary_prop == 'y':
-            return val
+        for prop in prioritized + unprioritized:
+            if prop == 'y': continue
+            if is_overridden(type(self), Model, prop):
+                val = getattr(self, prop)(freq)
+                if prop == 's': return s2y(val, self.z0)
+                if prop == 'a': return s2y(a2s(val, self.z0), self.z0)
+                if prop == 'z': return s2y(z2s(val, self.z0), self.z0)
 
-        # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
-            s = val
-        elif primary_prop == 'a':
-            s = a2s(val, self.z0)
-        elif primary_prop == 'z':
-            s = z2s(val, self.z0)
-        else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
-
-        return s2y(s, self.z0)    
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
     
     # ---- Structure utilities --------------------------------------------------    
     

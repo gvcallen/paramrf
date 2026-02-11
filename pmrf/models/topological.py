@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.functions import a2s, y2s
+from pmrf.functions import y2s
 
 class PiCLC(Model):
     """
@@ -123,12 +123,11 @@ class PiCLC(Model):
             [Y,     ones]
         ]).transpose(2, 0, 1)
     
-    # def s(self, freq: Frequency) -> jnp.ndarray:
-    #     if not self.three_port:
-    #         # return super().s(freq)
-    #         return a2s(self.a)
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        if not self.three_port:
+            return super().s(freq)
         
-    #     return y2s(self.y(freq), self.z0)
+        return y2s(self.y(freq), self.z0)
     
 class BoxCLCC(Model):
     """
