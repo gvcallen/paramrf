@@ -1161,7 +1161,7 @@ class Model(eqx.Module):
             or if arrays are found outside of Parameters.
         """
         if include_fixed:
-            raise Exception('Not yet supported')
+            raise Exception("Setting a model's parameters with include_fixed is not yet supported")
         
         # Deal with the sample case i.e. an array-like object
         if not isinstance(params, dict) and len(param_kwargs) == 0:

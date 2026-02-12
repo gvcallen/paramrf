@@ -2,15 +2,16 @@ from numpyro.distributions import Distribution, constraints
 import jax.numpy as jnp
 import jax
 
-from pmrf.parameters import ParameterGroup
 
 class JointParameterDistribution(Distribution):
     support = constraints.real_vector
     reparametrized_params = []
     has_rsample = True
 
-    def __init__(self, param_groups: list[ParameterGroup], param_names: list[str]):
-        self.param_groups = param_groups
+    def __init__(self, param_groups: list, param_names: list[str]):
+        from pmrf.parameters import ParameterGroup
+        
+        self.param_groups: list[ParameterGroup] = param_groups
         self.param_names = param_names
         self.name_to_index = {name: i for i, name in enumerate(param_names)}
         self._validate_groups()

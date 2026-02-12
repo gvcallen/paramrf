@@ -44,6 +44,9 @@ class BasisExpansion(UnsupervisedBlackBox):
         return X
     
     def inverse(self, sample: jnp.ndarray) -> jnp.ndarray:
+        if len(sample.shape) == 1:
+            sample = sample[..., None, None]
+        
         # The inverse model, which projects a sample onto the coefficients
         if self.offset is not None:
             sample = sample - self.offset
@@ -148,10 +151,13 @@ class SVDExpansion(BasisExpansion):
         Creates an SVD expansion basis from samples with arbitrary dimensions.
         
         Args:
-            features: Shape (nsamples, nfreq, m, n)
+            features: Shape (nsamples, nfreq, m, n) or (nsamples, nfreq)
         Returns:
             SVDExpansion with basis shape (ncomponents, nfreq, m, n)
         """
+        if len(features.shape) == 2:
+            features = features[..., None, None]
+        
         nsamples, nfreq, m, n = features.shape
         X = jnp.transpose(features, (2, 3, 0, 1))
         X_mean = jnp.mean(X, axis=2, keepdims=True)

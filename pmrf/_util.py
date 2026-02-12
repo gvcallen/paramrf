@@ -240,7 +240,7 @@ def lhs_sample(N: int, d: int, key=None) -> jnp.ndarray:
 def no_recent_improvement(values, patience):
     values = list(values)
     best_idx = min(range(len(values)), key=lambda i: values[i])
-    return len(values) - 1 - best_idx >= patience
+    return len(values) - 1 - best_idx > patience
 
 def has_converged(
     y_history: Sequence[float],

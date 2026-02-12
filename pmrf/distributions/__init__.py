@@ -26,3 +26,4 @@ except ImportError:
     pass
 
 from pmrf.distributions.parameter import JointParameterDistribution
+from pmrf.distributions.stacked import StackedDistribution

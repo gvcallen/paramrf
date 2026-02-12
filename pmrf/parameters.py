@@ -8,6 +8,7 @@ import equinox as eqx
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
+from pmrf.distributions.stacked import StackedDistribution
 from pmrf._util import field, interp_distribution
 
 MIN_PERCENTILE = 0.01
@@ -579,8 +580,8 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
     mean : float | Sequence[float]
         The mean of the distribution. Can be a sequence for a multi-valued Parameter.
     perc : float | Sequence[float]
-        The percentage width to use to initialize the lower and upper bounds.
-        Bounds are calculated as `mean +/- (perc * mean / 200)`.
+        The percentage deviation from the mean to either of the bounds.
+        Bounds are calculated as `mean +/- (perc * mean / 100)`.
     **kwargs
         Additional keyword arguments passed to the `Uniform` factory function.
 
@@ -706,6 +707,73 @@ def Free(value, n: int | None = None, **kwargs) -> 'Parameter':
     else:
         value = jnp.array(value)
     return Parameter(value=value, **kwargs)
+
+def Stacked(parameters: Sequence[Parameter], name: str | None = None, **kwargs) -> Parameter:
+    """
+    Combine multiple scalar or identically-shaped Parameters into a single vectorized Parameter.
+    
+    This acts as the inverse of `Parameter.flattened()`.
+
+    Parameters
+    ----------
+    parameters : Sequence[Parameter]
+        The list/tuple of Parameter objects to stack.
+    name : str, optional
+        The overarching name for the new stacked parameter.
+    **kwargs
+        Additional arguments passed to the `Parameter` constructor.
+
+    Returns
+    -------
+    Parameter
+        A new parameter containing the stacked values and distributions.
+    """
+    if not parameters:
+        raise ValueError("Cannot stack an empty sequence of parameters.")
+        
+    # 1. Stack the unscaled values
+    values = jnp.stack([p.value for p in parameters])
+    
+    # 2. Combine distributions
+    dists = [p.distribution for p in parameters]
+    stacked_dist = _stack_vectorized_distributions(dists)
+    
+    # 3. Preserve or generate flat names
+    flat_names = []
+    for p in parameters:
+        if p.flat_names is not None:
+            flat_names.extend(p.flat_names)
+        elif p.name is not None:
+            flat_names.append(p.name)
+        else:
+            flat_names.append(None)
+            
+    # 4. Handle the 'fixed' flag
+    # Note: Parameter.size evaluates `if self.fixed:`, meaning `fixed` must remain a scalar bool.
+    fixed_flags = [p.fixed for p in parameters]
+    if not all(f == fixed_flags[0] for f in fixed_flags):
+        raise ValueError(
+            "All parameters must have the exact same 'fixed' status to be stacked. "
+            "Element-wise fixed arrays are not supported by the base Parameter class."
+        )
+        
+    # 5. Handle scales (allow heterogeneous scales by stacking them)
+    scales = [p.scale for p in parameters]
+    if not all(s == scales[0] for s in scales):
+        # __jax_array__ will automatically broadcast this array against the values
+        scale = jnp.array(scales)
+    else:
+        scale = scales[0]
+        
+    return Parameter(
+        value=values,
+        distribution=stacked_dist,
+        fixed=fixed_flags[0],
+        scale=scale,
+        name=name,
+        flat_names=flat_names,
+        **kwargs
+    )
 
 def is_param(x) -> bool:
     r"""
@@ -853,6 +921,37 @@ def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
         split_dists.append(dist_class(**args))
 
     return split_dists
+
+def _stack_vectorized_distributions(dists: list[Distribution | None]) -> Distribution | None:
+    """
+    Combine a list of scalar numpyro distributions into a single batched distribution.
+    
+    Parameters
+    ----------
+    dists : list[numpyro.distributions.Distribution | None]
+        A list of distributions to stack.
+
+    Returns
+    -------
+    numpyro.distributions.Distribution | None
+        The vectorized distribution, or None if no distributions were provided.
+    """
+    if all(d is None for d in dists):
+        return None
+    if any(d is None for d in dists):
+        raise ValueError("Cannot stack a mix of parameters where some have distributions and others do not.")
+        
+    dist_classes = set(type(d) for d in dists)
+    
+    # Fast path: If they are all the exact same family, use native NumPyro batching
+    if len(dist_classes) == 1:
+        dist_cls = dists[0].__class__
+        param_names = dists[0].arg_constraints.keys()
+        stacked_kwargs = {name: jnp.stack([getattr(d, name) for d in dists]) for name in param_names}
+        return dist_cls(**stacked_kwargs)
+        
+    # Flexible path: Use our custom meta-distribution for mixed types!
+    return StackedDistribution(dists)
 
 def _serialize_distribution(d: Distribution | None) -> dict | None:
     r"""

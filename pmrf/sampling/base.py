@@ -58,7 +58,7 @@ class BaseSampler(ABC):
         self,
         model: Model,
         frequency: Frequency | None = None,
-        features: FeatureInputT | None = 's',
+        features: FeatureInputT | None = None,
     ):
         self.model: Model = model
         self.frequency = frequency
