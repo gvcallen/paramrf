@@ -976,7 +976,6 @@ class Model(eqx.Module):
         else:
             retval = {n: p.value for n, p in (self._iter_params(flatten=True, **kwargs))}
             
-            
         if return_floats:
             retval = {k: float(np.array(v)) for k, v in retval.items()}
         return retval

@@ -70,31 +70,27 @@ class Parameter(eqx.Module):
         print(f"Initial value of L1: {p3.value}")
     """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
-    # None of these are marked static so we can update them if we want to
     value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
     distribution: Distribution | None = field(default=None)
-    fixed: bool = field(default=False)
-    scale: float = field(default=1.0)
+    
+    # Static (metadata) fields
+    fixed: bool = field(default=False, static=True)
+    scale: float = field(default=1.0, static=True)
     name: str | None = field(default=None, static=True)
     flat_names: list[str] | None = field(default=None, static=True, converter=lambda x: list(x) if x is not None else x)
 
     @property
     def shape(self) -> tuple[int, ...]:
         """
-        The shape of  this parameter.
+        The shape of this parameter.
         """
         return self.value.shape
     
     @property
     def size(self) -> int:
         """
-        The number of free dimensions for this parameter.
-        
-        Returns 0 if the parameter is fixed.
+        The number of dimensions for this parameter.
         """
-        if self.fixed:
-            return 0
-        
         return self.value.size
     
     @property

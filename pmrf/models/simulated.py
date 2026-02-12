@@ -90,7 +90,9 @@ class Simulated(Model):
         # We split 'self' into dynamic parts (JAX arrays) and static parts (metadata).
         # - 'dynamic': passed as arguments to the callback (will be tracers in JIT).
         # - 'static': passed via closure (must be hashable/static).
-        dynamic, static = self.partition()
+        # NB: we use eqx.partition because the caller expects ALL jax data to be available (not just free parameters)
+        # dynamic, static = self.partition()
+        dynamic, static = eqx.partition(self, eqx.is_inexact_array)
 
         # 2. Define Output Shape
         # JAX needs to know the shape/dtype of the callback result *before* it runs.
