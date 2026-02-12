@@ -60,6 +60,9 @@ class BaseSampler(ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
     ):
+        if model.num_flat_params == 0:
+            raise Exception("Model has no free parameters to sample")
+        
         self.model: Model = model
         self.frequency = frequency
         self.features = features
