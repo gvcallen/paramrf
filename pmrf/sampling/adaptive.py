@@ -1,5 +1,6 @@
 from abc import abstractmethod
 
+from datetime import datetime
 import jax.random as jr
 import jax.numpy as jnp
 
@@ -47,7 +48,8 @@ class AdaptiveSampler(BaseSampler):
             nonlocal sample_idx
             
             params = dict(zip(param_names, theta.tolist()))
-            self.logger.info(f"Computing Sample #{sample_idx + 1} with {params}")
+            now = datetime.now()
+            self.logger.info(f"Computing Sample #{sample_idx + 1} with {params} (time = {now.strftime("%Y-%m-%d %H:%M:%S")})")
             features_i = self.feature_fn(theta, jit=jit_feature_fn)
             sample_idx += 1
             
