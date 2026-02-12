@@ -2,6 +2,7 @@ import json
 import dataclasses
 from dataclasses import dataclass
 from typing import Sequence
+import warnings
 
 import jax.numpy as jnp
 import equinox as eqx
@@ -577,7 +578,7 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
         The mean of the distribution. Can be a sequence for a multi-valued Parameter.
     perc : float | Sequence[float]
         The percentage deviation from the mean to either of the bounds.
-        Bounds are calculated as `mean +/- (perc * mean / 100)`.
+        Bounds are calculated as `mean +/- (perc * mean / 200)`.
     **kwargs
         Additional keyword arguments passed to the `Uniform` factory function.
 
@@ -586,11 +587,47 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
     Parameter
         The created Parameter object.
     """
+    warnings.warn(
+        "PercentUniform is deprecated and will be removed in a future version. "
+        "Please use RelativeUniform instead",
+        category=DeprecationWarning,
+        stacklevel=2
+    )    
+    
     if isinstance(perc, Sequence) or isinstance(perc, jnp.ndarray):
         delta = jnp.array(perc) * jnp.array(mean) / 200.0
     else:
         delta = perc * jnp.array(mean) / 200.0
     return Uniform(low=mean-delta, high=mean+delta, **kwargs)
+
+def RelativeUniform(mean: float | Sequence[float], deviation_fraction: float | Sequence[float], **kwargs) -> 'Parameter':
+    r"""
+    Create a `Parameter` with a uniform distribution defined by a fractional deviation.
+
+    The bounds are calculated as: `mean * (1 +/- deviation_fraction)`
+
+    Parameters
+    ----------
+    mean : float | Sequence[float]
+        The center (mean) of the distribution.
+    deviation_fraction : float | Sequence[float]
+        The relative radius of the distribution bounds as a fraction of the mean.
+        e.g., 0.1 results in bounds of [0.9 * mean, 1.1 * mean].
+    **kwargs
+        Additional keyword arguments passed to the `Uniform` constructor.
+
+    Returns
+    -------
+    Parameter
+    """
+    mean_arr = jnp.array(mean)
+    frac_arr = jnp.array(deviation_fraction)
+    
+    # Calculate the absolute deviation (radius)
+    # delta = 10% of mean
+    delta = jnp.abs(mean_arr * frac_arr)
+    
+    return Uniform(low=mean_arr - delta, high=mean_arr + delta, **kwargs)
 
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     r"""
@@ -648,11 +685,48 @@ def PercentNormal(mean: float | Sequence[float], perc: float | Sequence[float], 
     Parameter
         The created Parameter object.
     """
+    warnings.warn(
+        "PercentNormal is deprecated and will be removed in a future version. "
+        "Please use RelativeNormal instead",
+        category=DeprecationWarning,
+        stacklevel=2
+    )        
+    
     if isinstance(perc, Sequence) or isinstance(perc, jnp.ndarray):
         std = jnp.array(perc) * jnp.array(mean) / 200.0
     else:
         std = perc * jnp.array(mean) / 200.0
     return Normal(mean=mean, std=std, **kwargs)
+
+def RelativeNormal(mean: float | Sequence[float], std_fraction: float | Sequence[float], **kwargs) -> 'Parameter':
+    r"""
+    Create a `Parameter` with a normal distribution defined by a relative standard deviation.
+
+    The scale (sigma) is calculated as: `mean * std_fraction`
+
+    Parameters
+    ----------
+    mean : float | Sequence[float]
+        The center (mean) of the distribution.
+    std_fraction : float | Sequence[float]
+        The standard deviation expressed as a fraction of the mean 
+        (also known as the coefficient of variation).
+        e.g., 0.1 results in a distribution with sigma = 0.1 * mean.
+    **kwargs
+        Additional keyword arguments passed to the `Normal` constructor.
+
+    Returns
+    -------
+    Parameter
+    """
+    mean_arr = jnp.array(mean)
+    frac_arr = jnp.array(std_fraction)
+    
+    # Calculate absolute standard deviation
+    # sigma = 10% of mean
+    sigma = jnp.abs(mean_arr * frac_arr)
+    
+    return Normal(loc=mean_arr, scale=sigma, **kwargs)
 
 def Fixed(value, n: int | None = None, **kwargs) -> 'Parameter':
     r"""
