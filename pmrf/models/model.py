@@ -978,7 +978,7 @@ class Model(eqx.Module):
             
             
         if return_floats:
-            retval = {k: float(v) for k, v in retval.items()}
+            retval = {k: float(np.array(v)) for k, v in retval.items()}
         return retval
          
     def flat_param_names(self, *args, **kwargs) -> list[str]:
