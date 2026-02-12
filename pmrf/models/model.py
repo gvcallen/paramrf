@@ -582,7 +582,6 @@ class Model(eqx.Module):
         """     
         raise NotImplementedError(f"Error: cannot use the __call__ method to build a model in the Model class directly")
     
-    @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
         """Dispatch to the primary function for the given frequency."""        
         primary_function = self.primary_function
@@ -607,18 +606,24 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().s(freq)
 
-        prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        pp = self.primary_property
 
-        for prop in prioritized + unprioritized:
-            if prop == 's': continue
-            if is_overridden(type(self), Model, prop):
-                val = getattr(self, prop)(freq)
-                if prop == 'a': return a2s(val, self.z0)
-                if prop == 'z': return z2s(val, self.z0)
-                if prop == 'y': return y2s(val, self.z0)
+        # If S is the primary property, we expect either s() or primary() to be implemented.
+        # Since we are executing the base s(), s() is likely not overridden (or called via super).
+        # We must check if primary() provides the implementation to avoid infinite recursion.
+        if pp == 's':
+            if is_overridden(type(self), Model, 'primary'):
+                return self.primary(freq)
+            raise NotImplementedError("Primary property is 's', but neither s() nor primary() are implemented.")
+
+        # If S is not primary, get the primary value and convert
+        val = self.primary(freq)
         
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+        if pp == 'a': return a2s(val, self.z0)
+        if pp == 'z': return z2s(val, self.z0)
+        if pp == 'y': return y2s(val, self.z0)
+        
+        raise NotImplementedError(f"Primary property '{pp}' is not supported for conversion to 's'.")
 
     @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
@@ -635,22 +640,24 @@ class Model(eqx.Module):
         -------
         jnp.ndarray
             ABCD matrix with shape ``(nf, 2, 2)``.
-        """        
+        """
         if is_overridden(type(self), Model, '__call__'):
             return self().a(freq)
         
-        prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        pp = self.primary_property
 
-        for prop in prioritized + unprioritized:
-            if prop == 'a': continue
-            if is_overridden(type(self), Model, prop):
-                val = getattr(self, prop)(freq)
-                if prop == 's': return s2a(val, self.z0)
-                if prop == 'z': return s2a(z2s(val, self.z0), self.z0)
-                if prop == 'y': return s2a(y2s(val, self.z0), self.z0)
+        if pp == 'a':
+            if is_overridden(type(self), Model, 'primary'):
+                return self.primary(freq)
+            raise NotImplementedError("Primary property is 'a', but neither a() nor primary() are implemented.")
 
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+        val = self.primary(freq)
+
+        if pp == 's': return s2a(val, self.z0)
+        if pp == 'z': return s2a(z2s(val, self.z0), self.z0)
+        if pp == 'y': return s2a(y2s(val, self.z0), self.z0)
+
+        raise NotImplementedError(f"Primary property '{pp}' is not supported for conversion to 'a'.")
 
     @eqx.filter_jit
     def z(self, freq: Frequency) -> jnp.ndarray:
@@ -671,18 +678,20 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().z(freq)
 
-        prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        pp = self.primary_property
 
-        for prop in prioritized + unprioritized:
-            if prop == 'z': continue
-            if is_overridden(type(self), Model, prop):
-                val = getattr(self, prop)(freq)
-                if prop == 's': return s2z(val, self.z0)
-                if prop == 'a': return s2z(a2s(val, self.z0), self.z0)
-                if prop == 'y': return s2z(y2s(val, self.z0), self.z0)
+        if pp == 'z':
+            if is_overridden(type(self), Model, 'primary'):
+                return self.primary(freq)
+            raise NotImplementedError("Primary property is 'z', but neither z() nor primary() are implemented.")
 
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
+        val = self.primary(freq)
+
+        if pp == 's': return s2z(val, self.z0)
+        if pp == 'a': return s2z(a2s(val, self.z0), self.z0)
+        if pp == 'y': return s2z(y2s(val, self.z0), self.z0)
+
+        raise NotImplementedError(f"Primary property '{pp}' is not supported for conversion to 'z'.")
 
     @eqx.filter_jit
     def y(self, freq: Frequency) -> jnp.ndarray:
@@ -703,19 +712,20 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, '__call__'):
             return self().y(freq)
 
-        prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        pp = self.primary_property
 
-        for prop in prioritized + unprioritized:
-            if prop == 'y': continue
-            if is_overridden(type(self), Model, prop):
-                val = getattr(self, prop)(freq)
-                if prop == 's': return s2y(val, self.z0)
-                if prop == 'a': return s2y(a2s(val, self.z0), self.z0)
-                if prop == 'z': return s2y(z2s(val, self.z0), self.z0)
+        if pp == 'y':
+            if is_overridden(type(self), Model, 'primary'):
+                return self.primary(freq)
+            raise NotImplementedError("Primary property is 'y', but neither y() nor primary() are implemented.")
 
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
-    
+        val = self.primary(freq)
+
+        if pp == 's': return s2y(val, self.z0)
+        if pp == 'a': return s2y(a2s(val, self.z0), self.z0)
+        if pp == 'z': return s2y(z2s(val, self.z0), self.z0)
+
+        raise NotImplementedError(f"Primary property '{pp}' is not supported for conversion to 'y'.")
     # ---- Structure utilities --------------------------------------------------    
     
     def children(self) -> list['Model']:
@@ -954,7 +964,7 @@ class Model(eqx.Module):
             
             
         if return_floats:
-            retval = {k: float(v) for k, v in retval.items()}
+            retval = {k: v.astype(float) for k, v in retval.items()}
         return retval
          
     def flat_param_names(self, *args, **kwargs) -> list[str]:
