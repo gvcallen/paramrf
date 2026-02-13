@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.models.misc import Port
+from models.ideal import Port
 from pmrf.functions.connections import connect_one, connect_many
 from pmrf._util import field
 
