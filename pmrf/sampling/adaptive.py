@@ -3,10 +3,10 @@ from abc import abstractmethod
 from datetime import datetime
 import jax.random as jr
 import jax.numpy as jnp
+import numpy as np
 
 from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
-
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import LivePlotter
@@ -18,9 +18,10 @@ class AdaptiveSampler(BaseSampler):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         initial_models: list[Model] | int = 10,
+        **kwargs,
     ):    
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
-        super().__init__(model, frequency=frequency, features=features)
+        super().__init__(model, frequency=frequency, features=features, **kwargs)
         
     def run(self, N: int | None = None, max_iterations: int = 100, num_success: int = 1, key=None, plot=None, jit_feature_fn=False, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
@@ -36,7 +37,7 @@ class AdaptiveSampler(BaseSampler):
         models = self.initial_models
         param_names = self.model.flat_param_names()
         
-        theta_current = [model.flat_param_values() for model in models]
+        theta = [model.flat_param_values() for model in models]
         U_current = [self.cumulative_distribution_fn(model.flat_param_values()) for model in models]
         features = []
         
@@ -68,11 +69,14 @@ class AdaptiveSampler(BaseSampler):
                 
                 plotter.add_curve(f"#{sample_idx}, {params}", y, x_values=self.frequency.f_scaled)
                 plotter.ax.set_title(f"Sample Feature #{f}, num_samples = {sample_idx + 1}")
-            
+                        
             return features_i
             
-        for theta in theta_current:
-            features.append(compute_sample(theta))
+        for theta_i in theta:
+            features.append(compute_sample(theta_i))
+            
+            np.save(f"{self.output_path}/features.npy", features)
+            np.save(f"{self.output_path}/theta.npy", np.array(theta))
         
         iteration = 0
         d = self.model.num_flat_params
@@ -90,18 +94,18 @@ class AdaptiveSampler(BaseSampler):
             
             U_current.extend([u_next for u_next in U_next])
             for u in U_next:
-                theta = self.inverse_cumulative_distribution_fn(u)
-                features.append(compute_sample(theta))
-                theta_current.append(theta)
+                theta_i = self.inverse_cumulative_distribution_fn(u)
+                features.append(compute_sample(theta_i))
+                theta.append(theta_i)
             
-            if N is not None and len(theta_current) >= N:
+            if N is not None and len(theta) >= N:
                 break
             iteration += 1
             
         if iteration == max_iterations:
             self.logger.warning("Maximum iterations were reached during adaptive sampling")
 
-        models = [self.model.with_params(theta) for theta in theta_current]
+        models = [self.model.with_params(theta_i) for theta_i in theta]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_features=jnp.array(features))
         return models, results
     

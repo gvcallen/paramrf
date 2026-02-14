@@ -42,7 +42,7 @@ class FieldMinimizationSampler(AdaptiveSampler):
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, patience=5, threshold=None, num_grid_per_dim=10000) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # For each pass, we train the field model on the current samples and features.
         theta_samples = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_samples)
         key, field_key = jr.split(key)

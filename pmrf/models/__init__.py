@@ -7,4 +7,5 @@ from pmrf.models.lumped import *
 from pmrf.models.nonideal import *
 from pmrf.models.topological import *
 from pmrf.models.ideal import *
-from pmrf.models.blackbox import *
+from pmrf.models.expansion import *
+from pmrf.models.surrogate import *

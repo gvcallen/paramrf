@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
 from typing import Any
+import os
 
 import numpy as np
 import skrf
@@ -59,6 +60,7 @@ class BaseSampler(ABC):
         model: Model,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
+        output_path: str | None = None,
     ):
         if model.num_flat_params == 0:
             raise Exception("Model has no free parameters to sample")
@@ -67,9 +69,10 @@ class BaseSampler(ABC):
         self.frequency = frequency
         self.features = features
         self.logger = logging.getLogger(__name__)
+        self.output_path = output_path
         
-        params, self._static = self.model.partition()
-        self._flat_params, self._ravel_fn = flatten_util.ravel_pytree(params)
+        if self.output_path is not None:
+            os.makedirs(self.output_path, exist_ok=True)
         
     def inverse_cumulative_distribution_fn(self, u, as_numpy=False):
         """

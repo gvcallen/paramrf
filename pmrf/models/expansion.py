@@ -1,35 +1,14 @@
+from typing import Callable
+
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.models.abstract import Model, InterpolatedSingleProperty
+from pmrf.frequency import Frequency
+from pmrf.models.abstract import Model, SingleProperty, SingleDiscreteProperty
 from pmrf.parameters import Parameter
 
-class Latent(Model):
-    """
-    A model that computes its output via a latent space.
-    
-    The output is calculated using a encoder-decoder architecture:
-    - The model is a function of D parameters.
-    - The encoder is an arbitrary equinox Module with D inputs and K "latent" outputs.
-    - The decoder is a ParamRF model with K parameters.
-    """
-    # The input parameters of length P
-    params: Parameter = None
-    
-    # The latent encoder. Must be callable with D inputs and must have K outputs
-    encoder: eqx.Module = None
-    
-    # The latent decoder. This must have K flat parameters
-    decoder: Model = None
-    
-    def __post_init__(self):
-        self.decoder = self.decoder.with_all_params_fixed()
-    
-    def __call__(self) -> Model:
-        # The forward model, which produces a sample for the current parameters
-        return self.decoder.with_all_params_free().with_params(self.encoder(self.flat_param_values()))
 
-class VectorExpansion(InterpolatedSingleProperty):
+class VectorExpansion(SingleDiscreteProperty):
     """
     A model where the output is a linear expansion of vector basis functions.
     
