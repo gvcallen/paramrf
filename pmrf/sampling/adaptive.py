@@ -45,13 +45,13 @@ class AdaptiveSampler(BaseSampler):
         plotters: list[LivePlotter] = []
         
         sample_idx = 0
-        def compute_sample(theta: jnp.ndarray):
+        def compute_sample(theta_i: jnp.ndarray):
             nonlocal sample_idx
             
-            params = dict(zip(param_names, theta.tolist()))
+            params = dict(zip(param_names, theta_i.tolist()))
             now = datetime.now()
             self.logger.info(f"Computing Sample #{sample_idx + 1} with {params} (time = {now.strftime("%Y-%m-%d %H:%M:%S")})")
-            features_i = self.feature_fn(theta, jit=jit_feature_fn)
+            features_i = self.feature_fn(theta_i, jit=jit_feature_fn)
             sample_idx += 1
             
             # Create plotters lazily
@@ -70,13 +70,12 @@ class AdaptiveSampler(BaseSampler):
                 plotter.add_curve(f"#{sample_idx}, {params}", y, x_values=self.frequency.f_scaled)
                 plotter.ax.set_title(f"Sample Feature #{f}, num_samples = {sample_idx + 1}")
                         
+            np.save(f"{self.output_path}/features.npy", features)
+            np.save(f"{self.output_path}/theta.npy", np.array(theta))
             return features_i
             
         for theta_i in theta:
             features.append(compute_sample(theta_i))
-            
-            np.save(f"{self.output_path}/features.npy", features)
-            np.save(f"{self.output_path}/theta.npy", np.array(theta))
         
         iteration = 0
         d = self.model.num_flat_params

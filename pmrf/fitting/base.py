@@ -184,11 +184,11 @@ class BaseFitter(ABC):
         self,
         measured: str | Network | NetworkCollection,
         **kwargs         
-    ) -> 'FitResults':
+    ) -> tuple[Model, 'FitResults']:
         """
         Fits the model to measured data.
 
-        This method fits the full model using the original features specified.
+        This method fits the full model using the features specified.
 
         Arguments are forwarded to ``self.run_context(...)``.
 
@@ -205,8 +205,8 @@ class BaseFitter(ABC):
 
         Returns
         -------
-        FitResults
-            The fit results object.
+        tuple[Model, FitResults]
+            The fitted model and fit results.
         """
         if isinstance(measured, str):
             measured = skrf.Network(measured)
@@ -214,15 +214,15 @@ class BaseFitter(ABC):
         ctx = self._create_context(measured)
         results = self._run_context(ctx, **kwargs)
 
-        return results
+        return results.fitted_model, results
     
     def fit_submodels(
         self,
         measured: NetworkCollection,
         **kwargs         
-    ) -> 'FitResults':
+    ) -> tuple[Model, 'FitResults']:
         """
-        Fits the submodels.
+        Fits the submodels in a model to measured data.
          
         This method fits the model to the measured data by fitting its submodels in a sequential manner.
 
@@ -240,8 +240,8 @@ class BaseFitter(ABC):
 
         Returns
         -------
-        FitResults
-            The fit results object. `solver_results` contains a dictionary of the individual submodel results.
+        tuple[Model, FitResults]
+            The fitted model and fit results. `solver_results` in the fit results contains a dictionary of the individual submodel fit results.
         """
         all_results: dict[str, FitResults] = {}
         
@@ -278,9 +278,6 @@ class BaseFitter(ABC):
             solver_results=all_results,
 
         )
-        metadata = fitted_model.metadata
-        metadata['fit_results'] = fit_results
-        fitted_model = fitted_model.with_fields(metadata=metadata)
         
         # Save the models and results
         if RANK == 0 and self.output_path is not None:
@@ -292,7 +289,7 @@ class BaseFitter(ABC):
             if kwargs.get('save_results', True):
                 fit_results.save_hdf(f'{self.output_path}/results.hdf5')
 
-        return fit_results
+        return fit_results.fitted_model, fit_results
 
     def _create_context(self, measured, *, model=None, features=None, output_path=None, output_root=None, sparam_kind=None) -> FitContext:
         """
@@ -1073,7 +1070,7 @@ def get_fitter_class(solver: str):
     except (ImportError, AttributeError) as e:
         raise Exception(f'Could not find solver named {solver} with error: {e}')
     
-def fit(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Model:
+def fit(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> tuple[Model, FitResults]:
     """Fits a model to measured data.
 
     This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
@@ -1095,14 +1092,14 @@ def fit(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs
 
     Returns
     -------
-    Model
-        The fitted model.
+    tuple[Model, FitResults]
+        The fitted model and fit results.
     """        
     from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
     init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-    return Fitter(model, **init_kwargs).fit(measured, **kwargs).fitted_model
+    return Fitter(model, **init_kwargs).fit(measured, **kwargs)
 
-def fit_submodels(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> Model:
+def fit_submodels(model: Model, measured: str | skrf.Network | NetworkCollection, **kwargs) -> tuple[Model, FitResults]:
     """Fits a model's submodels to measured data.
 
     This is an alternative API to ParamRF's :mod:`fitting <pmrf.fitting>` module.
@@ -1124,9 +1121,9 @@ def fit_submodels(model: Model, measured: str | skrf.Network | NetworkCollection
 
     Returns
     -------
-    Model
-        The fitted model.
+    tuple[Model, FitResults]
+        The fitted model and fit results. `solver_results` in the fit results contains a dictionary of the individual submodel fit results.
     """         
     from pmrf.fitting import Fitter, FITTER_INIT_PARAMS
     init_kwargs = {k: kwargs.pop(k) for k in FITTER_INIT_PARAMS if k in kwargs}
-    return Fitter(model, **init_kwargs).fit_submodels(measured, **kwargs).fitted_model
+    return Fitter(model, **init_kwargs).fit_submodels(measured, **kwargs)

@@ -72,32 +72,6 @@ class BayesianResults(FitResults):
             Array of sample weights.
         """
         pass
-    
-    def fit_posterior(self, trainable_distribution: TrainableDistributionT | None = None, *args, **kwargs):
-        """
-        Fit a trainable distribution to the posterior samples.
-        
-        Arguments are forward to :func:``pmrf.distributions.TrainableDistribution.from_sampled_distribution``.
-        """
-        if not hasattr(self, 'nested_samples'):
-            raise Exception('Posterior training currently only supported when nested_samples are present')
-        
-        if RANK == 0:        
-            if trainable_distribution is None:
-                from pmrf.distributions.margarine import MargarineMAFDistribution
-                trainable_distribution = MargarineMAFDistribution
-            from pmrf.distributions.anesthetic import AnestheticDistribution
-
-            param_names = self.fitted_model.flat_param_names()
-            sampled_dist = AnestheticDistribution(self.nested_samples, param_names)
-            trained_dist = trainable_distribution.from_sampled_distribution(sampled_dist, *args, **kwargs)
-            param_group = ParameterGroup(param_names, trained_dist)
-
-            fitted_model = self.fitted_model.with_param_groups(param_group)
-        else:
-            fitted_model = None
-        
-        self.fitted_model = sync_across_all_ranks(fitted_model, root=0)
         
 @dataclass
 class BayesianContext(FitContext):

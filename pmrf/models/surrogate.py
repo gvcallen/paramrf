@@ -22,7 +22,7 @@ class ContinuousSurrogate(SingleProperty):
     
     def output(self, freq: Frequency) -> jnp.ndarray:
         # Hack reshape for now
-        return self.func(self.flat_param_values()).reshape(-1, 1, 1)
+        return self.func(self.flat_param_values(), freq).reshape(-1, 1, 1)
     
 
 class DiscreteSurrogate(SingleDiscreteProperty):
