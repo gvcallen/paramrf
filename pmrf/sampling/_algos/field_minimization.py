@@ -8,23 +8,22 @@ from pmrf.frequency import Frequency
 from pmrf.sampling.base import BaseSampler
 from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
-from pmrf.sampling._algos.latin_hypercube import LatinHypercubeSampler
-from pmrf._util import has_converged, lhs_sample, no_recent_improvement
+from pmrf._util import lhs_sample, no_recent_improvement
 
-class FieldMinimizationSampler(AdaptiveSampler):
+class FieldSampler(AdaptiveSampler):
     """
     Samples new points by minimizing a scalar field that is a function of the input parameters.
     
     At each iteration, the scalar field can first be "trained" using the current samples, and then "evaluated" at new input points.
-    
     For example, this sampler can be used to train a surrogate model that is able to predict the current variance at new sample points.
     Then, this sampler will choose new sample points where that variance is a maximum.
-
+    
+    Convergence is reached when the scalar field stops decreasing.
     """
     def __init__(
         self,
         model: Model,
-        train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any], # params, features, frequency, and `key` is a key-word argument
+        train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any] | None, # params, features, frequency, and `key` is a key-word argument
         eval_fn: Callable[[Any, jnp.ndarray, Frequency], float],
         initial_models: list[Model] | int = 10,
         grid_sampler: BaseSampler | None = None,
@@ -33,6 +32,9 @@ class FieldMinimizationSampler(AdaptiveSampler):
     ):
         if not 'frequency' in kwargs:
             raise Exception("SurrogateFieldSampler without a frequency")
+        
+        if train_fn is None:
+            train_fn = lambda params, features: {'params': params, 'features': features}
 
         self.train_fn = train_fn
         self.eval_fn = eval_fn
@@ -42,13 +44,12 @@ class FieldMinimizationSampler(AdaptiveSampler):
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, U_samples: jnp.ndarray, features: jnp.ndarray, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # For each pass, we train the field model on the current samples and features.
-        theta_samples = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_samples)
         key, field_key = jr.split(key)
         
-        self.logger.info(f"Training field...")
-        field = self.train_fn(theta_samples, features, self.frequency, key=field_key)
+        self.logger.info(f"Training...")
+        field = self.train_fn(self.sampled_params, self.sampled_features, self.frequency, key=field_key)
 
         # Next, we sample new points using the grid sampler (e.g. latin hupercube) to get grid_theta of shape (K, d)
         K = num_grid_per_dim * d
@@ -72,18 +73,12 @@ class FieldMinimizationSampler(AdaptiveSampler):
         max_field = jnp.max(grid_field)
         self.field_values.append(max_field)
         
-        # Check if we have converged via the threshold
-        if threshold is not None and jnp.all(max_field < threshold):
-            self.logger.info(f"Convergence reached via threshold (maximum field value of {float(max_field)} is less than threshold {threshold}")
-            return None
-            
-        # Check if we have converged via maximum patience (no improvement)
-        if len(self.field_values) >= patience and no_recent_improvement(self.field_values, patience):
-            self.logger.info(f"Convergence reached via maximum patience (no improvement over past {patience} samples)")
+        # Check if we have converged
+        if self._check_convergence(self.field_values, threshold, patience):
             return None
 
         # Pick the N points in the grid with the largest field values
-        self.logger.info(f"Maximum = {float(max_field)}")
+        self.logger.info(f"Maximum field = {float(max_field):.2f}")
         indices = jnp.argsort(grid_field, descending=True)
         max_field_theta = theta_grid[indices][0:N]
         
