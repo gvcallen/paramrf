@@ -45,7 +45,7 @@ class FieldSampler(AdaptiveSampler):
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # For each pass, we train the field model on the current samples and features.
         self.logger.info(f"Training...")
         key, field_key = jr.split(key)
@@ -80,7 +80,7 @@ class FieldSampler(AdaptiveSampler):
         self.field_thetas.append(max_field_thetas)
         
         # Check if we have converged
-        if self._check_convergence(self.field_values, threshold, patience, "field"):
+        if self._check_convergence(self.field_values, threshold=threshold, patience=patience, title="field"):
             return None
         
         # Return the next hypercube samples

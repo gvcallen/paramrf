@@ -1,9 +1,11 @@
+from abc import ABC, abstractmethod
 import jax
+import jax.numpy as jnp
 
 from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 
-class OneshotSampler(BaseSampler):
+class OneshotSampler(BaseSampler, ABC):
     """Generates a fixed number of samples in one go."""
     def run(self, N: int, plot=None, key=None) -> tuple[list[Model], SampleResults]:
         if key is None:
@@ -18,3 +20,10 @@ class OneshotSampler(BaseSampler):
         models = [self.model.with_params(theta) for theta in thetas]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
+
+    @abstractmethod
+    def _generate(self, N: int, d: int, *, key=None, **kwargs) -> jnp.ndarray:
+        """
+        Generate N new samples in the hypercube for d dimensions.
+        """
+        raise NotImplementedError     

@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import jax
 import jax.random as jr
 import jax.numpy as jnp
@@ -8,10 +9,11 @@ from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import lhs_sample
 
-class AdaptiveSampler(BaseSampler):
+class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
         self,
         model: Model,
+        *,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         initial_models: list[Model] | int = 10,
@@ -19,8 +21,19 @@ class AdaptiveSampler(BaseSampler):
     ):    
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
         super().__init__(model, frequency=frequency, features=features, **kwargs)
+
+    @abstractmethod
+    def _generate(self, N: int, d: int, *, key=None, **kwargs) -> jnp.ndarray:
+        """
+        Generate N new samples in the hypercube for d dimensions.
         
-    def run(self, N: int | None = None, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+        Note that not all samplers support an arbitrary N.
+        
+        Note that `self.sampled_params` and `self.sampled_features` may be inspected at each iteration.
+        """
+        raise NotImplementedError            
+        
+    def run(self, N: int | None = None, *, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             raise Exception('Key needed for AdaptiveSampler')
         
@@ -58,8 +71,9 @@ class AdaptiveSampler(BaseSampler):
         models = [self.model.with_params(theta) for theta in self.sampled_params]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
+        
     
-    def _check_convergence(self, values: list[float], threshold=None, patience=None, spike_reset_ratio=2.0, title=None) -> bool:
+    def _check_convergence(self, values: list[float], *, threshold=None, patience=None, spike_reset_ratio=2.0, title=None) -> bool:
         if title is not None:
             prefix = f"Convergence for {title} reached"
         else:
@@ -68,8 +82,8 @@ class AdaptiveSampler(BaseSampler):
         # Ignore values if we detect a sudden spike
         if spike_reset_ratio is not None and len(values) > 1:
             for i in range(len(values) - 1, 0, -1):
-                curr = values[i]
-                prev = values[i-1]
+                curr = float(values[i])
+                prev = float(values[i-1])
                 
                 # Check if error jumped up significantly (e.g. Current > 2x Previous)
                 if curr > (prev * spike_reset_ratio):
@@ -93,3 +107,4 @@ class AdaptiveSampler(BaseSampler):
                 return True
         
         return False
+        

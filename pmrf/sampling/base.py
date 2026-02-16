@@ -60,6 +60,7 @@ class BaseSampler(ABC):
     def __init__(
         self,
         model: Model,
+        *,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         output_path: str | None = None,
@@ -245,14 +246,3 @@ class BaseSampler(ABC):
     def run(self, *args, **kwargs) -> tuple[list[Model], SampleResults]:
         """Entry point for generating models."""
         pass
-    
-    @abstractmethod
-    def _generate(self, N: int, d: int, key=None, **kwargs) -> jnp.ndarray:
-        """
-        Generate N new samples in the hypercube for d dimensions.
-        
-        Note that not all samplers support an arbitrary N.
-        
-        For adaptive samplers, `self.sampled_params` and `self.sampled_features` may be inspected.
-        """
-        raise NotImplementedError    

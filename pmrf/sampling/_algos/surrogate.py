@@ -72,7 +72,7 @@ class SurrogateFieldSampler(FieldSampler):
         
         return super().__init__(model=model, features=features, train_fn=train_fn_wrapper, eval_fn=eval_fn_wrapper, *args, **kwargs)
     
-    def _generate(self, N: int, d: int, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
         # Generate the samples and train the surrogate
         key, generate_key = jr.split(key)
         U_samples = super()._generate(N, d, key=generate_key, threshold=None, patience=patience, **kwargs)
