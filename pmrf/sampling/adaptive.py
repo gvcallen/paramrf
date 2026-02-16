@@ -84,27 +84,29 @@ class AdaptiveSampler(BaseSampler, ABC):
             for i in range(len(values) - 1, 0, -1):
                 curr = float(values[i])
                 prev = float(values[i-1])
-                
+
                 # Check if error jumped up significantly (e.g. Current > 2x Previous)
                 if curr > (prev * spike_reset_ratio):
-                    self.logger.info(f"Resetting patience for {title} due to spike.")
                     values = values[i:] # Slice: ignore everything before this
-                    break            
+                    if i == len(values) - 1:
+                        self.logger.info(f"Resetting patience for {title} due to spike.")
+                    break        
         
         # Check if we have converged via the threshold
         if threshold is not None and jnp.all(values[-1] < threshold):
             self.logger.info(f"{prefix} via threshold.")
-            return True
-            
+            return True            
+
         # Check if we have converged via maximum patience (no improvement)
         if len(values) >= patience:
-            values = list(values)
-            best_idx = min(range(len(values)), key=lambda i: values[i])
-            no_recent_improvement = len(values) - 1 - best_idx > patience
+            if len(values) >= patience:
+                values = list(values)
+                best_idx = min(range(len(values)), key=lambda i: values[i])
+                no_recent_improvement = len(values) - 1 - best_idx > patience
 
-            if no_recent_improvement:
-                self.logger.info(f"{prefix} via maximum patience.")
-                return True
+                if no_recent_improvement:
+                    self.logger.info(f"{prefix} via maximum patience.")
+                    return True
         
         return False
         
