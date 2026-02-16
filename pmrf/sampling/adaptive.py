@@ -23,12 +23,10 @@ class AdaptiveSampler(BaseSampler):
     def run(self, N: int | None = None, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             raise Exception('Key needed for AdaptiveSampler')
-        if plot is None:
-            plot = []
+        
         d = self.model.num_flat_params
-            
         if isinstance(self.initial_models, int):
-            initial_key, key = jr.split(key)
+            key, initial_key = jr.split(key)
             initial_Us = lhs_sample(self.initial_models, d, key=initial_key)
             initial_thetas = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(initial_Us)
             self.initial_models = [self.model.with_params(theta) for theta in initial_thetas]
@@ -38,8 +36,9 @@ class AdaptiveSampler(BaseSampler):
             self.add_sample(theta, plot=plot)
         
         iteration = 0
-        while True:           
-            U_next = self._generate(1, d, key=key, **kwargs)
+        while True:
+            key, generate_key = jr.split(key)
+            U_next = self._generate(1, d, key=generate_key, **kwargs)
             if U_next is None:
                 break
                 
@@ -63,12 +62,12 @@ class AdaptiveSampler(BaseSampler):
     def _check_convergence(self, values, threshold=None, patience=None) -> bool:
         # Check if we have converged via the threshold
         if threshold is not None and jnp.all(values[-1] < threshold):
-            self.logger.info(f"Convergence reached via threshold ({float(values[-1])} is less than threshold {threshold}")
+            self.logger.info(f"Convergence reached via threshold.")
             return True
             
         # Check if we have converged via maximum patience (no improvement)
         if len(values) >= patience and no_recent_improvement(values, patience):
-            self.logger.info(f"Convergence reached via maximum patience (no improvement over past {patience} samples)")
+            self.logger.info(f"Convergence reached via maximum patience.")
             return True
         
         return False

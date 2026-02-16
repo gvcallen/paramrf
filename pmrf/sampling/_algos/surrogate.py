@@ -1,17 +1,18 @@
 from typing import Callable
 
 import jax.numpy as jnp
+import jax.random as jr
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.sampling.base import BaseSampler
 from pmrf.sampling._algos.field_minimization import FieldSampler
 from pmrf.models.model import Model
-from pmrf.functions import mean_ax0, l2_norm_ax0, mag_2_db, conv_inter
+from pmrf.functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
+from pmrf._util import lhs_sample
 
-MAE_COST = [jnp.abs, mean_ax0, mean_ax0, mag_2_db]
-CONVOLUTIONAL_COST = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
+MEAN_ABSOLUTE_ERROR = [jnp.abs, mean_ax0, mean_ax0, mag_2_db]
+ROOT_MEAN_SQUARED_ERROR = [jnp.abs, jnp.sqrt, mean_ax0, mean_ax0, lambda x: x**2, mag_2_db]
 
 class SurrogateFieldSampler(FieldSampler):
     """
@@ -27,8 +28,8 @@ class SurrogateFieldSampler(FieldSampler):
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Model], # params, features, frequency, and `key` as a key-word argument
         eval_fn: Callable[[Model, Frequency], float],
-        cost_kind: str | None = None,
-        cost_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
+        error_kind: str | None = None,
+        error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
         *args,
         **kwargs
     ):
@@ -43,67 +44,67 @@ class SurrogateFieldSampler(FieldSampler):
             surrogate = surrogate.with_params(theta)
             return eval_fn(surrogate, frequency, key=key)
 
-        cost_kind = cost_kind or cost_kind or 'complex'
+        error_kind = error_kind or error_kind or 'complex'
         features = kwargs.pop('features')
         
         default_features = None
-        default_cost = None
-        if cost_kind == 'convolutional':
-            default_features = ['s', 's_mag']
-            default_cost = CONVOLUTIONAL_COST
-        elif cost_kind == 'complex':
+        default_error = None
+        if error_kind == 'complex':
             default_features = ['s']
-            default_cost = MAE_COST
-        elif cost_kind == 'magnitude':
+            default_error = MEAN_ABSOLUTE_ERROR
+        elif error_kind == 'magnitude':
             default_features = ['s_mag']
-            default_cost = MAE_COST
-        elif cost_kind is not None:
-            raise Exception("Unknown cost kind alias passed to surrogate sampler")
+            default_error = MEAN_ABSOLUTE_ERROR
+        elif error_kind is not None:
+            raise Exception("Unknown error kind alias passed to surrogate sampler")
 
         if features is None:
             features = default_features
-        if cost_fn is None:
-            cost_fn = default_cost        
+        if error_fn is None:
+            error_fn = default_error        
         
-        if cost_fn is not None and not isinstance(cost_fn, list):
-            cost_fn = [cost_fn]
-        cost_fn = cost_fn if isinstance(cost_fn, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in cost_fn])
+        if error_fn is not None and not isinstance(error_fn, list):
+            error_fn = [error_fn]
+        error_fn = error_fn if isinstance(error_fn, eqx.Module) else eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in error_fn])
         
-        self.cost_fn = cost_fn
-        self.cost_values = []
+        self.error_fn = error_fn
+        self.error_values = []
         self.surrogate_converged = False
         
         return super().__init__(model=model, features=features, train_fn=train_fn_wrapper, eval_fn=eval_fn_wrapper, *args, **kwargs)
     
     def _generate(self, N: int, d: int, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
-        # Return if the surrogate has converged
-        if self.surrogate_converged:
-            return None
-        
         # Generate the samples and train the surrogate
-        U_samples = super()._generate(N, d, key, threshold=None, patience=(patience + 1), **kwargs)
+        key, generate_key = jr.split(key)
+        U_samples = super()._generate(N, d, key=generate_key, threshold=None, patience=patience, **kwargs)
         if self.surrogate is None:
             raise Exception("Surrogate cannot be `None` for SurrogateSampler")
         
-        # Return if the field has converged
+        # Return if the field and surrogate have both converged.
+        # If the field has converged but the surrogate has not, try a new random sample
         if U_samples is None:
-            return None
+            if self.surrogate_converged:
+                return None
+            else:
+                self.logger.info("Surrogate has not yet converged. Continuing...")
+                key, surrogate_key = jr.split(key)
+                U_samples = lhs_sample(1, d, key=surrogate_key)
         
         # Compute the worst cost for the new samples
         theta_samples = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_samples])
-        sample_costs = []
+        sample_errors = []
         for theta in theta_samples:
             new_actual_features = self.add_sample(theta)
             new_surrogate_features = self.feature_fn(theta, model=self.surrogate)
             error = new_surrogate_features - new_actual_features
-            cost = self.cost_fn(error)
-            sample_costs.append(cost)
-        worst_cost = jnp.max(jnp.array(sample_costs))
+            error = self.error_fn(error)
+            sample_errors.append(error)
+        worst_error = jnp.max(jnp.array(sample_errors))
         
         # Print and append the worst cost
-        self.logger.info(f"Surrogate cost = {worst_cost:.2f}")
-        self.cost_values.append(worst_cost)
+        self.logger.info(f"Surrogate error = {worst_error:.2f}")
+        self.error_values.append(worst_error)
         
         # Check if we have converged. We only return None for the next round so that these samples still get added
-        self.surrogate_converged = self._check_convergence(self.cost_values, threshold, patience)
+        self.surrogate_converged = self._check_convergence(self.error_values, threshold, patience)
         return U_samples

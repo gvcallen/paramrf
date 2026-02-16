@@ -46,9 +46,8 @@ class FieldSampler(AdaptiveSampler):
 
     def _generate(self, N: int, d: int, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # For each pass, we train the field model on the current samples and features.
-        key, field_key = jr.split(key)
-        
         self.logger.info(f"Training...")
+        key, field_key = jr.split(key)
         field = self.train_fn(self.sampled_params, self.sampled_features, self.frequency, key=field_key)
 
         # Next, we sample new points using the grid sampler (e.g. latin hupercube) to get grid_theta of shape (K, d)
@@ -63,11 +62,11 @@ class FieldSampler(AdaptiveSampler):
             theta_grid = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_grid)
 
         # We calculate the scalar field at each grid point to get grid_field of shape (K,)
-        key, field_key = jr.split(key)
-        def field_theta_fn(theta) -> float:
-            nonlocal self, field
-            return self.eval_fn(field, theta, self.frequency, key=field_key)
-        grid_field = jax.vmap(field_theta_fn)(theta_grid)
+        key, eval_key = jr.split(key)
+        eval_keys = jr.split(eval_key, len(theta_grid))
+        def eval_theta_fn(theta, k) -> float:
+            return self.eval_fn(field, theta, self.frequency, key=k)        
+        grid_field = jax.vmap(eval_theta_fn)(theta_grid, eval_keys)
 
         # Get the largest field value
         max_field = jnp.max(grid_field)
@@ -78,7 +77,7 @@ class FieldSampler(AdaptiveSampler):
             return None
 
         # Pick the N points in the grid with the largest field values
-        self.logger.info(f"Maximum field = {float(max_field):.2f}")
+        self.logger.info(f"Field maximum = {float(max_field):.2f}")
         indices = jnp.argsort(grid_field, descending=True)
         max_field_theta = theta_grid[indices][0:N]
         
