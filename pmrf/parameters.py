@@ -629,6 +629,33 @@ def RelativeUniform(mean: float | Sequence[float], deviation_fraction: float | S
     
     return Uniform(low=mean_arr - delta, high=mean_arr + delta, **kwargs)
 
+def CenteredUniform(mean: float | Sequence[float], half_width: float | Sequence[float], **kwargs) -> 'Parameter':
+    r"""
+    Create a `Parameter` with a uniform distribution.
+
+    Parameters
+    ----------
+    mean : float | Sequence[float]
+        The mean value of the distribution. Can be a sequence for a multi-valued Parameter.
+    half_width : float | Sequence[float]
+        The half-width value of the distribution. Can be a sequence for a multi-valued Parameter.
+    n : int, optional
+        The number of identical parameters to create in an array. Defaults to None.
+    value : optional
+        The initial value. If None, the midpoint of the distribution is used. Defaults to None.
+    **kwargs
+        Additional keyword arguments passed to the `Parameter` constructor.
+
+    Returns
+    -------
+    Parameter
+        The created Parameter object.
+    """
+    low = mean - half_width
+    high = mean + half_width
+    
+    return Uniform(low, high, **kwargs)
+
 def Normal(mean: float | Sequence[float], std: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> 'Parameter':
     r"""
     Create a `Parameter` with a normal (Gaussian) distribution.
