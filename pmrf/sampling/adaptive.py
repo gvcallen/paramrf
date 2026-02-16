@@ -72,41 +72,43 @@ class AdaptiveSampler(BaseSampler, ABC):
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
         
-    
-    def _check_convergence(self, values: list[float], *, threshold=None, patience=None, spike_reset_ratio=2.0, title=None) -> bool:
+    def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, title=None) -> bool:
         if title is not None:
             prefix = f"Convergence for {title} reached"
         else:
             prefix = "Convergence reached"
 
-        # Ignore values if we detect a sudden spike
-        if spike_reset_ratio is not None and len(values) > 1:
-            for i in range(len(values) - 1, 0, -1):
-                curr = float(values[i])
-                prev = float(values[i-1])
-
-                # Check if error jumped up significantly (e.g. Current > 2x Previous)
-                if curr > (prev * spike_reset_ratio):
-                    if i == len(values) - 1:
-                        self.logger.info(f"Resetting patience for {title} due to spike.")
-                    values = values[i:] # Slice: ignore everything before this
-                    break        
+        values = jnp.array(values)
         
         # Check if we have converged via the threshold
         if threshold is not None and jnp.all(values[-1] < threshold):
             self.logger.info(f"{prefix} via threshold.")
             return True            
 
-        # Check if we have converged via maximum patience (no improvement)
-        if len(values) >= patience:
-            if len(values) >= patience:
-                values = list(values)
-                best_idx = min(range(len(values)), key=lambda i: values[i])
-                no_recent_improvement = len(values) - 1 - best_idx > patience
+        # Check if we have converged via maximum patience (no improvement in last N samples)
+        if len(values) > patience:
+            # First we detect if *any* values in the window are considered a spike (with respect to their previous values).
+            # If so we spike the patience check
+            spike_detected = False
+            for i in range(0, min(patience+1, len(values) - patience)):
+                if i == 0:
+                    spike_values = values[-patience-1:]
+                else:
+                    spike_values = values[-(patience + i) - 1:-i]
 
-                if no_recent_improvement:
+                Q1, Q3 = jnp.percentile(spike_values, 25), jnp.percentile(spike_values, 75)
+                if spike_values[-1] > Q3 + (Q3 - Q1) * iqr_factor:
+                    spike_detected = True
+                    if i == 0:
+                        self.logger.info(f"Spike detected for {title}. Skipping patience check.")
+                    break
+
+            if not spike_detected:
+                window = jnp.array(values[-(patience+1):-1])
+                best_in_window = jnp.min(window)
+                if best_in_window > window[-1]:
                     self.logger.info(f"{prefix} via maximum patience.")
                     return True
-        
+
         return False
         
