@@ -87,9 +87,9 @@ class AdaptiveSampler(BaseSampler, ABC):
 
                 # Check if error jumped up significantly (e.g. Current > 2x Previous)
                 if curr > (prev * spike_reset_ratio):
-                    values = values[i:] # Slice: ignore everything before this
                     if i == len(values) - 1:
                         self.logger.info(f"Resetting patience for {title} due to spike.")
+                    values = values[i:] # Slice: ignore everything before this
                     break        
         
         # Check if we have converged via the threshold
