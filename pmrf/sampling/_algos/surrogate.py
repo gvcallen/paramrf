@@ -105,5 +105,5 @@ class SurrogateFieldSampler(FieldSampler):
         self.error_values.append(worst_error)
         
         # Check if we have converged. We only return None for the next round so that these samples still get added
-        self.surrogate_converged = self._check_convergence(self.error_values, threshold, patience, 'surrogate')
+        self.surrogate_converged = self._check_convergence(self.error_values, threshold=threshold, patience=patience, title='surrogate')
         return U_samples
