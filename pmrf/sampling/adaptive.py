@@ -22,19 +22,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 
-    @abstractmethod
-    def _generate(self, N: int, d: int, *, key=None, **kwargs) -> jnp.ndarray:
-        """
-        Generate N new samples in the hypercube for d dimensions.
-        
-        It is not a requirement to return N samples: 1 <= n_samples < N may returned.
-        To signify convergence, `None` may be returned.
-        
-        Note that `self.sampled_params` and `self.sampled_features` may be inspected at each iteration.
-        """
-        raise NotImplementedError            
-        
-    def run(self, N: int | None = None, *, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+    def run(self, N: int | None = None, *, batch_size: int = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
         if key is None:
             raise Exception('Key needed for AdaptiveSampler')
         
@@ -53,7 +41,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         while True:
             # We try ask for self.batch_size samples at a time, but may receive less
             key, generate_key = jr.split(key)
-            U_next = self._generate(self.batch_size, d, key=generate_key, **kwargs)
+            U_next = self._generate(batch_size, d, key=generate_key, **kwargs)
             if U_next is None:
                 break
                 
@@ -73,6 +61,19 @@ class AdaptiveSampler(BaseSampler, ABC):
         models = [self.model.with_params(theta) for theta in self.sampled_params]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
+
+    @abstractmethod
+    def _generate(self, N: int, d: int, *, key=None, **kwargs) -> jnp.ndarray:
+        """
+        Generate N new samples in the hypercube for d dimensions.
+        
+        It is not a requirement to return N samples: 1 <= n_samples < N may returned.
+        To signify convergence, `None` may be returned.
+        
+        Note that `self.sampled_params` and `self.sampled_features` may be inspected at each iteration.
+        """
+        raise NotImplementedError            
+            
         
     def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, title=None) -> bool:
         if title is not None:

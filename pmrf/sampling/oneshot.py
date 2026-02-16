@@ -7,7 +7,7 @@ from pmrf.models.model import Model
 
 class OneshotSampler(BaseSampler, ABC):
     """Generates a fixed number of samples in one go."""
-    def run(self, N: int, plot=None, key=None) -> tuple[list[Model], SampleResults]:
+    def run(self, N: int, *, batch_size: int = 1, plot=None, key=None) -> tuple[list[Model], SampleResults]:
         if key is None:
             raise Exception('key needed for OneshotSampler')
         
@@ -15,7 +15,6 @@ class OneshotSampler(BaseSampler, ABC):
         thetas = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_samples)
         
         num_samples = len(thetas)
-        batch_size = self.batch_size
         for i in range(0, num_samples, batch_size):
             batch_theta = thetas[i : i + batch_size]
             self.add_samples(batch_theta, plot=plot)

@@ -64,7 +64,6 @@ class BaseSampler(ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         output_path: str | None = None,
-        batch_size: int = 1,
     ):
         if model.num_flat_params == 0:
             raise Exception("Model has no free parameters to sample")
@@ -74,7 +73,6 @@ class BaseSampler(ABC):
         self.features: FeatureInputT = features
         self.logger = logging.getLogger(__name__)
         self.output_path: str = output_path
-        self.batch_size: int = batch_size
         
         self.sampled_params: jnp.ndarray = None
         self.sampled_features: jnp.ndarray = None
