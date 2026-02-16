@@ -59,11 +59,23 @@ class AdaptiveSampler(BaseSampler):
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
     
-    def _check_convergence(self, values: list[float], threshold=None, patience=None, title=None) -> bool:
+    def _check_convergence(self, values: list[float], threshold=None, patience=None, spike_reset_ratio=2.0, title=None) -> bool:
         if title is not None:
             prefix = f"Convergence for {title} reached"
         else:
             prefix = "Convergence reached"
+
+        # Ignore values if we detect a sudden spike
+        if spike_reset_ratio is not None and len(values) > 1:
+            for i in range(len(values) - 1, 0, -1):
+                curr = values[i]
+                prev = values[i-1]
+                
+                # Check if error jumped up significantly (e.g. Current > 2x Previous)
+                if curr > (prev * spike_reset_ratio):
+                    self.logger.info(f"Resetting patience for {title} due to spike.")
+                    values = values[i:] # Slice: ignore everything before this
+                    break            
         
         # Check if we have converged via the threshold
         if threshold is not None and jnp.all(values[-1] < threshold):
