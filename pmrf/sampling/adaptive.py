@@ -33,21 +33,29 @@ class AdaptiveSampler(BaseSampler, ABC):
             initial_thetas = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(initial_Us)
             self.initial_models = [self.model.with_params(theta) for theta in initial_thetas]
         
-        initial_thetas = [model.flat_param_values() for model in self.initial_models]
-        for theta in initial_thetas:
-            self.add_samples(theta, plot=plot)
+        initial_thetas = jnp.array([model.flat_param_values() for model in self.initial_models])
+        num_initial_samples = len(initial_thetas)
+        for i in range(0, num_initial_samples, batch_size):
+            batch_theta = initial_thetas[i : i + batch_size]
+            self.add_samples(batch_theta, plot=plot)
+            
         
         iteration = 0
         while True:
             # We try ask for self.batch_size samples at a time, but may receive less
             key, generate_key = jr.split(key)
+            
+            self.logger.info(f"Accumulated {len(self.sampled_params)} total samples")
             U_next = self._generate(batch_size, d, key=generate_key, **kwargs)
+            
             if U_next is None:
                 break
                 
-            for u in U_next:
-                theta = self.inverse_cumulative_distribution_fn(u)
-                self.add_samples(theta, plot=plot)
+            thetas = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_next])
+            num_samples = len(thetas)
+            for i in range(0, num_samples, batch_size):
+                batch_theta = thetas[i : i + batch_size]
+                self.add_samples(batch_theta, plot=plot)            
             
             if N is not None and len(self.sampled_params) >= N:
                 break

@@ -8,17 +8,17 @@ from pmrf.frequency import Frequency
 from pmrf.sampling.base import BaseSampler
 from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
-from pmrf._util import lhs_sample, no_recent_improvement
+from pmrf._util import lhs_sample
 
 class FieldSampler(AdaptiveSampler):
     """
-    Samples new points by minimizing a scalar field that is a function of the input parameters.
+    Samples new points at the maxima of a scalar field.
     
     At each iteration, the scalar field can first be "trained" using the current samples, and then "evaluated" at new input points.
     For example, this sampler can be used to train a surrogate model that is able to predict the current variance at new sample points.
     Then, this sampler will choose new sample points where that variance is a maximum.
     
-    Convergence is reached when the scalar field stops decreasing.
+    Convergence is reached when the field maxima stops decreasing.
     """
     def __init__(
         self,
@@ -69,20 +69,27 @@ class FieldSampler(AdaptiveSampler):
         grid_field = jax.vmap(eval_theta_fn)(theta_grid, eval_keys)
 
         # Select N Diverse Points
-        max_field_thetas = self._select_field_thetas(N, theta_grid, grid_field)
+        selected_field_thetas, selected_field_values = self._select_field_thetas(N, theta_grid, grid_field)
         
         # Log the maximum and append to the errors
         max_field = jnp.max(grid_field)
-        self.worst_field_values.append(max_field)
-        self.all_field_thetas.extend(max_field_thetas[i] for i in range(len(max_field_thetas)))
-        self.logger.info(f"Field maximum = {float(max_field):.2f}")
-
+        self.worst_field_values.append(jnp.max(grid_field))
+        self.all_field_thetas.extend(max_field_theta for max_field_theta in selected_field_thetas)
+        if N == 1:
+            self.logger.info(f"Field maximum = {float(max_field):.2f}")
+        else:
+            value_str = ""
+            for value in selected_field_values:
+                value_str += f"{value:.2f}, "
+            value_str = value_str[0:len(value_str)-2]
+            self.logger.info(f"Field maxima = [{value_str}]")
+        
         # Check for convergence
         if self._check_convergence(self.worst_field_values, threshold=threshold, patience=patience, title="field"):
             return None
 
         # Return the next hypercube samples (U-space)
-        return jnp.array([self.cumulative_distribution_fn(theta) for theta in max_field_thetas])
+        return jnp.array([self.cumulative_distribution_fn(theta) for theta in selected_field_thetas])
     
     def _select_field_thetas(self, N: int, thetas: jnp.ndarray, values: jnp.ndarray) -> jnp.ndarray:
         """
@@ -91,12 +98,12 @@ class FieldSampler(AdaptiveSampler):
         # 1. Handle edge cases
         K = len(values)
         if N >= K:
-            return thetas
+            return thetas, values
         if N <= 0:
-            return jnp.array([])
+            return jnp.array([]), jnp.array([])
         if N == 1:
             best_idx = jnp.argmax(values)
-            return thetas[best_idx][None, :]
+            return thetas[best_idx][None, :], values[best_idx][None, :]
 
         # 2. Normalize inputs for calculation stability
         # We perform distance calculations in a normalized coordinate system 
@@ -152,4 +159,4 @@ class FieldSampler(AdaptiveSampler):
                 # Hard set the selected index to -infinity so it's not picked again
                 scores = scores.at[best_idx].set(-jnp.inf)
 
-        return thetas[jnp.array(selected_indices)]       
+        return thetas[jnp.array(selected_indices)], values[jnp.array(selected_indices)]

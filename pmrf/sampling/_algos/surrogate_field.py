@@ -5,7 +5,7 @@ import jax.random as jr
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.sampling._algos.field_minimization import FieldSampler
+from pmrf.sampling._algos.field import FieldSampler
 from pmrf.models.model import Model
 from pmrf.functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
@@ -15,12 +15,13 @@ ROOT_MEAN_SQUARED_ERROR = [jnp.abs, jnp.sqrt, mean_ax0, mean_ax0, lambda x: x**2
 
 class SurrogateFieldSampler(FieldSampler):
     """
-    Samples new points by minimizing a scalar field induced by a surrogate model.
+    Samples new points at the maxima of a scalar field induced by a surrogate model.
     
     This is a type of FieldSampler, where the "training" function trains a surrogate model,
     and the "evaluation" function returns the field to minimize as a function of that surrogate.
     
-    Convergence is reached when the surrogate approximates the model according to some cost function.
+    Convergence is reached when the surrogate approximates the model according to some cost function,
+    AND when the field maxima stop decreasing.
     """
     def __init__(
         self,
@@ -92,17 +93,26 @@ class SurrogateFieldSampler(FieldSampler):
         # Compute the worst cost for the new samples
         theta_samples = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_samples])
         sample_errors = []
-        for theta in theta_samples:
-            new_actual_features = self.add_samples(theta)
+        new_actual_features_all = self.add_samples(theta_samples)
+        for i, theta in enumerate(theta_samples):
+            new_actual_features = new_actual_features_all[i]
             new_surrogate_features = self.feature_fn(theta, model=self.surrogate)
             error = new_surrogate_features - new_actual_features
             error = self.error_fn(error)
             sample_errors.append(error)
-        worst_error = jnp.max(jnp.array(sample_errors))
         
         # Print and append the worst cost
-        self.logger.info(f"Surrogate error = {worst_error:.2f}")
+        worst_error = jnp.max(jnp.array(sample_errors))
         self.error_values.append(worst_error)
+        if N == 1:
+            self.logger.info(f"Surrogate error = {worst_error:.2f}")
+        else:
+            error_str = ""
+            for error in sample_errors:
+                error_str += f"{error:.2f}, "
+            error_str = error_str[0:len(error_str)-2]
+            self.logger.info(f"Surrogate errors = [{error_str}]")
+            
         
         # Check if we have converged. We only return None for the next round so that these samples still get added
         self.surrogate_converged = self._check_convergence(self.error_values, threshold=threshold, patience=patience, title='surrogate')

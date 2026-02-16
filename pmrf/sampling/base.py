@@ -64,6 +64,7 @@ class BaseSampler(ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         output_path: str | None = None,
+        batch_size: int = 1,
     ):
         if model.num_flat_params == 0:
             raise Exception("Model has no free parameters to sample")
@@ -73,6 +74,7 @@ class BaseSampler(ABC):
         self.features: FeatureInputT = features
         self.logger = logging.getLogger(__name__)
         self.output_path: str = output_path
+        self.batch_size: int = batch_size
         
         self.sampled_params: jnp.ndarray = None
         self.sampled_features: jnp.ndarray = None
@@ -124,7 +126,7 @@ class BaseSampler(ABC):
             If shape (D,), treats as a single sample.
             If shape (N, D), treats as a batch of N samples to process simultaneously.
             
-        plot : str | list[str] | None
+        plot : list[str] | None
             Features to plot. Need not be the same as features specified upon sampler creation.
             
         Returns
@@ -132,10 +134,7 @@ class BaseSampler(ABC):
         jnp.ndarray | None
             The features for the added samples. Returns shape (F,) for single input
             or (N, F) for batch input.
-        """
-        if isinstance(plot, str):
-            plot = [plot]
-        
+        """        
         # 1. Normalize Input: Ensure theta is 2D (N x D)
         is_single_input = theta.ndim == 1
         theta_batch = jnp.atleast_2d(theta)
@@ -196,7 +195,6 @@ class BaseSampler(ABC):
             # Fill in new features
             if jnp.any(new_indices_mask):
                 final_features = final_features.at[new_indices_mask].set(new_computed_features)
-
         # 5. Update State (Store new parameters and features)
         if len(new_thetas) > 0:
             if self.sampled_params is None:
