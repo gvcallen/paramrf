@@ -1,5 +1,5 @@
 from pmrf.models.model import Model, wrap
-from pmrf.models.simulated import *
+from pmrf.models.host import *
 from pmrf.models.containers import *
 from pmrf.models.utility import *
 from pmrf.models.lines import *

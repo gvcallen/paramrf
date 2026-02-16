@@ -27,7 +27,8 @@ class AdaptiveSampler(BaseSampler, ABC):
         """
         Generate N new samples in the hypercube for d dimensions.
         
-        Note that not all samplers support an arbitrary N.
+        It is not a requirement to return N samples: 1 <= n_samples < N may returned.
+        To signify convergence, `None` may be returned.
         
         Note that `self.sampled_params` and `self.sampled_features` may be inspected at each iteration.
         """
@@ -46,18 +47,19 @@ class AdaptiveSampler(BaseSampler, ABC):
         
         initial_thetas = [model.flat_param_values() for model in self.initial_models]
         for theta in initial_thetas:
-            self.add_sample(theta, plot=plot)
+            self.add_samples(theta, plot=plot)
         
         iteration = 0
         while True:
+            # We try ask for self.batch_size samples at a time, but may receive less
             key, generate_key = jr.split(key)
-            U_next = self._generate(1, d, key=generate_key, **kwargs)
+            U_next = self._generate(self.batch_size, d, key=generate_key, **kwargs)
             if U_next is None:
                 break
                 
             for u in U_next:
                 theta = self.inverse_cumulative_distribution_fn(u)
-                self.add_sample(theta, plot=plot)
+                self.add_samples(theta, plot=plot)
             
             if N is not None and len(self.sampled_params) >= N:
                 break

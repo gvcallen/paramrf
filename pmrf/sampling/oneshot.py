@@ -14,8 +14,11 @@ class OneshotSampler(BaseSampler, ABC):
         U_samples = self._generate(N, self.model.num_flat_params, key=key)
         thetas = jax.vmap(lambda u: self.inverse_cumulative_distribution_fn(u))(U_samples)
         
-        for theta in thetas:
-            self.add_sample(theta, plot=plot)    
+        num_samples = len(thetas)
+        batch_size = self.batch_size
+        for i in range(0, num_samples, batch_size):
+            batch_theta = thetas[i : i + batch_size]
+            self.add_samples(batch_theta, plot=plot)
         
         models = [self.model.with_params(theta) for theta in thetas]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)

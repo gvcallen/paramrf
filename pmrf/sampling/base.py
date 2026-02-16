@@ -64,7 +64,7 @@ class BaseSampler(ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         output_path: str | None = None,
-        jit_features: bool = False, 
+        batch_size: int = 1,
     ):
         if model.num_flat_params == 0:
             raise Exception("Model has no free parameters to sample")
@@ -74,7 +74,7 @@ class BaseSampler(ABC):
         self.features: FeatureInputT = features
         self.logger = logging.getLogger(__name__)
         self.output_path: str = output_path
-        self.jit_features: bool = jit_features
+        self.batch_size: int = batch_size
         
         self.sampled_params: jnp.ndarray = None
         self.sampled_features: jnp.ndarray = None
@@ -83,65 +83,139 @@ class BaseSampler(ABC):
         if self.output_path is not None:
             os.makedirs(self.output_path, exist_ok=True)
             
-    def add_sample(self, theta: jnp.ndarray, plot=None) -> jnp.ndarray | None:
+    def _compute_batch_features(self, thetas: jnp.ndarray) -> jnp.ndarray:
         """
-        Adds a sample to the sampler.
+        Helper to compute features for a batch of parameters simultaneously.
         
-        This computes any requested sample features, and also updates the feature plot.
+        Parameters
+        ----------
+        thetas : jnp.ndarray
+            Batch of parameters with shape (N, D).
+            
+        Returns
+        -------
+        jnp.ndarray
+            Batch of features with shape (N, F).
+        """
+        # We reconstruct the extraction logic here to apply vmap efficiently.
+        # This avoids the overhead of wrapping/jitting per sample.
+        general_feature_fn = wrap(extract_features, self.model, self.frequency, as_numpy=False)
+        
+        def single_sample_fn(t):
+            return general_feature_fn(t, self.features)
+            
+        # Use vmap to parallelize the feature extraction over the batch dimension
+        batch_fn = jax.vmap(single_sample_fn)
+        
+        # Apply JIT if requested
+        batch_fn = jax.jit(batch_fn)
+            
+        return batch_fn(thetas)
+
+    def add_samples(self, theta: jnp.ndarray, plot=None) -> jnp.ndarray | None:
+        """
+        Adds samples to the sampler.
+        
+        This computes any requested sample features, and also updates the feature plots.
+        Handles both single samples (D,) and simultaneous batches (N, D).
 
         Parameters
         ----------
         theta : jnp.ndarray
-            The sample parameters to add.
-        plot : list[str] | None
+            The sample parameters to add. 
+            If shape (D,), treats as a single sample.
+            If shape (N, D), treats as a batch of N samples to process simultaneously.
+            
+        plot : str | list[str] | None
             Features to plot. Need not be the same as features specified upon sampler creation.
             
         Returns
-        ----------
+        -------
         jnp.ndarray | None
-            The features for this sample, if any.
-        """        
-        # Check if we already have this sample
-        existing_idx = None
+            The features for the added samples. Returns shape (F,) for single input
+            or (N, F) for batch input.
+        """
+        if isinstance(plot, str):
+            plot = [plot]
+        
+        # 1. Normalize Input: Ensure theta is 2D (N x D)
+        is_single_input = theta.ndim == 1
+        theta_batch = jnp.atleast_2d(theta)
+        N, D = theta_batch.shape
+        
+        # 2. Check for existing samples to avoid re-computation
+        # We use a mask to identify which of the incoming thetas are new
         if self.sampled_params is not None:
-            for i, sampled_theta in enumerate(self.sampled_params):
-                if jnp.all(jnp.equal(sampled_theta, theta)):
-                    existing_idx = i
-                    break
+            # Broadcast check: (N, 1, D) == (1, M, D) -> (N, M)
+            # Check for exact matches across parameter dimensions
+            matches = jnp.all(jnp.equal(theta_batch[:, None, :], self.sampled_params[None, :, :]), axis=-1)
+            is_present = jnp.any(matches, axis=1)
+            # Get index in history for the ones that are present
+            present_indices = jnp.argmax(matches, axis=1)
+        else:
+            is_present = jnp.zeros(N, dtype=bool)
+            present_indices = jnp.zeros(N, dtype=int) # Dummy values
+
+        # 3. Compute features for NEW samples only (Parallelized)
+        new_indices_mask = ~is_present
+        new_thetas = theta_batch[new_indices_mask]
         
-        # Compute the sample and features, if necessary, otherwise just retrieve them
-        new_params_dict = dict(zip(self.model.flat_param_names(), theta.tolist()))
-        new_features = None
-        if existing_idx is None:
-            sample_count = len(self.sampled_params) if self.sampled_params is not None else 0
-        
-            # Compute the sample features
+        new_computed_features = None
+        num_new_samples = len(new_thetas)
+        if num_new_samples > 0 and self.features is not None:
             time_str = datetime.now().strftime("%H:%M:%S")
-            self.logger.info(
-                f"Computing sample #{sample_count + 1} at {time_str} with params "
-                f"{{ {', '.join([f'{k}: {v:.2f}' for k, v in new_params_dict.items()])} }} "
-            )
-            if self.features is not None:
-                new_features = self.feature_fn(theta)
-        
-            # Add the params and features to self and save
-            if self.sampled_params is None:
-                self.sampled_params = theta[None, ...]
-                if self.features is not None:
-                    self.sampled_features = new_features[None, ...]
+            
+            num_existing_samples = len(self.sampled_params) if self.sampled_params is not None else 0
+            if num_new_samples == 1:
+                self.logger.info(f"Computing sample #{num_existing_samples + 1} at {time_str}")
             else:
-                self.sampled_params = jnp.vstack((self.sampled_params, theta[None, ...]))
-                if self.features is not None:
-                    self.sampled_features = jnp.vstack((self.sampled_features, new_features[None, ...]))
-                
+                self.logger.info(f"Computing samples #{num_existing_samples + 1}-{num_existing_samples + num_new_samples} at {time_str}")
+            
+            # This is the parallelized call
+            new_computed_features = self._compute_batch_features(new_thetas)
+
+        # 4. Construct the full result array (combining found history + newly computed)
+        # We need to assemble the results in the order of the input `theta`
+        final_features = None
+        if self.features is not None:
+            # Create a container for the results
+            # FIX: Use shape[1:] to capture (F, M) instead of just shape[1] which only captures (F,)
+            if self.sampled_features is not None:
+                ref_shape = self.sampled_features.shape[1:]
+                dtype = self.sampled_features.dtype
+            else:
+                ref_shape = new_computed_features.shape[1:]
+                dtype = new_computed_features.dtype
+            
+            # Combine batch size N with the reference feature dimensions
+            feature_shape = (N,) + ref_shape
+            final_features = jnp.zeros(feature_shape, dtype=dtype)
+
+            # Fill in existing features
+            if jnp.any(is_present):
+                final_features = final_features.at[is_present].set(self.sampled_features[present_indices[is_present]])
+            
+            # Fill in new features
+            if jnp.any(new_indices_mask):
+                final_features = final_features.at[new_indices_mask].set(new_computed_features)
+
+        # 5. Update State (Store new parameters and features)
+        if len(new_thetas) > 0:
+            if self.sampled_params is None:
+                self.sampled_params = new_thetas
+                self.sampled_features = new_computed_features
+            else:
+                self.sampled_params = jnp.vstack((self.sampled_params, new_thetas))
+                if self.sampled_features is not None:
+                    self.sampled_features = jnp.vstack((self.sampled_features, new_computed_features))
+            
+            # Save to disk
             if self.output_path is not None:
                 np.save(f"{self.output_path}/params.npy", self.sampled_params)
                 np.save(f"{self.output_path}/features.npy", self.sampled_features)
-        else:
-            if self.features is not None:
-                new_features = self.sampled_features[existing_idx]
-        
-        # Deal with plotting
+
+        # 6. Plotting
+        # LivePlotter typically updates one curve at a time, so we loop through the batch.
         if plot is not None:
             # Create plotters (lazily)
             if self.feature_plotters is None:
@@ -149,15 +223,30 @@ class BaseSampler(ABC):
                 for p in plot:
                     self.feature_plotters.append(LivePlotter(title=f"{p}", xlabel=f"Frequency ({self.frequency.unit})", ylabel=f"{p}"))
             
-            # Extract the plot features
-            new_plot_features = self.feature_fn(theta, features=plot)
+            # We must re-compute features specifically for the 'plot' list if they differ from stored features
+            # or if we just want to visualize the current batch. 
+            # Note: Ideally we cache this too, but for now we compute to ensure correct plotting columns.
             
-            for i, (plotter, feature_name) in enumerate(zip(self.feature_plotters, plot)):
-                feature = new_plot_features[..., i]
-                plotter.ax.set_title(f"{feature_name} (num_samples = {len(self.sampled_params)})")
-                plotter.add_curve(f"{new_params_dict}", y_values=jnp.real(feature), x_values=self.frequency.f_scaled)
+            # Helper for plotting features
+            general_plot_fn = wrap(extract_features, self.model, self.frequency, as_numpy=False)
+            plot_fn_mapped = jax.vmap(lambda t: general_plot_fn(t, plot))
+            
+            # Calculate for whole batch
+            batch_plot_features = plot_fn_mapped(theta_batch)
+
+            for batch_idx in range(N):
+                current_theta = theta_batch[batch_idx]
+                param_dict = dict(zip(self.model.flat_param_names(), current_theta.tolist()))
                 
-        return new_features
+                for i, (plotter, feature_name) in enumerate(zip(self.feature_plotters, plot)):
+                    feature = batch_plot_features[batch_idx, ..., i]
+                    plotter.ax.set_title(f"{feature_name} (num_samples = {len(self.sampled_params)})")
+                    plotter.add_curve(f"{param_dict}", y_values=jnp.real(feature), x_values=self.frequency.f_scaled)
+
+        # Return result with original dimensionality (squeeze if it was single input)
+        if final_features is not None and is_single_input:
+            return final_features[0]
+        return final_features
                         
     def inverse_cumulative_distribution_fn(self, u, as_numpy=False) -> jnp.ndarray:
         """
@@ -236,10 +325,7 @@ class BaseSampler(ABC):
         general_feature_fn = wrap(extract_features, model, self.frequency, as_numpy=as_numpy)
         feature_fn = lambda theta: general_feature_fn(theta, features)
         
-        if self.jit_features:
-            feature_fn_final = jax.jit(feature_fn)
-        else:
-            feature_fn_final = feature_fn
+        feature_fn_final = jax.jit(feature_fn)
         return feature_fn_final(theta)
     
     @abstractmethod
