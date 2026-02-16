@@ -6,7 +6,7 @@ from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
-from pmrf._util import lhs_sample, no_recent_improvement
+from pmrf._util import lhs_sample
 
 class AdaptiveSampler(BaseSampler):
     def __init__(
@@ -59,15 +59,62 @@ class AdaptiveSampler(BaseSampler):
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
         return models, results
     
-    def _check_convergence(self, values, threshold=None, patience=None) -> bool:
-        # Check if we have converged via the threshold
-        if threshold is not None and jnp.all(values[-1] < threshold):
-            self.logger.info(f"Convergence reached via threshold.")
-            return True
-            
-        # Check if we have converged via maximum patience (no improvement)
-        if len(values) >= patience and no_recent_improvement(values, patience):
-            self.logger.info(f"Convergence reached via maximum patience.")
-            return True
+    def _check_convergence(
+        self, 
+        values: list[float], 
+        threshold: float = None, 
+        patience: int = None, 
+        min_delta: float = None, 
+        smoothing_window: int = 1,
+        title: str = None
+    ) -> bool:
         
+        if not values:
+            return False
+
+        prefix = f"Convergence for {title} reached" if title else "Convergence reached"
+        
+        # 1. Safety Check: Divergence (NaN/Inf)
+        current_val = values[-1]
+        if not jnp.isfinite(current_val):
+            self.logger.warning(f"Stopping: Divergence detected (value is {current_val}).")
+            return True
+
+        # Apply smoothing if window > 1
+        # We look at the average of the last 'n' items to reduce noise
+        if smoothing_window > 1 and len(values) >= smoothing_window:
+            val_to_check = jnp.mean(jnp.array(values[-smoothing_window:]))
+        else:
+            val_to_check = current_val
+
+        # 2. Check Threshold (Absolute Target)
+        if threshold is not None:
+            # Assuming minimization (val < threshold). Flip logic if maximization.
+            if val_to_check < threshold:
+                self.logger.info(f"{prefix} via threshold ({val_to_check:.5f} < {threshold}).")
+                return True
+
+        # 3. Check Minimum Delta (The "Plateau")
+        # Checks if the change between the last two points is negligible
+        if min_delta is not None and len(values) > 1:
+            diff = abs(values[-1] - values[-2])
+            if diff < min_delta:
+                self.logger.info(f"{prefix} via min_delta (change {diff:.2e} < {min_delta}).")
+                return True
+
+        # 4. Check Patience (Early Stopping)
+        if patience is not None and len(values) >= patience:
+            # Convert to standard list for easier indexing/slicing if it's a JAX array
+            vals_list = list(values)
+            
+            # Find the index of the best value (min)
+            best_idx = min(range(len(vals_list)), key=lambda i: vals_list[i])
+            
+            # Calculate how many steps have passed since the best value
+            steps_since_best = len(vals_list) - 1 - best_idx
+
+            if steps_since_best > patience:
+                self.logger.info(f"{prefix} via maximum patience (no improvement for {steps_since_best} steps).")
+                return True
+                
         return False

@@ -40,6 +40,7 @@ class FieldSampler(AdaptiveSampler):
         self.eval_fn = eval_fn
         self.grid_sampler = grid_sampler
         self.field_values = []
+        self.field_thetas = []
         self.figure = None
         
         return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
@@ -71,15 +72,16 @@ class FieldSampler(AdaptiveSampler):
         # Get the largest field value
         max_field = jnp.max(grid_field)
         self.field_values.append(max_field)
+        self.logger.info(f"Field maximum = {float(max_field):.2f}")
+        
+        # Pick the N points in the grid with the largest field values
+        indices = jnp.argsort(grid_field, descending=True)
+        max_field_thetas = theta_grid[indices][0:N]
+        self.field_thetas.append(max_field_thetas)
         
         # Check if we have converged
-        if self._check_convergence(self.field_values, threshold, patience):
+        if self._check_convergence(self.field_values, threshold, patience, "field"):
             return None
-
-        # Pick the N points in the grid with the largest field values
-        self.logger.info(f"Field maximum = {float(max_field):.2f}")
-        indices = jnp.argsort(grid_field, descending=True)
-        max_field_theta = theta_grid[indices][0:N]
         
         # Return the next hypercube samples
-        return jnp.array([self.cumulative_distribution_fn(theta) for theta in max_field_theta])
+        return jnp.array([self.cumulative_distribution_fn(theta) for theta in max_field_thetas])

@@ -9,7 +9,6 @@ from pmrf.sampling._algos.field_minimization import FieldSampler
 from pmrf.models.model import Model
 from pmrf.functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
-from pmrf._util import lhs_sample
 
 MEAN_ABSOLUTE_ERROR = [jnp.abs, mean_ax0, mean_ax0, mag_2_db]
 ROOT_MEAN_SQUARED_ERROR = [jnp.abs, jnp.sqrt, mean_ax0, mean_ax0, lambda x: x**2, mag_2_db]
@@ -81,14 +80,14 @@ class SurrogateFieldSampler(FieldSampler):
             raise Exception("Surrogate cannot be `None` for SurrogateSampler")
         
         # Return if the field and surrogate have both converged.
-        # If the field has converged but the surrogate has not, try a new random sample
-        if U_samples is None:
-            if self.surrogate_converged:
-                return None
-            else:
-                self.logger.info("Surrogate has not yet converged. Continuing...")
-                key, surrogate_key = jr.split(key)
-                U_samples = lhs_sample(1, d, key=surrogate_key)
+        if U_samples is None and self.surrogate_converged:
+            return None
+        elif U_samples is None and not self.surrogate_converged:
+            # Try the worst field samples that would've been returned
+            self.logger.info("Surrogate has not yet converged. Continuing...")
+            U_samples = jnp.array([self.cumulative_distribution_fn(theta) for theta in self.field_thetas[-N]])
+        elif U_samples is not None and self.surrogate_converged:
+            self.logger.info("Field has not yet converged. Continuing...")
         
         # Compute the worst cost for the new samples
         theta_samples = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_samples])
@@ -106,5 +105,5 @@ class SurrogateFieldSampler(FieldSampler):
         self.error_values.append(worst_error)
         
         # Check if we have converged. We only return None for the next round so that these samples still get added
-        self.surrogate_converged = self._check_convergence(self.error_values, threshold, patience)
+        self.surrogate_converged = self._check_convergence(self.error_values, threshold, patience, 'surrogate')
         return U_samples
