@@ -78,6 +78,6 @@ class AdaptiveSampler(BaseSampler):
 
             if no_recent_improvement:
                 self.logger.info(f"{prefix} via maximum patience.")
-            return True
+                return True
         
         return False

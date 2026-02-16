@@ -86,7 +86,7 @@ class SurrogateFieldSampler(FieldSampler):
             # Try the worst field samples that would've been returned
             self.logger.info("Surrogate has not yet converged. Continuing...")
             U_samples = jnp.array([self.cumulative_distribution_fn(theta) for theta in self.field_thetas[-N]])
-        elif U_samples is not None and self.surrogate_converged:
+        elif U_samples is None and self.surrogate_converged:
             self.logger.info("Field has not yet converged. Continuing...")
         
         # Compute the worst cost for the new samples
