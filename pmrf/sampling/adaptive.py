@@ -16,9 +16,15 @@ class AdaptiveSampler(BaseSampler, ABC):
         *,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
-        initial_models: list[Model] | int = 10,
+        initial_models_factor: int | None = 10,
+        initial_models: list[Model] | int | None = None,
         **kwargs,
-    ):    
+    ):
+        if initial_models_factor is not None and initial_models is not None:
+            raise Exception("Cannot pass both initial_models_factor and initial_models to AdaptiveSampler")
+        if initial_models_factor is not None:
+            initial_models = initial_models_factor * model.num_flat_params
+        
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 

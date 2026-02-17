@@ -25,7 +25,6 @@ class FieldSampler(AdaptiveSampler):
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any] | None, # params, features, frequency, and `key` is a key-word argument
         eval_fn: Callable[[Any, jnp.ndarray, Frequency], float],
-        initial_models: list[Model] | int = 10,
         grid_sampler: BaseSampler | None = None,
         *args,
         **kwargs
@@ -43,7 +42,7 @@ class FieldSampler(AdaptiveSampler):
         self.all_field_thetas = []
         self.figure = None
         
-        return super().__init__(model=model, initial_models=initial_models, *args, **kwargs)
+        return super().__init__(model=model, *args, **kwargs)
 
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # Train the field
