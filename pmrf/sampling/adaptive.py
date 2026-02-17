@@ -92,34 +92,52 @@ class AdaptiveSampler(BaseSampler, ABC):
         values = jnp.array(values)
         
         # Check if we have converged via the threshold
-        if threshold is not None and jnp.all(values[-1] < threshold):
+        if threshold is not None and values[-1] < threshold:
             self.logger.info(f"{prefix} via threshold.")
             return True            
 
         # Check if we have converged via maximum patience (no improvement in last N samples)
-        if len(values) > patience:
-            # First we detect if *any* values in the window are considered a spike (with respect to their previous values).
-            # If so we spike the patience check
+        if patience is not None and len(values) >= 2 * patience + 1:
+            # 1. Spike Detection
+            # We iterate BACKWARDS (newest -> oldest) in the window.
+            # If the newest value is a spike, we log it.
+            # If an older value in the window is a spike, we detect it (so we stop convergence), 
+            # but we don't log it again.
             spike_detected = False
-            for i in range(0, min(patience+1, len(values) - patience)):
-                if i == 0:
-                    spike_values = values[-patience-1:]
-                else:
-                    spike_values = values[-(patience + i) - 1:-i]
-
-                Q1, Q3 = jnp.percentile(spike_values, 25), jnp.percentile(spike_values, 75)
-                if spike_values[-1] > Q3 + (Q3 - Q1) * iqr_factor:
+            
+            for idx in range(len(values) - 1, len(values) - patience - 1, -1):
+                target_value = values[idx]
+                
+                # The history for this specific target value is the N points before it
+                history_start = idx - patience
+                history_end = idx
+                history_window = values[history_start:history_end]
+                
+                # Calculate IQR on that history
+                Q1, Q3 = jnp.percentile(jnp.array(history_window), 25), jnp.percentile(jnp.array(history_window), 75)
+                iqr_threshold = Q3 + (Q3 - Q1) * iqr_factor
+                
+                if target_value > iqr_threshold:
                     spike_detected = True
-                    if i == 0:
-                        self.logger.info(f"Spike detected for {title}. Skipping patience check.")
-                    break
+                    
+                    # ONLY log if the spike is the very latest value added
+                    if idx == len(values) - 1:
+                        self.logger.info(f"Spike detected for {title} (value {target_value:.4f}). Skipping patience check.")
+                    
+                    # We break immediately because one spike in the window is enough 
+                    # to invalidate convergence.
+                    break 
 
+            # 2. Patience Check (only if no spikes found in window)
             if not spike_detected:
-                window = jnp.array(values[-(patience+1):-1])
-                best_in_window = jnp.min(window)
-                if best_in_window > window[-1]:
-                    self.logger.info(f"{prefix} via maximum patience.")
+                current_window = values[-patience:]
+                overall_best_so_far = jnp.min(values[:-patience])
+                window_best = jnp.min(current_window)
+                
+                # If the best value in our recent window is NOT better (smaller) than
+                # the best value we had before the window started... we have stagnated.
+                if window_best >= overall_best_so_far:
+                    self.logger.info(f"{prefix} via maximum patience (no improvement in last {patience} steps).")
                     return True
 
         return False
-        
