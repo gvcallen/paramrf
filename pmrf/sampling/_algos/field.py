@@ -103,7 +103,7 @@ class FieldSampler(AdaptiveSampler):
             return jnp.array([]), jnp.array([])
         if N == 1:
             best_idx = jnp.argmax(values)
-            return thetas[best_idx][None, :], values[best_idx][None, :]
+            return thetas[best_idx][None, :], values[best_idx].reshape(1)
 
         # 2. Normalize inputs for calculation stability
         # We perform distance calculations in a normalized coordinate system 
