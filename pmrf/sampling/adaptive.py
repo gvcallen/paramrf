@@ -83,7 +83,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         raise NotImplementedError            
             
         
-    def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, title=None) -> bool:
+    def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, relative_epsilon=0.05, title=None) -> bool:
         if title is not None:
             prefix = f"Convergence for {title} reached"
         else:
@@ -115,7 +115,11 @@ class AdaptiveSampler(BaseSampler, ABC):
                 
                 # Calculate IQR on that history
                 Q1, Q3 = jnp.percentile(jnp.array(history_window), 25), jnp.percentile(jnp.array(history_window), 75)
-                iqr_threshold = Q3 + (Q3 - Q1) * iqr_factor
+                actual_iqr = Q3 - Q1
+                min_iqr_floor = (jnp.abs(jnp.median(jnp.array(history_window))) * relative_epsilon)
+                effective_iqr = jnp.maximum(actual_iqr, min_iqr_floor)
+                
+                iqr_threshold = Q3 + effective_iqr * iqr_factor
                 
                 if target_value > iqr_threshold:
                     spike_detected = True
