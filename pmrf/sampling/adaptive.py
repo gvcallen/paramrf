@@ -45,7 +45,6 @@ class AdaptiveSampler(BaseSampler, ABC):
             # We try ask for self.batch_size samples at a time, but may receive less
             key, generate_key = jr.split(key)
             
-            self.logger.info(f"Accumulated {len(self.sampled_params)} total samples")
             U_next = self._generate(batch_size, d, key=generate_key, **kwargs)
             
             if U_next is None:

@@ -167,6 +167,9 @@ class BaseSampler(ABC):
                 self.logger.info(f"Computing sample #{num_existing_samples + 1} at {time_str}")
             else:
                 self.logger.info(f"Computing samples #{num_existing_samples + 1}-{num_existing_samples + num_new_samples} at {time_str}")
+            for theta in new_thetas:
+                printable_params = {k: round(float(v), 2) for k, v in zip(self.model.flat_param_names(), theta)}
+                self.logger.info(f"Parameters = {printable_params}")
             
             # This is the parallelized call
             new_computed_features = self._compute_batch_features(new_thetas)
