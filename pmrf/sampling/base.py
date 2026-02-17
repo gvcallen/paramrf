@@ -134,7 +134,10 @@ class BaseSampler(ABC):
         jnp.ndarray | None
             The features for the added samples. Returns shape (F,) for single input
             or (N, F) for batch input.
-        """        
+        """
+        if plot is not None and isinstance(plot, str):
+            plot = [plot]
+
         # 1. Normalize Input: Ensure theta is 2D (N x D)
         is_single_input = theta.ndim == 1
         theta_batch = jnp.atleast_2d(theta)
