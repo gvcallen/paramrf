@@ -15,7 +15,7 @@ class ContinuousSurrogate(SingleProperty):
     This is very useful for embedding machine learning architectures. For example, `callable` can be any Equinox module.
     """
     # The input parameters of length P
-    params: Parameter = None
+    params: Parameter | list[Parameter] = None
     
     # The underlying model. Must accept an array of shape (P,) and a frequency object, and return an array of shape nfreq x nports x nports.
     func: Callable[[jnp.ndarray, Frequency], jnp.ndarray] = None
@@ -32,7 +32,7 @@ class DiscreteSurrogate(SingleDiscreteProperty):
     This is very useful for embedding machine learning architectures. For example, `callable` can be any Equinox module.
     """
     # The input parameters of length P
-    params: Parameter = None
+    params: Parameter | list[Parameter] = None
     
     # The underlying model. Must accept an array of shape (P,) and return an array of shape self.frequency.npoints x nports x nports.
     func: Callable[[jnp.ndarray], jnp.ndarray] = None
