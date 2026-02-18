@@ -8,6 +8,12 @@ from pmrf.models.model import (
     Model as Model,
     wrap,
 )
+
+from pmrf.io import (
+    load, save
+)
+
+
 from pmrf._util import (
     field,
 )

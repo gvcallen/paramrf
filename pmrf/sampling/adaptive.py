@@ -28,7 +28,9 @@ class AdaptiveSampler(BaseSampler, ABC):
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 
-    def run(self, N: int | None = None, *, batch_size: int = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+    def run(self, N: int | None = None, *, batch_size: int | None = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+        if batch_size is None:
+            batch_size = 1
         if key is None:
             raise Exception('Key needed for AdaptiveSampler')
         

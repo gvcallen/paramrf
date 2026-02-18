@@ -78,7 +78,7 @@ class Parameter(eqx.Module):
     fixed: bool = field(default=False, static=True)
     scale: float = field(default=1.0, static=True)
     name: str | None = field(default=None, static=True)
-    flat_names: list[str] | None = field(default=None, static=True, converter=lambda x: list(x) if x is not None else x)
+    flat_names: list[str] | None = field(default=None, converter=lambda x: list(x) if x is not None else x, static=True)
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -857,11 +857,9 @@ def Stacked(parameters: Sequence[Parameter], name: str | None = None, **kwargs) 
     # 5. Handle scales (allow heterogeneous scales by stacking them)
     scales = [p.scale for p in parameters]
     if not all(s == scales[0] for s in scales):
-        # __jax_array__ will automatically broadcast this array against the values
-        scale = jnp.array(scales)
-    else:
-        scale = scales[0]
-        
+        raise Exception("Cannot create a stacked Parameter with differing scales")
+    
+    scale = scales[0]
     return Parameter(
         value=values,
         distribution=stacked_dist,
