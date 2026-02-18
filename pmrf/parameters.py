@@ -854,7 +854,7 @@ def Stacked(parameters: Sequence[Parameter], name: str | None = None, **kwargs) 
             "Element-wise fixed arrays are not supported by the base Parameter class."
         )
         
-    # 5. Handle scales (allow heterogeneous scales by stacking them)
+    # 5. Handle scales (we DON'T allow heterogeneous scales)
     scales = [p.scale for p in parameters]
     if not all(s == scales[0] for s in scales):
         raise Exception("Cannot create a stacked Parameter with differing scales")
