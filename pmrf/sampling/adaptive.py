@@ -8,6 +8,7 @@ from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import lhs_sample
+from pmrf._algorithms import has_converged
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
@@ -89,51 +90,5 @@ class AdaptiveSampler(BaseSampler, ABC):
         """
         raise NotImplementedError            
             
-    def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, relative_epsilon=0.05, title=None) -> bool:
-        values = jnp.array(values)
-
-        # This function returns that we have converged if ALL checks have been met
-        
-        # Check if we have converged via the threshold
-        if threshold is not None and values[-1] > threshold:
-            return False
-
-        # Check if we have converged via maximum patience (no improvement in last N samples)
-        if patience is not None and len(values) >= 2 * patience + 1:
-            # 1. Spike Detection
-            # We iterate BACKWARDS (newest -> oldest) in the window.
-            # If the newest value is a spike, we log it.
-            # If an older value in the window is a spike, we detect it (so we stop convergence), 
-            # but we don't log it again.
-            for idx in range(len(values) - 1, len(values) - patience - 1, -1):
-                target_value = values[idx]
-                
-                # The history for this specific target value is the N points before it
-                history_start = idx - patience
-                history_end = idx
-                history_window = values[history_start:history_end]
-                
-                # Calculate IQR on that history
-                Q1, Q3 = jnp.percentile(jnp.array(history_window), 25), jnp.percentile(jnp.array(history_window), 75)
-                actual_iqr = Q3 - Q1
-                min_iqr_floor = (jnp.abs(jnp.median(jnp.array(history_window))) * relative_epsilon)
-                effective_iqr = jnp.maximum(actual_iqr, min_iqr_floor)
-                
-                iqr_threshold = Q3 + effective_iqr * iqr_factor
-                
-                if target_value > iqr_threshold:
-                    if idx == len(values) - 1:
-                        self.logger.info(f"Spike detected for {title} (value {target_value:.4f}). Skipping patience check.")
-                    return False
-
-            # 2. Patience Check (only if no spikes found in window)
-            current_window = values[-patience:]
-            overall_best_so_far = jnp.min(values[:-patience])
-            window_best = jnp.min(current_window)
-            
-            # If the best value in our recent window is NOT better (smaller) than
-            # the best value we had before the window started... we have stagnated.
-            if window_best < overall_best_so_far:
-                return False
-
-        return True
+    def _check_array_convergence(self, values, *, threshold=None, patience=None) -> bool:
+        return has_converged(values, threshold=threshold, patience=patience)

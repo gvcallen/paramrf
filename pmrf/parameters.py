@@ -235,36 +235,7 @@ class Parameter(eqx.Module):
         return [
             Parameter(value=val, distribution=p, fixed=self.fixed, scale=self.scale, name=n) 
             for val, p, n in zip(flat_val, dists_split, flat_names)
-        ]        
-        
-    def interpolated(self, x_old, x_new) -> 'Parameter':
-        """
-        Return a new parameter interpolated to a new domain.
-
-        Interpolates both the value and the distribution parameters.
-
-        Parameters
-        ----------
-        x_old : array_like
-            The original domain coordinates.
-        x_new : array_like
-            The new domain coordinates.
-
-        Returns
-        -------
-        Parameter
-            The interpolated parameter.
-        """
-        value = jnp.interp(x_old, x_new, self.value)
-        dist = interp_distribution(x_old, x_new, self.distribution)
-
-        return Parameter(
-            value=value,
-            distribution=dist,
-            fixed=self.fixed,
-            scale=self.scale,
-            name=self.name
-        )        
+        ]              
         
     def as_fixed(self) -> 'Parameter':
         r"""

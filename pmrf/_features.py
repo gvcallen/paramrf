@@ -162,8 +162,6 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
     if source is not None:
         no_ports_passed = all([feature_out[2] == (-1, -1) for feature_out in features_out])
         all_labels_equal = all([feature_out[0] == features_out[0][0] for feature_out in features_out])
-        # TODO fix defining_class (not working for e.g. s_mag currently)
-        # base_features_only = all([defining_class(source, feature_out[1]) is Model for feature_out in features_out])
         if no_ports_passed and all_labels_equal:
             if sparam_kind == 'all':
                 port_tuples = source.port_tuples
