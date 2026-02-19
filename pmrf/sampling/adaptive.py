@@ -8,7 +8,6 @@ from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import lhs_sample
-from pmrf._algorithms import has_converged
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
@@ -88,7 +87,4 @@ class AdaptiveSampler(BaseSampler, ABC):
         
         Note that `self.sampled_params` and `self.sampled_features` may be inspected at each iteration.
         """
-        raise NotImplementedError            
-            
-    def _has_converged(self, values, *, threshold=None, patience=None, title=None) -> bool:
-        return has_converged(values, threshold=threshold, patience=patience)
+        raise NotImplementedError

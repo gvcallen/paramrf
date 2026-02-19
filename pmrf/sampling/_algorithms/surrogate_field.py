@@ -9,6 +9,7 @@ from pmrf.sampling._algorithms.field import FieldSampler
 from pmrf.models.model import Model
 from pmrf.functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
+from pmrf._algorithms import has_converged
 
 MEAN_ABSOLUTE_ERROR = [jnp.abs, mean_ax0, mean_ax0, mag_2_db]
 ROOT_MEAN_SQUARED_ERROR = [jnp.abs, jnp.sqrt, mean_ax0, mean_ax0, lambda x: x**2, mag_2_db]
@@ -115,5 +116,5 @@ class SurrogateFieldSampler(FieldSampler):
             
         
         # Check if we have converged. We only return None for the next round so that these samples still get added
-        self.surrogate_converged = self._check_convergence(self.error_values, threshold=threshold, patience=patience, title='surrogate')
+        self.surrogate_converged = has_converged(self.error_values, threshold=threshold, patience=patience, title='surrogate')
         return U_samples

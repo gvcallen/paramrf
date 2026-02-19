@@ -9,6 +9,7 @@ from pmrf.sampling.base import BaseSampler
 from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
 from pmrf._util import lhs_sample
+from pmrf._algorithms import has_converged
 
 class FieldSampler(AdaptiveSampler):
     """
@@ -84,7 +85,7 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if self._has_converged(self.worst_field_values, threshold=threshold, patience=patience, title="field"):
+        if has_converged(self.worst_field_values, threshold=threshold, patience=patience):
             return None
 
         # Return the next hypercube samples (U-space)
