@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import jax
 import jax.random as jr
 import jax.numpy as jnp
+from typing import Callable
 
 from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
@@ -17,7 +18,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         initial_models_factor: int | None = 10,
-        initial_models: list[Model] | int | None = None,
+        initial_models: list[Model] | int | None = None,        
         **kwargs,
     ):
         if initial_models_factor is not None and initial_models is not None:
@@ -26,6 +27,7 @@ class AdaptiveSampler(BaseSampler, ABC):
             initial_models = initial_models_factor * model.num_flat_params
         
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
+
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 
     def run(self, N: int | None = None, *, batch_size: int | None = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
@@ -46,13 +48,11 @@ class AdaptiveSampler(BaseSampler, ABC):
         for i in range(0, num_initial_samples, batch_size):
             batch_theta = initial_thetas[i : i + batch_size]
             self.add_samples(batch_theta, plot=plot)
-            
         
         iteration = 0
         while True:
             # We try ask for self.batch_size samples at a time, but may receive less
             key, generate_key = jr.split(key)
-            
             U_next = self._generate(batch_size, d, key=generate_key, **kwargs)
             
             if U_next is None:

@@ -37,10 +37,6 @@ class SurrogateFieldSampler(FieldSampler):
         if not 'frequency' in kwargs:
             raise Exception("Cannot create a SurrogateSampler without a frequency")
         
-        self.surrogate: Model = None
-        def train_fn_wrapper(theta: jnp.ndarray, features: jnp.ndarray, frequency: Frequency, key=None) -> Model:
-            self.surrogate = train_fn(theta, features, frequency, key=key)
-            return self.surrogate
         def eval_fn_wrapper(surrogate: Model, theta: jnp.ndarray, frequency: Frequency, key=None) -> Model:
             surrogate = surrogate.with_params(theta)
             return eval_fn(surrogate, frequency, key=key)
@@ -72,13 +68,15 @@ class SurrogateFieldSampler(FieldSampler):
         self.error_values = []
         self.surrogate_converged = False
         
-        return super().__init__(model=model, features=features, train_fn=train_fn_wrapper, eval_fn=eval_fn_wrapper, *args, **kwargs)
+        return super().__init__(model=model, features=features, train_fn=train_fn, eval_fn=eval_fn_wrapper, *args, **kwargs)
     
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
+        surrogate = self.field
+        
         # Generate the samples and train the surrogate
         key, generate_key = jr.split(key)
         U_samples = super()._generate(N, d, key=generate_key, threshold=threshold, patience=patience, **kwargs)
-        if self.surrogate is None:
+        if surrogate is None:
             raise Exception("Surrogate cannot be `None` for SurrogateSampler")
         
         # Return if the field and surrogate have both converged.
@@ -97,7 +95,7 @@ class SurrogateFieldSampler(FieldSampler):
         new_actual_features_all = self.add_samples(theta_samples)
         for i, theta in enumerate(theta_samples):
             new_actual_features = new_actual_features_all[i]
-            new_surrogate_features = self.feature_fn(theta, model=self.surrogate)
+            new_surrogate_features = self.feature_fn(theta, model=surrogate)
             error = new_surrogate_features - new_actual_features
             error = self.error_fn(error)
             sample_errors.append(error)
@@ -114,7 +112,7 @@ class SurrogateFieldSampler(FieldSampler):
             error_str = error_str[0:len(error_str)-2]
             self.logger.info(f"Surrogate errors = [{error_str}]")
             
-        
-        # Check if we have converged. We only return None for the next round so that these samples still get added
+        # Check if we have converged
+        # We only return None for the next round so that these samples still get added
         self.surrogate_converged = has_converged(self.error_values, threshold=threshold, patience=patience)
         return U_samples

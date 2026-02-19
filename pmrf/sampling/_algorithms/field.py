@@ -38,6 +38,7 @@ class FieldSampler(AdaptiveSampler):
 
         self.train_fn = train_fn
         self.eval_fn = eval_fn
+        self.field = None
         self.grid_sampler = grid_sampler
         self.worst_field_values = []
         self.all_field_thetas = []
@@ -47,9 +48,8 @@ class FieldSampler(AdaptiveSampler):
 
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # Train the field
-        self.logger.info(f"Training...")
         key, field_key = jr.split(key)
-        field = self.train_fn(self.sampled_params, self.sampled_features, self.frequency, key=field_key)
+        self.field = self.train_fn(self.sampled_params, self.sampled_features, self.frequency, key=field_key)
 
         # Get the field thetas
         K = num_grid_per_dim * d # Or however you determine grid size
@@ -65,7 +65,7 @@ class FieldSampler(AdaptiveSampler):
         key, eval_key = jr.split(key)
         eval_keys = jr.split(eval_key, len(theta_grid))
         def eval_theta_fn(theta, k) -> float:
-            return self.eval_fn(field, theta, self.frequency, key=k)        
+            return self.eval_fn(self.field, theta, self.frequency, key=k)        
         grid_field = jax.vmap(eval_theta_fn)(theta_grid, eval_keys)
 
         # Select N Diverse Points
@@ -85,7 +85,12 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if has_converged(self.worst_field_values, threshold=threshold, patience=patience):
+        if self.converge_fn is None:
+            key, converged_key = jr.split(key, 2)
+            converged = self.converge_fn(self.sampled_params, self.sampled_features, self.frequency, key=converged_key)
+        else:
+            converged = has_converged(self.worst_field_values, threshold=threshold, patience=patience)
+        if converged:
             return None
 
         # Return the next hypercube samples (U-space)
