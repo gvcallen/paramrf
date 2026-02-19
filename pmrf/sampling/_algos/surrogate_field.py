@@ -76,7 +76,7 @@ class SurrogateFieldSampler(FieldSampler):
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
         # Generate the samples and train the surrogate
         key, generate_key = jr.split(key)
-        U_samples = super()._generate(N, d, key=generate_key, threshold=None, patience=patience, **kwargs)
+        U_samples = super()._generate(N, d, key=generate_key, threshold=threshold, patience=patience, **kwargs)
         if self.surrogate is None:
             raise Exception("Surrogate cannot be `None` for SurrogateSampler")
         

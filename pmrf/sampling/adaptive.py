@@ -89,19 +89,14 @@ class AdaptiveSampler(BaseSampler, ABC):
         """
         raise NotImplementedError            
             
-        
     def _check_convergence(self, values, *, threshold=None, patience=None, iqr_factor=1.5, relative_epsilon=0.05, title=None) -> bool:
-        if title is not None:
-            prefix = f"Convergence for {title} reached"
-        else:
-            prefix = "Convergence reached"
-
         values = jnp.array(values)
+
+        # This function returns that we have converged if ALL checks have been met
         
         # Check if we have converged via the threshold
-        if threshold is not None and values[-1] < threshold:
-            self.logger.info(f"{prefix} via threshold.")
-            return True            
+        if threshold is not None and values[-1] > threshold:
+            return False
 
         # Check if we have converged via maximum patience (no improvement in last N samples)
         if patience is not None and len(values) >= 2 * patience + 1:
@@ -110,8 +105,6 @@ class AdaptiveSampler(BaseSampler, ABC):
             # If the newest value is a spike, we log it.
             # If an older value in the window is a spike, we detect it (so we stop convergence), 
             # but we don't log it again.
-            spike_detected = False
-            
             for idx in range(len(values) - 1, len(values) - patience - 1, -1):
                 target_value = values[idx]
                 
@@ -129,26 +122,18 @@ class AdaptiveSampler(BaseSampler, ABC):
                 iqr_threshold = Q3 + effective_iqr * iqr_factor
                 
                 if target_value > iqr_threshold:
-                    spike_detected = True
-                    
-                    # ONLY log if the spike is the very latest value added
                     if idx == len(values) - 1:
                         self.logger.info(f"Spike detected for {title} (value {target_value:.4f}). Skipping patience check.")
-                    
-                    # We break immediately because one spike in the window is enough 
-                    # to invalidate convergence.
-                    break 
+                    return False
 
             # 2. Patience Check (only if no spikes found in window)
-            if not spike_detected:
-                current_window = values[-patience:]
-                overall_best_so_far = jnp.min(values[:-patience])
-                window_best = jnp.min(current_window)
-                
-                # If the best value in our recent window is NOT better (smaller) than
-                # the best value we had before the window started... we have stagnated.
-                if window_best >= overall_best_so_far:
-                    self.logger.info(f"{prefix} via maximum patience (no improvement in last {patience} steps).")
-                    return True
+            current_window = values[-patience:]
+            overall_best_so_far = jnp.min(values[:-patience])
+            window_best = jnp.min(current_window)
+            
+            # If the best value in our recent window is NOT better (smaller) than
+            # the best value we had before the window started... we have stagnated.
+            if window_best < overall_best_so_far:
+                return False
 
-        return False
+        return True
