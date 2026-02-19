@@ -1,5 +1,5 @@
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 
 from pmrf.sampling.oneshot import OneshotSampler
 

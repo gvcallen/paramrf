@@ -6,11 +6,8 @@ import os
 from datetime import datetime
 
 import numpy as np
-import skrf
 import jax
-from jax import flatten_util
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model, wrap
