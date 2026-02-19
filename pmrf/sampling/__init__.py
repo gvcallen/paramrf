@@ -2,4 +2,4 @@ from pmrf.sampling.base import *
 from pmrf.sampling.oneshot import *
 from pmrf.sampling.adaptive import *
 
-from pmrf.sampling._algos import *
+from pmrf.sampling._algorithms import *
