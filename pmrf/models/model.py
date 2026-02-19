@@ -31,13 +31,13 @@ import h5py
 from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.rf_functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
-from pmrf.rf_functions.math import FUNC_LOOKUP
+from pmrf.math_functions import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.parameter import JointParameterDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
 from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
-from pmrf._tree import nodes_by_type, value_at_path, partition, combine
+from pmrf._util.tree import nodes_by_type, value_at_path, partition, combine
 
 class Model(eqx.Module):
     """

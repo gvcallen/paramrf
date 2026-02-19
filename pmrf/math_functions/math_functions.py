@@ -185,7 +185,7 @@ def magnitude_2_db(z: NumberLike, zero_nan: bool = True):
     Returns
     -------
     z : number or array_like
-        Magnitude in dB given by :math:`20 \log_{10}(|z|)`.
+        Magnitude in dB20.
     """
     out = 20 * jnp.log10(z)
     if zero_nan:
@@ -209,7 +209,7 @@ def mag_2_db10(z: NumberLike, zero_nan:bool = True):
     Returns
     -------
     z : array_like
-        Magnitude in dB given by :math:`10 \log_{10}(|z|)`.
+        Magnitude in dB10.
     """
     out = 10 * jnp.log10(z)
     if zero_nan:

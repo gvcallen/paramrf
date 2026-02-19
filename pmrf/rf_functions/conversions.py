@@ -7,7 +7,7 @@ from jax.scipy.special import gammaln
 from jax._src.numpy.ufuncs import _constant_like
 
 from pmrf.constants import NumberLike
-from pmrf.rf_functions import rsolve, nudge_eig
+from pmrf.math_functions import rsolve, nudge_eig
 
 ZERO = 1e-4
 

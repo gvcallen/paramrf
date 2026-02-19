@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
 from dataclasses import fields
 
-from pmrf.rf_functions.math import evaluate_bernstein_basis, evaluate_power_basis
+from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
@@ -13,7 +13,6 @@ from pmrf.models.model import Model
 class TLine(Model):
     length: Parameter = 1.0
     floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
-    renormalize: bool = True
 
 class RLGCLine(TLine):
     """
@@ -123,13 +122,11 @@ class RLGCLine(TLine):
                 [s21, s11],
             ]).transpose(2, 0, 1)
 
-        if self.renormalize:
-            # from skrf import renormalize_s as renormalize_s_skrf
-            # return jnp.array(renormalize_s_skrf(s, Zc, self.z0, 'traveling', 'traveling'))
-            # According to scikit-rf, all the above is defined in terms of traveling S-parameters
-            # (see e.g. skrf.media.Media.line)
-            return renormalize_s(s, Zc, self.z0, 'traveling', 'traveling')
-        return s
+        # from skrf import renormalize_s as renormalize_s_skrf
+        # return jnp.array(renormalize_s_skrf(s, Zc, self.z0, 'traveling', 'traveling'))
+        # According to scikit-rf, all the above is defined in terms of traveling S-parameters
+        # (see e.g. skrf.media.Media.line)
+        return renormalize_s(s, Zc, self.z0, 'traveling', 'traveling')
     
 class ConstantRLGCLine(RLGCLine):
     """

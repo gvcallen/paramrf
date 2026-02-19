@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model, wrap
 from pmrf.constants import FeatureInputT, FeatureT
-from pmrf._features import extract_features
+from pmrf.features import extract_features
 from pmrf._util import LivePlotter
 
 @dataclass
