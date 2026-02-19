@@ -3,16 +3,118 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
-from pmrf.functions.conversions import fix_z0_shape, s2s
+from pmrf.rf_functions.conversions import fix_z0_shape, s2s
 
-def _C(
+def connect_s_arbitrary(
+    Smats: Sequence[jnp.ndarray],
+    z0s: Sequence[jnp.ndarray],
+    connections: Sequence[Sequence[tuple[int, int]]],
+    port_indices: Sequence[int],
+    s_def = 'power',
+) -> jnp.ndarray:
+    """
+    Connect multiple S-parameter networks together in an arbitrary topology.
+
+    This is the most general function for connecting RF networks together in a circuit.
+
+    This function constructs a global S-matrix by connecting ports from various
+    sub-networks at common nodes (intersections).
+
+    Parameters
+    ----------
+    Smats : Sequence[jnp.ndarray]
+        A sequence of S-parameter matrices for the component networks.
+        Each element has shape `(Nf, n_ports, n_ports)`.
+    z0s : Sequence[jnp.ndarray]
+        A sequence of characteristic impedances (z0) for the component networks.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        A list of connection nodes. Each node is a list of `(network_index, port_index)`
+        tuples indicating which ports are electrically connected at that node.
+    port_indices : Sequence[int]
+        A list of network indices. Any port belonging to a network in this list
+        that appears in `connections` is treated as an external port of the
+        resulting connected network.
+    s_def : str, optional, default='power'
+        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
+
+    Returns
+    -------
+    tuple[jnp.ndarray, jnp.ndarray]
+        The resulting S-parameter matrix and characteristic impedances of the connected system.
+    """
+    dim = np.sum(np.array([len(cnx) for cnx in connections]))  # not JAX because dim is static
+    Nf = Smats[0].shape[0]
+    z0s = [fix_z0_shape(z0, Nf, S.shape[1]) for (S, z0) in zip(Smats, z0s)]
+
+    port_connection_indices = []
+    for (idx_cnx, (idx_ntw, _)) in enumerate(chain.from_iterable(connections)):
+        if idx_ntw in port_indices:
+            port_connection_indices.append(idx_cnx)
+
+    in_idxs = [(i,) for i in range(dim) if i not in port_connection_indices]
+    ext_idxs = [(i,) for i in port_connection_indices]
+    ext_l, in_l = len(ext_idxs), len(in_idxs)
+
+    # generate index slices for each sub-matrices
+    idx_a, idx_b, idx_c, idx_d = (
+        np.repeat(i, l, axis=1)
+        for i, l in (
+            (ext_idxs, ext_l),
+            (ext_idxs, in_l),
+            (in_idxs, ext_l),
+            (in_idxs, in_l),
+        )
+    )
+
+    # sub-matrices index, Matrix = [[A, B], [C, D]]]
+    A_idx = (slice(None), idx_a, idx_a.T)
+    B_idx = (slice(None), idx_b, idx_c.T)
+    C_idx = (slice(None), idx_c, idx_b.T)
+    D_idx = (slice(None), idx_d, idx_d.T)
+
+    # Get the buffer of global matrix in f-order [X_T] and intermediate temporary matrix [T]
+    # [T] = - [C] @ [X]
+    networks = list(zip(Smats, z0s))
+    
+    x, t = _connect_s_arbitrary_X_and_T(networks, connections, port_connection_indices, s_def=s_def)
+
+    # jnp.einsum('...ii->...i', t)[:] += 1
+    t = t + jnp.eye(t.shape[-1])
+
+    # Get the sub-matrices of inverse of intermediate temporary matrix t
+    # The method np.linalg.solve(A, B) is equivalent to np.inv(A) @ B, but more efficient
+    try:
+        tmp_mat = jnp.linalg.solve(t[D_idx], t[C_idx])
+    except jnp.linalg.LinAlgError:
+        # numpy.linalg.lstsq only works for 2D arrays, so we need to loop over frequencies
+        tmp_mat = jnp.zeros((Nf, len(in_idxs), len(ext_idxs)), dtype='complex')
+        for i in range(Nf):
+            tmp_mat[i, :, :] = jnp.linalg.lstsq(t[i, D_idx[1], D_idx[2]], t[i, C_idx[1], C_idx[2]], rcond=None)[0]
+
+    # Get the external S-parameters for the external ports
+    # Calculated by multiplying the sub-matrices of x and t
+    S_ext = (x[A_idx] - x[B_idx] @ tmp_mat) @ jnp.linalg.inv(
+        t[A_idx] - t[B_idx] @ tmp_mat
+    )
+
+    z0s = []
+    for cnx in connections:
+        for (ntw_idx, ntw_port) in cnx:
+            z0s.append(networks[ntw_idx][1][:,ntw_port])
+    port_z0 = jnp.array(z0s)[port_connection_indices, :].T  # shape (nb_freq, nb_ports)    
+
+    S_ext_converted = s2s(S_ext, port_z0, s_def, 'traveling')
+    return S_ext_converted, port_z0
+    # return S_ext  # shape (nb_frequency, nb_ports, nb_ports)
+
+def _connect_s_arbitrary_C(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]],
     port_connection_indices: Sequence[int],
     s_def = 'power',    
 ):
     """
-    Construct the connection scattering matrix [C].
+    Construct the connection scattering matrix [C] for connect_s_arbitrary.
 
     Parameters
     ----------
@@ -62,7 +164,7 @@ def _C(
 
     return S  # shape (nb_frequency, nb_inter*nb_n, nb_inter*nb_n)
 
-def _X(
+def _connect_s_arbitrary_X(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]],        
     inverse: bool = False,
@@ -112,7 +214,7 @@ def _X(
 
     return Xf 
     
-def _X_and_T(
+def _connect_s_arbitrary_X_and_T(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]], 
     port_connection_indices: Sequence[int],       
@@ -137,8 +239,8 @@ def _X_and_T(
     tuple
         A tuple `(X, T)` of JAX arrays.
     """
-    X = _X(networks, connections, s_def=s_def)
-    C = _C(networks, connections, port_connection_indices, s_def=s_def)
+    X = _connect_s_arbitrary_X(networks, connections, s_def=s_def)
+    C = _connect_s_arbitrary_C(networks, connections, port_connection_indices, s_def=s_def)
 
     # T will be fully updated, so `empty_like` is safe and faster
     T = jnp.empty_like(X, dtype="complex")
@@ -161,113 +263,13 @@ def _X_and_T(
 
     return X, T
 
-def connect_many(
-    Smats: Sequence[jnp.ndarray],
-    z0s: Sequence[jnp.ndarray],
-    connections: Sequence[Sequence[tuple[int, int]]],
-    port_indices: Sequence[int],
-    s_def = 'power',
-) -> jnp.ndarray:
-    """
-    Connect multiple S-parameter networks together based on a specified topology.
-
-    This function constructs a global S-matrix by connecting ports from various
-    sub-networks at common nodes (intersections).
-
-    Parameters
-    ----------
-    Smats : Sequence[jnp.ndarray]
-        A sequence of S-parameter matrices for the component networks.
-        Each element has shape `(Nf, n_ports, n_ports)`.
-    z0s : Sequence[jnp.ndarray]
-        A sequence of characteristic impedances (z0) for the component networks.
-    connections : Sequence[Sequence[tuple[int, int]]]
-        A list of connection nodes. Each node is a list of `(network_index, port_index)`
-        tuples indicating which ports are electrically connected at that node.
-    port_indices : Sequence[int]
-        A list of network indices. Any port belonging to a network in this list
-        that appears in `connections` is treated as an external port of the
-        resulting connected network.
-    s_def : str, optional, default='power'
-        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
-
-    Returns
-    -------
-    jnp.ndarray
-        The resulting S-parameter matrix of the connected system.
-    """
-    dim = np.sum(np.array([len(cnx) for cnx in connections]))  # not JAX because dim is static
-    Nf = Smats[0].shape[0]
-    z0s = [fix_z0_shape(z0, Nf, S.shape[1]) for (S, z0) in zip(Smats, z0s)]
-
-    port_connection_indices = []
-    for (idx_cnx, (idx_ntw, _)) in enumerate(chain.from_iterable(connections)):
-        if idx_ntw in port_indices:
-            port_connection_indices.append(idx_cnx)
-
-    in_idxs = [(i,) for i in range(dim) if i not in port_connection_indices]
-    ext_idxs = [(i,) for i in port_connection_indices]
-    ext_l, in_l = len(ext_idxs), len(in_idxs)
-
-    # generate index slices for each sub-matrices
-    idx_a, idx_b, idx_c, idx_d = (
-        np.repeat(i, l, axis=1)
-        for i, l in (
-            (ext_idxs, ext_l),
-            (ext_idxs, in_l),
-            (in_idxs, ext_l),
-            (in_idxs, in_l),
-        )
-    )
-
-    # sub-matrices index, Matrix = [[A, B], [C, D]]]
-    A_idx = (slice(None), idx_a, idx_a.T)
-    B_idx = (slice(None), idx_b, idx_c.T)
-    C_idx = (slice(None), idx_c, idx_b.T)
-    D_idx = (slice(None), idx_d, idx_d.T)
-
-    # Get the buffer of global matrix in f-order [X_T] and intermediate temporary matrix [T]
-    # [T] = - [C] @ [X]
-    networks = list(zip(Smats, z0s))
-    
-    x, t = _X_and_T(networks, connections, port_connection_indices, s_def=s_def)
-
-    # jnp.einsum('...ii->...i', t)[:] += 1
-    t = t + jnp.eye(t.shape[-1])
-
-    # Get the sub-matrices of inverse of intermediate temporary matrix t
-    # The method np.linalg.solve(A, B) is equivalent to np.inv(A) @ B, but more efficient
-    try:
-        tmp_mat = jnp.linalg.solve(t[D_idx], t[C_idx])
-    except jnp.linalg.LinAlgError:
-        # numpy.linalg.lstsq only works for 2D arrays, so we need to loop over frequencies
-        tmp_mat = jnp.zeros((Nf, len(in_idxs), len(ext_idxs)), dtype='complex')
-        for i in range(Nf):
-            tmp_mat[i, :, :] = jnp.linalg.lstsq(t[i, D_idx[1], D_idx[2]], t[i, C_idx[1], C_idx[2]], rcond=None)[0]
-
-    # Get the external S-parameters for the external ports
-    # Calculated by multiplying the sub-matrices of x and t
-    S_ext = (x[A_idx] - x[B_idx] @ tmp_mat) @ jnp.linalg.inv(
-        t[A_idx] - t[B_idx] @ tmp_mat
-    )
-
-    z0s = []
-    for cnx in connections:
-        for (ntw_idx, ntw_port) in cnx:
-            z0s.append(networks[ntw_idx][1][:,ntw_port])
-    port_z0 = jnp.array(z0s)[port_connection_indices, :].T  # shape (nb_freq, nb_ports)    
-
-    S_ext_converted = s2s(S_ext, port_z0, s_def, 'traveling')
-    return S_ext_converted
-    # return S_ext  # shape (nb_frequency, nb_ports, nb_ports)
-
-def connect_one(
+def connect_s_common(
     Smats: Sequence[jnp.ndarray] | jnp.ndarray,
     z0s: Sequence[jnp.ndarray] | jnp.ndarray,
     ports: Sequence[int | Sequence[int]],
 ) -> jnp.ndarray:
     """
-    Connect a series of multi-port S-parameter matrices using Hallbjörner's method at one intersection.
+    Connect a series of multi-port S-parameter matrices using Hallbjörner's method at a single intersection.
     
     Ensures that the specified port indices share the concatenated intersection, implying they are
     electrically common.

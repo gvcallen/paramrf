@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from pmrf.models.lines import CoaxialLine
 from pmrf.parameters import Uniform, Fixed, PercentNormal
 from pmrf.fitting import SciPyMinimizeFitter
-from pmrf.functions import l2_norm_ax0, mag_2_db
+from pmrf.rf_functions import l2_norm_ax0, mag_2_db
 
 logging.basicConfig(level=logging.INFO)
 

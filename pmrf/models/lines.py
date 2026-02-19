@@ -4,8 +4,8 @@ import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
 from dataclasses import fields
 
-from pmrf.functions.math import evaluate_bernstein_basis, evaluate_power_basis
-from pmrf.functions.conversions import renormalize_s
+from pmrf.rf_functions.math import evaluate_bernstein_basis, evaluate_power_basis
+from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf.models.model import Model

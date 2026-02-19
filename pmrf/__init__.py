@@ -36,7 +36,8 @@ from pmrf.network_collection import (
     NetworkCollection,
 )
 
-from pmrf.functions import *
+from pmrf.math_functions import *
+from pmrf.rf_functions import *
 
 from importlib.metadata import version as _version, PackageNotFoundError
 try:

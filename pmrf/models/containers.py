@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.models.ideal import Port
-from pmrf.functions.connections import connect_one, connect_many
+from pmrf.rf_functions.connections import connect_s_arbitrary, cascade_a, cascade_s, terminate_a_in_s
 from pmrf._util import field
 
 class Circuit(Model):
@@ -15,7 +15,7 @@ class Circuit(Model):
     This model allows for the definition of a circuit by specifying how the ports
     of various sub-models are connected together.
 
-    NB: The ports are exposed in the order they appear in the connections list.
+    NB: The ports numbers are exposed in the order they appear in the connections list.
 
     Attributes
     ----------
@@ -65,37 +65,8 @@ class Circuit(Model):
         Smats = [model.s(freq) for model in self.models]
         z0s = [model.z0 for model in self.models]
 
-        return connect_many(Smats, z0s, self.indexed_connections, self.port_idxs)
-
-class Connected(Model):
-    """
-    Represents a connection of multiple models at a single intersection.
-
-    The algorithm in :func:`pmrf.functions.connections.connect_one` is used.
-
-    Attributes
-    ----------
-    models : Sequence[Model] | Model
-        The models to connect.
-    ports : Sequence[int | Sequence[int]]
-        The port indices on each model that are connected to the common node.
-    """    
-    models: Sequence[Model] | Model
-    ports: Sequence[int | Sequence[int]]
-
-    def __post_init__(self):
-        self.name = 'connected'
-        # Do some validation
-
-    def s(self, freq: Frequency) -> jnp.array:
-        models, ports = self.models, self.ports
-        if isinstance(models, Model):
-            models = [models]
-
-        Smats = [model.s(freq) for model in models]
-        z0s = [model.z0 for model in models]
-        Sout, _ = connect_one(Smats, z0s, ports)
-        return Sout
+        Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
+        return Scon
 
 class Cascade(Model):
     """
@@ -149,70 +120,54 @@ class Cascade(Model):
         self.name = 'cascade'
         
         models = self.models
-        # First check all the port conditions
-        if models[0].nports != 2:
-            raise Exception('First network must be a two port when cascade')
-        for model in models[1:-1]:
-            if model.nports != 2:
-                raise Exception('Inner networks must be two ports when cascade')
-        if models[-1].nports not in (1, 2):
-            raise Exception('Last network must either be a one port or a two port when cascade')
-        
-        # Next check if any models themselves are of type Cascade. We don't nest these - we chain them to avoid very deep, nested models
         model_reduced = []
         for model in models:
+            # Check that ports are a multiple of 2
+            if model.nports % 2 != 0:
+                raise Exception('All networks must be 2N-ports for Cascade')
             if isinstance(model, Cascade):
                 model_reduced.extend(model.models)
             else:
                 model_reduced.append(model)
-
         self.models = tuple(model_reduced)
 
-    @property
-    def first_model(self) -> Model:
-        """Model: The first model in the cascade chain."""
-        return self.models[0]
-    
-    @property
-    def inner_models(self) -> tuple['Model']:
-        """tuple[Model]: A tuple of the inner models in the cascade chain."""
-        return tuple(self.models[1:-1])
-    
-    @property
-    def last_model(self) -> Model:
-        """Model: The last model in the cascade chain."""
-        return self.models[-1]
-
     def a(self, freq: Frequency) -> jnp.ndarray:
-        a = self.first_model.a(freq)
-        for model in self.models[1:]:
-            a = a @ model.a(freq)
-        if self.last_model.nports == 1:
-            raise Exception('Cannot get abcd-matrix for a cascade of models terminated in a one-port')
-        
-        return a
+        return cascade_a([model.a(freq) for model in self.models])
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        # We only implement s when we are terminating in a one-port.
-        # Otherwise, we call the parent s, which will ultimatlely call the 'a' implementation above
-        if self.last_model.nports != 1:
-            return Model.s(self, freq)
-        
-        # Get abcd matrix of inners
-        a = self.first_model.a(freq)
-        for model in self.inner_models:
-            a = a @ model.a(freq)
-        
-        # Terminated last in s11
-        s11 = self.last_model.s(freq)[:,0,0]
-        z0 = self.first_model._z0
-        
-        A, B, C, D = a[:,0,0], a[:,0,1], a[:,1,0], a[:,1,1]
-        num = z0 * (1 + s11) * (A - z0*C) + (B - D*z0)*(1-s11)
-        den = z0 * (1 + s11) * (A + z0*C) + (B + D*z0)*(1-s11)
-        s11_out = num / den        
-        return s11_out.reshape(-1, 1, 1) 
+        Smats = jnp.array([model.s(freq) for model in self.models])
+        z0s = jnp.array([model.z0 for model in self.models])
+        Scas, z0cas = cascade_s(Smats, z0s)
+        return Scas
     
+class Terminated(Model):
+    """
+    Represents one network terminated in another.
+
+    Currently, this only supports terminating a two-port network in a one-port.
+    
+    Attributes
+    ----------
+    model_from: Model
+        The model to terminate from.
+    model_into: Model
+        The model to terminate into.
+    """
+    model_from: Model
+    model_into: Model
+    
+    def __post_init__(self):
+        self.name = 'terminated'
+
+        if self.model_from.nports != 2 or self.model_into.nports != 1:
+            raise Exception("Currently, Terminated only supports 2-port networks terminated in a 1-port")
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        Amat = self.model_from.a(freq)
+        Smat = self.model_into.s(freq)
+        z0 = self.model_into.z0
+        return terminate_a_in_s(Amat, Smat, z0)
+        
 class Renumbered(Model):
     """
     A container that re-numbers the ports of a given `Model`.
@@ -266,6 +221,12 @@ class Renumbered(Model):
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         return self.renumber(self.model.s(freq))
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        return self.renumber(self.model.y(freq))
+
+    def z(self, freq: Frequency) -> jnp.ndarray:
+        return self.renumber(self.model.z(freq))
     
 class Flipped(Renumbered):
     """

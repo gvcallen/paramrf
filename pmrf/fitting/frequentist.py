@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.functions import l2_norm_ax0, mag_2_db, conv_inter
+from pmrf.rf_functions import l2_norm_ax0, mag_2_db, conv_inter
 from pmrf.models.model import Model
 from pmrf.constants import ArrayFuncT
 from pmrf.fitting.base import BaseFitter, FitResults, FitContext

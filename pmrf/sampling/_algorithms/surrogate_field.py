@@ -7,7 +7,7 @@ import equinox as eqx
 from pmrf.frequency import Frequency
 from pmrf.sampling._algorithms.field import FieldSampler
 from pmrf.models.model import Model
-from pmrf.functions import mean_ax0, mag_2_db
+from pmrf.rf_functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
 from pmrf._algorithms import has_converged
 

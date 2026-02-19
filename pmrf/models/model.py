@@ -10,32 +10,28 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 from functools import cached_property, partial
 from copy import deepcopy
-from typing import Callable, Sequence, TypeVar, Iterator, Self
+from typing import Callable, Sequence, Iterator, Self
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
-import jax.numpy as jnp
-import numpy as np
-import jsonpickle
 from collections.abc import Sequence
-from typing import Sequence, Callable, BinaryIO, TypeVar
+from typing import Sequence, Callable, BinaryIO
 import os
 
-import skrf as skrf
-import numpy as np
-import h5py
 import jax
 import jax.numpy as jnp
 from jax import flatten_util
 from jaxtyping import PyTree
-from jax import flatten_util
-from jax.tree_util import SequenceKey, GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
+from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
+import numpy as np
+import skrf as skrf
+import jsonpickle
+import h5py
 from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
-from pmrf.network_collection import NetworkCollection
-from pmrf.functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
-from pmrf.functions.math import FUNC_LOOKUP
+from pmrf.rf_functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
+from pmrf.rf_functions.math import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.parameter import JointParameterDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
@@ -786,9 +782,13 @@ class Model(eqx.Module):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
-        """Cascade composition operator ``**``."""        
-        from pmrf.models.containers import Cascade
-        return Cascade([self, other])
+        """Cascade/terminatino composition operator ``**``."""        
+        if other.nports == 1:
+            from pmrf.models.containers import Terminated
+            return Terminated(self, other)
+        else:
+            from pmrf.models.containers import Cascade
+            return Cascade([self, other])
     
     def __getitem__(self, key: str | Sequence[str]):
         if isinstance(key, str):
@@ -801,21 +801,6 @@ class Model(eqx.Module):
             return [v for k, v in named_param_values.items() if k in key]
         
     # ---- Container model building --------------------------------------------------    
-    
-    def connected(self, others: 'Model' | Sequence['Model'], ports: Sequence[int | Sequence[int]]) -> 'Model':
-        """Return a version of the model with specified ports connected.
-
-        See :class:``pmrf.models.containers.Connected``.
-
-        Returns
-        -------
-        Model
-        """        
-        from pmrf.models.containers import Connected
-        if isinstance(others, Model):
-            others = [others]
-        models = [self, *others]
-        return Connected(models, ports)
 
     def flipped(self) -> 'Model':
         """Return a version of the model with ports flipped.
@@ -842,10 +827,9 @@ class Model(eqx.Module):
         Model
         """
         from pmrf.models.lumped import SHORT
-        from pmrf.models.containers import Cascade
+        from pmrf.models.containers import Terminated
         load = load or SHORT
-        terminated_model = Cascade((self, load))
-        return terminated_model
+        return Terminated(self, load)
        
     # ---- Parameter inspection -------------------------------------------------- 
     
