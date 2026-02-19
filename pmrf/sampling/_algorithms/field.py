@@ -84,7 +84,7 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if self._check_array_convergence(self.worst_field_values, threshold=threshold, patience=patience, title="field"):
+        if self._has_converged(self.worst_field_values, threshold=threshold, patience=patience, title="field"):
             return None
 
         # Return the next hypercube samples (U-space)

@@ -90,5 +90,5 @@ class AdaptiveSampler(BaseSampler, ABC):
         """
         raise NotImplementedError            
             
-    def _check_array_convergence(self, values, *, threshold=None, patience=None) -> bool:
+    def _has_converged(self, values, *, threshold=None, patience=None, title=None) -> bool:
         return has_converged(values, threshold=threshold, patience=patience)
