@@ -10,7 +10,7 @@ import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
 from pmrf.distributions.stacked import StackedDistribution
-from pmrf._util import field, interp_distribution
+from pmrf._util import field
 
 MIN_PERCENTILE = 0.01
 MAX_PERCENTILE = 0.99
