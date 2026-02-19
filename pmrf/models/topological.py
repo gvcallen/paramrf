@@ -125,7 +125,8 @@ class PiCLC(Model):
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         if not self.three_port:
-            return super().s(freq)
+            from pmrf.rf_functions import a2s
+            return a2s(self.a(freq), self.z0)
         
         return y2s(self.y(freq), self.z0)
     

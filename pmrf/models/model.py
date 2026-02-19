@@ -8,7 +8,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 """
 
-from functools import cached_property, partial
+from functools import partial
 from copy import deepcopy
 from typing import Callable, Sequence, Iterator, Self
 import dataclasses
@@ -110,13 +110,13 @@ class Model(eqx.Module):
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
-    # Public instance fields
+    # Public init fields
     name: str | None = field(default=None, kw_only=True, static=True)
-    separator: str = field(default='_', kw_only=True, static=True)
-    metadata: dict = field(default_factory=lambda: dict(), kw_only=True, static=True)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
-    # Private instance fields
-    _z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+    # Private non-init field
+    _separator: str = field(default='_', kw_only=True, repr=False, static=True)
+    _metadata: dict = field(default_factory=lambda: dict(), kw_only=True, repr=False, static=True)
     _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
     # ---- Internal initialization methods -------------------------------------------------
@@ -272,7 +272,7 @@ class Model(eqx.Module):
                     fields.append(value.name)
                 else:
                     fields.append(str(item.idx))
-        return self.separator.join(fields)
+        return self._separator.join(fields)
     
     def _with_stripped_metadata(self: Self) -> Self:
         def strip_metadata_recursive(obj, memo=None):
@@ -290,7 +290,7 @@ class Model(eqx.Module):
                 new_fields = {}
                 for field in dataclasses.fields(obj):
                     # Skip metadata, we will overwrite it later
-                    if field.name == 'metadata':
+                    if field.name == '_metadata':
                         continue
                     
                     # Recurse on the field's value
@@ -302,8 +302,8 @@ class Model(eqx.Module):
                 new_obj = dataclasses.replace(obj, **new_fields)
                 
                 # 3. Clear the metadata for this specific module
-                if hasattr(new_obj, "metadata"):
-                    new_obj = dataclasses.replace(new_obj, metadata=dict())
+                if hasattr(new_obj, '_metadata'):
+                    new_obj = dataclasses.replace(new_obj, _metadata=dict())
                     
                 memo[obj_id] = new_obj
                 return new_obj
@@ -392,10 +392,10 @@ class Model(eqx.Module):
             flat_params: list[tuple[str, Parameter]] = []
             for name, param in params:
                 if param.size > 1 or param.flat_names is not None:
-                    flattened_params = param.flattened(separator=self.separator)
+                    flattened_params = param.flattened(separator=self._separator)
                     for i, subparam in enumerate(flattened_params):
                         suffix = subparam.name if subparam.name is not None else str(i)
-                        flat_params.append((f"{name}{self.separator}{suffix}", subparam))
+                        flat_params.append((f"{name}{self._separator}{suffix}", subparam))
                 else:
                     flat_params.append((name, param))
             params = flat_params
@@ -499,7 +499,7 @@ class Model(eqx.Module):
 
     # ---- Introspection properties --------------------------------------------------------
     
-    @cached_property
+    @property
     @eqx.filter_jit
     def number_of_ports(self) -> int:
         """Number of ports.
@@ -525,19 +525,9 @@ class Model(eqx.Module):
         -------
         list[tuple[int, int]]
         """
-        return [(y, x) for x in range(self.nports) for y in range(self.nports)]    
+        return [(y, x) for x in range(self.nports) for y in range(self.nports)]        
     
     @property
-    def z0(self) -> jnp.ndarray:
-        """Internal characteristic impedance.
-
-        Returns
-        -------
-        jnp.ndarray
-        """
-        return jnp.array(self._z0)
-    
-    @cached_property
     def num_params(self) -> int:
         """Number of free parameters.
 
@@ -547,7 +537,7 @@ class Model(eqx.Module):
         """
         return len(self.params())
 
-    @cached_property
+    @property
     def num_flat_params(self) -> int:
         """Number of free, **flattened** parameters.
 
@@ -1040,7 +1030,7 @@ class Model(eqx.Module):
             if isinstance(node, Model) and node is not self:
                 # Calculate the prefix for this submodel (e.g., "amplifier_")
                 relative_name = self._path_to_param_name(path)
-                prefix = f"{relative_name}{self.separator}" if relative_name else ""
+                prefix = f"{relative_name}{self._separator}" if relative_name else ""
 
                 # Recursively get groups from the submodel
                 sub_groups = node.param_groups(include_fixed=include_fixed)
@@ -1190,7 +1180,7 @@ class Model(eqx.Module):
                 # Optimization: only checking multi-dimensional parameters
                 if parent_param.size > 0: 
                     # We must replicate the _iter_params name generation logic exactly
-                    sub_params = parent_param.flattened(separator=self.separator)
+                    sub_params = parent_param.flattened(separator=self._separator)
                     
                     updates_found = False
                     new_sub_values = []
@@ -1198,7 +1188,7 @@ class Model(eqx.Module):
                     # Reconstruct the value array from current values + updates
                     for i, sub_p in enumerate(sub_params):
                         suffix = sub_p.name if sub_p.name is not None else str(i)
-                        flat_name = f"{parent_name}{self.separator}{suffix}"
+                        flat_name = f"{parent_name}{self._separator}{suffix}"
                         
                         if flat_name in params:
                             val = params[flat_name]
@@ -1449,7 +1439,7 @@ class Model(eqx.Module):
         submodel_prefixes = {} 
         for f in dataclasses.fields(self):
             if isinstance(getattr(self, f.name), Model):
-                prefix = f.name + self.separator
+                prefix = f.name + self._separator
                 submodel_prefixes[prefix] = f.name
 
         # 2. Sort current groups into "keep" (stay here) or "demote" (move to child)
@@ -1581,7 +1571,7 @@ class Model(eqx.Module):
                     new_param = param.with_distribution(map_fn(param.distribution))
                     mapped_model = mapped_model.with_params({name: new_param})
                     
-        return mapped_model
+        return mapped_model 
     
     # ---- Field and model manipulation --------------------------------------------------            
     
@@ -1680,7 +1670,7 @@ class Model(eqx.Module):
             updated_child = child.with_submodel_fields(path[1:], *args, **kwargs)
 
         # Return a copy of 'self' with the new version of the child
-        return self.with_fields(**{target_key: updated_child})
+        return self.with_fields(**{target_key: updated_child})    
     
     def with_free_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> Self:
         """Free all parameters in the given submodels.
@@ -1733,7 +1723,118 @@ class Model(eqx.Module):
         Self
         """        
         model_param_names = self.param_names(submodels=submodels)
-        return self.with_fixed_params(model_param_names)        
+        return self.with_fixed_params(model_param_names)
+    
+    def with_tied_submodels(
+        self: Self, 
+        submodel_attrs: str | Sequence[str], 
+        shared_model: 'Model'
+    ) -> Self:
+        """
+        Return a copy of the model with specified submodels structurally tied to a shared model.
+
+        This method prepares submodels to act as structural proxies during optimization. 
+        It prevents the optimizer from seeing duplicate free parameters by fixing the target 
+        submodel's parameters. If the target submodel's type matches the shared model, 
+        only the overlapping free parameters are fixed. If the types differ, the target 
+        submodel is entirely replaced by a fully fixed copy of the shared model.
+
+        This is typically used in `__post_init__` to set up the model structure, 
+        and paired with :meth:`with_injected_params` during the forward pass.
+
+        Parameters
+        ----------
+        submodel_attrs : str | Sequence[str]
+            The attribute name(s) of the internal submodel(s) to tie.
+        shared_model : Model
+            The external model to tie the submodels to.
+
+        Returns
+        -------
+        Self
+            A new model instance with the specified submodels tied.
+        """
+        if isinstance(submodel_attrs, str):
+            submodel_attrs = [submodel_attrs]
+            
+        modified_self = self
+        for attr in submodel_attrs:
+            current_submodel = getattr(modified_self, attr)
+            
+            # If types match, fix the target's parameters that match the shared model's FREE parameters
+            if isinstance(current_submodel, type(shared_model)):
+                shared_free_params = shared_model.param_names()
+                params_to_fix = [f"{attr}{modified_self._separator}{p}" for p in shared_free_params]
+                modified_self = modified_self.with_fixed_params(params_to_fix)
+            else:
+                # If types differ, completely replace the target with a fully fixed version of the shared model
+                modified_self = modified_self.with_fields(**{attr: shared_model.with_all_params_fixed()})
+                
+        return modified_self
+    
+    def tied(
+        self: Self, 
+        shared_model: 'Model'
+    ) -> 'Model':
+        """
+        Return the model with self structurally tied to a shared model.
+        
+        Same as `with_tied_submodels` but operates directly on self.
+
+        Parameters
+        ----------
+        shared_model : Model
+            The external model to tie the submodels to.
+
+        Returns
+        -------
+        Self
+            A new model instance with self tied to the specified model.
+        """
+        if isinstance(self, type(shared_model)):
+            return self.with_fixed_params(shared_model.param_names())
+        else:
+            return shared_model.with_all_params_fixed()
+
+    def with_injected_params(
+        self: Self, 
+        submodel_attrs: str | Sequence[str], 
+        shared_model: 'Model'
+    ) -> Self:
+        """
+        Return a copy of the model with free parameters from a shared model injected into target submodels.
+
+        This method dynamically overrides the parameter values of internal submodels 
+        using the values from an external shared model. It is designed to be called 
+        during the forward pass (e.g., inside `__call__`) to enforce hard equality 
+        constraints on parameters that were structurally tied using :meth:`with_tied_submodels`.
+
+        Parameters
+        ----------
+        submodel_attrs : str | Sequence[str]
+            The attribute name(s) of the internal submodel(s) to inject parameters into.
+        shared_model : Model
+            The external model providing the free parameter values.
+
+        Returns
+        -------
+        Self
+            A new model instance with the updated parameter values injected.
+        """
+            
+        if isinstance(submodel_attrs, str):
+            submodel_attrs = [submodel_attrs]
+            
+        modified_self = self
+        for attr in submodel_attrs:
+            # Prefix the shared model's free parameters with the target submodel's attribute name
+            injected_params = {
+                f"{attr}{modified_self._separator}{k}": v 
+                for k, v in shared_model.named_params().items()
+            }
+            modified_self = modified_self.with_params(injected_params)
+            
+        return modified_self    
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
@@ -1768,7 +1869,7 @@ class Model(eqx.Module):
             fname: fval,
             'frequency': measured_freq,
             'name': kwargs.get('name', self.name),
-            'z0': self._z0,
+            'z0': self.z0,
         })
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:

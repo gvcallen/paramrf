@@ -456,10 +456,6 @@ class BaseFitter(ABC):
                     func()
                     plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
                     plt.close()
-
-        model_metadata = results.fitted_model.metadata
-        model_metadata['fit_results'] = results
-        results.fitted_model = results.fitted_model.with_fields(metadata=model_metadata)
         
         return results
     

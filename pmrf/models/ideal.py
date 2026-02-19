@@ -20,6 +20,9 @@ class Port(Model):
             A matched load (`MATCH`).
         """
         return MATCH
+    
+def Ports(n: int) -> tuple[Port]:
+    return (Port() for _ in range(n))
 
 class Ground(Model):
     """

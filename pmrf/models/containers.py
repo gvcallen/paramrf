@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.models.ideal import Port
-from pmrf.rf_functions.connections import connect_s_arbitrary, cascade_a, cascade_s, terminate_a_in_s
+from pmrf.rf_functions.connections import connect_s_arbitrary, cascade_a, cascade_s, terminate_s_in_s
 from pmrf._util import field
 
 class Circuit(Model):
@@ -163,10 +163,12 @@ class Terminated(Model):
             raise Exception("Currently, Terminated only supports 2-port networks terminated in a 1-port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        Amat = self.model_from.a(freq)
-        Smat = self.model_into.s(freq)
-        z0 = self.model_into.z0
-        return terminate_a_in_s(Amat, Smat, z0)
+        Smat_from = self.model_from.s(freq)
+        z0_from = self.model_from.z0
+        Smat_into = self.model_into.s(freq)
+        z0_into = self.model_into.z0
+        S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
+        return S_term
         
 class Renumbered(Model):
     """

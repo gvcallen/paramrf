@@ -45,7 +45,7 @@ def terminate_s_in_s(
     S22 = Smat_from[:,1,1]
 
     gamma_in = S11 + (S12 * S21 * gamma_L) / (1 - S22 * gamma_L)
-    S_term = gamma_in.reshape(..., 1, 1)
+    S_term = gamma_in.reshape(-1, 1, 1)
     z0_term = z0_from[:,0]
     return S_term, z0_term
 
