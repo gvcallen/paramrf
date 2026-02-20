@@ -56,6 +56,8 @@ class Circuit(Model):
                     self.models.append(model)
                 model_idx = id_to_index[id(model)]
                 indexed_connection.append((model_idx, value))
+                if value > model.nports - 1:
+                    raise Exception(f"Port index out of bounds for model {model} in Circuit")
             self.indexed_connections.append(indexed_connection)
         for model in self.models:
             if isinstance(model, Port):

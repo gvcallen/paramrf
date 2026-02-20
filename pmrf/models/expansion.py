@@ -1,10 +1,6 @@
-from typing import Callable
-
 import jax.numpy as jnp
-import equinox as eqx
 
-from pmrf.frequency import Frequency
-from pmrf.models.abstract import Model, SingleProperty, SingleDiscreteProperty
+from pmrf.models.abstract import SingleDiscreteProperty
 from pmrf.parameters import Parameter
 
 
