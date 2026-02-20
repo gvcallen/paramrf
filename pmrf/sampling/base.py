@@ -77,6 +77,8 @@ class BaseSampler(ABC):
         self.sampled_features: jnp.ndarray = None
         self.feature_plotters: list[LivePlotter] = None
         
+        self.logger.info(f"Sampling model with {model.num_flat_params} flat params: {self.model.flat_param_names()}")
+        
         if self.output_path is not None:
             os.makedirs(self.output_path, exist_ok=True)
             
