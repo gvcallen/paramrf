@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 import jax
 import jax.random as jr
 import jax.numpy as jnp
-from typing import Callable
+from typing import Callable, Any
 
 from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import lhs_sample
+from pmrf._algorithms import has_converged
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
@@ -18,7 +19,8 @@ class AdaptiveSampler(BaseSampler, ABC):
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
         initial_models_factor: int | None = 10,
-        initial_models: list[Model] | int | None = None,        
+        initial_models: list[Model] | int | None = None,
+        converge_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], bool] | None = None, # params, features, frequency, and `key` is a key-word argument
         **kwargs,
     ):
         if initial_models_factor is not None and initial_models is not None:
@@ -27,6 +29,7 @@ class AdaptiveSampler(BaseSampler, ABC):
             initial_models = initial_models_factor * model.num_flat_params
         
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
+        self.validate_fn = converge_fn
 
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 

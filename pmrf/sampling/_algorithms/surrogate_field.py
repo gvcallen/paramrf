@@ -7,9 +7,8 @@ import equinox as eqx
 from pmrf.frequency import Frequency
 from pmrf.sampling._algorithms.field import FieldSampler
 from pmrf.models.model import Model
-from pmrf.rf_functions import mean_ax0, mag_2_db
+from pmrf.math_functions import mean_ax0, mag_2_db
 from pmrf.constants import ArrayFuncT
-from pmrf._algorithms import has_converged
 
 MEAN_ABSOLUTE_ERROR = [jnp.abs, mean_ax0, mean_ax0, mag_2_db]
 ROOT_MEAN_SQUARED_ERROR = [jnp.abs, jnp.sqrt, mean_ax0, mean_ax0, lambda x: x**2, mag_2_db]
@@ -27,8 +26,9 @@ class SurrogateFieldSampler(FieldSampler):
     def __init__(
         self,
         model: Model,
-        train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Model], # params, features, frequency, and `key` as a key-word argument
-        eval_fn: Callable[[Model, Frequency], float],
+        train_fn: Callable[[jnp.ndarray, jnp.ndarray], Model], # params, features, and `key=key`
+        eval_fn: Callable[[Model], float], # model and `key=key`
+        validate_fn: Callable[[jnp.ndarray, jnp.ndarray], float], # params, features, and `key=key`
         error_kind: str | None = None,
         error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
         *args,
@@ -40,7 +40,7 @@ class SurrogateFieldSampler(FieldSampler):
         def eval_fn_wrapper(surrogate: Model, theta: jnp.ndarray, frequency: Frequency, key=None) -> Model:
             surrogate = surrogate.with_params(theta)
             return eval_fn(surrogate, frequency, key=key)
-
+        
         error_kind = error_kind or error_kind or 'complex'
         features = kwargs.pop('features')
         
@@ -68,7 +68,7 @@ class SurrogateFieldSampler(FieldSampler):
         self.error_values = []
         self.surrogate_converged = False
         
-        return super().__init__(model=model, features=features, train_fn=train_fn, eval_fn=eval_fn_wrapper, *args, **kwargs)
+        return super().__init__(model=model, features=features, train_fn=train_fn, eval_fn=eval_fn_wrapper, validate_fn=validate_fn, *args, **kwargs)
     
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
         surrogate = self.field
@@ -79,15 +79,9 @@ class SurrogateFieldSampler(FieldSampler):
         if surrogate is None:
             raise Exception("Surrogate cannot be `None` for SurrogateSampler")
         
-        # Return if the field and surrogate have both converged.
-        if U_samples is None and self.surrogate_converged:
+        # Return if the sampling has converged.
+        if U_samples is None:
             return None
-        elif U_samples is None and not self.surrogate_converged:
-            # Try the worst field samples that would've been returned
-            self.logger.info("Surrogate has not yet converged. Continuing...")
-            U_samples = jnp.array([self.cumulative_distribution_fn(theta) for theta in self.all_field_thetas[-N:]])
-        elif U_samples is None and self.surrogate_converged:
-            self.logger.info("Field has not yet converged. Continuing...")
         
         # Compute the worst cost for the new samples
         theta_samples = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_samples])
@@ -112,7 +106,4 @@ class SurrogateFieldSampler(FieldSampler):
             error_str = error_str[0:len(error_str)-2]
             self.logger.info(f"Surrogate errors = [{error_str}]")
             
-        # Check if we have converged
-        # We only return None for the next round so that these samples still get added
-        self.surrogate_converged = has_converged(self.error_values, threshold=threshold, patience=patience)
         return U_samples

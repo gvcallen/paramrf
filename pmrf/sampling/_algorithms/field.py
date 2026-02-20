@@ -13,19 +13,20 @@ from pmrf._algorithms import has_converged
 
 class FieldSampler(AdaptiveSampler):
     """
-    Samples new points at the maxima of a scalar field.
+    Samples new points at the maxima of a learnt scalar field.
     
     At each iteration, the scalar field can first be "trained" using the current samples, and then "evaluated" at new input points.
     For example, this sampler can be used to train a surrogate model that is able to predict the current variance at new sample points.
-    Then, this sampler will choose new sample points where that variance is a maximum.
+    Then, new points will be chosen when the variance is a maximum.
     
-    Convergence is reached when the field maxima stops decreasing.
+    Convergence is reached when the field maxima or validation function value (if provided) stabilizes.
     """
     def __init__(
         self,
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any] | None, # params, features, frequency, and `key` is a key-word argument
         eval_fn: Callable[[Any, jnp.ndarray, Frequency], float],
+        validate_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], float], # params, features, frequency, and `key` as a key-word argument
         grid_sampler: BaseSampler | None = None,
         *args,
         **kwargs
@@ -38,6 +39,9 @@ class FieldSampler(AdaptiveSampler):
 
         self.train_fn = train_fn
         self.eval_fn = eval_fn
+        self.validate_fn = validate_fn
+        
+        self.validate_values = []
         self.field = None
         self.grid_sampler = grid_sampler
         self.worst_field_values = []
@@ -49,7 +53,7 @@ class FieldSampler(AdaptiveSampler):
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
         # Train the field
         key, field_key = jr.split(key)
-        self.field = self.train_fn(self.sampled_params, self.sampled_features, self.frequency, key=field_key)
+        self.field = self.train_fn(self.sampled_params, self.sampled_features, key=field_key)
 
         # Get the field thetas
         K = num_grid_per_dim * d # Or however you determine grid size
@@ -65,7 +69,7 @@ class FieldSampler(AdaptiveSampler):
         key, eval_key = jr.split(key)
         eval_keys = jr.split(eval_key, len(theta_grid))
         def eval_theta_fn(theta, k) -> float:
-            return self.eval_fn(self.field, theta, self.frequency, key=k)        
+            return self.eval_fn(self.field, theta, key=k)        
         grid_field = jax.vmap(eval_theta_fn)(theta_grid, eval_keys)
 
         # Select N Diverse Points
@@ -85,15 +89,17 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if self.converge_fn is None:
-            key, converged_key = jr.split(key, 2)
-            converged = self.converge_fn(self.sampled_params, self.sampled_features, self.frequency, key=converged_key)
+        if self.validate_fn is None:
+            key, validate_key = jr.split(key, 2)
+            validate_val = self.validate_fn(self.sampled_params, self.sampled_features, key=validate_key)
+            self.validate_values.append(validate_val)
+            converged = has_converged(self.validate_values, threshold=threshold, patience=patience)
         else:
             converged = has_converged(self.worst_field_values, threshold=threshold, patience=patience)
+        
+        # Return the next hypercube samples (U-space)
         if converged:
             return None
-
-        # Return the next hypercube samples (U-space)
         return jnp.array([self.cumulative_distribution_fn(theta) for theta in selected_field_thetas])
     
     def _select_field_thetas(self, N: int, thetas: jnp.ndarray, values: jnp.ndarray) -> jnp.ndarray:
