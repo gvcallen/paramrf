@@ -89,7 +89,7 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if self.validate_fn is None:
+        if self.validate_fn is not None:
             key, validate_key = jr.split(key, 2)
             validate_val = self.validate_fn(self.sampled_params, self.sampled_features, key=validate_key)
             self.validate_values.append(validate_val)
@@ -131,7 +131,7 @@ class FieldSampler(AdaptiveSampler):
         v_max = jnp.max(values)
         # If the field is flat, just return the first N
         if v_max == v_min:
-            return thetas[:N]
+            return thetas[:N], values[:N]
             
         # Work with a copy of scores that we can modify
         scores = (values - v_min) / (v_max - v_min)
