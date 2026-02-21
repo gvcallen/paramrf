@@ -2,14 +2,12 @@ from abc import ABC, abstractmethod
 import jax
 import jax.random as jr
 import jax.numpy as jnp
-from typing import Callable, Any
 
 from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
 from pmrf._util import lhs_sample
-from pmrf._algorithms import has_converged
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(

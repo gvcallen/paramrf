@@ -76,6 +76,7 @@ class BaseSampler(ABC):
         self.sampled_params: jnp.ndarray = None
         self.sampled_features: jnp.ndarray = None
         self.feature_plotters: list[LivePlotter] = None
+        self.convergence_plotter: LivePlotter = LivePlotter("Convergence", "Iteration", "Loss")
         
         self.logger.info(f"Sampling model with {model.num_flat_params} flat params: {self.model.flat_param_names()}")
         

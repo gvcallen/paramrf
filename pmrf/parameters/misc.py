@@ -2,7 +2,7 @@ from typing import Sequence
 
 import jax.numpy as jnp
 
-from pmrf.parameters.parameter import Parameter
+from pmrf.parameters.parameter import Parameter, _stack_vectorized_distributions
 
 def Fixed(value, n: int | None = None, **kwargs) -> Parameter:
     r"""

@@ -93,9 +93,13 @@ class FieldSampler(AdaptiveSampler):
             key, validate_key = jr.split(key, 2)
             validate_val = self.validate_fn(self.sampled_params, self.sampled_features, key=validate_key)
             self.validate_values.append(validate_val)
+            converge_val = float(self.validate_values[-1])
             converged = has_converged(self.validate_values, threshold=threshold, patience=patience)
         else:
+            converge_val = float(self.worst_field_values[-1])
             converged = has_converged(self.worst_field_values, threshold=threshold, patience=patience)
+
+        self.convergence_plotter.add_point("Convergence", converge_val)
         
         # Return the next hypercube samples (U-space)
         if converged:
