@@ -59,6 +59,7 @@ class AdaptiveSampler(BaseSampler, ABC):
             
             if U_next is None:
                 self.logger.info("Sampling converged.")
+                break
                 
             thetas = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_next])
             num_samples = len(thetas)

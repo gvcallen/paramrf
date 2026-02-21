@@ -50,7 +50,7 @@ class FieldSampler(AdaptiveSampler):
         
         return super().__init__(model=model, *args, **kwargs)
 
-    def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=10, num_grid_per_dim=1024) -> jnp.ndarray | None:
+    def _generate(self, N: int, d: int, *, rtol=0.01, atol=None, patience=5, window=5, num_grid_per_dim=1024, key=None) -> jnp.ndarray | None:
         # Train the field
         key, field_key = jr.split(key)
         self.field = self.train_fn(self.sampled_params, self.sampled_features, key=field_key)
@@ -94,10 +94,10 @@ class FieldSampler(AdaptiveSampler):
             validate_val = self.validate_fn(self.sampled_params, self.sampled_features, key=validate_key)
             self.validate_values.append(validate_val)
             converge_val = float(self.validate_values[-1])
-            converged = has_converged(self.validate_values, threshold=threshold, patience=patience)
+            converged = has_converged(self.validate_values, rtol=rtol, atol=atol, patience=patience, window=window)
         else:
             converge_val = float(self.worst_field_values[-1])
-            converged = has_converged(self.worst_field_values, threshold=threshold, patience=patience)
+            converged = has_converged(self.worst_field_values, rtol=rtol, atol=atol, patience=patience, window=window)
 
         self.convergence_plotter.add_point("Convergence", converge_val)
         
