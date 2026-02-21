@@ -58,7 +58,7 @@ class AdaptiveSampler(BaseSampler, ABC):
             U_next = self._generate(batch_size, d, key=generate_key, **kwargs)
             
             if U_next is None:
-                break
+                self.logger.info("Sampling converged.")
                 
             thetas = jnp.array([self.inverse_cumulative_distribution_fn(u) for u in U_next])
             num_samples = len(thetas)

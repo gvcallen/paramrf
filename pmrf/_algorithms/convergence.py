@@ -7,9 +7,9 @@ def has_converged_by_threshold(values, threshold):
     Check if an array has converged by reaching below a threshold.
     """
     values = jnp.array(values)
-    return values[-1] > threshold
+    return values[-1] < threshold
 
-def has_converged_by_patience(values, patience):
+def has_converged_by_patience(values, patience, iqr_factor=1.5, relative_epsilon=0.05):
     """
     Check if an array has converged by no improvement over a recent window.
     """
@@ -20,7 +20,7 @@ def has_converged_by_patience(values, patience):
     
     # We don't allow patience convergance if there are any recent sudden changes
     spike_start_idx = len(values) - (2 * patience + 1)
-    if has_sudden_changes(values[spike_start_idx:], window=patience, downwards=False):
+    if has_sudden_changes(values[spike_start_idx:], window=patience, downwards=False, iqr_factor=iqr_factor, relative_epsilon=relative_epsilon):
         return False
 
     # Check if our value is better than the best in window.
