@@ -1,5 +1,11 @@
+import secrets
 import jax
 import jax.numpy as jnp
+
+def generate_key() -> jnp.ndarray:
+    # Generate a random 32-bit integer using system entropy
+    random_seed = secrets.randbits(32)
+    return jax.random.key(random_seed)
 
 def lhs_sample(N: int, d: int, key=None) -> jnp.ndarray:
     key_perm, key_noise = jax.random.split(key)

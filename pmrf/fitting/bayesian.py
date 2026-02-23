@@ -226,7 +226,7 @@ class BayesianContext(FitContext):
             log_likelihood_fn = lambda x: float(log_likelihood_fn_jax(jnp.array(x)))
             x0 = np.array(x0)
             
-        self.logger.info(f"Compiling likelihood function...")
+        self.logger.info(f"Compiling models...")
         _log_likelihood = log_likelihood_fn(x0)
 
         return log_likelihood_fn

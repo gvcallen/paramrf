@@ -448,14 +448,17 @@ class BaseFitter(ABC):
         
             if plot is not None:
                 self.logger.info(f'Plotting S-parameters...')
-                figure_path = f'{output_path}/{figure_subfolder}' if figure_subfolder is not None else output_path
-                figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
-                Path(figure_path).resolve().mkdir(parents=True, exist_ok=True)
+                if output_path is not None:
+                    figure_path = f'{output_path}/{figure_subfolder}' if figure_subfolder is not None else output_path
+                    figure_prefix = f'{figure_path}/{context.output_root}_' if context.output_root is not None else f'{figure_path}/'
+                    Path(figure_path).resolve().mkdir(parents=True, exist_ok=True)
+                else:
+                    figure_path = None
                 for plot_feature in plot:
                     func = getattr(results, f'plot_{plot_feature}')
                     func()
-                    plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
-                    plt.close()
+                    if figure_path is not None:
+                        plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
         
         return results
     

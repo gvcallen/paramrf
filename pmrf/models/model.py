@@ -1141,7 +1141,6 @@ class Model(eqx.Module):
         # Deal with the sample case i.e. an array-like object
         if not isinstance(params, dict) and len(param_kwargs) == 0:
             params = jnp.array(params)
-
             if params.shape[0] != self.num_flat_params:
                 raise Exception(f'Expected {self.num_flat_params} flat parameters but was passed {params.shape[0]}')
             params_tree, static = self.partition(include_fixed=include_fixed)

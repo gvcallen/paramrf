@@ -70,7 +70,7 @@ class FrequentistContext(FitContext):
             x0_np = np.array(x0_jax)
             x0 = x0_np
             
-        self.logger.info(f"Compiling cost function...")
+        self.logger.info(f"Compiling models...")
         _cost_val = cost_fn(x0)
         return cost_fn
     
@@ -173,24 +173,23 @@ class FrequentistFitter(BaseFitter):
         cost_kind = cost_kind or self.cost_kind or 'convolutional'
         cost_function = cost_function or self.cost_function
         
-        default_features = None
-        default_cost = None
-        if cost_kind == 'convolutional':
-            default_features = ['s', 's_mag']
-            default_cost = CONVOLUTIONAL_COST
-        elif cost_kind == 'complex':
-            default_features = ['s']
-            default_cost = L2_COST
-        elif cost_kind == 'magnitude':
-            default_features = ['s_mag']
-            default_cost = L2_COST
-        elif cost_kind is not None:
-            raise Exception("Unknown cost kind alias passed to frequentist fitter")
-
         if features is None:
+            default_features = None
+            default_cost = None
+            if cost_kind == 'convolutional':
+                default_features = ['s', 's_mag']
+                default_cost = CONVOLUTIONAL_COST
+            elif cost_kind == 'complex':
+                default_features = ['s']
+                default_cost = L2_COST
+            elif cost_kind == 'magnitude':
+                default_features = ['s_mag']
+                default_cost = L2_COST
+            elif cost_kind is not None:
+                raise Exception("Unknown cost kind alias passed to frequentist fitter")
             features = default_features
-        if cost_function is None:
-            cost_function = default_cost        
+            if cost_function is None:
+                cost_function = default_cost
         
         base_ctx = super()._create_context(measured, features=features, **kwargs)
     

@@ -7,7 +7,7 @@ from pmrf.sampling.base import BaseSampler, SampleResults
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
-from pmrf._util import lhs_sample
+from pmrf._util import lhs_sample, generate_key, LivePlotter
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
@@ -29,14 +29,18 @@ class AdaptiveSampler(BaseSampler, ABC):
             raise Exception("Number of initial models must be at least 2")
         
         self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
+        self.convergence_plotter: LivePlotter = LivePlotter("Convergence", "Iteration", "Loss")        
 
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 
     def run(self, N: int | None = None, *, batch_size: int | None = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+        self.logger.info(f"Sampling {self.model.num_flat_params} parameters.")
+        self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
+        
         if batch_size is None:
             batch_size = 1
         if key is None:
-            raise Exception('Key needed for AdaptiveSampler')
+            key = generate_key()
         
         d = self.model.num_flat_params
         if isinstance(self.initial_models, int):

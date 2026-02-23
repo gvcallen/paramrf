@@ -59,7 +59,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
     """
     SciPy Minimize: Classical optimization using ``scipy.optimize.minimize``.
     """
-    def _run_algorithm(self, ctx: FrequentistContext, *, optimizer='SLSQP', max_iterations=None, log_every=500, **kwargs) -> FrequentistResults:
+    def _run_algorithm(self, ctx: FrequentistContext, *, optimizer='SLSQP', max_iterations=None, show_progress=True, **kwargs) -> FrequentistResults:
         """
         Executes the optimization using SciPy.
 
@@ -71,8 +71,8 @@ class SciPyMinimizeFitter(FrequentistFitter):
             The name of the SciPy optimizer method to use (e.g., 'SLSQP', 'Nelder-Mead', 'BFGS').
         max_iterations : int, optional, default=None
             The maximum number of iterations allowed for the optimizer.
-        log_every : int, optional, default=500
-            The interval (in function evaluations) at which to log the current cost.
+        show_progress : bool, optional, default=True
+            Whether to display a tqdm progress bar tracking function evaluations.
         **kwargs
             Additional keyword arguments passed directly to `scipy.optimize.minimize`.
 
@@ -87,6 +87,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
             If the initial model parameters (`x0`) are outside the defined bounds.
         """
         from scipy.optimize import minimize, Bounds
+        from tqdm.auto import tqdm  # Using auto so it renders nicely in notebooks or terminals
 
         kwargs.setdefault('method', optimizer)
         
@@ -111,28 +112,32 @@ class SciPyMinimizeFitter(FrequentistFitter):
             bad_param_report = "\n".join(bad_params)
             raise Exception(f"Bad prior bounds:\n{bad_param_report}")
         
-        # Define a wrapper function compatible with SciPy's interface
         cost_fn = ctx.make_cost_function(as_numpy=True)
-        def cost_scipy_fn(x, callback_args):
-            cost = cost_fn(x)
-            i = callback_args['fevel']
-            if i % log_every == 0:
-                self.logger.info(f"fevel = {i}, cost = {cost:.2f}")
-            callback_args['fevel'] += 1
-            return cost
         
         options = kwargs.get('options', {})
         if max_iterations is not None:
             options.setdefault('maxiter', max_iterations)
         kwargs['options'] = options
 
-        callback_args = {'fevel': 0}
         self.logger.info(f"Using scipy-minimize-{kwargs.get('method', 'default')}")
-        scipy_result = minimize(cost_scipy_fn, x0, args=(callback_args,), bounds=bounds, **kwargs)
-        self.logger.info(f"fevel = {callback_args['fevel']}, cost = {scipy_result.fun:.2f}")
-        self.logger.info(f"Optimization finished: {scipy_result.message}")
+
+        # Execute optimization within a tqdm context
+        with tqdm(desc="Optimizing", unit=" eval", disable=not show_progress) as pbar:
+            def cost_scipy_fn(x):
+                cost = cost_fn(x)
+                pbar.update(1)
+                pbar.set_postfix({'cost': f"{cost:.4f}"})
+                return cost
+                
+            scipy_result = minimize(cost_scipy_fn, x0, bounds=bounds, **kwargs)
+            
+            # Optional: ensure the progress bar reflects the final cost cleanly
+            pbar.set_postfix({'cost': f"{scipy_result.fun:.4f}"})
+
+        self.logger.info(f"Optimization finished: {scipy_result.message} (Cost: {scipy_result.fun:.2f}, Evals: {scipy_result.nfev})")
         
         # Reconstruct the final model with optimized parameters
         fitted_model = ctx.model.with_params(scipy_result.x)
         
+        # Note: adjust the return type to match your original implementation if SciPyResults is an alias
         return SciPyResults(fitted_model=fitted_model, solver_results=scipy_result)
