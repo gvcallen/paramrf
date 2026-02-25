@@ -26,7 +26,7 @@ class FieldSampler(AdaptiveSampler):
         model: Model,
         train_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], Any] | None, # params, features, frequency, and `key` is a key-word argument
         eval_fn: Callable[[Any, jnp.ndarray, Frequency], float],
-        validate_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], float], # params, features, frequency, and `key` as a key-word argument
+        convergence_fn: Callable[[jnp.ndarray, jnp.ndarray, Frequency], float], # params, features, frequency, and `key` as a key-word argument
         grid_sampler: BaseSampler | None = None,
         *args,
         **kwargs
@@ -39,9 +39,9 @@ class FieldSampler(AdaptiveSampler):
 
         self.train_fn = train_fn
         self.eval_fn = eval_fn
-        self.validate_fn = validate_fn
+        self.convergence_fn = convergence_fn
         
-        self.validate_values = []
+        self.converge_values = []
         self.field = None
         self.grid_sampler = grid_sampler
         self.worst_field_values = []
@@ -89,12 +89,11 @@ class FieldSampler(AdaptiveSampler):
             self.logger.info(f"Field maxima = [{value_str}]")
         
         # Check for convergence
-        if self.validate_fn is not None:
+        if self.convergence_fn is not None:
             key, validate_key = jr.split(key, 2)
-            validate_val = self.validate_fn(self.sampled_params, self.sampled_features, key=validate_key)
-            self.validate_values.append(validate_val)
-            converge_val = float(self.validate_values[-1])
-            converged = has_converged(self.validate_values, rtol=rtol, atol=atol, patience=patience, window=window)
+            converge_val = self.convergence_fn(self.sampled_params, self.sampled_features, key=validate_key)
+            self.converge_values.append(converge_val)
+            converged = has_converged(self.converge_values, rtol=rtol, atol=atol, patience=patience, window=window)
         else:
             converge_val = float(self.worst_field_values[-1])
             converged = has_converged(self.worst_field_values, rtol=rtol, atol=atol, patience=patience, window=window)
