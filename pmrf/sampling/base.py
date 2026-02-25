@@ -110,7 +110,7 @@ class BaseSampler(ABC):
             
             for i, feature_name in enumerate(plot):
                 if i >= len(self.feature_plotters):
-                    self.feature_plotters.append(LivePlotter(title=f"{feature_name}", xlabel=f"Frequency ({self.frequency.unit})", ylabel=f"{p}"))
+                    self.feature_plotters.append(LivePlotter(title=f"{feature_name}", xlabel=f"Frequency ({self.frequency.unit})", ylabel=f"{feature_name}"))
                 plotter = self.feature_plotters[i]
             
                 new_plot_features = self.feature_fn(new_thetas, features=feature_name)
