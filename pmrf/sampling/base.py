@@ -114,7 +114,7 @@ class BaseSampler(ABC):
                 plotter = self.feature_plotters[i]
             
                 new_plot_features = self.feature_fn(new_thetas, features=feature_name)
-                for current_theta, current_feature in new_thetas, new_plot_features:
+                for current_theta, current_feature in zip(new_thetas, new_plot_features):
                     param_dict = dict(zip(self.model.flat_param_names(), current_theta.tolist()))
                     plotter.ax.set_title(f"{feature_name} (num_samples = {len(self.sampled_params)})")
                     plotter.add_curve(f"{param_dict}", y_values=jnp.real(current_feature), x_values=self.frequency.f_scaled)
