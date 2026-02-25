@@ -33,7 +33,7 @@ class AdaptiveSampler(BaseSampler, ABC):
 
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 
-    def run(self, N: int | None = None, *, batch_size: int | None = 1, max_iterations: int | None = None, key=None, plot=None, **kwargs) -> tuple[list[Model], SampleResults]:
+    def run(self, N: int | None = None, *, batch_size: int | None = 1, max_iterations: int | None = None, key=None, plot=None, return_models=True, **kwargs) -> tuple[list[Model], SampleResults]:
         self.logger.info(f"Sampling {self.model.num_flat_params} parameters.")
         self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
         
@@ -80,9 +80,18 @@ class AdaptiveSampler(BaseSampler, ABC):
         if max_iterations is not None and iteration == max_iterations:
             self.logger.warning("Maximum iterations were reached during adaptive sampling")
 
-        models = [self.model.with_params(theta) for theta in self.sampled_params]
+        models = None
+        if return_models:
+            models = [self.model.with_params(theta) for theta in self.sampled_params]
+        
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
-        return models, results
+        if self.output_path is not None:
+            results.save_hdf(f"{self.output_path}/sample_results.hdf5")
+        
+        if return_models:
+            return models, results
+        
+        return results
 
     @abstractmethod
     def _generate(self, N: int, d: int, *, key=None, **kwargs) -> jnp.ndarray:

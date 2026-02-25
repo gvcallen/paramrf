@@ -1,7 +1,5 @@
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
-from typing import Any
 import os
 from datetime import datetime
 
@@ -10,48 +8,11 @@ import jax
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model, wrap
-from pmrf.constants import FeatureInputT, FeatureT
+from pmrf.models.model import Model
+from pmrf.constants import FeatureInputT
 from pmrf.features import extract_features
 from pmrf._util import LivePlotter
-
-@dataclass
-class SampleSettings:
-    """
-    Configuration settings for the sampling process.
-
-    Attributes
-    ----------
-    frequency : Frequency or None
-        The frequency grid used for the feature extraction.
-    features : list of FeatureT or None
-        The list of features extracted for during sampling.
-    """
-    frequency: Frequency | None = None
-    features: list[FeatureT] | None = None
-
-@dataclass
-class SampleResults:
-    """
-    Container for the results of a model sampling process.
-    
-    Attributes
-    ----------
-    initial_model : Model or None
-        The model with the initial parameters.
-    sampled_models : list[Model] or None
-        The sampled models.
-    algorithm_results : Any
-        The raw result object returned by the sampling backend/algorithm.
-    settings : FitSettings or None
-        The configuration used to execute the fit.
-    """    
-    initial_model: Model | None = None
-    sampled_models: list[Model] | None = None
-    sampled_params: jnp.ndarray | None = None
-    sampled_features: jnp.ndarray | None = None
-    backened_results: Any = None
-    settings: SampleSettings | None = None
+from pmrf.sampling.results import SampleResults, SampleSettings
 
 class BaseSampler(ABC):
     def __init__(

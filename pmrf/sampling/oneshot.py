@@ -30,6 +30,9 @@ class OneshotSampler(BaseSampler, ABC):
         # models = [eqx.combine(model_with_params(theta), static) for theta in thetas]
         # models = [self.model.with_params(theta) for theta in thetas]
         results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
+        
+        if self.output_path is not None:
+            results.save_hdf(f"{self.output_path}/sample_results.hdf5")
 
         if return_models:
             return models, results
