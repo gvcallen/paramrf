@@ -16,14 +16,14 @@ class AdaptiveSampler(BaseSampler, ABC):
         *,
         frequency: Frequency | None = None,
         features: FeatureInputT | None = None,
-        initial_models_factor: int | None = 10,
+        initial_factor: int | None = 10,
         initial_models: list[Model] | int | None = None,
         **kwargs,
     ):
-        if initial_models_factor is not None and initial_models is not None:
+        if initial_factor is not None and initial_models is not None:
             raise Exception("Cannot pass both initial_models_factor and initial_models to AdaptiveSampler")
-        if initial_models_factor is not None:
-            initial_models = initial_models_factor * model.num_flat_params
+        if initial_factor is not None:
+            initial_models = initial_factor * model.num_flat_params
             
         if isinstance(initial_models, int) and initial_models < 2:
             raise Exception("Number of initial models must be at least 2")

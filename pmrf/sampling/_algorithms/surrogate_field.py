@@ -68,7 +68,7 @@ class SurrogateFieldSampler(FieldSampler):
         self.error_values = []
         self.surrogate_converged = False
         
-        return super().__init__(model=model, features=features, train_fn=train_fn, eval_fn=eval_fn_wrapper, validate_fn=validate_fn, *args, **kwargs)
+        return super().__init__(model=model, features=features, train_fn=train_fn, eval_fn=eval_fn_wrapper, convergence_fn=validate_fn, *args, **kwargs)
     
     def _generate(self, N: int, d: int, *, key=None, threshold=None, patience=5, **kwargs) -> jnp.ndarray | None:
         surrogate = self.field
