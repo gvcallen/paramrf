@@ -2,7 +2,6 @@ from abc import abstractmethod
 
 import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
-from dataclasses import fields
 
 from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.rf_functions.conversions import renormalize_s
@@ -12,7 +11,7 @@ from pmrf.models.model import Model
 
 class TLine(Model):
     length: Parameter = 1.0
-
+    
 class RLGCLine(TLine):
     """
     An abstract base class for a transmission line defined by its per-unit-length
@@ -25,8 +24,8 @@ class RLGCLine(TLine):
     Derived classes must implement the `rlgc` method, which defines how the
     four distributed parameters (R, L, G, C) behave as a function of frequency.
     """
-    floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)
-
+    floating: bool = False # ports 0 (+) and 2 (-) form a terminal pair, as well as ports 1 (+) and 3 (-)    
+    
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """

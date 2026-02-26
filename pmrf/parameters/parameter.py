@@ -1,11 +1,13 @@
 import json
 import dataclasses
+from copy import deepcopy
 
 import jax.numpy as jnp
 import equinox as eqx
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
+from pmrf.distributions import NormalDistribution, UniformDistribution
 from pmrf.distributions.stacked import StackedDistribution
 from pmrf._util import field
 
@@ -92,7 +94,7 @@ class Parameter(eqx.Module):
         return self.value.size
     
     @property
-    def min(self) -> jnp.array:
+    def min(self) -> jnp.ndarray:
         r"""
         The unscaled minimum value of the parameter's distribution.
 
@@ -100,7 +102,7 @@ class Parameter(eqx.Module):
 
         Returns
         -------
-        jnp.array
+        jnp.ndarray
             The minimum value, or -inf if no distribution is set.
         """
         if self.distribution is not None:
@@ -114,7 +116,7 @@ class Parameter(eqx.Module):
         return jnp.full(self.shape, -jnp.inf)
     
     @property
-    def max(self) -> jnp.array:
+    def max(self) -> jnp.ndarray:
         r"""
         The unscaled maximum value of the parameter's distribution.
         
@@ -122,7 +124,7 @@ class Parameter(eqx.Module):
 
         Returns
         -------
-        jnp.array
+        jnp.ndarray
             The maximum value, or inf if no distribution is set.
         """
         if self.distribution is not None:
@@ -135,13 +137,28 @@ class Parameter(eqx.Module):
             return jnp.inf
         return jnp.full(self.shape, jnp.inf)
     
-    def with_value(self, value: jnp.array) -> 'Parameter':
+    @property
+    def mean(self) -> jnp.ndarray:
+        r"""
+        The unscaled mean value of the parameter's distribution.
+        
+        Returns
+        -------
+        jnp.ndarray
+            The mean value, or the current value if no distribution is set.
+        """
+        if self.distribution is not None:
+            return self.distribution.mean
+            
+        return self.value
+    
+    def with_value(self, value: jnp.ndarray) -> 'Parameter':
         r"""
         Return a copy of the parameter with a new unscaled value.
 
         Parameters
         ----------
-        value : jnp.array
+        value : jnp.ndarray
             The new unscaled value to set.
 
         Returns
@@ -150,6 +167,31 @@ class Parameter(eqx.Module):
             A copy of this object with ``value`` replaced.
         """
         return dataclasses.replace(self, value=value)
+
+    def shifted(self, amount: jnp.ndarray) -> 'Parameter':
+        r"""
+        Returns a copy of this parameter with its mean shifted by an amonut.
+
+        Parameters
+        ----------
+        amount : jnp.ndarray
+            The amount to shift by. Can be positive or negative.
+
+        Returns
+        -------
+        Parameter
+            A copy of this object with ``value`` replaced.
+        """
+        new_value = self.value + amount
+        new_distribution = deepcopy(self.distribution)
+        if isinstance(new_distribution, UniformDistribution):
+            new_distribution.low += amount
+            new_distribution.high += amount
+        elif isinstance(new_distribution, NormalDistribution):
+            new_distribution.loc += amount
+        else:
+            raise Exception("Can only call 'shifted' on a normal or uniform parameter")
+        return dataclasses.replace(self, value=new_value, distribution=new_distribution)
     
     def with_distribution(self, distribution: Distribution) -> 'Parameter':
         r"""

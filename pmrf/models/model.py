@@ -8,6 +8,7 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 """
 
+import inspect
 from functools import partial
 from copy import deepcopy
 from typing import Callable, Sequence, Iterator, Self
@@ -165,6 +166,58 @@ class Model(eqx.Module):
             # Set final field
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, eqx.field(**field_kwargs))
+
+        # Automatically apply defaults when a subclass overrides __init__
+        if '__init__' in cls.__dict__:
+            user_init = cls.__dict__['__init__']
+            sig = inspect.signature(user_init)
+            accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+            
+            def wrapped_init(self, *args, **init_kwargs):
+                user_kwargs = {}
+                base_kwargs = {}
+                
+                # Separate arguments
+                for k, v in init_kwargs.items():
+                    if accepts_kwargs or k in sig.parameters:
+                        user_kwargs[k] = v
+                    else:
+                        base_kwargs[k] = v
+                
+                # 1. Apply base kwargs (name, z0)
+                for k, v in base_kwargs.items():
+                    object.__setattr__(self, k, v)
+                    
+                # 2. Run user init
+                user_init(self, *args, **user_kwargs)
+                
+                # 3. Apply defaults, default factories, and converters
+                for f in dataclasses.fields(cls):
+                    val = getattr(self, f.name, dataclasses.MISSING)
+                    
+                    # Fill missing values
+                    if val is dataclasses.MISSING:
+                        if f.default is not dataclasses.MISSING:
+                            val = f.default
+                        elif f.default_factory is not dataclasses.MISSING:
+                            val = f.default_factory()
+                    
+                    # Apply Equinox converters if they exist
+                    # Equinox hides converter functions inside the field metadata
+                    converter = f.metadata.get("converter") if hasattr(f, "metadata") else None
+                    if converter is not None and val is not dataclasses.MISSING:
+                        val = converter(val)
+                        
+                    # Save final value
+                    if val is not dataclasses.MISSING:
+                        object.__setattr__(self, f.name, val)
+                
+                # 4. Trigger __post_init__ if the user defined one
+                if hasattr(self, '__post_init__'):
+                    self.__post_init__()
+
+            update_wrapper(wrapped_init, user_init)
+            cls.__init__ = wrapped_init       
         
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
@@ -1575,7 +1628,7 @@ class Model(eqx.Module):
     # ---- Field and model manipulation --------------------------------------------------            
     
     @classmethod
-    def with_defaults(cls, *args, **kwargs) -> type['Model']:
+    def with_defaults(cls, *args, **kwargs) -> type[Self]:
         """Return this model type with default initialization arguments.
         
         This method is very useful in utilizing an existing model
