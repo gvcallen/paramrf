@@ -195,7 +195,7 @@ class BaseSampler(ABC):
         
         def general_feature_fn(theta):
             model = self.model.with_params(theta)
-            return extract_features(model, self.frequency, self.features)
+            return extract_features(model, self.frequency, features)
             
         if thetas.ndim > 1:
             feature_fn_final = jax.jit(jax.vmap(general_feature_fn))

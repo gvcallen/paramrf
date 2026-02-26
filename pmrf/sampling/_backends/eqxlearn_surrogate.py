@@ -65,12 +65,13 @@ class EqxLearnSurrogateSampler(FieldSampler):
             nonlocal cv
             
             X, y = preprocess(theta, features)
-            split_key, cv_key = jr.split(key)
+            key, split_key = jr.split(key)
             cv = cv(key=split_key)
             mae_db = lambda model, X, y: jnp.max(20*jnp.log10(mean_absolute_error(y, model.predict(X), axis=1)))
             
             # Run the validation
             self.logger.info(f"Validating surrogate model...")
+            key, cv_key = jr.split(key)
             results = cross_validate(surrogate, X, y, cv=cv, scoring=mae_db, return_loss=True, key=cv_key, **fit_kwargs)
             score, losses = jnp.mean(results['test_score']), results['loss']
             self.logger.info(f"Average error = {score:.2f} dB. Traing losses = {[round(float(loss), 2) for loss in losses]}")

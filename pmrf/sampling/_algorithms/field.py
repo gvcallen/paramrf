@@ -17,9 +17,9 @@ class FieldSampler(AdaptiveSampler):
     
     At each iteration, the scalar field can first be "trained" using the current samples, and then "evaluated" at new input points.
     For example, this sampler can be used to train a surrogate model that is able to predict the current variance at new sample points.
-    Then, new points will be chosen when the variance is a maximum.
+    Then, new points will be chosen where the variance is a maximum.
     
-    Convergence is reached when the field maxima or validation function value (if provided) stabilizes.
+    Convergence is reached when the field maxima or convergence function (if provided) stabilizes.
     """
     def __init__(
         self,
