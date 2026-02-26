@@ -8,7 +8,10 @@ from pmrf.models.ideal import Port
 from pmrf.rf_functions.connections import connect_s_arbitrary, cascade_a, cascade_s, terminate_s_in_s
 from pmrf._util import field
 
-class Circuit(Model):
+class Container(Model):
+    pass
+
+class Circuit(Container):
     """
     Represents an arbitrary circuit defined by component connections.
 
@@ -70,7 +73,7 @@ class Circuit(Model):
         Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
         return Scon
 
-class Cascade(Model):
+class Cascade(Container):
     """
     Represents a cascade, or series connection, of two or more `Model` objects.
 
@@ -115,7 +118,6 @@ class Cascade(Model):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-
     models: tuple[Model]
     
     def __post_init__(self):
@@ -142,7 +144,7 @@ class Cascade(Model):
         Scas, z0cas = cascade_s(Smats, z0s)
         return Scas
     
-class Terminated(Model):
+class Terminated(Container):
     """
     Represents one network terminated in another.
 
@@ -155,24 +157,24 @@ class Terminated(Model):
     model_into: Model
         The model to terminate into.
     """
-    model_from: Model
-    model_into: Model
+    from_model: Model
+    into_model: Model
     
     def __post_init__(self):
         self.name = 'terminated'
 
-        if self.model_from.nports != 2 or self.model_into.nports != 1:
+        if self.from_model.nports != 2 or self.into_model.nports != 1:
             raise Exception("Currently, Terminated only supports 2-port networks terminated in a 1-port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        Smat_from = self.model_from.s(freq)
-        z0_from = self.model_from.z0
-        Smat_into = self.model_into.s(freq)
-        z0_into = self.model_into.z0
+        Smat_from = self.from_model.s(freq)
+        z0_from = self.from_model.z0
+        Smat_into = self.into_model.s(freq)
+        z0_into = self.into_model.z0
         S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
         return S_term
         
-class Renumbered(Model):
+class Renumbered(Container):
     """
     A container that re-numbers the ports of a given `Model`.
 
@@ -183,23 +185,30 @@ class Renumbered(Model):
     ----------
     model : Model
         The underlying model to renumber.
-    to_ports : tuple[int]
-        The new port indices.
     from_ports : tuple[int]
         The original port indices that map to `to_ports`.
+    to_ports : tuple[int]
+        The new port indices. Can be `None`, in which case `from_ports`
+        must contain exactly two ports to be swapped.
     """
     model: Model
-    to_ports: tuple[int]
     from_ports: tuple[int]
+    to_ports: tuple[int] = None
 
     def __post_init__(self):
         self.name = 'renumbered'
         
         model = self.model
-        to_ports, from_ports = self.to_ports, self.from_ports
-
-        if model.primary_property == 'a' and len(from_ports) != 2 and len(to_ports) != 2:
+        if self.to_ports is None:
+            if len(self.from_ports) != 2:
+                raise Exception("from_ports must have length==2 if to_ports is None")
+            self.to_ports = (self.from_ports[1], self.from_ports[0])
+        
+        if model.primary_property == 'a' and len(self.from_ports) != 2 and len(self.to_ports) != 2:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")        
+        
+        if len(self.from_ports) != len(self.to_ports):
+            raise ValueError("from_ports and to_ports must have the same length for Renumbered")
 
     def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
         """
@@ -255,7 +264,7 @@ class Flipped(Renumbered):
 
         self.name = 'flipped'
         
-class Stacked(Model):
+class Stacked(Container):
     """
     A container that stacks multiple models in a block-diagonal fashion.
 

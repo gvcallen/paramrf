@@ -6,7 +6,7 @@ import numpyro.distributions as dist
 
 from pmrf.parameters.parameter import Parameter    
     
-def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int | None = None, value=None, **kwargs) -> Parameter:
+def Uniform(low: float | Sequence[float], high: float | Sequence[float], value=None, *, n: int | None = None, **kwargs) -> Parameter:
     r"""
     Create a `Parameter` with a uniform distribution.
 
@@ -16,10 +16,10 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
         The lower value of the distribution. Can be a sequence for a multi-valued Parameter.
     high : float | Sequence[float]
         The upper value of the distribution. Can be a sequence for a multi-valued Parameter.
-    n : int, optional
-        The number of identical parameters to create in an array. Defaults to None.
     value : optional
         The initial value. If None, the midpoint of the distribution is used. Defaults to None.
+    n : int, optional
+        The number of identical parameters to create in an array. Defaults to None.
     **kwargs
         Additional keyword arguments passed to the `Parameter` constructor.
 
@@ -41,7 +41,7 @@ def Uniform(low: float | Sequence[float], high: float | Sequence[float], n: int 
     values = (low + high) / 2.0 if value is None else value
     return Parameter(value=values, distribution=dists, **kwargs)
 
-def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float], **kwargs) -> Parameter:
+def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float], *args, **kwargs) -> Parameter:
     r"""
     Create a `Parameter` with a uniform distribution defined by a percentage width.
 
@@ -71,9 +71,9 @@ def PercentUniform(mean: float | Sequence[float], perc: float | Sequence[float],
         delta = jnp.array(perc) * jnp.array(mean) / 200.0
     else:
         delta = perc * jnp.array(mean) / 200.0
-    return Uniform(low=mean-delta, high=mean+delta, **kwargs)
+    return Uniform(mean-delta, mean+delta, *args, **kwargs)
 
-def RelativeUniform(mean: float | Sequence[float], deviation_fraction: float | Sequence[float], **kwargs) -> Parameter:
+def RelativeUniform(mean: float | Sequence[float], deviation_fraction: float | Sequence[float], *args, **kwargs) -> Parameter:
     r"""
     Create a `Parameter` with a uniform distribution defined by a fractional deviation.
 
@@ -100,9 +100,9 @@ def RelativeUniform(mean: float | Sequence[float], deviation_fraction: float | S
     # delta = 10% of mean
     delta = jnp.abs(mean_arr * frac_arr)
     
-    return Uniform(low=mean_arr - delta, high=mean_arr + delta, **kwargs)
+    return Uniform(mean_arr - delta, mean_arr + delta, *args, **kwargs)
 
-def CenteredUniform(mean: float | Sequence[float], half_width: float | Sequence[float], **kwargs) -> Parameter:
+def CenteredUniform(mean: float | Sequence[float], half_width: float | Sequence[float], *args, **kwargs) -> Parameter:
     r"""
     Create a `Parameter` with a uniform distribution.
 
@@ -127,4 +127,4 @@ def CenteredUniform(mean: float | Sequence[float], half_width: float | Sequence[
     low = mean - half_width
     high = mean + half_width
     
-    return Uniform(low, high, **kwargs)
+    return Uniform(low, high, *args, **kwargs)

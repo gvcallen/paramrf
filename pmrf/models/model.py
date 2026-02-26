@@ -307,24 +307,71 @@ class Model(eqx.Module):
         # A Pytree filter for all free Model `Parameter` objects.
         return jax.tree.map(lambda param, fit_spec: is_valid_param(param) and fit_spec.value, self, self._free_value_spec, is_leaf=lambda node: is_valid_param(node))               
     
-    def _path_to_param_name(self, path) -> str | list[str]:
+    def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
-        fields = []
+        from pmrf.models.containers import Container
 
-        for i, item in enumerate(path):
+        fields = []
+        node = self  # Start at the root of the tree
+
+        for item in path:
             if isinstance(item, GetAttrKey):
-                fields.append(item.name)
-            elif isinstance(item, DictKey):
-                fields.pop() # don't include the dict variable name in the path
-                fields.append(item.key)
-            elif isinstance(item, SequenceKey) or isinstance(item, FlattenedIndexKey):
-                # This code adds the ability for models to be named and their names used for the parameter name instead of the list variable name and index
-                value = value_at_path(self, path[:i+1])
-                if hasattr(value, 'name') and not value.name is None:
-                    fields.pop()
-                    fields.append(value.name)
+                k = item.name
+                next_node = getattr(node, k)
+                
+                # Check if the current node is a transparent container
+                if isinstance(node, Container):
+                    is_model = isinstance(next_node, Model)
+                    is_model_seq = (
+                        isinstance(next_node, (tuple, list)) 
+                        and len(next_node) > 0 
+                        and isinstance(next_node[0], Model)
+                    )
+                    
+                    if is_model:
+                        # FIX: If next_node is ALSO a container (e.g., nested Renumbered), 
+                        # stay silent. Only grab the name when we hit a real base Model.
+                        if not isinstance(next_node, Container):
+                            model_name = getattr(next_node, 'name', None)
+                            if model_name is not None:
+                                fields.append(model_name)
+                    
+                    elif is_model_seq:
+                        # Skip sequence fields like 'models'
+                        pass
+                        
+                    else:
+                        fields.append(k)
                 else:
-                    fields.append(str(item.idx))
+                    # Not a container, so always append the attribute name
+                    fields.append(k)
+                    
+                node = next_node  # Step down the tree
+                
+            elif isinstance(item, DictKey):
+                k = item.key
+                node = node[k]    # Step down the tree
+                fields.append(str(k))
+                
+            elif isinstance(item, (SequenceKey, FlattenedIndexKey)):
+                # Handle standard JAX keys safely
+                idx = item.idx if hasattr(item, 'idx') else item.key
+                node = node[idx]  # Step down the tree
+                
+                if isinstance(node, Model):
+                    # FIX: If the sequence item is a Container, stay silent. 
+                    # The inner GetAttrKey loop will catch the real submodel's name.
+                    if not isinstance(node, Container):
+                        model_name = getattr(node, 'name', None)
+                        if model_name is not None:
+                            fields.append(model_name)
+                        else:
+                            fields.append(str(idx))
+                else:
+                    fields.append(str(idx))
+            else:
+                raise Exception(f"Unsupported key type in path: {type(item)}")
+                    
         return self._separator.join(fields)
     
     def _with_stripped_metadata(self: Self) -> Self:
@@ -845,7 +892,7 @@ class Model(eqx.Module):
         
     # ---- Container model building --------------------------------------------------    
 
-    def flipped(self) -> 'Model':
+    def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
 
         Returns
@@ -855,9 +902,23 @@ class Model(eqx.Module):
         from pmrf.models.containers import Flipped
         if isinstance(self, Flipped):
             return self.model
-        return Flipped(self)
+        return Flipped(self, **kwargs)
+
+    def renumbered(self, from_ports: tuple[int], to_ports: tuple[int]= None, **kwargs) -> 'Model':
+        """Return a version of the model with ports renumbered.
+
+        from_ports : tuple[int]
+            The original port indices that map to `to_ports`.
+        to_ports : tuple[int]
+            The new port indices.
+        Returns
+        -------
+        Model
+        """
+        from pmrf.models.containers import Renumbered
+        return Renumbered(self, from_ports, to_ports, **kwargs)
     
-    def terminated(self, load: 'Model' = None) -> 'Model':
+    def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
         """Returns a new model that contains this 2-port model terminated in a 1-port load (default: SHORT).
 
         Parameters
@@ -872,7 +933,7 @@ class Model(eqx.Module):
         from pmrf.models.lumped import SHORT
         from pmrf.models.containers import Terminated
         load = load or SHORT
-        return Terminated(self, load)
+        return Terminated(self, load, **kwargs)
        
     # ---- Parameter inspection -------------------------------------------------- 
     
@@ -1687,6 +1748,12 @@ class Model(eqx.Module):
         Parameters are forwarded to :func:`dataclasses.replace`.
         """
         return dataclasses.replace(self, *args, **kwargs)
+    
+    def with_name(self: Self, name: str | None) -> Self:
+        """
+        Return a copy of this model with a different name.
+        """
+        return dataclasses.replace(self, name=name)
     
     def with_submodel_fields(self: Self, submodel: str | Sequence[str], *args, **kwargs) -> Self:
         """
