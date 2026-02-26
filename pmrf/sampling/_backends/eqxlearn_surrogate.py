@@ -62,9 +62,11 @@ class EqxLearnSurrogateSampler(FieldSampler):
         
         # Define the validation callback for convergence
         def validate(theta: jnp.ndarray, features: jnp.ndarray, key=None) -> float:
+            nonlocal cv
+            
             X, y = preprocess(theta, features)
             split_key, cv_key = jr.split(key)
-            cv = cv(split_key)
+            cv = cv(key=split_key)
             mae_db = lambda model, X, y: jnp.max(20*jnp.log10(mean_absolute_error(y, model.predict(X), axis=1)))
             
             # Run the validation
