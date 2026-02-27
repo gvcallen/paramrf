@@ -103,4 +103,4 @@ def RelativeNormal(mean: float | Sequence[float], std_fraction: float | Sequence
     # sigma = 10% of mean
     sigma = jnp.abs(mean_arr * frac_arr)
     
-    return Normal(loc=mean_arr, scale=sigma, **kwargs)
+    return Normal(mean=mean_arr, std=sigma, **kwargs)
