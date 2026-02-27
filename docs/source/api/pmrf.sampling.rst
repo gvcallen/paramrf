@@ -1,4 +1,4 @@
-pmrf.fitting
+pmrf.sampling
 ============
 
 The **sampling** module, with built-in sanmpling algorithms and results.
