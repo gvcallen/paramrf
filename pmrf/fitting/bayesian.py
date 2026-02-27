@@ -12,7 +12,7 @@ import numpyro.distributions as dist
 import matplotlib.pyplot as plt
 
 from pmrf.network_collection import NetworkCollection
-from pmrf._util import RANK, sync_across_all_ranks
+from pmrf.util import RANK, sync_across_all_ranks
 from pmrf.models import Model
 from pmrf.parameters import Parameter, ParameterGroup, Uniform
 from pmrf.distributions.trainable import TrainableDistributionT

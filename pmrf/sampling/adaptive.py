@@ -7,7 +7,7 @@ from pmrf.sampling.base import BaseSampler, SampleResults, SampleSettings
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
-from pmrf._util import lhs_sample, LivePlotter
+from pmrf.util import lhs_sample, LivePlotter
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(

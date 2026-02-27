@@ -47,7 +47,11 @@
       ~SciPyResults.decode_solver_results
       ~SciPyResults.encode_solver_results
       ~SciPyResults.load_hdf
+      ~SciPyResults.plot_feature
       ~SciPyResults.plot_s_db
+      ~SciPyResults.plot_s_deg
+      ~SciPyResults.plot_s_im
+      ~SciPyResults.plot_s_re
       ~SciPyResults.save_hdf
    
    

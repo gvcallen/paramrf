@@ -13,7 +13,6 @@
 
    .. autosummary::
    
-      ~BaseSampler.__class_getitem__
       ~BaseSampler.__delattr__
       ~BaseSampler.__dir__
       ~BaseSampler.__eq__
@@ -25,9 +24,7 @@
       ~BaseSampler.__hash__
       ~BaseSampler.__init__
       ~BaseSampler.__init_subclass__
-      ~BaseSampler.__iter__
       ~BaseSampler.__le__
-      ~BaseSampler.__len__
       ~BaseSampler.__lt__
       ~BaseSampler.__ne__
       ~BaseSampler.__new__
@@ -38,11 +35,11 @@
       ~BaseSampler.__sizeof__
       ~BaseSampler.__str__
       ~BaseSampler.__subclasshook__
-      ~BaseSampler._generate_hypercube_samples
-      ~BaseSampler._generate_params
-      ~BaseSampler.generate_features
-      ~BaseSampler.generate_models
-      ~BaseSampler.range
+      ~BaseSampler.add_samples
+      ~BaseSampler.cumulative_distribution_fn
+      ~BaseSampler.feature_fn
+      ~BaseSampler.inverse_cumulative_distribution_fn
+      ~BaseSampler.run
    
    
 
@@ -57,8 +54,6 @@
       ~BaseSampler.__dict__
       ~BaseSampler.__doc__
       ~BaseSampler.__module__
-      ~BaseSampler.__orig_bases__
-      ~BaseSampler.__parameters__
       ~BaseSampler.__slots__
       ~BaseSampler.__weakref__
       ~BaseSampler._abc_impl

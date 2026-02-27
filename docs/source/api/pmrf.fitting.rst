@@ -1,7 +1,7 @@
 pmrf.fitting
 ============
 
-The **fitting** module, with built-in fitting algorithms and results.
+The **fitting** module, with built-in fitting backends and results.
 
 All fitters accept the same base initialization arguments as :class:`BaseFitter <pmrf.fitting.BaseFitter>`.
 Additionally, fitters are categorized into either :class:`FrequentistFitter <pmrf.fitting.FrequentistFitter>` or :class:`BayesianFitter <pmrf.fitting.BayesianFitter>`,

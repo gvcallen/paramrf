@@ -47,7 +47,11 @@
       ~FitResults.decode_solver_results
       ~FitResults.encode_solver_results
       ~FitResults.load_hdf
+      ~FitResults.plot_feature
       ~FitResults.plot_s_db
+      ~FitResults.plot_s_deg
+      ~FitResults.plot_s_im
+      ~FitResults.plot_s_re
       ~FitResults.save_hdf
    
    

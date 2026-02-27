@@ -37,8 +37,8 @@ from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.parameter import JointParameterDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
-from pmrf._util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
-from pmrf._util.tree import nodes_by_type, value_at_path, partition, combine
+from pmrf.util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
+from pmrf.util.tree import nodes_by_type, value_at_path, partition, combine
 
 class Model(eqx.Module):
     """

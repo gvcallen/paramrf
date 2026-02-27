@@ -34,7 +34,7 @@
       ~BayesianContext.__sizeof__
       ~BayesianContext.__str__
       ~BayesianContext.__subclasshook__
-      ~BayesianContext.flat_param_names
+      ~BayesianContext.combined_param_names
       ~BayesianContext.likelihood_param_names
       ~BayesianContext.make_feature_function
       ~BayesianContext.make_gaussian_log_likelihood_fn

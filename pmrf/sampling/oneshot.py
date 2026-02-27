@@ -5,7 +5,7 @@ import equinox as eqx
 
 from pmrf.sampling.base import BaseSampler, SampleResults, SampleSettings
 from pmrf.models.model import Model
-from pmrf._util.random import generate_key
+from pmrf.util.random import generate_key
 
 class OneshotSampler(BaseSampler, ABC):
     """Generates a fixed number of samples in one go."""

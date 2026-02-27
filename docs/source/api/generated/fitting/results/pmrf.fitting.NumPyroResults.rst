@@ -46,9 +46,12 @@
       ~NumPyroResults._write_to_group
       ~NumPyroResults.decode_solver_results
       ~NumPyroResults.encode_solver_results
-      ~NumPyroResults.fit_posterior
       ~NumPyroResults.load_hdf
+      ~NumPyroResults.plot_feature
       ~NumPyroResults.plot_s_db
+      ~NumPyroResults.plot_s_deg
+      ~NumPyroResults.plot_s_im
+      ~NumPyroResults.plot_s_re
       ~NumPyroResults.posterior_samples
       ~NumPyroResults.prior_samples
       ~NumPyroResults.save_hdf

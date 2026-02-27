@@ -14,7 +14,7 @@ from pmrf.io import (
 )
 
 
-from pmrf._util import (
+from pmrf.util import (
     field,
 )
 

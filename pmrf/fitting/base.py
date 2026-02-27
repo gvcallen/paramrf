@@ -11,7 +11,7 @@ from skrf import Network
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf._util import LevelFilteredLogger, iter_submodules, RANK
+from pmrf.util import LevelFilteredLogger, iter_submodules, RANK
 from pmrf.frequency import Frequency
 from pmrf.constants import FeatureInputT
 from pmrf import extract_features

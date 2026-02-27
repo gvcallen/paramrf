@@ -8,5 +8,6 @@
 
    .. autosummary::
    
+      MargarineDistribution
       MargarineMAFDistribution
    

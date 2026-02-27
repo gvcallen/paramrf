@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.constants import FeatureT
-from pmrf._util import load_class_from_string
+from pmrf.util import load_class_from_string
 
 
 @dataclass

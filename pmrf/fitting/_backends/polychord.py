@@ -3,7 +3,7 @@ import numpy as np
 
 from pmrf.fitting.bayesian import BayesianFitter, BayesianContext
 from pmrf.fitting._backends.anesthetic import AnestheticResults
-from pmrf._util import time_string
+from pmrf.util import time_string
    
 class PolyChordFitter(BayesianFitter):
     """

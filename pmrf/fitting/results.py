@@ -10,7 +10,7 @@ import jsonpickle
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf._util import load_class_from_string
+from pmrf.util import load_class_from_string
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.constants import FeatureT

@@ -10,3 +10,5 @@ Functions exported at root.
 
    pmrf.wrap
    pmrf.extract_features
+   pmrf.math_functions
+   pmrf.rf_functions

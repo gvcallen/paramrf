@@ -46,9 +46,12 @@
       ~BayesianResults._write_to_group
       ~BayesianResults.decode_solver_results
       ~BayesianResults.encode_solver_results
-      ~BayesianResults.fit_posterior
       ~BayesianResults.load_hdf
+      ~BayesianResults.plot_feature
       ~BayesianResults.plot_s_db
+      ~BayesianResults.plot_s_deg
+      ~BayesianResults.plot_s_im
+      ~BayesianResults.plot_s_re
       ~BayesianResults.posterior_samples
       ~BayesianResults.prior_samples
       ~BayesianResults.save_hdf

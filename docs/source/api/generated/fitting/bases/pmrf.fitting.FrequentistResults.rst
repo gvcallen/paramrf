@@ -47,7 +47,11 @@
       ~FrequentistResults.decode_solver_results
       ~FrequentistResults.encode_solver_results
       ~FrequentistResults.load_hdf
+      ~FrequentistResults.plot_feature
       ~FrequentistResults.plot_s_db
+      ~FrequentistResults.plot_s_deg
+      ~FrequentistResults.plot_s_im
+      ~FrequentistResults.plot_s_re
       ~FrequentistResults.save_hdf
    
    

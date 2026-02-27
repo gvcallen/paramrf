@@ -8,8 +8,8 @@ from pmrf.frequency import Frequency
 from pmrf.sampling.base import BaseSampler
 from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
-from pmrf._util import lhs_sample
-from pmrf._algorithms import has_converged
+from pmrf.util import lhs_sample
+from pmrf.algorithms import has_converged
 
 class FieldSampler(AdaptiveSampler):
     """

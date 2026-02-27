@@ -11,7 +11,7 @@ from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.features import extract_features
-from pmrf._util import LivePlotter
+from pmrf.util import LivePlotter
 from pmrf.sampling.results import SampleResults, SampleSettings
 
 class BaseSampler(ABC):
