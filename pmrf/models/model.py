@@ -386,49 +386,113 @@ class Model(eqx.Module):
 
             # Case 1: It's an Equinox Module
             if isinstance(obj, Model):
-                # 1. Recursively clean all fields first
-                new_fields = {}
+                init_updates = {}
+                non_init_updates = {}
+                
+                # 1. Recursively clean fields and sort by init status
                 for field in dataclasses.fields(obj):
-                    # Skip metadata, we will overwrite it later
                     if field.name == '_metadata':
                         continue
                     
-                    # Recurse on the field's value
                     val = getattr(obj, field.name)
-                    new_fields[field.name] = strip_metadata_recursive(val, memo)
+                    processed_val = strip_metadata_recursive(val, memo)
+                    
+                    if field.init:
+                        init_updates[field.name] = processed_val
+                    else:
+                        non_init_updates[field.name] = processed_val
                 
-                # 2. Create the new instance with updated children
-                # using dataclasses.replace (standard) or obj.with_fields (your custom method)
-                new_obj = dataclasses.replace(obj, **new_fields)
+                # 2. Create the new instance using only init fields
+                new_obj = dataclasses.replace(obj, **init_updates)
                 
-                # 3. Clear the metadata for this specific module
+                # 3. Manually override non-init fields (bypassing the frozen state)
+                for k, v in non_init_updates.items():
+                    object.__setattr__(new_obj, k, v)
+                
+                # 4. Clear the metadata for this specific module safely
                 if hasattr(new_obj, '_metadata'):
-                    new_obj = dataclasses.replace(new_obj, _metadata=dict())
+                    object.__setattr__(new_obj, '_metadata', dict())
                     
                 memo[obj_id] = new_obj
                 return new_obj
 
-            # Case 2: It's a list/tuple (standard container)
+            # Case 2: Standard containers
             elif isinstance(obj, (list, tuple)):
-                # Reconstruct the list/tuple with cleaned items
                 new_obj = type(obj)(strip_metadata_recursive(x, memo) for x in obj)
                 memo[obj_id] = new_obj
                 return new_obj
 
-            # Case 3: It's a dict
             elif isinstance(obj, dict):
                 new_obj = {k: strip_metadata_recursive(v, memo) for k, v in obj.items()}
                 memo[obj_id] = new_obj
                 return new_obj
 
-            # Case 4: It's a leaf (int, string, array, etc.) - leave as is
+            # Case 3: Leaf nodes
             else:
                 return obj
             
         return strip_metadata_recursive(self)
     
     def _saveable(self: Self) -> Self:
-        return self._with_stripped_metadata()
+        def strip_unsaveable_recursive(obj, memo=None):
+            if memo is None:
+                memo = {}
+            
+            obj_id = id(obj)
+            if obj_id in memo:
+                return memo[obj_id]
+
+            # Case 1: It's an Equinox Module
+            if isinstance(obj, Model):
+                init_updates = {}
+                non_init_updates = {}
+                
+                for f in dataclasses.fields(obj):
+                    # Check for our custom saveable flag
+                    if f.metadata.get("saveable", True) is False:
+                        if f.default is not dataclasses.MISSING:
+                            new_val = f.default
+                        elif f.default_factory is not dataclasses.MISSING:
+                            new_val = f.default_factory()
+                        else:
+                            new_val = None
+                    else:
+                        val = getattr(obj, f.name)
+                        new_val = strip_unsaveable_recursive(val, memo)
+                        
+                    # Sort updates by init status
+                    if f.init:
+                        init_updates[f.name] = new_val
+                    else:
+                        non_init_updates[f.name] = new_val
+                
+                # Replace init fields
+                new_obj = dataclasses.replace(obj, **init_updates)
+                
+                # Override non-init fields
+                for k, v in non_init_updates.items():
+                    object.__setattr__(new_obj, k, v)
+
+                memo[obj_id] = new_obj
+                return new_obj
+
+            # Case 2: Standard containers
+            elif isinstance(obj, (list, tuple)):
+                new_obj = type(obj)(strip_unsaveable_recursive(x, memo) for x in obj)
+                memo[obj_id] = new_obj
+                return new_obj
+
+            elif isinstance(obj, dict):
+                new_obj = {k: strip_unsaveable_recursive(v, memo) for k, v in obj.items()}
+                memo[obj_id] = new_obj
+                return new_obj
+
+            # Case 3: Leaf nodes
+            else:
+                return obj
+
+        clean_model = strip_unsaveable_recursive(self)
+        return clean_model._with_stripped_metadata()
     
     def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
         """Partition model into (parameters, static) trees.
@@ -2062,15 +2126,8 @@ class Model(eqx.Module):
         filepath : str
             Destination file path.
         """
-        model_save = self._saveable()
-
-        data = jsonpickle.encode(model_save)
-        
-        if isinstance(target, (str, os.PathLike)):
-            with open(target, "w", encoding="utf8") as f:
-                f.write(data)
-        else:
-            target.write(data)
+        from pmrf.io import save
+        return save(target, self)
             
     @classmethod
     def load(cls, source: str | BinaryIO) -> Self:
@@ -2087,13 +2144,8 @@ class Model(eqx.Module):
         -------
         Self
         """        
-        if isinstance(source, (str, os.PathLike)):
-            with open(source, "r", encoding="utf8") as f:
-                data = f.read()
-        else:
-            data = source.read()
-
-        return jsonpickle.decode(data)
+        from pmrf.io import load
+        return load(source)
     
     def export_touchstone(self, filename: str, frequency: Frequency | skrf.Frequency, sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.
