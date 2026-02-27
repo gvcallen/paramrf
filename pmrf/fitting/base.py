@@ -177,7 +177,7 @@ class BaseFitter(ABC):
                 fitted_model.save(f'{self.output_path}/fitted_{name}.prf')
             self.logger.info(f'Saving combined results...')
             if kwargs.get('save_results', True):
-                fit_results.save_hdf(f'{self.output_path}/results.hdf5')
+                fit_results.save_hdf(f'{self.output_path}/fit_results.hdf5')
 
         return fit_results.fitted_model, fit_results
 
@@ -273,7 +273,7 @@ class BaseFitter(ABC):
             The fitting context.
         load_previous : bool, default=True
             Whether or not to try and load previous results from the output path.
-        new_uniform_frac : float or None, optional, default=0.01
+        new_uniform_frac : float or None, optional, default=0.1
             The fraction to update model distribution bounds uniformly around the fitted model values.
         save_model : bool, default=True
             Saves the model to the output path (if provided).
@@ -312,7 +312,7 @@ class BaseFitter(ABC):
         results.settings = context.settings(solver_kwargs=kwargs)
 
         if new_uniform_frac is not None:
-            results.fitted_model = results.fitted_model.with_uniform_distributions(new_uniform_frac)
+            results.fitted_model = results.fitted_model.with_uniform_distributions(new_uniform_frac, respect_bounds=True)
 
         if callback:
             callback(results)

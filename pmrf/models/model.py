@@ -1647,15 +1647,18 @@ class Model(eqx.Module):
     
     # ---- Distribution manipulation --------------------------------------------------            
     
-    def with_uniform_distributions(self, percentage=0.01):
+    def with_uniform_distributions(self, percentage=0.1, respect_bounds=False):
         """Return a model with uniform distributions set centered on current parameter values.
 
         The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.
 
         Parameters
         ----------
-        percentage : float, default=0.01
-            The fractional width of the uniform distribution (e.g. 0.01 = 1%).
+        percentage : float, default=0.1
+            The fractional width of the uniform distribution (e.g. 0.1 = 10%).
+        respect_bounds: bool, default=False
+            Whether or not the `min` and `max` bounds of the current distributions should be respected.
+            If `True`, new bounds will not go larger than past these bounds.
 
         Returns
         -------
@@ -1664,7 +1667,14 @@ class Model(eqx.Module):
         """        
         updates = {}
         for name, param in self.named_params().items():
-            distribution = UniformDistribution(param * (1.0 - percentage) / param.scale, param * (1.0 + percentage) / param.scale)
+            new_min = param * (1.0 - percentage) / param.scale
+            new_max = param * (1.0 + percentage) / param.scale
+
+            if respect_bounds:
+                new_min = max(new_min, param.min)
+                new_max = min(new_max, param.max)
+
+            distribution = UniformDistribution(new_min, new_max)
             updates[name] = param.with_distribution(distribution)
             
         return self.with_params(updates)       
@@ -2057,8 +2067,8 @@ class Model(eqx.Module):
         params = model_save.named_params()
         model_raw_grp = group.create_group('raw')
         model_raw_grp.create_dataset('combined', data=jsonpickle.encode(model_save))
-        model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
-        model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
+        # model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
+        # model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
         
         params_grp = group.create_group('params')
         for name, initial_param in params.items():
