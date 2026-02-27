@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.sampling.base import BaseSampler, SampleResults
+from pmrf.sampling.base import BaseSampler, SampleResults, SampleSettings
 from pmrf.models.model import Model
 from pmrf._util.random import generate_key
 
@@ -29,7 +29,7 @@ class OneshotSampler(BaseSampler, ABC):
             models = self.construct_models(thetas, return_batched=return_batched)
         # models = [eqx.combine(model_with_params(theta), static) for theta in thetas]
         # models = [self.model.with_params(theta) for theta in thetas]
-        results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
+        results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features, settings=SampleSettings(frequency=self.frequency, features=self.features))
         
         if self.output_path is not None:
             results.save_hdf(f"{self.output_path}/sample_results.hdf5")

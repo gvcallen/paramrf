@@ -3,7 +3,7 @@ import jax
 import jax.random as jr
 import jax.numpy as jnp
 
-from pmrf.sampling.base import BaseSampler, SampleResults
+from pmrf.sampling.base import BaseSampler, SampleResults, SampleSettings
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
@@ -84,7 +84,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         if return_models:
             models = [self.model.with_params(theta) for theta in self.sampled_params]
         
-        results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features)
+        results = SampleResults(initial_model=self.model, sampled_models=models, sampled_params=self.sampled_params, sampled_features=self.sampled_features, settings=SampleSettings(self.frequency, features=self.features))
         if self.output_path is not None:
             results.save_hdf(f"{self.output_path}/sample_results.hdf5")
         
