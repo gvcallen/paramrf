@@ -10,8 +10,8 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 
 import inspect
 from functools import partial
-from copy import deepcopy
-from typing import Callable, Sequence, Iterator, Self
+from copy import copy, deepcopy
+from typing import Callable, Sequence, Iterator, Self, dataclass_transform
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
@@ -386,8 +386,7 @@ class Model(eqx.Module):
 
             # Case 1: It's an Equinox Module
             if isinstance(obj, Model):
-                init_updates = {}
-                non_init_updates = {}
+                updates = {}
                 
                 # 1. Recursively clean fields and sort by init status
                 for field in dataclasses.fields(obj):
@@ -397,41 +396,34 @@ class Model(eqx.Module):
                     val = getattr(obj, field.name)
                     processed_val = strip_metadata_recursive(val, memo)
                     
-                    if field.init:
-                        init_updates[field.name] = processed_val
-                    else:
-                        non_init_updates[field.name] = processed_val
+                    updates[field.name] = processed_val
                 
-                # 2. Create the new instance using only init fields
-                new_obj = dataclasses.replace(obj, **init_updates)
-                
-                # 3. Manually override non-init fields (bypassing the frozen state)
-                for k, v in non_init_updates.items():
-                    object.__setattr__(new_obj, k, v)
+                for k, v in updates.items():
+                    object.__setattr__(obj, k, v)
                 
                 # 4. Clear the metadata for this specific module safely
-                if hasattr(new_obj, '_metadata'):
-                    object.__setattr__(new_obj, '_metadata', dict())
+                if hasattr(obj, '_metadata'):
+                    object.__setattr__(obj, '_metadata', dict())
                     
-                memo[obj_id] = new_obj
-                return new_obj
+                memo[obj_id] = obj
+                return obj
 
             # Case 2: Standard containers
             elif isinstance(obj, (list, tuple)):
-                new_obj = type(obj)(strip_metadata_recursive(x, memo) for x in obj)
-                memo[obj_id] = new_obj
-                return new_obj
+                obj = type(obj)(strip_metadata_recursive(x, memo) for x in obj)
+                memo[obj_id] = obj
+                return obj
 
             elif isinstance(obj, dict):
-                new_obj = {k: strip_metadata_recursive(v, memo) for k, v in obj.items()}
-                memo[obj_id] = new_obj
-                return new_obj
+                obj = {k: strip_metadata_recursive(v, memo) for k, v in obj.items()}
+                memo[obj_id] = obj
+                return obj
 
             # Case 3: Leaf nodes
             else:
                 return obj
             
-        return strip_metadata_recursive(self)
+        return strip_metadata_recursive(copy(self))
     
     def _saveable(self: Self) -> Self:
         def strip_unsaveable_recursive(obj, memo=None):
@@ -444,12 +436,11 @@ class Model(eqx.Module):
 
             # Case 1: It's an Equinox Module
             if isinstance(obj, Model):
-                init_updates = {}
-                non_init_updates = {}
+                updates = {}
                 
                 for f in dataclasses.fields(obj):
-                    # Check for our custom saveable flag
-                    if f.metadata.get("saveable", True) is False:
+                    # Check for our custom save flag
+                    if f.metadata.get('save', True) is False:
                         if f.default is not dataclasses.MISSING:
                             new_val = f.default
                         elif f.default_factory is not dataclasses.MISSING:
@@ -460,38 +451,31 @@ class Model(eqx.Module):
                         val = getattr(obj, f.name)
                         new_val = strip_unsaveable_recursive(val, memo)
                         
-                    # Sort updates by init status
-                    if f.init:
-                        init_updates[f.name] = new_val
-                    else:
-                        non_init_updates[f.name] = new_val
-                
-                # Replace init fields
-                new_obj = dataclasses.replace(obj, **init_updates)
+                    updates[f.name] = new_val
                 
                 # Override non-init fields
-                for k, v in non_init_updates.items():
-                    object.__setattr__(new_obj, k, v)
+                for k, v in updates.items():
+                    object.__setattr__(obj, k, v)
 
-                memo[obj_id] = new_obj
-                return new_obj
+                memo[obj_id] = obj
+                return obj
 
             # Case 2: Standard containers
             elif isinstance(obj, (list, tuple)):
-                new_obj = type(obj)(strip_unsaveable_recursive(x, memo) for x in obj)
-                memo[obj_id] = new_obj
-                return new_obj
+                obj = type(obj)(strip_unsaveable_recursive(x, memo) for x in obj)
+                memo[obj_id] = obj
+                return obj
 
             elif isinstance(obj, dict):
-                new_obj = {k: strip_unsaveable_recursive(v, memo) for k, v in obj.items()}
-                memo[obj_id] = new_obj
-                return new_obj
+                obj = {k: strip_unsaveable_recursive(v, memo) for k, v in obj.items()}
+                memo[obj_id] = obj
+                return obj
 
             # Case 3: Leaf nodes
             else:
                 return obj
 
-        clean_model = strip_unsaveable_recursive(self)
+        clean_model = strip_unsaveable_recursive(copy(self))
         return clean_model._with_stripped_metadata()
     
     def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
@@ -659,7 +643,7 @@ class Model(eqx.Module):
         -------
         Model
         """        
-        return deepcopy(self)    
+        return deepcopy(self)
 
     # ---- Introspection properties --------------------------------------------------------
     

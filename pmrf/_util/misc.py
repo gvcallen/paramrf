@@ -1,9 +1,44 @@
+from typing import Any
+import dataclasses
 import pkgutil
 import importlib
 from datetime import datetime
 from typing import Union, get_origin
 import inspect
 from types import GenericAlias, UnionType
+import equinox as eqx
+from equinox import field
+
+# def field(
+#     *,
+#     default: Any = dataclasses.MISSING,
+#     default_factory: Any = dataclasses.MISSING,
+#     init: bool = True,
+#     repr: bool = True,
+#     hash: bool | None = None,
+#     compare: bool = True,
+#     metadata: dict[str, Any] | None = None,
+#     save: bool = True,
+#     **kwargs
+# ) -> Any:
+#     """ParamRF field definition. Includes standard dataclass arguments plus `save`."""
+#     if metadata is None:
+#         metadata = {}
+    
+#     # Inject our custom flag into the metadata dictionary for the Model to find
+#     metadata["save"] = save
+    
+#     # Pass everything down to the underlying equinox field
+#     return eqx.field(
+#         default=default,
+#         default_factory=default_factory,
+#         init=init,
+#         repr=repr,
+#         hash=hash,
+#         compare=compare,
+#         metadata=metadata,
+#         **kwargs
+#     )
         
 class classproperty:
     def __init__(self, func):

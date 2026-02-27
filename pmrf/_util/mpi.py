@@ -10,7 +10,6 @@ import sys
 import logging
 import inspect
 from types import GenericAlias, UnionType
-from equinox import field
 
 try:
     from mpi4py import MPI
