@@ -31,6 +31,8 @@ class EqxLearnSurrogateSampler(FieldSampler):
         *args,
         **kwargs
     ):
+        # self 
+        
         def preprocess(theta, features):
             if preprocess_fn is not None:
                 theta, features = preprocess_fn(theta, features)
@@ -63,7 +65,6 @@ class EqxLearnSurrogateSampler(FieldSampler):
         # Define the validation callback for convergence
         def validate(theta: jnp.ndarray, features: jnp.ndarray, key=None) -> float:
             nonlocal cv
-            
             X, y = preprocess(theta, features)
             key, split_key = jr.split(key)
             cv_instance = cv(key=split_key)
@@ -75,6 +76,6 @@ class EqxLearnSurrogateSampler(FieldSampler):
             results = cross_validate(surrogate, X, y, cv=cv_instance, scoring=mae_db, return_loss=True, key=cv_key, **fit_kwargs)
             score, losses = jnp.mean(results['test_score']), results['loss']
             self.logger.info(f"Average error = {score:.2f} dB. Traing losses = {[round(float(loss), 2) for loss in losses]}")
-            return score        
+            return score
         
         return super().__init__(model=model, train_fn=train, eval_fn=variance, convergence_fn=validate, *args, **kwargs)

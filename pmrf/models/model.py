@@ -309,7 +309,7 @@ class Model(eqx.Module):
     
     def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
-        from pmrf.models.containers import Container
+        from pmrf.models.composite import Composite
 
         fields = []
         node = self  # Start at the root of the tree
@@ -319,8 +319,8 @@ class Model(eqx.Module):
                 k = item.name
                 next_node = getattr(node, k)
                 
-                # Check if the current node is a transparent container
-                if isinstance(node, Container):
+                # Check if the current node is a transparent composite
+                if isinstance(node, Composite):
                     is_model = isinstance(next_node, Model)
                     is_model_seq = (
                         isinstance(next_node, (tuple, list)) 
@@ -329,9 +329,9 @@ class Model(eqx.Module):
                     )
                     
                     if is_model:
-                        # FIX: If next_node is ALSO a container (e.g., nested Renumbered), 
+                        # FIX: If next_node is ALSO a composite (e.g., nested Renumbered), 
                         # stay silent. Only grab the name when we hit a real base Model.
-                        if not isinstance(next_node, Container):
+                        if not isinstance(next_node, Composite):
                             model_name = getattr(next_node, 'name', None)
                             if model_name is not None:
                                 fields.append(model_name)
@@ -343,7 +343,7 @@ class Model(eqx.Module):
                     else:
                         fields.append(k)
                 else:
-                    # Not a container, so always append the attribute name
+                    # Not a composite, so always append the attribute name
                     fields.append(k)
                     
                 node = next_node  # Step down the tree
@@ -922,10 +922,10 @@ class Model(eqx.Module):
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade/terminatino composition operator ``**``."""        
         if other.nports == 1:
-            from pmrf.models.containers import Terminated
+            from pmrf.models.composite import Terminated
             return Terminated(self, other)
         else:
-            from pmrf.models.containers import Cascade
+            from pmrf.models.composite import Cascade
             return Cascade([self, other])
     
     def __getitem__(self, key: str | Sequence[str]):
@@ -947,7 +947,7 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.containers import Flipped
+        from pmrf.models.composite import Flipped
         if isinstance(self, Flipped):
             return self.model
         return Flipped(self, **kwargs)
@@ -963,7 +963,7 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.containers import Renumbered
+        from pmrf.models.composite import Renumbered
         return Renumbered(self, from_ports, to_ports, **kwargs)
     
     def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
@@ -978,8 +978,8 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.lumped import SHORT
-        from pmrf.models.containers import Terminated
+        from pmrf.models.component import SHORT
+        from pmrf.models.composite import Terminated
         load = load or SHORT
         return Terminated(self, load, **kwargs)
        
