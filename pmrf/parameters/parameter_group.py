@@ -67,7 +67,6 @@ class ParameterGroup:
             elif hasattr(self.distribution, 'low'):
                 return self.distribution.low.reshape((self.num_params))
             else:
-                # TODO implement optimization to determine minima
                 return self.distribution.icdf(jnp.array([MIN_PERCENTILE] * self.num_params))
             
         return jnp.array([-jnp.inf] * self.num_params)

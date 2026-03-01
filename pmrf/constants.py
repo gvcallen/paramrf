@@ -12,6 +12,9 @@ try:
 except:
     RANK = 0
     MPI_AVAILABLE = False
+    
+MIN_PERCENTILE = 0.01
+MAX_PERCENTILE = 0.99
 
 NumberLike = Union[Number, Sequence[Number], jnp.ndarray]
 IndexArray = Union[int, slice, Sequence[int], jnp.ndarray, Tuple, None, type(Ellipsis)]

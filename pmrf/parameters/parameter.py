@@ -10,9 +10,7 @@ from numpyro.distributions.distribution import Distribution
 from pmrf.distributions import NormalDistribution, UniformDistribution
 from pmrf.distributions.stacked import StackedDistribution
 from pmrf.util import field
-
-MIN_PERCENTILE = 0.01
-MAX_PERCENTILE = 0.99
+from pmrf.constants import MIN_PERCENTILE, MAX_PERCENTILE
 
 class Parameter(eqx.Module):
     """

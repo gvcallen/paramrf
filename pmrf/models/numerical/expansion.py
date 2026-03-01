@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 from pmrf.models.numerical.base import Numerical
-from pmrf.models.adapter import SingleDiscreteProperty
+from pmrf.models.adapters import SingleDiscreteProperty
 from pmrf.parameters import Parameter
 
 class VectorExpansion(Numerical, SingleDiscreteProperty):

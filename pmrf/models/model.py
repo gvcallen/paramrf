@@ -11,13 +11,12 @@ representing an RF network, along with helper utilities like :func:`wrap`.
 import inspect
 from functools import partial
 from copy import copy, deepcopy
-from typing import Callable, Sequence, Iterator, Self, dataclass_transform
+from typing import Callable, Sequence, Iterator, Self
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
 from collections.abc import Sequence
-from typing import Sequence, Callable, BinaryIO
-import os
+from typing import Sequence, Callable
 
 import jax
 import jax.numpy as jnp
@@ -27,14 +26,12 @@ from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
 import numpy as np
 import skrf as skrf
-import jsonpickle
-import h5py
 from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.rf_functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math_functions import FUNC_LOOKUP
 from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
-from pmrf.distributions.parameter import JointParameterDistribution
+from pmrf.distributions.joint import JointDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
 from pmrf.util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
@@ -1236,7 +1233,7 @@ class Model(eqx.Module):
 
         return final_groups
     
-    def distribution(self, param_groups: bool = True) -> JointParameterDistribution:
+    def distribution(self, param_groups: bool = True) -> JointDistribution:
         """Joint distribution over (flattened) parameters.
         
         Parameters
@@ -1249,11 +1246,16 @@ class Model(eqx.Module):
         -------
         JointParameterDistribution
         """
-        if param_groups:        
-            return JointParameterDistribution(self.param_groups(), self.flat_param_names())
+        if param_groups:
+            groups = self.param_groups()
+            group_names = [pg.param_names for pg in groups]
+            group_dists = [pg.distribution for pg in groups]
         else:
-            param_groups = [ParameterGroup(param_names=[name], distribution=param.distribution) for name, param in self.named_flat_params().items()]
-            return JointParameterDistribution(param_groups, self.flat_param_names())
+            named_flat_params = self.named_flat_params()
+            group_names = [[name] for name in named_flat_params.keys()]
+            group_dists = [param.distribution for param in named_flat_params.values()]
+            
+        return JointDistribution(distributions=group_dists, distribution_names=group_names, param_names=self.flat_param_names())
     
     # ---- Parameter manipulation --------------------------------------------------            
 
@@ -2051,95 +2053,7 @@ class Model(eqx.Module):
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:
             ntwk.s += (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
-        return ntwk    
-    
-    def write_hdf(self, group: h5py.Group):
-        """Write model into an HDF5 group.
-
-        Parameters
-        ----------
-        group : h5py.Group
-            Target group. Two subgroups are created: ``raw`` and ``params``.
-        """
-        model_save = self._saveable()
-
-        params_tree, static_tree = model_save.partition(include_fixed=True, param_objects=True)
-        params = model_save.named_params()
-        model_raw_grp = group.create_group('raw')
-        model_raw_grp.create_dataset('combined', data=jsonpickle.encode(model_save))
-        # model_raw_grp.create_dataset('params', data=jsonpickle.encode(params_tree))
-        # model_raw_grp.create_dataset('static', data=jsonpickle.encode(static_tree))
-        
-        params_grp = group.create_group('params')
-        for name, initial_param in params.items():
-            params_grp[name] = initial_param.to_json()        
-            
-    @classmethod
-    def read_hdf(cls, group: h5py.Group) -> Self:
-        """Read model from an HDF5 group.
-
-        Parameters
-        ----------
-        group : h5py.Group
-            Group previously created via :meth:`write_hdf`.
-
-        Returns
-        -------
-        Self | None
-            The decoded model, or ``None`` if decoding fails.
-        """        
-        model_raw_grp = group['raw']
-        if 'combined' in model_raw_grp:
-            combined_json = model_raw_grp['combined'][()]
-            combined_json = combined_json.decode('utf-8') if isinstance(combined_json, bytes) else combined_json
-            combined_tree = jsonpickle.decode(combined_json)
-            return combined_tree
-        
-        params_json = model_raw_grp['params'][()]
-        params_json = params_json.decode('utf-8') if isinstance(params_json, bytes) else params_json
-        static_json = model_raw_grp['static'][()]
-        static_json = static_json.decode('utf-8') if isinstance(static_json, bytes) else static_json
-        
-        try:
-            params_tree = jsonpickle.decode(params_json)
-            static_tree = jsonpickle.decode(static_json)
-            
-            return cls(eqx.combine(params_tree, static_tree))
-        except Exception as e:
-            import logging
-            logging.warning(f'Error while trying to load model: {e}')
-            return None
-        
-    def save(self, target: str | BinaryIO):
-        """Serialize the model to disk in pickle format.
-
-        The recommended file extension for ParamRF models is `.prf`.
-
-        Parameters
-        ----------
-        filepath : str
-            Destination file path.
-        """
-        from pmrf.io import save
-        return save(target, self)
-            
-    @classmethod
-    def load(cls, source: str | BinaryIO) -> Self:
-        """Load a model from a pickled file.
-
-        The recommended file extension for ParamRF models is `.prf`.
-
-        Parameters
-        ----------
-        filepath : str
-            Source JSON path.
-
-        Returns
-        -------
-        Self
-        """        
-        from pmrf.io import load
-        return load(source)
+        return ntwk        
     
     def export_touchstone(self, filename: str, frequency: Frequency | skrf.Frequency, sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.
@@ -2164,88 +2078,3 @@ class Model(eqx.Module):
         ntwk = self.to_skrf(frequency, sigma=sigma)
         retval = ntwk.write_touchstone(filename, **skrf_kwargs)
         return retval
-
-def wrap(
-    func: Callable,
-    *args,
-    as_numpy: bool = False,
-) -> Callable:
-    """
-    Wrap a function/method taking ``(model, frequency, *args, **kwargs)`` into one that accepts flat arrays.
-
-    The wrapper accepts ``(theta, [f], *args, **kwargs)`` where ``theta`` is a flat
-    parameter array, and optionally ``f`` is a frequency array with a provided unit.
-
-    If a :class:`Frequency` object is passed in ``*args``, it is closed over and
-    the wrapped function only accepts ``theta``.
-
-    Supported call signatures:
-    
-    * ``wrap(userfunc, model, "MHz")``
-    * ``wrap(userfunc, model, freq)``
-    * ``wrap(model.userfunc, "MHz")``
-    * ``wrap(model.userfunc, freq)``
-
-    Parameters
-    ----------
-    func : callable
-        Function or bound method taking ``(model, frequency, ...)``.
-    *args : tuple
-        Variable length argument list. Expects either ``(model, Frequency)``,
-        ``(model, unit_str)``, or just ``(Frequency,)`` / ``(unit_str,)``
-        if ``func`` is a bound method.
-    as_numpy : bool, optional
-        If True, JIT the wrapper and convert inputs/outputs to NumPy arrays.
-        Default is False.
-
-    Returns
-    -------
-    wrapper : callable
-        Wrapped function accepting ``(theta_array, [f_array], *args, **kwargs)``.
-
-    Raises
-    ------
-    TypeError
-        If the frequency argument is neither a unit string nor a ``Frequency`` object.
-    """
-    # Determine if func is a bound method
-    if hasattr(func, '__self__') and func.__self__ is not None:
-        model: Model = func.__self__
-        func = func.__func__
-        args = list(args)
-    else:
-        model: Model = args[0]
-        args = args[1:]
-
-    # Now args[0] should be Frequency or unit
-    frequency_or_unit = args[0] if args else "Hz"
-
-    # Validate
-    if not isinstance(frequency_or_unit, (str, Frequency)):
-        raise TypeError(f"Expected pmrf.Frequency or unit string as second argument, got type {type(frequency_or_unit)}")
-
-    use_variable_frequency = isinstance(frequency_or_unit, str)
-
-    # Define wrapped function
-    def wrapped_with_freq(theta: jnp.ndarray, f_array: jnp.ndarray, *f_args, **f_kwargs):
-        new_model = model.with_params(theta)
-        frequency = Frequency.from_f(f_array, unit=frequency_or_unit)
-        return func(new_model, frequency, *f_args, **f_kwargs)
-
-    def wrapped_fixed_freq(theta: jnp.ndarray, *f_args, **f_kwargs):
-        new_model = model.with_params(theta)
-        return func(new_model, frequency_or_unit, *f_args, **f_kwargs)
-
-    wrapped_fn = wrapped_with_freq if use_variable_frequency else wrapped_fixed_freq
-
-    if as_numpy:
-        raw_fn = jax.jit(wrapped_fn)
-        if use_variable_frequency:
-            wrapped_fn = lambda theta, f, *a, **kw: np.array(raw_fn(jnp.array(theta), jnp.array(f), *a, **kw))
-        else:
-            wrapped_fn = lambda theta, *a, **kw: np.array(raw_fn(jnp.array(theta), *a, **kw))
-
-    # Forward metadata
-    update_wrapper(wrapped_fn, func)
-    
-    return wrapped_fn

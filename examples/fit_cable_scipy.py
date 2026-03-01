@@ -28,11 +28,11 @@ model = CoaxialLine(
 fitter = SciPyMinimizeFitter(
     model=model,
     features=['s11_re', 's11_im'],
-    cost_function=[l2_norm_ax0, jnp.sum, mag_2_db],
+    error_fn=[l2_norm_ax0, jnp.sum, mag_2_db],
 )
 
 # Run the fit
-results = fitter.fit(measured, optimizer='Nelder-Mead')
+results = fitter.run(measured, optimizer='Nelder-Mead')
 model_ntwk = results.fitted_model.to_skrf(measured.frequency)
 
 # Plot some results
