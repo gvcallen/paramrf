@@ -7,7 +7,7 @@ from pmrf.sampling.base import BaseSampler, SampleResults, SampleSettings
 from pmrf.models.model import Model
 from pmrf.constants import FeatureInputT
 from pmrf.frequency import Frequency
-from pmrf.util import lhs_sample, LivePlotter
+from pmrf.util import lhs_sample
 
 class AdaptiveSampler(BaseSampler, ABC):
     def __init__(
@@ -28,8 +28,7 @@ class AdaptiveSampler(BaseSampler, ABC):
         if isinstance(initial_models, int) and initial_models < 2:
             raise Exception("Number of initial models must be at least 2")
         
-        self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models
-        self.convergence_plotter: LivePlotter = LivePlotter("Convergence", "Iteration", "Loss")        
+        self.initial_models = list(initial_models) if not isinstance(initial_models, int) else initial_models        
 
         super().__init__(model, frequency=frequency, features=features, **kwargs)
 

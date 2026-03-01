@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Callable, Any, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -8,7 +8,7 @@ from pmrf.frequency import Frequency
 from pmrf.sampling.base import BaseSampler
 from pmrf.sampling.adaptive import AdaptiveSampler
 from pmrf.models.model import Model
-from pmrf.util import lhs_sample
+from pmrf.util import lhs_sample, LivePlotter
 from pmrf.algorithms import has_converged
 
 class FieldSampler(AdaptiveSampler):
@@ -41,11 +41,10 @@ class FieldSampler(AdaptiveSampler):
         self.eval_fn = eval_fn
         self.convergence_fn = convergence_fn
         
-        self.converge_values = []
+        self.converge_plotters: list[LivePlotter] = []
+        self.converge_values: list[tuple[float]] = []
         self.field = None
         self.grid_sampler = grid_sampler
-        self.worst_field_values = []
-        self.all_field_thetas = []
         self.figure = None
         
         return super().__init__(model=model, *args, **kwargs)
@@ -76,29 +75,38 @@ class FieldSampler(AdaptiveSampler):
         selected_field_thetas, selected_field_values = self._select_field_thetas(N, theta_grid, grid_field)
         
         # Log the maximum and append to the errors
-        max_field = jnp.max(grid_field)
-        self.worst_field_values.append(jnp.max(grid_field))
-        self.all_field_thetas.extend(max_field_theta for max_field_theta in selected_field_thetas)
+        max_field_value = jnp.max(grid_field)
         if N == 1:
-            self.logger.info(f"Field maximum = {float(max_field):.2f}")
+            self.logger.info(f"Field maximum = {float(max_field_value):.2f}")
         else:
             value_str = ""
-            for value in selected_field_values:
-                value_str += f"{value:.2f}, "
+            for new_value in selected_field_values:
+                value_str += f"{new_value:.2f}, "
             value_str = value_str[0:len(value_str)-2]
             self.logger.info(f"Field maxima = [{value_str}]")
         
-        # Check for convergence
+        # Get the next convergence value(s) to add. We always add tuples - only if one convergence value is used
         if self.convergence_fn is not None:
             key, validate_key = jr.split(key, 2)
-            converge_val = self.convergence_fn(self.sampled_params, self.sampled_features, key=validate_key)
-            self.converge_values.append(converge_val)
-            converged = has_converged(self.converge_values, rtol=rtol, atol=atol, patience=patience, window=window)
+            new_converge_values = self.convergence_fn(self.sampled_params, self.sampled_features, key=validate_key)
+            new_converge_values = tuple(new_converge_values,) if not isinstance(new_converge_values, Sequence) else new_converge_values
         else:
-            converge_val = float(self.worst_field_values[-1])
-            converged = has_converged(self.worst_field_values, rtol=rtol, atol=atol, patience=patience, window=window)
-
-        self.convergence_plotter.add_point("Convergence", converge_val)
+            new_converge_values = tuple(float(max_field_value),)
+        self.converge_values.append(new_converge_values)
+            
+        # Check for convergence
+        converged = True
+        has_converged_vals = list(map(list, zip(*self.converge_values)))
+        for values in has_converged_vals:
+            converged = converged and has_converged(values, rtol=rtol, atol=atol, patience=patience, window=window)
+            if not converged:
+                break
+        
+        # Plot the convergence values
+        for i, new_value in enumerate(new_converge_values):
+            if len(self.converge_plotters) == 0:
+                self.converge_plotters.append(LivePlotter(f"Convergence {i}", "Iteration", "Loss"))
+            self.converge_plotters[i].add_point(f"Convergence {i}", new_value)
         
         # Return the next hypercube samples (U-space)
         if converged:
