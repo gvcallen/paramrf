@@ -326,7 +326,7 @@ class Model(eqx.Module):
                     )
                     
                     if is_model:
-                        # FIX: If next_node is ALSO a composite (e.g., nested Renumbered), 
+                        # If next_node is ALSO a composite (e.g., nested Renumbered), 
                         # stay silent. Only grab the name when we hit a real base Model.
                         if not isinstance(next_node, Composite):
                             model_name = getattr(next_node, 'name', None)
@@ -356,9 +356,9 @@ class Model(eqx.Module):
                 node = node[idx]  # Step down the tree
                 
                 if isinstance(node, Model):
-                    # FIX: If the sequence item is a Container, stay silent. 
+                    # If the sequence item is a Container, stay silent. 
                     # The inner GetAttrKey loop will catch the real submodel's name.
-                    if not isinstance(node, Container):
+                    if not isinstance(node, Composite):
                         model_name = getattr(node, 'name', None)
                         if model_name is not None:
                             fields.append(model_name)
@@ -975,7 +975,7 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.component import SHORT
+        from pmrf.models.components import SHORT
         from pmrf.models.composite import Terminated
         load = load or SHORT
         return Terminated(self, load, **kwargs)

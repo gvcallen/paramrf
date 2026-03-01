@@ -43,9 +43,9 @@ class FitResults(BaseResults):
                 
         return plot_data
 
-    def _write_data(self, f: h5py.File, models_grp: h5py.Group):
+    def _write_data(self, f: h5py.File):
         if self.fitted_model:
-            self._write_model(models_grp.create_group('fitted'), self.fitted_model)
+            self._write_model(f.create_group('fitted_model'), self.fitted_model)
 
         if self.measured:
             meas_grp = f.create_group('measured')

@@ -4,7 +4,7 @@ import re
 import skrf
 import jax.numpy as jnp
 
-from pmrf.constants import FeatureT, FeatureInputT
+from pmrf.constants import FeatureT, FeatureSpecT
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
@@ -12,7 +12,7 @@ from pmrf.network_collection import NetworkCollection
 def extract_features(
     source: Model | skrf.Network | NetworkCollection,
     frequency: Frequency | None,
-    features: FeatureInputT,
+    features: FeatureSpecT,
     sparam_kind: str = 'all',
     dtype: jnp.dtype = jnp.complex128,
 ) -> jnp.ndarray:
@@ -24,7 +24,6 @@ def extract_features(
     scalars (e.g., 's11_mag'), complex parameters, or custom functions from both
     simulation models and measured networks.
 
-    
 
     Parameters
     ----------
@@ -83,18 +82,18 @@ def extract_features(
     if isinstance(features, Callable):
         return features(source)
     
-    # We format the features to be flat (and parse them in the process)
-    features = _format_features(features, source=source, sparam_kind=sparam_kind)
+    # We canonicalize the features to be flat (and parse them in the process)
+    features = _canonicalize_features(features, source=source, sparam_kind=sparam_kind)
     
     # Get the frequency and format the sources
     if isinstance(source, skrf.Network):
         source_cpy = source.copy()
         source_cpy.name = ''
         source = NetworkCollection([source_cpy])
-        frequency = source.common_frequency()
+        frequency = frequency or source.common_frequency()
     elif isinstance(source, NetworkCollection):
         # Currently only support a single frequency across networks
-        frequency = source.common_frequency()
+        frequency = frequency or source.common_frequency()
     elif isinstance(source, Model):
         if frequency is None:
             raise Exception("Frequency must be passed when extracting features from a model")
@@ -109,7 +108,7 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
-def _format_features(features: FeatureInputT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'all') -> list[FeatureT]:
+def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'all') -> list[FeatureT]:
     # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
         features_out = []
@@ -118,7 +117,7 @@ def _format_features(features: FeatureInputT, *, base_label='', source: Model | 
                 src_obj = source[attr]
             else:
                 src_obj = getattr(source, attr)
-            features_out.extend(_format_features(attr_features, base_label=attr, source=src_obj, sparam_kind=sparam_kind))
+            features_out.extend(_canonicalize_features(attr_features, base_label=attr, source=src_obj, sparam_kind=sparam_kind))
         return features_out
     
     # For the general case we get the features into a sequence of aliases or feature tuples and then expand

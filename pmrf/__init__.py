@@ -6,7 +6,6 @@ jax.config.update("jax_enable_x64", True)
 
 from pmrf.models.model import (
     Model as Model,
-    wrap,
 )
 
 from pmrf.io import (

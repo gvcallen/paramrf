@@ -9,3 +9,5 @@ from numpyro.distributions import (
 
 from pmrf.distributions.joint import JointDistribution
 from pmrf.distributions.stacked import StackedDistribution
+from pmrf.distributions.sampled import SampledDistribution
+from pmrf.distributions.backends import *

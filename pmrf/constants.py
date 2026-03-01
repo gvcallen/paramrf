@@ -36,10 +36,10 @@ FeatureFunctionT = Callable[[ModelT | jnp.ndarray], jnp.ndarray]
 ModelParametersT = Union[ModelT | jnp.ndarray]
 
 # Alias/input feature types
-FeatureInputScalarT = str | tuple[str, str] | FeatureT
-FeatureInputSequenceT = Sequence[FeatureInputScalarT]
-FeatureInputDictT = dict[str, FeatureInputScalarT | FeatureInputSequenceT]
-FeatureInputT = FeatureInputScalarT | FeatureInputSequenceT | FeatureInputDictT | FeatureFunctionT
+FeatureSpecScalarT = str | tuple[str, str] | FeatureT
+FeatureSpecSequenceT = Sequence[FeatureSpecScalarT]
+FeatureSpecDictT = dict[str, FeatureSpecScalarT | FeatureSpecSequenceT]
+FeatureSpecT = FeatureSpecScalarT | FeatureSpecSequenceT | FeatureSpecDictT | FeatureFunctionT
 
 
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]

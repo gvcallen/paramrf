@@ -79,6 +79,8 @@ class NumPyroMCMCFitter(NumPyroFitter):
         self, 
         target_features: jnp.ndarray, 
         *, 
+        output_path: str | None = None,
+        output_root: str | None = None,        
         kernel=None, 
         seed: int = 42, 
         fitted_params: str = 'mean', 

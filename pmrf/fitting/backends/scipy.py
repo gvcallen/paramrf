@@ -1,5 +1,4 @@
 import numpy as np
-import h5py
 import jax.numpy as jnp
 from scipy.optimize import minimize, Bounds, OptimizeResult
 from tqdm.auto import tqdm
@@ -9,14 +8,13 @@ from pmrf.models import Model
 
 class SciPyMinimizeFitter(FrequentistFitter):
     """
-    SciPy Minimize: Classical optimization backend using ``scipy.optimize.minimize``.
+    SciPy Minimize: Classical optimization using ``scipy.optimize.minimize``.
     """
-
     def optimize(
         self, 
         target_features: jnp.ndarray, 
         *, 
-        solver='SLSQP', 
+        solver=None, 
         max_iter=None, 
         show_progress=True, 
         **kwargs
@@ -24,6 +22,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         """
         Executes the optimization loop using SciPy and the lazily compiled cost function.
         """
+        solver = solver or 'SLSQP'
         kwargs.setdefault('method', solver)
         
         # 1. Parameter Initialization & Bounds

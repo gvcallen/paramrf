@@ -10,7 +10,7 @@ import jsonpickle
 
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
-from pmrf.constants import FeatureInputT
+from pmrf.constants import FeatureSpecT
 from pmrf.features import extract_features
 from pmrf.util import RANK, LevelFilteredLogger
 
@@ -23,25 +23,20 @@ class BaseRunner(ABC):
         model: Model,
         *,
         frequency: Frequency | None = None,
-        features: FeatureInputT | None = None,
-        output_path: str | None = None,
-        output_root: str | None = None,
-        sparam_kind: str | None = None,
+        features: FeatureSpecT | None = None,
+        **feature_kwargs,
     ):
         self.model = model
         self.frequency = frequency
         self.features = features
-        self.output_path = output_path
-        self.output_root = output_root
-        self.sparam_kind = sparam_kind
+        self.feature_kwargs = feature_kwargs
+        self.output_path = None
+        self.output_root = None
 
         if RANK == 0:
             self.logger = logging.getLogger(f"pmrf.{self.__class__.__name__}")
         else:
             self.logger = LevelFilteredLogger(null_level=logging.WARNING)
-
-        if self.output_path is not None and RANK == 0:
-            os.makedirs(self.output_path, exist_ok=True)
 
         self._cdf_fn = None
         self._icdf_fn = None
@@ -78,11 +73,12 @@ class BaseRunner(ABC):
     def model_features(self, theta: jnp.ndarray) -> jnp.ndarray:
         if self._feature_fn is None:
             if self.frequency is None or self.features is None:
-                raise RuntimeError("Cannot lazily compile features: frequency or features not set.")
+                raise RuntimeError("Cannot compile feature function: frequency or features not set.")
             
             def _single_feature_fn(theta):
                 m = self.model.with_params(theta)
-                return extract_features(m, self.frequency, self.features, sparam_kind=self.sparam_kind)
+                single_features = extract_features(m, self.frequency, self.features, **self.feature_kwargs)
+                return single_features
             
             self._feature_fn = jax.jit(jax.vmap(_single_feature_fn))
         

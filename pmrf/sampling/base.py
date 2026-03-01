@@ -24,11 +24,16 @@ class BaseSampler(BaseRunner, ABC):
         
         self.sampled_params: jnp.ndarray | None = None
         self.sampled_features: jnp.ndarray | None = None
+        
+        self.plot_features = None
         self.feature_plotters: list[LivePlotter] = []
 
     def run(
         self, 
-        *, 
+        *,
+        plot = None,
+        output_path: str | None = None,
+        output_root: str | None = None,
         load_previous: bool = False, 
         save_results: bool = True, 
         **kwargs
@@ -37,10 +42,14 @@ class BaseSampler(BaseRunner, ABC):
         Executes the sampling process. Handles state delegation and packages 
         the outputs into a SampleResults object.
         """
+        self.output_path = output_path
+        self.output_root = output_root
+        self.plot_features = plot
+        
         # 1. Try load from previous results
-        if load_previous and self.output_path is not None:
+        if load_previous and output_path is not None:
             try:
-                filename = glob.glob(f"{self.output_path}/*.hdf5")[0]
+                filename = glob.glob(f"{output_path}/*.hdf5")[0]
                 results = SampleResults.load_hdf(filename)
                 self.logger.info("Loaded previous sampling results.")
                 return results
@@ -51,7 +60,7 @@ class BaseSampler(BaseRunner, ABC):
         self.logger.info(f"Sampling {self.model.num_flat_params} parameters...")
         self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
         
-        samples, backend_results = self.sample(**kwargs)
+        samples, backend_results = self.sample(output_path=output_path, output_root=output_root, **kwargs)
 
         # 3. Package Results
         results = SampleResults()
@@ -72,24 +81,28 @@ class BaseSampler(BaseRunner, ABC):
         results.run_kwargs = full_run_kwargs
 
         # 4. Save Output
-        if self.output_path is not None and save_results and RANK == 0:
-            Path(self.output_path).resolve().mkdir(parents=True, exist_ok=True)
-            output_prefix = f'{self.output_path}/{self.output_root}_' if self.output_root is not None else f'{self.output_path}/'
+        if output_path is not None and save_results and RANK == 0:
+            Path(output_path).resolve().mkdir(parents=True, exist_ok=True)
+            output_prefix = f'{output_path}/{output_root}_' if output_root is not None else f'{output_path}/'
             self.logger.info('Saving sampling results...')
             results.save_hdf(Path(f'{output_prefix}results.hdf5').resolve())
             
         return results
 
     @abstractmethod
-    def sample(self, **kwargs) -> tuple[jnp.ndarray, Any]:
+    def sample(
+        self,
+        **kwargs,
+    ) -> tuple[jnp.ndarray, Any]:
         """
         Implemented by subclasses to perform the actual sampling algorithm.
         Returns a tuple of (thetas, backend_results).
         """
         pass
 
-    def add_samples(self, theta: jnp.ndarray, plot: list[str] | None = None) -> jnp.ndarray | None:
+    def add_samples(self, theta: jnp.ndarray) -> jnp.ndarray | None:
         """Adds samples, computes features via lazy compilation, and plots."""
+        plot = self.plot_features
         if plot is not None and isinstance(plot, str):
             plot = [plot]
 
@@ -108,7 +121,7 @@ class BaseSampler(BaseRunner, ABC):
                 self.logger.info(f"Computing samples #{num_existing + 1}-{num_existing + N} at {time_str}")
             
             # Use the lazy accessor from BaseRunner
-            new_features = self.extract_model_features(new_thetas)
+            new_features = self.model_features(new_thetas)
 
         # Update State
         if self.sampled_params is not None:
@@ -120,10 +133,10 @@ class BaseSampler(BaseRunner, ABC):
             self.sampled_features = new_features
 
         # I/O Checkpoint (numpy fallback for crash recovery during active learning)
-        if self.output_path is not None and RANK == 0:
-            np.save(f"{self.output_path}/params.npy", np.asarray(self.sampled_params))
+        if output_path is not None and RANK == 0:
+            np.save(f"{output_path}/params.npy", np.asarray(self.sampled_params))
             if self.sampled_features is not None:
-                np.save(f"{self.output_path}/features.npy", np.asarray(self.sampled_features))
+                np.save(f"{output_path}/features.npy", np.asarray(self.sampled_features))
 
         # Live Plotting
         if plot is not None and new_features is not None:

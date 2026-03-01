@@ -100,24 +100,20 @@ class BaseResults:
                 f.attrs['user_metadata'] = json.dumps(metadata)
 
             # 2. Config & Settings
-            cfg = f.create_group('config')
             if self.frequency:
-                cfg.create_dataset('f_scaled', data=self.frequency.f_scaled)
-                cfg.attrs['freq_unit'] = self.frequency.unit
+                f.create_dataset('f_scaled', data=self.frequency.f_scaled)
+                f.attrs['freq_unit'] = self.frequency.unit
             if self.features: 
-                cfg.attrs['features'] = json.dumps(self.features)
+                f.attrs['features'] = json.dumps(self.features)
             if self.run_kwargs: 
-                cfg.attrs['run_kwargs'] = jsonpickle.encode(self.run_kwargs)
+                f.attrs['run_kwargs'] = jsonpickle.encode(self.run_kwargs)
             
-            self._write_config_extra(cfg)
-
-            # 3. Models Base
-            models_grp = f.create_group('models')
+            # 3. Models
             if self.initial_model: 
-                self._write_model(models_grp.create_group('initial'), self.initial_model)
+                self._write_model(f.create_group('initial_model'), self.initial_model)
 
             # 4. Subclass Data Hook (Fitted models, sampled arrays, measured data)
-            self._write_data(f, models_grp)
+            self._write_data(f)
 
             # 5. Backend Results (Streamed via the Fitter/Sampler class)
             if self.backend_results is not None:
@@ -129,7 +125,7 @@ class BaseResults:
                     
                     stream = io.BytesIO()
                     backend_cls.write_results(stream, self.backend_results)
-                    f.create_dataset('backend_results_bin', data=np.void(stream.getvalue()))
+                    f.create_dataset('backend_results', data=np.void(stream.getvalue()))
 
     @classmethod
     def load_hdf(cls, path: str) -> "BaseResults":
@@ -139,30 +135,27 @@ class BaseResults:
             kwargs = {}
 
             # Load Config
-            if 'config' in f:
-                cfg = f['config']
-                if 'f_scaled' in cfg:
-                    kwargs['frequency'] = Frequency.from_f(f=cfg['f_scaled'][()], unit=cls._decode_str(cfg.attrs['freq_unit']))
-                if 'features' in cfg.attrs: 
-                    kwargs['features'] = json.loads(cls._decode_str(cfg.attrs['features']))
-                if 'run_kwargs' in cfg.attrs: 
-                    kwargs['run_kwargs'] = jsonpickle.decode(cls._decode_str(cfg.attrs['run_kwargs']))
-                target_cls._read_config_extra(cfg, kwargs)
+            if 'f_scaled' in f:
+                kwargs['frequency'] = Frequency.from_f(f=f['f_scaled'][()], unit=cls._decode_str(f.attrs['freq_unit']))
+            if 'features' in f.attrs: 
+                kwargs['features'] = json.loads(cls._decode_str(f.attrs['features']))
+            if 'run_kwargs' in f.attrs: 
+                kwargs['run_kwargs'] = jsonpickle.decode(cls._decode_str(f.attrs['run_kwargs']))
 
             # Load Base Models
-            if 'models' in f and 'initial' in f['models']:
-                kwargs['initial_model'] = cls._read_model(f['models/initial'])
+            if 'initial_model' in f:
+                kwargs['initial_model'] = cls._read_model(f['initial_model'])
 
             # Load Subclass Data
             target_cls._read_data(f, kwargs)
 
             # Load Backend Results
-            if 'backend_results_bin' in f and 'backend_class' in f.attrs:
+            if 'backend_results' in f and 'backend_class' in f.attrs:
                 backend_class_str = cls._decode_str(f.attrs['backend_class'])
                 kwargs['backend_class'] = backend_class_str
                 backend_cls = load_class_from_string(backend_class_str)
                 
-                raw_bytes = f['backend_results_bin'][()].tobytes()
+                raw_bytes = f['backend_results'][()].tobytes()
                 stream = io.BytesIO(raw_bytes)
                 kwargs['backend_results'] = backend_cls.read_results(stream)
 
@@ -171,11 +164,7 @@ class BaseResults:
     # --------------------------------------------------------------------------
     # Subclass Hooks (To be overridden)
     # --------------------------------------------------------------------------
-    def _write_config_extra(self, cfg: h5py.Group): pass
-    @classmethod
-    def _read_config_extra(cls, cfg: h5py.Group, kwargs: dict): pass
-
-    def _write_data(self, f: h5py.File, models_grp: h5py.Group): pass
+    def _write_data(self, f: h5py.File): pass
     @classmethod
     def _read_data(cls, f: h5py.File, kwargs: dict): pass
 
@@ -189,15 +178,14 @@ class BaseResults:
 
     @staticmethod
     def _write_model(group: h5py.Group, model: Model):
-        if hasattr(model, 'named_params'):
-            params_grp = group.create_group('params')
-            for name, param in model.named_params.items():
-                params_grp.create_dataset(name, data=param.to_json())
-        group.create_dataset('raw_state', data=jsonpickle.encode(model))
+        params_grp = group.create_group('params')
+        for name, param in model.named_params().items():
+            params_grp.create_dataset(name, data=param.to_json())
+        group.create_dataset('raw', data=jsonpickle.encode(model))
 
     @staticmethod
     def _read_model(group: h5py.Group) -> Model:
-        return jsonpickle.decode(BaseResults._decode_str(group['raw_state'][()]))
+        return jsonpickle.decode(BaseResults._decode_str(group['raw'][()]))
 
     @staticmethod
     def _write_network(group: h5py.Group, ntwk: skrf.Network):

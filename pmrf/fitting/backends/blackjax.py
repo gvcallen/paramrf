@@ -19,7 +19,7 @@ class BlackJAXNSFitter(BayesianFitter):
     def optimize(
         self, 
         target_features: jnp.ndarray, 
-        *, 
+        *,
         fitted_params='maximum-likelihood', 
         nlive_factor=None, 
         num_delete=None, 

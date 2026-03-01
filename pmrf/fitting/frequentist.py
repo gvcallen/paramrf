@@ -19,34 +19,34 @@ class FrequentistFitter(BaseFitter, ABC):
     Provides a lazily compiled `cost()` function for backends to utilize.
     """
     def __init__(
-        self, 
+        self,
         model: Model, 
-        *, 
-        cost_kind: str | None = None, 
-        error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None, 
+        *,
+        cost_kind: str = None,
+        error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
         **kwargs
     ):
-        # Let base class consume features, output_path, etc.
+        # Let base class consume features, etc.
         super().__init__(model, **kwargs)
         
         # Apply standard Python defaults/mutations safely to 'self'
-        self.cost_kind = cost_kind or 'convolutional'
+        if self.features is None and cost_kind is None:
+            cost_kind = 'convolutional'
         
-        if self.features is None:
-            if self.cost_kind == 'convolutional':
-                self.features = ['s', 's_mag']
-            elif self.cost_kind == 'complex':
-                self.features = ['s']
-            elif self.cost_kind == 'magnitude':
-                self.features = ['s_mag']
-            else:
-                self.features = [
-                    feat for m, n in model.port_tuples 
-                    for feat in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')
-                ]
+        if cost_kind == 'convolutional':
+            self.features = ['s', 's_mag']
+        elif cost_kind == 'complex':
+            self.features = ['s']
+        elif cost_kind == 'magnitude':
+            self.features = ['s_mag']
+        else:
+            self.features = [
+                feat for m, n in model.port_tuples 
+                for feat in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')
+            ]
                 
         if error_fn is None:
-            if self.cost_kind == 'convolutional':
+            if cost_kind == 'convolutional':
                 error_fn = CONVOLUTIONAL_ERROR
             elif len(self.features) > 1:
                 error_fn = L2_ERROR
@@ -74,7 +74,8 @@ class FrequentistFitter(BaseFitter, ABC):
             # 2. Compile the specific cost loop
             @jax.jit
             def cost_fn(theta, target_feats):
-                error = target_feats - self.model_features(theta)
+                model_features = self.model_features(theta)
+                error = target_feats - model_features
                 cost_val = self._error_fn(error)
                 return cost_val if jnp.isscalar(cost_val) else cost_val[0]
                 

@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 
 from pmrf.fitting.base import BaseFitter
-from pmrf.fitting.results import FitResults
 from pmrf.models.model import Model
 from pmrf.parameters import Parameter, Uniform
 
@@ -26,40 +25,40 @@ class BayesianFitter(BaseFitter, ABC):
         likelihood_kind: str | None = None, 
         likelihood_params: dict[str, Parameter] = None, 
         feature_sigmas: list[str] | None = None, 
-        **kwargs
+        **kwargs,
     ):
-        super().__init__(model, **kwargs)
+        sparam_kind = kwargs.setdefault('sparam_kind', 'all')
+        features = kwargs.pop('features', None)
         
         # Model introspection for defaults
         num_ports = max([max(m, n) for m, n in model.port_tuples]) + 1 if model.port_tuples else 1
         is_one_port = num_ports == 1
         is_two_port = num_ports == 2
-
-        if is_one_port and self.sparam_kind == 'all':
-            self.sparam_kind = 'reflection'
+        
+        if is_one_port and sparam_kind == 'all':
+            sparam_kind = 'reflection'
             
-        self.likelihood_kind = likelihood_kind or ('multivariate_gaussian' if self.sparam_kind == 'all' and not is_one_port else 'gaussian')
+        likelihood_kind = likelihood_kind or ('multivariate_gaussian' if sparam_kind == 'all' and not is_one_port else 'gaussian')
 
         # Feature and Parameter Defaults Mapping
-        if self.likelihood_kind == 'gaussian':
+        if likelihood_kind == 'gaussian':
             self.likelihood_params = likelihood_params or {'sigma': DefaultSigmaPrior(name='sigma')}
             if len(self.likelihood_params) > 1:
                 raise ValueError("A gaussian likelihood only takes a single parameter 'sigma'")
                 
-            if self.features is None:
+            if features is None:
                 if is_two_port:
-                    if self.sparam_kind == 'all':
-                        self.features = ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
-                    elif self.sparam_kind == 'reflection':
-                        self.features = ['s11_re', 's11_im', 's22_re', 's22_im']
-                    elif self.sparam_kind == 'transmission':
-                        self.features = ['s12_re', 's12_im', 's21_re', 's21_im']
+                    if sparam_kind == 'all':
+                        features = ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
+                    elif sparam_kind == 'reflection':
+                        features = ['s11_re', 's11_im', 's22_re', 's22_im']
+                    elif sparam_kind == 'transmission':
+                        features = ['s12_re', 's12_im', 's21_re', 's21_im']
                 else:
-                    self.features = ['s_re', 's_im']
-                    
-        elif self.likelihood_kind == 'multivariate_gaussian':
-            if is_two_port and self.sparam_kind == 'all':
-                self.features = self.features or ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
+                    features = ['s_re', 's_im']
+        elif likelihood_kind == 'multivariate_gaussian':
+            if is_two_port and sparam_kind == 'all':
+                features = features or ['s11_re', 's11_im', 's12_re', 's12_im', 's21_re', 's21_im', 's22_re', 's22_im']
                 self.feature_sigmas = feature_sigmas or ['sigma_gamma', 'sigma_gamma', 'sigma_tau', 'sigma_tau', 'sigma_tau', 'sigma_tau', 'sigma_gamma', 'sigma_gamma']
                 self.likelihood_params = likelihood_params or {s: DefaultSigmaPrior(name=s) for s in set(self.feature_sigmas)}
             elif is_two_port:
@@ -70,9 +69,10 @@ class BayesianFitter(BaseFitter, ABC):
             if self.feature_sigmas is None:
                 raise ValueError("feature_sigmas must be provided for multivariate Gaussian likelihoods")
         else:
-            raise ValueError(f"Unsupported likelihood kind: {self.likelihood_kind}")
+            raise ValueError(f"Unsupported likelihood kind: {likelihood_kind}")
+        
+        super().__init__(model, features=features, sparam_kind=sparam_kind, **kwargs)
 
-        # Lazy Compilation Caches
         self._log_prior_fn = None
         self._log_likelihood_fn = None
 
