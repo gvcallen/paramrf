@@ -14,7 +14,6 @@ dependencies = [
     "matplotlib",
     "numpy",
     "numpyro",
-    "jaxopt",
     "jsonpickle",
     "scikit-rf",
     "scipy",
@@ -44,6 +43,9 @@ blackjax = [
 ]
 optax = [
     "optax",
+]
+eqxlearn = [
+    "eqx-learn @ git+https://github.com/eqx-learn/eqx-learn",
 ]
 docs = [
     "sphinx",
