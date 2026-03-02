@@ -12,10 +12,29 @@ from pmrf.util import lhs_sample, LivePlotter, RANK
 from pmrf.algorithms import has_converged
 
 class FieldSampler(AcquisitionSampler, ABC):
-    """
-    Abstract Base Class for sampling new points at the maxima of a learnt scalar field.
+    r"""
+    Base class for sampling new points at the maxima of a learned scalar field.
     
-    Subclasses must define how to train the field and how to evaluate it.
+    This sampler implements an active learning strategy where a "field" (such as 
+    an uncertainty map or an acquisition function) is trained on existing 
+    samples. The next points to simulate are selected by finding the maxima 
+    of this field across the parameter space.
+
+    Subclasses must implement :meth:`train_field` and :meth:`evaluate_field` 
+    to define the specific behavior of the adaptive loop.
+
+    .. rubric:: Methods
+
+    .. autosummary::
+       :nosignatures:
+
+       run
+       sample
+       update
+       train_field
+       evaluate_field
+       calculate_convergence
+       acquire
     """
     def __init__(self, model: Model, **kwargs):
         super().__init__(model, **kwargs)
@@ -28,7 +47,7 @@ class FieldSampler(AcquisitionSampler, ABC):
         output_path: str | None = None,
         save_figures: bool = True,
         **kwargs
-    ) -> SampleResults:
+    ) -> SampleResults:    
         result = super().run(output_path=output_path, save_figures=save_figures, **kwargs)
         
         if output_path is not None and RANK == 0:
@@ -38,23 +57,50 @@ class FieldSampler(AcquisitionSampler, ABC):
         
         return result
         
-    # --------------------------------------------------------------------------
-    # Abstract Field Hooks (The Contract)
-    # --------------------------------------------------------------------------
     @abstractmethod
     def train_field(self, key=None) -> Any:
-        """Trains and returns the scalar field (e.g., a surrogate model)."""
+        r"""
+        Train and return the scalar field (e.g., a surrogate model).
+
+        Parameters
+        ----------
+        key : jax.Array, optional
+            JAX PRNG key for stochastic training.
+
+        Returns
+        -------
+        Any
+            The trained field object/state.
+        """
         pass
 
     @abstractmethod
     def evaluate_field(self, field: Any, theta: jnp.ndarray, key=None) -> float:
-        """Evaluates the scalar field at a given physical parameter point."""
+        r"""
+        Evaluate the scalar field at a given physical parameter point.
+
+        Parameters
+        ----------
+        field : Any
+            The trained field object returned by :meth:`train_field`.
+        theta : jax.numpy.ndarray
+            A 1D array representing a point in physical parameter space.
+        key : jax.Array, optional
+            JAX PRNG key for stochastic evaluation.
+
+        Returns
+        -------
+        float
+            The scalar value of the field at the given point.
+        """
         pass
 
     def calculate_convergence(self, key=None) -> float | Sequence[float] | None:
-        """
-        Optional: Returns a metric to track convergence. 
-        If not overridden, the maximum value of the grid field will be used.
+        r"""
+        Calculate metrics to track the algorithmic convergence. 
+
+        If not overridden, the maximum value found in the grid field will be 
+        used to track stability.
         """
         return None
 
@@ -75,6 +121,45 @@ class FieldSampler(AcquisitionSampler, ABC):
         key=None,
         **kwargs
     ) -> jnp.ndarray | None:
+        r"""
+        Propose N new points by maximizing the learned field over a grid.
+
+        This method follows a fixed template:
+        
+        * Trains the field using current samples.
+        * Generates a dense grid of points in the parameter space.
+        * Evaluates the field across that grid.
+        * Selects the top $N$ points using a penalized greedy strategy to 
+           ensure spatial diversity.
+        * Monitors convergence based on the field's stability.
+
+        Parameters
+        ----------
+        N : int
+            Number of points to propose.
+        d : int
+            Dimensionality of the parameter space.
+        grid_sampler : :class:`~pmrf.sampling.base.BaseSampler`, optional
+            An optional sampler used to generate the candidate grid. If ``None``, 
+            Latin Hypercube Sampling is used.
+        rtol : float, default=0.01
+            Relative tolerance for convergence checking.
+        atol : float, optional
+            Absolute tolerance for convergence checking.
+        patience : int, default=5
+            Number of iterations the metric must stay within tolerance to converge.
+        window : int, default=5
+            The look-back window for calculating tolerances.
+        num_grid_per_dim : int, default=1024
+            Multiplier for determining the grid density ($K = num\_grid\_per\_dim \times d$).
+        key : jax.Array, optional
+            JAX PRNG key.
+
+        Returns
+        -------
+        jax.numpy.ndarray or None
+            New proposed points in the unit hypercube, or ``None`` if converged.
+        """        
         
         # 1. Train the field (using subclass implementation)
         key, field_key = jr.split(key)

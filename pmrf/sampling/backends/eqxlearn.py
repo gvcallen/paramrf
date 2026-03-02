@@ -13,8 +13,33 @@ from pmrf.sampling.base import SampleResults
 from pmrf.algorithms.anomaly import get_anomaly_mask
 
 class EqxLearnUncertaintySampler(FieldSampler):
-    """
-    An adaptive sampler that selects samples to minimize the uncertainty of an 'eqx-learn' surrogate model.
+    r"""
+    Adaptive sampler that targets regions of high surrogate model uncertainty.
+    
+    This sampler uses an ``eqx-learn`` surrogate model to approximate the 
+    relationship between physical parameters and RF features. The adaptive loop 
+    selects new points where the surrogate's predictive variance is highest, 
+    effectively minimizing the Maximum Mean Absolute Error (MAE) across the 
+    entire design space.
+
+    It includes built-in preprocessing to filter out simulation anomalies or 
+    NaNs before training the surrogate.
+
+    Parameters
+    ----------
+    model : :class:`~pmrf.models.model.Model`
+        The base ParamRF model to sample.
+    surrogate : :class:`eqxlearn.BaseModel`
+        An ``eqx-learn`` model instance (e.g., a Gaussian Process) that 
+        supports predictive variance via ``return_var=True``.
+    cv : callable, optional
+        A cross-validation strategy for monitoring convergence. Defaults to 
+        a shuffled 5-fold KFold.
+    fit_kwargs : dict, optional
+        Keyword arguments passed to the ``eqxlearn.fit`` routine.
+    **kwargs
+        Additional arguments for the :class:`~pmrf.sampling.algorithms.FieldSampler` 
+        base class.
     """
     def __init__(
         self,
@@ -34,7 +59,7 @@ class EqxLearnUncertaintySampler(FieldSampler):
         self.anomaly_threshold = anomaly_threshold
         return super().run(**kwargs)
     
-    def preprocess(self) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def _preprocess(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         params, features = self.sampled_params, self.sampled_features
         anomaly_threshold = self.anomaly_threshold
         num_features = features.shape[-1]
@@ -62,7 +87,7 @@ class EqxLearnUncertaintySampler(FieldSampler):
         return params, features
 
     def train_field(self, key=None) -> BaseModel:
-        X, y = self.preprocess()
+        X, y = self._preprocess()
         self.logger.info("Training surrogate model...")
         fitted_eqx_model, losses = fit(self.surrogate, X=X, y=y, key=key, **self.fit_kwargs)
         self.logger.info(f"Final loss: {losses[-1]:.2f}")
@@ -76,7 +101,7 @@ class EqxLearnUncertaintySampler(FieldSampler):
         return 20 * jnp.log10(expected_mae)
     
     def calculate_convergence(self, key=None) -> float:
-        X, y = self.preprocess()
+        X, y = self._preprocess()
         key, split_key = jr.split(key)
         cv_instance = self.cv(key=split_key)
         

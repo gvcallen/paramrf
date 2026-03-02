@@ -13,10 +13,37 @@ L2_ERROR = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
 CONVOLUTIONAL_ERROR = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
 
 class FrequentistFitter(BaseFitter, ABC):
-    """
+    r"""
     A base class for frequentist (classical) optimization methods.
+    
+    This class sets up the objective function (or cost function) needed by standard 
+    numerical optimizers (like those in SciPy). It automatically configures the 
+    target features and error metrics based on the type of fit you want to perform.
 
-    Provides a lazily compiled `cost()` function for backends to utilize.
+    .. rubric:: Methods
+
+    .. autosummary::
+       :nosignatures:
+       
+       run
+       optimize
+       cost
+
+    Parameters
+    ----------
+    model : Model
+        The ParamRF model containing the parameters to optimize.
+    cost_kind : str, optional
+        A preset string to automatically configure the features and error functions. 
+        Options include 'convolutional', 'complex', or 'magnitude'. If left 
+        as ``None``, it defaults to fitting the real and imaginary parts of all 
+        ports in the model.
+    error_fn : callable, list of callables, or eqx.Module, optional
+        The specific mathematical function(s) used to calculate the final error 
+        between the model's output and the target data. If not provided, standard 
+        L2 norms are used based on the ``cost_kind``.
+    **kwargs
+        Additional arguments passed up to :class:`BaseFitter` (such as ``frequency``).
     """
     def __init__(
         self,
@@ -62,11 +89,26 @@ class FrequentistFitter(BaseFitter, ABC):
         self._cost_fn = None
 
     def cost(self, theta: jnp.ndarray, target_features: jnp.ndarray) -> jnp.ndarray:
-        """
-        Lazily compiles and evaluates the cost function.
+        r"""
+        Calculate the scalar error (cost) for a given set of parameters.
         
-        This handles expanding 1D parameters (from SciPy) into the 2D format 
-        expected by the vmapped feature extractor.
+        This function computes the model features, calculates the residual against 
+        the target data, and passes it through the defined error function. The 
+        entire calculation is lazily compiled using ``jax.jit`` on the first call 
+        to ensure the optimization loop runs as fast as possible.
+        
+        Parameters
+        ----------
+        theta : jax.numpy.ndarray
+            A 1D array containing the current parameter values being tested by 
+            the optimizer.
+        target_features : jax.numpy.ndarray
+            The extracted measurement data that the optimizer is trying to match.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            The scalar cost value representing the total error.
         """
         if self._cost_fn is None:
             self.logger.debug("Lazily compiling Frequentist cost function...")

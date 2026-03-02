@@ -8,20 +8,48 @@ import numpy as np
 from pmrf.fitting.bayesian import BayesianFitter
 from pmrf.models.model import Model
 
+
+
 class NumPyroFitter(BayesianFitter):
-    """
+    r"""
     Base class for fitters utilizing the NumPyro probabilistic programming library.
+    
+    This base class handles the translation of the unified ParamRF model definitions 
+    (priors and compiled likelihoods) into a dynamic NumPyro trace graph. It also 
+    provides optimized binary serialization for the resulting MCMC/NS sample chains.
+
+    .. rubric:: Methods
+
+    .. autosummary::
+       :nosignatures:
+       
+       make_numpyro_model
     """
-    def make_numpyro_model(self, target_features: jnp.ndarray):
-        """
-        Constructs a dynamic NumPyro model function that perfectly mirrors the 
-        compiled BayesianFitter logic.
+    def make_numpyro_model(self, targets: jnp.ndarray):
+        r"""
+        Construct a dynamic NumPyro model function that mirrors the BayesianFitter logic.
+        
+        This method traces the prior distributions for both the physical model 
+        parameters and the likelihood noise parameters using ``numpyro.sample``. 
+        It then concatenates them and injects the lazily compiled ParamRF 
+        log-likelihood graph directly into the trace as a ``numpyro.factor`` node.
+
+        Parameters
+        ----------
+        targets : jax.numpy.ndarray
+            The extracted measurement data to condition the likelihood on.
+
+        Returns
+        -------
+        callable
+            A dynamic parameter-less function representing the complete NumPyro 
+            probabilistic model, ready to be passed to a sampling kernel.
         """
         import numpyro
         
         # 1. Trigger lazy compilation to ensure the unified log-likelihood graph is ready
         dummy_theta = jnp.zeros(self.num_params)
-        _ = self.log_likelihood(dummy_theta, target_features)
+        _ = self.log_likelihood(dummy_theta, targets)
         
         ll_fn = self._log_likelihood_fn
         
@@ -45,7 +73,7 @@ class NumPyroFitter(BayesianFitter):
                 theta_combined = x
                 
             # 5. Inject the compiled Fitter log-likelihood directly into the NumPyro trace!
-            numpyro.factor("log_likelihood", ll_fn(theta_combined, target_features))
+            numpyro.factor("log_likelihood", ll_fn(theta_combined, targets))
             
         return numpyro_model
 
@@ -54,30 +82,36 @@ class NumPyroFitter(BayesianFitter):
     # --------------------------------------------------------------------------
     @staticmethod
     def write_results(stream: io.BytesIO, results: Any):
-        """
-        Saves the NumPyro sample dictionary as compressed numpy arrays.
-        This is significantly faster and smaller than jsonpickle for MCMC traces.
+        r"""
+        Save the NumPyro sample dictionary as compressed numpy arrays.
+        
+        This overrides the default JSON serialization, providing significantly 
+        faster write times and smaller file sizes for large MCMC traces.
         """
         np.savez_compressed(stream, **results)
 
     @staticmethod
     def read_results(stream: io.BytesIO) -> Any:
-        """
-        Reconstructs the NumPyro sample dictionary from the binary stream.
+        r"""
+        Reconstruct the NumPyro sample dictionary from the binary stream.
         """
         with np.load(stream) as data:
             return {k: data[k] for k in data.files}
 
 
+
+
 class NumPyroMCMCFitter(NumPyroFitter):
-    """
-    NumPyro MCMC: Markov Chain Monte Carlo (MCMC) sampling using ``numpyro.infer.MCMC``.
+    r"""
+    Bayesian fitter using NumPyro Markov Chain Monte Carlo (MCMC) sampling.
     
-    Defaults to using the No-U-Turn Sampler (NUTS).
+    This backend utilizes ``numpyro.infer.MCMC``. By default, it operates using 
+    the No-U-Turn Sampler (NUTS) kernel, which is highly efficient for continuous, 
+    differentiable parameter spaces.
     """        
     def optimize(
         self, 
-        target_features: jnp.ndarray, 
+        targets: jnp.ndarray, 
         *, 
         output_path: str | None = None,
         output_root: str | None = None,        
@@ -86,14 +120,41 @@ class NumPyroMCMCFitter(NumPyroFitter):
         fitted_params: str = 'mean', 
         **kwargs
     ) -> tuple[Model, Any]:
-        """Executes the MCMC sampling run."""
+        r"""
+        Execute the MCMC sampling run.
+
+        Parameters
+        ----------
+        targets : jax.numpy.ndarray
+            The extracted target features to fit against.
+        output_path : str, optional
+            Base directory for output traces (consumed by the base run method).
+        output_root : str, optional
+            Prefix for output files.
+        kernel : numpyro.infer.mcmc.MCMCKernel, optional
+            The specific MCMC transition kernel to use. If ``None``, defaults 
+            to ``numpyro.infer.NUTS``.
+        seed : int, default=42
+            The PRNG key seed for JAX's random number generator.
+        fitted_params : {'mean'}, default='mean'
+            How to select the final point estimates for the returned model's 
+            parameters from the posterior samples.
+        **kwargs
+            Additional keyword arguments passed directly to ``numpyro.infer.MCMC`` 
+            (e.g., ``num_warmup``, ``num_samples``).
+
+        Returns
+        -------
+        tuple[:class:`~pmrf.models.model.Model`, dict[str, jax.numpy.ndarray]]
+            The fitted model and a dictionary containing the raw MCMC samples.
+        """
         from numpyro.infer import MCMC, NUTS
         
         if kernel is None:
             kernel = NUTS
             
         param_names = self.model.flat_param_names()
-        numpyro_model = self.make_numpyro_model(target_features)
+        numpyro_model = self.make_numpyro_model(targets)
         
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s) using MCMC...')
         
@@ -116,13 +177,18 @@ class NumPyroMCMCFitter(NumPyroFitter):
         return fitted_model, samples
 
 
+
+
 class NumPyroNSFitter(NumPyroFitter):
-    """
-    NumPyro NS: Nested sampling using ``numpyro.contrib.nested_sampling.NestedSampler``.
+    r"""
+    Bayesian fitter using NumPyro Nested Sampling.
+    
+    This backend utilizes ``numpyro.contrib.nested_sampling.NestedSampler`` to 
+    compute both the posterior samples and the log-evidence of the model.
     """
     def optimize(
         self, 
-        target_features: jnp.ndarray, 
+        targets: jnp.ndarray, 
         *, 
         constructor_kwargs=None, 
         terminated_kwargs=None, 
@@ -130,11 +196,37 @@ class NumPyroNSFitter(NumPyroFitter):
         fitted_params: str = 'mean', 
         **kwargs
     ) -> tuple[Model, Any]:
-        """Executes the Nested Sampling run."""
+        r"""
+        Execute the Nested Sampling run.
+
+        Parameters
+        ----------
+        targets : jax.numpy.ndarray
+            The extracted target features to fit against.
+        constructor_kwargs : dict, optional
+            Keyword arguments passed directly to the ``NestedSampler`` constructor 
+            (e.g., ``num_live_points``).
+        terminated_kwargs : dict, optional
+            Keyword arguments passed to control the termination criteria of the 
+            sampling loop.
+        seed : int, default=42
+            The PRNG key seed for JAX's random number generator.
+        fitted_params : {'mean'}, default='mean'
+            How to select the final point estimates for the returned model's 
+            parameters from the posterior samples.
+        **kwargs
+            Additional arguments. ``num_samples`` is extracted to determine 
+            how many samples to draw from the final nested sampling weights.
+
+        Returns
+        -------
+        tuple[:class:`~pmrf.models.model.Model`, dict[str, jax.numpy.ndarray]]
+            The fitted model and a dictionary containing the generated samples.
+        """
         from numpyro.contrib.nested_sampling import NestedSampler
         
         param_names = self.model.flat_param_names()
-        numpyro_model = self.make_numpyro_model(target_features)
+        numpyro_model = self.make_numpyro_model(targets)
         
         self.logger.info(f'Fitting for {len(param_names)} model parameter(s) using Nested Sampling...')
         

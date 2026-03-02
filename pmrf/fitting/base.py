@@ -20,8 +20,34 @@ from pmrf.io import save
 from pmrf.util import RANK
 
 class BaseFitter(BaseRunner, ABC):
-    """
+    r"""
     Base class for all ParamRF fitters (frequentist and Bayesian).
+    
+    This runner fits model parameters to measured RF data (like S-parameters 
+    or Y-parameters). It handles extracting the features you want to fit, 
+    runs the specific optimization algorithm, and returns the final model.
+
+    .. rubric:: Main methods
+
+    .. autosummary::
+       :nosignatures:
+       
+       run
+       optimize
+
+    Parameters
+    ----------
+    model : Model
+        The initial ParamRF model containing the free parameters to be optimized.
+    frequency : Frequency, optional
+        The frequency band to fit over. If not provided, it is automatically 
+        extracted from the measured data during the run.
+    features : FeatureSpecT, optional
+        The target features to extract from both the model and the measured data 
+        for the objective function.
+    **feature_kwargs
+        Additional keyword arguments passed directly to 
+        :meth:`pmrf.extract_features`.
     """
     def run(
         self,
@@ -36,9 +62,44 @@ class BaseFitter(BaseRunner, ABC):
         fitted_uniform_frac: float | None = 0.1,
         **kwargs        
     ) -> tuple[Model, FitResults]:
-        """
-        Executes the fit. Handles dynamic frequency extraction, delegates the mathematical 
-        optimization, and packages the outputs into a FitResults object.
+        r"""
+        Run the fitting process against the provided measurement data.
+        
+        This method automatically sets up the frequency, extracts the target features, 
+        and calls the subclass's ``optimize`` method. It also handles saving the 
+        results and generating plots if requested.
+        
+        **Note:** Any extra keyword arguments (**kwargs) are passed directly to the 
+        underlying ``optimize`` method.
+
+        Parameters
+        ----------
+        measured : str or skrf.Network or NetworkCollection
+            The ground-truth measurement data to fit the model against. Can be a 
+            path to a Touchstone file, a scikit-rf Network, or a collection.
+        output_path : str, optional
+            The directory where results, models, and figures should be saved.
+        output_root : str, optional
+            A prefix string appended to all saved filenames.
+        plot : FeatureSpecT, optional
+            Specific features to plot and save as PNG images after fitting.
+        save_model : bool, default=True
+            Whether to save the fitted model to disk.
+        save_results : bool, default=True
+            Whether to save the full ``FitResults`` object to an HDF5 file.
+        figure_dir : str, optional
+            A sub-directory within ``output_path`` specifically for saved figures.
+        fitted_uniform_frac : float, optional, default=0.1
+            If provided, the final fitted model's parameters will be assigned 
+            uniform distributions spanning $\pm$ this fraction around the optimal 
+            values (e.g., $0.1$ implies $\pm 10\%$). Set to ``None`` to skip.
+        **kwargs
+            Additional arguments passed directly to the subclass's ``optimize`` method.
+
+        Returns
+        -------
+        tuple[Model, FitResults]
+            A tuple containing the fitted ParamRF model and the results object.
         """
         self.output_path = output_path
         self.output_root = output_root
@@ -136,5 +197,19 @@ class BaseFitter(BaseRunner, ABC):
         target: jnp.ndarray,
         **kwargs
     ) -> tuple[Model, Any]:
-        """Implemented by subclasses to perform the actual optimization algorithm."""
+        r"""
+        Implemented by subclasses to run the specific optimization algorithm.
+        
+        Parameters
+        ----------
+        target : jax.numpy.ndarray
+            The extracted target features to fit against.
+        **kwargs
+            Backend-specific algorithm parameters passed down from ``run()``.
+            
+        Returns
+        -------
+        tuple[Model, Any]
+            The fitted model and the raw results from the solver.
+        """
         pass

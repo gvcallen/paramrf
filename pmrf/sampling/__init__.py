@@ -3,7 +3,7 @@ The sampling module, for random and adaptive sampling of ParamRF models.
 
 All samplers in this module inherit from :class:`pmrf.sampling.BaseSampler`.
 Sampling is done by initializing a Sampler class with the model and sampling targets, and then calling
-:meth:`run pmrf.sampling.BaseSampler.run`. Sampling targets include the model features (e.g. S11),
+:meth:`pmrf.sampling.BaseSampler.run`. Sampling targets include the model features (e.g. S11),
 the sampling frequency, and additional targets provided by specific sub-class algorithms
 (such as surrogate models etc.).
 

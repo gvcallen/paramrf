@@ -14,8 +14,30 @@ from pmrf.sampling.results import SampleResults
 from pmrf.features import extract_features
 
 class BaseSampler(BaseRunner, ABC):
-    """
+    r"""
     Base class for model sampling and active learning loops.
+    
+    This runner is designed to explore the parameter space of a model, either 
+    through pre-defined experimental designs or adaptive active learning strategies. 
+    It manages state caching, crash-recovery checkpoints, and live plotting of 
+    extracted features during the sampling loop.
+
+    .. rubric:: Methods
+
+    .. autosummary::
+       :nosignatures:
+
+       run
+       sample
+       update
+
+    Parameters
+    ----------
+    model : :class:`~pmrf.models.model.Model`
+        The base ParamRF model to be sampled.
+    **kwargs
+        Additional arguments passed up to :class:`~pmrf.runner.BaseRunner` 
+        (e.g., ``frequency``, ``features``).
     """
     expensive: bool = False
     
@@ -39,9 +61,37 @@ class BaseSampler(BaseRunner, ABC):
         save_figures: bool = True,
         **kwargs
     ) -> SampleResults:
-        """
-        Executes the sampling process. Handles state delegation and packages 
-        the outputs into a SampleResults object.
+        r"""
+        Execute the sampling process.
+        
+        This method handles plotting setup, optional recovery from previous runs, 
+        delegates the core algorithm to the subclass's :meth:`sample` method, 
+        and packages the final results.
+
+        Parameters
+        ----------
+        plot : str or list[str], optional
+            Specific features to plot live during the sampling loop and save 
+            as PNG images.
+        output_path : str, optional
+            The directory where results, numpy crash-checkpoints, and figures 
+            should be saved.
+        load_previous : bool, default=False
+            If ``True`` and ``output_path`` is provided, it will attempt to 
+            load and return an existing ``sample_results.hdf5`` file instead 
+            of re-running the sampling.
+        save_results : bool, default=True
+            Whether to save the final ``SampleResults`` object to an HDF5 file.
+        save_figures : bool, default=True
+            Whether to save the generated plots to disk.
+        **kwargs
+            Additional arguments passed directly to the subclass's :meth:`sample` method.
+
+        Returns
+        -------
+        :class:`~pmrf.sampling.results.SampleResults`
+            The comprehensive results object containing the evaluated parameters 
+            and their corresponding extracted features.
         """
         # Updates feature variables
         if plot is not None and isinstance(plot, str):
@@ -108,9 +158,20 @@ class BaseSampler(BaseRunner, ABC):
         return results    
 
     def update(self, theta: jnp.ndarray) -> None:
-        """
-        Updates internal state for the model samples and features, appending the results, logging messages, caching the output,
-        and save temporary arrays for crash safety.
+        r"""
+        Evaluate new parameters and update the internal sampling state.
+        
+        This function is central to active learning and iterative sampling backends. 
+        It extracts the features for the provided parameters, appends the data to 
+        the internal tracking arrays, updates any configured live plots, and 
+        (if ``expensive=True``) automatically saves intermediate crash-recovery 
+        checkpoints to disk using native NumPy serialization.
+
+        Parameters
+        ----------
+        theta : jax.numpy.ndarray
+            A 1D array of a single parameter set, or a 2D array representing 
+            a batch of parameters to simulate.
         """
         new_thetas = jnp.atleast_2d(theta)
         N, D = new_thetas.shape
@@ -159,8 +220,18 @@ class BaseSampler(BaseRunner, ABC):
         self,
         **kwargs,
     ) -> tuple[jnp.ndarray, Any]:
-        """
+        r"""
         Implemented by subclasses to perform the actual sampling algorithm.
-        Returns a tuple of (thetas, backend_results).
+
+        Parameters
+        ----------
+        **kwargs
+            Backend-specific algorithm parameters passed down from :meth:`run`.
+
+        Returns
+        -------
+        tuple[jax.numpy.ndarray, Any]
+            A tuple containing the generated array of parameters (thetas) and 
+            any raw backend-specific results or metadata object.
         """
-        pass                    
+        pass

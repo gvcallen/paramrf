@@ -10,20 +10,41 @@ from pmrf.util import time_string
 
 class PolyChordFitter(BayesianFitter):
     """
-    PolyChord: Nested slice sampling backend using ``pypolychord``.
+    Bayesian fitter using the PolyChord nested sampling algorithm.
     
-    PolyChord provides global evidence (logZ) and posterior samples.
+    This backend uses ``pypolychord`` to perform slice sampling, calculating 
+    both the global evidence (logZ) and generating samples from the posterior 
+    distribution.
     """
     def optimize(
         self, 
-        target_features: jnp.ndarray, 
+        target: jnp.ndarray, 
         *, 
         fitted_params='maximum-likelihood', 
         nlive_factor=25, 
         **kwargs
     ) -> tuple[Model, Any]:
         """
-        Executes the PolyChord nested sampling run.
+        Execute the PolyChord nested sampling run.
+
+        Parameters
+        ----------
+        target : jax.numpy.ndarray
+            The extracted target features to fit against.
+        fitted_params : {'maximum-likelihood', 'mean'}, default='maximum-likelihood'
+            How to select the final point estimates for the returned model's 
+            parameters from the posterior samples.
+        nlive_factor : int, default=25
+            A multiplier to determine the number of live points. The total 
+            number of live points (``nlive``) defaults to ``nlive_factor * num_params``.
+        **kwargs
+            Additional keyword arguments passed directly to ``pypolychord.run``.
+
+        Returns
+        -------
+        tuple[Model, Any]
+            The fitted model (with parameter groups updated to the full posterior) 
+            and the raw ``anesthetic.NestedSamples`` object.
         """
         # Dynamic imports for heavy external dependencies
         import pypolychord
@@ -44,7 +65,7 @@ class PolyChordFitter(BayesianFitter):
         
         # 3. Define Wrappers for Lazily Compiled JAX Functions
         def log_likelihood_np(x):
-            return float(self.log_likelihood(x, target_features))
+            return float(self.log_likelihood(x, target))
 
         def prior_np(u):
             return np.array(self.icdf(u))
@@ -91,8 +112,7 @@ class PolyChordFitter(BayesianFitter):
     @staticmethod
     def write_results(stream: io.BytesIO, results: Any):
         """
-        Encodes anesthetic NestedSamples into HDF5.
-        We save the sample data as a dataset and use attributes for metadata like logZ.
+        Encode anesthetic NestedSamples into a CSV string for serialization.
         """
         samples = results
         csv_str: str = samples.to_csv()
@@ -101,7 +121,7 @@ class PolyChordFitter(BayesianFitter):
     @staticmethod
     def read_results(stream: io.BytesIO) -> Any:
         """
-        Reconstructs anesthetic NestedSamples from HDF5.
+        Reconstruct anesthetic NestedSamples from a serialized CSV string.
         """
         from anesthetic import NestedSamples, read_csv
         

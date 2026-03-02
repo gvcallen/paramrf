@@ -10,11 +10,31 @@ from pmrf.models.model import Model
 from pmrf.util import lhs_sample
 
 class AcquisitionSampler(BaseSampler, ABC):
-    """
-    Base class for acquisition-based adaptive sampling strategies.
+    r"""
+    Base class for adaptive, acquisition-based sampling (Active Learning).
     
-    This class implements the `sample()` algorithm by repeatedly querying 
-    a concrete subclass's `acquire()` method until convergence or limits are reached.
+    This sampler implements a feedback loop that:
+    
+    * Starts with an initial random experimental design (LHS).
+    * Repeatedly queries an acquisition function to find the most "informative" 
+      next points to simulate.
+    * Updates the internal state until a budget ($N$) or convergence is reached.
+
+    This class is marked as ``expensive=True``, meaning it will automatically 
+    save intermediate NumPy checkpoints for crash recovery during the loop.
+
+    This class is marked as ``expensive=True``, meaning it will automatically 
+    save intermediate NumPy checkpoints for crash recovery during the loop.
+
+    .. rubric:: Methods
+
+    .. autosummary::
+       :nosignatures:
+
+       run
+       sample
+       update
+       acquire
     """
     expensive: bool = True
     

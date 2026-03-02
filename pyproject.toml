@@ -50,6 +50,7 @@ docs = [
     "myst-parser",
     "ghp-import",
     "sphinx-rtd-theme",
+    "sphinx-math-dollar",
 ]
 
 [project.urls]

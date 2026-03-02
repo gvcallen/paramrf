@@ -26,7 +26,6 @@ Modules
    pmrf.distributions
    pmrf.fitting
    pmrf.math_functions
-   
    pmrf.models
    pmrf.parameters
    pmrf.results

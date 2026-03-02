@@ -15,10 +15,41 @@ from pmrf.network_collection import NetworkCollection
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
 
 class BayesianFitter(BaseFitter, ABC):
-    """
+    r"""
     A base class for Bayesian inference fitters.
 
-    Provides lazily compiled `log_prior` and `log_likelihood` functions.
+    This class extends :class:`~pmrf.fitting.base.BaseFitter` to support probabilistic 
+    modeling. It appends likelihood noise parameters (like variance or sigma) to the 
+    underlying model's parameters and provides lazily compiled functions for the 
+    prior and likelihood probabilities.
+
+    .. rubric:: Main methods
+
+    .. autosummary::
+       :nosignatures:
+       
+       run
+       optimize
+       log_likelihood
+
+    Parameters
+    ----------
+    model : :class:`~pmrf.models.model.Model`
+        The ParamRF model containing the parameters to optimize.
+    likelihood_kind : str, optional
+        The type of likelihood function to use. Options typically include 'gaussian' 
+        or 'multivariate_gaussian'. If ``None``, it is inferred automatically 
+        based on the provided measurement data during :meth:`run`.
+    likelihood_params : dict[str, :class:`~pmrf.parameters.Parameter`], optional
+        A dictionary defining the prior distributions for the likelihood noise 
+        parameters (e.g., standard deviations). If ``None``, standard uniform 
+        priors are generated automatically.
+    feature_sigmas : list[str], optional
+        A list mapping the extracted features to their specific noise parameter names 
+        when using a 'multivariate_gaussian' likelihood.
+    **kwargs
+        Additional arguments passed up to :class:`~pmrf.fitting.base.BaseFitter` 
+        (such as ``frequency``).
     """
     def __init__(
         self, 
@@ -43,6 +74,25 @@ class BayesianFitter(BaseFitter, ABC):
         measured: str | skrf.Network | NetworkCollection,
         **kwargs,
     ) -> tuple[Model, FitResults]:
+        r"""
+        Execute the Bayesian fitting routine.
+        
+        This method intercepts the standard run sequence to automatically resolve 
+        the target features, likelihood kind, and noise priors based on the shape 
+        and type of the provided measurement data before passing execution to the backend.
+
+        Parameters
+        ----------
+        measured : str or skrf.Network or NetworkCollection
+            The measurement data to condition the likelihood on.
+        **kwargs
+            Additional arguments forwarded to the specific backend solver.
+
+        Returns
+        -------
+        tuple[:class:`~pmrf.models.model.Model`, :class:`~pmrf.fitting.base.FitResults`]
+            The fitted model and the raw results object.
+        """
         # We lazily update the features and likelihood based on the measured data
         sparam_kind = self.feature_kwargs.setdefault('sparam_kind', 'all')
         if isinstance(measured, str):
@@ -91,7 +141,7 @@ class BayesianFitter(BaseFitter, ABC):
 
             likelihood_params = likelihood_params if likelihood_params is not None else {'sigma': DefaultSigmaPrior(name='sigma')}
         else:
-            raise Exception(f"Unsupported likelihood kind: {likelihood_kind}")         
+            raise Exception(f"Unsupported likelihood kind: {likelihood_kind}")        
         
         self.likelihood_kind = likelihood_kind
         self.likelihood_params = likelihood_params
@@ -102,9 +152,26 @@ class BayesianFitter(BaseFitter, ABC):
 
     @property
     def num_params(self) -> int:
+        r"""
+        int: Total number of active parameters (model free parameters + likelihood noise parameters).
+        """
         return self.model.num_flat_params + len(self.likelihood_params)
     
     def cdf(self, theta: jnp.ndarray) -> jnp.ndarray:
+        r"""
+        Evaluate the combined cumulative distribution function (CDF).
+
+        Parameters
+        ----------
+        theta : jax.numpy.ndarray
+            The parameter values. Note that this 1D array must contain the model 
+            parameters followed sequentially by the likelihood noise parameters.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            The combined CDF probabilities mapped between $0$ and $1$.
+        """
         if self._cdf_fn is None:
             model_distribution = self.model.distribution()
             num_model_params = self.model.num_flat_params
@@ -119,6 +186,21 @@ class BayesianFitter(BaseFitter, ABC):
         return self._cdf_fn(jnp.array(theta))
 
     def icdf(self, u: jnp.ndarray) -> jnp.ndarray:
+        r"""
+        Evaluate the combined inverse cumulative distribution function (ICDF).
+
+        Parameters
+        ----------
+        u : jax.numpy.ndarray
+            The probability values. Note that this 1D array corresponds to the 
+            probabilities for the model parameters followed by the likelihood 
+            noise parameters.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            The physical parameter values evaluated from the prior distributions.
+        """
         if self._icdf_fn is None:
             model_distribution = self.model.distribution()
             num_model_params = self.model.num_flat_params
@@ -133,7 +215,23 @@ class BayesianFitter(BaseFitter, ABC):
         return self._icdf_fn(jnp.array(u))
 
     def log_prior(self, theta: jnp.ndarray) -> jnp.ndarray:
-        """Lazily compiles and evaluates the combined model + likelihood log-prior."""
+        r"""
+        Evaluate the total log-prior probability.
+        
+        This lazily compiles the JAX graph to sum the log-prior probabilities of 
+        both the underlying model parameters and the added likelihood noise parameters.
+
+        Parameters
+        ----------
+        theta : jax.numpy.ndarray
+            The concatenated 1D array containing the model parameters followed 
+            by the likelihood parameters.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            The scalar log-prior probability.
+        """
         if self._log_prior_fn is None:
             self.logger.debug('Lazily compiling combined log-prior...')
             num_model_params = self.model.num_flat_params
@@ -161,9 +259,25 @@ class BayesianFitter(BaseFitter, ABC):
         return self._log_prior_fn(jnp.array(theta))
 
     def log_likelihood(self, theta: jnp.ndarray, target: jnp.ndarray) -> jnp.ndarray:
-        """
-        Lazily compiles and evaluates the log-likelihood.
-        Handles expanding 1D parameters into the 2D format expected by the vmapped feature extractor.
+        r"""
+        Evaluate the log-likelihood of the target data.
+        
+        This handles expanding 1D parameters into the 2D format expected by the 
+        vmapped feature extractor, and computes the probability density of the 
+        target data against the selected Gaussian or Multivariate Gaussian distribution.
+
+        Parameters
+        ----------
+        theta : jax.numpy.ndarray
+            The concatenated 1D array containing the model parameters followed 
+            by the likelihood noise standard deviations ($\sigma$).
+        target : jax.numpy.ndarray
+            The extracted target features (measurement data) to evaluate against.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            The scalar log-likelihood probability.
         """
         if self._log_likelihood_fn is None:
             # 2. Compile the specific likelihood loop
