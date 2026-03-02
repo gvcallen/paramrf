@@ -22,6 +22,7 @@ ParamRF: Parametric Radio Frequency Modelling, Fitting and Sampling
    installation
    introduction/index
    api/index
+   skrf_comparison
    license
 
 
