@@ -1,3 +1,7 @@
+"""
+A distribution represented by a set of sampled.
+"""
+
 from abc import abstractmethod
 
 import jax.numpy as jnp

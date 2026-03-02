@@ -9,7 +9,7 @@ from jax.extend.backend import get_backend
 from tqdm.auto import tqdm
 
 from pmrf.fitting.bayesian import BayesianFitter
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.parameters import ParameterGroup
 
 class BlackJAXNSFitter(BayesianFitter):

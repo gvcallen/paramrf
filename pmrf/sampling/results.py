@@ -5,7 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 import h5py
 
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.results import BaseResults
 
 @dataclass

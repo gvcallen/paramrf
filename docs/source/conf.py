@@ -55,9 +55,11 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinx.ext.doctest',
     'myst_parser',  # keep if you have any .md pages
 ]
 
+autosummary_ignore_module_all = False
 autosummary_generate = True
 autoclass_content = 'class'
 autodoc_typehints = 'description'
@@ -77,7 +79,7 @@ napoleon_numpy_docstring = True
 napoleon_google_docstring = False
 napoleon_use_param = True
 napoleon_use_rtype = True
-napoleon_use_ivar = False
+napoleon_use_ivar = True
 
 myst_enable_extensions = ['colon_fence', 'deflist', 'linkify']
 myst_heading_anchors = 3

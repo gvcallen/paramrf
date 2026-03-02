@@ -1,3 +1,7 @@
+"""
+A distribution composed of multiple independent distributions.
+"""
+
 from numpyro.distributions import Distribution, constraints
 import jax.numpy as jnp
 import jax

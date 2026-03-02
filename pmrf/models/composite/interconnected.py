@@ -1,13 +1,16 @@
+"""
+Composite models that physically connect ports of other models.
+"""
+
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.models.components.ideal import Port
-from pmrf.models.composite.base import Composite
 from pmrf.rf_functions.connections import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 from pmrf.util import field
 
-class Circuit(Composite):
+class Circuit(Model):
     """
     Represents an arbitrary circuit defined by component connections.
 
@@ -69,7 +72,7 @@ class Circuit(Composite):
         Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
         return Scon
 
-class Cascade(Composite):
+class Cascade(Model):
     """
     Represents a cascade, or series connection, of two or more `Model` objects.
 
@@ -141,7 +144,7 @@ class Cascade(Composite):
         return Scas
     
     
-class Terminated(Composite):
+class Terminated(Model):
     """
     Represents one network terminated in another.
 

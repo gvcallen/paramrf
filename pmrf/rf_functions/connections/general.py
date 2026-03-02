@@ -291,7 +291,7 @@ def connect_s_common(
 
     References
     ----------
-    .. [#] P. Hallbjörner, Microw. Opt. Technol. Lett. 38, 99 (2003).
+    .. P. Hallbjörner, Microw. Opt. Technol. Lett. 38, 99 (2003).
     """
     # Adapted from scikit-rf. See the copyright notice in pmrf._frequency.py  
 

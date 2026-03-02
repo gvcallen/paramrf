@@ -1,10 +1,12 @@
+"""
+Ideal models, such as ports, grounds and transformers.
+"""
 import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.models.components.base import Component
 from pmrf.models.components.lumped import MATCH, SHORT
 
-class Port(Component):
+class Port(Model):
     """
     Represents a circuit port.
 
@@ -22,7 +24,7 @@ class Port(Component):
         """
         return MATCH
     
-class Ground(Component):
+class Ground(Model):
     """
     Represents a ground connection.
 
@@ -32,7 +34,7 @@ class Ground(Component):
     def __call__(self) -> Model:
         return SHORT
 
-class Transformer(Component):
+class Transformer(Model):
     """
     An ideal, lossless, frequency-independent 4-port 1:1 transformer.
 
@@ -47,7 +49,7 @@ class Transformer(Component):
 
         return s
     
-class SourceConverter(Component):
+class SourceConverter(Model):
     """
     An ideal 3-port source converter.
 

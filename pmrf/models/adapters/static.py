@@ -1,15 +1,15 @@
 """
-Adapter models that store static parameter data.
+Adapter models that store static RF network data.
 """
 
 import skrf
 import jax.numpy as jnp
 
-from pmrf.models.adapters.base import Adapter
+from pmrf.models.adapters.base import Model
 from pmrf.frequency import Frequency
 from pmrf.util import field
 
-class Measured(Adapter):
+class Measured(Model):
     """
     A model wrapping a static Measured Network (e.g., from a Touchstone file).
 

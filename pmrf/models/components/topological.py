@@ -1,12 +1,15 @@
+"""
+Specific topology layouts such as Pi-CLC or Box-CLCC networks.
+"""
 import jax
 import jax.numpy as jnp
 
 from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
-from pmrf.models.components.base import Component
+from pmrf.models.model import Model
 from pmrf.rf_functions import y2s
 
-class PiCLC(Component):
+class PiCLC(Model):
     """
     A 2-port or 3-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
 
@@ -14,8 +17,6 @@ class PiCLC(Component):
     and a second shunt capacitor (`C2`). It is a fundamental building block
     for various filters and matching networks, and is also commonly used to
     model the parasitic effects of physical components like SMD resistors.
-
-    
 
     The parameter `three_port` determines whether all four ports are exposed or not.
 
@@ -130,7 +131,7 @@ class PiCLC(Component):
         
         return y2s(self.y(freq), self.z0)
     
-class BoxCLCC(Component):
+class BoxCLCC(Model):
     """
     A 3-port or 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
 

@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from pmrf.runner import BaseRunner
 from pmrf.constants import FeatureSpecT
 from pmrf.network_collection import NetworkCollection
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.fitting.results import FitResults
 from pmrf.frequency import Frequency
 from pmrf import extract_features

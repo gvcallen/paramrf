@@ -13,7 +13,7 @@ import skrf
 import h5py
 import jsonpickle
 
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.util import load_class_from_string
 from pmrf.constants import FeatureT

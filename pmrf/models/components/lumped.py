@@ -1,10 +1,14 @@
+"""
+Lumped elements (resistors, capacitors, inductors).
+"""
+
 import jax.numpy as jnp
 
 from pmrf.parameters import Parameter
-from pmrf.models.components.base import Component
+from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 
-class Load(Component):
+class Load(Model):
     """
     An abstract base class for N-port loads defined by their reflection coefficient.
     """
@@ -19,7 +23,7 @@ class Load(Component):
             repeat(freq.npoints, 0)
         return s
  
-class Capacitor(Component):
+class Capacitor(Model):
     """
     A 2-port model of a series capacitor.
     """
@@ -42,7 +46,7 @@ class Capacitor(Component):
 
         return s
               
-class Inductor(Component):
+class Inductor(Model):
     """
     A 2-port model of a series inductor.
     """
@@ -66,7 +70,7 @@ class Inductor(Component):
 
         return s   
 
-class Resistor(Component):
+class Resistor(Model):
     """
     **Overview**
 
@@ -92,7 +96,7 @@ class Resistor(Component):
 
         return s
     
-class ShuntCapacitor(Component):
+class ShuntCapacitor(Model):
     """
     A 2-port model of a shunt capacitor.
 
@@ -122,7 +126,7 @@ class ShuntCapacitor(Component):
 
         return s 
 
-class ShuntResistor(Component):
+class ShuntResistor(Model):
     """
     A 2-port model of a shunt resistor.
 
@@ -156,7 +160,7 @@ class ShuntResistor(Component):
 
         return s
 
-class ShuntInductor(Component):
+class ShuntInductor(Model):
     """
     A 2-port model of a shunt inductor.
     """

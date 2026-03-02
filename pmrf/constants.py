@@ -47,3 +47,5 @@ FeatureSpecT = FeatureSpecScalarT | FeatureSpecSequenceT | FeatureSpecDictT | Fe
 
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]
+
+__all__ = []

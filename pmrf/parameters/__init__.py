@@ -7,7 +7,6 @@ from pmrf.parameters.parameter_constraint import ParameterConstraint
 from pmrf.parameters.factories import Uniform, PercentUniform, RelativeUniform, CenteredUniform, Normal, PercentNormal, RelativeNormal, Fixed, Free, Stacked
 
 __all__ = [
-    "Parameter",
     "is_param",
     "is_valid_param",
     "is_free_param",

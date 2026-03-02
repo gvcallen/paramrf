@@ -7,7 +7,7 @@ from eqxlearn import BaseModel, fit
 from eqxlearn.model_selection import KFold, cross_validate
 from eqxlearn.metrics import mean_absolute_error
 
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.sampling.algorithms import FieldSampler
 from pmrf.sampling.base import SampleResults
 from pmrf.algorithms.anomaly import get_anomaly_mask

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from pmrf.fitting.bayesian import BayesianFitter
-from pmrf.models import Model
+from pmrf.models.model import Model
 
 class NumPyroFitter(BayesianFitter):
     """

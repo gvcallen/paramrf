@@ -1,34 +1,35 @@
 API Reference
 =============
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Core Classes
+Core API
+--------
+
+.. autosummary::
+   :toctree: generated/
 
    pmrf.Model
    pmrf.Parameter
    pmrf.Frequency
+   pmrf.load
+   pmrf.save
+   pmrf.extract_features
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Fitting and Sampling Modules
-
-   pmrf.fitting
-   pmrf.sampling
+Modules
+-------
 
 .. autosummary::
    :toctree: generated/
-   :caption: Other Modules
    :recursive:
 
+   pmrf.algorithms
+   pmrf.constants
+   pmrf.distributions
+   pmrf.fitting
+   pmrf.math_functions
+   
    pmrf.models
    pmrf.parameters
-   pmrf.distributions
+   pmrf.results
    pmrf.rf_functions
-   pmrf.math_functions
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Free functions (package root)
-
-   pmrf
+   pmrf.runner
+   pmrf.sampling

@@ -8,9 +8,9 @@ Core Concepts
 
 The library revolves around a few key building blocks:
 
-* ``pmrf.Model``: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
-* ``pmrf.Parameter``: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
-* ``pmrf.Frequency``: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
+* :class:`pmrf.Model`: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
+* :class:`pmrf.Parameter`: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
+* :class:`pmrf.Frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
@@ -20,7 +20,7 @@ Cascaded Models
 ^^^^^^^^^^^^^^^^^^^
 For simple circuit element chains, the ** operator can be used to cascade several models together.
 
-The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class ``Model`` of type ``pmrf.models.containers.Cascade``, consisting of parameters representing the respective *R*, *L* and *C* parameters. The S11 is then plotted using matplotlib.
+The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class :class:`pmrf.Model` of type :class:`pmrf.models.composite.interconnected.Cascade`, consisting of parameters representing the respective *R*, *L* and *C* parameters. The S11 is then plotted using matplotlib.
 
 .. code-block:: python
 
@@ -45,7 +45,7 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
 
 Circuit Models
 ^^^^^^^^^^^^^^^^^^^
-For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the ``Circuit`` class. This class accepts a list of "connections". Each entry in this list is a node in the circuit. Each node is another list, with each element being a tuple for each connected circuit element or sub-model. Each tuple then contains the model object, as well as the index of the port for that model that is connected in that node.
+For complex circuits, ParamRF offers the ability to combine models in any desired configuration using the :class:`pmrf.models.composite.interconnected.Circuit` class. This class accepts a list of "connections". Each entry in this list is a node in the circuit. Each node is another list, with each element being a tuple for each connected circuit element or sub-model. Each tuple then contains the model object, as well as the index of the port for that model that is connected in that node.
 
 The following example uses this method to define a two-port PI-CLC network. "External" nodes (each entry in the outer list) are numbered as E0, E1 etc. whereas "internal" port indices (ports for each model in the circuit) are numbered per element as I0, I1 etc. The model is then converted to a scikit-rf network and plotted.
 
@@ -81,15 +81,15 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
 
 Model Inheritance
 ~~~~~~~~~~~~~~~~~~~~
-For more complex models (such as equation-based ones), users can inherit directly from the ``Model`` class and override one of the network properties (such as ``s``, ``a``, or ``y``) or the ``__call__`` method.
+For more complex models (such as equation-based ones), users can inherit directly from the :class:`pmrf.Model` class and override one of the network properties (such as ``s``, ``a``, or ``y``) or the ``__call__`` method.
 
-Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a ``Parameter`` or ``Model`` are dynamic and can be adjusted (for example, by fitting routines).
+Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a :class:`pmrf.Parameter` or :class:`pmrf.Model` are dynamic and can be adjusted (for example, by fitting routines).
 
-Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as ``Uniform``, ``Normal`` or ``Fixed``; or directly using the ``Parameter`` class constructor.
+Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.parameters.Uniform`, :class:`pmrf.parameters.Normal` or :class:`pmrf.parameters.Fixed`; or directly using the :class:`pmrf.Parameter` class constructor.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
-The following example demonstrates custom model definition by defining a capacitor from first principles. This could be used, for example, to implement more complex analytic or surrogate models. Here, one of the typical network properties, such as ``s``, ``a``, ``y`` etc., must be overriden, returning the resultant matrix directly.
+The following example demonstrates custom model definition by defining a capacitor from first principles. This could be used, for example, to implement more complex analytic or surrogate models. Here, one of the typical network properties, such as :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, or :meth:`pmrf.Model.z`, must be overriden, returning the resultant matrix directly.
 
 .. code-block:: python
 
@@ -118,7 +118,7 @@ The following example demonstrates custom model definition by defining a capacit
 
 Circuit Models
 ^^^^^^^^^^^^^^^^^^^
-Sometimes it is still convenient to inherit from ``Model`` while still building the model using cascading or ``Circuit``. In this case, the model can be built from sub-models fields/attributes, and returned by overriding the ``__call__`` method.
+Sometimes it is still convenient to inherit from :class:`pmrf.Model` while still building the model using cascading or :class:`pmrf.models.composite.interconnected.Circuit`. In this case, the model can be built from sub-models fields/attributes, and returned by overriding the :meth:`pmrf.Model.__call__` method.
 
 The following example creates a PI-CLC model once again, but using the above method. Note how certain parameters can be given initial parameters, bounds or fixed to a constant (useful for fitting).
 
@@ -152,20 +152,20 @@ The following example creates a PI-CLC model once again, but using the above met
 Fitting
 ~~~~~~~~~~~~~~~~~~~~
 
-ParamRF provides the ability to easily fit models and their parameters to measured data. The ``pmrf.fitting`` module provides a unified interface to do this using either traditional *frequentist* optimization (e.g. the usual "least squares" approach), or using more state-of-the-art *Bayesian* inference techniques.
+ParamRF provides the ability to easily fit models and their parameters to measured data. The :mod:`pmrf.fitting` module provides a unified interface to do this using either traditional *frequentist* optimization (e.g. the usual "least squares" approach), or using more state-of-the-art *Bayesian* inference techniques.
 
 The general workflow consists of defining a model, loading data via *scikit-rf*, initializing the fitter with the model and the mathematics/goals of the problem, and running the fitter with the specified settings.
 
 Main Fitters
 ^^^^^^^^^^^^^^^^^^^^
 
-* ``SciPyMinimizeFitter``: Provides access to gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*.
-* ``PolyChordFitter``: Enables Bayesian inference through nested sampling from ``pypolychord``. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
+* :class:`pmrf.fitting.SciPyMinimizeFitter`: Provides access to gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*.
+* :class:`pmrf.fitting.PolyChordFitter`: Enables Bayesian inference through nested sampling from ``pypolychord``. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
 
 Example
 ^^^^^^^^^^^^^^^^^^^^
 
-The following provides a complete example of fitting the built in ``CoaxialLine`` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
+The following provides a complete example of fitting the built in :mod:`pmrf.models.components.line.CoaxialLine` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
 
 .. literalinclude:: ../../../examples/fit_cable_scipy.py
    :language: python
@@ -173,14 +173,14 @@ The following provides a complete example of fitting the built in ``CoaxialLine`
 Sampling
 ~~~~~~~~~~~~~~~~~~~~
 
-ParamRF also provides the ability to randomly or adaptively sample models. The ``pmrf.sampling`` module provides an interface for this, with simple one-shot sampling algorithms such as *uniform* or *Latin Hypercube*, as well as more advanced adaptive sampling algorithms (such as *uncertainty* sampling) for expensive EM simulations.
+ParamRF also provides the ability to randomly or adaptively sample models. The :mod:`pmrf.sampling` module provides an interface for this, with simple one-shot sampling algorithms such as *uniform* or *Latin Hypercube*, as well as more advanced adaptive sampling algorithms (such as *uncertainty* sampling) for expensive EM simulations.
 
 Main Samplers
 ^^^^^^^^^^^^^^^^^^^^
 
-* ``UniformSampler``: Uniform sampling.
-* ``LatinHypercubeSampler``: Latin hypercube sampling.
-* ``EqxLearnUncertaintySampler``: Enables surrogate model uncertainty sampling from ``eqx-learn``. This provides the ability to uncertainty sample using classical machine learning surrogate models, such as Gaussian Processes.
+* :class:`pmrf.sampling.UniformSampler`: Uniform sampling.
+* :class:`pmrf.sampling.LatinHypercubeSampler`: Latin hypercube sampling.
+* :class:`pmrf.sampling.EqxLearnUncertaintySampler`: Enables surrogate model uncertainty sampling from ``eqx-learn``. This provides the ability to uncertainty sample using classical machine learning surrogate models, such as Gaussian Processes.
 
 Example
 ^^^^^^^^^^^^^^^^^^^^

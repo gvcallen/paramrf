@@ -9,7 +9,7 @@ import equinox as eqx
 from functools import partial
 import concurrent.futures
 
-from pmrf.models.adapters.base import Adapter
+from pmrf.models.model import Model
 from pmrf.frequency import Frequency
             
 def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
@@ -56,7 +56,7 @@ def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     return np.stack(results)
 
 
-class Host(Adapter):
+class Host(Model):
     """
     A base class for models where computation occurs on the Host (CPU/Python)
     rather than the Device (XLA/GPU).

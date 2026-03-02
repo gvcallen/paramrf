@@ -1,11 +1,11 @@
 """
-Adapter models to that wrap Python collections.
+Adapter models that wrap Python collections.
 """
 
 from pmrf.models.model import Model
-from pmrf.models.adapters.base import Adapter
+from pmrf.models.adapters.base import Model
     
-class ListModel(Adapter):
+class ListModel(Model):
     """
     A container model that holds a list of sub-models.
 
@@ -17,7 +17,7 @@ class ListModel(Adapter):
     models: list[Model]
 
 
-class DictModel(Adapter):
+class DictModel(Model):
     """
     A container model that holds a dictionary of sub-models.
 

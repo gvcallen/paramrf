@@ -1,6 +1,8 @@
 """
 Math functions.
 """
+import types
+
 from typing import Callable
 from functools import partial
 
@@ -1303,3 +1305,9 @@ FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
     # 'time_db': ('Magnitude (dB)',  lambda x: mf.complex_2_db(mf.ifft(x))),
     # 'time_mag': ('Magnitude', lambda x: mf.complex_2_magnitude(mf.ifft(x))),
 }
+
+__all__ = [
+    name for name, obj in globals().items()
+    if isinstance(obj, types.FunctionType)  # Must be a function
+    and obj.__module__ == __name__          # Must be defined IN THIS FILE
+]

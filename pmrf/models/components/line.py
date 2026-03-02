@@ -1,3 +1,6 @@
+"""
+Transmission lines (RLGC, coaxial, microstrip)
+"""
 from abc import abstractmethod
 
 import jax.numpy as jnp
@@ -7,9 +10,9 @@ from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
-from pmrf.models.components.base import Component
+from pmrf.models.model import Model
 
-class TLine(Component):
+class TLine(Model):
     length: Parameter = 1.0
     
 class RLGCLine(TLine):

@@ -2,5 +2,8 @@
 This module provides built-in numerical models in ParamRF.
 """
 
-from pmrf.models.numerical.base import Numerical
-from pmrf.models.numerical.expansion import VectorExpansion
+from pmrf.models.numerical import expansion
+
+__all__ = [
+    "expansion",
+]

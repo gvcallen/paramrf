@@ -1,10 +1,7 @@
-"""pmrf.model
-================
+"""
+The main model class.
 
-Core model base class and utilities for ParamRF.
-
-This module defines :class:`Model`, a frozen, JAX-compatible, Equinox module
-representing an RF network, along with helper utilities like :func:`wrap`.
+This module defines :class:`pmrf.Model`, a frozen, JAX-compatible, Equinox module.
 
 """
 
@@ -115,9 +112,9 @@ class Model(eqx.Module):
     z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     # Private non-init field
-    _separator: str = field(default='_', kw_only=True, repr=False, static=True)
-    _metadata: dict = field(default_factory=lambda: dict(), kw_only=True, repr=False, static=True)
-    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
+    _separator: str = field(default='_', init=False, repr=False, static=True)
+    _metadata: dict = field(default_factory=lambda: dict(), init=False, repr=False, static=True)
+    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), init=False, repr=False, static=True)
 
     # ---- Internal initialization methods -------------------------------------------------
 
@@ -308,7 +305,8 @@ class Model(eqx.Module):
     
     def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
-        from pmrf.models.composite import Composite
+        from pmrf.models import Cascade, Circuit, Terminated, Flipped, Renumbered
+        Composite = (Cascade, Circuit, Terminated, Flipped, Renumbered,)
 
         fields = []
         node = self  # Start at the root of the tree
@@ -921,10 +919,10 @@ class Model(eqx.Module):
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade/terminatino composition operator ``**``."""        
         if other.nports == 1:
-            from pmrf.models.composite import Terminated
+            from pmrf.models import Terminated
             return Terminated(self, other)
         else:
-            from pmrf.models.composite import Cascade
+            from pmrf.models import Cascade
             return Cascade([self, other])
     
     def __getitem__(self, key: str | Sequence[str]):
@@ -942,13 +940,13 @@ class Model(eqx.Module):
     def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
         
-        See :class:`pmrf.models.composite.Flipped`.
+        See :class:`pmrf.models.composite.transformed.Flipped`.
 
         Returns
         -------
         Model
         """
-        from pmrf.models.composite import Flipped
+        from pmrf.models import Flipped
         if isinstance(self, Flipped):
             return self.model
         return Flipped(self, **kwargs)
@@ -956,23 +954,24 @@ class Model(eqx.Module):
     def renumbered(self, from_ports: tuple[int], to_ports: tuple[int]= None, **kwargs) -> 'Model':
         """Return a version of the model with ports renumbered.
         
-        See :class:`pmrf.models.composite.Renumbered`.
+        See :class:`pmrf.models.composite.transformed.Renumbered`.
 
         from_ports : tuple[int]
             The original port indices that map to `to_ports`.
         to_ports : tuple[int]
             The new port indices.
+            
         Returns
         -------
         Model
         """
-        from pmrf.models.composite import Renumbered
+        from pmrf.models import Renumbered
         return Renumbered(self, from_ports, to_ports, **kwargs)
     
     def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
         """Returns a new model that contains this model terminated in another.
         
-        See :class:`pmrf.models.composite.Terminated`.
+        See :class:`pmrf.models.composite.transformed.Terminated`.
 
         Parameters
         ----------
@@ -983,8 +982,8 @@ class Model(eqx.Module):
         -------
         Model
         """
-        from pmrf.models.components import SHORT
-        from pmrf.models.composite import Terminated
+        from pmrf.models import SHORT
+        from pmrf.models import Terminated
         load = load or SHORT
         return Terminated(self, load, **kwargs)
        
@@ -2086,3 +2085,5 @@ class Model(eqx.Module):
         ntwk = self.to_skrf(frequency, sigma=sigma)
         retval = ntwk.write_touchstone(filename, **skrf_kwargs)
         return retval
+    
+Model.__module__ = "pmrf"

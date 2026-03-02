@@ -4,8 +4,11 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import jax
 jax.config.update("jax_enable_x64", True)
 
-from pmrf.features import extract_features
+from pmrf.models.model import Model
+from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
+from pmrf.util.misc import field
+from pmrf.features import extract_features
 from pmrf.io import save, load
 from pmrf.network_collection import NetworkCollection
 from pmrf.results import BaseResults
@@ -31,13 +34,16 @@ except PackageNotFoundError:
     pass
 
 __all__ = [
-    "extract_features",
+    "Model",
+    "Parameter",
     "Frequency",
+    "extract_features",
     "save",
     "load",
     "NetworkCollection",
     "BaseResults",
     "BaseRunner",
+    "field",
 ]
 
 __all__.extend(algorithms.__all__)

@@ -1,16 +1,39 @@
-﻿pmrf.distributions
-==================
+﻿
+
+
+**distributions** (pmrf.distributions)
+======================================
 
 .. automodule:: pmrf.distributions
+   :no-members:
+   :no-inherited-members:
 
-   
-.. rubric:: Modules
+
+
+
+
+
+
+.. rubric:: Classes
 
 .. autosummary::
    :toctree:
-   :recursive:
+   :template: autosummary/class.rst
 
-   backends
-   joint
-   sampled
-   stacked
+
+   Distribution
+   UniformDistribution
+   LogUniformDistribution
+   NormalDistribution
+   MultivariateNormalDistribution
+   LogNormalDistribution
+   JointDistribution
+   StackedDistribution
+   SampledDistribution
+   AnestheticDistribution
+   FlowJAXDistribution
+
+
+
+
+

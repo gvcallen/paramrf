@@ -5,7 +5,7 @@ import h5py
 import jax.numpy as jnp
 
 from pmrf.fitting.bayesian import BayesianFitter
-from pmrf.models import Model
+from pmrf.models.model import Model
 from pmrf.util import time_string
 
 class PolyChordFitter(BayesianFitter):

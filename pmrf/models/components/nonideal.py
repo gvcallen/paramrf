@@ -1,14 +1,17 @@
+"""
+Non-ideal models (e.g. resistors with parasitics)
+"""
 from abc import abstractmethod
 
 import jax.numpy as jnp
 
-from pmrf.models.components.base import Component
+from pmrf.models.model import Model
 from pmrf.models.components.lumped import Resistor
 from pmrf.models.components.topological import PiCLC
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 
-class NonIdealResistor(Component):
+class NonIdealResistor(Model):
     """
     An abstract base class for creating realistic resistor models that include parasitic effects.
 

@@ -4,7 +4,7 @@ from scipy.optimize import minimize, Bounds, OptimizeResult
 from tqdm.auto import tqdm
 
 from pmrf.fitting.frequentist import FrequentistFitter
-from pmrf.models import Model
+from pmrf.models.model import Model
 
 class SciPyMinimizeFitter(FrequentistFitter):
     """

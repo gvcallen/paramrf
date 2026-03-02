@@ -12,14 +12,11 @@ from pmrf.models.model import Model
 from pmrf.util import field, is_overridden
 from pmrf.frequency import Frequency
 
-class Adapter(Model):
-    pass
-    
-class Discrete(Adapter, ABC):
+class Discrete(Model, ABC):
     """
     A model whose properties are defined on a tabulated frequency grid.
     
-    To use, set self.frequency and override one or more of the *_discrete methods.
+    To use, set self.frequency and override one or more of the `xxx_discrete` methods.
     The base Model conversions (s2a, s2z, etc.) will be applied automatically
     to the interpolated values.
     """
@@ -83,7 +80,7 @@ class Discrete(Adapter, ABC):
         return vmap_matrix(x)
 
 
-class SingleProperty(Adapter, ABC):
+class SingleProperty(Model, ABC):
     """
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
