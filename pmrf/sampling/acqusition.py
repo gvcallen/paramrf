@@ -14,18 +14,17 @@ class AcquisitionSampler(BaseSampler, ABC):
     Base class for acquisition-based adaptive sampling strategies.
     
     This class implements the `sample()` algorithm by repeatedly querying 
-    a concrete subclass's `generate()` method until convergence or limits are reached.
+    a concrete subclass's `acquire()` method until convergence or limits are reached.
     """
     def sample(
         self, 
         N: int | None = None, 
         *, 
-        batch_size: int = 1, 
-        max_iterations: int | None = None, 
         initial_models: list[Model] | int | None = None,
         initial_factor: int | None = None,
+        batch_size: int = 1, 
+        max_iterations: int | None = None, 
         key: jax.Array | None = None, 
-        plot: list[str] | str | None = None, 
         **kwargs
     ) -> tuple[jnp.ndarray, Any]:
         """
@@ -43,7 +42,7 @@ class AcquisitionSampler(BaseSampler, ABC):
         initial_models_list = list(initial_models) if not isinstance(initial_models, int) else initial_models        
 
         if key is None:
-            key = generate_key()
+            key = acquire_key()
             
         d = self.model.num_flat_params
 
@@ -62,15 +61,15 @@ class AcquisitionSampler(BaseSampler, ABC):
         # 3. Add initial samples in batches (updates internal state)
         for i in range(0, num_initial_samples, batch_size):
             batch_theta = initial_thetas[i : i + batch_size]
-            self.add_samples(batch_theta, plot=plot)
+            self.add_samples(batch_theta)
         
         # 4. The Active Learning Loop
         iteration = 0
         while True:
-            key, generate_key = jr.split(key)
+            key, acquire_key = jr.split(key)
             
             # The backend strategy determines the next points to evaluate
-            U_next = self.generate(batch_size, d, key=generate_key, **kwargs)
+            U_next = self.acquire(batch_size, d, key=acquire_key, **kwargs)
             
             if U_next is None:
                 self.logger.info("Sampling converged.")
@@ -83,7 +82,7 @@ class AcquisitionSampler(BaseSampler, ABC):
             # Add to state and evaluate features
             for i in range(0, num_samples, batch_size):
                 batch_theta = thetas[i : i + batch_size]
-                self.add_samples(batch_theta, plot=plot)            
+                self.add_samples(batch_theta)
             
             # 5. Check Stopping Criteria
             if N is not None and len(self.sampled_params) >= N:
@@ -99,7 +98,7 @@ class AcquisitionSampler(BaseSampler, ABC):
         return self.sampled_params, None
     
     @abstractmethod
-    def generate(self, N: int, d: int, *, key: jax.Array | None = None, **kwargs) -> jnp.ndarray | None:
+    def acquire(self, N: int, d: int, *, key: jax.Array | None = None, **kwargs) -> jnp.ndarray | None:
         """
         Implemented by active learning backends (e.g., EqxLearnSurrogateSampler).
         

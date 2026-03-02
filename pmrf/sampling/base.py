@@ -16,21 +16,17 @@ class BaseSampler(BaseRunner, ABC):
     """
     Base class for model sampling and active learning loops.
     """
-    def __init__(self, model: Model, **kwargs):
-        if model.num_flat_params == 0:
-            raise ValueError("Model has no free parameters to sample.")
-            
+    def __init__(self, model: Model, **kwargs):            
         super().__init__(model, **kwargs)
         
         self.sampled_params: jnp.ndarray | None = None
         self.sampled_features: jnp.ndarray | None = None
-        
-        self.plot_features = None
-        self.feature_plotters: list[LivePlotter] = []
+        self.expensive = False
 
     def run(
         self, 
         *,
+        expensive = False,
         plot = None,
         output_path: str | None = None,
         output_root: str | None = None,
@@ -42,9 +38,21 @@ class BaseSampler(BaseRunner, ABC):
         Executes the sampling process. Handles state delegation and packages 
         the outputs into a SampleResults object.
         """
+        # Updates feature variables
+        if plot is not None and isinstance(plot, str):
+            plot = [plot]        
+        
         self.output_path = output_path
         self.output_root = output_root
         self.plot_features = plot
+        self.expensive = expensive
+        
+        if self.plot_features is not None:
+            for i, feature_name in enumerate(plot):
+                if i >= len(self.feature_plotters):
+                    self.feature_plotters.append(
+                        LivePlotter(title=f"{feature_name}", xlabel=f"Frequency ({self.frequency.unit})", ylabel=f"{feature_name}")
+                    )                
         
         # 1. Try load from previous results
         if load_previous and output_path is not None:
@@ -100,18 +108,17 @@ class BaseSampler(BaseRunner, ABC):
         """
         pass
 
-    def add_samples(self, theta: jnp.ndarray) -> jnp.ndarray | None:
-        """Adds samples, computes features via lazy compilation, and plots."""
-        plot = self.plot_features
-        if plot is not None and isinstance(plot, str):
-            plot = [plot]
-
+    def add_samples(self, theta: jnp.ndarray) -> None:
+        """
+        Extends super().model_features() to append the results into internal state, add logging, cache the output.
+        and save temporary arrays for crash safety.
+        """
         new_thetas = jnp.atleast_2d(theta)
         N, D = new_thetas.shape
         new_features = None
         
         # Ensure we only try to extract features if frequency/features are defined
-        if N > 0 and self.frequency is not None and self.features is not None:
+        if self.expensive and N > 0 and self.frequency is not None and self.features is not None:
             time_str = datetime.now().strftime("%H:%M:%S")
             num_existing = len(self.sampled_params) if self.sampled_params is not None else 0
             
@@ -119,9 +126,7 @@ class BaseSampler(BaseRunner, ABC):
                 self.logger.info(f"Computing sample #{num_existing + 1} at {time_str}")
             else:
                 self.logger.info(f"Computing samples #{num_existing + 1}-{num_existing + N} at {time_str}")
-            
-            # Use the lazy accessor from BaseRunner
-            new_features = self.model_features(new_thetas)
+            new_features = super().model_features(new_thetas)
 
         # Update State
         if self.sampled_params is not None:
@@ -133,23 +138,7 @@ class BaseSampler(BaseRunner, ABC):
             self.sampled_features = new_features
 
         # I/O Checkpoint (numpy fallback for crash recovery during active learning)
-        if output_path is not None and RANK == 0:
-            np.save(f"{output_path}/params.npy", np.asarray(self.sampled_params))
+        if self.expensive and self.output_path is not None and RANK == 0:
+            np.save(f"{self.output_path}/params.npy", np.asarray(self.sampled_params))
             if self.sampled_features is not None:
-                np.save(f"{output_path}/features.npy", np.asarray(self.sampled_features))
-
-        # Live Plotting
-        if plot is not None and new_features is not None:
-            for i, feature_name in enumerate(plot):
-                if i >= len(self.feature_plotters):
-                    self.feature_plotters.append(
-                        LivePlotter(title=f"{feature_name}", xlabel=f"Frequency ({self.frequency.unit})", ylabel=f"{feature_name}")
-                    )
-                
-                plotter = self.feature_plotters[i]
-                for current_theta, current_feature in zip(new_thetas, new_features):
-                    param_dict = {k: float(v) for k, v in zip(self.model.flat_param_names(), current_theta)}
-                    plotter.ax.set_title(f"{feature_name} (num_samples = {len(self.sampled_params)})")
-                    plotter.add_curve(str(param_dict), y_values=np.real(current_feature), x_values=self.frequency.f_scaled)
-                    
-        return new_features
+                np.save(f"{self.output_path}/features.npy", np.asarray(self.sampled_features))

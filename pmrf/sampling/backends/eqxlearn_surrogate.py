@@ -29,14 +29,16 @@ class EqxLearnSurrogateSampler(FieldSampler):
         self.cv = cv or partial(KFold, n_splits=5, shuffle=True)
         self.fit_kwargs = fit_kwargs or {}
 
-    def _preprocess(self, theta: jnp.ndarray, features: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def preprocess(self) -> tuple[jnp.ndarray, jnp.ndarray]:
+        theta, features = self.sampled_params, self.sampled_features
         if self.preprocess_fn is not None:
             theta, features = self.preprocess_fn(theta, features)
         features = features.reshape(features.shape[0], -1)
         return theta, features
 
-    def train_field(self, params: jnp.ndarray, features: jnp.ndarray, key=None) -> BaseModel:    
-        X, y = self._preprocess(params, features)
+    def train_field(self, key=None) -> BaseModel:
+        params, features = self.sampled_params, self.sampled_features
+        X, y = self.preprocess(params, features)
         self.logger.info("Training surrogate model...")
         fitted_eqx_model, losses = fit(self.surrogate, X=X, y=y, key=key, **self.fit_kwargs)
         self.logger.info(f"Final loss: {losses[-1]:.2f}")
@@ -49,8 +51,9 @@ class EqxLearnSurrogateSampler(FieldSampler):
         expected_mae = jnp.mean(rayleigh_factor * total_std)
         return 20 * jnp.log10(expected_mae)
     
-    def calculate_convergence(self, params: jnp.ndarray, features: jnp.ndarray, key=None) -> float:
-        X, y = self._preprocess(params, features)
+    def calculate_convergence(self, key=None) -> float:
+        params, features = self.sampled_params, self.sampled_features
+        X, y = self.preprocess(params, features)
         key, split_key = jr.split(key)
         cv_instance = self.cv(key=split_key)
         

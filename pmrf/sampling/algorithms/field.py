@@ -28,7 +28,7 @@ class FieldSampler(AcquisitionSampler, ABC):
     # Abstract Field Hooks (The Contract)
     # --------------------------------------------------------------------------
     @abstractmethod
-    def train_field(self, params: jnp.ndarray, features: jnp.ndarray, key=None) -> Any:
+    def train_field(self, key=None) -> Any:
         """Trains and returns the scalar field (e.g., a surrogate model)."""
         pass
 
@@ -37,7 +37,7 @@ class FieldSampler(AcquisitionSampler, ABC):
         """Evaluates the scalar field at a given physical parameter point."""
         pass
 
-    def calculate_convergence(self, params: jnp.ndarray, features: jnp.ndarray, key=None) -> float | Sequence[float] | None:
+    def calculate_convergence(self, key=None) -> float | Sequence[float] | None:
         """
         Optional: Returns a metric to track convergence. 
         If not overridden, the maximum value of the grid field will be used.
@@ -64,7 +64,7 @@ class FieldSampler(AcquisitionSampler, ABC):
         
         # 1. Train the field (using subclass implementation)
         key, field_key = jr.split(key)
-        self.field = self.train_field(self.sampled_params, self.sampled_features, key=field_key)
+        self.field = self.train_field(key=field_key)
 
         # 2. Generate Grid Points
         K = num_grid_per_dim * d
@@ -98,7 +98,7 @@ class FieldSampler(AcquisitionSampler, ABC):
         
         # 5. Convergence Tracking (using subclass implementation)
         key, validate_key = jr.split(key)
-        conv_metric = self.calculate_convergence(self.sampled_params, self.sampled_features, key=validate_key)
+        conv_metric = self.calculate_convergence(key=validate_key)
         
         if conv_metric is not None:
             new_converge_values = tuple(conv_metric) if isinstance(conv_metric, Sequence) else (conv_metric,)

@@ -14,14 +14,13 @@ class OneshotSampler(BaseSampler, ABC):
         self,
         *,
         N: int = 100,
-        plot=None,
         **kwargs
     ) -> tuple[jnp.ndarray, Any]:
         d = self.model.num_flat_params
 
         U = self.generate(N, d, **kwargs)
         thetas = jnp.array([self.icdf(u) for u in U])
-        self.add_samples(thetas, plot=plot)
+        self.add_samples(thetas)
         return self.sampled_params, None
 
     @abstractmethod

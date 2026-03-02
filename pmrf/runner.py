@@ -2,8 +2,8 @@ from typing import Any
 import io
 from abc import ABC, abstractmethod
 import logging
-import os
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 import jsonpickle
@@ -12,11 +12,15 @@ from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.constants import FeatureSpecT
 from pmrf.features import extract_features
-from pmrf.util import RANK, LevelFilteredLogger
+from pmrf.util import RANK, LevelFilteredLogger, LivePlotter
+
 
 class BaseRunner(ABC):
     """
     The unified base class for all ParamRF runners (fitters and samplers).
+    
+    This class holds the model, features to extract, general compiled functions,
+    and plotting information.
     """
     def __init__(
         self,
@@ -26,6 +30,9 @@ class BaseRunner(ABC):
         features: FeatureSpecT | None = None,
         **feature_kwargs,
     ):
+        if model.num_flat_params == 0:
+            raise ValueError("Model has no free parameters.")        
+        
         self.model = model
         self.frequency = frequency
         self.features = features
@@ -42,6 +49,12 @@ class BaseRunner(ABC):
         self._icdf_fn = None
         self._log_prior_fn = None
         self._feature_fn = None
+        
+        # Context variables
+        self.plot_features = None
+        self.feature_plotters: list[LivePlotter] = []
+        self.plot_counter = 0
+        self.plot_every = 1
 
     def cdf(self, theta: jnp.ndarray) -> jnp.ndarray:
         if self._cdf_fn is None:
@@ -84,6 +97,17 @@ class BaseRunner(ABC):
         
         thetas_2d = jnp.atleast_2d(jnp.array(theta))
         features_2d = self._feature_fn(thetas_2d)
+        
+        # Live Plotting
+        if self.plot_features is not None:
+            self.plot_counter += 1
+            
+            if self.plot_every % self.plot_counter == 0:
+                for plotter, plot_feature in enumerate(zip(self.feature_plotters, self.plot_features)):
+                    for current_theta, current_feature in zip(thetas_2d, features_2d):
+                        param_dict = {k: float(v) for k, v in zip(self.model.flat_param_names(), current_theta)}
+                        plotter.ax.set_title(f"{plot_feature} (num_samples = {len(self.sampled_params)})")
+                        plotter.add_curve(str(param_dict), y_values=np.real(current_feature), x_values=self.frequency.f_scaled)        
         
         if theta.ndim == 2:
             return features_2d
