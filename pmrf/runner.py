@@ -1,3 +1,6 @@
+"""
+The base runner class for running an algorithm such as fitting or sampling.
+"""
 from typing import Any
 import io
 from abc import ABC, abstractmethod

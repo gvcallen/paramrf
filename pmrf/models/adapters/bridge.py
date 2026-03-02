@@ -1,3 +1,7 @@
+"""
+Adapter models to bridge ParamRF with external software.
+"""
+
 import jax
 import jax.numpy as jnp
 import numpy as np

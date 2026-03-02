@@ -1,3 +1,7 @@
+"""
+Adapter models that store static parameter data.
+"""
+
 import skrf
 import jax.numpy as jnp
 
@@ -47,44 +51,3 @@ class Measured(Adapter):
         S_new = (S_real_new + 1j * S_imag_new).transpose(2, 0, 1)
 
         return S_new
-
-
-class SModel(Adapter):
-    """
-    A general model defined by a constant S-parameter matrix.
-
-    Attributes
-    ----------
-    s_array : jnp.array
-        The static S-parameter array.
-    """
-    s_array: jnp.array
-    
-    def s(self, _freq: Frequency) -> jnp.ndarray:
-        nports = self.s_array.shape[1]
-        nfreq = _freq.npoints
-
-        if nfreq != self.s_array.shape[0]:
-            return jnp.zeros((nfreq, nports, nports))
-
-        return self.s_array
-    
-
-class AModel(Adapter):
-    """
-    A general model defined by a constant ABCD matrix.
-
-    Attributes
-    ----------
-    a_array : jnp.array
-        The static ABCD-parameter array.
-    """
-    a_array: jnp.array
-    
-    def a(self, _freq: Frequency) -> jnp.ndarray:
-        nports = self.a_array.shape[1]
-        nfreq = _freq.npoints
-        if nfreq != self.a_array.shape[0]:
-            return jnp.zeros((nfreq, nports, nports))
-        
-        return self.a_array

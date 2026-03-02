@@ -1,3 +1,6 @@
+"""
+General undocumented utilities.
+"""
 from pmrf.util.logging import *
 from pmrf.util.misc import *
 from pmrf.util.mpi import *

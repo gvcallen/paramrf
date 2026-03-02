@@ -1,3 +1,6 @@
+"""
+General constrants for the ParamRF library
+"""
 from typing import TypeVar, Callable, Literal, Union, Sequence, Any, Tuple
 from numbers import Number
 import jax.numpy as jnp

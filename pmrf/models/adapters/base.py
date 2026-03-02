@@ -1,3 +1,7 @@
+"""
+Abstract base adapter models.
+"""
+
 from abc import ABC, abstractmethod
 
 import jax

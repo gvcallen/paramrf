@@ -35,8 +35,6 @@ class Ground(Component):
 class Transformer(Component):
     """
     An ideal, lossless, frequency-independent 4-port 1:1 transformer.
-    
-    
 
     The S-parameters are constant across all frequencies.
     """

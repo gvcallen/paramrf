@@ -1,20 +1,20 @@
 Introduction
 =====================
 
-**ParamRF** provides a declarative modelling interface that compiles RF models, such as circuit models, using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting procedures.
+**ParamRF** provides a declarative modelling interface that compiles RF models, such as circuit models, using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting and sampling procedures.
 
 Core Concepts
 ~~~~~~~~~~~~~~~~~~~~
 
 The library revolves around a few key building blocks:
 
-* ``pmrf.Model``: The base class for any computable RF component. Model methods such as *s*, *a* can be used to define model S-parameters, ABCD-parameters etc. and all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself. Models can be defined using composition such as cascading existing models, or via inheritance of the model class itself.
-* ``pmrf.Parameter``: A parameter in a model, storing its value as well as any parameter *metadata*. This allows for parameter bounds and scaling, provides the ability to mark parameters as *fixed*, and can have a prior associated with it for Bayesian fitting.
+* ``pmrf.Model``: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
+* ``pmrf.Parameter``: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
 * ``pmrf.Frequency``: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
-**ParamRF** provides a small component library with commonly-used models such as lumped and distributed elements. Models can be built directly using these in a compositional approach.
+**ParamRF** provides a component library with commonly-used models such as lumped and distributed elements. Models can be built directly using these in a compositional approach.
 
 Cascaded Models
 ^^^^^^^^^^^^^^^^^^^
@@ -73,10 +73,10 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
         [(ground, 0), (capacitor1, 0), (capacitor2, 0)], # E2
     ]
 
-    # Create the model and convert it to a scikit-rf Network at a desired frequency, ploting S21
+    # Create the model and plot it's S21 parameter
     pi_clc = Circuit(connections)
-    pi_clc_skrf = pi_clc.to_skrf(prf.Frequency(1, 1000, 1001, 'MHz'))
-    pi_clc_skrf.plot_s_db(m=0, n=0)
+    freq = prf.Frequency(1, 1000, 1001, 'MHz')
+    pi_clc_skrf.plot_s_db(freq, m=1, n=0)
 
 
 Model Inheritance
@@ -152,17 +152,17 @@ The following example creates a PI-CLC model once again, but using the above met
 Fitting
 ~~~~~~~~~~~~~~~~~~~~
 
-The primary application of ``pmrf`` is the fitting of models and their parameters to measured data. The ``pmrf.fitting`` module provides a unified interface to perform this task using either traditional *frequentist* optimization, or *Bayesian* inference techniques.
+ParamRF provides the ability to easily fit models and their parameters to measured data. The ``pmrf.fitting`` module provides a unified interface to do this using either traditional *frequentist* optimization (e.g. the usual "least squares" approach), or using more state-of-the-art *Bayesian* inference techniques.
 
-The general workflow consists of defining a model, loading data via *scikit-rf*, and configuring and running the fitter with the specified settings.
+The general workflow consists of defining a model, loading data via *scikit-rf*, initializing the fitter with the model and the mathematics/goals of the problem, and running the fitter with the specified settings.
 
 Main Fitters
 ^^^^^^^^^^^^^^^^^^^^
 
 * ``SciPyMinimizeFitter``: Provides access to gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*.
-* ``PolyChordFitter``: Enables Bayesian inference through nested sampling. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
+* ``PolyChordFitter``: Enables Bayesian inference through nested sampling from ``pypolychord``. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
 
-Fitting Example
+Example
 ^^^^^^^^^^^^^^^^^^^^
 
 The following provides a complete example of fitting the built in ``CoaxialLine`` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
@@ -173,9 +173,19 @@ The following provides a complete example of fitting the built in ``CoaxialLine`
 Sampling
 ~~~~~~~~~~~~~~~~~~~~
 
-A secondary application of ``pmrf`` is the random sampling or simulation of models using e.g. Latin Hypercube sampling.
+ParamRF also provides the ability to randomly or adaptively sample models. The ``pmrf.sampling`` module provides an interface for this, with simple one-shot sampling algorithms such as *uniform* or *Latin Hypercube*, as well as more advanced adaptive sampling algorithms (such as *uncertainty* sampling) for expensive EM simulations.
 
-The below example demonstrates a very simple example of simulating 10 different resistor networks with uniform resistance between 9 and 11 ohms.
+Main Samplers
+^^^^^^^^^^^^^^^^^^^^
+
+* ``UniformSampler``: Uniform sampling.
+* ``LatinHypercubeSampler``: Latin hypercube sampling.
+* ``EqxLearnUncertaintySampler``: Enables surrogate model uncertainty sampling from ``eqx-learn``. This provides the ability to uncertainty sample using classical machine learning surrogate models, such as Gaussian Processes.
+
+Example
+^^^^^^^^^^^^^^^^^^^^
+
+The below example demonstrates the sampling of 10 different resistor networks with uniform resistance between 9 and 11 ohms.
 
 .. literalinclude:: ../../../examples/simulate_resistor.py
    :language: python

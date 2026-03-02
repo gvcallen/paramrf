@@ -5,8 +5,8 @@ from pmrf.sampling import LatinHypercubeSampler
 
 resistor = Resistor(R=Uniform(9.0, 11.0))
 sampler = LatinHypercubeSampler(resistor)
-resistors = sampler._generate_models(10)
+results = sampler.run(N=10)
 freq = prf.Frequency(10, 20, 100, 'MHz')
 
-for i, res in enumerate(resistors):
-    res.export_touchstone(freq, f'resistors_{i}')
+for i, params in enumerate(results.sampled_params):
+    resistor.with_params(params).export_touchstone(f"resistor_{i}")

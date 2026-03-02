@@ -8,7 +8,6 @@ Functions exported at root.
    :caption: Submodules
    :recursive:
 
-   pmrf.wrap
    pmrf.extract_features
    pmrf.math_functions
    pmrf.rf_functions

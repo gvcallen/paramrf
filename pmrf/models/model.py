@@ -42,9 +42,11 @@ class Model(eqx.Module):
     Overview
     --------
     This base class is used to represent any computable RF network, referred to in
-    **ParamRF** as a "Model". This class is abstract and should not be
-    instantiated directly. Derive from :class:`Model` and override one of
-    the primary property functions (e.g. :meth:`__call__`, :meth:`s`, :meth:`a`).
+    **ParamRF** as a "Model". This class can be overriden for defining complex models,
+    or can be utilized indirectly by combining models already provides in :mod:`pmrf.models`.
+    
+    This class is abstract and should not be instantiated directly. Derive from :class:`Model`
+    and override one of the primary property functions (e.g. :meth:`__call__`, :meth:`s`, :meth:`a`).
 
     The model is an Equinox ``Module`` (immutable, dataclass-like) and is
     treated as a JAX PyTree. Parameters are declared using standard dataclass
@@ -67,7 +69,7 @@ class Model(eqx.Module):
     separator : str
         The separator character used when flattening nested parameter names (default is '_').
     metadata : dict
-        A dictionary for storing arbitrary metadata associated with the model (e.g., fit results).
+        A dictionary for storing arbitrary metadata associated with the model.
 
     Examples
     --------
@@ -874,7 +876,7 @@ class Model(eqx.Module):
     # ---- Structure utilities --------------------------------------------------    
     
     def children(self) -> list['Model']:
-        """Immediate submodels.
+        """Returns the immediate submodels.
 
         Returns
         -------
@@ -883,7 +885,7 @@ class Model(eqx.Module):
         return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
     
     def submodels(self) -> list['Model']:
-        """All nested submodels (depth-first), excluding ``self``.
+        """Returns all nested submodels (depth-first), excluding ``self``.
 
         Returns
         -------
@@ -939,6 +941,8 @@ class Model(eqx.Module):
 
     def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
+        
+        See :class:`pmrf.models.composite.Flipped`.
 
         Returns
         -------
@@ -951,6 +955,8 @@ class Model(eqx.Module):
 
     def renumbered(self, from_ports: tuple[int], to_ports: tuple[int]= None, **kwargs) -> 'Model':
         """Return a version of the model with ports renumbered.
+        
+        See :class:`pmrf.models.composite.Renumbered`.
 
         from_ports : tuple[int]
             The original port indices that map to `to_ports`.
@@ -964,7 +970,9 @@ class Model(eqx.Module):
         return Renumbered(self, from_ports, to_ports, **kwargs)
     
     def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
-        """Returns a new model that contains this 2-port model terminated in a 1-port load (default: SHORT).
+        """Returns a new model that contains this model terminated in another.
+        
+        See :class:`pmrf.models.composite.Terminated`.
 
         Parameters
         ----------

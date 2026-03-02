@@ -1,3 +1,7 @@
+"""
+Adapter models to that wrap Python collections.
+"""
+
 from pmrf.models.model import Model
 from pmrf.models.adapters.base import Adapter
     

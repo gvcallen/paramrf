@@ -100,7 +100,7 @@ class AcquisitionSampler(BaseSampler, ABC):
     @abstractmethod
     def acquire(self, N: int, d: int, *, key: jax.Array | None = None, **kwargs) -> jnp.ndarray | None:
         """
-        Implemented by active learning backends (e.g., EqxLearnSurrogateSampler).
+        Implemented by active learning backends (e.g., EqxLearnUncertaintySampler).
         
         Should inspect `self.sampled_params` and `self.sampled_features`, train 
         a surrogate/acquisition function, and return `N` proposed points in the 

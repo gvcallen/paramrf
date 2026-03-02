@@ -1,3 +1,6 @@
+"""
+The base results class for results from runners such as fitters and samplers.
+"""
 from dataclasses import dataclass
 import importlib.metadata
 import logging

@@ -1,9 +1,9 @@
-API
-===
+API Reference
+=============
 
 .. toctree::
    :maxdepth: 1
-   :caption: Core classes
+   :caption: Core Classes
 
    pmrf.Model
    pmrf.Parameter
@@ -11,13 +11,21 @@ API
 
 .. toctree::
    :maxdepth: 1
-   :caption: Submodules
+   :caption: Fitting and Sampling Modules
 
-   pmrf.models
    pmrf.fitting
    pmrf.sampling
-   pmrf.functions
+
+.. autosummary::
+   :toctree: generated/
+   :caption: Other Modules
+   :recursive:
+
+   pmrf.models
+   pmrf.parameters
    pmrf.distributions
+   pmrf.rf_functions
+   pmrf.math_functions
 
 .. toctree::
    :maxdepth: 1

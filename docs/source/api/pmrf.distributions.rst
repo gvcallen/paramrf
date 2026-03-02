@@ -6,8 +6,8 @@ pmrf.distributions
    :caption: Submodules
    :recursive:
 
-   pmrf.distributions.parameter
-   pmrf.distributions.trainable
+   pmrf.distributions.joint
    pmrf.distributions.sampled
-   pmrf.distributions.margarine
+   pmrf.distributions.stacked
    pmrf.distributions.anesthetic
+   pmrf.distributions.flowjax

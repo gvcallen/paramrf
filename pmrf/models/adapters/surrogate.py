@@ -1,3 +1,7 @@
+"""
+Adapters to hold discrete and continuous surrogate models.
+"""
+
 from typing import Callable
 
 import jax.numpy as jnp

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpi4py import MPI
 rank = MPI.COMM_WORLD.Get_rank()
 
-from pmrf.models.lines import CoaxialLine
+from pmrf.models import CoaxialLine
 from pmrf.parameters import Uniform, Fixed, PercentNormal
 from pmrf.fitting import PolyChordFitter
 
@@ -33,8 +33,8 @@ fitter = PolyChordFitter(
 
 # Run the fit and plot the results. We use 1x the number of parameters for the live fit.
 # Note that you can should run this script using mpi if possible e.g. `mpirun -np 6 python fit_cable_polychord.py` for 6 processes.
-results = fitter.run(measured, nlive_factor=1, save_results=True)
+fitted_model, fit_results = fitter.run(measured, nlive_factor=1, save_results=True)
 if rank == 0:
-    results.fitted_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
+    fitted_model.to_skrf(measured.frequency).plot_s_db(m=0, n=0)
     measured.plot_s_db(m=0, n=0)
     plt.show()

@@ -3,10 +3,10 @@ import logging
 import skrf as rf
 import jax.numpy as jnp
 
-from pmrf.models.lines import CoaxialLine
+import pmrf as prf
+from pmrf.models import CoaxialLine
 from pmrf.parameters import Uniform, Fixed, PercentNormal
 from pmrf.fitting import SciPyMinimizeFitter
-from pmrf.rf_functions import l2_norm_ax0, mag_2_db
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,12 +28,12 @@ model = CoaxialLine(
 fitter = SciPyMinimizeFitter(
     model=model,
     features=['s11_re', 's11_im'],
-    error_fn=[l2_norm_ax0, jnp.sum, mag_2_db],
+    error_fn=[prf.l2_norm_ax0, jnp.sum, prf.mag_2_db],
 )
 
 # Run the fit
-results = fitter.run(measured, optimizer='Nelder-Mead')
-model_ntwk = results.fitted_model.to_skrf(measured.frequency)
+fitted_model, fit_results = fitter.run(measured, optimizer='Nelder-Mead')
+model_ntwk = fitted_model.to_skrf(measured.frequency)
 
 # Plot some results
 fig, axes = plt.subplots(2, 2)
