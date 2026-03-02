@@ -112,9 +112,9 @@ class Model(eqx.Module):
     z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     # Private non-init field
-    _separator: str = field(default='_', init=False, repr=False, static=True)
-    _metadata: dict = field(default_factory=lambda: dict(), init=False, repr=False, static=True)
-    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), init=False, repr=False, static=True)
+    _separator: str = field(default='_', kw_only=True, repr=False, static=True)
+    _metadata: dict = field(default_factory=lambda: dict(), kw_only=True, repr=False, static=True)
+    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
     # ---- Internal initialization methods -------------------------------------------------
 
