@@ -20,7 +20,7 @@ class BlackJAXNSFitter(BayesianFitter):
     It provides both the global evidence (logZ) and posterior samples, natively 
     utilizing hardware acceleration (GPU/TPU) when available.
     """
-    def optimize(
+    def execute(
         self, 
         target: jnp.ndarray, 
         *,
@@ -34,6 +34,8 @@ class BlackJAXNSFitter(BayesianFitter):
     ) -> tuple[Model, Any]:
         """
         Execute the nested sampling run using BlackJAX.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
 
         Parameters
         ----------

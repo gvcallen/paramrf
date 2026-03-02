@@ -16,7 +16,7 @@ class PolyChordFitter(BayesianFitter):
     both the global evidence (logZ) and generating samples from the posterior 
     distribution.
     """
-    def optimize(
+    def execute(
         self, 
         target: jnp.ndarray, 
         *, 
@@ -26,6 +26,8 @@ class PolyChordFitter(BayesianFitter):
     ) -> tuple[Model, Any]:
         """
         Execute the PolyChord nested sampling run.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
 
         Parameters
         ----------

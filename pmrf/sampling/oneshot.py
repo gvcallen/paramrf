@@ -23,7 +23,7 @@ class OneshotSampler(BaseSampler, ABC):
        sample
        generate
     """
-    def sample(
+    def execute(
         self,
         *,
         N: int = 100,

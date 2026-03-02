@@ -143,7 +143,7 @@ class BaseFitter(BaseRunner, ABC):
         self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
         self.logger.info(f"Features: {self.features}")
         
-        fitted_model, backend_results = self.optimize(target_features, **kwargs)
+        fitted_model, backend_results = self.execute(target_features, **kwargs)
 
         # Package Results
         results = FitResults()
@@ -192,7 +192,7 @@ class BaseFitter(BaseRunner, ABC):
         return results.fitted_model, results
 
     @abstractmethod
-    def optimize(
+    def execute(
         self,
         target: jnp.ndarray,
         **kwargs

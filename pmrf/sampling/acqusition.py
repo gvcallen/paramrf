@@ -38,7 +38,7 @@ class AcquisitionSampler(BaseSampler, ABC):
     """
     expensive: bool = True
     
-    def sample(
+    def execute(
         self, 
         N: int | None = None, 
         *, 
@@ -49,9 +49,42 @@ class AcquisitionSampler(BaseSampler, ABC):
         key: jax.Array | None = None, 
         **kwargs
     ) -> tuple[jnp.ndarray, Any]:
-        """
-        Executes the active learning loop.
-        """
+        r"""
+        Execute the adaptive active learning loop.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
+
+        Parameters
+        ----------
+        N : int, optional
+            The total budget of samples. The loop stops once ``len(sampled_params) >= N``.
+        initial_models : list of Model or int, optional
+            The starting state. If an integer, that many points are sampled via 
+            Latin Hypercube Sampling (LHS) to start the loop.
+        initial_factor : int, optional
+            A multiplier for the parameter count to determine the number of 
+            initial points (e.g., ``initial_factor=5`` for a 2-param model 
+            starts with 10 points).
+        batch_size : int, default=1
+            The number of points to propose and simulate in each iteration.
+        max_iterations : int, optional
+            The maximum number of adaptive loops to run, regardless of the 
+            total sample count.
+        key : jax.Array, optional
+            A JAX random PRNG key for stochastic acquisition functions.
+        **kwargs
+            Additional arguments passed to the :meth:`acquire` method.
+
+        Returns
+        -------
+        tuple[jax.numpy.ndarray, None]
+            The final array of sampled physical parameters.
+
+        Raises
+        ------
+        ValueError
+            If initialization arguments are contradictory or insufficient.
+        """        
         # 1. Parse Initial Setup Args
         if initial_factor is not None and initial_models is not None:
             raise ValueError("Cannot pass both initial_factor and initial_models.")

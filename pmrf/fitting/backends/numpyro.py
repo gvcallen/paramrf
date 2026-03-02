@@ -109,7 +109,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
     the No-U-Turn Sampler (NUTS) kernel, which is highly efficient for continuous, 
     differentiable parameter spaces.
     """        
-    def optimize(
+    def execute(
         self, 
         targets: jnp.ndarray, 
         *, 
@@ -122,6 +122,8 @@ class NumPyroMCMCFitter(NumPyroFitter):
     ) -> tuple[Model, Any]:
         r"""
         Execute the MCMC sampling run.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
 
         Parameters
         ----------
@@ -186,7 +188,7 @@ class NumPyroNSFitter(NumPyroFitter):
     This backend utilizes ``numpyro.contrib.nested_sampling.NestedSampler`` to 
     compute both the posterior samples and the log-evidence of the model.
     """
-    def optimize(
+    def execute(
         self, 
         targets: jnp.ndarray, 
         *, 
@@ -198,6 +200,8 @@ class NumPyroNSFitter(NumPyroFitter):
     ) -> tuple[Model, Any]:
         r"""
         Execute the Nested Sampling run.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
 
         Parameters
         ----------

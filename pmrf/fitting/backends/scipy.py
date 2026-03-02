@@ -14,7 +14,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
     optimization on the model parameters. By default, it uses the Sequential 
     Least Squares Programming (SLSQP) algorithm.
     """
-    def optimize(
+    def execute(
         self, 
         target: jnp.ndarray, 
         *, 
@@ -25,6 +25,8 @@ class SciPyMinimizeFitter(FrequentistFitter):
     ) -> tuple[Model, OptimizeResult]:
         """
         Run the optimization loop using the SciPy backend.
+        
+        **NB:** This method should not be called directly. Call :meth:`run` instead.
 
         Parameters
         ----------

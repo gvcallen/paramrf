@@ -121,7 +121,7 @@ class BaseSampler(BaseRunner, ABC):
         self.logger.info(f"Sampling {self.model.num_flat_params} parameters...")
         self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
         
-        samples, backend_results = self.sample(output_path=output_path, **kwargs)
+        samples, backend_results = self.execute(output_path=output_path, **kwargs)
 
         # 3. Package Results
         results = SampleResults()
@@ -216,7 +216,7 @@ class BaseSampler(BaseRunner, ABC):
                     plotter.add_curve(str(param_dict), y_values=np.real(plot_features), x_values=self.frequency.f_scaled)
                     
     @abstractmethod
-    def sample(
+    def execute(
         self,
         **kwargs,
     ) -> tuple[jnp.ndarray, Any]:
