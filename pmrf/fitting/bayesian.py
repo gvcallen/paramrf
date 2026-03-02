@@ -98,7 +98,7 @@ class BayesianFitter(BaseFitter, ABC):
         self.feature_sigmas = feature_sigmas
         self.features = features
         
-        super().run(measured, **kwargs)
+        return super().run(measured, **kwargs)
 
     @property
     def num_params(self) -> int:
