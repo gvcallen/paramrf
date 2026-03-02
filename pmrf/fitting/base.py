@@ -35,7 +35,7 @@ class BaseFitter(BaseRunner, ABC):
         figure_dir: str | None = None,
         fitted_uniform_frac: float | None = 0.1,
         **kwargs        
-    ) -> FitResults:
+    ) -> tuple[Model, FitResults]:
         """
         Executes the fit. Handles dynamic frequency extraction, delegates the mathematical 
         optimization, and packages the outputs into a FitResults object.
@@ -128,7 +128,7 @@ class BaseFitter(BaseRunner, ABC):
                     plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
                     plt.close()
         
-        return results
+        return results.fitted_model, results
 
     @abstractmethod
     def optimize(

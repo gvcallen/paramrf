@@ -47,7 +47,11 @@ class PolyChordFitter(BayesianFitter):
             return float(self.log_likelihood(x, target_features))
 
         def prior_np(u):
-            return float(np.array(self.icdf(u)))
+            return np.array(self.icdf(u))
+        
+        theta0 = 0.5 * jnp.ones(len(param_names))
+        _ = log_likelihood_np(theta0)
+        _ = prior_np(theta0)
 
         dumper = lambda _live, _dead, _logweights, logZ, _logZerr: \
             self.logger.info(f'time: {time_string()} (logZ = {logZ:.2f})')
