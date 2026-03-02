@@ -1,11 +1,8 @@
-from typing import Callable
 from functools import partial
+from typing import Any
 
 import jax.numpy as jnp
 import jax.random as jr
-from eqxlearn import BaseModel, fit
-from eqxlearn.model_selection import KFold, cross_validate
-from eqxlearn.metrics import mean_absolute_error
 
 from pmrf.models.model import Model
 from pmrf.sampling.algorithms import FieldSampler
@@ -44,11 +41,13 @@ class EqxLearnUncertaintySampler(FieldSampler):
     def __init__(
         self,
         model: Model,
-        surrogate: BaseModel,
+        surrogate: Any,
         cv=None,
         fit_kwargs: dict = None,
         **kwargs
     ):
+        from eqxlearn.model_selection import KFold       
+        
         super().__init__(model=model, **kwargs)
         self.surrogate = surrogate
         self.cv = cv or partial(KFold, n_splits=5, shuffle=True)
@@ -86,14 +85,16 @@ class EqxLearnUncertaintySampler(FieldSampler):
         
         return params, features
 
-    def train_field(self, key=None) -> BaseModel:
+    def train_field(self, key=None) -> Any:
+        from eqxlearn import fit
+        
         X, y = self._preprocess()
         self.logger.info("Training surrogate model...")
         fitted_eqx_model, losses = fit(self.surrogate, X=X, y=y, key=key, **self.fit_kwargs)
         self.logger.info(f"Final loss: {losses[-1]:.2f}")
         return fitted_eqx_model
 
-    def evaluate_field(self, field: BaseModel, theta: jnp.ndarray, key=None) -> float:
+    def evaluate_field(self, field: Any, theta: jnp.ndarray, key=None) -> float:
         _y_mean, y_var = field(theta, return_var=True)
         rayleigh_factor = jnp.sqrt(jnp.pi) / 2.0
         total_std = jnp.sqrt(y_var.real + y_var.imag)
@@ -101,6 +102,9 @@ class EqxLearnUncertaintySampler(FieldSampler):
         return 20 * jnp.log10(expected_mae)
     
     def calculate_convergence(self, key=None) -> float:
+        from eqxlearn.model_selection import cross_validate
+        from eqxlearn.metrics import mean_absolute_error        
+
         X, y = self._preprocess()
         key, split_key = jr.split(key)
         cv_instance = self.cv(key=split_key)
