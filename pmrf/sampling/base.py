@@ -28,7 +28,7 @@ class BaseSampler(BaseRunner, ABC):
        :nosignatures:
 
        run
-       sample
+       execute
        update
 
     Parameters

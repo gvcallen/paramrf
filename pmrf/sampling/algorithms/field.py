@@ -29,7 +29,7 @@ class FieldSampler(AcquisitionSampler, ABC):
        :nosignatures:
 
        run
-       sample
+       execute
        update
        train_field
        evaluate_field

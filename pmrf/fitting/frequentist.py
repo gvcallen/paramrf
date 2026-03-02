@@ -26,7 +26,7 @@ class FrequentistFitter(BaseFitter, ABC):
        :nosignatures:
        
        run
-       optimize
+       execute
        cost
 
     Parameters

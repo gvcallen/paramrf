@@ -32,7 +32,7 @@ class AcquisitionSampler(BaseSampler, ABC):
        :nosignatures:
 
        run
-       sample
+       execute
        update
        acquire
     """

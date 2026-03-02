@@ -33,7 +33,7 @@ class BaseFitter(BaseRunner, ABC):
        :nosignatures:
        
        run
-       optimize
+       execute
 
     Parameters
     ----------
@@ -66,11 +66,11 @@ class BaseFitter(BaseRunner, ABC):
         Run the fitting process against the provided measurement data.
         
         This method automatically sets up the frequency, extracts the target features, 
-        and calls the subclass's ``optimize`` method. It also handles saving the 
+        and calls the subclass's ``execute`` method. It also handles saving the 
         results and generating plots if requested.
         
         **Note:** Any extra keyword arguments (**kwargs) are passed directly to the 
-        underlying ``optimize`` method.
+        underlying ``execute`` method.
 
         Parameters
         ----------
@@ -94,7 +94,7 @@ class BaseFitter(BaseRunner, ABC):
             uniform distributions spanning $\pm$ this fraction around the optimal 
             values (e.g., $0.1$ implies $\pm 10\%$). Set to ``None`` to skip.
         **kwargs
-            Additional arguments passed directly to the subclass's ``optimize`` method.
+            Additional arguments passed directly to the subclass's ``execute`` method.
 
         Returns
         -------

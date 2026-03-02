@@ -20,7 +20,7 @@ class OneshotSampler(BaseSampler, ABC):
        :nosignatures:
 
        run
-       sample
+       execute
        generate
     """
     def execute(

@@ -29,7 +29,7 @@ class BayesianFitter(BaseFitter, ABC):
        :nosignatures:
        
        run
-       optimize
+       execute
        log_likelihood
 
     Parameters
