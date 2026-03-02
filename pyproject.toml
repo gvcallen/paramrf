@@ -15,6 +15,7 @@ dependencies = [
     "numpy",
     "numpyro",
     "jsonpickle",
+    "cloudpickle",
     "scikit-rf",
     "scipy",
     "joblib",

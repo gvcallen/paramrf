@@ -70,3 +70,7 @@ class AnestheticDistribution(SampledDistribution):
         else:
             return jnp.array(self.nested_samples.get_weights())
         
+    def bounds(self, prior=False) -> tuple[jnp.ndarray, jnp.ndarray]:
+        samples = self.samples(prior=prior)
+        
+        return (jnp.min(samples, axis=0), jnp.max(samples, axis=0))
