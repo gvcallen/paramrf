@@ -7,8 +7,8 @@ import jax.random as jr
 
 from pmrf.sampling.acqusition import AcquisitionSampler
 from pmrf.models.model import Model
-from pmrf.sampling.base import BaseSampler
-from pmrf.util import lhs_sample, LivePlotter
+from pmrf.sampling.base import BaseSampler, SampleResults
+from pmrf.util import lhs_sample, LivePlotter, RANK
 from pmrf.algorithms import has_converged
 
 class FieldSampler(AcquisitionSampler, ABC):
@@ -22,8 +22,22 @@ class FieldSampler(AcquisitionSampler, ABC):
         
         self.converge_plotters: list[LivePlotter] = []
         self.converge_values: list[tuple[float, ...]] = []
-        self.field = None
-
+        
+    def run(
+        self, 
+        output_path: str | None = None,
+        save_figures: bool = True,
+        **kwargs
+    ) -> SampleResults:
+        result = super().run(output_path=output_path, save_figures=save_figures, **kwargs)
+        
+        if output_path is not None and RANK == 0:
+            if save_figures:
+                for i, plotter in enumerate(self.converge_plotters):
+                    plotter.fig.savefig(f"{output_path}/convergence_{i}.png", dpi=400)
+        
+        return result
+        
     # --------------------------------------------------------------------------
     # Abstract Field Hooks (The Contract)
     # --------------------------------------------------------------------------
@@ -49,7 +63,7 @@ class FieldSampler(AcquisitionSampler, ABC):
     # --------------------------------------------------------------------------
     def acquire(
         self, 
-        batch_size: int, 
+        N: int, 
         d: int, 
         *, 
         grid_sampler: BaseSampler | None = None,
@@ -64,7 +78,7 @@ class FieldSampler(AcquisitionSampler, ABC):
         
         # 1. Train the field (using subclass implementation)
         key, field_key = jr.split(key)
-        self.field = self.train_field(key=field_key)
+        field = self.train_field(key=field_key)
 
         # 2. Generate Grid Points
         K = num_grid_per_dim * d
@@ -82,15 +96,15 @@ class FieldSampler(AcquisitionSampler, ABC):
         eval_keys = jr.split(eval_key, len(theta_grid))
         
         def eval_theta_fn(theta, k) -> float:
-            return self.evaluate_field(self.field, theta, key=k)        
+            return self.evaluate_field(field, theta, key=k)        
             
         grid_field = jax.vmap(eval_theta_fn)(theta_grid, eval_keys)
 
         # 4. Select N Diverse Points
-        selected_field_thetas, selected_field_values = self._select_field_thetas(batch_size, theta_grid, grid_field)
+        selected_field_thetas, selected_field_values = self._select_field_thetas(N, theta_grid, grid_field)
         
         max_field_value = jnp.max(grid_field)
-        if batch_size == 1:
+        if N == 1:
             self.logger.info(f"Field maximum = {float(max_field_value):.2f}")
         else:
             value_str = ", ".join([f"{v:.2f}" for v in selected_field_values])

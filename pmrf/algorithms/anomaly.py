@@ -1,4 +1,26 @@
 import jax.numpy as jnp
+import os
+import numpy as np
+import jax.numpy as jnp
+from jax import vmap
+import matplotlib.pyplot as plt
+
+def get_anomaly_mask(Y, threshold):
+    """
+    Computes a boolean mask of rows that ARE anomalies.
+    Returns True for rows that exceed the threshold.
+    """
+    def check_row_is_anomaly(signal, th):
+        d2 = jnp.diff(signal, n=2)
+        curvature = jnp.abs(d2)
+    
+        th_is_vector = jnp.ndim(th) > 0
+        threshold_view = th[1:-1] if th_is_vector else th
+        has_spike = jnp.any(curvature > threshold_view)
+        return has_spike
+
+    mask = vmap(check_row_is_anomaly, in_axes=(0, None))(Y, threshold)
+    return mask
 
 def has_sudden_changes(values, *, upwards=True, downwards=True, window=5, iqr_factor=1.5, relative_epsilon=0.05):
     """

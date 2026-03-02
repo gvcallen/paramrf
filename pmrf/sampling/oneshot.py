@@ -20,7 +20,7 @@ class OneshotSampler(BaseSampler, ABC):
 
         U = self.generate(N, d, **kwargs)
         thetas = jnp.array([self.icdf(u) for u in U])
-        self.add_samples(thetas)
+        self.update(thetas)
         return self.sampled_params, None
 
     @abstractmethod

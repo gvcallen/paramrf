@@ -16,6 +16,8 @@ class AcquisitionSampler(BaseSampler, ABC):
     This class implements the `sample()` algorithm by repeatedly querying 
     a concrete subclass's `acquire()` method until convergence or limits are reached.
     """
+    expensive: bool = True
+    
     def sample(
         self, 
         N: int | None = None, 
@@ -61,7 +63,7 @@ class AcquisitionSampler(BaseSampler, ABC):
         # 3. Add initial samples in batches (updates internal state)
         for i in range(0, num_initial_samples, batch_size):
             batch_theta = initial_thetas[i : i + batch_size]
-            self.add_samples(batch_theta)
+            self.update(batch_theta)
         
         # 4. The Active Learning Loop
         iteration = 0
@@ -82,7 +84,7 @@ class AcquisitionSampler(BaseSampler, ABC):
             # Add to state and evaluate features
             for i in range(0, num_samples, batch_size):
                 batch_theta = thetas[i : i + batch_size]
-                self.add_samples(batch_theta)
+                self.update(batch_theta)
             
             # 5. Check Stopping Criteria
             if N is not None and len(self.sampled_params) >= N:
@@ -93,8 +95,6 @@ class AcquisitionSampler(BaseSampler, ABC):
                 self.logger.warning("Maximum iterations were reached during adaptive sampling.")
                 break            
             
-        # Returning (samples, backend_state). Adaptive Samplers usually don't 
-        # have specific backend objects to save, so we return None for the state.
         return self.sampled_params, None
     
     @abstractmethod

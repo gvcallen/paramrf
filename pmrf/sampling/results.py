@@ -44,14 +44,14 @@ class SampleResults(BaseResults):
                     
         return [("Sampling Results", nws_to_plot, pkws_to_plot)]
 
-    def _write_data(self, f: h5py.File, models_grp: h5py.Group):
+    def _write_data(self, f: h5py.File):
         if self.sampled_params is not None:
             f.create_dataset('sampled_params', data=np.asarray(self.sampled_params))
         if self.sampled_features is not None:
             f.create_dataset('sampled_features', data=np.asarray(self.sampled_features))
 
         if self.sampled_models:
-            sm_grp = models_grp.create_group('sampled')
+            sm_grp = f.create_group('sampled_models')
             for i, model in enumerate(self.sampled_models):
                 self._write_model(sm_grp.create_group(str(i)), model)
 
