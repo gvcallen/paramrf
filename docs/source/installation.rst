@@ -6,12 +6,25 @@ ParamRF can be installed using pip directly from the GitHub page:
 
 Optional dependencies
 ---------------------
-Several additional (optional) dependency packs can also be installed instead of manually installing the packages.
+Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Polychord fitting:
+For PolyChord fitting:
 
-``pip install 'paramrf[polychord] @ git+https://github.com/paramrf/paramrf@main'``
+``
+pip install git+https://github.com/PolyChord/PolyChordLite.git
+pip install anesthetic
+pip install mpi4py
+``
 
-For blackjax fitting:
+For BlackJAX fitting:
 
-``pip install 'paramrf[blackjax] @ git+https://github.com/paramrf/paramrf@main'``
+``
+pip install git+https://github.com/handley-lab/blackjax@nested_sampling
+pip install anesthetic
+``
+
+For eqx-learn surrogate modeling:
+
+``
+pip install git+https://github.com/eqx-learn/eqx-learn
+``

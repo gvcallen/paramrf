@@ -19,32 +19,10 @@ dependencies = [
     "scikit-rf",
     "scipy",
     "joblib",
+    "tqdm",
 ]
 
 [project.optional-dependencies]
-polychord = [
-    "pypolychord @ git+https://github.com/PolyChord/PolyChordLite.git",
-    "anesthetic",
-    "fgivenx",
-    "mpi4py",
-    "pandas",
-]
-dypolychord = [
-    "dyPolyChord",
-    "anesthetic",
-    "fgivenx",
-    "mpi4py",
-    "pandas",
-]
-blackjax = [
-    "blackjax @ git+https://github.com/handley-lab/blackjax@nested_sampling",
-    "anesthetic",
-    "pandas",
-    "tqdm",
-]
-eqxlearn = [
-    "eqx-learn @ git+https://github.com/eqx-learn/eqx-learn",
-]
 docs = [
     "sphinx",
     "myst-parser",
