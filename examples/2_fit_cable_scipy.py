@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import logging
 import skrf as rf
 
@@ -24,3 +25,4 @@ fitter = SciPyMinimizeFitter(model)
 # Run the fit and plot some results
 fitted_model, fit_results = fitter.run(measured, solver='Nelder-Mead')
 fit_results.plot_s_db()
+plt.show()
