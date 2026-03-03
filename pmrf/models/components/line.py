@@ -7,8 +7,8 @@ import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
-from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.frequency import Frequency
+from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.parameters import Parameter
 from pmrf.models.model import Model
 
@@ -20,6 +20,14 @@ class TransmissionLine(Model, ABC):
     based on frequency-dependent characteristic impedance ($Z_c$) 
     and total complex electrical length ($\gamma L$). Derived classes 
     must implement the `zc_gammaL` method.
+
+    **Mathematical Formulation**
+
+    For a single-ended 2-port transmission line, the unnormalized S-parameters are constructed as:
+    $$ S_{11} = S_{22} = 0 $$
+    $$ S_{21} = S_{12} = e^{-\gamma L} $$
+
+    These are then re-normalized to the lines characteristic impedance $Z_c$ using :meth:`pmrf.rf_functinos.renormalize_s`.
 
     Attributes
     ----------
@@ -83,6 +91,14 @@ class RLGCLine(TransmissionLine, ABC):
     Derived classes must implement `rlgc` to define how these parameters
     behave over frequency.
 
+    **Mathematical Formulation**
+
+    The characteristic impedance ($Z_c$) and complex propagation constant ($\gamma$) are derived as:
+    $$ Z_c = \sqrt{\frac{R + j\omega L}{G + j\omega C}} $$
+    $$ \gamma = \sqrt{(R + j\omega L)(G + j\omega C)} $$
+
+    The total complex electrical length is $\gamma L$.
+
     Attributes
     ----------
     length : Parameter, default=1.0
@@ -122,6 +138,11 @@ class PhaseLine(TransmissionLine):
     Ideal, lossless, and dispersionless transmission line defined by 
     electrical length at a reference frequency. Characteristic impedance 
     is real and constant; phase scales linearly.
+
+    **Mathematical Formulation**
+
+    $$ Z_c(\omega) = z_c $$
+    $$ \gamma L(\omega) = j \cdot \left(\theta \cdot \frac{\pi}{180}\right) \cdot \frac{\omega}{\omega_0} $$
 
     Example
     --------
@@ -167,6 +188,13 @@ class ConstantRLGCLine(RLGCLine):
     r"""
     Transmission line with constant, frequency-independent RLGC parameters.
 
+    **Mathematical Formulation**
+
+    $$ R(\omega) = R $$
+    $$ L(\omega) = L $$
+    $$ G(\omega) = G $$
+    $$ C(\omega) = C $$
+
     Example
     --------
     .. code-block:: python
@@ -205,10 +233,22 @@ class ConstantRLGCLine(RLGCLine):
     
 
 class PhysicalLine(RLGCLine):
-    """
+    r"""
     Transmission line defined by nominal characteristic impedance, relative permittivity, 
     conductor attenuation, and dielectric loss tangent.
     
+    **Mathematical Formulation**
+
+    The frequency-dependent attenuation components are computed as:
+    $$ \alpha_c = A \cdot \sqrt{\frac{f}{f_A}} \cdot \frac{\ln(10)}{20} $$
+    $$ \alpha_d = \frac{\pi f \sqrt{\varepsilon_r}}{c} \cdot \tan\delta $$
+
+    Which yield the per-unit-length parameters:
+    $$ R = 2 z_n \alpha_c $$
+    $$ L = \frac{z_n \sqrt{\varepsilon_r}}{c} $$
+    $$ G = \frac{2 \alpha_d}{z_n} $$
+    $$ C = \frac{\sqrt{\varepsilon_r}}{z_n c} $$
+
     Example
     --------
     .. code-block:: python
@@ -270,10 +310,23 @@ class PhysicalLine(RLGCLine):
     
 
 class DatasheetLine(RLGCLine):
-    """
+    r"""
     Transmission line defined by common datasheet parameters (nominal impedance, 
     dielectric constant, and loss factors). Includes skin effect (`k1`) and 
     dielectric loss (`k2`).
+
+    **Mathematical Formulation**
+
+    The normalized loss coefficients ($k_{1,norm}$, $k_{2,norm}$) depend on `loss_coeffs_normalized`. 
+    Attenuation variables scale natively with $\sqrt{\omega}$ and $\omega$:
+    $$ \alpha_c = k_{1,norm} \cdot \frac{\ln(10)}{20} \cdot \sqrt{\omega} $$
+    $$ \alpha_d = k_{2,norm} \cdot \frac{\ln(10)}{20} \cdot \omega $$
+
+    Resulting in the per-unit-length components:
+    $$ R = 2 z_n \alpha_c $$
+    $$ L = \frac{z_n \sqrt{\varepsilon_r}}{c} $$
+    $$ G = \frac{2 \alpha_d}{z_n} $$
+    $$ C = \frac{\sqrt{\varepsilon_r}}{z_n c} $$
 
     Example
     --------
@@ -345,8 +398,27 @@ class DatasheetLine(RLGCLine):
     
 
 class CoaxialLine(RLGCLine):
-    """
+    r"""
     Coaxial line defined directly by its physical geometry and material properties. 
+    
+
+[Image of coaxial cable cross section]
+
+
+    **Mathematical Formulation**
+
+    Ideal non-dispersive components ($L'$ and $C'$) and dielectric loss ($G$) are given by:
+    $$ L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right) $$
+    $$ C' = \frac{2\pi \varepsilon_0 \varepsilon_r}{\ln(b/a)} $$
+    $$ G_{diel} = \frac{2\pi \omega \varepsilon_0 \varepsilon_r \tan\delta}{\ln(b/a)} $$
+
+    The internal surface impedance defining frequency-dependent skin resistance ($R_{skin}$) 
+    and skin inductance ($L_{skin}$) is governed by:
+    $$ R_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\omega\mu}{2\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\omega\mu}{2\sigma_b}} $$
+    $$ L_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\mu}{2\omega\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\mu}{2\omega\sigma_b}} $$
+
+    Where $a$ is the inner radius, $b$ is the outer radius, and $\sigma$ is the conductor conductivity ($1/\rho$).
+    The total per-unit-length inductance is $L = L' + L_{skin}$.
 
     Example
     --------
@@ -442,11 +514,26 @@ class CoaxialLine(RLGCLine):
     
     
 class MicrostripLine(RLGCLine):
-    """
+    r"""
     Microstrip line defined by standard geometric and material properties.
+    
     
     Relies on standard Wheeler approximations. Note that configurations where 
     height > width (h > w) are not yet supported.
+
+    **Mathematical Formulation**
+
+    With ratio $u = \frac{W}{H}$, the effective relative permittivity ($\varepsilon_e$) 
+    and ideal impedance terms ($Z_a, Z_e$) are:
+    $$ \varepsilon_e = \frac{\varepsilon_r + 1}{2} + \frac{\varepsilon_r - 1}{2} \frac{1}{\sqrt{1 + 12/u}} $$
+    $$ Z_a = \frac{120\pi}{u + 1.393 + 0.667 \ln(u + 1.444)} $$
+    $$ Z_e = \frac{Z_a}{\sqrt{\varepsilon_e}} $$
+
+    Which provide the per-unit-length components:
+    $$ L = \frac{Z_e \sqrt{\varepsilon_e}}{c} $$
+    $$ C = \frac{\sqrt{\varepsilon_e}}{Z_e c} $$
+    $$ R = \frac{1}{W} \sqrt{2 \mu_0 \rho \omega} $$
+    $$ G = \frac{1}{Z_a c} \frac{\varepsilon_r (\varepsilon_e - 1)}{\varepsilon_r - 1} \tan\delta \cdot \omega $$
 
     Example
     --------
@@ -510,14 +597,20 @@ class MicrostripLine(RLGCLine):
 
 # Not currently exported but kept for reference
 class _DispersiveCoaxialLine(RLGCLine):
-    """
-    Coaxial line defined directly by its physical geometry and material properties,
-
+    r"""
+    Coaxial line defined directly by its physical geometry and material properties.
 
     Material properties can be modeled as frequency-dependent polynomials:
     - **'constant'**: (Default) Scalar value.
     - **'ppoly'**: Power basis polynomial (value is list of coefficients).
     - **'bpoly'**: Bernstein basis polynomial (value is list of coefficients).
+
+    **Mathematical Formulation**
+
+    Follows the same skin-effect derivations as `CoaxialLine`, except material constants 
+    $\varepsilon_r, \mu_r, \tan\delta, \rho$ are allowed to vary as arbitrary functions of $\omega$:
+    $$ \rho_{in} = \rho_{in}(\omega), \quad \rho_{out} = \rho_{out}(\omega) $$
+    $$ Z_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\omega\mu(\omega)}{2\sigma_{in}(\omega)}} (1+j) + \frac{1}{2\pi b} \sqrt{\frac{\omega\mu(\omega)}{2\sigma_{out}(\omega)}} (1+j) $$
 
     Example
     --------
