@@ -1,4 +1,5 @@
 [![Run Tests](https://github.com/paramrf/paramrf/actions/workflows/tests.yml/badge.svg)](https://github.com/paramrf/paramrf/actions/workflows/tests.yml)
+![Docs][(https://github.com/paramrf/paramrf/actions/workflows/deploy_docs.yml/badge.svg)](https://github.com/paramrf/paramrf/actions/workflows/deploy_docs.yml)
 
 ![paramrf logo](assets/logo.png)
 
