@@ -13,7 +13,7 @@ from pmrf.parameters import Parameter
 from pmrf.models.model import Model
 
 class TransmissionLine(Model, ABC):
-    """
+    r"""
     Abstract base class for all transmission line models.
 
     Provides the fundamental equations to construct S-parameters 
@@ -31,7 +31,7 @@ class TransmissionLine(Model, ABC):
 
     @abstractmethod
     def zc_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """
+        r"""
         Calculates characteristic impedance ($Z_c$) and complex electrical length ($\gamma L$).
 
         Parameters
@@ -76,7 +76,7 @@ class TransmissionLine(Model, ABC):
     
 
 class RLGCLine(TransmissionLine, ABC):
-    """
+    r"""
     Abstract base class for a transmission line defined by its per-unit-length
     RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.
 
@@ -92,7 +92,7 @@ class RLGCLine(TransmissionLine, ABC):
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        """
+        r"""
         Calculates the frequency-dependent RLGC parameters.
 
         Parameters
@@ -118,7 +118,7 @@ class RLGCLine(TransmissionLine, ABC):
 
 
 class PhaseLine(TransmissionLine):
-    """
+    r"""
     Ideal, lossless, and dispersionless transmission line defined by 
     electrical length at a reference frequency. Characteristic impedance 
     is real and constant; phase scales linearly.
@@ -128,9 +128,10 @@ class PhaseLine(TransmissionLine):
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import PhaseLine
 
         # Create an ideal 90-degree (quarter-wave) 50-ohm line at 1 GHz
-        quarter_wave = prf.models.PhaseLine(
+        quarter_wave = PhaseLine(
             zc=50.0,
             theta=90.0,
             f0=1e9
@@ -163,7 +164,7 @@ class PhaseLine(TransmissionLine):
 
 
 class ConstantRLGCLine(RLGCLine):
-    """
+    r"""
     Transmission line with constant, frequency-independent RLGC parameters.
 
     Example
@@ -171,8 +172,9 @@ class ConstantRLGCLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import ConstantRLGCLine
 
-        lossless_line = prf.models.ConstantRLGCLine(
+        lossless_line = ConstantRLGCLine(
             L=368.8e-9,  # nH/m
             C=147.5e-12, # pF/m
             length=0.1   # 10 cm
@@ -214,8 +216,9 @@ class PhysicalLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import PhysicalLine
 
-        line = prf.models.PhysicalLine(
+        line = PhysicalLine(
             zn=50.0,
             length=1.0,
             epr=2.2,
@@ -280,8 +283,9 @@ class DatasheetLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import DatasheetLine
 
-        cable = prf.models.DatasheetLine(
+        cable = DatasheetLine(
             zn=50.0,
             epr=2.1,
             k1=0.2,   # Skin effect loss factor
@@ -352,8 +356,9 @@ class CoaxialLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import CoaxialLine
 
-        phys_cable = prf.models.CoaxialLine(
+        phys_cable = CoaxialLine(
             din=0.9e-3,
             dout=2.95e-3,
             epr=1.5,
@@ -445,6 +450,25 @@ class MicrostripLine(RLGCLine):
     
     Relies on standard Wheeler approximations. Note that configurations where 
     height > width (h > w) are not yet supported.
+
+    Example
+    --------
+    .. code-block:: python
+
+        import pmrf as prf
+        from pmrf.models import MicrostripLine
+
+        phys_microstrip = MicrostripLine(
+            w=4e-3,
+            h=2.0e-3,
+            epr=4.6,
+            tand=0.025,
+            rho=1.72e-8,
+            length=0.5
+        )
+
+        freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
+        s_phys = phys_microstrip.s(freq)    
 
     Attributes
     ----------
