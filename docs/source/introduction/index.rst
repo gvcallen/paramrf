@@ -127,7 +127,6 @@ The following example creates a PI-CLC model once again, but using the above met
 
 .. code-block:: python
 
-    import jax.numpy as jnp
     import pmrf as prf
     from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
     from pmrf.parameters import Uniform, Fixed
@@ -150,6 +149,12 @@ The following example creates a PI-CLC model once again, but using the above met
 
             # Return the model
             return Circuit(connections)
+
+Model Manipulation
+~~~~~~~~~~~~~~~~~~
+ParamRF excels at manipulating models through deep hierarchies.
+
+The following examples creates a circuit model consisting of several nested sub-circuits. Parameters can then be easily manipulated using the `with_xxx` routines.
 
 
 Fitting
