@@ -207,10 +207,8 @@ class ConstantRLGCLine(RLGCLine):
 class PhysicalLine(RLGCLine):
     """
     Transmission line defined by nominal characteristic impedance, relative permittivity, 
-    conductor attenuation, and dielectric loss tangent. 
+    conductor attenuation, and dielectric loss tangent.
     
-    Equivalent to scikit-rf's `DefinedAEpTandZ0` wideband distortion model.
-
     Example
     --------
     .. code-block:: python
@@ -250,18 +248,17 @@ class PhysicalLine(RLGCLine):
     tand: Parameter = 0.0 
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        w = freq.w
-        f = w / (2 * jnp.pi)
-        
-        A_dB = self.A * jnp.sqrt(f / self.f_A)
-        alpha_c = A_dB * (jnp.log(10) / 20.0)
-        
+        f = freq.f
         sqrt_epr = jnp.sqrt(self.epr)
+        A_dB = self.A * jnp.sqrt(f / self.f_A)
+
+        alpha_c = A_dB * (jnp.log(10) / 20.0)
+        alpha_d = jnp.pi * sqrt_epr * f / c * self.tand
         
-        L_val = (self.zn * sqrt_epr) / c
-        C_val = sqrt_epr / (self.zn * c)
         R_val = 2 * self.zn * alpha_c
-        G_val = w * C_val * self.tand
+        L_val = (self.zn * sqrt_epr) / c
+        G_val = 2 / self.zn * alpha_d
+        C_val = sqrt_epr / (self.zn * c)
         
         ones = jnp.ones(freq.npoints)
         R = R_val * ones
