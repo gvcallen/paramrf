@@ -1,3 +1,5 @@
+[![Run Tests](https://github.com/paramrf/paramrf/actions/workflows/tests.yml/badge.svg)](https://github.com/paramrf/paramrf/actions/workflows/tests.yml)
+
 ![paramrf logo](assets/logo.png)
 
 # ParamRF: Parametric Radio Frequency Modelling, Fitting and Sampling
