@@ -118,7 +118,7 @@ napoleon_numpy_docstring = True
 napoleon_google_docstring = False
 napoleon_use_param = True
 napoleon_use_rtype = True
-napoleon_use_ivar = True  # Set to True to prevent variable collision with autodoc
+napoleon_use_ivar = False
 
 # --- MyST Markdown Settings ---
 myst_enable_extensions = ['colon_fence', 'deflist', 'linkify', 'dollarmath']

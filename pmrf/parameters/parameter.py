@@ -50,22 +50,25 @@ class Parameter(eqx.Module):
         import pmrf as prf
         import jax.numpy as jnp
 
-        # A simple, single-valued parameter, initialized with a float
-        p1 = prf.Parameter(value=1.0e-12, name='C1')
+        # A simple, single-valued parameter with a scale, initialized with a float
+        p1 = prf.Parameter(value=1.0, scale=1e-12, name='C1')
 
         # This parameter can be used in calculations directly (scaling is done during casting)
         impedance = 1 / (2j * jnp.pi * 1e9 * p1)
         print(f"Impedance: {impedance}")
 
         # A parameter that is fixed and will not be optimized during a fit
-        p2 = prf.Parameter(value=50.0, fixed=True, name='Z0')
+        p2 = prf.Parameter(value=50.0, fixed=True, name='R2')
 
         # A parameter with a uniform distribution
-        # Factory functions are a convenient way to create these
-        p3 = prf.Uniform(min=0.9e-9, max=1.1e-9, name='L1')
+        # The provided factory functions in pmrf.parameters are a convenient way to create these
+        from pmrf.parameters import Uniform
+        p3 = Uniform(0.9, 1.1, scale=1e-9, name='L1')
+        print(f"Initial value of L1: {p3.value}") # initialized to the mean
 
-        # The parameter's value is initialized to the mean of the distribution
-        print(f"Initial value of L1: {p3.value}")
+        # More complicated parameters can be initialized with any "numpyro" distribution
+        from numpyro.distributions import LogNormal
+        p4 = prf.Parameter(value=10.0, distribution=LogNormal(10.0, 1.0))
     """
     # Underlying values/dists (unscaled). Multiply by scale above to get to true value (done automatically when converting to array)
     value: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=jnp.float64))
