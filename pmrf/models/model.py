@@ -34,6 +34,15 @@ from pmrf.frequency import Frequency
 from pmrf.util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
 from pmrf.util.tree import nodes_by_type, value_at_path, partition, combine
 
+
+Z0_WARNING = \
+r"""
+WARNING: You have created a model with characteristic impedance other than 50 ohm.
+Working with multiple models in ParamRF with differing characteristic impedances
+is not yet officially supported and you may encounter subtle bugs. For now, it is
+recommended to keep the default z0 and convert your results at the end.
+"""
+
 class Model(eqx.Module):
     """
     Overview
@@ -162,7 +171,7 @@ class Model(eqx.Module):
             # Set final field
             if len(field_kwargs) != 0:
                 setattr(cls, field_name, eqx.field(**field_kwargs))
-
+        
         # Automatically apply defaults when a subclass overrides __init__
         if '__init__' in cls.__dict__:
             user_init = cls.__dict__['__init__']
@@ -191,22 +200,33 @@ class Model(eqx.Module):
                 for f in dataclasses.fields(cls):
                     val = getattr(self, f.name, dataclasses.MISSING)
                     
-                    # Fill missing values
                     if val is dataclasses.MISSING:
                         if f.default is not dataclasses.MISSING:
                             val = f.default
                         elif f.default_factory is not dataclasses.MISSING:
                             val = f.default_factory()
                     
-                    # Apply Equinox converters if they exist
-                    # Equinox hides converter functions inside the field metadata
                     converter = f.metadata.get("converter") if hasattr(f, "metadata") else None
                     if converter is not None and val is not dataclasses.MISSING:
                         val = converter(val)
                         
-                    # Save final value
                     if val is not dataclasses.MISSING:
                         object.__setattr__(self, f.name, val)
+                
+                # --- WARNING CHECK (Custom __init__ path) ---
+                # 'type(self) is cls' ensures the warning only fires for the final instantiated class,
+                # preventing duplicate warnings in deep inheritance chains.
+                if type(self) is cls:
+                    if not jnp.isscalar(self.z0):
+                        raise Exception("Only scaler port impedances are currently supported")
+                    
+                    if self.z0 != 50 and self.z0 != (50.0+0j):
+                        import warnings
+                        warnings.warn(
+                            Z0_WARNING,
+                            UserWarning, stacklevel=2
+                        )
+                # --------------------------------------------
                 
                 # 4. Trigger __post_init__ if the user defined one
                 if hasattr(self, '__post_init__'):
@@ -214,7 +234,31 @@ class Model(eqx.Module):
 
             update_wrapper(wrapped_init, user_init)
             cls.__init__ = wrapped_init       
-        
+
+        else:
+            # Subclass relies on Equinox's auto-generated __init__, which will call __post_init__.
+            user_post_init = cls.__dict__.get('__post_init__')
+            
+            def wrapped_post_init(self, *args, **kwargs_pi):
+                # 1. Run the user's __post_init__ if they defined one
+                if user_post_init is not None:
+                    user_post_init(self, *args, **kwargs_pi)
+                    
+                if not jnp.isscalar(self.z0):
+                    raise Exception("Only scaler port impedances are currently supported")                    
+                    
+                # --- WARNING CHECK (Auto __init__ path) ---
+                if type(self) is cls:
+                    if self.z0 != 50 and self.z0 != (50.0+0j):
+                        import warnings
+                        warnings.warn(
+                            Z0_WARNING,
+                            UserWarning, stacklevel=3 
+                        )
+                # ------------------------------------------
+                        
+            cls.__post_init__ = wrapped_post_init
+            
         # Implement dynamic functions
         for prop in PRIMARY_PROPERTIES:
             for suffix, lookup in FUNC_LOOKUP.items():
@@ -724,6 +768,12 @@ class Model(eqx.Module):
         """Scattering parameter matrix.
 
         If a different parameter type (a, z, y) is primary, this converts it to S.
+        
+        Note that, in ParamRF, the **power wave** definition of S-parameters
+        should be used. If you have a formulation in terms of another definition
+        (such as traveling waves), simply use :meth:`pmrf.rf_functions.s2s`
+        (or :meth:`pmrf.rf_functions.renormalize_s` if you need to change
+        impedance too).
 
         Parameters
         ----------

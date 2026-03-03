@@ -23,6 +23,9 @@ class Measured(Model):
         Marked as static to avoid tracing overhead in JAX.
     """
     network: skrf.Network = field(static=True)
+    
+    def __post_init__(self):
+        self.network.renormalize(self.z0, 'power')
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         S_old = jnp.array(self.network.s)

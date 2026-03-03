@@ -182,8 +182,66 @@ def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ]).transpose()
     return a
 
-def s2y(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
-    raise NotImplementedError
+def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarray:
+    """
+    Convert S-parameters to Admittance (Y) parameters.
+
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    z0 : NumberLike, optional, default=50
+        The characteristic impedance.
+    s_def : str, optional, default='power'
+        The S-parameter definition ('power' or 'traveling').
+
+    Returns
+    -------
+    jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+    """
+    nfreqs, nports, _ = s.shape
+    z0 = fix_z0_shape(z0, nfreqs, nports)
+    z0 = z0.astype(dtype=complex)
+    z0 = jnp.where(z0.real == 0, z0 + ZERO, z0)
+
+    s = jnp.array(s, dtype=complex)
+
+    # Creating Identity matrices of shape (nports,nports) for each nfreqs
+    Id = jnp.eye(nports, dtype=complex)[None, :, :]
+    Id = jnp.broadcast_to(Id, (nfreqs, nports, nports))
+
+    if s_def == 'power':
+        F, F_inv, G = jnp.zeros_like(s), jnp.zeros_like(s), jnp.zeros_like(s)
+        diag_idx = jnp.arange(nports)
+        
+        # F_inv is the inverse of F: a diagonal matrix of 2 * sqrt(Re(Z0))
+        F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
+        F_inv = F_inv.at[:, diag_idx, diag_idx].set(2 * jnp.sqrt(z0.real))
+        G = G.at[:, diag_idx, diag_idx].set(z0)
+        
+        # Left-solve: X = A^-1 B  =>  jnp.linalg.solve(A, B)
+        # Y = F_inv @ (S @ G + G^*)^-1 @ (I - S) @ F
+        A = s @ G + jnp.conjugate(G)
+        B = Id - s
+        
+        y = F_inv @ jnp.linalg.solve(A, B) @ F
+
+    elif s_def == 'traveling':
+        # Creating diagonal matrices of 1 / sqrt(Z0)
+        inv_sqrtz0 = jnp.zeros_like(s)
+        jnp.einsum('ijj->ij', inv_sqrtz0)[...] = 1.0 / jnp.sqrt(z0)
+        
+        # Y = Z0^-1/2 @ (I + S)^-1 @ (I - S) @ Z0^-1/2
+        A = Id + s
+        B = Id - s
+        
+        y = inv_sqrtz0 @ jnp.linalg.solve(A, B) @ inv_sqrtz0
+
+    else:
+        raise ValueError(f"Unknown s_def: {s_def}")
+
+    return y
 
 def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     """

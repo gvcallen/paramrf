@@ -1,6 +1,5 @@
 from typing import Sequence
 
-import jax
 import jax.numpy as jnp
 import equinox as eqx
 
@@ -11,7 +10,6 @@ from pmrf.rf_functions.conversions import fix_z0_shape
 def cascade_s(
     Smats: NumberLike,
     z0s: NumberLike,
-    s_def = 'power',
 ) -> jnp.ndarray:
     """
     Cascades multiple S-parameter networks together.
@@ -30,8 +28,6 @@ def cascade_s(
     z0s : NumberLike
         A sequence of characteristic impedances (z0) for the component networks.
         Must be a float, or N arrays each broadcastable to (N x F x m).
-    s_def : str, optional, default='power'
-        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
 
     Returns
     -------

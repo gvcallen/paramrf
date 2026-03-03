@@ -23,11 +23,12 @@ class TransmissionLine(Model, ABC):
 
     **Mathematical Formulation**
 
-    For a single-ended 2-port transmission line, the unnormalized S-parameters are constructed as:
+    For a single-ended 2-port transmission line, the traveling wave S-parameters with respect to $Z_c$ are:
     $$S_{11} = S_{22} = 0$$
     $$S_{21} = S_{12} = e^{-\gamma L}$$
 
-    These are then re-normalized to the lines characteristic impedance $Z_c$ using :meth:`pmrf.rf_functinos.renormalize_s`.
+    This model computes these S-parameters and then re-normalized them into $Z_0$ and the power-wave definition
+    using :meth:`pmrf.rf_functions.renormalize_s`.
 
     Attributes
     ----------
@@ -79,8 +80,9 @@ class TransmissionLine(Model, ABC):
                 [s21, s11],
             ]).transpose(2, 0, 1)
 
-        # S-parameters are defined as traveling waves
-        return renormalize_s(s, zc, self.z0, 'traveling', 'traveling')
+        # Renormalize into the model's characteristic impedance and power waves
+        # (the above formulation is in terms of traveling waves).
+        return renormalize_s(s, zc, self.z0, 'traveling', 'power')
     
 
 class RLGCLine(TransmissionLine, ABC):
@@ -240,7 +242,7 @@ class PhysicalLine(RLGCLine):
     **Mathematical Formulation**
 
     The frequency-dependent attenuation components are computed as:
-    $$\alpha_c = A \cdot \sqrt{\frac{f}{f_A}} \cdot \frac{\ln(10)}{20}$$
+    $$\alpha_c = A \cdot \sqrt{\frac{f}{fA}} \cdot \frac{\ln(10)}{20}$$
     $$\alpha_d = \frac{\pi f \sqrt{\varepsilon_r}}{c} \cdot \tan\delta$$
 
     Which yield the per-unit-length parameters:
@@ -261,7 +263,7 @@ class PhysicalLine(RLGCLine):
             length=1.0,
             epr=2.2,
             A=0.01,
-            f_A=1.0,
+            fA=1.0,
             tand=0.001
         )
 
@@ -276,7 +278,7 @@ class PhysicalLine(RLGCLine):
         Relative permittivity.
     A : Parameter, default=0.0
         Conductor loss in dB/m/sqrt(Hz).
-    f_A : Parameter, default=1.0
+    fA : Parameter, default=1.0
         Frequency scaling reference for attenuation in Hz.
     tand : Parameter, default=0.0
         Dielectric loss tangent.
@@ -284,13 +286,13 @@ class PhysicalLine(RLGCLine):
     zn: Parameter = 50.0
     epr: Parameter = 1.0
     A: Parameter = 0.0    
-    f_A: Parameter = 1.0  
+    fA: Parameter = 1.0  
     tand: Parameter = 0.0 
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
         sqrt_epr = jnp.sqrt(self.epr)
-        A_dB = self.A * jnp.sqrt(f / self.f_A)
+        A_dB = self.A * jnp.sqrt(f / self.fA)
 
         alpha_c = A_dB * (jnp.log(10) / 20.0)
         alpha_d = jnp.pi * sqrt_epr * f / c * self.tand

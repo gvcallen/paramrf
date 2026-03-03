@@ -13,8 +13,8 @@ from pmrf.models.adapters.collection import ListModel, DictModel
 from pmrf.models.adapters.static import Measured
 from pmrf.models.adapters.surrogate import ContinuousSurrogate, DiscreteSurrogate
 from pmrf.models.components.ideal import Port, Ground, SourceConverter, Transformer
-from pmrf.models.components.line import TransmissionLine, RLGCLine, PhaseLine, ConstantRLGCLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine
-from pmrf.models.components.lumped import Load, Capacitor, Inductor, Resistor, ShuntCapacitor, ShuntInductor, ShuntResistor, SHORT, OPEN, MATCH
+from pmrf.models.components.lines import TransmissionLine, RLGCLine, PhaseLine, ConstantRLGCLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine
+from pmrf.models.components.lumped import Load, Resistor, Capacitor, Inductor, ShuntResistor, ShuntCapacitor, ShuntInductor, CapacitorQ, InductorQ, SHORT, OPEN, MATCH
 from pmrf.models.components.nonideal import NonIdealResistor, CLCResistor
 from pmrf.models.components.topological import PiCLC, BoxCLCC
 from pmrf.models.composite.interconnected import Circuit, Cascade, Terminated
