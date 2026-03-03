@@ -26,16 +26,13 @@ Several additional dependencies are required/recommended for more advanced use-c
 For PolyChord fitting:
 
 ``
-pip install git+https://github.com/PolyChord/PolyChordLite.git
-pip install anesthetic
-pip install mpi4py
+pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
 ``
 
 For BlackJAX fitting:
 
 ``
-pip install git+https://github.com/handley-lab/blackjax@nested_sampling
-pip install anesthetic
+pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic
 ``
 
 For eqx-learn surrogate modeling:
