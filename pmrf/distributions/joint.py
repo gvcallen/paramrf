@@ -6,6 +6,8 @@ from numpyro.distributions import Distribution, constraints
 import jax.numpy as jnp
 import jax
 
+from pmrf.constants import MIN_PERCENTILE, MAX_PERCENTILE
+
 class JointDistribution(Distribution):
     support = constraints.real_vector
     reparametrized_params = []
@@ -126,7 +128,9 @@ class JointDistribution(Distribution):
     def bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         """
         Dynamically infer bounds based on the numpyro constraints of each distribution.
-        Defaults to -inf or inf where parameters are unbounded.
+        
+        MIN_PERCENTILE and MAX_PERCENTILE are used for "min" and "max" if the distribution
+        is not bounded.
         """
         lower_bounds = [None] * len(self.param_names)
         upper_bounds = [None] * len(self.param_names)
@@ -138,8 +142,8 @@ class JointDistribution(Distribution):
                 idx = self.name_to_index[name]
                 
                 # Best-effort extraction from Numpyro constraints
-                lb = getattr(support, "lower_bound", -jnp.inf)
-                ub = getattr(support, "upper_bound", jnp.inf)
+                lb = getattr(support, "lower_bound", dist.icdf(MIN_PERCENTILE))
+                ub = getattr(support, "upper_bound", dist.icdf(MAX_PERCENTILE))
                 
                 # Handle cases where the bound is a vector (e.g., multivariate constraints)
                 if isinstance(lb, (jnp.ndarray, float, int)) and jnp.ndim(lb) > 0:
