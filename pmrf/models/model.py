@@ -43,7 +43,7 @@ class Model(eqx.Module):
     or can be utilized indirectly by combining models already provides in :mod:`pmrf.models`.
     
     This class is abstract and should not be instantiated directly. Derive from :class:`Model`
-    and override one of the primary property functions (e.g. :meth:`__call__`, :meth:`s`, :meth:`a`).
+    and override one of the primary property functions (e.g. :meth:`.__call__`, :meth:`.s`, :meth:`.a`).
 
     The model is an Equinox ``Module`` (immutable, dataclass-like) and is
     treated as a JAX PyTree. Parameters are declared using standard dataclass
@@ -53,9 +53,9 @@ class Model(eqx.Module):
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
-    - Retrieve parameter information via methods such as :meth:`named_params`, :meth:`param_names`, :meth:`flat_params`, etc..
-    - Use `with_xxx` functions to modify fields, models and parameters within the model e.g. :meth:`with_params`, :meth:`with_fields`.
-    - Use "past tense" functions to modify the model in conjuction with another model or data e.g. :meth:`terminated`, :meth:`fitted`.
+    - Retrieve parameter information via methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc..
+    - Use `with_xxx` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.
+    - Use "past tense" functions to modify the model in conjuction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
 
     See also the :mod:`pmrf.fitting` and :mod:`pmrf.sampling` modules for details on model fitting and sampling.
 
@@ -1012,14 +1012,14 @@ class Model(eqx.Module):
     def named_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
         """Named model parameter values as a dict of jax arrays.
 
-        See :meth:`named_params`.
+        See :meth:`.named_params`.
 
         Parameters
         ----------
         scaled : bool, default=False
             Whether or not to scale the returned values by the parameter scales.
         **kwargs
-            Additional key-word arguments as in  :meth:`named_params`.
+            Additional key-word arguments as in  :meth:`.named_params`.
 
         Returns
         -------
@@ -1034,7 +1034,7 @@ class Model(eqx.Module):
         """
         Return model parameter names as a list.
 
-        See :meth:`named_params`.
+        See :meth:`.named_params`.
         """
         return list(self.named_params(*args, **kwargs).keys())
 
@@ -1042,7 +1042,7 @@ class Model(eqx.Module):
         """
         Return a single model parameter by name.
 
-        See :meth:`named_params`.
+        See :meth:`.named_params`.
         """
         return self.named_params(*args, **kwargs)[name]
     
@@ -1050,7 +1050,7 @@ class Model(eqx.Module):
         """
         Return model parameters as a list.
 
-        See :meth:`named_params`.
+        See :meth:`.named_params`.
         """
         return list(self.named_params(*args, **kwargs).values())
     
@@ -1058,7 +1058,7 @@ class Model(eqx.Module):
         """
         Return a single model parameter value by name as a single jax array.
 
-        See :meth:`named_param_values`.
+        See :meth:`.named_param_values`.
         """
         return self.named_param_values(*args, **kwargs)[name]
 
@@ -1066,7 +1066,7 @@ class Model(eqx.Module):
         """
         Return model parameter values as a list of jax arrays.
 
-        See :meth:`named_param_values`.
+        See :meth:`.named_param_values`.
         """
         return list(self.named_param_values(*args, **kwargs).values())
     
@@ -1098,14 +1098,14 @@ class Model(eqx.Module):
     def named_flat_param_values(self, scaled=False, return_floats=False, **kwargs) -> dict[str, jnp.ndarray]:
         """Named flattened model parameter values as a dict of jax arrays.
 
-        See :meth:`named_flat_params`.
+        See :meth:`.named_flat_params`.
 
         Parameters
         ----------
         scaled : bool, default=False
             Whether or not to scale the returned values by the parameter scales.
         **kwargs
-            Additional key-word arguments as in  :meth:`named_params`.
+            Additional key-word arguments as in  :meth:`.named_params`.
 
         Returns
         -------
@@ -1124,7 +1124,7 @@ class Model(eqx.Module):
         """
         Return flattened parameter names as a list.
 
-        See :meth:`named_flat_params`.
+        See :meth:`.named_flat_params`.
         """
         return list(self.named_flat_params(*args, **kwargs).keys())    
     
@@ -1132,7 +1132,7 @@ class Model(eqx.Module):
         """
         Return flattened parameters as a list.
 
-        See :meth:`named_flat_params`.
+        See :meth:`.named_flat_params`.
         """
         return list(self.named_flat_params(*args, **kwargs).values())
     
@@ -1140,7 +1140,7 @@ class Model(eqx.Module):
         """
         Return flattened model parameter values as a jax arrays.
 
-        See :meth:`named_flat_param_values`.
+        See :meth:`.named_flat_param_values`.
         """
         return jnp.array(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
     
@@ -1502,10 +1502,10 @@ class Model(eqx.Module):
     def with_free_params_only(self: Self, *args, **kwargs) -> Self:
         """Returns a model with only the specified parameters freed.
         
-        This is an alias for calling :meth:``with_free_params``
+        This is an alias for calling :meth:`.`with_free_params``
         with `fix_others=True`.
 
-        See :meth:``with_free_params``.
+        See :meth:`.`with_free_params``.
         """
         kwargs.setdefault('fix_others', True)
         if kwargs['fix_others'] == False:
@@ -1515,10 +1515,10 @@ class Model(eqx.Module):
     def with_all_params_fixed(self: Self, **kwargs) -> Self:
         """Returns a model with all parameters fixed.
         
-        This is an alias for calling :meth:``with_free_params``
+        This is an alias for calling :meth:`.`with_free_params``
         with `fix_others=True` and no parameters passed.
 
-        See :meth:``with_free_params``.
+        See :meth:`.`with_free_params``.
         """
         kwargs.setdefault('fix_others', True)
         if kwargs['fix_others'] == False:
@@ -1528,10 +1528,10 @@ class Model(eqx.Module):
     def with_all_params_free(self: Self, **kwargs) -> Self:
         """Returns a model with all parameters free.
         
-        This is an alias for calling :meth:``with_free_params``
+        This is an alias for calling :meth:`.`with_free_params``
         with all parameters passed.
 
-        See :meth:``with_free_params``.
+        See :meth:`.`with_free_params``.
         """
         return self.with_free_params(self.param_names(include_fixed=True), **kwargs)
     
@@ -1861,8 +1861,8 @@ class Model(eqx.Module):
     def with_free_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str], include_fixed=False, fix_others=False) -> Self:
         """Free all parameters in the given submodels.
 
-        Submodels parameters are obtained using :meth:`param_names`.,
-        and subsequently freed using :meth:``with_free_params``.
+        Submodels parameters are obtained using :meth:`.param_names`.,
+        and subsequently freed using :meth:`.`with_free_params``.
         
         Parameters
         ----------
@@ -1883,10 +1883,10 @@ class Model(eqx.Module):
     def with_free_submodels_only(self: Self, *args, **kwargs) -> Self:
         """Returns a model with only the specified submodels freed.
         
-        This is an alias for calling :meth:``with_free_submodels``
+        This is an alias for calling :meth:`.`with_free_submodels``
         with `fix_others=True`.
 
-        See :meth:``with_free_params``.
+        See :meth:`.`with_free_params``.
         """     
         kwargs.setdefault('fix_others', True)
         if kwargs['fix_others'] == False:
@@ -1896,8 +1896,8 @@ class Model(eqx.Module):
     def with_fixed_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> Self:
         """Fixed all parameters in the given submodels.
 
-        Submodels parameters are obtained using :meth:`param_names`.,
-        and subsequently fixed using :meth:``with_fixed_params``.
+        Submodels parameters are obtained using :meth:`.param_names`.,
+        and subsequently fixed using :meth:`.`with_fixed_params``.
         
         Parameters
         ----------
@@ -1926,7 +1926,7 @@ class Model(eqx.Module):
         submodel is entirely replaced by a fully fixed copy of the shared model.
 
         This is typically used in `__post_init__` to set up the model structure, 
-        and paired with :meth:`with_injected_params` during the forward pass.
+        and paired with :meth:`.with_injected_params` during the forward pass.
 
         Parameters
         ----------
@@ -1993,7 +1993,7 @@ class Model(eqx.Module):
         This method dynamically overrides the parameter values of internal submodels 
         using the values from an external shared model. It is designed to be called 
         during the forward pass (e.g., inside `__call__`) to enforce hard equality 
-        constraints on parameters that were structurally tied using :meth:`with_tied_submodels`.
+        constraints on parameters that were structurally tied using :meth:`.with_tied_submodels`.
 
         Parameters
         ----------
