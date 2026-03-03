@@ -1,6 +1,10 @@
 Installation
 =====================
-ParamRF can be installed using pip directly from the GitHub page:
+ParamRF can be installed directly using pip:
+
+``pip install paramrf``
+
+Sometimes this version may not be the latest release. To install from GitHub instead:
 
 ``pip install git+https://github.com/paramrf/paramrf@main``
 
