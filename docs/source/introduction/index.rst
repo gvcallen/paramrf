@@ -29,19 +29,18 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
     from pmrf.parameters import Fixed
 
     # Instantiate the lumped element models
-    resistor = Resistor(R=100.0, name="res")
-    inductor = Inductor(L=2e-9)
-    capacitor = ShuntCapacitor(C=1e-12)
+    resistor = Resistor(R=100.0)
+    inductor = Inductor(L=prf.Parameter(2.0, scale=1e-9)) # we can optionally provide a parameter scale
+    capacitor = ShuntCapacitor(C=1.0e-12, name="cap") # naming makes parameter manipulation later easy
 
-    # Cascade the models, storing the result, and a terminated version with fixed R
+    # Cascade the models, storing the result.
+    # We also create a terminated version with a new, fixed C
     rlc = resistor ** inductor ** capacitor
-    terminated_rlc = rlc.terminated(OPEN).with_params(res_R=Fixed(90.0))
+    terminated_rlc = rlc.terminated(OPEN).with_params(cap_C=Fixed(0.5e-12))
 
-    # Plot the S11 of the terminated model directly using matplotlib
-    import matplotlib.pyplot as plt
+    # Plot the S11 of the terminated model at a specified frequency range
     freq = prf.Frequency(1, 1000, 1000, 'MHz')
-    s11 = terminated_rlc.s_db(freq)[:,0,0]
-    plt.plot(freq.f_scaled, s11)
+    terminated_rlc.plot_s_db(freq, m=0, n=0)
 
 Circuit Models
 ^^^^^^^^^^^^^^^^^^^
@@ -76,7 +75,11 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
     # Create the model and plot it's S21 parameter
     pi_clc = Circuit(connections)
     freq = prf.Frequency(1, 1000, 1001, 'MHz')
-    pi_clc_skrf.plot_s_db(freq, m=1, n=0)
+    pi_clc.plot_s_db(freq, m=1, n=0)
+
+    # Note that ParamRF already provides a built in, more efficient PiCLC model
+    from pmrf.models import PiCLC
+    PiCLC(2e-12, 3e-9, 1.5e-12).plot_s_db(freq, m=1, n=0)
 
 
 Model Inheritance
