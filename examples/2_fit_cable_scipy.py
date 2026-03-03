@@ -8,7 +8,7 @@ from pmrf.fitting import SciPyMinimizeFitter
 logging.basicConfig(level=logging.INFO)
 
 # Load the measured data and setup the model
-measured = rf.Network('../paramrf/examples/data/10m_cable.s2p', f_unit='MHz')
+measured = rf.Network('data/10m_cable.s2p', f_unit='MHz')
 model = CoaxialLine(
     din = RelativeNormal(1.12, 0.05, scale=1e-3),
     dout = RelativeNormal(3.2, 0.05, scale=1e-3),
