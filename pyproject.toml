@@ -42,9 +42,6 @@ blackjax = [
     "pandas",
     "tqdm",
 ]
-optax = [
-    "optax",
-]
 eqxlearn = [
     "eqx-learn @ git+https://github.com/eqx-learn/eqx-learn",
 ]

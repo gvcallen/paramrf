@@ -1,10 +1,9 @@
-from pmrf.models import Resistor, Inductor, Capacitor, ShuntCapacitor, SHORT, Load
+from pmrf.models import Resistor, Inductor, ShuntCapacitor, SHORT
 from pmrf.parameters import Fixed
-import skrf as rf
-from skrf.media import DefinedGammaZ0
+import pmrf as prf
 import matplotlib.pyplot as plt
 
-frequency = rf.Frequency(50, 200, 151, 'MHz')
+frequency = prf.Frequency(50, 200, 151, 'MHz')
 
 # Params
 R = 100.0
@@ -18,5 +17,4 @@ capacitor = ShuntCapacitor(C=C)
 
 # Cascade the models, storing the result, and a terminated version with fixed R
 rlc = resistor ** inductor ** capacitor
-terminated_rlc = rlc
-# terminated_rlc = rlc.terminated(OPEN).with_params(res_R=Fixed(90.0))
+terminated_rlc = rlc.terminated(SHORT).with_params(res_R=Fixed(90.0))

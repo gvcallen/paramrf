@@ -9,4 +9,4 @@ results = sampler.run(N=10)
 freq = prf.Frequency(10, 20, 100, 'MHz')
 
 for i, params in enumerate(results.sampled_params):
-    resistor.with_params(params).export_touchstone(f"resistor_{i}")
+    resistor.with_params(params).export_touchstone(f"resistor_{i}", freq)

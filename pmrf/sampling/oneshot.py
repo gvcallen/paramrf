@@ -4,6 +4,7 @@ from typing import Any
 import jax.numpy as jnp
 
 from pmrf.sampling.base import BaseSampler
+from pmrf.util import generate_key
 
 class OneshotSampler(BaseSampler, ABC):
     r"""
@@ -27,6 +28,7 @@ class OneshotSampler(BaseSampler, ABC):
         self,
         *,
         N: int = 100,
+        key=None,
         **kwargs
     ) -> tuple[jnp.ndarray, Any]:
         r"""
@@ -45,9 +47,12 @@ class OneshotSampler(BaseSampler, ABC):
             A tuple containing the evaluated physical parameters and a 
             placeholder for backend results.
         """
+        if key is None:
+            key = generate_key()
+
         d = self.model.num_flat_params
 
-        U = self.generate(N, d, **kwargs)
+        U = self.generate(N, d, key=key, **kwargs)
         thetas = jnp.array([self.icdf(u) for u in U])
         self.update(thetas)
         return self.sampled_params, None

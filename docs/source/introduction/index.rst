@@ -167,7 +167,7 @@ Example
 
 The following provides a complete example of fitting the built in :mod:`pmrf.models.components.line.CoaxialLine` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/paramrf/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf; the model is instantiated with appropriate initial parameters; the fitter is configured with a custom cost function and subsequently run; and results are plotted.
 
-.. literalinclude:: ../../../examples/fit_cable_scipy.py
+.. literalinclude:: ../../../examples/2_fit_cable_scipy.py
    :language: python
 
 Sampling
@@ -187,5 +187,5 @@ Example
 
 The below example demonstrates the sampling of 10 different resistor networks with uniform resistance between 9 and 11 ohms.
 
-.. literalinclude:: ../../../examples/simulate_resistor.py
+.. literalinclude:: ../../../examples/3_simulate_resistor.py
    :language: python
