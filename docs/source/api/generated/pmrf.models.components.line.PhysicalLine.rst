@@ -1,12 +1,12 @@
 
 
 
-TLine
-=====
+PhysicalLine
+============
 
 .. currentmodule:: pmrf.models.components.line
 
-.. autoclass:: TLine
+.. autoclass:: PhysicalLine
    :members:
    :show-inheritance:
    :inherited-members:

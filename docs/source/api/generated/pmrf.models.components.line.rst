@@ -25,8 +25,11 @@ line
    ConstantRLGCLine
    DatasheetLine
    MicrostripLine
+   PhaseLine
+   PhysicalLine
    RLGCLine
-   TLine
+   TransmissionLine
+   _DispersiveCoaxialLine
 
 
 
