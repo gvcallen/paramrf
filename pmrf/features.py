@@ -203,15 +203,12 @@ def _parse_feature_alias(alias: str) -> tuple[FeatureT, tuple[int, int]]:
         ports = (-1, -1)
 
     return (prefix + suffix, ports)
-    
+
 def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
-    n_frequencies = len(freq)
-    n_features = len(features)
-
-    X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
-    for d, feature in enumerate(features):
+    extracted_cols = []
+    
+    for feature in features:
         label, prop, (m, n) = feature[0], feature[1], feature[2]
-
         
         feature_model = model
         if label != '':
@@ -232,9 +229,42 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
             xfn = getattr(feature_model, prop)
             x = xfn(freq)
             
-        X = X.at[:, d].set(x)
+        # Append the 1D array to our Python list
+        extracted_cols.append(x)
         
-    return X
+    # Let JAX compile a single concatenation operation
+    return jnp.column_stack(extracted_cols).astype(dtype)    
+    
+# def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
+#     n_frequencies = len(freq)
+#     n_features = len(features)
+
+#     X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
+#     for d, feature in enumerate(features):
+#         label, prop, (m, n) = feature[0], feature[1], feature[2]
+        
+#         feature_model = model
+#         if label != '':
+#             sublabels = label.split('.')
+#             for sublabel in sublabels:
+#                 feature_model = getattr(feature_model, sublabel)
+
+#         if m >= feature_model.nports or n >= feature_model.nports:
+#             raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
+
+#         if prop[2:4] == 'mn':
+#             xfn = getattr(feature_model, prop)
+#             x = xfn(freq,m,n)
+#         elif m != -1 and n != -1:
+#             xfn = getattr(feature_model, prop)
+#             x = xfn(freq)[:,m,n]
+#         else:
+#             xfn = getattr(feature_model, prop)
+#             x = xfn(freq)
+            
+#         X = X.at[:, d].set(x)
+        
+#     return X
 
 def _extract_measured_features(networks: NetworkCollection, features: list[FeatureT], freq: Frequency | skrf.Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     n_frequencies = len(freq)

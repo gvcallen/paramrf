@@ -119,7 +119,8 @@ class BaseSampler(BaseRunner, ABC):
 
         # 2. Execute Sampling (Delegates to Strategy/Backend)
         self.logger.info(f"Sampling {self.model.num_flat_params} parameters...")
-        self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
+        self.logger.debug(f"Parameter names: {self.model.flat_param_names()}")
+        self.logger.debug(f"Features: {self.features}")
         
         samples, backend_results = self.execute(output_path=output_path, **kwargs)
 

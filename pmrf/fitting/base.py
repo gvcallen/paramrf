@@ -140,8 +140,8 @@ class BaseFitter(BaseRunner, ABC):
         
         # Execute Optimization
         self.logger.info(f"Fitting {self.model.num_flat_params} parameters")
-        self.logger.info(f"Parameter names: {self.model.flat_param_names()}")
-        self.logger.info(f"Features: {self.features}")
+        self.logger.debug(f"Parameter names: {self.model.flat_param_names()}")
+        self.logger.debug(f"Features: {self.features}")
         
         fitted_model, backend_results = self.execute(target_features, **kwargs)
 

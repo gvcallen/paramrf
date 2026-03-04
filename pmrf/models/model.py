@@ -1549,7 +1549,7 @@ class Model(eqx.Module):
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params_only(self: Self, *args, **kwargs) -> Self:
+    def with_free_params_only(self: Self, params: str | list[str] | Callable[[str], bool], **kwargs) -> Self:
         """Returns a model with only the specified parameters freed.
         
         This is an alias for calling :meth:`.`with_free_params``
@@ -1560,7 +1560,7 @@ class Model(eqx.Module):
         kwargs.setdefault('fix_others', True)
         if kwargs['fix_others'] == False:
             raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
-        return self.with_free_params(*args, **kwargs)
+        return self.with_free_params(params, **kwargs)
 
     def with_all_params_fixed(self: Self, **kwargs) -> Self:
         """Returns a model with all parameters fixed.

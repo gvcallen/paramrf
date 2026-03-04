@@ -85,7 +85,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         self.logger.info(f"Starting SciPy minimize ({kwargs['method']})...")
 
         # 3. Optimization Loop with tqdm
-        with tqdm(desc="Optimizing", unit=" eval", disable=not show_progress) as pbar:
+        with tqdm(desc="Optimizing", unit=" fev", disable=not show_progress) as pbar:
             def cost_wrapper(x):
                 c = float(self.cost(x, target))
                 pbar.update(1)
@@ -97,7 +97,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
 
         self.logger.info(
             f"Optimization finished: {scipy_result.message} "
-            f"(Cost: {scipy_result.fun:.2f}, Evals: {scipy_result.nfev})"
+            f"(Cost: {scipy_result.fun:.2f}, nfev: {scipy_result.nfev})"
         )
         
         # 4. Return Model + Raw Result
