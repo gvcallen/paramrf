@@ -10,7 +10,7 @@ from pmrf.frequency import Frequency
 from pmrf.parameters import Parameter
 from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
     
-class ContinuousSurrogate(SingleProperty):
+class ContinuousSurrogate(SingleProperty, transparent=True):
     """
     A model that predicts its output at an arbitrary frequency using an arbitrary callable.
     
@@ -27,7 +27,7 @@ class ContinuousSurrogate(SingleProperty):
         return self.func(self.flat_param_values(include_fixed=True), freq).reshape(-1, 1, 1)
     
 
-class DiscreteSurrogate(SingleDiscreteProperty):
+class DiscreteSurrogate(SingleDiscreteProperty, transparent=True):
     """
     A model that predicts its output at a discrete set of frequency values using an arbitrary callable.
     

@@ -8,7 +8,7 @@ This module defines :class:`pmrf.Model`, a frozen, JAX-compatible, Equinox modul
 import inspect
 from functools import partial
 from copy import copy, deepcopy
-from typing import Callable, Sequence, Iterator, Self
+from typing import Callable, Sequence, Iterator, Self, ClassVar
 import dataclasses
 from dataclasses import fields, is_dataclass
 from functools import update_wrapper
@@ -125,9 +125,12 @@ class Model(eqx.Module):
     _metadata: dict = field(default_factory=lambda: dict(), kw_only=True, repr=False, static=True)
     _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
 
+    # Class variables
+    _transparent: ClassVar[bool] = False
+
     # ---- Internal initialization methods -------------------------------------------------
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, transparent: bool = False, **kwargs):
         """Customize subclass construction.
 
         - Applies default names to default ``Model``/``Parameter`` fields.
@@ -137,6 +140,8 @@ class Model(eqx.Module):
           based on :data:`PRIMARY_PROPERTIES` and :data:`FUNC_LOOKUP`.
         """        
         super().__init_subclass__(**kwargs)        
+
+        cls._transparent = transparent
 
         # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
         for field_name, field_types in cls.__annotations__.items():
@@ -349,67 +354,63 @@ class Model(eqx.Module):
     
     def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
-        from pmrf.models import Cascade, Circuit, Terminated, Flipped, Renumbered
-        Composite = (Cascade, Circuit, Terminated, Flipped, Renumbered,)
-
         fields = []
-        node = self  # Start at the root of the tree
+        node = self  # Start at the root
 
         for item in path:
             if isinstance(item, GetAttrKey):
                 k = item.name
                 next_node = getattr(node, k)
                 
-                # Check if the current node is a transparent composite
-                if isinstance(node, Composite):
-                    is_model = isinstance(next_node, Model)
-                    is_model_seq = (
-                        isinstance(next_node, (tuple, list)) 
-                        and len(next_node) > 0 
-                        and isinstance(next_node[0], Model)
-                    )
-                    
-                    if is_model:
-                        # If next_node is ALSO a composite (e.g., nested Renumbered), 
-                        # stay silent. Only grab the name when we hit a real base Model.
-                        if not isinstance(next_node, Composite):
-                            model_name = getattr(next_node, 'name', None)
-                            if model_name is not None:
-                                fields.append(model_name)
-                    
-                    elif is_model_seq:
-                        # Skip sequence fields like 'models'
+                # Check if the CURRENT container node is transparent
+                is_transparent = getattr(node, '_transparent', False)
+                
+                if is_transparent:
+                    # --- TRANSPARENCY RULES ---
+                    if isinstance(next_node, Model):
+                        # 1. Direct Submodel (e.g., from_model):
+                        # Use its explicit name if it has one. If it doesn't, 
+                        # stay completely silent to merge its namespace upward.
+                        child_name = getattr(next_node, 'name', None)
+                        if child_name is not None:
+                            fields.append(child_name)
+                            
+                    elif isinstance(next_node, (list, tuple)):
+                        # 2. Sequence of models or params:
+                        # Stay silent. The SequenceKey loop below will handle the items.
                         pass
                         
+                    elif isinstance(next_node, Parameter):
+                        # 3. Direct Parameter:
+                        # Use explicit name if available, otherwise fallback to attribute name.
+                        param_name = getattr(next_node, 'name', None)
+                        fields.append(param_name if param_name is not None else k)
+                        
                     else:
+                        # 4. Standard attributes (arrays, floats, etc.)
                         fields.append(k)
                 else:
-                    # Not a composite, so always append the attribute name
+                    # Not transparent -> always append the attribute name
                     fields.append(k)
                     
                 node = next_node  # Step down the tree
                 
             elif isinstance(item, DictKey):
                 k = item.key
-                node = node[k]    # Step down the tree
+                node = node[k]
                 fields.append(str(k))
                 
             elif isinstance(item, (SequenceKey, FlattenedIndexKey)):
-                # Handle standard JAX keys safely
                 idx = item.idx if hasattr(item, 'idx') else item.key
-                node = node[idx]  # Step down the tree
+                node = node[idx]
                 
-                if isinstance(node, Model) and isinstance(node, Composite):
-                    # If the sequence item is a Composite container, stay silent. 
-                    # The inner GetAttrKey loop will catch the real submodel's name.
+                # If the item inside the sequence is ITSELF a transparent model, stay silent
+                if isinstance(node, Model) and getattr(node, '_transparent', False):
                     pass
                 else:
-                    # Check if the node (Model or Parameter) has a custom name
+                    # Use explicit name if available, otherwise fallback to the integer index
                     node_name = getattr(node, 'name', None)
-                    if node_name is not None:
-                        fields.append(node_name)
-                    else:
-                        fields.append(str(idx))
+                    fields.append(node_name if node_name is not None else str(idx))
             else:
                 raise Exception(f"Unsupported key type in path: {type(item)}")
                     

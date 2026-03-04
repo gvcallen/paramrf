@@ -7,7 +7,7 @@ from pmrf.frequency import Frequency
 from pmrf.models.model import Model
 from pmrf.util import field
         
-class Renumbered(Model):
+class Renumbered(Model, transparent=True):
     """
     A container that re-numbers the ports of a given `Model`.
 
@@ -29,8 +29,6 @@ class Renumbered(Model):
     to_ports: tuple[int] = None
 
     def __post_init__(self):
-        self.name = 'renumbered'
-        
         model = self.model
         if self.to_ports is None:
             if len(self.from_ports) != 2:
@@ -99,7 +97,7 @@ class Flipped(Renumbered):
         self.name = 'flipped'
         
         
-class Stacked(Model):
+class Stacked(Model, transparent=True):
     """
     A container that stacks multiple models in a block-diagonal fashion.
 
@@ -115,9 +113,6 @@ class Stacked(Model):
     """
     models: tuple[Model, ...]
     
-    def __post_init__(self):
-        self.name = 'stacked'
-        
     def s(self, freq: Frequency) -> jnp.ndarray:
         num_ports = sum(model.nports for model in self.models)
 
