@@ -399,17 +399,17 @@ class Model(eqx.Module):
                 idx = item.idx if hasattr(item, 'idx') else item.key
                 node = node[idx]  # Step down the tree
                 
-                if isinstance(node, Model):
-                    # If the sequence item is a Container, stay silent. 
+                if isinstance(node, Model) and isinstance(node, Composite):
+                    # If the sequence item is a Composite container, stay silent. 
                     # The inner GetAttrKey loop will catch the real submodel's name.
-                    if not isinstance(node, Composite):
-                        model_name = getattr(node, 'name', None)
-                        if model_name is not None:
-                            fields.append(model_name)
-                        else:
-                            fields.append(str(idx))
+                    pass
                 else:
-                    fields.append(str(idx))
+                    # Check if the node (Model or Parameter) has a custom name
+                    node_name = getattr(node, 'name', None)
+                    if node_name is not None:
+                        fields.append(node_name)
+                    else:
+                        fields.append(str(idx))
             else:
                 raise Exception(f"Unsupported key type in path: {type(item)}")
                     
@@ -1163,7 +1163,7 @@ class Model(eqx.Module):
        
     # ---- Parameter inspection -------------------------------------------------- 
     
-    def named_params(self, filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None, *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Named model parameters as a dict.
 
         Keys are fully-qualified parameter names.
