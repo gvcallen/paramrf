@@ -553,6 +553,7 @@ class Model(eqx.Module):
     
     def _iter_params(
         self,
+        filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None,
         *,
         include_fixed: bool = False,
         flatten: bool = False,
@@ -563,6 +564,23 @@ class Model(eqx.Module):
         params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
         path_and_params, _ = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
         params: list[tuple[str, Parameter]] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
+
+        # Parameter filtering
+        if filter is not None:
+            # Normalization
+            if isinstance(filter, str):
+                filter = [filter]
+
+            # Apply filter
+            if isinstance(filter, Sequence) and isinstance(filter[0], str):
+                params = [(k, v) for k, v in params if k in filter]
+            elif isinstance(filter, Sequence) and isinstance(filter[0], Parameter):
+                filter_ids = [id(v) for v in filter]
+                params = [(k, v) for k, v in params if id(v) in filter_ids]
+            elif isinstance(filter, Callable):
+                params = [(k, v) for k, v in params if filter(k)]
+            else:
+                raise Exception(f"Unknown filter type passed for parameters: {filter}")
 
         # Submodel filtering
         if submodels is not None:
@@ -921,6 +939,112 @@ class Model(eqx.Module):
 
         return s2y(s, self.z0)    
     
+    # ---- Core helpers --------------------------------------------------    
+    
+    @eqx.filter_jit
+    def s_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
+        """Calculate the Jacobian of the S-parameters with respect to free parameters.
+
+        This uses forward-mode automatic differentiation to compute 
+        ∂S / ∂θ for each free parameter in the model.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency grid to evaluate the S-parameters over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their gradient 
+            arrays. Each array has shape (n_freqs, n_ports, n_ports).
+        """
+        def s_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            return self.with_params(flat_params_array).s(freq)
+
+        jac_array = jax.jacfwd(s_from_flat,)(self.flat_param_values())
+        jac_moved = jnp.moveaxis(jac_array, -1, 0)
+        param_names = self.flat_param_names()
+        return {name: jac_moved[i] for i, name in enumerate(param_names)}
+    
+    @eqx.filter_jit
+    def a_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
+        """Calculate the Jacobian of the ABCD-parameters with respect to free parameters.
+
+        This uses forward-mode automatic differentiation to compute 
+        ∂S / ∂θ for each free parameter in the model.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency grid to evaluate the ABCD-parameters over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their gradient 
+            arrays. Each array has shape (n_freqs, n_ports, n_ports).
+        """
+        def a_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            return self.with_params(flat_params_array).a(freq)
+
+        jac_array = jax.jacfwd(a_from_flat,)(self.flat_param_values())
+        jac_moved = jnp.moveaxis(jac_array, -1, 0)
+        param_names = self.flat_param_names()
+        return {name: jac_moved[i] for i, name in enumerate(param_names)}
+    
+    @eqx.filter_jit
+    def z_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
+        """Calculate the Jacobian of the Z-parameters with respect to free parameters.
+
+        This uses forward-mode automatic differentiation to compute 
+        ∂S / ∂θ for each free parameter in the model.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency grid to evaluate the Z-parameters over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their gradient 
+            arrays. Each array has shape (n_freqs, n_ports, n_ports).
+        """
+        def z_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            return self.with_params(flat_params_array).z(freq)
+
+        jac_array = jax.jacfwd(z_from_flat,)(self.flat_param_values())
+        jac_moved = jnp.moveaxis(jac_array, -1, 0)
+        param_names = self.flat_param_names()
+        return {name: jac_moved[i] for i, name in enumerate(param_names)}        
+    
+    @eqx.filter_jit
+    def y_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
+        """Calculate the Jacobian of the Y-parameters with respect to free parameters.
+
+        This uses forward-mode automatic differentiation to compute 
+        ∂S / ∂θ for each free parameter in the model.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency grid to evaluate the Y-parameters over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their gradient 
+            arrays. Each array has shape (n_freqs, n_ports, n_ports).
+        """
+        def y_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            return self.with_params(flat_params_array).y(freq)
+
+        jac_array = jax.jacfwd(y_from_flat,)(self.flat_param_values())
+        jac_moved = jnp.moveaxis(jac_array, -1, 0)
+        param_names = self.flat_param_names()
+        return {name: jac_moved[i] for i, name in enumerate(param_names)}        
+    
     # ---- Structure utilities --------------------------------------------------    
     
     def children(self) -> list['Model']:
@@ -1039,7 +1163,7 @@ class Model(eqx.Module):
        
     # ---- Parameter inspection -------------------------------------------------- 
     
-    def named_params(self, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Named model parameters as a dict.
 
         Keys are fully-qualified parameter names.
@@ -1047,6 +1171,8 @@ class Model(eqx.Module):
 
         Parameters
         ----------
+        filter : str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], default=None
+            A filter indicating which parameters to return. For the default case, all parameters are returned.
         include_fixed : bool, default=False
             Include fixed parameters.
         submodels : Model | Sequence[Model] | str | Sequence[str] | None, optional
@@ -1057,7 +1183,7 @@ class Model(eqx.Module):
         -------
         dict[str, Parameter]
         """
-        return dict(self._iter_params(include_fixed=include_fixed, submodels=submodels))
+        return dict(self._iter_params(filter=filter, include_fixed=include_fixed, submodels=submodels))
     
     def named_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
         """Named model parameter values as a dict of jax arrays.
@@ -1193,6 +1319,18 @@ class Model(eqx.Module):
         See :meth:`.named_flat_param_values`.
         """
         return jnp.array(list(self.named_flat_param_values(*args, **kwargs).values())).reshape(-1)
+
+    def flat_param_bounds(self, **kwargs) -> tuple[jnp.ndarray, jnp.ndarray]:
+        """
+        Return flattened model parameter bounds as jax arrays.
+        
+        Note that a minimum and maximum percentile is used to get the bounds
+        for any non-uniform distribution.
+
+        Equivalent to getting the bounds from :meth:`.distribution`,
+        which key-word arguments are forwarded to.
+        """
+        return self.distribution(**kwargs).bounds
     
     def param_groups(self, include_fixed=False, explicit_only=False) -> list[ParameterGroup]:
         """Return all parameter groups relevant to this model, including submodels.
@@ -1473,12 +1611,12 @@ class Model(eqx.Module):
         combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
         return combined         
         
-    def with_fixed_params(self: Self, params: str | Sequence[str] | Callable[[str], bool], check_unknown=True) -> Self:
+    def with_fixed_params(self: Self, filter: str | Sequence[str] | Callable[[str], bool], *, check_unknown=True) -> Self:
         """Return a model with specified parameters fixed.
 
         Parameters
         ----------
-        params : str | Sequence[str] | Callable[[str], bool]
+        filter : str | Sequence[str] | Callable[[str], bool]
             Parameter names to fix.
         check_unknown : bool, default=True
             Error if any provided name does not exist.
@@ -1487,34 +1625,34 @@ class Model(eqx.Module):
         -------
         Self
         """
-        if isinstance(params, str):
-            params = [params]
+        if isinstance(filter, str):
+            filter = [filter]
             
-        if isinstance(params, Callable):
-            params = [p for p in self.param_names() if params(p)]
+        if isinstance(filter, Callable):
+            filter = [p for p in self.param_names() if filter(p)]
         
-        params = set(params)
+        filter = set(filter)
             
         current_params = self.named_params()        
         current_param_names = set(current_params.keys())
         
         if check_unknown:
-            for param_name in params:
+            for param_name in filter:
                 if param_name not in current_param_names:
                     raise Exception(f"Specified parameter '{param_name}' not found in model")
         
         new_params = current_params.copy()
         for name, param in current_params.items():
-            if name in params:
+            if name in filter:
                 new_params[name] = param.as_fixed()
         return self.with_params(new_params)
     
-    def with_free_params(self: Self, params: str | list[str] | Callable[[str], bool], fix_others=False) -> Self:
+    def with_free_params(self: Self, params: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, fix_others=False) -> Self:
         """Free the specified parameters.
 
         Parameters
         ----------
-        params : str | Sequence[str] | Sequence[Parameter]
+        params : str | Sequence[str] | Callable[[str], bool]
             Parameters to set free.
         fix_others : bool, default=True
             Fix parameters not specified.
@@ -1704,20 +1842,61 @@ class Model(eqx.Module):
         # 4. Return updated model
         return dataclasses.replace(self, _param_groups=groups_to_keep, **new_fields)
     
+    def with_param_groups_removed(self: Self) -> Self:
+        """Return a new model with all parameter groups removed recursively.
+
+        This clears the `_param_groups` of the current model and traverses
+        all nested submodels (and sequences of submodels) to remove their 
+        parameter groups as well.
+
+        Returns
+        -------
+        Self
+            A new model instance with no parameter groups.
+        """
+        new_fields = {'_param_groups': []}
+        
+        for f in dataclasses.fields(self):
+            # Skip the target field since we are already clearing it
+            if f.name == '_param_groups':
+                continue
+                
+            child = getattr(self, f.name)
+            
+            # 1. Recurse into direct submodels
+            if isinstance(child, Model):
+                new_fields[f.name] = child.with_param_groups_removed()
+                
+            # 2. Recurse into sequences of submodels (e.g., in composites like Cascade)
+            elif isinstance(child, (list, tuple)):
+                # Only process the sequence if it actually contains at least one Model
+                if any(isinstance(x, Model) for x in child):
+                    new_fields[f.name] = type(child)(
+                        x.with_param_groups_removed() if isinstance(x, Model) else x 
+                        for x in child
+                    )
+                    
+        return dataclasses.replace(self, **new_fields)    
+    
     # ---- Distribution manipulation --------------------------------------------------            
     
-    def with_uniform_distributions(self, percentage=0.1, respect_bounds=False):
+    def with_uniform_distributions(self, percentage: float, filter: str | Sequence[str] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
         """Return a model with uniform distributions set centered on current parameter values.
 
         The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.
 
         Parameters
         ----------
-        percentage : float, default=0.1
+        percentage : float
             The fractional width of the uniform distribution (e.g. 0.1 = 10%).
+        filter: str | Sequence[str] | Callable[[str], bool], default=None
+            The parameters to updated with new uniform distributions. For the default case, all are updated.
         respect_bounds: bool, default=False
             Whether or not the `min` and `max` bounds of the current distributions should be respected.
             If `True`, new bounds will not go larger than past these bounds.
+        remove_param_groups: bool, default=True
+            Whether to remove parameter groups recursively when setting the uniform distributions.
+            Otherwise, the joint distribution of the model may not be the desired uniform distribution.
 
         Returns
         -------
@@ -1725,7 +1904,7 @@ class Model(eqx.Module):
             A new model with updated parameter distributions.
         """        
         updates = {}
-        for name, param in self.named_params().items():
+        for name, param in self.named_params(filter).items():
             new_min = param * (1.0 - percentage) / param.scale
             new_max = param * (1.0 + percentage) / param.scale
 
@@ -1736,7 +1915,10 @@ class Model(eqx.Module):
             distribution = UniformDistribution(new_min, new_max)
             updates[name] = param.with_distribution(distribution)
             
-        return self.with_params(updates)       
+        new_model = self.with_params(updates)
+        if remove_param_groups:
+            new_model = new_model.with_param_groups_removed()
+        return new_model
 
     def with_distributions_mapped(self, map_fn: Callable[[Distribution], Distribution], filter_fn: Callable[[Distribution], bool] | None = None, param_groups=False):
         """Return a model with a function applied to its parameter distributions.
