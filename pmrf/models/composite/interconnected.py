@@ -34,26 +34,15 @@ class Circuit(Model, transparent=True):
     port_idxs: list[int] = field(static=True)
 
     def __init__(self, connections: list[list[tuple[Model, int]]]):
-        """
-        Initialize the Circuit.
-
-        Parameters
-        ----------
-        connections : list[list[tuple[Model, int]]]
-            A list of connections (nodes). Each connection is a list of
-            `(model_instance, port_index)` tuples that are electrically connected.
-        """
         super().__init__()
-
         if self.name is None:
             self.name = 'circuit'
 
         self.models = []
         self.indexed_connections = []
         self.port_idxs = []
-        id_to_index: dict[int, int] = {}  # Note: keys are ints (id)
+        id_to_index: dict[int, int] = {}
 
-        # 1. Build the unique model list and indexed connections
         for connection in connections:
             indexed_connection = []
             for model, value in connection:
@@ -66,50 +55,16 @@ class Circuit(Model, transparent=True):
                 indexed_connection.append((model_idx, value))
                 
                 if value > model.nports - 1:
-                    raise ValueError(f"Port index out of bounds for model {model.name or model} in Circuit")
+                    raise ValueError(f"Port index out of bounds for model {model.name or model}")
             
             self.indexed_connections.append(indexed_connection)
             
-        # Extract port indices using the original object IDs
         for model in self.models:
-            # Assuming 'Port' is defined in your module
-            if isinstance(model, Port):
+            if type(model).__name__ == 'Port': 
                 self.port_idxs.append(id_to_index[id(model)])
 
-        # 2. Fast path: Assign default names to nameless models
-        for i, model in enumerate(self.models):
-            if model.name is None:
-                self.models[i] = model.with_name(f"model_{i}")
-
-        # 3. Group models by name to hunt for explicit name clashes
-        name_to_indices = {}
-        for i, model in enumerate(self.models):
-            name_to_indices.setdefault(model.name, []).append(i)
-
-        # 4. Resolve clashes only if multiple models share the exact same name
-        for name, indices in name_to_indices.items():
-            if len(indices) > 1:
-                seen_params = set()
-                suffix_counter = 1
-                
-                for idx in indices:
-                    model = self.models[idx]
-                    current_params = set(model.param_names())
-                    
-                    if current_params.intersection(seen_params):
-                        # Collision! Add a suffix to isolate the namespaces
-                        new_name = f"{name}_{suffix_counter}"
-                        
-                        # Guard against accidental clashes with other existing names
-                        while new_name in name_to_indices:
-                            suffix_counter += 1
-                            new_name = f"{name}_{suffix_counter}"
-                            
-                        self.models[idx] = model.with_name(new_name)
-                        suffix_counter += 1
-                    else:
-                        # No collision for this specific model, pool its parameters
-                        seen_params.update(current_params)
+        defaults = [f"model_{i+1}" for i in range(len(self.models))]
+        self.models = list(self._resolve_param_collisions(self.models, defaults))
 
     def s(self, freq: Frequency) -> jnp.array:
         Smats = [model.s(freq) for model in self.models]
@@ -166,7 +121,6 @@ class Cascade(Model, transparent=True):
     models: tuple[Model]
     
     def __post_init__(self):
-        # 1. Flatten nested Cascades and check port counts
         model_reduced = []
         for model in self.models:
             if model.nports % 2 != 0:
@@ -175,43 +129,11 @@ class Cascade(Model, transparent=True):
                 model_reduced.extend(model.models)
             else:
                 model_reduced.append(model)
-
-        # 2. Fast path: assign default unique names to any nameless models
-        for i, model in enumerate(model_reduced):
-            if model.name is None:
-                model_reduced[i] = model.with_name(f"model_{i}")
-
-        # 3. Group models by name to hunt for explicit name clashes
-        name_to_indices = {}
-        for i, model in enumerate(model_reduced):
-            name_to_indices.setdefault(model.name, []).append(i)
-
-        # 4. Resolve clashes only if multiple models share the exact same name
-        for name, indices in name_to_indices.items():
-            if len(indices) > 1:
-                seen_params = set()
-                suffix_counter = 1
                 
-                for idx in indices:
-                    model = model_reduced[idx]
-                    current_params = set(model.param_names())
-                    
-                    if current_params.intersection(seen_params):
-                        # Collision! Add a suffix to isolate the namespaces
-                        new_name = f"{name}_{suffix_counter}"
-                        
-                        # Guard against accidental clashes with other existing names in the cascade
-                        while new_name in name_to_indices:
-                            suffix_counter += 1
-                            new_name = f"{name}_{suffix_counter}"
-                            
-                        model_reduced[idx] = model.with_name(new_name)
-                        suffix_counter += 1
-                    else:
-                        # No collision for this specific model, pool its parameters
-                        seen_params.update(current_params)
-
-        self.models = tuple(model_reduced)
+        # Generate numerically sequenced defaults (model_1, model_2, etc.)
+        defaults = [f"model_{i+1}" for i in range(len(model_reduced))]
+        
+        self.models = self._resolve_param_collisions(model_reduced, defaults)
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return cascade_a([model.a(freq) for model in self.models])
@@ -234,21 +156,11 @@ class Terminated(Model, transparent=True):
         if self.from_model.nports != 2 or self.into_model.nports != 1:
             raise ValueError("Currently, Terminated only supports 2-port networks terminated in a 1-port")
 
-        # 1. Fast path: If both lack names, give them default unique names
-        if self.from_model.name is None and self.into_model.name is None:
-            self.from_model = self.from_model.with_name('from_model')
-            self.into_model = self.into_model.with_name('into_model')
-            
-        # 2. Only inspect parameter namespaces if there is an explicit name clash
-        if self.from_model.name == self.into_model.name:
-            from_params = set(self.from_model.param_names())
-            into_params = set(self.into_model.param_names())
-            
-            # 3. If their parameters actually overlap, append suffixes
-            if from_params.intersection(into_params):
-                base_name = self.from_model.name
-                self.from_model = self.from_model.with_name(f"{base_name}_1")
-                self.into_model = self.into_model.with_name(f"{base_name}_2")
+        resolved = self._resolve_param_collisions(
+            models=[self.from_model, self.into_model], 
+            default_bases=['from', 'into']
+        )
+        self.from_model, self.into_model = resolved
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         Smat_from = self.from_model.s(freq)

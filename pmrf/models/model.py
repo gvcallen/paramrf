@@ -355,66 +355,119 @@ class Model(eqx.Module):
     def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
         fields = []
-        node = self  # Start at the root
+        node = self
+        parent_is_transparent = False
 
         for item in path:
             if isinstance(item, GetAttrKey):
                 k = item.name
                 next_node = getattr(node, k)
-                
-                # Check if the CURRENT container node is transparent
                 is_transparent = getattr(node, '_transparent', False)
                 
                 if is_transparent:
-                    # --- TRANSPARENCY RULES ---
+                    # Container is transparent, skip its structural attribute name `k`.
                     if isinstance(next_node, Model):
-                        # 1. Direct Submodel (e.g., from_model):
-                        # Use its explicit name if it has one. If it doesn't, 
-                        # stay completely silent to merge its namespace upward.
                         child_name = getattr(next_node, 'name', None)
                         if child_name is not None:
                             fields.append(child_name)
-                            
+                        parent_is_transparent = False 
                     elif isinstance(next_node, (list, tuple)):
-                        # 2. Sequence of models or params:
-                        # Stay silent. The SequenceKey loop below will handle the items.
-                        pass
-                        
+                        # It's a list inside a transparent model. Defer to SequenceKey.
+                        parent_is_transparent = True 
                     elif isinstance(next_node, Parameter):
-                        # 3. Direct Parameter:
-                        # Use explicit name if available, otherwise fallback to attribute name.
                         param_name = getattr(next_node, 'name', None)
                         fields.append(param_name if param_name is not None else k)
-                        
+                        parent_is_transparent = False
                     else:
-                        # 4. Standard attributes (arrays, floats, etc.)
                         fields.append(k)
+                        parent_is_transparent = False
                 else:
-                    # Not transparent -> always append the attribute name
                     fields.append(k)
+                    parent_is_transparent = False
                     
-                node = next_node  # Step down the tree
+                node = next_node
                 
             elif isinstance(item, DictKey):
                 k = item.key
                 node = node[k]
                 fields.append(str(k))
+                parent_is_transparent = False
                 
             elif isinstance(item, (SequenceKey, FlattenedIndexKey)):
                 idx = item.idx if hasattr(item, 'idx') else item.key
                 node = node[idx]
                 
-                # If the item inside the sequence is ITSELF a transparent model, stay silent
-                if isinstance(node, Model) and getattr(node, '_transparent', False):
-                    pass
+                # Sequence items (like models in a Cascade)
+                node_name = getattr(node, 'name', None)
+                if node_name is not None:
+                    fields.append(node_name) # Always respect explicit names!
+                elif parent_is_transparent:
+                    pass # Transparent parent + no explicit name = stay completely silent.
                 else:
-                    # Use explicit name if available, otherwise fallback to the integer index
-                    node_name = getattr(node, 'name', None)
-                    fields.append(node_name if node_name is not None else str(idx))
+                    fields.append(str(idx))
+                    
+                parent_is_transparent = False
             else:
                 raise Exception(f"Unsupported key type in path: {type(item)}")
-                    
+                
         return self._separator.join(fields)
+    
+    def _resolve_param_collisions(
+        self, 
+        models: Sequence['Model'], 
+        default_bases: Sequence[str]
+    ) -> tuple['Model', ...]:
+        """
+        Safely resolves parameter namespace collisions among a sequence of submodels.
+        Returns a tuple of models with updated names to ensure path isolation.
+        """
+        from collections import Counter
+        
+        resolved = list(models)
+        param_sets = [m.param_names(include_fixed=True) for m in resolved]
+        param_counts = Counter()
+        
+        def get_prefixed(name: str | None, params: list[str]) -> set[str]:
+            prefix = f"{name}{self._separator}" if name is not None else ""
+            return {f"{prefix}{p}" for p in params}
+            
+        # 1. Count global occurrences of all simulated parameter paths
+        for i, model in enumerate(resolved):
+            param_counts.update(get_prefixed(model.name, param_sets[i]))
+            
+        # 2. Identify which specific models are contributing to a collision
+        colliding_indices = [
+            i for i, model in enumerate(resolved)
+            if any(param_counts[p] > 1 for p in get_prefixed(model.name, param_sets[i]))
+        ]
+        
+        # 3. Create a pool of the parameters that are currently safe
+        safe_params = set(p for p, count in param_counts.items() if count == 1)
+        
+        # 4. Symmetrically rename only the colliding models
+        for i in colliding_indices:
+            model = resolved[i]
+            base = model.name if model.name is not None else default_bases[i]
+            
+            # If the user didn't name it, we first try the raw default (e.g., 'from_model').
+            # If they did name it, it already clashed, so we immediately start with a suffix.
+            if model.name is None:
+                candidate_name = base
+                suffix = 1
+            else:
+                suffix = 1
+                candidate_name = f"{base}_{suffix}"
+            
+            # Loop until the proposed path is completely disjoint from the safe pool
+            while not get_prefixed(candidate_name, param_sets[i]).isdisjoint(safe_params):
+                suffix += 1
+                candidate_name = f"{base}_{suffix}"
+                
+            # Lock in the safe name and add its parameters to the pool
+            resolved[i] = model.with_name(candidate_name)
+            safe_params.update(get_prefixed(candidate_name, param_sets[i]))
+            
+        return tuple(resolved)    
     
     def _with_stripped_metadata(self: Self) -> Self:
         def strip_metadata_recursive(obj, memo=None):
