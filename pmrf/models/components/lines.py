@@ -2,14 +2,17 @@
 Transmission lines (RLGC, coaxial, microstrip)
 """
 from abc import ABC, abstractmethod
+from typing import Callable, Any, Dict
 
 import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
+import equinox as eqx
+import jax.numpy as jnp
 
 from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.frequency import Frequency
 from pmrf.rf_functions.conversions import renormalize_s
-from pmrf.parameters import Parameter
+from pmrf.parameters import Parameter, as_param
 from pmrf.models.model import Model
 
 class TransmissionLine(Model, ABC):
@@ -172,8 +175,9 @@ class PhaseLine(TransmissionLine):
     f0 : Parameter, default=1e9
         Reference frequency in Hz for `theta`.
     """
+    theta: Parameter = 90.0
+    
     zc: Parameter = 50.0    
-    theta: Parameter = 90.0  
     f0: Parameter = 1e9
 
     def zc_gammaL(self, frequency: Frequency) -> jnp.ndarray:
@@ -590,170 +594,140 @@ class MicrostripLine(RLGCLine):
         G = (1 / (Za * c)) * (epr * (epe - 1) / (epr - 1)) * tand * freq.w
         
         return R, L, G, C
-    
 
-# Not currently exported but kept for reference
-class _DispersiveCoaxialLine(RLGCLine):
+
+class MultiSectionLine(Model, transparent=True):
     r"""
-    Coaxial line defined directly by its physical geometry and material properties.
+    A multi-section transmission line model that dynamically builds a 
+    cascaded network of $N$ submodel sections.
 
-    Material properties can be modeled as frequency-dependent polynomials:
-    - **'constant'**: (Default) Scalar value.
-    - **'ppoly'**: Power basis polynomial (value is list of coefficients).
-    - **'bpoly'**: Bernstein basis polynomial (value is list of coefficients).
-
-    **Mathematical Formulation**
-
-    Follows the same skin-effect derivations as `CoaxialLine`, except material constants 
-    $\varepsilon_r, \mu_r, \tan\delta, \rho$ are allowed to vary as arbitrary functions of $\omega$:
-    $$\rho_{in} = \rho_{in}(\omega), \quad \rho_{out} = \rho_{out}(\omega) $$
-    $$Z_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\omega\mu(\omega)}{2\sigma_{in}(\omega)}} (1+j) + \frac{1}{2\pi b} \sqrt{\frac{\omega\mu(\omega)}{2\sigma_{out}(\omega)}} (1+j) $$
+    The parameters of the submodel can be uniform across sections or follow a 
+    spatial nonuniform along the length of the line defined by user-provided functions 
+    (e.g., splines). Both the uniform parameters and the coefficients of the 
+    nonuniform functions are registered as `Parameter` objects, making the entire 
+    structure fully differentiable and compatible with optimization.
 
     Example
     --------
     .. code-block:: python
 
         import pmrf as prf
+        from pmrf.models import PhysicalLine
 
-        phys_cable = prf.models.CoaxialLine(
-            din=0.9e-3,
-            dout=2.95e-3,
-            epr=[2.1, 2.05], # Linear taper using Bernstein
-            epr_model='bpoly',
-            tand=0.0004,
-            rho=1.72e-8,
-            length=0.5
+        # 1. Define an arbitrary nonuniform function across normalized length (t)
+        def linear_taper(t, start_val, end_val):
+            # t goes from 0.0 at the input to 1.0 at the output
+            return start_val + (end_val - start_val) * t
+
+        # 2. Instantiate a tapered physical transmission line
+        tapered_line = MultiSectionLine(
+            submodel_cls=PhysicalLine,
+            N=20,
+            length=0.1,  # Total physical length (10 cm)
+            nonuniform_funcs=linear_taper, # Applied to all nonuniform_params
+            nonuniform_params={
+                'zn': {
+                    'start_val': 50.0, 
+                    'end_val': 100.0
+                }
+            },
+            uniform_params={
+                'epr': 2.2,
+                'A': 0.01,
+                'fA': 1.0,
+                'tand': 0.001
+            }
         )
-
-        freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
-        s_phys = phys_cable.s(freq)
+        
+        # 3. Build and evaluate the cascaded network
+        freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
+        s_taper = tapered_line().s(freq)
 
     Attributes
     ----------
-    din : Parameter, default=1.12e-3
-        Inner conductor diameter in meters.
-    dout : Parameter, default=3.2e-3
-        Outer conductor inner diameter in meters.
-    epr : Parameter, default=1.0
-        Relative permittivity of the dielectric.
-    mur : Parameter, default=1.0
-        Relative permeability.
-    tand : Parameter, default=0.0
-        Loss tangent of the dielectric.
-    rho : Parameter, default=1.68e-8
-        Resistivity of the conductors in Ohm-meters.
-    epr_model : str, default='constant'
-        Polynomial model type for `epr`.
-    mur_model : str, default='constant'
-        Polynomial model type for `mur`.
-    tand_model : str, default='constant'
-        Polynomial model type for `tand`.
-    rho_model : str, default='constant'
-        Polynomial model type for `rho`.
-    separate_rho : bool, default=False
-        If True, queries distinct `rhoin` and `rhoout` properties for the conductors.
-    neglect_skin_inductance : bool, default=False
-        If True, excludes internal skin effect inductance from total L.
+    line_fn : Callable
+        A transmission line constructor to instantiate for each section 
+        (e.g., `CoaxialLine`, `MicrostripLine`, `PhysicalLine`).
+    N : int
+        The number of cascaded sections to compute.
+    length : Parameter
+        The total physical length of the line in meters.
+    nonuniform_funcs : dict[str, Callable]
+        A dictionary mapping nonuniform parameter names to a callable function 
+        of the form `func(t, **kwargs) -> value`, where `t` is the normalized 
+        position $t \in [0, 1]$.
+    nonuniform_params : dict[str, dict[str, Parameter]]
+        A nested dictionary mapping nonuniform parameter names to the keyword 
+        arguments (Parameters) required by their respective `nonuniform_funcs`.
+    uniform_params : dict[str, Parameter]
+        A dictionary of uniform Parameters passed directly to the submodel 
+        that do not vary across the sections.
     """
-    din: Parameter = 1.12e-3
-    dout: Parameter = 3.2e-3
-    epr: Parameter = 1.0
-    mur: Parameter = 1.0
-    tand: Parameter = 0.0
-    rho: Parameter = 1.68e-8
-    
-    epr_model: str = 'constant'
-    mur_model: str = 'constant'
-    tand_model: str = 'constant'
-    rho_model: str = 'constant'
-    separate_rho: bool = False
-    neglect_skin_inductance: bool = False
+    line_fn: type = eqx.field(static=True)
+    N: int = eqx.field(static=True)
+    length: Parameter
+    nonuniform_funcs: Dict[str, Callable] = eqx.field(static=True)
+    nonuniform_params: Dict[str, Dict[str, Parameter]]
+    uniform_params: Dict[str, Parameter]
 
-    def interpolated(self, param: str, freq: Frequency) -> jnp.ndarray:
-        w = freq.w
-        if param.startswith('rho'):
-            model = str(getattr(self, 'rho_model'))
-        else:
-            model = str(getattr(self, f'{param}_model'))
+    def __init__(
+        self, 
+        submodel_cls: type, 
+        N: int, 
+        length: Any, 
+        nonuniform_funcs: Callable | Dict[str, Callable] | None = None, 
+        nonuniform_params: Dict[str, Dict[str, Any]] | None = None, 
+        uniform_params: Dict[str, Any] | None = None,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.line_fn = submodel_cls
+        self.N = N
+        self.length = as_param(length)
         
-        if model == 'constant':
-            value = getattr(self, param) * jnp.ones(w.shape[0])
+        nonuniform_params = nonuniform_params if nonuniform_params is not None else {}
+        uniform_params = uniform_params if uniform_params is not None else {}
+
+        if callable(nonuniform_funcs):
+            self.nonuniform_funcs = {p_name: nonuniform_funcs for p_name in nonuniform_params.keys()}
         else:
-            coeffs = getattr(self, param)
-            if model.startswith('ppoly'):
-                value = evaluate_power_basis(w, coeffs, w[0], w[-1])
-            else:
-                value = evaluate_bernstein_basis(w, coeffs, w[0], w[-1])
-                
-        return value
+            self.nonuniform_funcs = nonuniform_funcs if nonuniform_funcs is not None else {}
+
+        self.nonuniform_params = {
+            p_name: {arg: as_param(val) for arg, val in p_kwargs.items()}
+            for p_name, p_kwargs in nonuniform_params.items()
+        }
+        
+        self.uniform_params = {
+            p_name: as_param(val) for p_name, val in uniform_params.items()
+        }
+
+    def __call__(self) -> Model:
+        dz = self.length / self.N
+        
+        # Normalized coordinates from 0 to 1
+        t_centers = (jnp.arange(self.N) + 0.5) / self.N
+        
+        cascade = None
+        
+        for i in range(self.N):
+            t = t_centers[i]
             
-    def epr_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('epr', freq)
-    
-    def tand_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('tand', freq)
-    
-    def mur_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('mur', freq)
-    
-    def rho_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('rho', freq)
-    
-    def rhoin_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('rhoin', freq) if self.separate_rho else self.rho_f(freq)
-    
-    def rhoout_f(self, freq: Frequency) -> jnp.ndarray:
-        return self.interpolated('rhoout', freq) if self.separate_rho else self.rho_f(freq)
-    
-    def eps_f(self, freq: Frequency) -> jnp.ndarray:
-        return epsilon_0 * self.epr_f(freq) * (1 - 1j * self.tand_f(freq))
-    
-    def mu_f(self, freq: Frequency) -> jnp.ndarray:
-        return mu_0 * self.mur_f(freq)
-    
-    def L_prime(self, freq: Frequency) -> jnp.ndarray:
-        a, b = self.din / 2, self.dout / 2
-        lnbOvera = jnp.log(b/a)
-        return self.mu_f(freq) / (2 * jnp.pi) * lnbOvera
-    
-    def C_prime(self, freq: Frequency) -> jnp.ndarray:
-        a, b = self.din / 2, self.dout / 2
-        lnbOvera = jnp.log(b/a)
-        return 2 * jnp.pi * jnp.real(self.eps_f(freq)) / lnbOvera
-    
-    def G_diel(self, freq: Frequency) -> jnp.ndarray:
-        a, b = self.din / 2, self.dout / 2
-        lnbOvera = jnp.log(b/a)
-        return 2 * jnp.pi * freq.w * -jnp.imag(self.eps_f(freq)) / lnbOvera
-        
-    def R_skin(self, freq: Frequency) -> jnp.ndarray:
-        return jnp.real(self.Z_skin(freq))
-    
-    def L_skin(self, freq: Frequency) -> jnp.ndarray:
-        return jnp.imag(self.Z_skin(freq)) / freq.w
-    
-    def Z_skin(self, freq: Frequency):
-        w, a, b, mu = freq.w, self.din / 2, self.dout / 2, self.mu_f(freq)
-        sigma_a, sigma_b = 1 / self.rhoin_f(freq), 1 / self.rhoout_f(freq)
-        
-        L_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(mu / (2 * w * sigma_a))
-        L_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(mu / (2 * w * sigma_b))
-        L_skin = L_skin_a + L_skin_b
+            current_params = dict(self.uniform_params)
+            current_params['length'] = dz
+            
+            for p_name, func in self.nonuniform_funcs.items():
+                f_kwargs = self.nonuniform_params.get(p_name, {})
+                current_params[p_name] = func(t, **f_kwargs)
+            
+            base_name = self.name if self.name else "sec"
+            current_params['name'] = f"{base_name}_{i}"
+            
+            section = self.line_fn(**current_params)
+            
+            if cascade is None:
+                cascade = section
+            else:
+                cascade = cascade ** section
                 
-        R_skin_a = (1 / (2 * jnp.pi * a)) * jnp.sqrt(w * mu / (2 * sigma_a))
-        R_skin_b = (1 / (2 * jnp.pi * b)) * jnp.sqrt(w * mu / (2 * sigma_b))
-        R_skin = R_skin_a + R_skin_b            
-        
-        return R_skin + 1j * w * L_skin
-
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:        
-        if not self.neglect_skin_inductance:
-            L = self.L_prime(freq) + self.L_skin(freq)
-        else:
-            L = self.L_prime(freq)
-        
-        C = self.C_prime(freq)
-        G = self.G_diel(freq)
-        R = self.R_skin(freq)
-        
-        return R, L, G, C
+        return cascade    
