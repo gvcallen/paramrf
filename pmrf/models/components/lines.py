@@ -4,13 +4,14 @@ Transmission lines (RLGC, coaxial, microstrip)
 from abc import ABC, abstractmethod
 from typing import Callable, Any, Dict
 
-import jax.numpy as jnp
 from scipy.constants import c, mu_0, epsilon_0
-import equinox as eqx
+import jax
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.math_functions import evaluate_bernstein_basis, evaluate_power_basis
 from pmrf.frequency import Frequency
+from pmrf.rf_functions.connections import cascade_s
 from pmrf.rf_functions.conversions import renormalize_s
 from pmrf.parameters import Parameter, as_param
 from pmrf.models.model import Model
@@ -596,10 +597,10 @@ class MicrostripLine(RLGCLine):
         return R, L, G, C
 
 
-class MultiSectionLine(Model, transparent=True):
+class ProfiledEqualSectionLine(Model, transparent=True):
     r"""
-    A multi-section transmission line model that dynamically builds a 
-    cascaded network of $N$ submodel sections. 
+    A transmission line model that dynamically builds a cascaded network
+    of $N$ equal length lines whose parameters follow an arbitrary profile.
 
     The parameters of the submodel can be uniform across sections or follow a 
     spatial profile along the length of the line defined by user-provided 
@@ -616,7 +617,7 @@ class MultiSectionLine(Model, transparent=True):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import PhysicalLine, MultiSectionLine
+        from pmrf.models import PhysicalLine, ProfiledEqualSectionLine
 
         # 1. Define an arbitrary profile function across normalized length (t)
         def linear_taper(t, start_val, end_val):
@@ -628,7 +629,7 @@ class MultiSectionLine(Model, transparent=True):
             return start_val * (end_val / start_val) ** t
 
         # 2. Instantiate a tapered physical transmission line
-        tapered_line = MultiSectionLine(
+        tapered_line = ProfiledEqualSectionLine(
             line_fn=PhysicalLine,
             N=20,
             length=0.1,  # Total physical length (10 cm)
@@ -651,7 +652,7 @@ class MultiSectionLine(Model, transparent=True):
         
         # 3. Build and evaluate the cascaded network
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
-        s_taper = tapered_line().s(freq)
+        s_taper = tapered_line.s(freq)
 
     Attributes
     ----------
@@ -687,7 +688,7 @@ class MultiSectionLine(Model, transparent=True):
         profile_fn: Callable | None = None,
         *,
         length: Any = 1,
-        N: int = 20, 
+        N: int = 50, 
         name: str | None = None,
         z0: complex = 50.0,
         **line_params
@@ -747,32 +748,33 @@ class MultiSectionLine(Model, transparent=True):
         self.profile_params = parsed_profile_params
         self.uniform_params = parsed_uniform_params
 
-    def __call__(self) -> Model:
+    @eqx.filter_jit
+    def s(self, freq: Frequency) -> jnp.ndarray:
         dz = self.length / self.N
         
         # Normalized coordinates from 0 to 1
         t_centers = (jnp.arange(self.N) + 0.5) / self.N
         
-        cascade = None
-        
-        for i in range(self.N):
-            t = t_centers[i]
-            
+        def eval_section(t):
+            """Evaluates the S-parameters and reference impedance for a single section."""
             current_params = dict(self.uniform_params)
             current_params['length'] = dz
             
-            for profile_name, profile_fn in self.profile_fns.items():
-                kwargs = self.profile_params.get(profile_name, {})
-                current_params[profile_name] = profile_fn(t, **kwargs)
-            
-            base_name = self.name if self.name else "section"
-            current_params['name'] = f"{base_name}_{i}"
+            for p_name, func in self.profile_fns.items():
+                f_kwargs = self.profile_params.get(p_name, {})
+                current_params[p_name] = func(t, **f_kwargs)
             
             section = self.line_fn(**current_params)
             
-            if cascade is None:
-                cascade = section
-            else:
-                cascade = cascade ** section
-                
-        return cascade
+            # Return S-matrix and cast z0 to an array for vmap stacking
+            return section.s(freq), jnp.asarray(section.z0, dtype=complex)
+
+        # 1. Vectorize over all N sections. 
+        # batch_s shape: (N, n_freqs, n_ports, n_ports)
+        # batch_z0 shape: (N,) or (N, n_freqs, n_ports) depending on your z0 setup
+        batch_s, batch_z0 = jax.vmap(eval_section)(t_centers)
+        
+        # 2. Cascade using Redheffer's star product
+        S_cas, z0_cas = cascade_s(batch_s, batch_z0)
+        
+        return S_cas

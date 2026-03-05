@@ -1,5 +1,6 @@
 from typing import Sequence
 
+import jax
 import jax.numpy as jnp
 import equinox as eqx
 
@@ -47,10 +48,20 @@ def cascade_s(
         "Currently, all characteristic impedances must be equal in cascade_s"
     )    
 
-    # Connect all S-matrices in a loop
-    S_cas, z0_cas = Smats[0], z0s[0]
-    for S_i, z0_i in zip(Smats[1:], z0s[1:]):
-        S_cas, z0_cas = _cascade_two_s_redheffer(S_cas, z0_cas, S_i, z0_i)
+    # Connect all S-matrices using jax.lax.scan
+    def scan_fn(carry, x):
+        S_acc, z0_acc = carry
+        S_i, z0_i = x
+        S_next, z0_next = _cascade_two_s_redheffer(S_acc, z0_acc, S_i, z0_i)
+        return (S_next, z0_next), None
+
+    # jax.lax.scan loops over the arrays dynamically without unrolling
+    (S_cas, z0_cas), _ = jax.lax.scan(
+        scan_fn, 
+        init=(Smats[0], z0s[0]), 
+        xs=(Smats[1:], z0s[1:])
+    )
+    
     return S_cas, z0_cas
     
 def _cascade_two_s_redheffer(
@@ -116,8 +127,18 @@ def cascade_a(
     jnp.ndarray
         The resulting S-parameter matrix of the cascaded system.
     """
-    a = Amats[0]
-    for anew in Amats[1:]:
-        a = a @ anew
+    # Ensure we are working with a stacked array of shape (N, Nf, 2, 2)
+    Amats_array = jnp.asarray(Amats)
+    
+    # Fast path for a single network
+    if Amats_array.shape[0] == 1:
+        return Amats_array[0]
 
-    return a
+    def scan_fn(carry, x):
+        # The '@' operator natively broadcasts across the frequency dimension (Nf)
+        return carry @ x, None
+
+    # Scan sequentially multiplies the matrices across the 'N' dimension
+    final_a, _ = jax.lax.scan(scan_fn, init=Amats_array[0], xs=Amats_array[1:])
+    
+    return final_a
