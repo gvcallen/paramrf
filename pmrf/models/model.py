@@ -68,6 +68,148 @@ class Model(eqx.Module):
 
     See also the :mod:`pmrf.fitting` and :mod:`pmrf.sampling` modules for details on model fitting and sampling.
 
+    Methods & Properties Summary
+    ----------------------------
+
+    **Defaults / Primary**
+    
+    ================================= ====================================================================
+    Method / Property                 Description
+    ================================= ====================================================================
+    :attr:`DEFAULT_NAMED_PARAMS`      Mapping from parameter name to :class:`Parameter`.
+    :attr:`DEFAULT_PARAM_NAMES`       Default parameter names for the model.
+    :attr:`DEFAULT_PARAMS`            Default parameters for the model.
+    :attr:`primary_function`          The primary function (``s`` or ``a``) as a callable.
+    :attr:`primary_property`          The primary property (e.g. ``"s"``, ``"a"``) as a string.
+    ================================= ====================================================================
+
+    **Introspection Properties**
+
+    ================================= ====================================================================
+    Method / Property                 Description
+    ================================= ====================================================================
+    :attr:`number_of_ports`           Number of ports.
+    :attr:`nports`                    Alias of :attr:`number_of_ports`.
+    :attr:`port_tuples`               All (m, n) port index pairs.
+    :attr:`num_params`                Number of free parameters.
+    :attr:`num_flat_params`           Number of free, flattened parameters.
+    ================================= ====================================================================
+
+    **Core API**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`__call__`                  Build the model. Should be overridden by sub-classes.
+    :meth:`primary`                   Dispatch to the primary function for the given frequency.
+    :meth:`s`                         Scattering (S) parameter matrix.
+    :meth:`a`                         ABCD parameter matrix.
+    :meth:`z`                         Impedance (Z) parameter matrix.
+    :meth:`y`                         Admittance (Y) parameter matrix.
+    :meth:`s_jacobian`                Jacobian of the S-parameters w.r.t free parameters.
+    :meth:`a_jacobian`                Jacobian of the ABCD-parameters w.r.t free parameters.
+    :meth:`z_jacobian`                Jacobian of the Z-parameters w.r.t free parameters.
+    :meth:`y_jacobian`                Jacobian of the Y-parameters w.r.t free parameters.
+    ================================= ====================================================================
+
+    **Function Tools**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`func_jacobian`             Calculate the Jacobian of an arbitrary function w.r.t parameters.
+    :meth:`func_samples`              Evaluate an arbitrary function over parameter samples.
+    ================================= ====================================================================
+
+    **Model Inspection & Modification**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`children`                  Returns the immediate submodels.
+    :meth:`submodels`                 Returns all nested submodels (depth-first).
+    :meth:`partition`                 Partition model into parameters and static trees.
+    :meth:`flipped`                   Return a version of the model with ports flipped.
+    :meth:`renumbered`                Return a version of the model with ports renumbered.
+    :meth:`terminated`                Return a new model terminated by another (e.g. load).
+    ================================= ====================================================================
+
+    **Parameter Inspection**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`named_params`              Named model parameter objects as a dict.
+    :meth:`named_param_values`        Named model parameter values as a dict of jax arrays.
+    :meth:`param_names`               Model parameter names as a list.
+    :meth:`param`                     A single model parameter object by name.
+    :meth:`params`                    Model parameters as a list.
+    :meth:`param_value`               A single model parameter value by name.
+    :meth:`param_values`              Model parameter values as a list of jax arrays.
+    :meth:`named_flat_params`         Named flattened model parameter objects as a dict.
+    :meth:`named_flat_param_values`   Named flattened model parameter values as a dict.
+    :meth:`flat_param_names`          Flattened parameter names as a list.
+    :meth:`flat_params`               Flattened parameters as a list.
+    :meth:`flat_param_values`         Flattened model parameter values as a flat array.
+    :meth:`flat_param_bounds`         Flattened model parameter bounds as jax arrays.
+    :meth:`param_groups`              Return all parameter groups relevant to this model.
+    :meth:`distribution`              Joint distribution over (flattened) parameters.
+    ================================= ====================================================================
+
+    **Parameter Modification**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`with_params`               Return a new model with parameters updated.
+    :meth:`with_fixed_params`         Return a model with specified parameters fixed.
+    :meth:`with_free_params`          Return a model with specified parameters freed.
+    :meth:`with_free_params_only`     Return a model with ONLY the specified parameters freed.
+    :meth:`with_all_params_fixed`     Return a model with all parameters fixed.
+    :meth:`with_all_params_free`      Return a model with all parameters free.
+    ================================= ====================================================================
+
+    **Parameter Group & Distribution Manipulation**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`with_param_groups`         Return a model with parameter groups appended.
+    :meth:`with_param_groups_demoted` Recursively demote parameter groups to deepest submodel.
+    :meth:`with_param_groups_removed` Return a new model with all parameter groups removed.
+    :meth:`with_uniform_distributions` Return a model with uniform distributions set.
+    :meth:`with_distributions_mapped` Apply a map function to the parameter distributions.
+    ================================= ====================================================================
+
+    **Field & Model Manipulation**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`with_defaults`             Return this model type with default initialization args.
+    :meth:`with_models`               Combines this model with free parameters in other models.
+    :meth:`with_fields`               Return a copy with dataclass-style field replacements.
+    :meth:`with_name`                 Return a copy of this model with a different name.
+    :meth:`with_submodel_fields`      Dataclass-style field replacements on a nested sub-model.
+    :meth:`with_free_submodels`       Free all parameters in the given submodels.
+    :meth:`with_free_submodels_only`  Returns a model with ONLY the specified submodels freed.
+    :meth:`with_fixed_submodels`      Fix all parameters in the given submodels.
+    :meth:`with_tied_submodels`       Tie submodels structurally to a shared model.
+    :meth:`tied`                      Return the model with self tied to a shared model.
+    :meth:`with_injected_params`      Inject parameters from a shared model into target submodels.
+    ================================= ====================================================================
+
+    **Plotting, File, & Conversion Utilities**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`plot_func`                 Evaluate and plot an arbitrary function of the model.
+    :meth:`plot_func_samples`         Evaluate and plot a function over parameter samples.
+    :meth:`to_skrf`                   Convert the model at frequencies to an :class:`skrf.Network`.
+    :meth:`export_touchstone`         Export the model response to a Touchstone file.
+    ================================= ====================================================================    
+
     Attributes
     ----------
     name : str or None
@@ -573,38 +715,6 @@ class Model(eqx.Module):
         clean_model = strip_unsaveable_recursive(copy(self))
         return clean_model._with_stripped_metadata()
     
-    def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
-        """Partition model into (parameters, static) trees.
-        
-        This is useful for internal use, or for inspecting the model
-        and its parameters.
-        
-        Parameters
-        ----------
-        include_fixed : bool, default=False
-            Include fixed parameters in the parameter tree.
-        param_objects : bool, default=False
-            If ``True``, keep full :class:`Parameter` objects; otherwise filter to ``.value``.
-
-        Returns
-        -------
-        (Self, Self)
-            ``(params_tree, static_tree)``
-        """        
-        if param_objects:
-            shared_spec = self._param_object_spec
-            if include_fixed:
-                filter_spec = self._core_object_spec
-            else:
-                filter_spec = self._free_object_spec
-        else:
-            shared_spec = self._param_value_spec
-            if include_fixed:
-                filter_spec = self._core_value_spec
-            else:
-                filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)
-    
     def _iter_params(
         self,
         filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None,
@@ -747,16 +857,7 @@ class Model(eqx.Module):
         for property in unprioritized:
             if is_overridden(type(self), Model, property):
                 return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")
-    
-    def copy(self: Self) -> Self:
-        """Returns a deepcopy of self.
-
-        Returns
-        -------
-        Model
-        """        
-        return deepcopy(self)
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")    
 
     # ---- Introspection properties --------------------------------------------------------
     
@@ -991,16 +1092,13 @@ class Model(eqx.Module):
         else:
             raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
 
-        return s2y(s, self.z0)    
-    
-    # ---- Core helpers --------------------------------------------------    
+        return s2y(s, self.z0)        
     
     @eqx.filter_jit
     def s_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
         """Calculate the Jacobian of the S-parameters with respect to free parameters.
 
-        This uses forward-mode automatic differentiation to compute 
-        ∂S / ∂θ for each free parameter in the model.
+        See :meth:`.func_jacobian`.
 
         Parameters
         ----------
@@ -1013,20 +1111,13 @@ class Model(eqx.Module):
             A dictionary mapping flat parameter names to their gradient 
             arrays. Each array has shape (n_freqs, n_ports, n_ports).
         """
-        def s_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
-            return self.with_params(flat_params_array).s(freq)
-
-        jac_array = jax.jacfwd(s_from_flat,)(self.flat_param_values())
-        jac_moved = jnp.moveaxis(jac_array, -1, 0)
-        param_names = self.flat_param_names()
-        return {name: jac_moved[i] for i, name in enumerate(param_names)}
+        return self.func_jacobian(lambda mdl, f: mdl.s(f), freq)
     
     @eqx.filter_jit
     def a_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
         """Calculate the Jacobian of the ABCD-parameters with respect to free parameters.
 
-        This uses forward-mode automatic differentiation to compute 
-        ∂S / ∂θ for each free parameter in the model.
+        See :meth:`.func_jacobian`.
 
         Parameters
         ----------
@@ -1039,20 +1130,13 @@ class Model(eqx.Module):
             A dictionary mapping flat parameter names to their gradient 
             arrays. Each array has shape (n_freqs, n_ports, n_ports).
         """
-        def a_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
-            return self.with_params(flat_params_array).a(freq)
-
-        jac_array = jax.jacfwd(a_from_flat,)(self.flat_param_values())
-        jac_moved = jnp.moveaxis(jac_array, -1, 0)
-        param_names = self.flat_param_names()
-        return {name: jac_moved[i] for i, name in enumerate(param_names)}
+        return self.func_jacobian(lambda mdl, f: mdl.a(f), freq)
     
     @eqx.filter_jit
     def z_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
         """Calculate the Jacobian of the Z-parameters with respect to free parameters.
 
-        This uses forward-mode automatic differentiation to compute 
-        ∂S / ∂θ for each free parameter in the model.
+        See :meth:`.func_jacobian`.
 
         Parameters
         ----------
@@ -1065,20 +1149,13 @@ class Model(eqx.Module):
             A dictionary mapping flat parameter names to their gradient 
             arrays. Each array has shape (n_freqs, n_ports, n_ports).
         """
-        def z_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
-            return self.with_params(flat_params_array).z(freq)
-
-        jac_array = jax.jacfwd(z_from_flat,)(self.flat_param_values())
-        jac_moved = jnp.moveaxis(jac_array, -1, 0)
-        param_names = self.flat_param_names()
-        return {name: jac_moved[i] for i, name in enumerate(param_names)}        
+        return self.func_jacobian(lambda mdl, f: mdl.z(f), freq)
     
     @eqx.filter_jit
     def y_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
         """Calculate the Jacobian of the Y-parameters with respect to free parameters.
 
-        This uses forward-mode automatic differentiation to compute 
-        ∂S / ∂θ for each free parameter in the model.
+        See :meth:`.func_jacobian`.
 
         Parameters
         ----------
@@ -1091,35 +1168,101 @@ class Model(eqx.Module):
             A dictionary mapping flat parameter names to their gradient 
             arrays. Each array has shape (n_freqs, n_ports, n_ports).
         """
-        def y_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
-            return self.with_params(flat_params_array).y(freq)
+        return self.func_jacobian(lambda mdl, f: mdl.y(f), freq)
+    
+    # ---- Function tools --------------------------------------------------        
 
-        jac_array = jax.jacfwd(y_from_flat,)(self.flat_param_values())
+    @eqx.filter_jit
+    def func_jacobian(
+        self: Self, 
+        func: Callable[['Model', Frequency], jnp.ndarray], 
+        freq: Frequency
+    ) -> dict[str, jnp.ndarray]:
+        """Calculate the Jacobian of an arbitrary function with respect to free parameters.
+
+        This uses forward-mode automatic differentiation to compute the gradients 
+        of the provided function with respect to each free parameter in the model.
+
+        Parameters
+        ----------
+        func : Callable[[Model, Frequency], jnp.ndarray]
+            Function to differentiate. Must take a Model and a Frequency object 
+            and return a jnp.ndarray of any shape.
+        freq : Frequency
+            The frequency grid to evaluate the function over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their gradient 
+            arrays. Each array has the same shape as the output of `func`.
+        """
+        def func_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            sampled_model = self.with_params(flat_params_array)
+            return func(sampled_model, freq)
+
+        # Calculate the Jacobian. By default, JAX appends the parameter dimension 
+        # to the end of the output shape: (*func_shape, num_params)
+        jac_array = jax.jacfwd(func_from_flat)(self.flat_param_values())
+        
+        # Move the parameter dimension to the front: (num_params, *func_shape)
         jac_moved = jnp.moveaxis(jac_array, -1, 0)
+        
         param_names = self.flat_param_names()
+        
+        # Map each slice to its corresponding parameter name
         return {name: jac_moved[i] for i, name in enumerate(param_names)}        
-    
-    # ---- Structure utilities --------------------------------------------------    
-    
-    def children(self) -> list['Model']:
-        """Returns the immediate submodels.
+
+    @eqx.filter_jit
+    def func_samples(
+        self, 
+        func: Callable[['Model', Frequency], jnp.ndarray], 
+        freq: Frequency,
+        *,
+        key: jax.Array, 
+        num_samples: int = 1000
+    ) -> jnp.ndarray:
+        """
+        Evaluates an arbitrary function over samples drawn from the 
+        model's distribution.
+
+        Parameters
+        ----------
+        func : Callable[[Model], jnp.ndarray]
+            A function that takes a Model instance and returns a JAX array.
+        prng_key : jax.Array
+            JAX random key for sampling.
+        num_samples : int, default=1000
+            Number of models to sample from the joint distribution.
 
         Returns
         -------
-        list[Model]
+        jnp.ndarray
+            The function evaluated over all samples. Shape will be 
+            (num_samples, *func_output_shape).
         """
-        return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
+        # 1. Get the joint distribution and sample it
+        dist = self.distribution()
+        flat_param_samples = dist.sample(key, sample_shape=(num_samples,))
+
+        # 2. Define the single-sample evaluation, passing freq explicitly
+        def evaluate_single(flat_params_array):
+            sampled_model = self.with_params(flat_params_array)
+            return func(sampled_model, freq)
+
+        # 3. Vectorize over the samples
+        return jax.vmap(evaluate_single)(flat_param_samples)  
     
-    def submodels(self) -> list['Model']:
-        """Returns all nested submodels (depth-first), excluding ``self``.
+    # ---- Magic methods and copying --------------------------------------------------
+
+    def copy(self: Self) -> Self:
+        """Returns a deepcopy of self.
 
         Returns
         -------
-        list[Model]
-        """
-        return nodes_by_type(self, Model)[1:]
-    
-    # ---- Magic methods --------------------------------------------------
+        Model
+        """        
+        return deepcopy(self)    
 
     def __getattr__(self, name: str):
         """
@@ -1163,7 +1306,59 @@ class Model(eqx.Module):
                     raise Exception(f"Parameter name '{k}' was passed but is not a free parameter")
             return [v for k, v in named_param_values.items() if k in key]
         
-    # ---- Container model building --------------------------------------------------    
+    # ---- Model inspection --------------------------------------------------    
+    
+    def children(self) -> list['Model']:
+        """Returns the immediate submodels.
+
+        Returns
+        -------
+        list[Model]
+        """
+        return [node for node in eqx.tree_flatten_one_level(self)[0] if isinstance(node, Model)]
+    
+    def submodels(self) -> list['Model']:
+        """Returns all nested submodels (depth-first), excluding ``self``.
+
+        Returns
+        -------
+        list[Model]
+        """
+        return nodes_by_type(self, Model)[1:]        
+
+    # ---- Model modification --------------------------------------------------    
+
+    def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
+        """Partition model into (parameters, static) trees.
+        
+        This is useful for internal use, or for inspecting the model
+        and its parameters.
+        
+        Parameters
+        ----------
+        include_fixed : bool, default=False
+            Include fixed parameters in the parameter tree.
+        param_objects : bool, default=False
+            If ``True``, keep full :class:`Parameter` objects; otherwise filter to ``.value``.
+
+        Returns
+        -------
+        (Self, Self)
+            ``(params_tree, static_tree)``
+        """        
+        if param_objects:
+            shared_spec = self._param_object_spec
+            if include_fixed:
+                filter_spec = self._core_object_spec
+            else:
+                filter_spec = self._free_object_spec
+        else:
+            shared_spec = self._param_value_spec
+            if include_fixed:
+                filter_spec = self._core_value_spec
+            else:
+                filter_spec = self._free_value_spec
+        return partition(self, filter_spec, shared_spec)    
 
     def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
@@ -1506,7 +1701,7 @@ class Model(eqx.Module):
             
         return JointDistribution(distributions=group_dists, distribution_names=group_names, param_names=self.flat_param_names())
     
-    # ---- Parameter manipulation --------------------------------------------------            
+    # ---- Parameter modification --------------------------------------------------            
 
     def with_params(
         self: Self,
@@ -2306,7 +2501,164 @@ class Model(eqx.Module):
             }
             modified_self = modified_self.with_params(injected_params)
             
-        return modified_self    
+        return modified_self
+    
+    # ---- Plotting --------------------------------------------------    
+
+    def plot_func(
+        self,
+        func: Callable[['Model', Frequency], jnp.ndarray],
+        freq: Frequency,
+        *,
+        ax = None,
+        label: str | None = None,
+        color: str | None = None,
+        **kwargs
+    ):
+        """Evaluate and plot an arbitrary function of the current model.
+
+        This method evaluates the provided function using the model's current 
+        parameter values and plots the resulting response over frequency.
+
+        Parameters
+        ----------
+        func : Callable[[Model, Frequency], jnp.ndarray]
+            Function to evaluate. Must take a Model and a Frequency object and 
+            return a jnp.ndarray of shape (n_freqs,).
+        freq : Frequency
+            Frequency grid to evaluate over.
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, the current axes (`plt.gca()`) are used.
+        label : str, optional
+            Label for the plotted line (used in legends).
+        color : str, optional
+            Color for the line. If None, uses the matplotlib color cycle.
+        **kwargs : dict
+            Additional keyword arguments forwarded to `matplotlib.pyplot.plot` 
+            (e.g., `linestyle`, `linewidth`, `alpha`).
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes containing the plot.
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        if ax is None:
+            ax = plt.gca()
+
+        # 1. Evaluate the function on the current model
+        y_val = func(self, freq)
+        y_val = np.asarray(y_val)
+        
+        # Extract the x-axis automatically from the frequency object
+        x_axis = np.asarray(freq.f_scaled) 
+
+        # 2. Plotting logic
+        # Assemble kwargs safely to avoid passing multiple 'color' or 'label' arguments
+        plot_kwargs = kwargs.copy()
+        if label is not None:
+            plot_kwargs['label'] = label
+        if color is not None:
+            plot_kwargs['color'] = color
+
+        ax.plot(x_axis, y_val, **plot_kwargs)
+        
+        return ax    
+
+    def plot_func_samples(
+        self,
+        func: Callable[['Model', Frequency], jnp.ndarray],
+        freq: Frequency,
+        *,
+        key: jax.Array,
+        num_samples: int = 1000,
+        contours: bool = True,
+        ax = None,
+        label: str | None = None,
+        color: str = 'C0',
+        alpha: float = 0.1,
+    ):
+        """Evaluate and plot a function over samples from the parameter distribution.
+
+        This method draws samples from the model's joint parameter distribution, 
+        evaluates the provided function for each sample, and plots the resulting 
+        responses over frequency.
+
+        Parameters
+        ----------
+        func : Callable[[Model, Frequency], jnp.ndarray]
+            Function to evaluate. Must take a Model and a Frequency object and 
+            return a jnp.ndarray of shape (n_freqs,).
+        freq : Frequency
+            Frequency grid to evaluate over.
+        key : jax.Array
+            PRNG key for sampling the distribution.
+        num_samples : int, default=1000
+            Number of samples to draw.
+        contours : bool, default=True
+            If True, plots the mean response and filled contours corresponding 
+            to 1, 2, and 3 standard deviations. If False, plots all individual 
+            sample responses as transparent lines.
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, the current axes (`plt.gca()`) are used.
+        label : str, optional
+            Label for the mean line (used in legends).
+        color : str, default='C0'
+            Base color for the lines and shaded regions.
+        alpha : float, default=0.1
+            Transparency of the individual lines (when `contours=False`). 
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes containing the plot.
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        if ax is None:
+            ax = plt.gca()
+
+        # 1. Evaluate the ensemble
+        y_samples = self.func_samples(func, freq, key, num_samples)
+        y_samples = np.asarray(y_samples)
+        
+        # Extract the x-axis automatically from the frequency object
+        x_axis = np.asarray(freq.f_scaled) 
+
+        # 2. Calculate central tendency
+        y_mean = np.mean(y_samples, axis=0)
+
+        # 3. Plotting logic
+        if not contours:
+            # Plot all individual samples
+            # Transpose y_samples so matplotlib interprets columns as individual lines
+            ax.plot(x_axis, y_samples.T, color=color, alpha=alpha)
+            # Plot the mean as a solid line on top
+            ax.plot(x_axis, y_mean, color=color, label=label, linewidth=2)
+            
+        else:
+            # Plot mean line
+            ax.plot(x_axis, y_mean, color=color, label=label, linewidth=2)
+            
+            # Plot contours for 1, 2, and 3 standard deviations
+            y_std = np.std(y_samples, axis=0)
+            
+            # Decreasing opacity for outer standard deviations
+            for i, sig_alpha in zip([1, 2, 3], [0.3, 0.2, 0.1]):
+                ax.fill_between(
+                    x_axis, 
+                    y_mean - i * y_std, 
+                    y_mean + i * y_std, 
+                    color=color, 
+                    alpha=sig_alpha, 
+                    linewidth=0
+                )
+        
+        return ax
+        
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
