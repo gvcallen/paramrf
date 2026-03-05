@@ -118,6 +118,7 @@ class Model(eqx.Module):
     Method                            Description
     ================================= ====================================================================
     :meth:`func_jacobian`             Calculate the Jacobian of an arbitrary function w.r.t parameters.
+    :meth:`func_sensitivity`          Calculate the sensitivity of an arbitrary function w.r.t parameters.
     :meth:`func_samples`              Evaluate an arbitrary function over parameter samples.
     ================================= ====================================================================
 
@@ -1211,7 +1212,50 @@ class Model(eqx.Module):
         param_names = self.flat_param_names()
         
         # Map each slice to its corresponding parameter name
-        return {name: jac_moved[i] for i, name in enumerate(param_names)}        
+        return {name: jac_moved[i] for i, name in enumerate(param_names)}
+    
+    @eqx.filter_jit
+    def func_sensitivity(
+        self: Self, 
+        func: Callable[['Model', Frequency], jnp.ndarray], 
+        freq: Frequency
+    ) -> dict[str, jnp.ndarray]:
+        """Calculate the relative (normalized) sensitivity of an arbitrary function.
+
+        This computes the fractional change in the function's output given a 
+        fractional change in each free parameter. Mathematically, it evaluates:
+        $$S_{rel} = \frac{\partial y}{\partial \theta} \frac{\theta}{y}$$
+
+        Parameters
+        ----------
+        func : Callable[[Model, Frequency], jnp.ndarray]
+            Function to evaluate. Must take a Model and a Frequency object and 
+            return a jnp.ndarray of any shape.
+        freq : Frequency
+            The frequency grid to evaluate the function over.
+
+        Returns
+        -------
+        dict[str, jnp.ndarray]
+            A dictionary mapping flat parameter names to their normalized 
+            sensitivity arrays. Each array has the same shape as the output 
+            of `func`.
+        """
+        # 1. Get nominal value and absolute jacobian
+        y_nom = func(self, freq)
+        abs_jac = self.func_jacobian(func, freq)
+        
+        # 2. Get nominal parameter values
+        param_vals = self.named_flat_param_values()
+        
+        # 3. Normalize to get relative sensitivity.
+        # Prevent division by zero by replacing exact zeros with a tiny epsilon.
+        y_safe = jnp.where(y_nom == 0, 1e-15, y_nom)
+        
+        return {
+            name: jac * (param_vals[name] / y_safe)
+            for name, jac in abs_jac.items()
+        }    
 
     @eqx.filter_jit
     def func_samples(

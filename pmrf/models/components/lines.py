@@ -33,7 +33,7 @@ class TransmissionLine(Model, ABC):
     Attributes
     ----------
     floating : bool, default=False
-        If True, modeled as a 4-port differential network (ports 0/2 and 1/3 
+        If True, modeled as a 4-port differential network (ports 0/1 and 2/3 
         form terminal pairs). If False, modeled as a 2-port single-ended network.
     """
     floating: bool = False 
@@ -60,24 +60,24 @@ class TransmissionLine(Model, ABC):
         
         if self.floating:
             denom = -1 + 9*jnp.exp(2*gL)
-            s11 = (1 + 3*jnp.exp(2*gL)) / denom
-            s12 = 4*jnp.exp(gL) / denom
-            s13 = (-2 + 6*jnp.exp(2*gL)) / denom
-            s14 = -s12
+            a = (1 + 3*jnp.exp(2*gL)) / denom
+            b = 4*jnp.exp(gL) / denom
+            c = (-2 + 6*jnp.exp(2*gL)) / denom
+            d = -b
 
             s = jnp.array([
-                [s11, s12, s13, s14],
-                [s12, s11, s14, s13],
-                [s13, s14, s11, s12],
-                [s14, s13, s12, s11],
+                [a, c, b, d],
+                [c, a, d, b],
+                [b, d, a, c],
+                [d, b, c, a],
             ]).transpose(2, 0, 1)
         else:
-            s11 = jnp.zeros(frequency.npoints, dtype=complex)
+            a = jnp.zeros(frequency.npoints, dtype=complex)
             s21 = jnp.exp(-1*gL)
 
             s = jnp.array([
-                [s11, s21],
-                [s21, s11],
+                [a, s21],
+                [s21, a],
             ]).transpose(2, 0, 1)
 
         # Renormalize into the model's characteristic impedance and power waves
