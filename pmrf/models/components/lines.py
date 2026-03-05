@@ -664,11 +664,11 @@ class MultiSectionLine(Model, transparent=True):
         that do not vary across the sections.
     """
     line_fn: type = eqx.field(static=True)
-    N: int = eqx.field(static=True)
     length: Parameter
     nonuniform_funcs: Dict[str, Callable] = eqx.field(static=True)
     nonuniform_params: Dict[str, Dict[str, Parameter]]
     uniform_params: Dict[str, Parameter]
+    N: int = eqx.field(static=True)
 
     def __init__(
         self, 
