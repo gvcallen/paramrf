@@ -599,44 +599,54 @@ class MicrostripLine(RLGCLine):
 class MultiSectionLine(Model, transparent=True):
     r"""
     A multi-section transmission line model that dynamically builds a 
-    cascaded network of $N$ submodel sections.
+    cascaded network of $N$ submodel sections. 
 
     The parameters of the submodel can be uniform across sections or follow a 
-    spatial nonuniform along the length of the line defined by user-provided functions 
-    (e.g., splines). Both the uniform parameters and the coefficients of the 
-    nonuniform functions are registered as `Parameter` objects, making the entire 
+    spatial profile along the length of the line defined by user-provided 
+    functions (e.g., splines). Both the uniform parameters and the coefficients of the 
+    profile functions are registered as `Parameter` objects, making the entire 
     structure fully differentiable and compatible with optimization.
+
+    If a parameter is omitted during initialization, the model will automatically 
+    instantiate a dummy instance of `line_fn` to extract and track its default 
+    parameters.
 
     Example
     --------
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import PhysicalLine
+        from pmrf.models import PhysicalLine, MultiSectionLine
 
-        # 1. Define an arbitrary nonuniform function across normalized length (t)
+        # 1. Define an arbitrary profile function across normalized length (t)
         def linear_taper(t, start_val, end_val):
             # t goes from 0.0 at the input to 1.0 at the output
             return start_val + (end_val - start_val) * t
 
+        def exponential_taper(t, start_val, end_val):
+            # Just another example function
+            return start_val * (end_val / start_val) ** t
+
         # 2. Instantiate a tapered physical transmission line
         tapered_line = MultiSectionLine(
-            submodel_cls=PhysicalLine,
+            line_fn=PhysicalLine,
             N=20,
             length=0.1,  # Total physical length (10 cm)
-            nonuniform_funcs=linear_taper, # Applied to all nonuniform_params
-            nonuniform_params={
-                'zn': {
-                    'start_val': 50.0, 
-                    'end_val': 100.0
-                }
-            },
-            uniform_params={
-                'epr': 2.2,
-                'A': 0.01,
-                'fA': 1.0,
-                'tand': 0.001
-            }
+            profile_fn=linear_taper, 
+            
+            # Parameters passed as dicts use the `profile_fn`
+            zn={'start_val': 50.0, 'end_val': 100.0},
+            
+            # Parameters passed as (Callable, dict) override the default profile function
+            tand=(exponential_taper, {'start_val': 0.001, 'end_val': 0.005}),
+            
+            # Standard scalars/arrays are treated as uniform across the line
+            epr=2.2,
+            A=0.01,
+            fA=1.0,
+            
+            # Note: Unspecified parameters like `rho` are automatically pulled 
+            # from the dummy instance and tracked as uniform.
         )
         
         # 3. Build and evaluate the cascaded network
@@ -647,60 +657,95 @@ class MultiSectionLine(Model, transparent=True):
     ----------
     line_fn : Callable
         A transmission line constructor to instantiate for each section 
-        (e.g., `CoaxialLine`, `MicrostripLine`, `PhysicalLine`).
-    N : int
-        The number of cascaded sections to compute.
+        (e.g., `CoaxialLine`, `MicrostripLine`, `PhysicalLine`, or a custom factory).
     length : Parameter
         The total physical length of the line in meters.
-    nonuniform_funcs : dict[str, Callable]
-        A dictionary mapping nonuniform parameter names to a callable function 
+    profile_fns : dict[str, Callable]
+        A dictionary mapping profile parameter names to a callable function 
         of the form `func(t, **kwargs) -> value`, where `t` is the normalized 
         position $t \in [0, 1]$.
-    nonuniform_params : dict[str, dict[str, Parameter]]
-        A nested dictionary mapping nonuniform parameter names to the keyword 
-        arguments (Parameters) required by their respective `nonuniform_funcs`.
+    profile_params : dict[str, dict[str, Parameter]]
+        A nested dictionary mapping profile parameter names to the keyword 
+        arguments (Parameters) required by their respective `profile_fns`.
     uniform_params : dict[str, Parameter]
         A dictionary of uniform Parameters passed directly to the submodel 
         that do not vary across the sections.
+    N : int
+        The number of cascaded sections to compute.
     """
-    line_fn: type = eqx.field(static=True)
+    line_fn: Callable = eqx.field(static=True)
     length: Parameter
-    nonuniform_funcs: Dict[str, Callable] = eqx.field(static=True)
-    nonuniform_params: Dict[str, Dict[str, Parameter]]
+
+    profile_fns: Dict[str, Callable] = eqx.field(static=True)
+    profile_params: Dict[str, Dict[str, Parameter]]
     uniform_params: Dict[str, Parameter]
     N: int = eqx.field(static=True)
 
     def __init__(
         self, 
-        submodel_cls: type, 
-        N: int, 
-        length: Any, 
-        nonuniform_funcs: Callable | Dict[str, Callable] | None = None, 
-        nonuniform_params: Dict[str, Dict[str, Any]] | None = None, 
-        uniform_params: Dict[str, Any] | None = None,
-        **kwargs
+        line_fn: Callable, 
+        profile_fn: Callable | None = None,
+        *,
+        length: Any = 1,
+        N: int = 20, 
+        name: str | None = None,
+        z0: complex = 50.0,
+        **line_params
     ):
-        super().__init__(**kwargs)
-        self.line_fn = submodel_cls
+        super().__init__(name=name, z0=z0)
+        
+        self.line_fn = line_fn
         self.N = N
         self.length = as_param(length)
         
-        nonuniform_params = nonuniform_params if nonuniform_params is not None else {}
-        uniform_params = uniform_params if uniform_params is not None else {}
+        # 1. Instantiate a dummy model to extract all default parameters.
+        # We filter out profile parameter definitions (dicts/tuples) to prevent TypeErrors 
+        # inside the underlying callable, passing only the scalar/array uniform parameters.
+        safe_kwargs = {
+            k: v for k, v in line_params.items() 
+            if not isinstance(v, (dict, tuple))
+        }
+        # The line_fn must support the length parameter
+        safe_kwargs['length'] = self.length
+        
+        dummy_model = line_fn(**safe_kwargs)
+        base_params = dummy_model.named_params(include_fixed=True)
 
-        if callable(nonuniform_funcs):
-            self.nonuniform_funcs = {p_name: nonuniform_funcs for p_name in nonuniform_params.keys()}
-        else:
-            self.nonuniform_funcs = nonuniform_funcs if nonuniform_funcs is not None else {}
-
-        self.nonuniform_params = {
-            p_name: {arg: as_param(val) for arg, val in p_kwargs.items()}
-            for p_name, p_kwargs in nonuniform_params.items()
+        # Extract the parameter objects, excluding 'length' which is handled dynamically per-section
+        merged_params = {
+            k: v for k, v in base_params.items() 
+            if k != 'length' 
         }
         
-        self.uniform_params = {
-            p_name: as_param(val) for p_name, val in uniform_params.items()
-        }
+        # 2. Overlay the user's raw inputs (which includes the dicts/tuples for profile params)
+        merged_params.update(line_params)
+
+        parsed_profile_fns = {}
+        parsed_profile_params = {}
+        parsed_uniform_params = {}
+
+        # 3. Parse the unified kwargs into Equinox-friendly PyTrees
+        for k, v in merged_params.items():
+            
+            # Case 1: Explicit function override via Tuple (Callable, kwargs_dict)
+            if isinstance(v, tuple) and len(v) == 2 and callable(v[0]) and isinstance(v[1], dict):
+                parsed_profile_fns[k] = v[0]
+                parsed_profile_params[k] = {arg: as_param(val) for arg, val in v[1].items()}
+            
+            # Case 2: Dict of kwargs (uses profile_fn)
+            elif isinstance(v, dict):
+                if profile_fn is None:
+                    raise ValueError(f"Parameter '{k}' was provided as a dict, but no `profile_fn` was specified.")
+                parsed_profile_fns[k] = profile_fn
+                parsed_profile_params[k] = {arg: as_param(val) for arg, val in v.items()}
+            
+            # Case 3: Standard uniform parameter
+            else:
+                parsed_uniform_params[k] = as_param(v)
+                
+        self.profile_fns = parsed_profile_fns
+        self.profile_params = parsed_profile_params
+        self.uniform_params = parsed_uniform_params
 
     def __call__(self) -> Model:
         dz = self.length / self.N
@@ -716,11 +761,11 @@ class MultiSectionLine(Model, transparent=True):
             current_params = dict(self.uniform_params)
             current_params['length'] = dz
             
-            for p_name, func in self.nonuniform_funcs.items():
-                f_kwargs = self.nonuniform_params.get(p_name, {})
-                current_params[p_name] = func(t, **f_kwargs)
+            for profile_name, profile_fn in self.profile_fns.items():
+                kwargs = self.profile_params.get(profile_name, {})
+                current_params[profile_name] = profile_fn(t, **kwargs)
             
-            base_name = self.name if self.name else "sec"
+            base_name = self.name if self.name else "section"
             current_params['name'] = f"{base_name}_{i}"
             
             section = self.line_fn(**current_params)
@@ -730,4 +775,4 @@ class MultiSectionLine(Model, transparent=True):
             else:
                 cascade = cascade ** section
                 
-        return cascade    
+        return cascade

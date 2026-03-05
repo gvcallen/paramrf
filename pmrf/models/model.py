@@ -562,6 +562,63 @@ class Model(eqx.Module):
                 
         return self._separator.join(fields)
     
+    def _resolve_param_collisions(
+        self, 
+        models: Sequence['Model'], 
+        default_bases: Sequence[str]
+    ) -> tuple['Model', ...]:
+        """
+        Safely resolves parameter namespace collisions among a sequence of submodels.
+        Returns a tuple of models with updated names to ensure path isolation.
+        """
+        from collections import Counter
+        
+        resolved = list(models)
+        param_sets = [m.param_names(include_fixed=True) for m in resolved]
+        param_counts = Counter()
+        
+        def get_prefixed(name: str | None, params: list[str]) -> set[str]:
+            prefix = f"{name}{self._separator}" if name is not None else ""
+            return {f"{prefix}{p}" for p in params}
+            
+        # 1. Count global occurrences of all simulated parameter paths
+        for i, model in enumerate(resolved):
+            param_counts.update(get_prefixed(model.name, param_sets[i]))
+            
+        # 2. Identify which specific models are contributing to a collision
+        colliding_indices = [
+            i for i, model in enumerate(resolved)
+            if any(param_counts[p] > 1 for p in get_prefixed(model.name, param_sets[i]))
+        ]
+        
+        # 3. Create a pool of the parameters that are currently safe
+        safe_params = set(p for p, count in param_counts.items() if count == 1)
+        
+        # 4. Symmetrically rename only the colliding models
+        for i in colliding_indices:
+            model = resolved[i]
+            base = model.name if model.name is not None else default_bases[i]
+            
+            # If the user didn't name it, we first try the raw default (e.g., 'from_model').
+            # If they did name it, it already clashed, so we immediately start with a suffix.
+            if model.name is None:
+                candidate_name = base
+                suffix = 1
+            else:
+                suffix = 1
+                candidate_name = f"{base}_{suffix}"
+            
+            # Loop until the proposed path is completely disjoint from the safe pool
+            while not get_prefixed(candidate_name, param_sets[i]).isdisjoint(safe_params):
+                suffix += 1
+                candidate_name = f"{base}_{suffix}"
+                
+            # Lock in the safe name and add its parameters to the pool
+            resolved[i] = model.with_name(candidate_name)
+            safe_params.update(get_prefixed(candidate_name, param_sets[i]))
+            
+        return tuple(resolved)    
+    
     def _with_stripped_metadata(self: Self) -> Self:
         def strip_metadata_recursive(obj, memo=None):
             if memo is None:
@@ -879,7 +936,7 @@ class Model(eqx.Module):
             In the base class; override in derived classes to build
             a compositional representation.
         """     
-        raise NotImplementedError(f"Error: cannot use the __call__ method to build a model in the Model class directly")
+        raise NotImplementedError
     
     @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
@@ -1170,7 +1227,7 @@ class Model(eqx.Module):
         func: Callable[['Model', Frequency], jnp.ndarray], 
         freq: Frequency
     ) -> dict[str, jnp.ndarray]:
-        """Calculate the relative (normalized) sensitivity of an arbitrary function.
+        r"""Calculate the relative (normalized) sensitivity of an arbitrary function.
 
         This computes the fractional change in the function's output given a 
         fractional change in each free parameter. Mathematically, it evaluates:
