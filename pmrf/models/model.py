@@ -523,9 +523,10 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 # 3. Rule application
                 if explicit_name is not None:
                     # User explicitly named it.
-                    if not is_transparent:
+                    if is_transparent:
+                        name_fields.append(explicit_name) # Always use the explicit name
+                    else:
                         name_fields.append(k) # Standard fields keep their namespace prefix
-                    name_fields.append(explicit_name) # Always use the explicit name
                 else:
                     # No explicit name. We MUST use the variable name 'k' as fallback,
                     # UNLESS it's a transparent generic container (where dict/list keys handle it).
