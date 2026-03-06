@@ -40,6 +40,7 @@ class PiCLC(Model):
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
     three_port: bool = False
+    floating: bool = False
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         if not self.three_port:

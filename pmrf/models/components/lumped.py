@@ -34,112 +34,189 @@ class Load(Model):
     
 class Resistor(Model):
     """
-    A 2-port model of a series resistor.
-
-    This represents a resistor placed directly in series along the signal path 
-    between Port 0 (input) and Port 1 (output).
+    A 2-port or 4-port floating model of a series resistor.
 
     Parameters:
     -----------
     R : Parameter
         The resistance in Ohms. Default is 50.0.
+    floating : bool
+        If True, returns a 4-port network where the element is between 
+        Port 0 and Port 2, and Port 1 is shorted to Port 3.
     """
     R: Parameter = 50.0
+    floating: bool = False
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
-
-        if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
-        else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
-
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
-        denom = R + (z0_0 + z0_1)
-        s11 = ((R - jnp.conj(z0_0) + z0_1) / denom) * ones
-        s22 = ((R + z0_0 - jnp.conj(z0_1)) / denom) * ones
-        s12 = (2 * (z0_0.real * z0_1.real)**0.5 / denom) * ones
-        s21 = s12
+        # Parse reference impedances safely
+        if jnp.isscalar(self.z0):
+            z_0 = z_1 = z_2 = z_3 = self.z0
+        else:
+            z_0 = self.z0[..., 0]
+            if self.floating and self.z0.shape[-1] >= 4:
+                z_1, z_2, z_3 = self.z0[..., 1], self.z0[..., 2], self.z0[..., 3]
+            else:
+                z_1 = self.z0[..., 1]
+                z_2 = z_3 = z_1  # Fallback
 
-        s = jnp.array([
-            [s11, s12],
-            [s21, s22]
-        ]).transpose(2, 0, 1)
+        z_in = z_0
+        z_out = z_2 if self.floating else z_1
+
+        # Component path (Port 0 to Port 2)
+        denom_c = R + (z_in + z_out)
+        s_c11 = ((R - jnp.conj(z_in) + z_out) / denom_c) * ones
+        s_c22 = ((R + z_in - jnp.conj(z_out)) / denom_c) * ones
+        s_c12 = (2 * (z_in.real * z_out.real)**0.5 / denom_c) * ones
+        s_c21 = s_c12
+
+        if not self.floating:
+            s = jnp.array([
+                [s_c11, s_c12],
+                [s_c21, s_c22]
+            ]).transpose(2, 0, 1)
+        else:
+            # Ideal through return path (Port 1 to Port 3)
+            denom_t = z_1 + z_3
+            s_t11 = ((z_3 - jnp.conj(z_1)) / denom_t) * ones
+            s_t33 = ((z_1 - jnp.conj(z_3)) / denom_t) * ones
+            s_t13 = (2 * (z_1.real * z_3.real)**0.5 / denom_t) * ones
+            s_t31 = s_t13
+
+            zeros = jnp.zeros_like(s_c11)
+
+            s = jnp.array([
+                [s_c11, zeros, s_c12, zeros],
+                [zeros, s_t11, zeros, s_t13],
+                [s_c21, zeros, s_c22, zeros],
+                [zeros, s_t31, zeros, s_t33]
+            ]).transpose(2, 0, 1)
 
         return s    
  
  
 class Capacitor(Model):
     """
-    A 2-port model of a series capacitor.
-
-    This represents a capacitor placed directly in series along the signal path 
-    between Port 0 (input) and Port 1 (output).
+    A 2-port or 4-port floating model of a series capacitor.
 
     Parameters:
     -----------
     C : Parameter
         The capacitance in Farads. Default is 1.0e-12 (1 pF).
+    floating : bool
     """
     C: Parameter = 1.0e-12
+    floating: bool = False
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
         C = self.C
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
         if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
+            z_0 = z_1 = z_2 = z_3 = self.z0
         else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
-        
-        denom = 1.0 + 1j * w * C * (z0_0 + z0_1)
-        s11 = (1.0 - 1j * w * C * (jnp.conj(z0_0) - z0_1) ) / denom
-        s22 = (1.0 - 1j * w * C * (jnp.conj(z0_1) - z0_0) ) / denom
-        s12 = s21 = (2j * w * C * (z0_0.real * z0_1.real)**0.5) / denom
+            z_0 = self.z0[..., 0]
+            if self.floating and self.z0.shape[-1] >= 4:
+                z_1, z_2, z_3 = self.z0[..., 1], self.z0[..., 2], self.z0[..., 3]
+            else:
+                z_1 = self.z0[..., 1]
+                z_2 = z_3 = z_1
 
-        s = jnp.array([
-            [s11, s12],
-            [s21, s22]
-        ]).transpose(2, 0, 1)
+        z_in = z_0
+        z_out = z_2 if self.floating else z_1
+        
+        # Component path (Port 0 to Port 2)
+        denom_c = 1.0 + 1j * w * C * (z_in + z_out)
+        s_c11 = (1.0 - 1j * w * C * (jnp.conj(z_in) - z_out) ) / denom_c
+        s_c22 = (1.0 - 1j * w * C * (jnp.conj(z_out) - z_in) ) / denom_c
+        s_c12 = s_c21 = (2j * w * C * (z_in.real * z_out.real)**0.5) / denom_c
+
+        if not self.floating:
+            s = jnp.array([
+                [s_c11, s_c12],
+                [s_c21, s_c22]
+            ]).transpose(2, 0, 1)
+        else:
+            # Ideal through return path (Port 1 to Port 3)
+            denom_t = z_1 + z_3
+            s_t11 = ((z_3 - jnp.conj(z_1)) / denom_t) * ones
+            s_t33 = ((z_1 - jnp.conj(z_3)) / denom_t) * ones
+            s_t13 = s_t31 = (2 * (z_1.real * z_3.real)**0.5 / denom_t) * ones
+
+            zeros = jnp.zeros_like(s_c11)
+
+            s = jnp.array([
+                [s_c11, zeros, s_c12, zeros],
+                [zeros, s_t11, zeros, s_t13],
+                [s_c21, zeros, s_c22, zeros],
+                [zeros, s_t31, zeros, s_t33]
+            ]).transpose(2, 0, 1)
 
         return s
             
               
 class Inductor(Model):
     """
-    A 2-port model of a series inductor.
-
-    This represents an inductor placed directly in series along the signal path 
-    between Port 0 (input) and Port 1 (output).
+    A 2-port or 4-port floating model of a series inductor.
 
     Parameters:
     -----------
     L : Parameter
         The inductance in Henrys. Default is 1.0e-9 (1 nH).
+    floating : bool
     """
     L: Parameter = 1.0e-9
+    floating: bool = False
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         L = self.L
         w = freq.w
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
         if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
+            z_0 = z_1 = z_2 = z_3 = self.z0
         else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
+            z_0 = self.z0[..., 0]
+            if self.floating and self.z0.shape[-1] >= 4:
+                z_1, z_2, z_3 = self.z0[..., 1], self.z0[..., 2], self.z0[..., 3]
+            else:
+                z_1 = self.z0[..., 1]
+                z_2 = z_3 = z_1
         
-        denom = (1j * w * L) + (z0_0 + z0_1)
-        s11 = (1j * w * L - jnp.conj(z0_0) + z0_1) / denom
-        s22 = (1j * w * L + z0_0 - jnp.conj(z0_1)) / denom
-        s12 = s21 = 2 * (z0_0.real * z0_1.real)**0.5 / denom
+        z_in = z_0
+        z_out = z_2 if self.floating else z_1
 
-        s = jnp.array([
-            [s11, s12],
-            [s21, s22]
-        ]).transpose(2, 0, 1)
+        # Component path (Port 0 to Port 2)
+        denom_c = (1j * w * L) + (z_in + z_out)
+        s_c11 = (1j * w * L - jnp.conj(z_in) + z_out) / denom_c
+        s_c22 = (1j * w * L + z_in - jnp.conj(z_out)) / denom_c
+        s_c12 = s_c21 = 2 * (z_in.real * z_out.real)**0.5 / denom_c
 
-        return s   
+        if not self.floating:
+            s = jnp.array([
+                [s_c11, s_c12],
+                [s_c21, s_c22]
+            ]).transpose(2, 0, 1)
+        else:
+            # Ideal through return path (Port 1 to Port 3)
+            denom_t = z_1 + z_3
+            s_t11 = ((z_3 - jnp.conj(z_1)) / denom_t) * ones
+            s_t33 = ((z_1 - jnp.conj(z_3)) / denom_t) * ones
+            s_t13 = s_t31 = (2 * (z_1.real * z_3.real)**0.5 / denom_t) * ones
+
+            zeros = jnp.zeros_like(s_c11)
+
+            s = jnp.array([
+                [s_c11, zeros, s_c12, zeros],
+                [zeros, s_t11, zeros, s_t13],
+                [s_c21, zeros, s_c22, zeros],
+                [zeros, s_t31, zeros, s_t33]
+            ]).transpose(2, 0, 1)
+
+        return s
     
 
 class ShuntResistor(Model):

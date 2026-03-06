@@ -336,35 +336,25 @@ class Parameter(eqx.Module):
         return len(self.value)
     
     def __repr__(self):
-        # Try to safely extract a scalar value for clean printing
-        val = self.value
-        if hasattr(val, "ndim") and val.ndim == 0:
-            val_repr = str(float(val))
-        elif hasattr(val, "size") and val.size == 1:
-            val_repr = str(float(val.item()))
-        else:
-            # Fallback for multi-dimensional arrays (keeps it from flooding the terminal)
-            val_repr = f"f64{list(val.shape)}" if hasattr(val, "shape") else repr(val)
-            
         # Build the representation dynamically
         # 'value' is always printed as it is the core of the Parameter
-        args = [f"value={val_repr}"]
+        args = [f"value={_format_val(self.value)}"]
         
         # Only add attributes if they deviate from the default
         if self.scale != 1.0:
             args.append(f"scale={self.scale}")
             
-        if self.fixed is not False:  # or just `if self.fixed:`
+        if self.fixed is not False:
             args.append(f"fixed={self.fixed}")
             
         if self.distribution is not None:
-            args.append(f"distribution={self.distribution}")
+            args.append(f"distribution={_format_distribution(self.distribution)}")
             
         if self.name is not None:
             args.append(f"name={repr(self.name)}")
             
-        # Join the filtered arguments with a comma and space
-        return f"Parameter({', '.join(args)})"    
+        return f"Parameter({', '.join(args)})"
+            
     def __add__(self, other):
         r"""Elementwise addition."""
         return jnp.add(jnp.array(self), jnp.array(other))
@@ -681,3 +671,26 @@ def _deserialize_distribution(dct: dict | None) -> Distribution | None:
     if cls is None:
         raise ValueError(f"Unknown distribution class: {dct['class']}")
     return cls(**dct["params"])
+
+def _format_val(val) -> str:
+    """Safely extract and format a scalar or array value for clean printing."""
+    if hasattr(val, "ndim") and val.ndim == 0:
+        return str(float(val))
+    elif hasattr(val, "size") and val.size == 1:
+        return str(float(val.item()))
+    else:
+        # Fallback for multi-dimensional arrays
+        return f"f64{list(val.shape)}" if hasattr(val, "shape") else repr(val)
+
+def _format_distribution(d: Distribution) -> str:
+    """Format a numpyro distribution dynamically using its arg_constraints."""
+    class_name = d.__class__.__name__
+    if hasattr(d, "arg_constraints"):
+        args = []
+        # Pull out loc, scale, low, high, etc., dynamically
+        for param_name in d.arg_constraints.keys():
+            if hasattr(d, param_name):
+                val = getattr(d, param_name)
+                args.append(f"{param_name}={_format_val(val)}")
+        return f"{class_name}({', '.join(args)})"
+    return repr(d)

@@ -147,14 +147,18 @@ class Cascade(Model, transparent=True):
     
 class Terminated(Model, transparent=True):
     """
-    Represents one network terminated in another.
+    Represents one 2N-port network terminated in an N-port network.
     """
     from_model: Model
     into_model: Model
     
     def __post_init__(self):
-        if self.from_model.nports != 2 or self.into_model.nports != 1:
-            raise ValueError("Currently, Terminated only supports 2-port networks terminated in a 1-port")
+        # Validate that the from_model has exactly twice the ports of into_model
+        if self.from_model.nports != 2 * self.into_model.nports:
+            raise ValueError(
+                f"Terminated requires a 2N-port network terminated in an N-port network. "
+                f"Got {self.from_model.nports}-port and {self.into_model.nports}-port."
+            )
 
         resolved = self._resolve_param_collisions(
             models=[self.from_model, self.into_model], 
