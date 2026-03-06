@@ -15,6 +15,8 @@ def field(
         metadata["save"] = False
     if transparent:
         metadata["transparent"] = True
+
+    kwargs['metadata'] = metadata
         
     return eqx.field(
         **kwargs

@@ -360,8 +360,8 @@ class Parameter(eqx.Module):
         if self.distribution is not None:
             args.append(f"distribution={self.distribution}")
             
-        # if self.name is not None:
-        #     args.append(f"name={repr(self.name)}")
+        if self.name is not None:
+            args.append(f"name={repr(self.name)}")
             
         # Join the filtered arguments with a comma and space
         return f"Parameter({', '.join(args)})"    

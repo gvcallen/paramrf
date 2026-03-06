@@ -314,7 +314,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                         raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
                     field_kwargs['default'] = default
                 
-                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, name=field_name, fixed=False)
+                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, fixed=False)
                 # field_kwargs['default_factory'] = lambda default=default: default
             
             # Apply default_factory to avoid Python default mutable trap
@@ -510,45 +510,45 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 k = item.name
                 next_node = getattr(node, k)
                 
-                # 1. Determine if this specific step in the path is transparent
-                is_transparent = False
-                
-                # Check field-level transparency (Did the parent mark this field as transparent?)
-                if is_dataclass(node):
+                # 1. Determine transparency
+                is_transparent = getattr(node, '_transparent', False)
+                if not is_transparent and is_dataclass(node):
                     field_obj = next((f for f in fields(node) if f.name == k), None)
                     if field_obj is not None:
                         is_transparent = field_obj.metadata.get('transparent', False)
-                
-                # Check class-level transparency (Does the child inherently act as a transparent container?)
-                if not is_transparent and hasattr(next_node, '_transparent'):
-                    is_transparent = getattr(next_node, '_transparent')
 
-                # 2. Extract explicit name (Now guaranteed to be a user-override, or None)
+                # 2. Extract user override
                 explicit_name = getattr(next_node, 'name', None)
                 
-                # 3. Apply the routing logic
+                # 3. Rule application
                 if explicit_name is not None:
-                    name_fields.append(explicit_name) # Always respect explicit user overrides
-                elif not is_transparent:
-                    name_fields.append(k) # Standard behavior: use the variable name
-                # Else: it IS transparent AND has no override. We stay completely silent (drop it).
-                    
+                    # User explicitly named it.
+                    if not is_transparent:
+                        name_fields.append(k) # Standard fields keep their namespace prefix
+                    name_fields.append(explicit_name) # Always use the explicit name
+                else:
+                    # No explicit name. We MUST use the variable name 'k' as fallback,
+                    # UNLESS it's a transparent generic container (where dict/list keys handle it).
+                    if is_transparent and isinstance(next_node, (list, tuple, dict)):
+                        pass
+                    else:
+                        name_fields.append(k)
+                        
                 node = next_node
                 
             elif isinstance(item, DictKey):
                 k = item.key
                 node = node[k]
                 
-                explicit_name = getattr(node, 'name', None)
-                if explicit_name is not None:
-                    name_fields.append(explicit_name)
-                else:
-                    name_fields.append(str(k))
+                # Rule: Dictionaries ALWAYS use the key.
+                name_fields.append(str(k))
                     
             elif isinstance(item, (SequenceKey, FlattenedIndexKey)):
                 idx = item.idx if hasattr(item, 'idx') else item.key
                 node = node[idx]
                 
+                # Rule: Sequences promote explicitly named models, 
+                # otherwise use "model_{idx}" or just "{idx}".
                 explicit_name = getattr(node, 'name', None)
                 if explicit_name is not None:
                     name_fields.append(explicit_name)
@@ -567,11 +567,18 @@ class Model(eqx.Module, metaclass=ModelMeta):
     ) -> tuple['Model', ...]:
         """
         Safely resolves parameter namespace collisions among a sequence of submodels.
+        If a model lacks a name, it is assigned the corresponding default_base.
         Returns a tuple of models with updated names to ensure path isolation.
         """
         from collections import Counter
         
         resolved = list(models)
+        
+        # 1. Apply default bases to any unnamed models
+        for i, model in enumerate(resolved):
+            if model.name is None:
+                resolved[i] = model.with_name(default_bases[i])
+                
         param_sets = [m.param_names(include_fixed=True) for m in resolved]
         param_counts = Counter()
         
@@ -579,32 +586,26 @@ class Model(eqx.Module, metaclass=ModelMeta):
             prefix = f"{name}{self._separator}" if name is not None else ""
             return {f"{prefix}{p}" for p in params}
             
-        # 1. Count global occurrences of all simulated parameter paths
+        # 2. Count global occurrences of all simulated parameter paths
         for i, model in enumerate(resolved):
             param_counts.update(get_prefixed(model.name, param_sets[i]))
             
-        # 2. Identify which specific models are contributing to a collision
+        # 3. Identify which specific models are contributing to a collision
         colliding_indices = [
             i for i, model in enumerate(resolved)
             if any(param_counts[p] > 1 for p in get_prefixed(model.name, param_sets[i]))
         ]
         
-        # 3. Create a pool of the parameters that are currently safe
+        # 4. Create a pool of the parameters that are currently safe
         safe_params = set(p for p, count in param_counts.items() if count == 1)
         
-        # 4. Symmetrically rename only the colliding models
+        # 5. Symmetrically rename only the colliding models
         for i in colliding_indices:
             model = resolved[i]
-            base = model.name if model.name is not None else default_bases[i]
+            base = model.name # Guaranteed to be populated from Step 1
             
-            # If the user didn't name it, we first try the raw default (e.g., 'from_model').
-            # If they did name it, it already clashed, so we immediately start with a suffix.
-            if model.name is None:
-                candidate_name = base
-                suffix = 1
-            else:
-                suffix = 1
-                candidate_name = f"{base}_{suffix}"
+            suffix = 1
+            candidate_name = f"{base}_{suffix}"
             
             # Loop until the proposed path is completely disjoint from the safe pool
             while not get_prefixed(candidate_name, param_sets[i]).isdisjoint(safe_params):
@@ -615,7 +616,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             resolved[i] = model.with_name(candidate_name)
             safe_params.update(get_prefixed(candidate_name, param_sets[i]))
             
-        return tuple(resolved)    
+        return tuple(resolved)  
     
     def _with_stripped_metadata(self: Self) -> Self:
         def strip_metadata_recursive(obj, memo=None):

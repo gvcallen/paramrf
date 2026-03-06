@@ -60,7 +60,7 @@ class Circuit(Model, transparent=True):
             self.indexed_connections.append(indexed_connection)
             
         for model in self.models:
-            if type(model).__name__ == 'Port': 
+            if type(model) == Port: 
                 self.port_idxs.append(id_to_index[id(model)])
 
         defaults = [f"model_{i+1}" for i in range(len(self.models))]
