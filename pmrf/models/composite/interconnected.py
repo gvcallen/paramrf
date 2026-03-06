@@ -60,7 +60,7 @@ class Circuit(Model, transparent=True):
             self.indexed_connections.append(indexed_connection)
             
         for model in self.models:
-            if type(model) == 'Port': 
+            if type(model) == Port: 
                 self.port_idxs.append(id_to_index[id(model)])
 
     def s(self, freq: Frequency) -> jnp.array:
