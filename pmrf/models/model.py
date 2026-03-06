@@ -272,7 +272,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     # Private fields
     _separator: str = field(default='_', kw_only=True, repr=False, static=True, init=False)
     _metadata: dict = field(default_factory=dict, kw_only=True, repr=False, static=True, init=False)
-    _param_groups: list = field(default_factory=list, kw_only=True, repr=False, static=True)
+    _param_groups: list = field(default_factory=list, kw_only=True, repr=False, static=True, init=False)
 
     # Class variables
     _transparent: ClassVar[bool] = False
@@ -2125,7 +2125,9 @@ class Model(eqx.Module, metaclass=ModelMeta):
             new_fields[field_name] = child_model
 
         # 4. Return updated model
-        return dataclasses.replace(self, _param_groups=groups_to_keep, **new_fields)
+        new_model = dataclasses.replace(self, **new_fields)
+        object.__setattr__(new_model, '_param_groups', groups_to_keep)
+        return new_model
     
     def with_param_groups_removed(self: Self) -> Self:
         """Return a new model with all parameter groups removed recursively.
@@ -2139,10 +2141,10 @@ class Model(eqx.Module, metaclass=ModelMeta):
         Self
             A new model instance with no parameter groups.
         """
-        new_fields = {'_param_groups': []}
+        new_fields = {}  # Removed '_param_groups': [] from the initialization
         
         for f in dataclasses.fields(self):
-            # Skip the target field since we are already clearing it
+            # Skip the target field since we handle it at the end
             if f.name == '_param_groups':
                 continue
                 
@@ -2161,7 +2163,9 @@ class Model(eqx.Module, metaclass=ModelMeta):
                         for x in child
                     )
                     
-        return dataclasses.replace(self, **new_fields)    
+        new_model = dataclasses.replace(self, **new_fields)
+        object.__setattr__(new_model, '_param_groups', [])
+        return new_model
     
     # ---- Distribution manipulation --------------------------------------------------            
     
