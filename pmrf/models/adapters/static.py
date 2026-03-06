@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 from pmrf.models.adapters.base import Model
 from pmrf.frequency import Frequency
-from pmrf.util import field
+from pmrf.field import field
 
 class Measured(Model):
     """

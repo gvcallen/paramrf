@@ -9,7 +9,8 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.models.model import Model
-from pmrf.util import field, is_overridden
+from pmrf.field import field
+from pmrf.util import is_overridden
 from pmrf.frequency import Frequency
 
 class Discrete(Model, ABC):

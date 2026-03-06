@@ -31,3 +31,9 @@ try:
     __all__.append("SciPyMinimizeFitter")
 except ImportError:
     pass
+
+try:
+    from pmrf.fitting.backends.optax import OptaxFitter
+    __all__.append("OptaxFitter")
+except ImportError:
+    pass

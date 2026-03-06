@@ -14,6 +14,7 @@ from dataclasses import fields, is_dataclass
 from functools import update_wrapper
 from collections.abc import Sequence
 from typing import Sequence, Callable
+from typing_extensions import dataclass_transform  # Or 'from typing import...' if >= 3.11
 
 import jax
 import jax.numpy as jnp
@@ -31,9 +32,9 @@ from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
-from pmrf.util import field, classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
+from pmrf.util import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
 from pmrf.util.tree import nodes_by_type, value_at_path, partition, combine
-
+from pmrf.field import field  # Import your newly created field
 
 Z0_WARNING = \
 r"""
@@ -43,7 +44,12 @@ is not yet officially supported and you may encounter subtle bugs. For now, it i
 recommended to keep the default z0 and convert your results at the end.
 """
 
-class Model(eqx.Module):
+@dataclass_transform(field_specifiers=(field, eqx.field, dataclasses.field))
+class ModelMeta(type(eqx.Module)):
+    pass
+
+# 2. Assign the metaclass to your base Model
+class Model(eqx.Module, metaclass=ModelMeta):
     """
     Overview
     --------
@@ -263,10 +269,10 @@ class Model(eqx.Module):
     name: str | None = field(default=None, kw_only=True, static=True)
     z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
-    # Private non-init field
-    _separator: str = field(default='_', kw_only=True, repr=False, static=True)
-    _metadata: dict = field(default_factory=lambda: dict(), kw_only=True, repr=False, static=True)
-    _param_groups: list[ParameterGroup] = field(default_factory=lambda: list(), kw_only=True, repr=False, static=True)
+    # Private fields
+    _separator: str = field(default='_', kw_only=True, repr=False, static=True, init=False)
+    _metadata: dict = field(default_factory=dict, kw_only=True, repr=False, static=True, init=False)
+    _param_groups: list = field(default_factory=list, kw_only=True, repr=False, static=True, init=False)
 
     # Class variables
     _transparent: ClassVar[bool] = False
@@ -309,7 +315,7 @@ class Model(eqx.Module):
                         raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
                     field_kwargs['default'] = default
                 
-                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, name=field_name, fixed=True)
+                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, name=field_name, fixed=False)
                 # field_kwargs['default_factory'] = lambda default=default: default
             
             # Apply default_factory to avoid Python default mutable trap
@@ -497,7 +503,7 @@ class Model(eqx.Module):
     
     def _path_to_param_name(self, path) -> str:
         """Convert a PyTree path to a fully-qualified parameter name."""
-        fields = []
+        name_fields = []
         node = self
         parent_is_transparent = False
 
@@ -505,27 +511,38 @@ class Model(eqx.Module):
             if isinstance(item, GetAttrKey):
                 k = item.name
                 next_node = getattr(node, k)
+                
+                # 1. Check class-level transparency
                 is_transparent = getattr(node, '_transparent', False)
                 
+                # 2. Check field-level transparency
+                if not is_transparent and is_dataclass(node):
+                    # Find the specific dataclass field matching this attribute name
+                    field_obj = next((f for f in fields(node) if f.name == k), None)
+                    if field_obj is not None:
+                        is_transparent = field_obj.metadata.get('transparent', False)
+                
                 if is_transparent:
-                    # Container is transparent, skip its structural attribute name `k`.
+                    # Container or Field is transparent, skip its structural attribute name `k`.
                     if isinstance(next_node, Model):
                         child_name = getattr(next_node, 'name', None)
                         if child_name is not None:
-                            fields.append(child_name)
+                            name_fields.append(child_name)
                         parent_is_transparent = False 
-                    elif isinstance(next_node, (list, tuple, dict)): # <-- ADDED dict HERE
-                        # It's a container inside a transparent model. Defer to SequenceKey/DictKey.
+                    elif isinstance(next_node, (list, tuple, dict)):
+                        # It's a container inside a transparent scope. Defer to SequenceKey/DictKey.
                         parent_is_transparent = True 
                     elif isinstance(next_node, Parameter):
                         param_name = getattr(next_node, 'name', None)
-                        fields.append(param_name if param_name is not None else k)
+                        if param_name is not None:
+                            name_fields.append(param_name)
+                        # We do NOT fallback to `k` here if `param_name` is None.
+                        # This ensures the field is truly transparent.
                         parent_is_transparent = False
                     else:
-                        fields.append(k)
                         parent_is_transparent = False
                 else:
-                    fields.append(k)
+                    name_fields.append(k)
                     parent_is_transparent = False
                     
                 node = next_node
@@ -537,9 +554,11 @@ class Model(eqx.Module):
                 # Check for an explicit name, otherwise fallback to the dict key
                 node_name = getattr(node, 'name', None)
                 if node_name is not None:
-                    fields.append(node_name)
+                    name_fields.append(node_name)
+                elif parent_is_transparent:
+                    pass # Stay silent if parent is transparent
                 else:
-                    fields.append(str(k))
+                    name_fields.append(str(k))
                     
                 parent_is_transparent = False
                 
@@ -550,17 +569,17 @@ class Model(eqx.Module):
                 # Sequence items (like models in a Cascade)
                 node_name = getattr(node, 'name', None)
                 if node_name is not None:
-                    fields.append(node_name) # Always respect explicit names!
+                    name_fields.append(node_name) # Always respect explicit names!
                 elif parent_is_transparent:
                     pass # Transparent parent + no explicit name = stay completely silent.
                 else:
-                    fields.append(str(idx))
+                    name_fields.append(str(idx))
                     
                 parent_is_transparent = False
             else:
                 raise Exception(f"Unsupported key type in path: {type(item)}")
                 
-        return self._separator.join(fields)
+        return self._separator.join(name_fields)
     
     def _resolve_param_collisions(
         self, 
@@ -1357,6 +1376,47 @@ class Model(eqx.Module):
                     raise Exception(f"Parameter name '{k}' was passed but is not a free parameter")
             return [v for k, v in named_param_values.items() if k in key]
         
+    def __repr__(self):
+        from pmrf.parameters import Parameter 
+        
+        model_param_fields = []
+        other_fields = []
+        base_fields = []
+        
+        for f in dataclasses.fields(self):
+            # Skip hidden/internal fields like _separator and _metadata
+            if f.repr is False:
+                continue
+            
+            val = getattr(self, f.name)
+            val_repr = repr(val)
+            
+            # Indent multi-line strings (like nested models) for perfect alignment
+            indented_val_repr = val_repr.replace('\n', '\n    ')
+            formatted_field = f"    {f.name}={indented_val_repr}"
+            
+            # Sort into the three buckets:
+            
+            # 1. Base fields (name and z0) go at the very bottom
+            if f.name == "name":
+                base_fields.append(formatted_field)
+            elif f.name == "z0":
+                base_fields.append(formatted_field)
+                
+            # 2. Models and Parameters go at the very top
+            elif isinstance(val, (Model, Parameter)):
+                model_param_fields.append(formatted_field)
+                
+            # 3. Everything else (bools, ints, floats) goes in the middle
+            else:
+                other_fields.append(formatted_field)
+            
+        # Combine the lists in the requested order
+        all_fields_str = model_param_fields + other_fields + base_fields
+        joined_fields = ",\n".join(all_fields_str)
+        
+        return f"{self.__class__.__name__}(\n{joined_fields}\n)"
+
     # ---- Model inspection --------------------------------------------------    
     
     def children(self) -> list['Model']:
@@ -2077,7 +2137,9 @@ class Model(eqx.Module):
         # 3. Combine
         new_list = kept_existing_groups + param_groups
         
-        return dataclasses.replace(self, _param_groups=new_list)
+        new_model = copy(self)
+        object.__setattr__(new_model, '_param_groups', new_list)
+        return new_model
     
     def with_param_groups_demoted(self: Self) -> Self:
         """Recursively demote parameter groups to the deepest possible submodel.

@@ -9,7 +9,7 @@ from numpyro.distributions.distribution import Distribution
 
 from pmrf.distributions import NormalDistribution, UniformDistribution
 from pmrf.distributions.stacked import StackedDistribution
-from pmrf.util import field
+from pmrf.field import field
 from pmrf.constants import MIN_PERCENTILE, MAX_PERCENTILE
 
 class Parameter(eqx.Module):
@@ -334,6 +334,36 @@ class Parameter(eqx.Module):
             return 1 # e.g. for jax scalars
         return len(self.value)
     
+    def __repr__(self):
+        # Try to safely extract a scalar value for clean printing
+        val = self.value
+        if hasattr(val, "ndim") and val.ndim == 0:
+            val_repr = str(float(val))
+        elif hasattr(val, "size") and val.size == 1:
+            val_repr = str(float(val.item()))
+        else:
+            # Fallback for multi-dimensional arrays (keeps it from flooding the terminal)
+            val_repr = f"f64{list(val.shape)}" if hasattr(val, "shape") else repr(val)
+            
+        # Build the representation dynamically
+        # 'value' is always printed as it is the core of the Parameter
+        args = [f"value={val_repr}"]
+        
+        # Only add attributes if they deviate from the default
+        if self.scale != 1.0:
+            args.append(f"scale={self.scale}")
+            
+        if self.fixed is not False:  # or just `if self.fixed:`
+            args.append(f"fixed={self.fixed}")
+            
+        if self.distribution is not None:
+            args.append(f"distribution={self.distribution}")
+            
+        # if self.name is not None:
+        #     args.append(f"name={repr(self.name)}")
+            
+        # Join the filtered arguments with a comma and space
+        return f"Parameter({', '.join(args)})"    
     def __add__(self, other):
         r"""Elementwise addition."""
         return jnp.add(jnp.array(self), jnp.array(other))

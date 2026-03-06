@@ -7,7 +7,7 @@ jax.config.update("jax_enable_x64", True)
 from pmrf.models.model import Model
 from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
-from pmrf.util.misc import field
+from pmrf.field import field
 from pmrf.features import extract_features
 from pmrf.io import save, load
 from pmrf.network_collection import NetworkCollection

@@ -1,46 +1,10 @@
-from typing import Any
-import dataclasses
-from typing import Any, Callable, Mapping
 import pkgutil
 import importlib
 from datetime import datetime
 from typing import Union, get_origin
 import inspect
 from types import GenericAlias, UnionType
-import equinox as eqx
-from equinox import field
 
-# def field(
-#     *,
-#     default: Any = dataclasses.MISSING,
-#     default_factory: Callable[[], Any] | Any = dataclasses.MISSING,
-#     init: bool = True,
-#     repr: bool = True,
-#     hash: bool | None = None,
-#     compare: bool = True,
-#     metadata: Mapping[Any, Any] | None = None,
-#     kw_only: bool = False,         # <--- CRITICAL for preserving your clean __init__
-#     save: bool = True,         # <--- Your custom arg, with full intellisense!
-#     **kwargs                       # Catches Equinox's 'static' flag, etc.
-# ) -> Any:
-#     """ParamRF field definition."""
-#     if metadata is None:
-#         metadata = {}
-    
-#     metadata["save"] = save
-    
-#     return eqx.field(
-#         default=default,
-#         default_factory=default_factory,
-#         init=init,
-#         repr=repr,
-#         hash=hash,
-#         compare=compare,
-#         metadata=metadata,
-#         kw_only=kw_only,
-#         **kwargs
-#     )
-        
 class classproperty:
     def __init__(self, func):
         self.func = func

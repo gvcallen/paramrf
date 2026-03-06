@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.model import Model
-from pmrf.util import field
+from pmrf.field import field
         
 class Renumbered(Model, transparent=True):
     """
