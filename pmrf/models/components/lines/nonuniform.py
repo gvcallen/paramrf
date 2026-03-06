@@ -46,7 +46,7 @@ class ProfiledLine(Model, transparent=True):
             linear_taper, 
             length=0.1,
             zn={'start_val': 50.0, 'end_val': 100.0},
-            epr=2.2
+            epr=2.2,
             method='riccati',
             options={'rtol': 1e-6, 'atol': 1e-6},
         )

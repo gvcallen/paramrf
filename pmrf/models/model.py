@@ -282,7 +282,6 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def __init_subclass__(cls, transparent: bool = False, **kwargs):
         """Customize subclass construction.
 
-        - Applies default names to default ``Model``/``Parameter`` fields.
         - Adds converters for ``Parameter``-typed fields (``asparam``).
         - Protects against mutable-default pitfalls by using ``default_factory``.
         - Dynamically injects convenience methods like ``s_mag``, ``s_mn_mag``,
@@ -301,10 +300,10 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 continue
                 
             # Replace default model and parameter names with the field name
-            if isinstance(default, Model) and default.name is None:
-                default = dataclasses.replace(default, name=field_name)
-            if isinstance(default, Parameter) and default.name is None:
-                default = dataclasses.replace(default, name=field_name)
+            # if isinstance(default, Model) and default.name is None:
+            #     default = dataclasses.replace(default, name=field_name)
+            # if isinstance(default, Parameter) and default.name is None:
+            #     default = dataclasses.replace(default, name=field_name)
 
             # Auto apply asparam converter, to allow auto-conversion of Parameter-annotated structures
             field_type = get_first_underlying_type(field_types)
@@ -505,45 +504,34 @@ class Model(eqx.Module, metaclass=ModelMeta):
         """Convert a PyTree path to a fully-qualified parameter name."""
         name_fields = []
         node = self
-        parent_is_transparent = False
 
         for item in path:
             if isinstance(item, GetAttrKey):
                 k = item.name
                 next_node = getattr(node, k)
                 
-                # 1. Check class-level transparency
-                is_transparent = getattr(node, '_transparent', False)
+                # 1. Determine if this specific step in the path is transparent
+                is_transparent = False
                 
-                # 2. Check field-level transparency
-                if not is_transparent and is_dataclass(node):
-                    # Find the specific dataclass field matching this attribute name
+                # Check field-level transparency (Did the parent mark this field as transparent?)
+                if is_dataclass(node):
                     field_obj = next((f for f in fields(node) if f.name == k), None)
                     if field_obj is not None:
                         is_transparent = field_obj.metadata.get('transparent', False)
                 
-                if is_transparent:
-                    # Container or Field is transparent, skip its structural attribute name `k`.
-                    if isinstance(next_node, Model):
-                        child_name = getattr(next_node, 'name', None)
-                        if child_name is not None:
-                            name_fields.append(child_name)
-                        parent_is_transparent = False 
-                    elif isinstance(next_node, (list, tuple, dict)):
-                        # It's a container inside a transparent scope. Defer to SequenceKey/DictKey.
-                        parent_is_transparent = True 
-                    elif isinstance(next_node, Parameter):
-                        param_name = getattr(next_node, 'name', None)
-                        if param_name is not None:
-                            name_fields.append(param_name)
-                        # We do NOT fallback to `k` here if `param_name` is None.
-                        # This ensures the field is truly transparent.
-                        parent_is_transparent = False
-                    else:
-                        parent_is_transparent = False
-                else:
-                    name_fields.append(k)
-                    parent_is_transparent = False
+                # Check class-level transparency (Does the child inherently act as a transparent container?)
+                if not is_transparent and hasattr(next_node, '_transparent'):
+                    is_transparent = getattr(next_node, '_transparent')
+
+                # 2. Extract explicit name (Now guaranteed to be a user-override, or None)
+                explicit_name = getattr(next_node, 'name', None)
+                
+                # 3. Apply the routing logic
+                if explicit_name is not None:
+                    name_fields.append(explicit_name) # Always respect explicit user overrides
+                elif not is_transparent:
+                    name_fields.append(k) # Standard behavior: use the variable name
+                # Else: it IS transparent AND has no override. We stay completely silent (drop it).
                     
                 node = next_node
                 
@@ -551,36 +539,27 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 k = item.key
                 node = node[k]
                 
-                # Check for an explicit name, otherwise fallback to the dict key
-                node_name = getattr(node, 'name', None)
-                if node_name is not None:
-                    name_fields.append(node_name)
-                elif parent_is_transparent:
-                    pass # Stay silent if parent is transparent
+                explicit_name = getattr(node, 'name', None)
+                if explicit_name is not None:
+                    name_fields.append(explicit_name)
                 else:
                     name_fields.append(str(k))
                     
-                parent_is_transparent = False
-                
             elif isinstance(item, (SequenceKey, FlattenedIndexKey)):
                 idx = item.idx if hasattr(item, 'idx') else item.key
                 node = node[idx]
                 
-                # Sequence items (like models in a Cascade)
-                node_name = getattr(node, 'name', None)
-                if node_name is not None:
-                    name_fields.append(node_name) # Always respect explicit names!
-                elif parent_is_transparent:
-                    pass # Transparent parent + no explicit name = stay completely silent.
+                explicit_name = getattr(node, 'name', None)
+                if explicit_name is not None:
+                    name_fields.append(explicit_name)
                 else:
                     name_fields.append(str(idx))
                     
-                parent_is_transparent = False
             else:
                 raise Exception(f"Unsupported key type in path: {type(item)}")
                 
         return self._separator.join(name_fields)
-    
+
     def _resolve_param_collisions(
         self, 
         models: Sequence['Model'], 

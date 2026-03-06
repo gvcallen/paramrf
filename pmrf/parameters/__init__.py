@@ -12,7 +12,6 @@ __all__ = [
     "is_fixed_param",
     "as_param",
     "ParameterGroup",
-    "ParameterConstraint",
     "Uniform",
     "PercentUniform",
     "RelativeUniform",
