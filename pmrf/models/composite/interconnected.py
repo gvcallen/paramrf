@@ -118,7 +118,7 @@ class Cascade(Model, transparent=True):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-    models: tuple[Model]
+    models: list[Model]
     
     def __post_init__(self):
         model_reduced = []
@@ -133,7 +133,7 @@ class Cascade(Model, transparent=True):
         # Generate numerically sequenced defaults (model_1, model_2, etc.)
         defaults = [f"model_{i+1}" for i in range(len(model_reduced))]
         
-        self.models = self._resolve_param_collisions(model_reduced, defaults)
+        self.models = list(self._resolve_param_collisions(model_reduced, defaults))
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return cascade_a([model.a(freq) for model in self.models])
