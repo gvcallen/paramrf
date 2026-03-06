@@ -672,16 +672,16 @@ def _deserialize_distribution(dct: dict | None) -> Distribution | None:
         raise ValueError(f"Unknown distribution class: {dct['class']}")
     return cls(**dct["params"])
 
-def _format_val(val) -> str:
+def _format_val(val, sig_figs: int = 4) -> str:
     """Safely extract and format a scalar or array value for clean printing."""
     if hasattr(val, "ndim") and val.ndim == 0:
-        return str(float(val))
+        return f"{float(val):.{sig_figs}g}"
     elif hasattr(val, "size") and val.size == 1:
-        return str(float(val.item()))
+        return f"{float(val.item()):.{sig_figs}g}"
     else:
         # Fallback for multi-dimensional arrays
         return f"f64{list(val.shape)}" if hasattr(val, "shape") else repr(val)
-
+    
 def _format_distribution(d: Distribution) -> str:
     """Format a numpyro distribution dynamically using its arg_constraints."""
     class_name = d.__class__.__name__
