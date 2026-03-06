@@ -1,6 +1,7 @@
 import json
 import dataclasses
 from copy import deepcopy
+from typing import Any
 
 import jax.numpy as jnp
 import equinox as eqx
@@ -514,12 +515,12 @@ def is_fixed_param(x) -> bool:
     """
     return isinstance(x, Parameter) and x.fixed
 
-def as_param(x, **kwargs) -> Parameter:
+def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
     r"""
-    Ensure an object is a `Parameter`.
+    Ensure an object is a `Parameter` or container over parameters.
 
     If the object is already a `Parameter`, it is returned unchanged.
-    Otherwise, the object is converted into a new `Parameter`.
+    Otherwise, the underlying objects are converted into new `Parameter` objects.
 
     Parameters
     ----------
@@ -535,7 +536,12 @@ def as_param(x, **kwargs) -> Parameter:
     """
     if isinstance(x, Parameter):
         return x
-    return Parameter(value=x, **kwargs)
+    elif isinstance(x, list):
+        return [as_param(xi, **kwargs) for xi in x]
+    elif isinstance(x, dict):
+        return {k: as_param(xi, **kwargs) for k, xi in x.items()}
+    else:
+        return Parameter(value=x, **kwargs)
 
 def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
     """

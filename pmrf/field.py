@@ -1,5 +1,4 @@
-import dataclasses
-from typing import Any, Callable
+from typing import Any
 import equinox as eqx
 
 def field(
