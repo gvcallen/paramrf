@@ -560,64 +560,6 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 
         return self._separator.join(name_fields)
 
-    def _resolve_param_collisions(
-        self, 
-        models: Sequence['Model'], 
-        default_bases: Sequence[str]
-    ) -> tuple['Model', ...]:
-        """
-        Safely resolves parameter namespace collisions among a sequence of submodels.
-        If a model lacks a name, it is assigned the corresponding default_base.
-        Returns a tuple of models with updated names to ensure path isolation.
-        """
-        from collections import Counter
-        
-        resolved = list(models)
-        
-        # 1. Apply default bases to any unnamed models
-        for i, model in enumerate(resolved):
-            if model.name is None:
-                resolved[i] = model.with_name(default_bases[i])
-                
-        param_sets = [m.param_names(include_fixed=True) for m in resolved]
-        param_counts = Counter()
-        
-        def get_prefixed(name: str | None, params: list[str]) -> set[str]:
-            prefix = f"{name}{self._separator}" if name is not None else ""
-            return {f"{prefix}{p}" for p in params}
-            
-        # 2. Count global occurrences of all simulated parameter paths
-        for i, model in enumerate(resolved):
-            param_counts.update(get_prefixed(model.name, param_sets[i]))
-            
-        # 3. Identify which specific models are contributing to a collision
-        colliding_indices = [
-            i for i, model in enumerate(resolved)
-            if any(param_counts[p] > 1 for p in get_prefixed(model.name, param_sets[i]))
-        ]
-        
-        # 4. Create a pool of the parameters that are currently safe
-        safe_params = set(p for p, count in param_counts.items() if count == 1)
-        
-        # 5. Symmetrically rename only the colliding models
-        for i in colliding_indices:
-            model = resolved[i]
-            base = model.name # Guaranteed to be populated from Step 1
-            
-            suffix = 1
-            candidate_name = f"{base}_{suffix}"
-            
-            # Loop until the proposed path is completely disjoint from the safe pool
-            while not get_prefixed(candidate_name, param_sets[i]).isdisjoint(safe_params):
-                suffix += 1
-                candidate_name = f"{base}_{suffix}"
-                
-            # Lock in the safe name and add its parameters to the pool
-            resolved[i] = model.with_name(candidate_name)
-            safe_params.update(get_prefixed(candidate_name, param_sets[i]))
-            
-        return tuple(resolved)  
-    
     def _with_stripped_metadata(self: Self) -> Self:
         def strip_metadata_recursive(obj, memo=None):
             if memo is None:

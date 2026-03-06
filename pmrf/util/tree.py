@@ -244,7 +244,7 @@ def value_at_path(pytree, path):
             except:
                 raise Exception(f'Key error for path {path} with key "{k}"')
         else:
-            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <node_at_path> but '{type(item)}' was passed of value {item}")
+            raise Exception(f"Only DictKey, SequenceKey and GetAttrKey are supported in <node_at_path> but '{type(item)}' was passed of value {item} at path {path}")
         
     return node
 

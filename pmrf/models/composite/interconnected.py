@@ -60,11 +60,8 @@ class Circuit(Model, transparent=True):
             self.indexed_connections.append(indexed_connection)
             
         for model in self.models:
-            if type(model) == Port: 
+            if type(model) == 'Port': 
                 self.port_idxs.append(id_to_index[id(model)])
-
-        defaults = [f"model_{i+1}" for i in range(len(self.models))]
-        self.models = list(self._resolve_param_collisions(self.models, defaults))
 
     def s(self, freq: Frequency) -> jnp.array:
         Smats = [model.s(freq) for model in self.models]
@@ -118,7 +115,7 @@ class Cascade(Model, transparent=True):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-    models: list[Model]
+    models: tuple[Model]
     
     def __post_init__(self):
         model_reduced = []
@@ -131,9 +128,7 @@ class Cascade(Model, transparent=True):
                 model_reduced.append(model)
                 
         # Generate numerically sequenced defaults (model_1, model_2, etc.)
-        defaults = [f"model_{i+1}" for i in range(len(model_reduced))]
-        
-        self.models = list(self._resolve_param_collisions(model_reduced, defaults))
+        self.models = model_reduced
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return cascade_a([model.a(freq) for model in self.models])
@@ -147,24 +142,14 @@ class Cascade(Model, transparent=True):
     
 class Terminated(Model, transparent=True):
     """
-    Represents one 2N-port network terminated in an N-port network.
+    Represents one network terminated in another.
     """
     from_model: Model
     into_model: Model
     
     def __post_init__(self):
-        # Validate that the from_model has exactly twice the ports of into_model
-        if self.from_model.nports != 2 * self.into_model.nports:
-            raise ValueError(
-                f"Terminated requires a 2N-port network terminated in an N-port network. "
-                f"Got {self.from_model.nports}-port and {self.into_model.nports}-port."
-            )
-
-        resolved = self._resolve_param_collisions(
-            models=[self.from_model, self.into_model], 
-            default_bases=['from', 'into']
-        )
-        self.from_model, self.into_model = resolved
+        if self.from_model.nports != 2 or self.into_model.nports != 1:
+            raise ValueError("Currently, Terminated only supports 2-port networks terminated in a 1-port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         Smat_from = self.from_model.s(freq)
