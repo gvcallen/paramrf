@@ -272,7 +272,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     # Private fields
     _separator: str = field(default='_', kw_only=True, repr=False, static=True, init=False)
     _metadata: dict = field(default_factory=dict, kw_only=True, repr=False, static=True, init=False)
-    _param_groups: list = field(default_factory=list, kw_only=True, repr=False, static=True, init=False)
+    _param_groups: list = field(default_factory=list, kw_only=True, repr=False, static=True)
 
     # Class variables
     _transparent: ClassVar[bool] = False
