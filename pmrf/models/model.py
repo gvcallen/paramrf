@@ -390,7 +390,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         else:
             # Subclass relies on Equinox's auto-generated __init__, which will call __post_init__.
-            user_post_init = cls.__dict__.get('__post_init__')
+            user_post_init = getattr(cls, '__post_init__', None)
             
             def wrapped_post_init(self, *args, **kwargs_pi):
                 # 1. Run the user's __post_init__ if they defined one
