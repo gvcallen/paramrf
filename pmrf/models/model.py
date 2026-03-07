@@ -336,11 +336,14 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 base_kwargs = {}
                 
                 # Separate arguments
+                valid_fields = {f.name for f in dataclasses.fields(type(self))}
                 for k, v in init_kwargs.items():
                     if accepts_kwargs or k in sig.parameters:
                         user_kwargs[k] = v
-                    else:
+                    elif k in valid_fields:
                         base_kwargs[k] = v
+                    else:
+                        raise TypeError(f"{type(self).__name__}.__init__() got an unexpected keyword argument '{k}'")
                 
                 # 1. Apply base kwargs (name, z0)
                 for k, v in base_kwargs.items():
@@ -350,7 +353,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 user_init(self, *args, **user_kwargs)
                 
                 # 3. Apply defaults, default factories, and converters
-                for f in dataclasses.fields(cls):
+                for f in dataclasses.fields(self):
                     val = getattr(self, f.name, dataclasses.MISSING)
                     
                     if val is dataclasses.MISSING:
