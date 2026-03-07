@@ -28,6 +28,7 @@ class OneshotSampler(BaseSampler, ABC):
         self,
         *,
         N: int = 100,
+        batch_size: int = 1,
         key=None,
         **kwargs
     ) -> tuple[jnp.ndarray, Any]:
@@ -38,6 +39,8 @@ class OneshotSampler(BaseSampler, ABC):
         ----------
         N : int, default=100
             The total number of samples to generate and simulate.
+        batch_size : int, default=1
+            The number of points to simulate in each iteration.            
         **kwargs
             Additional arguments passed to the :meth:`generate` method.
 
@@ -54,7 +57,11 @@ class OneshotSampler(BaseSampler, ABC):
 
         U = self.generate(N, d, key=key, **kwargs)
         thetas = jnp.array([self.icdf(u) for u in U])
-        self.update(thetas)
+        
+        for i in range(0, thetas.shape[0], batch_size):
+            batch_theta = thetas[i : i + batch_size]
+            self.update(batch_theta)
+        
         return self.sampled_params, None
 
     @abstractmethod

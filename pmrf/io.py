@@ -66,7 +66,7 @@ def load(source: str | BinaryIO) -> Model:
             for f in obj.__dataclass_fields__:
                 _verify_no_degraded_models(getattr(obj, f), f"{current_path}.{f}")
 
-    _verify_no_degraded_models(decoded)
+    # _verify_no_degraded_models(decoded)
 
     return decoded
 

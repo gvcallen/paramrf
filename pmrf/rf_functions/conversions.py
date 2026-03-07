@@ -392,8 +392,6 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
     """
     Renormalize S-parameters from one impedance/definition to another.
 
-    This function chains `s2z` and `z2s` to perform the transformation.
-
     Parameters
     ----------
     s : jnp.ndarray
