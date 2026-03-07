@@ -6,7 +6,6 @@ from typing import Callable, Any, Dict
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import diffrax
 
 from pmrf.frequency import Frequency
 from pmrf.rf_functions.connections import cascade_s
@@ -184,6 +183,8 @@ class ProfiledLine(Model, transparent=True):
 
     @eqx.filter_jit
     def _s_riccati(self, freq: Frequency) -> jnp.ndarray:
+        import diffrax
+
         def s_derivative(t, S_state_tuple, args):
             # 1. Reconstruct complex S-matrix from the real/imag tuple state
             # This explicitly resolves the Diffrax complex dtype warning
