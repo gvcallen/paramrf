@@ -6,11 +6,14 @@ import equinox as eqx
 
 from pmrf.constants import NumberLike
 from pmrf.rf_functions.conversions import fix_z0_shape
+from pmrf.math_functions import nudge_diag
 
 @eqx.filter_jit
 def cascade_s(
     Smats: NumberLike,
     z0s: NumberLike,
+    method = 'redheffer',
+    eps=1e-12,
 ) -> jnp.ndarray:
     """
     Cascades multiple S-parameter networks together.
@@ -35,6 +38,12 @@ def cascade_s(
     jnp.ndarray
         The resulting S-parameter matrix of the cascaded system.
     """
+    if method != 'redheffer':
+        raise ValueError("Currently only method = 'redheffer' is supported for cascade_s")
+
+    Smats = jnp.array(Smats)
+    z0s = jnp.array(z0s)
+
     # Check port shapes and impedances
     nnetworks = Smats.shape[0]
     if not all(s.shape == Smats[0].shape for s in Smats):
@@ -52,7 +61,7 @@ def cascade_s(
     def scan_fn(carry, x):
         S_acc, z0_acc = carry
         S_i, z0_i = x
-        S_next, z0_next = _cascade_two_s_redheffer(S_acc, z0_acc, S_i, z0_i)
+        S_next, z0_next = _cascade_two_s_redheffer(S_acc, z0_acc, S_i, z0_i, eps=eps)
         return (S_next, z0_next), None
 
     # jax.lax.scan loops over the arrays dynamically without unrolling
@@ -69,6 +78,7 @@ def _cascade_two_s_redheffer(
     z0_A: jnp.ndarray,
     Smat_B: jnp.ndarray,
     z0_B: jnp.ndarray,
+    eps=1e-12,
 ):
     nports = Smat_A.shape[1]
     assert nports % 2 == 0
@@ -87,10 +97,12 @@ def _cascade_two_s_redheffer(
     B21 = Smat_B[:, N:, :N]
     B22 = Smat_B[:, N:, N:]
 
-    I = jnp.eye(N)
+    I = jnp.broadcast_to(jnp.eye(N), (Smat_A.shape[0], N, N))
 
-    X = jnp.linalg.inv(I - B11 @ A22)
-    Y = jnp.linalg.inv(I - A22 @ B11)
+    M = nudge_diag(I - B11 @ A22, eps=eps)
+    N = nudge_diag(I - A22 @ B11, eps=eps)
+    X = jnp.linalg.solve(M, I)
+    Y = jnp.linalg.solve(N, I)
 
     S11 = A11 + A12 @ X @ B11 @ A21
     S12 = A12 @ X @ B12
@@ -142,3 +154,32 @@ def cascade_a(
     final_a, _ = jax.lax.scan(scan_fn, init=Amats_array[0], xs=Amats_array[1:])
     
     return final_a
+
+def cascade_t(
+    Tmats: Sequence[jnp.ndarray],
+) -> jnp.ndarray:
+    """
+    Cascade multiple wave-transfer (T) matrices.
+
+    Parameters
+    ----------
+    Tmats : Sequence[jnp.ndarray]
+        Sequence of T matrices with shape (Nf, 2, 2)
+
+    Returns
+    -------
+    jnp.ndarray
+        Cascaded T matrix with shape (Nf, 2, 2)
+    """
+
+    Tmats_array = jnp.asarray(Tmats)
+
+    if Tmats_array.shape[0] == 1:
+        return Tmats_array[0]
+
+    def scan_fn(carry, x):
+        return carry @ x, None
+
+    final_t, _ = jax.lax.scan(scan_fn, init=Tmats_array[0], xs=Tmats_array[1:])
+
+    return final_t

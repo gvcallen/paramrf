@@ -148,7 +148,7 @@ class Terminated(Model, transparent=True):
     into_model: Model
     
     def __post_init__(self):
-        if self.from_model.nports != 2 or self.into_model.nports != 1:
+        if self.from_model.nports != 2*self.into_model.nports:
             raise ValueError("Currently, Terminated only supports 2-port networks terminated in a 1-port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:

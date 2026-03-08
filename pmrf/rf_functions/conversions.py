@@ -7,7 +7,7 @@ from jax.scipy.special import gammaln
 from jax._src.numpy.ufuncs import _constant_like
 
 from pmrf.constants import NumberLike
-from pmrf.math_functions import rsolve, nudge_eig
+from pmrf.math_functions import rsolve, nudge_eig, nudge_diag
 from pmrf.rf_functions.normalize import fix_z0_shape
 
 ZERO = 1e-4
@@ -225,7 +225,7 @@ def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarra
         A = s @ G + jnp.conjugate(G)
         B = Id - s
         
-        y = F_inv @ jnp.linalg.solve(A, B) @ F
+        y = F_inv @ jnp.linalg.solve(nudge_diag(A), B) @ F
 
     elif s_def == 'traveling':
         # Creating diagonal matrices of 1 / sqrt(Z0)
@@ -236,7 +236,7 @@ def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarra
         A = Id + s
         B = Id - s
         
-        y = inv_sqrtz0 @ jnp.linalg.solve(A, B) @ inv_sqrtz0
+        y = inv_sqrtz0 @ jnp.linalg.solve(nudge_diag(A), B) @ inv_sqrtz0
 
     else:
         raise ValueError(f"Unknown s_def: {s_def}")
@@ -329,15 +329,15 @@ def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
         diag_idx = jnp.arange(F.shape[1])
         F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
         G = G.at[:, diag_idx, diag_idx].set(z0)        
-        z = jnp.linalg.solve(nudge_eig((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
-        # z = jnp.linalg.solve((Id - s) @ F, (s @ G + jnp.conjugate(G)) @ F)
+        # z = jnp.linalg.solve(nudge_eig((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
+        z = jnp.linalg.solve(nudge_diag((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
     elif s_def == 'traveling':
         # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
         # Creating diagonal matrices of shape (nports, nports) for each nfreqs
         sqrtz0 = jnp.zeros_like(s)
         diag_idx = jnp.arange(s.shape[1])
         sqrtz0 = sqrtz0.at[:, diag_idx, diag_idx].set(jnp.sqrt(z0))
-        z = sqrtz0 @ jnp.linalg.solve(nudge_eig(Id - s), (Id + s) @ sqrtz0)        
+        z = sqrtz0 @ jnp.linalg.solve(nudge_diag(Id - s), (Id + s) @ sqrtz0)        
     else:
         raise ValueError(f'Unknown s_def: {s_def}')
 
@@ -388,7 +388,7 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
+def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='hub') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.
 
@@ -415,9 +415,8 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
     if method == 'hub':
         return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
     elif method == 'mobius':
-        s_renorm = renormalize_s_mobius(s, z_old, z_new)
+        s_renorm = renormalize_s_mobius(s, z_old, z_new, s_def=s_def_old)
         s_redef = s2s(s_renorm, z_new, s_def_new=s_def_new, s_def_old=s_def_old)
-        # s_redef = s_renorm
         return s_redef
     else:
         raise ValueError("Unknown S renormalization method")
@@ -426,7 +425,10 @@ def renormalize_s_mobius(
     s: jnp.ndarray,
     z_old: NumberLike,
     z_new: NumberLike,
+    s_def: str = 'power',
 ) -> jnp.ndarray:
+    if s_def != 'traveling':
+        s = s2s(s, z_old, 'traveling', s_def)
 
     nfreqs, nports, _ = s.shape
 
@@ -448,4 +450,9 @@ def renormalize_s_mobius(
         # Solve X A = B
         return jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
 
-    return jax.vmap(renorm_per_freq)(s, Z_A, Z_B)
+    s_renorm = jax.vmap(renorm_per_freq)(s, Z_A, Z_B)
+
+    if s_def != 'traveling':
+        s_renorm = s2s(s_renorm, z_old, s_def, 'traveling')
+
+    return s_renorm

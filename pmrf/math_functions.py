@@ -1058,7 +1058,6 @@ def nudge_eig(
     mat: jnp.ndarray,
     cond: float = 1e-9,
     min_eig: float = 1e-12,
-    diff: bool = True,
 ) -> jnp.ndarray:
     r"""
     Nudge eigenvalues with absolute value smaller than `max(cond * max(eigenvalue), min_eig)` to that value.
@@ -1082,9 +1081,6 @@ def nudge_eig(
     res : np.ndarray
         Nudged matrices.
     """
-    if diff:
-        return nudge_svd(mat, cond=cond, min_val=min_eig)
-
     eigw, eigv = jnp.linalg.eig(mat)
     max_eig = jnp.amax(jnp.abs(eigw), axis=1)
     mask = jnp.logical_or(jnp.abs(eigw) < cond * max_eig[:, None], jnp.abs(eigw) < min_eig)
@@ -1134,6 +1130,16 @@ def nudge_svd(mat: jnp.ndarray,
     # 4. Reconstruct and return the conditioned matrix
     # S_nudged[..., None] broadcasts the 1D array to multiply rows of Vh correctly
     return U @ (S_nudged[..., None] * Vh)
+
+def nudge_diag(mat: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
+    """
+    Stabilize matrix inversion by adding a tiny epsilon to the diagonal.
+    Fully stable and smoothly differentiable in JAX.
+    """
+    nfreqs, nports, _ = mat.shape
+    # Create an identity matrix broadcasted to the batch shape
+    Id = jnp.eye(nports, dtype=mat.dtype)
+    return mat + epsilon * Id
 
 def round_sig(x, sig=3):
     """
