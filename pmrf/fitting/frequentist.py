@@ -51,10 +51,19 @@ class FrequentistFitter(BaseFitter, ABC):
         *,
         cost_kind: str = None,
         error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
+        tikhonov_lambda: float = 0.0,
         **kwargs
     ):
         # Let base class consume features, etc.
         super().__init__(model, **kwargs)
+
+        self.tikhonov_lambda = tikhonov_lambda
+        self.initial_theta = self.model.flat_param_values()
+
+        # Extract bounds and calculate safe parameter ranges
+        lower_bounds, upper_bounds = self.model.distribution().bounds
+        param_ranges = jnp.array(upper_bounds) - jnp.array(lower_bounds)
+        self.param_ranges = jnp.where(param_ranges == 0.0, 1.0, param_ranges)        
         
         # Apply standard Python defaults/mutations safely to 'self'
         if self.features is None and cost_kind is None:
@@ -112,12 +121,28 @@ class FrequentistFitter(BaseFitter, ABC):
         """
         if self._cost_fn is None:
             self.logger.debug("Lazily compiling Frequentist cost function...")
+
+            # Capture class attributes for the JAX closure at compile time
+            reg_weight = self.tikhonov_lambda
+            theta_0 = self.initial_theta
+            p_ranges = self.param_ranges
             
             # 2. Compile the specific cost loop
             @jax.jit
             def cost_fn(theta, target_feats):
                 model_features = self.model_features(theta)
                 error = target_feats - model_features
+
+                # Base cost
+                base_cost = self._error_fn(error)
+                base_cost = base_cost if jnp.isscalar(base_cost) else base_cost[0]
+
+                if reg_weight > 0.0 and theta_0 is not None:
+                    # Normalize the difference by the parameter ranges
+                    normalized_diff = (theta - theta_0) / p_ranges
+                    l2_penalty = reg_weight * jnp.sum(normalized_diff ** 2)
+                    return base_cost + l2_penalty                
+
                 cost_val = self._error_fn(error)
                 return cost_val if jnp.isscalar(cost_val) else cost_val[0]
                 

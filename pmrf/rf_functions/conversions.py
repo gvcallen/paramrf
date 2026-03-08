@@ -444,11 +444,20 @@ def renormalize_s_mobius(
         GammaS = gamma[:, None] * s_f
         S_minus_G = s_f - jnp.diag(gamma)
 
-        A = I - GammaS
+        # 1. Add numerical stabilization to prevent singular matrix inversion
+        A = nudge_diag(I - GammaS) 
         B = S_minus_G
 
-        # Solve X A = B
-        return jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
+        # Solve X A = B => X = (S - Gamma) @ (I - Gamma S)^-1
+        X = jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
+
+        # 2. Apply the wave-amplitude scaling matrix M
+        M = (z_b + z_a) / (2 * jnp.sqrt(z_a * z_b))
+        
+        # M @ X @ M^-1 is mathematically equivalent to multiplying each X_ij by (M_i / M_j)
+        s_renorm_f = X * (M[:, None] / M[None, :])
+        
+        return s_renorm_f
 
     s_renorm = jax.vmap(renorm_per_freq)(s, Z_A, Z_B)
 

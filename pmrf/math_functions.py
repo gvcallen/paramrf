@@ -1131,15 +1131,21 @@ def nudge_svd(mat: jnp.ndarray,
     # S_nudged[..., None] broadcasts the 1D array to multiply rows of Vh correctly
     return U @ (S_nudged[..., None] * Vh)
 
-def nudge_diag(mat: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
+def nudge_diag(mat: jnp.ndarray, eps: float = 1e-12) -> jnp.ndarray:
     """
     Stabilize matrix inversion by adding a tiny epsilon to the diagonal.
     Fully stable and smoothly differentiable in JAX.
+    Supports unbatched (2D) and batched (N-D) square matrices.
     """
-    nfreqs, nports, _ = mat.shape
-    # Create an identity matrix broadcasted to the batch shape
+    # The last dimension is always the number of ports for a square matrix
+    nports = mat.shape[-1]
+    
+    # Create an identity matrix for the inner 2D matrix
     Id = jnp.eye(nports, dtype=mat.dtype)
-    return mat + epsilon * Id
+    
+    # JAX will automatically broadcast this (nports, nports) identity matrix 
+    # across any leading batch dimensions (like nfreqs) that `mat` might have.
+    return mat + eps * Id
 
 def round_sig(x, sig=3):
     """
