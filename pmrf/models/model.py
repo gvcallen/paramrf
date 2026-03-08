@@ -125,7 +125,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
     - Retrieve parameter information via methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc..
     - Use `with_xxx` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.
-    - Use "past tense" functions to modify the model in conjuction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
+    - Use "past tense" functions to modify the model in conjunction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
 
     See also the :mod:`pmrf.fitting` and :mod:`pmrf.sampling` modules for details on model fitting and sampling.
 
@@ -183,7 +183,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     :meth:`func_samples`              Evaluate an arbitrary function over parameter samples.
     ================================= ====================================================================
 
-    **Model Inspection & Modification**
+    **Model Inspection & Manipulation**
 
     ================================= ====================================================================
     Method                            Description
@@ -218,31 +218,40 @@ class Model(eqx.Module, metaclass=ModelMeta):
     :meth:`distribution`              Joint distribution over (flattened) parameters.
     ================================= ====================================================================
 
-    **Parameter Modification**
+    **Parameter Manipulation**
 
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`with_params`               Return a new model with parameters updated.
+    :meth:`with_params`               Return a model with parameters updated.
+    :meth:`with_mapped_params`        Apply a map function to parameters.
     :meth:`with_fixed_params`         Return a model with specified parameters fixed.
-    :meth:`with_free_params`          Return a model with specified parameters freed.
-    :meth:`with_free_params_only`     Return a model with ONLY the specified parameters freed.
+    :meth:`with_free_params`          Return a model with specified parameters free.
+    :meth:`with_free_params_only`     Return a model with ONLY the specified parameters free.
     :meth:`with_all_params_fixed`     Return a model with all parameters fixed.
     :meth:`with_all_params_free`      Return a model with all parameters free.
     ================================= ====================================================================
 
-    **Parameter Group & Distribution Manipulation**
+    **Parameter Group Manipulation**
 
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
     :meth:`with_param_groups`         Return a model with parameter groups appended.
-    :meth:`with_param_groups_demoted` Recursively demote parameter groups to deepest submodel.
-    :meth:`with_param_groups_removed` Return a new model with all parameter groups removed.
-    :meth:`with_uniform_distributions` Return a model with uniform distributions set.
-    :meth:`with_distributions_mapped` Apply a map function to the parameter distributions.
+    :meth:`with_demoted_param_groups` Recursively demote parameter groups to deepest submodel.
+    :meth:`with_no_param_groups`      Return a model with all parameter groups removed.
     ================================= ====================================================================
 
+    **Distribution Manipulation**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
+    :meth:`with_mapped_distributions` Apply a map function to the parameter distributions.
+    :meth:`with_uniform_distributions` Return a model with uniform distributions set.
+    ================================= ====================================================================
+    
+    
     **Field & Model Manipulation**
 
     ================================= ====================================================================
@@ -667,7 +676,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     
     def _iter_params(
         self,
-        filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None,
+        param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None,
         *,
         include_fixed: bool = False,
         flatten: bool = False,
@@ -680,21 +689,21 @@ class Model(eqx.Module, metaclass=ModelMeta):
         params: list[tuple[str, Parameter]] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
 
         # Parameter filtering
-        if filter is not None:
+        if param_filter is not None:
             # Normalization
-            if isinstance(filter, str):
-                filter = [filter]
+            if isinstance(param_filter, str):
+                param_filter = [param_filter]
 
             # Apply filter
-            if isinstance(filter, Sequence) and isinstance(filter[0], str):
-                params = [(k, v) for k, v in params if k in filter]
-            elif isinstance(filter, Sequence) and isinstance(filter[0], Parameter):
-                filter_ids = [id(v) for v in filter]
+            if isinstance(param_filter, Sequence) and isinstance(param_filter[0], str):
+                params = [(k, v) for k, v in params if k in param_filter]
+            elif isinstance(param_filter, Sequence) and isinstance(param_filter[0], Parameter):
+                filter_ids = [id(v) for v in param_filter]
                 params = [(k, v) for k, v in params if id(v) in filter_ids]
-            elif isinstance(filter, Callable):
-                params = [(k, v) for k, v in params if filter(k)]
+            elif isinstance(param_filter, Callable):
+                params = [(k, v) for k, v in params if param_filter(k)]
             else:
-                raise Exception(f"Unknown filter type passed for parameters: {filter}")
+                raise Exception(f"Unknown filter type passed for parameters: {param_filter}")
 
         # Submodel filtering
         if submodels is not None:
@@ -1360,7 +1369,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         """
         return nodes_by_type(self, Model)[1:]        
 
-    # ---- Model modification --------------------------------------------------    
+    # ---- Model Manipulation --------------------------------------------------    
 
     def partition(self: Self, include_fixed=False, param_objects=False) -> tuple[Self, Self]:        
         """Partition model into (parameters, static) trees.
@@ -1446,7 +1455,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
        
     # ---- Parameter inspection -------------------------------------------------- 
     
-    def named_params(self, filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None, *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None, *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Named model parameters as a dict.
 
         Keys are fully-qualified parameter names.
@@ -1454,7 +1463,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         Parameters
         ----------
-        filter : str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], default=None
+        param_filter : str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], default=None
             A filter indicating which parameters to return. For the default case, all parameters are returned.
         include_fixed : bool, default=False
             Include fixed parameters.
@@ -1466,7 +1475,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         -------
         dict[str, Parameter]
         """
-        return dict(self._iter_params(filter=filter, include_fixed=include_fixed, submodels=submodels))
+        return dict(self._iter_params(param_filter=param_filter, include_fixed=include_fixed, submodels=submodels))
     
     def named_param_values(self, scaled=False, **kwargs) -> dict[str, jnp.ndarray]:
         """Named model parameter values as a dict of jax arrays.
@@ -1716,7 +1725,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         
         Parameters
         ----------
-        param_grous : bool, optional
+        param_groups : bool, optional
             Whether or not to use the internal parameter groups
             to create the joint distribution. Defaults to ``True``.
         
@@ -1735,7 +1744,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             
         return JointDistribution(distributions=group_dists, distribution_names=group_names, param_names=self.flat_param_names())
     
-    # ---- Parameter modification --------------------------------------------------            
+    # ---- Parameter Manipulation --------------------------------------------------            
 
     def with_params(
         self: Self,
@@ -1893,82 +1902,114 @@ class Model(eqx.Module, metaclass=ModelMeta):
         new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
         combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
         return combined         
-        
-    def with_fixed_params(self: Self, filter: str | Sequence[str] | Callable[[str], bool], *, check_unknown=True) -> Self:
-        """Return a model with specified parameters fixed.
+
+    def with_mapped_params(
+        self: Self, 
+        mapper: Callable[[Parameter], Parameter], 
+        param_filter: str | Sequence[str] | Callable[[str], bool] | None = None, 
+        *, 
+        map_others: Callable[[Parameter], Parameter] | None = None,
+        prefixes: bool = False
+    ) -> Self:
+        """Return a model with specified parameters mapped.
 
         Parameters
         ----------
-        filter : str | Sequence[str] | Callable[[str], bool]
-            Parameter names to fix.
-        check_unknown : bool, default=True
-            Error if any provided name does not exist.
+        mapper : Callable[[Parameter], Parameter]
+            The map to apply to each parameter in the filter (or all if no filter).
+        param_filter : str | Sequence[str] | Callable[[str], bool] | None, default=None
+            Parameter names to map. If None, applies mapper to all parameters.
+        map_others : Callable[[Parameter], Parameter] | None, default=None
+            An optional map to apply to all parameters NOT in the filter.
+        prefixes : bool, default=False
+            Specifies that, when a string or list of strings is passed
+            in `param_filter`, these must be interpreted as parameter prefixes
+            to map and not full path names. Defaults to `False.`            
 
         Returns
         -------
         Self
         """
-        if isinstance(filter, str):
-            filter = [filter]
-            
-        if isinstance(filter, Callable):
-            filter = [p for p in self.param_names() if filter(p)]
-        
-        filter = set(filter)
-            
         current_params = self.named_params()        
         current_param_names = set(current_params.keys())
         
-        if check_unknown:
-            for param_name in filter:
+        # NEW: If no filter is provided, target all parameters in the model
+        if param_filter is None:
+            resolved_filter = current_param_names
+        else:
+            if isinstance(param_filter, str):
+                param_filter = [param_filter]
+
+            if isinstance(param_filter, list) and param_filter and isinstance(param_filter[0], str) and prefixes:
+                for prefix in param_filter:
+                    if not any(name.startswith(prefix) for name in current_param_names):
+                        raise ValueError(f"Specified prefix '{prefix}' does not match any parameters in the model")
+                
+                valid_prefixes = tuple(param_filter)
+                param_filter = lambda p: p.startswith(valid_prefixes)            
+                
+            if isinstance(param_filter, Callable):
+                # Assuming self.param_names() returns a list of valid parameter name strings
+                param_filter = [p for p in self.param_names() if param_filter(p)]
+            
+            resolved_filter = set(param_filter)
+            
+            for param_name in resolved_filter:
                 if param_name not in current_param_names:
-                    raise Exception(f"Specified parameter '{param_name}' not found in model")
+                    raise ValueError(f"Specified parameter '{param_name}' not found in model")
         
         new_params = current_params.copy()
         for name, param in current_params.items():
-            if name in filter:
-                new_params[name] = param.as_fixed()
-        return self.with_params(new_params)
-    
-    def with_free_params(self: Self, params: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, fix_others=False) -> Self:
-        """Free the specified parameters.
+            if name in resolved_filter:
+                new_params[name] = mapper(param)
+            elif map_others is not None:
+                new_params[name] = map_others(param)
+                
+        return self.with_params(new_params)   
+        
+    def with_fixed_params(self: Self, param_filter: str | Sequence[str] | Callable[[str], bool], free_others: bool = False, **kwargs) -> Self:
+        """Return a model with specified parameters fixed.
+
+        This maps each parameter in the filter, calling :meth:`Parameter.as_fixed` on each.
+
+        See :meth:`.with_mapped_params`.
 
         Parameters
         ----------
-        params : str | Sequence[str] | Callable[[str], bool]
-            Parameters to set free.
-        fix_others : bool, default=True
-            Fix parameters not specified.
+        free_others : bool, default=False
+            Also free all parameters not in the filter.        
 
         Returns
         -------
         Self
         """
-        if isinstance(params, str):
-            params = [params]
+        map_others = None
+        if free_others:
+            map_others = lambda p: p.as_free()
 
-        if isinstance(params, Callable):
-            params = [p for p in self.param_names() if params(p)]        
-        
-        if len(params) > 0 and isinstance(params[0], Parameter):
-            param_id_to_name: dict[Parameter, str] = {id(v): k for k, v in self.named_params().items()}
-            params = [param_id_to_name[id(param)] for param in params]
-        
-        params = set(params)
-        current_params = self.named_params(include_fixed=True)
-        current_param_names = set(current_params.keys())
-        
-        for param_name in params:
-            if param_name not in current_param_names:
-                raise Exception(f"Specified parameter '{param_name}' not found in model")
-        
-        new_params = current_params.copy()
-        for name, param in current_params.items():
-            if name in params:
-                new_params[name] = param.as_free()
-            elif fix_others:
-                new_params[name] = param.as_fixed()
-        return self.with_params(new_params)
+        return self.with_mapped_params(lambda p: p.as_fixed(), param_filter=param_filter, map_others=map_others, **kwargs)
+    
+    def with_free_params(self: Self, param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, fix_others: bool = False, **kwargs) -> Self:
+        """Free the specified parameters.
+
+        This maps each parameter in the filter, calling :meth:`Parameter.as_free` on each.
+
+        See :meth:`.with_mapped_params`.
+
+        Parameters
+        ----------
+        fix_others : bool, default=False
+            Also fix all parameters not in the filter.
+
+        Returns
+        -------
+        Self
+        """
+        map_others = None
+        if fix_others:
+            map_others = lambda p: p.as_free()
+
+        return self.with_mapped_params(lambda p: p.as_fixed(), param_filter=param_filter, map_others=map_others, **kwargs)        
     
     def with_free_params_only(self: Self, params: str | list[str] | Callable[[str], bool], **kwargs) -> Self:
         """Returns a model with only the specified parameters freed.
@@ -2064,7 +2105,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         object.__setattr__(new_model, '_param_groups', new_list)
         return new_model
     
-    def with_param_groups_demoted(self: Self) -> Self:
+    def with_demoted_param_groups(self: Self) -> Self:
         """Recursively demote parameter groups to the deepest possible submodel.
 
         This method identifies parameter groups where every parameter belongs to the same 
@@ -2120,7 +2161,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 child_model = child_model.with_param_groups(groups_to_push)
             
             # B. Recurse: Ask the child to demote its groups (including the ones we just pushed)
-            child_model = child_model.with_param_groups_demoted()
+            child_model = child_model.with_demoted_param_groups()
             
             new_fields[field_name] = child_model
 
@@ -2129,7 +2170,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         object.__setattr__(new_model, '_param_groups', groups_to_keep)
         return new_model
     
-    def with_param_groups_removed(self: Self) -> Self:
+    def with_no_param_groups(self: Self) -> Self:
         """Return a new model with all parameter groups removed recursively.
 
         This clears the `_param_groups` of the current model and traverses
@@ -2152,14 +2193,14 @@ class Model(eqx.Module, metaclass=ModelMeta):
             
             # 1. Recurse into direct submodels
             if isinstance(child, Model):
-                new_fields[f.name] = child.with_param_groups_removed()
+                new_fields[f.name] = child.with_no_param_groups()
                 
             # 2. Recurse into sequences of submodels (e.g., in composites like Cascade)
             elif isinstance(child, (list, tuple)):
                 # Only process the sequence if it actually contains at least one Model
                 if any(isinstance(x, Model) for x in child):
                     new_fields[f.name] = type(child)(
-                        x.with_param_groups_removed() if isinstance(x, Model) else x 
+                        x.with_no_param_groups() if isinstance(x, Model) else x 
                         for x in child
                     )
                     
@@ -2167,9 +2208,92 @@ class Model(eqx.Module, metaclass=ModelMeta):
         object.__setattr__(new_model, '_param_groups', [])
         return new_model
     
-    # ---- Distribution manipulation --------------------------------------------------            
+    # ---- Distribution manipulation --------------------------------------------------
+
+    def with_mapped_distributions(
+        self: Self, 
+        mapper: Callable[[Distribution], Distribution], 
+        dist_filter: Callable[[Distribution], bool] | None = None, 
+        *, 
+        map_others: Callable[[Distribution], Distribution] | None = None,
+        param_groups: bool = False
+    ) -> Self:
+        """Return a model with a function applied to its parameter distributions.
+
+        This method allows for bulk-updates of distributions, such as widening variances 
+        or changing distribution types.
+
+        If ``param_groups`` is False, the mapping is applied to the distributions 
+        of individual parameters (flattened).
+
+        If ``param_groups`` is True, the mapping is applied to the distributions 
+        of :class:`ParameterGroup` objects. This mode is recursive: it will traverse 
+        the model tree and apply the mapping to all explicit parameter groups in all submodels.
+
+        Parameters
+        ----------
+        mapper : Callable[[Distribution], Distribution]
+            Function that takes a distribution and returns a new one.
+        dist_filter : Callable[[Distribution], bool] | None, default=None
+            A predicate function. If provided, the mapping is only applied to 
+            distributions where ``dist_filter(dist)`` is True. If None, applies to all.
+        map_others : Callable[[Distribution], Distribution] | None, default=None
+            An optional map to apply to all distributions NOT in the filter.
+        param_groups : bool, default=False
+            If True, map distributions on parameter groups (recursively). 
+            If False, map distributions on individual parameters (flat).
+
+        Returns
+        -------
+        Self
+            A new model with updated distributions.
+        """
+        mapped_model = self
+
+        if param_groups:
+            # 1. Map Local Groups (Current Level)
+            current_groups = self._param_groups if self._param_groups is not None else []
+            for group in current_groups:
+                if dist_filter is None or dist_filter(group.distribution):
+                    mapped_model = mapped_model.with_param_groups(group.with_distribution(mapper(group.distribution)))
+                elif map_others is not None:
+                    mapped_model = mapped_model.with_param_groups(group.with_distribution(map_others(group.distribution)))
+
+            # 2. Recurse into Submodels
+            new_submodels = {}
+            for f in dataclasses.fields(mapped_model):
+                child = getattr(mapped_model, f.name)
+                # Check if the field is a direct submodel
+                if isinstance(child, Model):
+                    # Recursive call
+                    updated_child = child.with_mapped_distributions(
+                        mapper, 
+                        dist_filter, 
+                        map_others=map_others, 
+                        param_groups=True
+                    )
+                    new_submodels[f.name] = updated_child
+            
+            # Apply submodel updates if any
+            if new_submodels:
+                mapped_model = dataclasses.replace(mapped_model, **new_submodels)
+
+        else:
+            # 3. Existing logic for individual params (Global via named_params)
+            new_params = {}
+            for name, param in self.named_params().items():
+                if dist_filter is None or dist_filter(param.distribution):
+                    new_params[name] = param.with_distribution(mapper(param.distribution))
+                elif map_others is not None:
+                    new_params[name] = param.with_distribution(map_others(param.distribution))
+            
+            # Apply all parameter updates at once
+            if new_params:
+                mapped_model = mapped_model.with_params(new_params)
+                    
+        return mapped_model
     
-    def with_uniform_distributions(self, percentage: float, filter: str | Sequence[str] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
+    def with_uniform_distributions(self, percentage: float, param_filter: str | Sequence[str] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
         """Return a model with uniform distributions set centered on current parameter values.
 
         The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.
@@ -2193,7 +2317,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             A new model with updated parameter distributions.
         """        
         updates = {}
-        for name, param in self.named_params(filter).items():
+        for name, param in self.named_params(param_filter).items():
             new_min = param * (1.0 - percentage) / param.scale
             new_max = param * (1.0 + percentage) / param.scale
 
@@ -2206,73 +2330,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
             
         new_model = self.with_params(updates)
         if remove_param_groups:
-            new_model = new_model.with_param_groups_removed()
+            new_model = new_model.with_no_param_groups()
         return new_model
-
-    def with_distributions_mapped(self, map_fn: Callable[[Distribution], Distribution], filter_fn: Callable[[Distribution], bool] | None = None, param_groups=False):
-        """Return a model with a function applied to its parameter distributions.
-
-        This method allows for bulk-updates of distributions, such as widening variances 
-        or changing distribution types.
-
-        If ``param_groups`` is False, the mapping is applied to the distributions 
-        of individual parameters (flattened).
-
-        If ``param_groups`` is True, the mapping is applied to the distributions 
-        of :class:`ParameterGroup` objects. This mode is recursive: it will traverse 
-        the model tree and apply the mapping to all explicit parameter groups in all submodels.
-
-        Parameters
-        ----------
-        map_fn : Callable[[Distribution], Distribution]
-            Function that takes a distribution and returns a new one.
-        filter_fn : Callable[[Distribution], bool], optional
-            A predicate function. If provided, the mapping is only applied to 
-            distributions where ``filter_fn(dist)`` is True.
-        param_groups : bool, default=False
-            If True, map distributions on parameter groups (recursively). 
-            If False, map distributions on individual parameters (flat).
-
-        Returns
-        -------
-        Self
-            A new model with updated distributions.
-        """
-        mapped_model = self
-
-        if param_groups:
-            # 1. Map Local Groups (Current Level)
-            current_groups = self._param_groups if self._param_groups is not None else []
-            for group in current_groups:
-                do_map = True if filter_fn is None else filter_fn(group.distribution)
-                if do_map:
-                    # Update local groups using existing method to ensure safe replacement
-                    mapped_model = mapped_model.with_param_groups(group.with_distribution(map_fn(group.distribution)))
-
-            # 2. Recurse into Submodels
-            new_submodels = {}
-            for f in dataclasses.fields(mapped_model):
-                child = getattr(mapped_model, f.name)
-                # Check if the field is a direct submodel
-                if isinstance(child, Model):
-                    # Recursive call
-                    updated_child = child.with_distributions_mapped(map_fn, filter_fn, param_groups=True)
-                    new_submodels[f.name] = updated_child
-            
-            # Apply submodel updates if any
-            if new_submodels:
-                mapped_model = dataclasses.replace(mapped_model, **new_submodels)
-
-        else:
-            # Existing logic for individual params (Global via named_params)
-            for name, param in self.named_params().items():
-                do_map = True if filter_fn is None else filter_fn(param.distribution)
-                if do_map:
-                    # Fixed: Added 'map_fn' wrapper which was missing in the snippet
-                    new_param = param.with_distribution(map_fn(param.distribution))
-                    mapped_model = mapped_model.with_params({name: new_param})
-                    
-        return mapped_model 
     
     # ---- Field and model manipulation --------------------------------------------------            
     
@@ -2415,7 +2474,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         return self.with_free_submodels(*args, **kwargs)
     
     def with_fixed_submodels(self: Self, submodels: 'Model' | Sequence['Model'] | str | Sequence[str]) -> Self:
-        """Fixed all parameters in the given submodels.
+        """Fix all parameters in the given submodels.
 
         Submodels parameters are obtained using :meth:`.param_names`.,
         and subsequently fixed using :meth:`.`with_fixed_params``.
