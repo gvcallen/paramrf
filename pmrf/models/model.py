@@ -46,7 +46,62 @@ recommended to keep the default z0 and convert your results at the end.
 
 @dataclass_transform(field_specifiers=(field, eqx.field, dataclasses.field))
 class ModelMeta(type(eqx.Module)):
-    pass
+    def __new__(mcs, name, bases, namespace, **kwargs):
+        annotations = namespace.get('__annotations__', {})
+        
+        for field_name, field_types in annotations.items():
+            field_kwargs = {}
+            default = namespace.get(field_name, dataclasses.MISSING)
+            
+            field_type = get_first_underlying_type(field_types)
+            is_param_type = field_type is not None and isinstance(field_type, type) and issubclass(field_type, Parameter)
+            
+            # 1. Handle explicit Field declarations (e.g., x = prf.field(...))
+            if isinstance(default, dataclasses.Field):
+                if is_param_type:
+                    has_converter = default.metadata is not None and "converter" in default.metadata
+                    
+                    # If they didn't provide their own converter, inject ours
+                    if not has_converter:
+                        valid_keys = getattr(default, '__slots__', None) or vars(default).keys()
+                        
+                        field_kwargs = {
+                            k: getattr(default, k) for k in valid_keys
+                            if not k.startswith('_') and k not in ('name', 'type')
+                        }
+                        
+                        field_kwargs['converter'] = lambda x, fn=field_name: as_param(x, fixed=False)
+                        
+                        if 'metadata' in field_kwargs and field_kwargs['metadata']:
+                            field_kwargs['metadata'] = dict(field_kwargs['metadata'])
+                            field_kwargs['metadata'].pop('converter', None)
+                        
+                        field_kwargs = {k: v for k, v in field_kwargs.items() if v is not dataclasses.MISSING}
+                        
+                        # USE CUSTOM FIELD: Repackage the explicitly defined field using prf.field
+                        namespace[field_name] = field(**field_kwargs)
+                continue
+
+            # 2. Handle standard type hints (e.g., x: Parameter = 10)
+            if is_param_type:
+                if default is not dataclasses.MISSING and not isinstance(default, Parameter):                
+                    if isinstance(default, tuple):
+                        raise Exception(f"Expected a parameter for default '{field_name}' in class {name} but found a tuple.")
+                    field_kwargs['default'] = default
+                
+                field_kwargs['converter'] = lambda x, fn=field_name: as_param(x, fixed=False)
+            
+            # 3. Apply default_factory to avoid Python's mutable default trap
+            if default is not dataclasses.MISSING:
+                if any(isinstance(default, m_type) for m_type in {list, dict, tuple, eqx.Module, jnp.ndarray}):
+                    field_kwargs['default_factory'] = lambda default=default: deepcopy(default)
+                    field_kwargs.pop('default', None)
+            
+            # 4. Inject the final configured field back into the namespace
+            if len(field_kwargs) != 0:
+                namespace[field_name] = field(**field_kwargs)
+                
+        return super().__new__(mcs, name, bases, namespace, **kwargs)
 
 # 2. Assign the metaclass to your base Model
 class Model(eqx.Module, metaclass=ModelMeta):
@@ -280,52 +335,23 @@ class Model(eqx.Module, metaclass=ModelMeta):
     # ---- Internal initialization methods -------------------------------------------------
 
     def __init_subclass__(cls, transparent: bool = False, **kwargs):
-        """Customize subclass construction.
-
-        - Adds converters for ``Parameter``-typed fields (``asparam``).
-        - Protects against mutable-default pitfalls by using ``default_factory``.
-        - Dynamically injects convenience methods like ``s_mag``, ``s_mn_mag``,
-          based on :data:`PRIMARY_PROPERTIES` and :data:`FUNC_LOOKUP`.
-        """        
+        """Customize subclass construction."""        
         super().__init_subclass__(**kwargs)        
 
         cls._transparent = transparent
 
-        # Pre-process fields by modifying any defaults as needed, as well as automatically applying converters
-        for field_name, field_types in cls.__annotations__.items():
-            # Setup
-            field_kwargs = {}
-            default = getattr(cls, field_name, None)
-            if default is None or isinstance(default, dataclasses.Field):
-                continue
-                
-            # Replace default model and parameter names with the field name
-            # if isinstance(default, Model) and default.name is None:
-            #     default = dataclasses.replace(default, name=field_name)
-            # if isinstance(default, Parameter) and default.name is None:
-            #     default = dataclasses.replace(default, name=field_name)
+        # --- Helper for Z0 Validation ---
+        def _validate_z0(instance, stacklevel):
+            if not jnp.isscalar(instance.z0):
+                raise Exception("Only scalar port impedances are currently supported.")
+            
+            # Ensure the warning only fires for the final instantiated class
+            if type(instance) is cls:
+                if instance.z0 != 50 and instance.z0 != (50.0+0j):
+                    import warnings
+                    warnings.warn(Z0_WARNING, UserWarning, stacklevel=stacklevel)
+        # --------------------------------
 
-            # Auto apply asparam converter, to allow auto-conversion of Parameter-annotated structures
-            field_type = get_first_underlying_type(field_types)
-            if field_type is not None and issubclass(field_type, Parameter):
-                if default is not None and not isinstance(default, Parameter):                
-                    # Common mistake
-                    if isinstance(default, tuple):
-                        raise Exception(f"Expected a parameter for default '{field_name}' in class {cls} but found a tuple instead")
-                    field_kwargs['default'] = default
-                
-                field_kwargs['converter'] = lambda x, field_name=field_name: as_param(x, fixed=False)
-                # field_kwargs['default_factory'] = lambda default=default: default
-            
-            # Apply default_factory to avoid Python default mutable trap
-            if any(isinstance(default, mutable_type) for mutable_type in {list, dict, tuple, Parameter, Model, jnp.ndarray}):
-                field_kwargs['default_factory'] = lambda default=default: deepcopy(default)
-            
-            # Set final field
-            if len(field_kwargs) != 0:
-                setattr(cls, field_name, eqx.field(**field_kwargs))
-        
-        # Automatically apply defaults when a subclass overrides __init__
         if '__init__' in cls.__dict__:
             user_init = cls.__dict__['__init__']
             sig = inspect.signature(user_init)
@@ -335,56 +361,40 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 user_kwargs = {}
                 base_kwargs = {}
                 
-                # Separate arguments
                 valid_fields = {f.name for f in dataclasses.fields(type(self))}
                 for k, v in init_kwargs.items():
                     if accepts_kwargs or k in sig.parameters:
                         user_kwargs[k] = v
-                    elif k in valid_fields:
+                    elif k in valid_fields or k in {"name", "z0"}:
                         base_kwargs[k] = v
                     else:
                         raise TypeError(f"{type(self).__name__}.__init__() got an unexpected keyword argument '{k}'")
                 
-                # 1. Apply base kwargs (name, z0)
                 for k, v in base_kwargs.items():
                     object.__setattr__(self, k, v)
                     
-                # 2. Run user init
                 user_init(self, *args, **user_kwargs)
                 
-                # 3. Apply defaults, default factories, and converters
-                for f in dataclasses.fields(self):
-                    val = getattr(self, f.name, dataclasses.MISSING)
-                    
-                    if val is dataclasses.MISSING:
+                # SIMPLIFIED: Only apply defaults/converters to fields the user's init missed!
+                for f in dataclasses.fields(type(self)):
+                    if not hasattr(self, f.name):
+                        val = dataclasses.MISSING
+                        
+                        # Grab the default from the metaclass blueprint
                         if f.default is not dataclasses.MISSING:
                             val = f.default
                         elif f.default_factory is not dataclasses.MISSING:
                             val = f.default_factory()
-                    
-                    converter = f.metadata.get("converter") if hasattr(f, "metadata") else None
-                    if converter is not None and val is not dataclasses.MISSING:
-                        val = converter(val)
                         
-                    if val is not dataclasses.MISSING:
-                        object.__setattr__(self, f.name, val)
+                        # If a default existed, convert it and set it
+                        if val is not dataclasses.MISSING:
+                            converter = f.metadata.get("converter") if hasattr(f, "metadata") else None
+                            if converter is not None:
+                                val = converter(val)
+                            object.__setattr__(self, f.name, val)
                 
-                # --- WARNING CHECK (Custom __init__ path) ---
-                # 'type(self) is cls' ensures the warning only fires for the final instantiated class,
-                # preventing duplicate warnings in deep inheritance chains.
-                if type(self) is cls:
-                    if not jnp.isscalar(self.z0):
-                        raise Exception("Only scaler port impedances are currently supported")
-                    
-                    if self.z0 != 50 and self.z0 != (50.0+0j):
-                        import warnings
-                        warnings.warn(
-                            Z0_WARNING,
-                            UserWarning, stacklevel=2
-                        )
-                # --------------------------------------------
+                _validate_z0(self, stacklevel=2)
                 
-                # 4. Trigger __post_init__ if the user defined one
                 if hasattr(self, '__post_init__'):
                     self.__post_init__()
 
@@ -392,53 +402,40 @@ class Model(eqx.Module, metaclass=ModelMeta):
             cls.__init__ = wrapped_init       
 
         else:
-            # Subclass relies on Equinox's auto-generated __init__, which will call __post_init__.
             user_post_init = getattr(cls, '__post_init__', None)
             
             def wrapped_post_init(self, *args, **kwargs_pi):
-                # 1. Run the user's __post_init__ if they defined one
                 if user_post_init is not None:
                     user_post_init(self, *args, **kwargs_pi)
-                    
-                if not jnp.isscalar(self.z0):
-                    raise Exception("Only scaler port impedances are currently supported")                    
-                    
-                # --- WARNING CHECK (Auto __init__ path) ---
-                if type(self) is cls:
-                    if self.z0 != 50 and self.z0 != (50.0+0j):
-                        import warnings
-                        warnings.warn(
-                            Z0_WARNING,
-                            UserWarning, stacklevel=3 
-                        )
-                # ------------------------------------------
+                
+                _validate_z0(self, stacklevel=3)
                         
             cls.__post_init__ = wrapped_post_init
             
-        # Implement dynamic functions
+        # --- Implement dynamic functions (s_mag, s_mn_mag, etc.) ---
+        def make_dynamic_method(prop_name, func):
+            def dynamic_method(self, *args, **kwargs):
+                matrix = getattr(self, prop_name)(*args, **kwargs)
+                return func(matrix)
+            return dynamic_method
+            
         for prop in PRIMARY_PROPERTIES:
             for suffix, lookup in FUNC_LOOKUP.items():
-                def make_dynamic_method(prop, func):
-                    def dynamic_method(self, *args, **kwargs):
-                        prop_fn = getattr(self, prop)
-                        matrix = prop_fn(*args, **kwargs)
-                        return func(matrix)
-                    return dynamic_method
+                func = lookup[1]
                 
-                # First the regular (non-indexed) function e.g. s_mag
+                # Base function (e.g. s_mag)
                 func_name = f"{prop}_{suffix}"
-                func = lookup[1]
+                if not hasattr(cls, func_name):  # Protect user overrides!
+                    m = make_dynamic_method(prop, func)
+                    m._pmrf_auto = True
+                    setattr(cls, func_name, m)
                 
-                m = make_dynamic_method(prop, func)
-                m._pmrf_auto = True
-                setattr(cls, func_name, m)
-                
-                # Then the index function function e.g. s_mn_mag
-                func_name = f"{prop}_mn_{suffix}"
-                func = lookup[1]
-                m = make_dynamic_method(f"{prop}_mn", func)
-                m._pmrf_auto = True
-                setattr(cls, func_name, m)
+                # Indexed function (e.g. s_mn_mag)
+                func_name_mn = f"{prop}_mn_{suffix}"
+                if not hasattr(cls, func_name_mn):
+                    m_mn = make_dynamic_method(f"{prop}_mn", func)
+                    m_mn._pmrf_auto = True
+                    setattr(cls, func_name_mn, m_mn)
 
     # ---- Internal PyTree manipulation, introspection and helpers -------------------------------------------------
     

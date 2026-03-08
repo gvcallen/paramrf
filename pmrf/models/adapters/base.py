@@ -86,7 +86,8 @@ class SingleProperty(Model, ABC):
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
     """
-    property: str = field(static=True, default='s') # 's', 'a', 'y', or 'z'
+    # property: str = field(static=True, default='s') # 's', 'a', 'y', or 'z'
+    property: str = 's'
     
     @abstractmethod
     def output(self, freq: Frequency) -> jnp.ndarray:

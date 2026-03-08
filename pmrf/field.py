@@ -1,8 +1,10 @@
-from typing import Any
+from typing import Any, Callable
 import equinox as eqx
 
 def field(
     *,
+    converter: Callable[[Any], Any] | None = None,
+    static: bool = False,
     save: bool = True,
     transparent: bool = False,
     **kwargs: Any,
@@ -19,5 +21,7 @@ def field(
     kwargs['metadata'] = metadata
         
     return eqx.field(
+        converter=converter,
+        static=static,
         **kwargs
     )
