@@ -110,9 +110,16 @@ class SciPyMinimizeFitter(FrequentistFitter):
                 return val
             
             kwargs['jac'] = False
+            
+        import time
 
         # 5. Optimization Loop
         with tqdm(desc="Optimizing", unit=" iter", disable=not show_progress) as pbar:
+            tstart = time.perf_counter()
+            print(f"Start compile")
+            cost_val = objective(z0, pbar)
+            print(f"End compile: time =  {time.perf_counter() - tstart}")
+            
             scipy_result = minimize(
                 objective, 
                 z0, 

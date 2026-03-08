@@ -33,10 +33,14 @@ class Circuit(Model, transparent=True):
     indexed_connections: list[list[tuple[int, int]]] = field(static=True)
     port_idxs: list[int] = field(static=True)
 
-    def __init__(self, connections: list[list[tuple[Model, int]]]):
+    def __init__(self, connections: list[list[tuple[Model, int]]] = None, **kwargs):
         super().__init__()
-        if self.name is None:
-            self.name = 'circuit'
+
+        if 'models' in kwargs and 'indexed_connections' in kwargs and 'port_idxs' in kwargs:
+            self.models = kwargs['models']
+            self.indexed_connections = kwargs['indexed_connections']
+            self.port_idxs = kwargs['port_idxs']
+            return
 
         self.models = []
         self.indexed_connections = []

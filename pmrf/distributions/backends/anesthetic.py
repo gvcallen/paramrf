@@ -71,3 +71,32 @@ class AnestheticDistribution(SampledDistribution):
         samples = self.samples(prior=prior)
         
         return (jnp.min(samples, axis=0), jnp.max(samples, axis=0))
+    
+    def marginalize(self, keep_params: list[str]) -> "AnestheticDistribution":
+        """
+        Marginalizes out all parameters except those specified in keep_params.
+        
+        Parameters
+        ----------
+        keep_params : list[str]
+            The list of parameter names to retain. All other parameters 
+            will be marginalized out.
+            
+        Returns
+        -------
+        AnestheticDistribution
+            A new distribution object representing the marginalized distribution.
+        """
+        # Verify the requested parameters actually exist in the current distribution
+        current_params = self.param_names()
+        missing = [p for p in keep_params if p not in current_params]
+        if missing:
+            raise ValueError(f"Cannot keep parameters that don't exist: {missing}")
+            
+        # Return a new instance using the exact same underlying nested_samples DataFrame,
+        # but restricted to the new, smaller subset of param_names.
+        return AnestheticDistribution(
+            nested_samples=self.nested_samples,
+            param_names=keep_params,
+            validate_args=self._validate_args
+        )    

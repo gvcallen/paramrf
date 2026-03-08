@@ -66,28 +66,21 @@ class FrequentistFitter(BaseFitter, ABC):
         self.param_ranges = jnp.where(param_ranges == 0.0, 1.0, param_ranges)        
         
         # Apply standard Python defaults/mutations safely to 'self'
-        if self.features is None and cost_kind is None:
-            cost_kind = 'convolutional'
+        if self.features is None and cost_kind is None and error_fn is None:
+            cost_kind = 'complex'
         
         if cost_kind == 'convolutional':
             self.features = ['s', 's_mag']
+            error_fn = CONVOLUTIONAL_ERROR
         elif cost_kind == 'complex':
             self.features = ['s']
+            error_fn = L2_ERROR
         elif cost_kind == 'magnitude':
             self.features = ['s_mag']
-        else:
-            self.features = [
-                feat for m, n in model.port_tuples 
-                for feat in (f's{m+1}{n+1}_re', f's{m+1}{n+1}_im')
-            ]
+            error_fn = L2_ERROR
                 
         if error_fn is None:
-            if cost_kind == 'convolutional':
-                error_fn = CONVOLUTIONAL_ERROR
-            elif len(self.features) > 1:
-                error_fn = L2_ERROR
-            else:
-                error_fn = [l2_norm_ax0, mag_2_db]
+            error_fn = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
 
         if not isinstance(error_fn, eqx.Module):
             if not isinstance(error_fn, list): 

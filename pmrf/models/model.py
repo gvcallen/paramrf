@@ -194,6 +194,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
+    :meth:`sampled`                   Return a new model with parameters drawn from this model's distribution.
     ================================= ====================================================================
 
     **Parameter Inspection**
@@ -1452,6 +1453,24 @@ class Model(eqx.Module, metaclass=ModelMeta):
         from pmrf.models import Terminated
         load = load or SHORT
         return Terminated(self, load, **kwargs)
+
+    def sampled(self, key=None, **kwargs) -> 'Model':
+        """Returns a new model with parameters sampled from this parameter's distribution.
+        
+        See :class:`pmrf.models.composite.transformed.Terminated`.
+
+        Parameters
+        ----------
+        load : Model, optional
+            Load network. Defaults to a SHORT.
+
+        Returns
+        -------
+        Model
+        """
+        dist = self.distribution()
+        flat_param_samples = dist.sample(key, sample_shape=(1,))[0]
+        return self.with_params(flat_param_samples)
        
     # ---- Parameter inspection -------------------------------------------------- 
     
@@ -2171,7 +2190,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             new_fields[field_name] = child_model
 
         # 4. Return updated model
-        new_model = dataclasses.replace(self, **new_fields)
+        new_model = self.with_fields(**new_fields)
         object.__setattr__(new_model, '_param_groups', groups_to_keep)
         return new_model
     
@@ -2209,7 +2228,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                         for x in child
                     )
                     
-        new_model = dataclasses.replace(self, **new_fields)
+        new_model = self.with_fields(**new_fields)
         object.__setattr__(new_model, '_param_groups', [])
         return new_model
     
@@ -2281,7 +2300,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             
             # Apply submodel updates if any
             if new_submodels:
-                mapped_model = dataclasses.replace(mapped_model, **new_submodels)
+                mapped_model = mapped_model.with_fields(**new_submodels)
 
         else:
             # 3. Existing logic for individual params (Global via named_params)
@@ -2399,13 +2418,22 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         Parameters are forwarded to :func:`dataclasses.replace`.
         """
-        return dataclasses.replace(self, *args, **kwargs)
+        new_model = dataclasses.replace(self, *args, **kwargs)
+        
+        # Generically copy all init=False fields so replace() doesn't drop them
+        for f in dataclasses.fields(self):
+            if not f.init:
+                val = getattr(self, f.name)
+                # Use deepcopy to prevent shared state mutations, just in case
+                object.__setattr__(new_model, f.name, deepcopy(val))
+                
+        return new_model
     
     def with_name(self: Self, name: str | None) -> Self:
         """
         Return a copy of this model with a different name.
         """
-        return dataclasses.replace(self, name=name)
+        return self.with_fields(name=name)
     
     def with_submodel_fields(self: Self, submodel: str | Sequence[str], *args, **kwargs) -> Self:
         """

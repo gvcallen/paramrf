@@ -187,9 +187,24 @@ class BaseRunner(ABC):
             if self.frequency is None or self.features is None:
                 raise RuntimeError("Cannot compile feature function: frequency or features not set.")
             
+            params_tree, static_tree = self.model.partition()
+            from jax import flatten_util
+            _, unravel_fn = flatten_util.ravel_pytree(params_tree)
+            import equinox as eqx
+            # -----------------------------------------
+            
             def _single_feature_fn(theta):
-                m = self.model.with_params(theta)
-                single_features = extract_features(m, self.frequency, self.features, **self.feature_kwargs)
+                params_tree_recon = unravel_fn(theta)
+                m = eqx.combine(params_tree_recon, static_tree)
+                single_features = extract_features(m, self.frequency, self.features, **self.feature_kwargs)               
+                
+                # single_features = jnp.vstack([
+                #     m.s(self.frequency)[:,0,0],
+                #     m.s(self.frequency)[:,0,1],
+                #     m.s(self.frequency)[:,1,0],
+                #     m.s(self.frequency)[:,1,1],
+                # ]).T                         
+                
                 return single_features
             
             self._feature_fn = jax.jit(jax.vmap(_single_feature_fn))
