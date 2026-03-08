@@ -388,7 +388,7 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power') -> jnp.ndarray:
+def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.
 
@@ -404,69 +404,48 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
         The original S-parameter definition.
     s_def_new : str, optional, default='power'
         The new S-parameter definition.
+    method: str, optional, default='direct'
+        The algorithm to use. Can be 'direct' or 'hub'.
 
     Returns
     -------
     jnp.ndarray
         The renormalized S-parameter matrix.
     """
-    return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
+    if method == 'hub':
+        return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
+    elif method == 'mobius':
+        s_renorm = renormalize_s_mobius(s, z_old, z_new)
+        s_redef = s2s(s_renorm, z_new, s_def_new=s_def_new, s_def_old=s_def_old)
+        # s_redef = s_renorm
+        return s_redef
+    else:
+        raise ValueError("Unknown S renormalization method")
 
-# def renormalize_s_direct(
-#     s: jnp.ndarray,
-#     z_old: NumberLike,
-#     z_new: NumberLike,
-# ) -> jnp.ndarray:
-#     """
-#     Renormalize S-parameters from z_old to z_new impedances.
+def renormalize_s_mobius(
+    s: jnp.ndarray,
+    z_old: NumberLike,
+    z_new: NumberLike,
+) -> jnp.ndarray:
 
-#     Parameters
-#     ----------
-#     s : jnp.ndarray, shape (nfreqs, nports, nports)
-#         S-parameter matrix.
-#     z_old : scalar, (nports,), or (nfreqs, nports)
-#     z_new : scalar, (nports,), or (nfreqs, nports)
+    nfreqs, nports, _ = s.shape
 
-#     Returns
-#     -------
-#     jnp.ndarray of shape (nfreqs, nports, nports)
-#         Renormalized S-parameters.
-#     """
-#     nfreqs, nports, _ = s.shape
+    Z_A = fix_z0_shape(z_old, nfreqs, nports)
+    Z_B = fix_z0_shape(z_new, nfreqs, nports)
 
-#     Z_A = fix_z0_shape(z_old, nfreqs, nports)  # shape: (nfreqs, nports)
-#     Z_B = fix_z0_shape(z_new, nfreqs, nports)
+    I = jnp.eye(nports, dtype=s.dtype)
 
-#     # Check if z_old and z_new are frequency-independent
-#     freq_indep = (
-#         jnp.ndim(z_old) == 0 or jnp.shape(z_old) == (nports,)
-#     ) and (
-#         jnp.ndim(z_new) == 0 or jnp.shape(z_new) == (nports,)
-#     )
+    def renorm_per_freq(s_f, z_a, z_b):
 
-#     if freq_indep:
-#         z_a = Z_A[0]  # shape: (nports,)
-#         z_b = Z_B[0]
+        gamma = (z_b - z_a) / (z_b + z_a)
 
-#         z_prod_sqrt_inv = 1.0 / jnp.sqrt(z_a * z_b)
-#         D = 0.5 * jnp.diag(z_prod_sqrt_inv)
+        GammaS = gamma[:, None] * s_f
+        S_minus_G = s_f - jnp.diag(gamma)
 
-#         M_s = D @ jnp.linalg.inv(jnp.diag(z_a + z_b))
-#         M_c = D @ jnp.linalg.inv(jnp.diag(z_a - z_b))
+        A = I - GammaS
+        B = S_minus_G
 
-#         def renorm_fixed(s_f):
-#             return (M_c + M_s @ s_f) @ jnp.linalg.inv(M_s + M_c @ s_f)
+        # Solve X A = B
+        return jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
 
-#         return jax.vmap(renorm_fixed)(s)
-
-#     else:
-#         def renorm_per_freq(s_f, z_a, z_b):
-#             z_prod_sqrt_inv = 1.0 / jnp.sqrt(z_a * z_b)
-#             D = 0.5 * jnp.diag(z_prod_sqrt_inv)
-
-#             M_s = D @ jnp.linalg.inv(jnp.diag(z_a + z_b))
-#             M_c = D @ jnp.linalg.inv(jnp.diag(z_a - z_b))
-
-#             return (M_c + M_s @ s_f) @ jnp.linalg.inv(M_s + M_c @ s_f)
-
-#         return jax.vmap(renorm_per_freq, in_axes=(0, 0, 0))(s, Z_A, Z_B)
+    return jax.vmap(renorm_per_freq)(s, Z_A, Z_B)

@@ -20,7 +20,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
         *, 
         solver=None, 
         max_iter=None, 
-        use_jac=True,
+        use_jac=False,
         show_progress=True, 
         **kwargs
     ) -> tuple[Model, OptimizeResult]:
@@ -36,9 +36,11 @@ class SciPyMinimizeFitter(FrequentistFitter):
             Defaults to 'SLSQP'.
         max_iter : int, optional
             Overrides the ``maxiter`` key in the ``options`` dictionary.
-        use_jac : bool, default=True
+        use_jac : bool, default=False
             If True, use JAX to compute exact gradients. If False, SciPy 
             will approximate the Jacobian using finite differences.
+            Currently, do to numerical instability in ParamRF's RF conversion
+            utilities, this defaults to False.
         show_progress : bool, default=True
             Whether to display a ``tqdm`` progress bar.
         """
