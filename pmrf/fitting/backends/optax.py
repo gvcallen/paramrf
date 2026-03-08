@@ -22,7 +22,7 @@ class OptaxFitter(FrequentistFitter):
         *, 
         optimizer=None, 
         max_iter=10000, 
-        learning_rate=1e-2,
+        learning_rate=1e-3,
         show_progress=True,
         atol=1e-5,       # New: Minimum loss improvement to reset patience
         patience=50,    # New: Number of steps to wait without improvement

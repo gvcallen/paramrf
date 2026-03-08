@@ -676,7 +676,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     
     def _iter_params(
         self,
-        param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None,
+        param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] = None,
         *,
         include_fixed: bool = False,
         flatten: bool = False,
@@ -1455,7 +1455,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
        
     # ---- Parameter inspection -------------------------------------------------- 
     
-    def named_params(self, param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool] = None, *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
+    def named_params(self, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] = None, *, include_fixed=False, submodels: 'Model' | Sequence['Model'] | str | Sequence[str] | None = None) -> dict[str, Parameter]:
         """Named model parameters as a dict.
 
         Keys are fully-qualified parameter names.
@@ -1463,7 +1463,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         Parameters
         ----------
-        param_filter : str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], default=None
+        param_filter : str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool], default=None
             A filter indicating which parameters to return. For the default case, all parameters are returned.
         include_fixed : bool, default=False
             Include fixed parameters.
@@ -1906,7 +1906,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def with_mapped_params(
         self: Self, 
         mapper: Callable[[Parameter], Parameter], 
-        param_filter: str | Sequence[str] | Callable[[str], bool] | None = None, 
+        param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] | None = None, 
         *, 
         map_others: Callable[[Parameter], Parameter] | None = None,
         prefixes: bool = False
@@ -1939,6 +1939,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
         else:
             if isinstance(param_filter, str):
                 param_filter = [param_filter]
+            elif isinstance(param_filter, Parameter):
+                param_filter = [param_filter]
 
             if isinstance(param_filter, list) and param_filter and isinstance(param_filter[0], str) and prefixes:
                 for prefix in param_filter:
@@ -1952,8 +1954,11 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 # Assuming self.param_names() returns a list of valid parameter name strings
                 param_filter = [p for p in self.param_names() if param_filter(p)]
             
-            resolved_filter = set(param_filter)
-            
+            if isinstance(param_filter[0], Parameter):
+                param_ids = {id(p) for p in param_filter}
+                param_filter = [k for k, v in self.named_params().items() if id(v) in param_ids]
+
+            resolved_filter = set(param_filter)            
             for param_name in resolved_filter:
                 if param_name not in current_param_names:
                     raise ValueError(f"Specified parameter '{param_name}' not found in model")
@@ -1967,7 +1972,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 
         return self.with_params(new_params)   
         
-    def with_fixed_params(self: Self, param_filter: str | Sequence[str] | Callable[[str], bool], free_others: bool = False, **kwargs) -> Self:
+    def with_fixed_params(self: Self, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool], free_others: bool = False, **kwargs) -> Self:
         """Return a model with specified parameters fixed.
 
         This maps each parameter in the filter, calling :meth:`Parameter.as_fixed` on each.
@@ -1989,7 +1994,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         return self.with_mapped_params(lambda p: p.as_fixed(), param_filter=param_filter, map_others=map_others, **kwargs)
     
-    def with_free_params(self: Self, param_filter: str | Sequence[str] | Sequence[Parameter] | Callable[[str], bool], *, fix_others: bool = False, **kwargs) -> Self:
+    def with_free_params(self: Self, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool], *, fix_others: bool = False, **kwargs) -> Self:
         """Free the specified parameters.
 
         This maps each parameter in the filter, calling :meth:`Parameter.as_free` on each.
@@ -2293,7 +2298,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                     
         return mapped_model
     
-    def with_uniform_distributions(self, percentage: float, param_filter: str | Sequence[str] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
+    def with_uniform_distributions(self, percentage: float, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
         """Return a model with uniform distributions set centered on current parameter values.
 
         The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.

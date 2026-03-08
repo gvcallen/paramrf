@@ -70,7 +70,7 @@ class SciPyMinimizeFitter(FrequentistFitter):
             options.setdefault('maxiter', max_iter)
         kwargs['options'] = options
 
-        self.logger.info(f"Starting SciPy minimize ({kwargs['method']}) | JAX Jac: {use_jac}")
+        self.logger.info(f"Starting SciPy minimize ({kwargs['method']})")
 
         # 3. Define Objective and Gradient
         if use_jac:
