@@ -21,9 +21,11 @@ class OptaxFitter(FrequentistFitter):
         target: jnp.ndarray, 
         *, 
         optimizer=None, 
-        max_iter=1000, 
+        max_iter=10000, 
         learning_rate=1e-2,
-        show_progress=True, 
+        show_progress=True,
+        atol=1e-5,       # New: Minimum loss improvement to reset patience
+        patience=50,    # New: Number of steps to wait without improvement
     ) -> tuple[Model, dict]:
         """
         Run the optimization loop using the Optax backend.
@@ -36,21 +38,21 @@ class OptaxFitter(FrequentistFitter):
             The extracted target features to fit against.
         optimizer : str or optax.GradientTransformation, optional
             The optimizer to use. Basic users can pass 'adam' or 'sgd' (defaults to 'adam'). 
-            Power users can pass an instantiated `optax` gradient transformation 
-            (e.g., `optax.radam(1e-3)`).
-        max_iter : int, default=1000
+        max_iter : int, default=10000
             The maximum number of optimization steps to perform.
         learning_rate : float, default=1e-2
-            The learning rate for the default optimizer. Ignored if a custom 
-            `optax.GradientTransformation` is passed.
+            The learning rate for the default optimizer.
         show_progress : bool, default=True
             Whether to display a `tqdm` progress bar tracking the loss.
-        **kwargs
-            Additional keyword arguments (kept for compatibility with the base interface).
+        atol : float, default=1e-5
+            The minimum required improvement in the loss to reset the early stopping counter.
+        patience : int, default=50
+            The number of steps to continue optimizing without an improvement >= `atol` 
+            before triggering early stopping.
 
         Returns
         -------
-        tuple[:class:`~pmrf.models.model.Model`, :class:`~scipy.optimize.OptimizeResult`]
+        tuple[:class:`~pmrf.models.model.Model`, dict]
             The fitted model and a mock SciPy result object containing the final state.
         """
         # 1. Parameter Initialization & Bounds
@@ -105,31 +107,53 @@ class OptaxFitter(FrequentistFitter):
 
         self.logger.info("Starting Optax optimization...")
         
-        # 4. Optimization Loop
+        # 4. Optimization Loop with Early Stopping
         params = x0
         current_loss = float('inf')
+        
+        # Early stopping trackers
+        best_loss = float('inf')
+        patience_counter = 0
+        actual_steps = 0
+        stop_reason = "Maximum iterations reached."
         
         with tqdm(total=max_iter, desc="Optimizing", unit=" step", disable=not show_progress) as pbar:
             for i in range(max_iter):
                 params, opt_state, loss = step_fn(params, opt_state)
+                actual_steps += 1
                 
-                # Fetch loss to host for tracking occasionally to avoid blocking JAX async dispatch
+                # We need the concrete loss value for early stopping.
+                # Note: fetching the loss to the host syncs JAX, which has a small overhead, 
+                # but is necessary for Python-level early stopping.
+                current_loss = float(loss)
+                
+                # Check early stopping criteria
+                if current_loss < best_loss - atol:
+                    best_loss = current_loss
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                
+                # Update progress bar
                 if i % 10 == 0 or i == max_iter - 1:
-                    current_loss = float(loss)
-                    pbar.set_postfix({'cost': f"{current_loss:.4f}"})
+                    pbar.set_postfix({'cost': f"{current_loss:.4f}", 'patience': f"{patience_counter}/{patience}"})
                 pbar.update(1)
+                
+                # Break if patience is exceeded
+                if patience_counter >= patience:
+                    stop_reason = f"Early stopping triggered at step {i} (patience={patience} exhausted)."
+                    break
 
-        self.logger.info(f"Optimization finished. (Cost: {current_loss:.2f}, steps: {max_iter})")
+        self.logger.info(f"Optimization finished. Cost: {current_loss:.4f}, Steps: {actual_steps}. Reason: {stop_reason}")
 
         # 5. Package and Return
-        # We wrap the results in a SciPy OptimizeResult to maintain compatibility with downstream code
         optax_result = {
             'x': np.array(params),
             'fun': current_loss,
             'success': True,
-            'message': "Optax optimization completed successfully.",
-            'nfev': max_iter,
-            'nit': max_iter
+            'message': stop_reason,
+            'nfev': actual_steps,
+            'nit': actual_steps
         }
         
         fitted_model = self.model.with_params(params)

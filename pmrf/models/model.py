@@ -109,8 +109,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
     Overview
     --------
     This base class is used to represent any computable RF network, referred to in
-    **ParamRF** as a "Model". This class can be overriden for defining complex models,
-    or can be utilized indirectly by combining models already provides in :mod:`pmrf.models`.
+    **ParamRF** as a "Model". This class can be overridden for defining complex models,
+    or can be utilized indirectly by combining models already provided in :mod:`pmrf.models`.
     
     This class is abstract and should not be instantiated directly. Derive from :class:`Model`
     and override one of the primary property functions (e.g. :meth:`.__call__`, :meth:`.s`, :meth:`.a`).
@@ -816,7 +816,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         for property in unprioritized:
             if is_overridden(type(self), Model, property):
                 return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overriden, which are the only ones supported currently")    
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overridden, which are the only ones supported currently")    
 
     # ---- Introspection properties --------------------------------------------------------
     
@@ -1290,7 +1290,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
-        """Cascade/terminatino composition operator ``**``."""        
+        """Cascade/termination composition operator ``**``."""        
         if other.nports == 1:
             from pmrf.models import Terminated
             return Terminated(self, other)
@@ -2007,14 +2007,14 @@ class Model(eqx.Module, metaclass=ModelMeta):
         """
         map_others = None
         if fix_others:
-            map_others = lambda p: p.as_free()
+            map_others = lambda p: p.as_fixed()
 
-        return self.with_mapped_params(lambda p: p.as_fixed(), param_filter=param_filter, map_others=map_others, **kwargs)        
+        return self.with_mapped_params(lambda p: p.as_free(), param_filter=param_filter, map_others=map_others, **kwargs)
     
-    def with_free_params_only(self: Self, params: str | list[str] | Callable[[str], bool], **kwargs) -> Self:
+    def with_free_params_only(self: Self, param_filter: str | list[str] | Callable[[str], bool], **kwargs) -> Self:
         """Returns a model with only the specified parameters freed.
         
-        This is an alias for calling :meth:`.`with_free_params``
+        This is an alias for calling :meth:`.with_free_params`
         with `fix_others=True`.
 
         See :meth:`.`with_free_params``.
@@ -2022,12 +2022,12 @@ class Model(eqx.Module, metaclass=ModelMeta):
         kwargs.setdefault('fix_others', True)
         if kwargs['fix_others'] == False:
             raise Exception("Cannot pass fix_others == False for `with_free_params_only`.")
-        return self.with_free_params(params, **kwargs)
+        return self.with_free_params(param_filter, **kwargs)
 
     def with_all_params_fixed(self: Self, **kwargs) -> Self:
         """Returns a model with all parameters fixed.
         
-        This is an alias for calling :meth:`.`with_free_params``
+        This is an alias for calling :meth:`.with_free_params`
         with `fix_others=True` and no parameters passed.
 
         See :meth:`.`with_free_params``.
@@ -2040,7 +2040,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def with_all_params_free(self: Self, **kwargs) -> Self:
         """Returns a model with all parameters free.
         
-        This is an alias for calling :meth:`.`with_free_params``
+        This is an alias for calling :meth:`.with_free_params`
         with all parameters passed.
 
         See :meth:`.`with_free_params``.
@@ -2303,7 +2303,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         percentage : float
             The fractional width of the uniform distribution (e.g. 0.1 = 10%).
         filter: str | Sequence[str] | Callable[[str], bool], default=None
-            The parameters to updated with new uniform distributions. For the default case, all are updated.
+            The parameters to be updated with new uniform distributions. For the default case, all are updated.
         respect_bounds: bool, default=False
             Whether or not the `min` and `max` bounds of the current distributions should be respected.
             If `True`, new bounds will not go larger than past these bounds.
@@ -2463,7 +2463,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def with_free_submodels_only(self: Self, *args, **kwargs) -> Self:
         """Returns a model with only the specified submodels freed.
         
-        This is an alias for calling :meth:`.`with_free_submodels``
+        This is an alias for calling :meth:`.with_free_submodels`
         with `fix_others=True`.
 
         See :meth:`.`with_free_params``.

@@ -1054,9 +1054,12 @@ def rsolve(A: jnp.ndarray, B: jnp.ndarray) -> jnp.ndarray:
     return jnp.transpose(jnp.linalg.solve(jnp.transpose(A, (0, 2, 1)).conj(),
             jnp.transpose(B, (0, 2, 1)).conj()), (0, 2, 1)).conj()
 
-def nudge_eig(mat: jnp.ndarray,
-              cond: float | None = None,
-              min_eig: float | None  = None) -> jnp.ndarray:
+def nudge_eig(
+    mat: jnp.ndarray,
+    cond: float = 1e-9,
+    min_eig: float = 1e-12,
+    diff: bool = True,
+) -> jnp.ndarray:
     r"""
     Nudge eigenvalues with absolute value smaller than `max(cond * max(eigenvalue), min_eig)` to that value.
     
@@ -1079,15 +1082,8 @@ def nudge_eig(mat: jnp.ndarray,
     res : np.ndarray
         Nudged matrices.
     """
-    # use current constants
-
-    EIG_COND = 1e-9
-    EIG_MIN = 1e-12
-    
-    if not cond:
-        cond = EIG_COND
-    if not min_eig:
-        min_eig = EIG_MIN
+    if diff:
+        return nudge_svd(mat, cond=cond, min_val=min_eig)
 
     eigw, eigv = jnp.linalg.eig(mat)
     max_eig = jnp.amax(jnp.abs(eigw), axis=1)
@@ -1117,6 +1113,27 @@ def nudge_eig(mat: jnp.ndarray,
         return mat
     
     return jax.lax.cond(has_problem, fix_branch, no_fix_branch)
+
+def nudge_svd(mat: jnp.ndarray, 
+              cond: float = 1e-9, 
+              min_val: float = 1e-12) -> jnp.ndarray:
+    """
+    Nudge small singular values to avoid singularities using SVD.
+    SVD is natively supported by JAX autodiff for non-symmetric matrices.
+    """
+    # 1. Decompose: mat = U * S * Vh
+    U, S, Vh = jnp.linalg.svd(mat)
+    
+    # 2. Find the threshold (S is always strictly real and non-negative)
+    max_s = jnp.amax(S, axis=-1, keepdims=True)
+    threshold = jnp.maximum(cond * max_s, min_val)
+    
+    # 3. Nudge singular values that fall below the threshold
+    S_nudged = jnp.maximum(S, threshold)
+    
+    # 4. Reconstruct and return the conditioned matrix
+    # S_nudged[..., None] broadcasts the 1D array to multiply rows of Vh correctly
+    return U @ (S_nudged[..., None] * Vh)
 
 def round_sig(x, sig=3):
     """
