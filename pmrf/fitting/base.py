@@ -59,7 +59,7 @@ class BaseFitter(BaseRunner, ABC):
         save_model: bool = True,
         save_results: bool = True,
         figure_dir: str | None = None,
-        fitted_uniform_frac: float | None = 0.0,
+        fitted_uniform_frac: float | None = None,
         **kwargs        
     ) -> tuple[Model, FitResults]:
         r"""
