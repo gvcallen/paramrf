@@ -23,6 +23,6 @@ model = CoaxialLine(
 fitter = SciPyMinimizeFitter(model)
 
 # Run the fit and plot some results
-fitted_model, fit_results = fitter.run(measured, solver='Nelder-Mead')
+fitted_model, fit_results = fitter.run(measured)
 fit_results.plot_s_db()
 plt.show()

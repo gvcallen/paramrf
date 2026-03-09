@@ -31,7 +31,7 @@ def test_fitting():
     fitter = SciPyMinimizeFitter(model)
 
     # Run the fit
-    fitted_model, fit_results = fitter.run(measured, solver='Nelder-Mead')
+    fitted_model, fit_results = fitter.run(measured)
 
     # Assert the residuals are less than -30 dB
     residuals = measured.s - fitted_model.s(prf.Frequency.from_skrf(measured.frequency))

@@ -30,7 +30,6 @@ class BlackJAXNSFitter(BayesianFitter):
         num_inner_steps=None, 
         logZ_convergence: float = -3.0, 
         seed: int = 0,
-        **kwargs
     ) -> tuple[Model, Any]:
         """
         Execute the nested sampling run using BlackJAX.

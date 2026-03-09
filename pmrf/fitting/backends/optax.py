@@ -21,7 +21,7 @@ class OptaxFitter(FrequentistFitter):
         target: jnp.ndarray, 
         *, 
         optimizer=None, 
-        max_iter=10000, 
+        max_iter=1000, 
         learning_rate=1e-2,
         show_progress=True,
         atol=1e-5,       # New: Minimum loss improvement to reset patience
@@ -38,7 +38,7 @@ class OptaxFitter(FrequentistFitter):
             The extracted target features to fit against.
         optimizer : str or optax.GradientTransformation, optional
             The optimizer to use. Basic users can pass 'adam' or 'sgd' (defaults to 'adam'). 
-        max_iter : int, default=10000
+        max_iter : int, default=1000
             The maximum number of optimization steps to perform.
         learning_rate : float, default=1e-2
             The learning rate for the default optimizer.

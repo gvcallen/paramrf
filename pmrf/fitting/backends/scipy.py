@@ -18,8 +18,6 @@ class SciPyMinimizeFitter(FrequentistFitter):
         self, 
         target: jnp.ndarray, 
         *, 
-        solver=None, 
-        max_iter=None, 
         use_jac=True,
         show_progress=True, 
         **kwargs
@@ -27,9 +25,6 @@ class SciPyMinimizeFitter(FrequentistFitter):
         """
         Run the optimization loop using the SciPy backend.
         """
-        solver = solver or 'SLSQP'
-        kwargs.setdefault('method', solver)
-        
         # 1. Parameter Initialization & Physical Bounds
         minimums, maximums = self.model.distribution().bounds
         minimums = np.array(minimums, dtype=np.float64)
@@ -59,12 +54,10 @@ class SciPyMinimizeFitter(FrequentistFitter):
         normalized_bounds = Bounds(np.zeros_like(z0), np.ones_like(z0))
 
         # 3. Setup Options
-        options = kwargs.get('options', {})
-        if max_iter is not None:
-            options.setdefault('maxiter', max_iter)
-        kwargs['options'] = options
-
-        self.logger.info(f"Starting SciPy minimize ({kwargs['method']})")
+        if 'method' in kwargs:
+            self.logger.info(f"Starting SciPy minimize ({kwargs['method']})")
+        else:
+            self.logger.info(f"Starting SciPy minimize")
 
         # Prepare JAX arrays for the un-normalization function
         jnp_minimums = jnp.array(minimums)
@@ -111,15 +104,8 @@ class SciPyMinimizeFitter(FrequentistFitter):
             
             kwargs['jac'] = False
             
-        import time
-
         # 5. Optimization Loop
         with tqdm(desc="Optimizing", unit=" iter", disable=not show_progress) as pbar:
-            tstart = time.perf_counter()
-            print(f"Start compile")
-            cost_val = objective(z0, pbar)
-            print(f"End compile: time =  {time.perf_counter() - tstart}")
-            
             scipy_result = minimize(
                 objective, 
                 z0, 

@@ -1,5 +1,5 @@
+from functools import partial
 from abc import ABC
-import numpy as np
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -7,10 +7,36 @@ import equinox as eqx
 from pmrf.fitting.base import BaseFitter
 from pmrf.models.model import Model
 from pmrf.constants import ArrayFuncT
-from pmrf.math_functions import l2_norm_ax0, mag_2_db, conv_inter
 
-L2_ERROR = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
-CONVOLUTIONAL_ERROR = [l2_norm_ax0, conv_inter, l2_norm_ax0, mag_2_db]
+def independent_rms_error(res):
+    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
+    combined_rms = jnp.sqrt(jnp.mean(feature_rms**2))
+    return 20*jnp.log10(combined_rms)
+
+def convolutional_rms_error(res, num_features=2):
+    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
+    
+    grouped = feature_rms.reshape(-1, num_features)
+    M = grouped.shape[0]
+    convolved = grouped[:, 0]
+    for i in range(1, num_features):
+        convolved = jnp.convolve(convolved, grouped[:, i])
+        
+    convolved_scaled = convolved / (M ** (num_features - 1))
+    rms_convolved = jnp.sqrt(jnp.mean(convolved_scaled**2))
+    combined_rms = rms_convolved ** (1.0 / num_features)
+    
+    return 20 * jnp.log10(combined_rms)
+
+def geometric_rms_error(res, num_features=2):
+    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
+    
+    grouped = feature_rms.reshape(-1, num_features)
+    global_rms = jnp.sqrt(jnp.mean(grouped**2, axis=0))
+    product = jnp.prod(global_rms)
+    combined_rms = product ** (1.0 / num_features)
+    
+    return 20 * jnp.log10(combined_rms)
 
 class FrequentistFitter(BaseFitter, ABC):
     r"""
@@ -34,14 +60,22 @@ class FrequentistFitter(BaseFitter, ABC):
     model : Model
         The ParamRF model containing the parameters to optimize.
     cost_kind : str, optional
-        A preset string to automatically configure the features and error functions. 
-        Options include 'convolutional', 'complex', or 'magnitude'. If left 
-        as ``None``, it defaults to fitting the real and imaginary parts of all 
-        ports in the model.
-    error_fn : callable, list of callables, or eqx.Module, optional
-        The specific mathematical function(s) used to calculate the final error 
-        between the model's output and the target data. If not provided, standard 
-        L2 norms are used based on the ``cost_kind``.
+        A preset string to automatically configure both the features and error function
+        into a combined cost function. Options are 'complex', 'magnitude', 'geometric', or 'convolutional'.
+        'convolutional' and 'geometric' use custom error functions with the same names, whereas
+        'complex' and 'magnitude' use the 'independent' error function. If left None, and no features
+        or error function is provided, then 'complex' is assumed.
+    error_kind : str, optional:
+        A preset string to automatically configure an error function. Options are 'independent',
+        'geometric' or 'convolutional'. Note that all of these currently use the L2 norm (RMS).
+    error_fn : callable, optional
+        The specific function used to calculate the error. Passed the difference
+        between the model and measured features. If not provided, is configured based on `cost_kind`
+        and `error_kind`.
+    tikhonov_lambda : float, default=0.0
+        The weight to use for Tikhonov regularization. The weight is multiplied to a regularization
+        term which depends on the squared difference between the new model parameters and
+        the initial model parameters in normalized space.
     **kwargs
         Additional arguments passed up to :class:`BaseFitter` (such as ``frequency``).
     """
@@ -50,7 +84,8 @@ class FrequentistFitter(BaseFitter, ABC):
         model: Model, 
         *,
         cost_kind: str = None,
-        error_fn: ArrayFuncT | list[ArrayFuncT] | eqx.Module | None = None,
+        error_kind: str = None,
+        error_fn: ArrayFuncT | None = None,
         tikhonov_lambda: float = 0.0,
         **kwargs
     ):
@@ -66,26 +101,40 @@ class FrequentistFitter(BaseFitter, ABC):
         self.param_ranges = jnp.where(param_ranges == 0.0, 1.0, param_ranges)        
         
         # Apply standard Python defaults/mutations safely to 'self'
-        if self.features is None and cost_kind is None and error_fn is None:
+        if cost_kind is None and (self.features is None and error_fn is None):
             cost_kind = 'complex'
+        elif cost_kind is not None and (error_fn is not None or self.features is not None):
+            raise ValueError("Cannot pass a cost kind alias with an error function or specific features")
         
         if cost_kind == 'convolutional':
             self.features = ['s', 's_mag']
-            error_fn = CONVOLUTIONAL_ERROR
+            error_kind = 'convolutional'
+        elif cost_kind == 'geometric':
+            self.features = ['s', 's_mag']
+            error_kind = 'geometric'
         elif cost_kind == 'complex':
             self.features = ['s']
-            error_fn = L2_ERROR
+            error_kind = 'independent'
         elif cost_kind == 'magnitude':
             self.features = ['s_mag']
-            error_fn = L2_ERROR
+            error_kind = 'independent'
+        else:
+            raise Exception("Unknown cost kind")
                 
+        if error_kind is None and error_fn is None:
+            error_kind = 'independent'
+        elif error_kind is not None and error_fn is not None:
+            raise Exception("Cannot pass an error function with an error kind or cost kind alias")
+        
         if error_fn is None:
-            error_fn = [l2_norm_ax0, l2_norm_ax0, mag_2_db]
-
-        if not isinstance(error_fn, eqx.Module):
-            if not isinstance(error_fn, list): 
-                error_fn = [error_fn]
-            error_fn = eqx.nn.Sequential([eqx.nn.Lambda(fn) for fn in error_fn])
+            if error_kind == 'independent':
+                error_fn = independent_rms_error
+            elif error_kind == 'geometric':
+                error_fn = partial(geometric_rms_error, num_features=len(self.features))
+            elif error_kind == 'convolutional':
+                error_fn = partial(convolutional_rms_error, num_features=len(self.features))
+            else:
+                raise Exception("Unknown error kind")
             
         self._error_fn = eqx.filter_jit(error_fn)
         self._cost_fn = None
