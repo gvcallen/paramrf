@@ -25,6 +25,7 @@ def test_fitting():
         rho = RelativeNormal(1.6, 0.05, scale=1e-8),
         tand = Uniform(0.0, 0.01, value=0.0, scale=0.01),
         length = RelativeNormal(10.0, 0.05),
+        mur = Fixed(0.0),
     )
 
     # Initialize the fitter

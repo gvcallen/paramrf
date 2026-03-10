@@ -12,7 +12,8 @@ class SciPyMinimizeFitter(FrequentistFitter):
     Frequentist fitter using the SciPy minimize backend with JAX acceleration.
     
     This class wraps ``scipy.optimize.minimize``, executing the optimization
-    in a normalized parameter space [0, 1] for better numerical stability.
+    in a normalized parameter space [0, 1] for fully bounded parameters, 
+    while preserving natural scaling for unbounded or semi-bounded parameters.
     """
     def execute(
         self, 
@@ -25,13 +26,21 @@ class SciPyMinimizeFitter(FrequentistFitter):
         """
         Run the optimization loop using the SciPy backend.
         """
-        # 1. Parameter Initialization & Physical Bounds
-        minimums, maximums = self.model.distribution().bounds
-        minimums = np.array(minimums, dtype=np.float64)
-        maximums = np.array(maximums, dtype=np.float64)
+        # 1. Parameter Initialization & Physical Bounds (using new .min and .max)
+        dist = self.model.distribution()
+        minimums = np.array(dist.min, dtype=np.float64)
+        maximums = np.array(dist.max, dtype=np.float64)
         
-        # Calculate scales to map between [min, max] and [0, 1]
-        scales = maximums - minimums
+        # Identify which parameters have finite bounds on BOTH sides
+        is_bounded = np.isfinite(minimums) & np.isfinite(maximums)
+        
+        # Calculate scales and shifts safely to avoid evaluating (inf - inf = NaN)
+        scales = np.ones_like(minimums)
+        shifts = np.zeros_like(minimums)
+        
+        scales[is_bounded] = maximums[is_bounded] - minimums[is_bounded]
+        shifts[is_bounded] = minimums[is_bounded]
+        
         if np.any(scales <= 0):
             raise ValueError("Maximum bounds must be strictly greater than minimum bounds for normalization.")
 
@@ -50,24 +59,27 @@ class SciPyMinimizeFitter(FrequentistFitter):
             raise ValueError(f"Initial parameters outside bounds:\n" + "\n".join(bad_params))
         
         # 2. Normalize Inputs & Set Normalized Bounds
-        z0 = (x0_physical - minimums) / scales
-        normalized_bounds = Bounds(np.zeros_like(z0), np.ones_like(z0))
+        z0 = (x0_physical - shifts) / scales
+        
+        # Map the physical bounds through the same normalization formula.
+        # np.inf / 1.0 safely remains np.inf.
+        norm_mins = (minimums - shifts) / scales
+        norm_maxs = (maximums - shifts) / scales
+        normalized_bounds = Bounds(norm_mins, norm_maxs)
 
         # 3. Setup Options
-        if 'method' in kwargs:
-            self.logger.info(f"Starting SciPy minimize ({kwargs['method']})")
-        else:
-            self.logger.info(f"Starting SciPy minimize")
+        method_name = kwargs.get('method', 'default')
+        self.logger.info(f"Starting SciPy minimize ({method_name})")
 
         # Prepare JAX arrays for the un-normalization function
-        jnp_minimums = jnp.array(minimums)
+        jnp_shifts = jnp.array(shifts)
         jnp_scales = jnp.array(scales)
         
         def unnormalize_fn(z):
-            """Converts normalized parameter z [0, 1] back to physical x [min, max]"""
-            return z * jnp_scales + jnp_minimums
+            """Converts optimizer parameter z back to physical x [min, max]"""
+            return z * jnp_scales + jnp_shifts
 
-        # 4. Define Objective and Gradient (in normalized space)
+        # 4. Define Objective and Gradient (in optimizer space)
         if use_jac:
             # Wrap the cost function to accept normalized coordinates (z).
             # JAX's value_and_grad automatically applies the chain rule!
