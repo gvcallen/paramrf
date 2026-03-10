@@ -12,6 +12,7 @@ from pmrf.distributions import NormalDistribution, UniformDistribution
 from pmrf.distributions.stacked import StackedDistribution
 from pmrf.field import field
 from pmrf.constants import MIN_PERCENTILE, MAX_PERCENTILE
+from pmrf.parameters.factories import Free
 
 class Parameter(eqx.Module):
     """
@@ -99,46 +100,48 @@ class Parameter(eqx.Module):
     def min(self) -> jnp.ndarray:
         r"""
         The unscaled minimum value of the parameter's distribution.
-
-        This is determined by the `MIN_PERCENTILE` quantile of the distribution.
-
+        
+        This uses a percentile for all distributions other than uniform.
+        
         Returns
         -------
         jnp.ndarray
-            The minimum value, or -inf if no distribution is set.
-        """
-        if self.distribution is not None:
-            if isinstance(self.distribution, dist.Uniform):
-                return self.distribution.low
-            else:
-                return self.distribution.icdf(MIN_PERCENTILE)
-            
-        if self.value.ndim == 0:
-            return -jnp.inf
+            The minimum value, or the current value if no distribution is set.
+        """        
+        if isinstance(self.distribution, dist.ImproperUniform):
+            return jnp.full(self.shape, -jnp.inf)
+        elif isinstance(self.distribution, dist.Delta):
+            return self.distribution.v
+        elif isinstance(self.distribution, dist.Uniform):
+            return self.distribution.low
+        elif self.distribution is not None:
+            return self.distribution.icdf(MIN_PERCENTILE)
+        
         return jnp.full(self.shape, -jnp.inf)
-    
+
     @property
     def max(self) -> jnp.ndarray:
         r"""
         The unscaled maximum value of the parameter's distribution.
         
-        This is determined by the `MAX_PERCENTILE` quantile of the distribution.
-
+        This uses a percentile for all distributions other than uniform.
+        
         Returns
         -------
         jnp.ndarray
-            The maximum value, or inf if no distribution is set.
-        """
-        if self.distribution is not None:
-            if isinstance(self.distribution, dist.Uniform):
-                return self.distribution.high
-            else:
-                return self.distribution.icdf(MAX_PERCENTILE)
+            The maximum value, or the current value if no distribution is set.
+        """              
+        if isinstance(self.distribution, dist.ImproperUniform):
+            return jnp.full(self.shape, jnp.inf)
+        elif isinstance(self.distribution, dist.Delta):
+            return self.distribution.v
+        elif isinstance(self.distribution, dist.Uniform):
+            return self.distribution.high
+        elif self.distribution is not None:
+            return self.distribution.icdf(MAX_PERCENTILE)
             
-        if self.value.ndim == 0:
-            return jnp.inf
         return jnp.full(self.shape, jnp.inf)
-    
+
     @property
     def mean(self) -> jnp.ndarray:
         r"""
@@ -148,11 +151,14 @@ class Parameter(eqx.Module):
         -------
         jnp.ndarray
             The mean value, or the current value if no distribution is set.
-        """
-        if self.distribution is not None:
-            return self.distribution.mean
+        """        
+        # ImproperUniform doesn't have a defined mean, so we fall back to the initialized value
+        if isinstance(self.distribution, dist.ImproperUniform) or self.distribution is None:
+            return self.value
+        elif isinstance(self.distribution, dist.Delta):
+            return self.distribution.v
             
-        return self.value
+        return self.distribution.mean
     
     def with_value(self, value: jnp.ndarray) -> 'Parameter':
         r"""
@@ -531,7 +537,7 @@ def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
     elif isinstance(x, dict):
         return {k: as_param(xi, **kwargs) for k, xi in x.items()}
     else:
-        return Parameter(value=x, **kwargs)
+        return Free(value=x, **kwargs)
 
 def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
     """
@@ -560,6 +566,13 @@ def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
     total_size = 1
     for dim in batch_shape:
         total_size *= dim
+        
+    # Special handling for ImproperUniform
+    if isinstance(d, dist.ImproperUniform):
+        return [
+            dist.ImproperUniform(d.support, batch_shape=(), event_shape=d.event_shape)
+            for _ in range(total_size)
+        ]        
 
     # Get all init params used to construct the distribution (e.g., 'loc', 'scale', 'low', 'high')
     # d.arg_constraints keys usually match the __init__ arguments
@@ -640,10 +653,20 @@ def _serialize_distribution(d: Distribution | None) -> dict | None:
     """
     if d is None:
         return None
-    return {
-        "class": d.__class__.__name__,
-        "params": {k: v.tolist() if isinstance(v, jnp.ndarray) else v for k, v in d.__dict__.items() if not k.startswith("_")}
-    }
+        
+    params = {}
+    for k, v in d.__dict__.items():
+        if k.startswith("_"):
+            continue
+        if isinstance(v, jnp.ndarray):
+            params[k] = v.tolist()
+        elif isinstance(v, dist.constraints.Constraint):
+            # Just store the name of the constraint (e.g., 'real', 'positive')
+            params[k] = {"__constraint__": type(v).__name__}
+        else:
+            params[k] = v
+            
+    return {"class": d.__class__.__name__, "params": params}
 
 # Helper to deserialize a numpyro Distribution
 def _deserialize_distribution(dct: dict | None) -> Distribution | None:
@@ -667,10 +690,20 @@ def _deserialize_distribution(dct: dict | None) -> Distribution | None:
     """
     if dct is None:
         return None
+        
     cls = getattr(dist, dct["class"], None)
     if cls is None:
         raise ValueError(f"Unknown distribution class: {dct['class']}")
-    return cls(**dct["params"])
+        
+    params = dct["params"]
+    for k, v in params.items():
+        if isinstance(v, dict) and "__constraint__" in v:
+            # Map the string name back to the numpyro constraint object
+            constraint_name = v["__constraint__"].lower() # e.g. '_Real' -> 'real'
+            constraint_name = constraint_name.strip('_') 
+            params[k] = getattr(dist.constraints, constraint_name)
+            
+    return cls(**params)
 
 def _format_val(val, sig_figs: int = 4) -> str:
     """Safely extract and format a scalar or array value for clean printing."""

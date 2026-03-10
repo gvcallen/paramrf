@@ -3,6 +3,7 @@ import warnings
 
 import jax.numpy as jnp
 import numpyro.distributions as dist
+from numpyro.distributions import constraints
 
 from pmrf.parameters.parameter import Parameter, _stack_vectorized_distributions
 
@@ -231,6 +232,10 @@ def RelativeNormal(mean: float | Sequence[float], std_fraction: float | Sequence
 def Fixed(value, n: int | None = None, **kwargs) -> Parameter:
     r"""
     Create a `Parameter` that is marked as fixed.
+    
+    This sets the `fixed` flag of the parameter to `True`,
+    and assigned an infinitely wide improper normal distribution
+    if a distribution is not passed.
 
     Parameters
     ----------
@@ -251,11 +256,24 @@ def Fixed(value, n: int | None = None, **kwargs) -> Parameter:
         value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         value = jnp.array(value)
+        
+    if not 'distribution' in kwargs:
+        dists = dist.ImproperUniform(
+            constraints.real, 
+            batch_shape=value.shape, 
+            event_shape=()
+        )
+        kwargs['distribution'] = dists        
+        
     return Parameter(value=value, fixed=True, **kwargs)
 
 def Free(value, n: int | None = None, **kwargs) -> Parameter:
     r"""
-    Create a `Parameter` that is marked as not fixed (i.e., free to vary).
+    Create a `Parameter` that is marked as not free (i.e., free to vary).
+    
+    This sets the `fixed` flag of the parameter to `False`,
+    and assigned an infinitely wide improper normal distribution
+    if a distribution is not passed.
 
     Parameters
     ----------
@@ -276,6 +294,15 @@ def Free(value, n: int | None = None, **kwargs) -> Parameter:
         value = jnp.broadcast_to(jnp.array(value), shape)
     else:
         value = jnp.array(value)
+        
+    if not 'distribution' in kwargs:
+        dists = dist.ImproperUniform(
+            constraints.real, 
+            batch_shape=value.shape, 
+            event_shape=()
+        )
+        kwargs['distribution'] = dists
+        
     return Parameter(value=value, **kwargs)
 
 def Stacked(parameters: Sequence[Parameter], name: str | None = None, **kwargs) -> Parameter:
