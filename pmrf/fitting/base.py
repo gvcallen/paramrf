@@ -188,6 +188,11 @@ class BaseFitter(BaseRunner, ABC):
                     func()
                     plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
                     plt.close()
+        else:
+            if plot is not None:
+                for plot_feature in plot:
+                    func = getattr(results, f'plot_{plot_feature}')
+                    func()
         
         return results.fitted_model, results
 
