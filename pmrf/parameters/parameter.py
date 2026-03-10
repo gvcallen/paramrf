@@ -12,7 +12,6 @@ from pmrf.distributions import NormalDistribution, UniformDistribution
 from pmrf.distributions.stacked import StackedDistribution
 from pmrf.field import field
 from pmrf.constants import MIN_PERCENTILE, MAX_PERCENTILE
-from pmrf.parameters.factories import Free
 
 class Parameter(eqx.Module):
     """
@@ -530,6 +529,8 @@ def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
     Parameter
         The object wrapped as a `Parameter`.
     """
+    from pmrf.parameters.factories import Free, Fixed
+    
     if isinstance(x, Parameter):
         return x
     elif isinstance(x, list):
@@ -537,7 +538,11 @@ def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
     elif isinstance(x, dict):
         return {k: as_param(xi, **kwargs) for k, xi in x.items()}
     else:
-        return Free(value=x, **kwargs)
+        is_fixed = kwargs.pop('fixed', False)
+        if is_fixed:
+            return Fixed(value=x, **kwargs)
+        else:
+            return Free(value=x, **kwargs)
 
 def _split_vectorized_distribution(d: Distribution) -> list[Distribution]:
     """
