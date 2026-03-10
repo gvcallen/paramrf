@@ -1928,7 +1928,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
         param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] | None = None, 
         *, 
         map_others: Callable[[Parameter], Parameter] | None = None,
-        prefixes: bool = False
+        prefixes: bool = False,
+        include_fixed: bool = False,
     ) -> Self:
         """Return a model with specified parameters mapped.
 
@@ -1949,7 +1950,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         -------
         Self
         """
-        current_params = self.named_params()        
+        current_params = self.named_params(include_fixed=include_fixed)
         current_param_names = set(current_params.keys())
         
         # NEW: If no filter is provided, target all parameters in the model
@@ -1970,12 +1971,10 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 param_filter = lambda p: p.startswith(valid_prefixes)            
                 
             if isinstance(param_filter, Callable):
-                # Assuming self.param_names() returns a list of valid parameter name strings
-                param_filter = [p for p in self.param_names() if param_filter(p)]
-            
-            if isinstance(param_filter[0], Parameter):
+                param_filter = [p for p in current_params.keys() if param_filter(p)]
+            elif isinstance(param_filter[0], Parameter):
                 param_ids = {id(p) for p in param_filter}
-                param_filter = [k for k, v in self.named_params().items() if id(v) in param_ids]
+                param_filter = [k for k, v in current_params.items() if id(v) in param_ids]
 
             resolved_filter = set(param_filter)            
             for param_name in resolved_filter:
