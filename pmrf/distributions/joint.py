@@ -3,6 +3,7 @@ A distribution composed of multiple independent distributions.
 """
 
 from numpyro.distributions import Distribution, constraints
+import numpyro.distributions as dist
 import jax.numpy as jnp
 import jax
 
@@ -123,6 +124,74 @@ class JointDistribution(Distribution):
             for i, name in enumerate(group_names):
                 values[self.name_to_index[name]] = group_u[..., i]
         return jnp.stack(values, axis=-1)
+    
+    @property
+    def min(self) -> jnp.ndarray:
+        """
+        Dynamically infer lower bounds based on the numpyro constraints of each distribution.
+        
+        MIN_PERCENTILE is used if the distribution is not strictly bounded.
+        """
+        lower_bounds = [None] * len(self.param_names)
+        
+        for d, group_names in zip(self.distributions, self.distribution_names):
+            # 1. Safely extract the lower bound for this distribution group
+            if isinstance(d, dist.ImproperUniform):
+                lb_val = -jnp.inf
+            elif isinstance(d, dist.Delta):
+                lb_val = d.v
+            elif isinstance(d, dist.Uniform):
+                lb_val = d.low
+            else:
+                # Best-effort extraction from Numpyro constraints
+                lb_val = getattr(d.support, "lower_bound", d.icdf(MIN_PERCENTILE))
+            
+            # 2. Map the extracted bounds back to the global parameter order
+            for i, name in enumerate(group_names):
+                idx = self.name_to_index[name]
+                
+                lb = lb_val
+                # Handle cases where the bound is a vector (e.g., multivariate constraints)
+                if isinstance(lb, (jnp.ndarray, float, int)) and jnp.ndim(lb) > 0:
+                    lb = lb[i]
+
+                lower_bounds[idx] = lb
+
+        return jnp.array(lower_bounds)
+
+    @property
+    def max(self) -> jnp.ndarray:
+        """
+        Dynamically infer upper bounds based on the numpyro constraints of each distribution.
+        
+        MAX_PERCENTILE is used if the distribution is not strictly bounded.
+        """
+        upper_bounds = [None] * len(self.param_names)
+        
+        for d, group_names in zip(self.distributions, self.distribution_names):
+            # 1. Safely extract the upper bound for this distribution group
+            if isinstance(d, dist.ImproperUniform):
+                ub_val = jnp.inf
+            elif isinstance(d, dist.Delta):
+                ub_val = d.v
+            elif isinstance(d, dist.Uniform):
+                ub_val = d.high
+            else:
+                # Best-effort extraction from Numpyro constraints
+                ub_val = getattr(d.support, "upper_bound", d.icdf(MAX_PERCENTILE))
+            
+            # 2. Map the extracted bounds back to the global parameter order
+            for i, name in enumerate(group_names):
+                idx = self.name_to_index[name]
+                
+                ub = ub_val
+                # Handle cases where the bound is a vector (e.g., multivariate constraints)
+                if isinstance(ub, (jnp.ndarray, float, int)) and jnp.ndim(ub) > 0:
+                    ub = ub[i]
+
+                upper_bounds[idx] = ub
+
+        return jnp.array(upper_bounds)    
 
     @property
     def bounds(self) -> tuple[jnp.ndarray, jnp.ndarray]:
@@ -132,26 +201,4 @@ class JointDistribution(Distribution):
         MIN_PERCENTILE and MAX_PERCENTILE are used for "min" and "max" if the distribution
         is not bounded.
         """
-        lower_bounds = [None] * len(self.param_names)
-        upper_bounds = [None] * len(self.param_names)
-        
-        for dist, group_names in zip(self.distributions, self.distribution_names):
-            support = dist.support
-            
-            for i, name in enumerate(group_names):
-                idx = self.name_to_index[name]
-                
-                # Best-effort extraction from Numpyro constraints
-                lb = getattr(support, "lower_bound", dist.icdf(MIN_PERCENTILE))
-                ub = getattr(support, "upper_bound", dist.icdf(MAX_PERCENTILE))
-                
-                # Handle cases where the bound is a vector (e.g., multivariate constraints)
-                if isinstance(lb, (jnp.ndarray, float, int)) and jnp.ndim(lb) > 0:
-                    lb = lb[i]
-                if isinstance(ub, (jnp.ndarray, float, int)) and jnp.ndim(ub) > 0:
-                    ub = ub[i]
-
-                lower_bounds[idx] = lb
-                upper_bounds[idx] = ub
-
-        return jnp.array(lower_bounds), jnp.array(upper_bounds)
+        return self.min, self.max
