@@ -388,7 +388,7 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='hub') -> jnp.ndarray:
+def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.
 
