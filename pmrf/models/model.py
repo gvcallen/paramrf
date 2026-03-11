@@ -2316,7 +2316,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                     
         return mapped_model
     
-    def with_uniform_distributions(self, percentage: float, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True):
+    def with_uniform_distributions(self, percentage: float, param_filter: str | Sequence[str] | Parameter | Sequence[Parameter] | Callable[[str], bool] = None, *, respect_bounds=False, remove_param_groups=True, zero_values='keep', **kwargs):
         """Return a model with uniform distributions set centered on current parameter values.
 
         The distributions are defined with bounds calculated as ``value * (1.0 +/- percentage)``.
@@ -2333,6 +2333,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
         remove_param_groups: bool, default=True
             Whether to remove parameter groups recursively when setting the uniform distributions.
             Otherwise, the joint distribution of the model may not be the desired uniform distribution.
+        zero_values: str, default='keep'
+            How to treat zero values. Currently the only option is to keep them and their bounds as is.
 
         Returns
         -------
@@ -2340,7 +2342,14 @@ class Model(eqx.Module, metaclass=ModelMeta):
             A new model with updated parameter distributions.
         """        
         updates = {}
-        for name, param in self.named_params(param_filter).items():
+        current_params = self.named_params(param_filter, **kwargs)
+        for name, param in current_params.items():
+            if param == 0.0:
+                if zero_values == 'keep':
+                    continue
+                else:
+                    raise Exception("Unknown option for 'zero_values'")
+
             new_min = param * (1.0 - percentage) / param.scale
             new_max = param * (1.0 + percentage) / param.scale
 
@@ -2376,15 +2385,27 @@ class Model(eqx.Module, metaclass=ModelMeta):
             def __init__(self, p):
                 self.p = p   # underlying partial
 
-            def __call__(self, *args, **kwargs):
-                return self.p(*args, **kwargs)
+            def __call__(self, *call_args, **call_kwargs):
+                # 1. Clone ONLY the defaults baked into the wrapper.
+                # This ensures each new model gets its own independent blueprint parameters.
+                baked_args = deepcopy(self.p.args)
+                baked_kwargs = deepcopy(self.p.keywords)
+                
+                # 2. Merge with explicitly passed arguments.
+                # We DO NOT clone call_args or call_kwargs to preserve intentional parameter tying!
+                final_args = baked_args + call_args
+                final_kwargs = {**baked_kwargs, **call_kwargs}
+                
+                # 3. Instantiate the model
+                return self.p.func(*final_args, **final_kwargs)
 
             # chaining
-            def with_defaults(self, *args, **kwargs):
+            def with_defaults(self, *new_args, **new_kwargs):
                 # merge new defaults after existing ones
-                new_args = self.p.args + args
-                new_kwargs = {**self.p.keywords, **kwargs} if self.p.keywords else kwargs
-                return DefaultsWrapper(partial(self.p.func, *new_args, **new_kwargs))
+                merged_args = self.p.args + new_args
+                merged_kwargs = {**self.p.keywords, **new_kwargs} if self.p.keywords else new_kwargs
+                return DefaultsWrapper(partial(self.p.func, *merged_args, **merged_kwargs))
+                
         return DefaultsWrapper(partial(cls, *args, **kwargs))
     
     def with_models(self: Self, models: Self | Sequence[Self]) -> Self:

@@ -1,8 +1,15 @@
-import os
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
+import logging
+
+# 1. Mute the logger
+jax_logger = logging.getLogger("jax._src.xla_bridge")
+initial_level = jax_logger.getEffectiveLevel()
+jax_logger.setLevel(logging.ERROR)
 
 import jax
 jax.config.update("jax_enable_x64", True)
+
+# _ = jax.devices() 
+# jax_logger.setLevel(initial_level)
 
 from pmrf.models.model import Model
 from pmrf.parameters import Parameter
