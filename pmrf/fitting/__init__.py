@@ -2,7 +2,7 @@
 The fitting module, for fitting ParamRF models to measured data.
 
 All fitters in this module inherit from :class:`pmrf.fitting.BaseFitter`.
-Fitting is done by initializing a Fitter class with the model and fitting goals, and then calling
+Fitting is done by initializing a Fitter class with the model and fitting features, and then calling
 :meth:`pmrf.fitting.BaseFitter.run` with measured data. Fitting goals include the features to
 fit to (e.g. S11), the fit frequency, the cost function (for frequentist fitters) or
 the likelihood function (for Bayesian fitters).

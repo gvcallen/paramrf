@@ -1442,28 +1442,30 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         Parameters
         ----------
-        load : Model, optional
-            Load network. Defaults to a SHORT.
+        load : Model | str, optional
+            Load network. Can be 'short' or 'open' as aliases for SHORT and OPEN.
+            Defaults to a SHORT.
 
         Returns
         -------
         Model
         """
-        from pmrf.models import SHORT
-        from pmrf.models import Terminated
+        from pmrf.models import SHORT, OPEN, Terminated
+
+        if isinstance(load, str):
+            if load == 'short':
+                load = SHORT
+            elif load == 'open':
+                load = OPEN
+            else:
+                raise ValueError(f"Unknown load alias {load} received in 'Model.terminated()'")
+
         load = load or SHORT
         return Terminated(self, load, **kwargs)
 
     def sampled(self, key=None, **kwargs) -> 'Model':
         """Returns a new model with parameters sampled from this parameter's distribution.
         
-        See :class:`pmrf.models.composite.transformed.Terminated`.
-
-        Parameters
-        ----------
-        load : Model, optional
-            Load network. Defaults to a SHORT.
-
         Returns
         -------
         Model

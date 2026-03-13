@@ -17,7 +17,7 @@ from pmrf.models.components.lines import TransmissionLine, RLGCLine, PhaseLine, 
 from pmrf.models.components.lumped import Load, Resistor, Capacitor, Inductor, ShuntResistor, ShuntCapacitor, ShuntInductor, CapacitorQ, InductorQ, SHORT, OPEN, MATCH
 from pmrf.models.components.nonideal import NonIdealResistor, CLCResistor
 from pmrf.models.components.topological import PiCLC, BoxCLCC
-from pmrf.models.composite.interconnected import Circuit, Cascade, Terminated
+from pmrf.models.composite.interconnected import Circuit, Cascade, Terminated, Shunt
 from pmrf.models.composite.transformed import Renumbered, Flipped, Stacked
 from pmrf.models.numerical.expansion import VectorExpansion
 

@@ -162,3 +162,45 @@ class Terminated(Model, transparent=True):
         z0_into = self.into_model.z0
         S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
         return S_term
+
+
+class Shunt(Model, transparent=True):
+    r"""
+    Represents a 1-port network connected in parallel (shunt) across a 2-port line.
+
+    This maps the reflection coefficient ($\Gamma$ or $S_{11}$) of a 1-port 
+    model into a 2-port transmission matrix. 
+
+    Attributes
+    ----------
+    model : Model
+        The 1-port model to be connected in shunt.
+    """
+    model: Model
+    
+    def __post_init__(self):
+        if self.model.nports != 1:
+            raise ValueError(f"Shunt requires a 1-port model. Received a {self.model.nports}-port model.")
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        # Get the 1-port S-parameters. Shape: (npoints, 1, 1)
+        # Note: This assumes self.model.z0 == self.z0. If your library allows 
+        # mixed reference impedances, you will need to renormalize s_1p first.
+        s_1p = self.model.s(freq)
+        
+        # Extract the reflection coefficient array
+        gamma = s_1p[:, 0, 0]
+        
+        # Calculate 2-port S-parameters directly from 1-port Gamma
+        # This avoids divide-by-zero errors for ideal opens/shorts
+        denom = gamma + 3.0
+        s11 = (gamma - 1.0) / denom
+        s21 = 2.0 * (1.0 + gamma) / denom
+        
+        # Construct the (npoints, 2, 2) S-parameter array
+        S_shunt = jnp.array([
+            [s11, s21],
+            [s21, s11],
+        ]).transpose(2, 0, 1)
+        
+        return S_shunt
