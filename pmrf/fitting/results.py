@@ -10,6 +10,7 @@ import h5py
 from pmrf.network_collection import NetworkCollection
 from pmrf.models.model import Model
 from pmrf.results import BaseResults
+from pmrf.features import extract_features
 
 @dataclass
 class FitResults(BaseResults):
@@ -20,27 +21,54 @@ class FitResults(BaseResults):
     # --------------------------------------------------------------------------
     # Subclass specific Plotting & I/O
     # --------------------------------------------------------------------------
-    def _get_plot_data(self, use_initial_model=False, **kwargs) -> list[tuple]:
+    def _get_feature_plot_data(self, feature: str, use_initial_model=False, **kwargs) -> list[dict]:
+        """
+        Extracts the requested feature from both the measured data and the 
+        fitted model to visualize the quality of the fit.
+        """
         model = self.initial_model if use_initial_model else self.fitted_model
-        if not self.measured or not model:
-            logging.warning("Missing measured data or model for plotting.")
+        if not self.measured or not model or not self.frequency:
+            logging.warning("Missing measured data, model, or frequency for plotting.")
             return []
 
-        networks_ref = self.measured if isinstance(self.measured, NetworkCollection) else [self.measured]
         plot_data = []
-        
-        for meas_nw in networks_ref:
-            sub_model = getattr(model, meas_nw.name) if isinstance(self.measured, NetworkCollection) else model
-            try:
-                fit_nw = sub_model.to_skrf(self.frequency)
-                plot_data.append((
-                    meas_nw.name or "Main", 
-                    [meas_nw, fit_nw], 
-                    [{'label': 'Measured', 'linestyle': '--', 'color': 'k'}, {'label': 'Model'}]
-                ))
-            except Exception as e:
-                logging.warning(f"Failed to generate fitted network for {meas_nw.name}: {e}")
+        networks_ref = self.measured if isinstance(self.measured, NetworkCollection) else [self.measured]
+
+        try:
+            # We iterate over networks so that if the user fits a NetworkCollection, 
+            # we plot the feature for every network/sub-model pair in the collection.
+            for nw in networks_ref:
+                # If it's a collection, target the specific network and sub-model by name
+                feature_spec = {nw.name: feature} if isinstance(self.measured, NetworkCollection) else [feature]
                 
+                # 1. Extract from Measured Data
+                y_meas = extract_features(self.measured, self.frequency, feature_spec)
+                y_meas = np.real(y_meas[:, 0]) # Cast to real to strip complex dtype
+                
+                label_suffix = f" ({nw.name})" if nw.name else ""
+                
+                plot_data.append({
+                    'y': y_meas,
+                    'label': f'Measured{label_suffix}',
+                    'linestyle': '--',
+                    'color': 'k',
+                    'linewidth': 1.5
+                })
+                
+                # 2. Extract from Model
+                y_mod = extract_features(model, self.frequency, feature_spec)
+                y_mod = np.real(y_mod[:, 0])
+                
+                plot_data.append({
+                    'y': y_mod,
+                    'label': f'Model{label_suffix}',
+                    'linestyle': '-',
+                    'linewidth': 1.5
+                })
+                
+        except Exception as e:
+            logging.warning(f"Failed to extract '{feature}' for fitting plot: {e}")
+
         return plot_data
 
     def _write_data(self, f: h5py.File):

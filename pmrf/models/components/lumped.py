@@ -4,7 +4,7 @@ Lumped elements (resistors, capacitors, inductors).
 
 import jax.numpy as jnp
 
-from pmrf.parameters import Parameter
+from pmrf.parameters import Parameter, Fixed
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 
@@ -582,6 +582,6 @@ class CapacitorQ(Model):
         return s
     
     
-SHORT = Load(-1.0)
-OPEN = Load(1.0)
-MATCH = Load(0.0)
+SHORT = Load(Fixed(-1.0))
+OPEN = Load(Fixed(1.0))
+MATCH = Load(Fixed(0.0))

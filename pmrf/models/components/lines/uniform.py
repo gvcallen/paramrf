@@ -172,9 +172,9 @@ class PhaseLine(TransmissionLine):
         Reference frequency in Hz for `theta`.
     """
     theta: Parameter = 90.0
-    
     zc: Parameter = 50.0    
-    f0: Parameter = 1e9
+    
+    f0: float = 1e9
 
     def zc_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         zc = self.zc * jnp.ones(frequency.npoints, dtype=complex)

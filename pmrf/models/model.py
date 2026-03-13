@@ -531,19 +531,14 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 explicit_name = getattr(next_node, 'name', None)
                 
                 # 3. Rule application
-                if explicit_name is not None:
-                    # User explicitly named it.
-                    if is_transparent:
-                        name_fields.append(explicit_name) # Always use the explicit name
-                    else:
-                        name_fields.append(k) # Standard fields keep their namespace prefix
+                if is_transparent:
+                    # If transparent, we ONLY add a namespace if the user explicitly named the child.
+                    # Otherwise, we pass right through without appending the internal variable name.
+                    if explicit_name is not None:
+                        name_fields.append(explicit_name)
                 else:
-                    # No explicit name. We MUST use the variable name 'k' as fallback,
-                    # UNLESS it's a transparent generic container (where dict/list keys handle it).
-                    if is_transparent and isinstance(next_node, (list, tuple, dict)):
-                        pass
-                    else:
-                        name_fields.append(k)
+                    # If not transparent, we use the standard attribute name `k` as the namespace.
+                    name_fields.append(k)
                         
                 node = next_node
                 
@@ -559,7 +554,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 node = node[idx]
                 
                 # Rule: Sequences promote explicitly named models, 
-                # otherwise use "model_{idx}" or just "{idx}".
+                # otherwise use just the index "{idx}".
                 explicit_name = getattr(node, 'name', None)
                 if explicit_name is not None:
                     name_fields.append(explicit_name)

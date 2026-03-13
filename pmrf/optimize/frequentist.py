@@ -25,6 +25,9 @@ class FrequentistOptimizer(BaseOptimizer, ABC):
         tikhonov_lambda: float = 0.0,
         **feature_kwargs
     ):
+        if 'features' in feature_kwargs:
+            raise Exception("'features' should not be passed to a frequentist optimizer. Pass goals instead.")
+
         super().__init__(model, goals, frequency=frequency, **feature_kwargs)
         
         self.aggregation = aggregation
@@ -54,9 +57,9 @@ class FrequentistOptimizer(BaseOptimizer, ABC):
             agg_type = self.aggregation
 
             @jax.jit
-            def cost_fn(t):
+            def cost_fn(theta):
                 # Simulated features shape is roughly (N_frequencies, N_goals)
-                simulated_features = self.model_features(t)
+                simulated_features = self.model_features(theta)
                 
                 # Arrays to hold the total penalty per goal
                 penalties = []
@@ -67,6 +70,8 @@ class FrequentistOptimizer(BaseOptimizer, ABC):
                         val = simulated_features[:, i]
                     else:
                         val = simulated_features[i]
+
+                    val = jnp.real(val)
                         
                     # 1. Apply Inequality/Equality operator
                     if goal.operator == '<':
@@ -95,7 +100,7 @@ class FrequentistOptimizer(BaseOptimizer, ABC):
 
                 # 5. Apply Parameter Regularization
                 if reg_weight > 0.0 and theta_0 is not None:
-                    normalized_diff = (t - theta_0) / p_ranges
+                    normalized_diff = (theta - theta_0) / p_ranges
                     l2_penalty = reg_weight * jnp.sum(normalized_diff ** 2)
                     return base_cost + l2_penalty
                 

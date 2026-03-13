@@ -9,3 +9,9 @@ try:
     __all__.append("SciPyMinimizeOptimizer")
 except ImportError:
     pass
+
+try:
+    from pmrf.optimize.backends.optax import OptaxOptimizer
+    __all__.append("OptaxOptimizer")
+except ImportError:
+    pass

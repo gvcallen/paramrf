@@ -34,15 +34,19 @@ class BaseResults:
     # --------------------------------------------------------------------------
     # Shared Plotting Utilities
     # --------------------------------------------------------------------------
-    def plot_s_db(self, **kwargs): return self.plot_property(property='s_db', **kwargs)
-    def plot_s_deg(self, **kwargs): return self.plot_property(property='s_deg', **kwargs)
-    def plot_s_re(self, **kwargs): return self.plot_property(property='s_re', **kwargs)
-    def plot_s_im(self, **kwargs): return self.plot_property(property='s_im', **kwargs)
-
-    def plot_property(self, property='s_db', **kwargs):
+    def __getattr__(self, name: str):
         """
-        Plots a property (e.g. S-parameter magnitude in dB) of the results.
-        Delegates the specific networks to plot to the subclass.
+        Intercepts calls like `results.plot_s11_db()` dynamically.
+        Extracts the feature name ('s11_db') and routes it to the generic plotter.
+        """
+        if name.startswith('plot_'):
+            feature_name = name[5:] # Strip the 'plot_' prefix
+            return lambda **kwargs: self._plot_single_feature(feature_name, **kwargs)
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
+    def _plot_single_feature(self, feature: str, **kwargs):
+        """
+        Plots a specific feature using data provided by the subclass.
         """
         import matplotlib.pyplot as plt
 
@@ -50,42 +54,40 @@ class BaseResults:
             logging.warning("Missing frequency settings for plotting.")
             return
 
-        # Subclasses provide a list of tuples: 
-        # (panel_title, list_of_skrf_networks, list_of_plot_kwargs)
-        plot_data = self._get_plot_data(**kwargs)
-        if not plot_data: return
+        # Subclasses provide a list of dictionaries containing 'y' data and plot kwargs
+        plot_data = self._get_feature_plot_data(feature, **kwargs)
+        if not plot_data:
+            return
 
-        n_rows = len(plot_data)
-        max_ports = max(networks[0].number_of_ports for _, networks, _ in plot_data if networks)
-        if max_ports == 0: return
+        fig, ax = plt.subplots(figsize=(7, 4))
         
-        fig, axes = plt.subplots(n_rows, max_ports**2, figsize=(4 * max_ports**2, 3.5 * n_rows), squeeze=False)
+        # 1. Plot against the correctly scaled frequency!
+        x = self.frequency.f_scaled 
 
-        for row, (label, networks, plot_kwargs_list) in enumerate(plot_data):
-            col = 0
-            n_ports = networks[0].number_of_ports
-            for i in range(n_ports):
-                for j in range(n_ports):
-                    ax = axes[row, col]
-                    
-                    for nw, pkwargs in zip(networks, plot_kwargs_list):
-                        if i < nw.number_of_ports and j < nw.number_of_ports:
-                            getattr(nw, f'plot_{property}')(m=i, n=j, ax=ax, **pkwargs)
-                    
-                    ax.set_title(f"{label} - S{i+1}{j+1}")
-                    ax.grid(True, alpha=0.5)
-                    
-                    if col == 0: ax.legend(fontsize='small')
-                    else: ax.get_legend().remove() if ax.get_legend() else None
-                    col += 1
-                    
-            for k in range(col, max_ports**2): axes[row, k].axis('off')
+        for data_dict in plot_data:
+            y = data_dict.pop('y')
+            ax.plot(x, y, **data_dict)
 
+        # 2. Format the graph
+        ax.set_title(f"Optimization Feature: {feature}")
+        ax.set_xlabel(f"Frequency ({self.frequency.unit})")
+        
+        # Try to infer a nice Y-axis label
+        if str(feature).endswith('_db'):
+            ax.set_ylabel("Magnitude (dB)")
+        elif str(feature).endswith('_deg'):
+            ax.set_ylabel("Phase (Degrees)")
+        elif str(feature).endswith('_mag'):
+            ax.set_ylabel("Magnitude (Linear)")
+            
+        ax.grid(True, alpha=0.5)
+        ax.legend(fontsize='small')
         fig.tight_layout()
-        return fig, axes
+        
+        return fig, ax
 
-    def _get_plot_data(self, **kwargs) -> list[tuple]:
-        """Override in subclasses to provide networks for `plot_property`."""
+    def _get_feature_plot_data(self, feature: str, **kwargs) -> list[dict]:
+        """Override in subclasses to provide y-data and plot kwargs."""
         return []
 
     # --------------------------------------------------------------------------

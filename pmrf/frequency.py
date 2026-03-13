@@ -3,11 +3,14 @@ The frequency class to define the frequency grid for models.
 """
 from __future__ import annotations
 
+import re
+from dataclasses import replace
 import skrf
 import equinox as eqx
 
 import jax.numpy as jnp
 from pmrf.field import field
+from pmrf.util import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
 
 class Frequency(eqx.Module):
@@ -133,7 +136,7 @@ class Frequency(eqx.Module):
         return new_freq
         
     @staticmethod
-    def from_skrf(skrf_frequency: skrf.Frequency) -> 'Frequency':
+    def from_skrf(skrf_frequency: skrf.Frequency, *, unit=None) -> 'Frequency':
         """
         Create a `pmrf.Frequency` from a `skrf.Frequency` object.
 
@@ -147,7 +150,12 @@ class Frequency(eqx.Module):
         Frequency
             The equivalent pmrf Frequency object.
         """
-        return Frequency.from_f(skrf_frequency.f_scaled, unit=skrf_frequency.unit)
+        if unit is not None:
+            skrf_frequency = skrf_frequency.copy()
+            skrf_frequency.unit = unit
+
+        freq = Frequency.from_f(skrf_frequency.f_scaled, unit=skrf_frequency.unit)
+        return freq
     
     def to_skrf(self) -> skrf.Frequency:
         """
@@ -160,6 +168,62 @@ class Frequency(eqx.Module):
         """
         import numpy as np
         return skrf.Frequency.from_f(np.array(self.f_scaled), self._unit)
+    
+    def __getitem__(self, key: str | int | slice) -> Frequency:
+        """
+        Slices a Frequency object based on an index, or human readable string.
+
+        Parameters
+        ----------
+        key : str, int, or slice
+            if int, then it is interpreted as the index of the frequency
+            if str, then should be like '50.1-75.5ghz', or just '50'.
+            If the frequency unit is omitted then :attr:`unit` is
+            used.
+
+        Examples
+        --------
+        >>> b = rf.Frequency(50, 100, 101, 'ghz')
+        >>> a = b['80-90ghz']
+        >>> a.plot_s_db()
+        """
+        if isinstance(key, str):
+
+            # they passed a string try and do some interpretation
+            re_hyphen = re.compile(r'\s*-\s*')
+            re_letters = re.compile('[a-zA-Z]+')
+
+            freq_unit = re.findall(re_letters,key)
+
+            if len(freq_unit) == 0:
+                freq_unit = self.unit
+            else:
+                freq_unit = freq_unit[0]
+
+            key_nounit = re.sub(re_letters,'',key)
+            edges  = re.split(re_hyphen,key_nounit)
+
+            edges_freq = Frequency.from_f([float(k) for k in edges],
+                                        unit = freq_unit)
+            if len(edges_freq) ==2:
+                slicer=slice_domain(self.f, edges_freq.f)
+            elif len(edges_freq)==1:
+                key = find_nearest_index(self.f, edges_freq.f[0])
+                slicer = slice(key,key+1,1)
+            else:
+                raise ValueError()
+            try:
+                f_scaled = jnp.array(self.f_scaled[slicer]).reshape(-1)
+                return Frequency.from_f(f_scaled, unit=self.unit)
+            except(IndexError) as err:
+                raise IndexError('slicing frequency is incorrect') from err
+
+        if self.f.shape[0] > 0:
+            f_scaled = jnp.array(self.f_scaled[key]).reshape(-1)
+        else:
+            f_scaled = jnp.empty(shape=(0))
+
+        return Frequency.from_f(f_scaled, unit=self.unit)
     
     def __hash__(self):
         return hash((self._f, self.unit))
