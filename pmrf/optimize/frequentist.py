@@ -81,12 +81,19 @@ class FrequentistOptimizer(BaseOptimizer, ABC):
                     elif goal.operator == '==':
                         penalty = jnp.abs(val - goal.target)
                         
-                    # 2. Apply Frequency Mask if present
+                    # 2. Apply Frequency Mask and calculate N points
                     if goal.mask is not None:
                         penalty = jnp.where(goal.mask, penalty, 0.0)
+                        # Sum the boolean mask to get the number of active points
+                        num_points = jnp.sum(goal.mask) 
+                    else:
+                        num_points = val.shape[0]
                         
-                    # 3. Square and weight the error for this specific goal
-                    goal_cost = goal.weight * jnp.sum(penalty ** 2)
+                    # Prevent division by zero if a mask is entirely False
+                    num_points = jnp.maximum(num_points, 1.0)
+
+                    # 3. Square, normalize by number of points, and weight
+                    goal_cost = goal.weight * (jnp.sum(penalty ** 2) / num_points)
                     penalties.append(goal_cost)
                 
                 penalties_array = jnp.array(penalties)
