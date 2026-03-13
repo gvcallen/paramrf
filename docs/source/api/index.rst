@@ -27,6 +27,7 @@ Modules
    pmrf.fitting
    pmrf.math_functions
    pmrf.models
+   pmrf.optimize
    pmrf.parameters
    pmrf.results
    pmrf.rf_functions
