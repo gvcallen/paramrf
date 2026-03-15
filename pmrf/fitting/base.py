@@ -164,6 +164,7 @@ class BaseFitter(BaseRunner, ABC):
             plot = [plot]
 
         save_output = output_path is not None and (save_model or save_results or plot is not None) and RANK == 0
+        plot_output = not save_output and RANK == 0
         if save_output:
             output_prefix = f'{output_path}/{output_root}_' if output_root is not None else f'{output_path}/'
             
@@ -188,7 +189,7 @@ class BaseFitter(BaseRunner, ABC):
                     func()
                     plt.savefig(Path(f'{figure_prefix}{plot_feature}.png').resolve(), dpi=400)
                     plt.close()
-        else:
+        elif plot_output:
             if plot is not None:
                 for plot_feature in plot:
                     func = getattr(results, f'plot_{plot_feature}')

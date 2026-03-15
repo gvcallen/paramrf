@@ -20,6 +20,7 @@ from pmrf.optimize.base import BaseOptimizer
 from pmrf.optimize.goal import Goal
 from pmrf.optimize.results import OptimizeResults
 from pmrf.optimize.frequentist import FrequentistOptimizer
+from pmrf.optimize.bayesian import BayesianOptimizer
 
 from pmrf.optimize.backends import *
 from pmrf.optimize import backends

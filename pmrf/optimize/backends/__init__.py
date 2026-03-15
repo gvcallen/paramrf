@@ -15,3 +15,9 @@ try:
     __all__.append("OptaxOptimizer")
 except ImportError:
     pass
+
+try:
+    from pmrf.optimize.backends.polychord import PolyChordOptimizer
+    __all__.append("PolyChordOptimizer")
+except ImportError:
+    pass

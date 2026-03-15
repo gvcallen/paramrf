@@ -167,10 +167,6 @@ class Model(eqx.Module, metaclass=ModelMeta):
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
-    :meth:`s_jacobian`                Jacobian of the S-parameters w.r.t free parameters.
-    :meth:`a_jacobian`                Jacobian of the ABCD-parameters w.r.t free parameters.
-    :meth:`z_jacobian`                Jacobian of the Z-parameters w.r.t free parameters.
-    :meth:`y_jacobian`                Jacobian of the Y-parameters w.r.t free parameters.
     ================================= ====================================================================
 
     **Function Tools**
@@ -178,9 +174,9 @@ class Model(eqx.Module, metaclass=ModelMeta):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`func_jacobian`             Calculate the Jacobian of an arbitrary function w.r.t parameters.
-    :meth:`func_sensitivity`          Calculate the sensitivity of an arbitrary function w.r.t parameters.
-    :meth:`func_samples`              Evaluate an arbitrary function over parameter samples.
+    :meth:`func_jacobian`             Calculate the Jacobian of a function w.r.t parameters.
+    :meth:`func_sensitivity`          Calculate the sensitivity of a function w.r.t parameters.
+    :meth:`func_samples`              Evaluate a function over parameter samples.
     ================================= ====================================================================
 
     **Model Inspection & Manipulation**
@@ -1047,83 +1043,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         else:
             raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
 
-        return s2y(s, self.z0)        
-    
-    @eqx.filter_jit
-    def s_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
-        """Calculate the Jacobian of the S-parameters with respect to free parameters.
-
-        See :meth:`.func_jacobian`.
-
-        Parameters
-        ----------
-        freq : Frequency
-            The frequency grid to evaluate the S-parameters over.
-
-        Returns
-        -------
-        dict[str, jnp.ndarray]
-            A dictionary mapping flat parameter names to their gradient 
-            arrays. Each array has shape (n_freqs, n_ports, n_ports).
-        """
-        return self.func_jacobian(lambda mdl, f: mdl.s(f), freq)
-    
-    @eqx.filter_jit
-    def a_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
-        """Calculate the Jacobian of the ABCD-parameters with respect to free parameters.
-
-        See :meth:`.func_jacobian`.
-
-        Parameters
-        ----------
-        freq : Frequency
-            The frequency grid to evaluate the ABCD-parameters over.
-
-        Returns
-        -------
-        dict[str, jnp.ndarray]
-            A dictionary mapping flat parameter names to their gradient 
-            arrays. Each array has shape (n_freqs, n_ports, n_ports).
-        """
-        return self.func_jacobian(lambda mdl, f: mdl.a(f), freq)
-    
-    @eqx.filter_jit
-    def z_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
-        """Calculate the Jacobian of the Z-parameters with respect to free parameters.
-
-        See :meth:`.func_jacobian`.
-
-        Parameters
-        ----------
-        freq : Frequency
-            The frequency grid to evaluate the Z-parameters over.
-
-        Returns
-        -------
-        dict[str, jnp.ndarray]
-            A dictionary mapping flat parameter names to their gradient 
-            arrays. Each array has shape (n_freqs, n_ports, n_ports).
-        """
-        return self.func_jacobian(lambda mdl, f: mdl.z(f), freq)
-    
-    @eqx.filter_jit
-    def y_jacobian(self: Self, freq: Frequency) -> dict[str, jnp.ndarray]:
-        """Calculate the Jacobian of the Y-parameters with respect to free parameters.
-
-        See :meth:`.func_jacobian`.
-
-        Parameters
-        ----------
-        freq : Frequency
-            The frequency grid to evaluate the Y-parameters over.
-
-        Returns
-        -------
-        dict[str, jnp.ndarray]
-            A dictionary mapping flat parameter names to their gradient 
-            arrays. Each array has shape (n_freqs, n_ports, n_ports).
-        """
-        return self.func_jacobian(lambda mdl, f: mdl.y(f), freq)
+        return s2y(s, self.z0)            
     
     # ---- Function tools --------------------------------------------------        
 
@@ -1172,44 +1092,76 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def func_sensitivity(
         self: Self, 
         func: Callable[['Model', Frequency], jnp.ndarray], 
-        freq: Frequency
-    ) -> dict[str, jnp.ndarray]:
-        r"""Calculate the relative (normalized) sensitivity of an arbitrary function.
+        freq: Frequency,
+        kind: str = 'relative',
+        norm: int | str | None = None
+    ) -> dict[str, jnp.ndarray] | jnp.ndarray:
+        r"""Calculate the sensitivity of an arbitrary function w.r.t parameters.
 
-        This computes the fractional change in the function's output given a 
-        fractional change in each free parameter. Mathematically, it evaluates:
-        $$S_{rel} = \frac{\partial y}{\partial \theta} \frac{\theta}{y}$$
+        Supported kinds:
+        - 'relative': (dy/dtheta) * (theta/y). Fractional change in output per 
+          fractional change in parameter. Blows up if y is zero.
+        - 'semi-relative': (dy/dtheta) * theta. Change in output per 
+          fractional change in parameter. Stable if y is zero.
+        - 'absolute': (dy/dtheta). Raw gradient.
 
         Parameters
         ----------
         func : Callable[[Model, Frequency], jnp.ndarray]
-            Function to evaluate. Must take a Model and a Frequency object and 
-            return a jnp.ndarray of any shape.
+            Function to evaluate.
         freq : Frequency
             The frequency grid to evaluate the function over.
+        kind : str, default='relative'
+            The type of sensitivity to calculate ('relative', 'semi-relative', 'absolute').
+        norm : int | str | None, default=None
+            If provided, aggregates the parameter sensitivities into a single scalar 
+            metric using the specified norm (e.g., 2 for L2 norm, jnp.inf for max norm).
 
         Returns
         -------
-        dict[str, jnp.ndarray]
-            A dictionary mapping flat parameter names to their normalized 
-            sensitivity arrays. Each array has the same shape as the output 
-            of `func`.
+        dict[str, jnp.ndarray] | jnp.ndarray
+            If `norm` is None, returns a dictionary mapping flat parameter names 
+            to sensitivity arrays.
+            If `norm` is specified, returns a 0D scalar jax array representing 
+            the global sensitivity metric.
         """
-        # 1. Get nominal value and absolute jacobian
-        y_nom = func(self, freq)
-        abs_jac = self.func_jacobian(func, freq)
+        # 1. Setup the flat parameter evaluation
+        def func_from_flat(flat_params_array: jnp.ndarray) -> jnp.ndarray:
+            sampled_model = self.with_params(flat_params_array)
+            return func(sampled_model, freq)
+
+        theta = self.flat_param_values()
         
-        # 2. Get nominal parameter values
-        param_vals = self.named_flat_param_values()
+        # Calculate raw Jacobian. JAX appends the parameter dimension to the end: 
+        # jac_array shape: (*func_shape, num_params)
+        jac_array = jax.jacfwd(func_from_flat)(theta)
         
-        # 3. Normalize to get relative sensitivity.
-        # Prevent division by zero by replacing exact zeros with a tiny epsilon.
-        y_safe = jnp.where(y_nom == 0, 1e-15, y_nom)
+        # 2. Scale the Jacobian entirely via array broadcasting
+        if kind == 'absolute':
+            sens_array = jac_array
+            
+        elif kind == 'semi-relative':
+            sens_array = jac_array * theta
+            
+        elif kind == 'relative':
+            y_nom = func(self, freq)
+            y_safe = jnp.where(y_nom == 0, 1e-15, y_nom)
+            sens_array = jac_array * (theta / y_safe[..., None])
+            
+        else:
+            raise ValueError(f"Unknown sensitivity kind: '{kind}'. "
+                             f"Supported: 'relative', 'semi-relative', 'absolute'") 
         
-        return {
-            name: jac * (param_vals[name] / y_safe)
-            for name, jac in abs_jac.items()
-        }    
+        # 3. Apply the norm if requested
+        if norm is not None:
+            return jnp.linalg.norm(sens_array, ord=norm)
+            
+        # 4. Otherwise, pack it back into the dictionary format
+        # Move the parameter dimension to the front: (num_params, *func_shape)
+        sens_moved = jnp.moveaxis(sens_array, -1, 0)
+        param_names = self.flat_param_names()
+        
+        return {name: sens_moved[i] for i, name in enumerate(param_names)}
 
     @eqx.filter_jit
     def func_samples(
@@ -2771,7 +2723,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             ax = plt.gca()
 
         # 1. Evaluate the ensemble
-        y_samples = self.func_samples(func, freq, key, num_samples)
+        y_samples = self.func_samples(func, freq, key=key, num_samples=num_samples)
         y_samples = np.asarray(y_samples)
         
         # Extract the x-axis automatically from the frequency object

@@ -58,8 +58,10 @@ def extract_features(
     -----
     **Feature Syntax**
 
-    Features can be specified using string aliases, explicit tuples, or dictionaries
-    for sub-components:
+    Features can be specified using string aliases, explicit tuples, dictionaries
+    for sub-components, or arbitrary callables.
+
+    * **Callables:** Any function that accepts `(source, frequency)` and returns an array.
 
     * **String Aliases:** Convenient shorthands for standard parameters.
 
@@ -82,9 +84,6 @@ def extract_features(
       into columns.
 
     """
-    if isinstance(features, Callable):
-        return features(source)
-    
     # We canonicalize the features to be flat (and parse them in the process)
     features = _canonicalize_features(features, source=source, sparam_kind=sparam_kind)
     
@@ -111,6 +110,7 @@ def extract_features(
     else:
         return _extract_measured_features(source, features, frequency, dtype=dtype)
 
+
 def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Model | skrf.Network | NetworkCollection | None = None, sparam_kind: str = 'all') -> list[FeatureT]:
     # For the dict case, we just recursively call format features for each attribute and return early
     if isinstance(features, dict):
@@ -124,7 +124,9 @@ def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Mod
         return features_out
     
     # For the general case we get the features into a sequence of aliases or feature tuples and then expand
-    if isinstance(features, str):
+    if callable(features):
+        raw_features = [features]
+    elif isinstance(features, str):
         raw_features = [features]
     elif not isinstance(features, Sequence):
         raw_features = [features]
@@ -133,6 +135,11 @@ def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Mod
 
     features_out = []
     for raw_feature in raw_features:
+        # Check for arbitrary user callable
+        if callable(raw_feature):
+            features_out.append((base_label, raw_feature, (-1, -1)))
+            continue
+
         # Allowed options for each raw feature are:
         #   1) 'alias'
         #   2) ('label', 'alias')
@@ -164,7 +171,11 @@ def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Mod
     if source is not None:
         no_ports_passed = all([feature_out[2] == (-1, -1) for feature_out in features_out])
         all_labels_equal = all([feature_out[0] == features_out[0][0] for feature_out in features_out])
-        if no_ports_passed and all_labels_equal:
+        
+        # Check if there are any non-callable string features before expanding
+        has_str_features = any(isinstance(f[1], str) for f in features_out)
+
+        if no_ports_passed and all_labels_equal and has_str_features:
             if sparam_kind == 'all':
                 port_tuples = source.port_tuples
             elif sparam_kind == 'reflection':
@@ -175,9 +186,18 @@ def _canonicalize_features(features: FeatureSpecT, *, base_label='', source: Mod
                 raise Exception('Unknown S-parameter type for port expansion')
 
             label = features_out[0][0]
-            features_out = [(label, feature_out[1], ports) for ports in port_tuples for feature_out in features_out]
+            
+            # Expand standard properties but leave callables intact
+            expanded_features = []
+            for feature_out in features_out:
+                if callable(feature_out[1]):
+                    expanded_features.append(feature_out)
+                else:
+                    expanded_features.extend([(label, feature_out[1], ports) for ports in port_tuples])
+            features_out = expanded_features
 
     return features_out
+
 
 def _parse_feature_alias(alias: str) -> tuple[FeatureT, tuple[int, int]]:
     """
@@ -204,6 +224,7 @@ def _parse_feature_alias(alias: str) -> tuple[FeatureT, tuple[int, int]]:
 
     return (prefix + suffix, ports)
 
+
 def _extract_model_features(model: Model, features: list[FeatureT], freq: Frequency, dtype: jnp.dtype) -> jnp.ndarray:
     extracted_cols = []
     
@@ -216,18 +237,21 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
             for sublabel in sublabels:
                 feature_model = getattr(feature_model, sublabel)
 
-        if m >= feature_model.nports or n >= feature_model.nports:
-            raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
-
-        if prop[2:4] == 'mn':
-            xfn = getattr(feature_model, prop)
-            x = xfn(freq,m,n)
-        elif m != -1 and n != -1:
-            xfn = getattr(feature_model, prop)
-            x = xfn(freq)[:,m,n]
+        if callable(prop):
+            x = prop(feature_model, freq)
         else:
-            xfn = getattr(feature_model, prop)
-            x = xfn(freq)
+            if m >= feature_model.nports or n >= feature_model.nports:
+                raise Exception(f'Property {prop}{m+1}{n+1} requested but network is a {model.nports}-port')        
+
+            if prop[2:4] == 'mn':
+                xfn = getattr(feature_model, prop)
+                x = xfn(freq,m,n)
+            elif m != -1 and n != -1:
+                xfn = getattr(feature_model, prop)
+                x = xfn(freq)[:,m,n]
+            else:
+                xfn = getattr(feature_model, prop)
+                x = xfn(freq)
             
         # Append the 1D array to our Python list
         extracted_cols.append(x)
@@ -235,33 +259,34 @@ def _extract_model_features(model: Model, features: list[FeatureT], freq: Freque
     # Let JAX compile a single concatenation operation
     return jnp.column_stack(extracted_cols).astype(dtype)    
 
+
 def _extract_measured_features(networks: NetworkCollection, features: list[FeatureT], freq: Frequency | skrf.Frequency, dtype: jnp.dtype) -> jnp.ndarray:
-    n_frequencies = len(freq)
-    n_features = len(features)
-    
     if isinstance(freq, Frequency):
         freq = freq.to_skrf()
 
-    X = jnp.zeros((n_frequencies, n_features), dtype=dtype)
-    for d, feature in enumerate(features):
+    extracted_cols = []
+    for feature in features:
         label, prop, (m, n) = feature[0], feature[1], feature[2]
-
-        x = None
         
         ntwk = networks[label]
         if ntwk.frequency != freq:
             ntwk = ntwk.interpolate(freq)
 
-        if m >= ntwk.nports or n >= ntwk.nports:
-            raise Exception(f'Property {prop} for ports {m+1}{n+1} requested but network is a {ntwk.nports}-port')
+        if callable(prop):
+            x = prop(ntwk, freq)
+        else:
+            if m >= ntwk.nports or n >= ntwk.nports:
+                raise Exception(f'Property {prop} for ports {m+1}{n+1} requested but network is a {ntwk.nports}-port')
+            
+            if prop[2:4] == 'mn':
+                i = prop.index('_')
+                prop_new = prop[0:i]
+                if len(prop) > i + 3:
+                    prop_new += prop[i+3:]
+                prop = prop_new
+            
+            x = getattr(ntwk, prop)[:,m,n]
+            
+        extracted_cols.append(x)
         
-        if prop[2:4] == 'mn':
-            i = prop.index('_')
-            prop_new = prop[0:i]
-            if len(prop) > i + 3:
-                prop_new += prop[i+3:]
-            prop = prop_new
-        
-        x = getattr(ntwk, prop)[:,m,n]
-        X = X.at[:, d].set(x)
-    return X
+    return jnp.column_stack(extracted_cols).astype(dtype)
