@@ -5,38 +5,9 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.fitting.base import BaseFitter
+from pmrf.fitting.error import independent_rms_error, geometric_rms_error, convolutional_rms_error
 from pmrf.models.model import Model
 from pmrf.constants import ArrayFuncT
-
-def independent_rms_error(res):
-    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
-    combined_rms = jnp.sqrt(jnp.mean(feature_rms**2))
-    return 20*jnp.log10(combined_rms)
-
-def convolutional_rms_error(res, num_features=2):
-    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
-    
-    grouped = feature_rms.reshape(-1, num_features)
-    M = grouped.shape[0]
-    convolved = grouped[:, 0]
-    for i in range(1, num_features):
-        convolved = jnp.convolve(convolved, grouped[:, i])
-        
-    convolved_scaled = convolved / (M ** (num_features - 1))
-    rms_convolved = jnp.sqrt(jnp.mean(convolved_scaled**2))
-    combined_rms = rms_convolved ** (1.0 / num_features)
-    
-    return 20 * jnp.log10(combined_rms)
-
-def geometric_rms_error(res, num_features=2):
-    feature_rms = jnp.sqrt(jnp.mean(jnp.abs(res)**2, axis=0))
-    
-    grouped = feature_rms.reshape(-1, num_features)
-    global_rms = jnp.sqrt(jnp.mean(grouped**2, axis=0))
-    product = jnp.prod(global_rms)
-    combined_rms = product ** (1.0 / num_features)
-    
-    return 20 * jnp.log10(combined_rms)
 
 class FrequentistFitter(BaseFitter, ABC):
     r"""

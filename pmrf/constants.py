@@ -31,20 +31,7 @@ MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
-# Flat, structured feature type
-FeatureT = tuple[str, str, tuple[int, int]]
-
-ModelT = TypeVar('ModelT', bound='Model')
-FeatureFunctionT = Callable[[ModelT | jnp.ndarray], jnp.ndarray]
-ModelParametersT = Union[ModelT | jnp.ndarray]
-
-# Alias/input feature types
-FeatureSpecScalarT = str | tuple[str, str] | FeatureT
-FeatureSpecSequenceT = Sequence[FeatureSpecScalarT]
-FeatureSpecDictT = dict[str, FeatureSpecScalarT | FeatureSpecSequenceT]
-FeatureSpecT = FeatureSpecScalarT | FeatureSpecSequenceT | FeatureSpecDictT | FeatureFunctionT
-
-
+FeatureSpec = str | Callable | list[str | Callable]
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]
 

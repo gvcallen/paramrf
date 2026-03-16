@@ -28,5 +28,6 @@ __all__ = [
     "FitResults",
     "FrequentistFitter",
     "BayesianFitter",
+    "FitComponent",
 ]
 __all__.extend(backends.__all__)

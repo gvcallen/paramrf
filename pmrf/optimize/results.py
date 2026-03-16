@@ -7,12 +7,12 @@ import h5py
 from pmrf.results import BaseResults
 from pmrf.models.model import Model
 from pmrf import extract_features
-from pmrf.optimize.goal import Goal # Adjust import as needed
+from pmrf.optimize.goal import FeatureGoal # Adjust import as needed
 
 @dataclass
 class OptimizeResults(BaseResults):
     """Container for the results of a goal-oriented design optimization."""
-    goals: list[Goal] | None = None
+    goals: list[FeatureGoal] | None = None
     optimized_model: Model | None = None
 
     def _get_feature_plot_data(self, feature: str, use_initial_model=False, **kwargs) -> list[dict]:
@@ -48,7 +48,7 @@ class OptimizeResults(BaseResults):
         # 2. Look for matching goals to overlay as target lines
         if self.goals:
             for i, goal in enumerate(self.goals):
-                if goal.feature == feature:
+                if goal.features == feature:
                     n_freq = len(self.frequency)
                     T = goal.target
                     
@@ -99,4 +99,4 @@ class OptimizeResults(BaseResults):
             goals_grp = f['goals']
             goal_keys = sorted([k for k in goals_grp.attrs.keys() if k.startswith('goal_')], 
                                key=lambda x: int(x.split('_')[1]))
-            kwargs['goals'] = [Goal.from_json(cls._decode_str(goals_grp.attrs[k])) for k in goal_keys]
+            kwargs['goals'] = [FeatureGoal.from_json(cls._decode_str(goals_grp.attrs[k])) for k in goal_keys]

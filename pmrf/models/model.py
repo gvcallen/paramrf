@@ -32,8 +32,7 @@ from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.frequency import Frequency
-from pmrf.util import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float
-from pmrf.util.tree import nodes_by_type, value_at_path, partition, combine
+from pmrf.utils import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float, nodes_by_type, value_at_path, partition, combine
 from pmrf.field import field  # Import your newly created field
 
 Z0_WARNING = \
@@ -481,7 +480,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         return jax.tree.map_with_path(lambda path, node: node and not path_is_derived[path], self._param_value_spec, is_leaf=is_leaf, is_leaf_takes_path=True)    
     
     @property
-    def _core_object_spec(self) -> PyTree:
+    def _param_object_spec(self) -> PyTree:
         """PyTree spec for core (non-derived) :class:`Parameter` objects."""        
         return self._param_object_spec
         # return jax.tree.map(lambda param, core_spec: is_valid_param(param) and core_spec.value, self, self.core_value_spec, is_leaf=lambda node: is_valid_param(node))
@@ -675,7 +674,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         submodels: 'Model | Sequence[Model] | str | Sequence[str] | None' = None,
     ) -> Iterator[tuple[str, Parameter]]:
         """Iterate over (name, Parameter) pairs in internal order."""
-        spec = self._core_object_spec if include_fixed else self._free_object_spec
+        spec = self._param_object_spec if include_fixed else self._free_object_spec
         params_tree = eqx.filter(self, spec, is_leaf=is_valid_param)
         path_and_params, _ = jax.tree.flatten_with_path(params_tree, is_leaf=is_valid_param)
         params: list[tuple[str, Parameter]] = [(self._path_to_param_name(path), param) for path, param in path_and_params]
@@ -1340,7 +1339,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         if param_objects:
             shared_spec = self._param_object_spec
             if include_fixed:
-                filter_spec = self._core_object_spec
+                filter_spec = self._param_object_spec
             else:
                 filter_spec = self._free_object_spec
         else:
@@ -1858,7 +1857,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         new_flat_params = list(new_params.values())
     
         # Get the current flat parameter object
-        params_tree, static = partition(self, self._core_object_spec, self._param_object_spec, is_leaf=is_valid_param)
+        params_tree, static = partition(self, self._param_object_spec, self._param_object_spec, is_leaf=is_valid_param)
         flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
         
         # We allow the caller to pass None for name and then we update the name. Otherwise names should match
@@ -2293,15 +2292,19 @@ class Model(eqx.Module, metaclass=ModelMeta):
         updates = {}
         current_params = self.named_params(param_filter, **kwargs)
         for name, param in current_params.items():
-            if param == 0.0:
+            value = param.value
+            if value == 0.0:
                 if zero_values == 'keep':
                     continue
                 else:
                     raise Exception("Unknown option for 'zero_values'")
-
-            new_min = param * (1.0 - percentage) / param.scale
-            new_max = param * (1.0 + percentage) / param.scale
-
+            elif value > 0.0:
+                new_min = value * (1.0 - percentage)
+                new_max = value * (1.0 + percentage)
+            elif value < 0.0:
+                new_min = value * (1.0 + percentage)
+                new_max = value * (1.0 - percentage)
+            
             if respect_bounds:
                 new_min = max(new_min, param.min)
                 new_max = min(new_max, param.max)

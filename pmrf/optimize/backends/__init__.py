@@ -17,7 +17,7 @@ except ImportError:
     pass
 
 try:
-    from pmrf.optimize.backends.polychord import PolyChordOptimizer
+    from infer.backends.polychord import PolyChordOptimizer
     __all__.append("PolyChordOptimizer")
 except ImportError:
     pass

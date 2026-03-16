@@ -25,17 +25,6 @@ def run_scipy_minimize(
     dist = model.distribution()
     minimums = np.array(dist.min, dtype=np.float64)
     maximums = np.array(dist.max, dtype=np.float64)
-    
-    is_bounded = np.isfinite(minimums) & np.isfinite(maximums)
-    
-    scales = np.ones_like(minimums)
-    shifts = np.zeros_like(minimums)
-    
-    scales[is_bounded] = maximums[is_bounded] - minimums[is_bounded]
-    shifts[is_bounded] = minimums[is_bounded]
-    
-    if np.any(scales <= 0):
-        raise ValueError("Maximum bounds must be strictly greater than minimum bounds for normalization.")
 
     x0_physical = np.array(model.flat_param_values(), dtype=np.float64)
 
@@ -47,7 +36,18 @@ def run_scipy_minimize(
             for name, val, minv, maxv, low, high in zip(param_names, x0_physical, minimums, maximums, too_low, too_high)
             if low or high
         ]
-        raise ValueError(f"Initial parameters outside bounds:\n" + "\n".join(bad_params))
+        raise ValueError(f"Initial parameters outside bounds:\n" + "\n".join(bad_params))    
+    
+    is_bounded = np.isfinite(minimums) & np.isfinite(maximums)
+    
+    scales = np.ones_like(minimums)
+    shifts = np.zeros_like(minimums)
+    
+    scales[is_bounded] = maximums[is_bounded] - minimums[is_bounded]
+    shifts[is_bounded] = minimums[is_bounded]
+    
+    if np.any(scales <= 0):
+        raise ValueError("Maximum bounds must be strictly greater than minimum bounds for normalization.")
     
     # 2. Normalize Inputs & Set Normalized Bounds
     z0 = (x0_physical - shifts) / scales
