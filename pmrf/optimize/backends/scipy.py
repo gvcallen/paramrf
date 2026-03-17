@@ -1,100 +1,86 @@
 import logging
-from typing import Callable
-from dataclasses import dataclass
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
+from scipy.optimize import minimize, Bounds
 import equinox as eqx
-from scipy.optimize import minimize, Bounds, OptimizeResult
 
-from pmrf.models import Model
-from pmrf.frequency import Frequency
-from optimize.problem import FrequentistProblem
+from optimize.base import AbstractOptimizer
+from pmrf.optimize.problem import OptimizeProblem
+from pmrf.optimize.result import OptimizeResult
 
-def optimize_scipy(
-    model: Model,
-    cost: Callable[[Model, Frequency], jnp.ndarray] | list,
-    frequency: Frequency,
-    *,
-    use_jac: bool = True,
-    use_hess: bool = False,
-    logger: logging.Logger | None = None,
-    **kwargs
-) -> tuple[Model, OptimizeResult]:
-    """
-    Executes SciPy minimize with JAX acceleration on an Equinox Model.
+class ScipyOptimizer(AbstractOptimizer):
+    method: str
+    use_jac: bool
+    use_hess: bool
+    options: dict
 
-    This function automatically bridges the gap between Equinox's PyTree 
-    structures and SciPy's flat float64 array requirements. It handles 
-    extracting free parameters, JIT-compiling the objective and its 
-    derivatives, and rebuilding the optimized model.
+    def __init__(self, method: str = "L-BFGS-B", use_jac: bool = True, use_hess: bool = False, **options):
+        self.method = method
+        self.use_jac = use_jac
+        self.use_hess = use_hess
+        self.options = options
 
-    Parameters
-    ----------
-    model : Model
-        The initial ParamRF model containing free parameters to optimize.
-    cost_fn : Callable[[Model, Frequency], float | jnp.ndarray] | list
-        A custom function evaluating the model over frequency and returning a scalar loss.
-        A list of callables can be passed, in which case they are simply summed.
-        See the :meth:`pmrf.features.Goal` class for an easy way to define model costs.
-    frequency : Frequency | None, optional
-        The frequency grid to evaluate goals over.
-    use_jac : bool, default=True
-        Whether to calculate and pass exact gradients to SciPy via `jax.value_and_grad`.
-    use_hess : bool, default=False
-        Whether to calculate and pass the exact Hessian matrix to SciPy via `jax.hessian`.
-    logger : logging.Logger | None, optional
-        Logger for recording optimization start and completion messages.
-    **kwargs
-        Additional keyword arguments forwarded directly to `scipy.optimize.minimize` 
-        (e.g., `method`, `options`, `tol`).
+    def solve(self, problem: OptimizeProblem, logger: logging.Logger | None = None, **kwargs) -> OptimizeResult:
+        logger = logger or logging.getLogger(__name__)
+        logger.info(f"Starting SciPy minimize optimization ({self.method}) in [0, 1] space...")
 
-    Returns
-    -------
-    tuple[Model, OptimizeResult]
-        The newly constructed, optimized Model, along with the raw SciPy result object.
+        run_options = {**self.options, **kwargs}
         
-    Raises
-    ------
-    ValueError
-        If neither `cost_fn` nor `goals` are provided, or if initial parameters 
-        fall outside the model's defined distribution bounds.
-    """
-    logger = logger or logging.getLogger(__name__)
+        # 1. Get the probability-space cost function and initial guess
+        prob_cost = problem.make_prob_cost_fn()
+        initial_guess = np.array(problem.flat_prob_initial_guess)
 
-    opt = FrequentistProblem(model, cost, frequency)
+        # 2. Setup strict 0 to 1 bounds for SciPy
+        lower_bounds = np.zeros_like(initial_guess)
+        upper_bounds = np.ones_like(initial_guess)
 
-    if use_jac:
-        jax_val_and_grad = eqx.filter_jit(jax.value_and_grad(cost))
+        if self.use_jac:
+            jax_val_and_grad = eqx.filter_jit(jax.value_and_grad(prob_cost))
+            
+            def scipy_objective(x_np: np.ndarray):
+                val, grad = jax_val_and_grad(jnp.array(x_np))
+                return float(val), np.array(grad, dtype=np.float64)
+            run_options['jac'] = True
+        else:
+            jax_val = eqx.filter_jit(prob_cost)
+
+            def scipy_objective(x_np: np.ndarray):
+                val = jax_val(jnp.array(x_np))
+                return float(val)
+            run_options['jac'] = False
+
+        if self.use_hess:
+            jax_hessian = eqx.filter_jit(jax.hessian(prob_cost))
+            
+            def scipy_hessian_fn(x_np: np.ndarray, *args):
+                hess = jax_hessian(jnp.array(x_np))
+                return np.array(hess, dtype=np.float64)
+            run_options['hess'] = scipy_hessian_fn
+
+        # 3. Execute SciPy in the perfectly scaled probability space
+        scipy_result = minimize(
+            scipy_objective, 
+            initial_guess, 
+            bounds=Bounds(lower_bounds, upper_bounds), 
+            method=self.method,
+            **run_options
+        )
+
+        logger.info(
+            f"Optimization finished: {scipy_result.message} "
+            f"(Cost: {scipy_result.fun:.2e}, Iterations: {scipy_result.nfev})"
+        )
+
+        # 4. Map the winning [0, 1] array back to Physical Reality, then reconstruct PyTree
+        best_u = jnp.clip(jnp.array(scipy_result.x), 1e-7, 1.0 - 1e-7)
+        best_physical_x = problem.model.distribution().icdf(best_u)
+        optimized_model = problem.reconstruct_fn(best_physical_x)
         
-        def scipy_objective(x_np: np.ndarray):
-            val, grad = jax_val_and_grad(jnp.array(x_np))
-            return float(val), np.array(grad, dtype=np.float64)
-        kwargs['jac'] = True
-    else:
-        def scipy_objective(x_np: np.ndarray):
-            val = cost(jnp.array(x_np))
-            return float(val)
-        kwargs['jac'] = False
-
-    if use_hess:
-        jax_hessian = eqx.filter_jit(jax.hessian(cost))
-        
-        def scipy_hessian_fn(x_np: np.ndarray, *args):
-            hess = jax_hessian(jnp.array(x_np))
-            return np.array(hess, dtype=np.float64)
-        kwargs['hess'] = scipy_hessian_fn
-
-    method_name = kwargs.get('method', 'default')
-    logger.info(f"Starting SciPy minimize optimization ({method_name})...")
-    
-    scipy_result = minimize(scipy_objective, opt.x0, bounds=Bounds(opt.bounds[0], opt.bounds[1]), **kwargs)
-
-    logger.info(
-        f"Optimization finished: {scipy_result.message} "
-        f"(Cost: {scipy_result.fun:.2e}, Iterations: {scipy_result.nfev})"
-    )
-
-    optimized_model = opt.reconstruct_fn(jnp.array(scipy_result.x))
-    return optimized_model, scipy_result
+        return OptimizeResult(
+            model=optimized_model,
+            cost=float(scipy_result.fun),
+            history={"scipy_result": scipy_result},
+            success=scipy_result.success
+        )

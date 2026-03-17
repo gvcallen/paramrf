@@ -8,29 +8,24 @@ jax_logger.setLevel(logging.ERROR)
 import jax
 jax.config.update("jax_enable_x64", True)
 
-# _ = jax.devices() 
-# jax_logger.setLevel(initial_level)
-
-from pmrf.models.model import Model
-from pmrf.parameters import Parameter
+from pmrf.model import Model
 from pmrf.frequency import Frequency
+from pmrf.parameters import Parameter
+from pmrf.features import Extractor
 from pmrf.field import field
-from pmrf.features import extract_features
 from pmrf.io import save, load
 from pmrf.network_collection import NetworkCollection
-from pmrf.results import BaseResults
-from pmrf.runner import BaseRunner
 
 from pmrf.algorithms import *
 from pmrf.constants import *
 from pmrf.distributions import *
-from pmrf.fitting import *
+from pmrf.fit import *
 from pmrf.math_functions import *
 from pmrf.models import *
 from pmrf.parameters import *
 from pmrf.rf_functions import *
-from pmrf.sampling import *
-from pmrf.util import *
+from pmrf.sample import *
+from pmrf.utils import *
 
 from pmrf import algorithms, constants, distributions, fitting, math_functions, models, parameters, rf_functions, sampling, util
 

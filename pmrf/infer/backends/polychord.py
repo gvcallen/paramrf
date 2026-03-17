@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from pmrf.models.model import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import time_string
-from pmrf.infer.problem import BayesianProblem
+from pmrf.infer.problem import InferenceProblem
 from pmrf.distributions import Distribution
 
 def sample_polychord(
@@ -22,7 +22,7 @@ def sample_polychord(
     Executes PolyChord nested sampling and returns the posterior distribution.
     """
     logger = logger or logging.getLogger(__name__)
-    problem = BayesianProblem(model, log_likelihood, frequency)
+    problem = InferenceProblem(model, log_likelihood, frequency)
 
     import pypolychord
     from pmrf.distributions import AnestheticDistribution

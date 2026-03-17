@@ -1,8 +1,9 @@
 import equinox as eqx
 import jax.numpy as jnp
+import numpyro.distributions as dist
+
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.optimize.goal import Goal
 from pmrf.features import Extractor, make_extractors, extract_multiple_features
 from pmrf.parameters import Parameter
 from pmrf.constants import FeatureSpec
@@ -19,9 +20,7 @@ class GaussianLikelihood(eqx.Module):
     Evaluates the log-likelihood of a Model against measured data.
     """
     extractors: list[Extractor] = eqx.field(static=True)
-    measured_data: jnp.ndarray
-    
-    # Statistical noise parameter (will be automatically flattened by JAX!)
+    observed: jnp.ndarray
     sigma: Parameter 
 
     def __init__(
@@ -36,15 +35,13 @@ class GaussianLikelihood(eqx.Module):
             extractors = make_extractors(extractors)
             
         self.extractors = extractors
-        self.measured_data = jnp.atleast_1d(jnp.array(measured_data))
+        self.observed = jnp.atleast_1d(jnp.array(measured_data))
         self.sigma = sigma
 
     def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
-        # 1. Extract the predicted features from the RF model
         if len(self.extractors) == 1:
             pred = self.extractors[0](model, frequency)
         else:
             pred = extract_multiple_features(self.extractors, model, frequency)
             
-        # 2. Evaluate the probability density
-        return dist.Normal(loc=pred, scale=self.sigma.value).log_prob(self.measured_data).sum()
+        return dist.Normal(loc=pred, scale=self.sigma.value).log_prob(self.observed).sum()

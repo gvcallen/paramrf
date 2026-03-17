@@ -10,6 +10,8 @@ from pmrf.frequency import Frequency
 from pmrf.optimize.goal import make_negative_goals
 from pmrf.parameters import ParameterGroup
 
+from jaxopt.base import StochasticSolver
+
 def optimize_polychord(
     model: Model,
     cost: Callable[[Model, Frequency], jnp.ndarray] | Sequence,

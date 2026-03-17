@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.distributions import constraints
 
-from pmrf.parameters.parameter import Parameter, _stack_vectorized_distributions
+from parameter import Parameter, _stack_vectorized_distributions
 
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], value=None, *, n: int | None = None, **kwargs) -> Parameter:
     r"""

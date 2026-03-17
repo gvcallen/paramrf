@@ -6,7 +6,6 @@ from pmrf.features.extractor import Extractor, make_extractors, extract_multiple
 
 __all__ = [
     "Extractor",
-    "Goal",
     "make_extractors",
     "extract_multiple_features",
 ]

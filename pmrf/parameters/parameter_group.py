@@ -6,7 +6,7 @@ import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
 from pmrf.field import field
-from pmrf.parameters.parameter import Parameter, MIN_PERCENTILE, MAX_PERCENTILE
+from parameter import Parameter, MIN_PERCENTILE, MAX_PERCENTILE
 
 @dataclass
 class ParameterGroup:

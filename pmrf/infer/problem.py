@@ -11,16 +11,17 @@ from pmrf.parameters import is_valid_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.infer.likelihood import CombinedLikelihood
 
-class BayesianProblem:
+class InferenceProblem:
     """
     Translates a PyTree Model and a log-likelihood function into a flat Bayesian sampling problem.
     """
+    x0: jnp.ndarray
+    param_names: list[str]
+    
     icdf_fn: Callable[[jnp.ndarray], jnp.ndarray]
-    log_likelihood_fn: Callable[[jnp.ndarray], jnp.ndarray]
+    log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray]
     flat_log_likelihood_fn: Callable[[jnp.ndarray], jnp.ndarray]
     reconstruct_fn: Callable[[jnp.ndarray], tuple[Model, Callable]]
-    param_names: list[str]
-    x0: jnp.ndarray
 
     def __init__(
         self,

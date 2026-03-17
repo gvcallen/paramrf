@@ -17,13 +17,13 @@ Results are returned in the form of :class:`pmrf.optimize.OptimizeResults`.
 """
 
 from pmrf.optimize.goal import Goal
-from pmrf.optimize.problem import FrequentistProblem
+from pmrf.optimize.problem import OptimizeProblem
 
 from pmrf.optimize.backends import *
 from pmrf.optimize import backends
 
 __all__ = [
     "Goal",
-    "FrequentistProblem",
+    "OptimizeProblem",
 ]
 __all__.extend(backends.__all__)
