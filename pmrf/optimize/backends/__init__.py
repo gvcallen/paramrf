@@ -5,8 +5,8 @@ Optimizer wrappers for interfacing with external libraries.
 __all__ = []
 
 try:
-    from pmrf.optimize.backends.scipy import SciPyMinimizeOptimizer
-    __all__.append("SciPyMinimizeOptimizer")
+    from pmrf.optimize.backends.optimistix import OptimistixOptimizer
+    __all__.append("OptimistixOptimizer")
 except ImportError:
     pass
 
@@ -17,7 +17,7 @@ except ImportError:
     pass
 
 try:
-    from infer.backends.polychord import PolyChordOptimizer
-    __all__.append("PolyChordOptimizer")
+    from pmrf.optimize.backends.scipy import ScipyOptimizer
+    __all__.append("ScipyOptimizer")
 except ImportError:
     pass

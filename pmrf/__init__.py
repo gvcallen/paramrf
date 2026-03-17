@@ -25,6 +25,7 @@ from pmrf.models import *
 from pmrf.parameters import *
 from pmrf.rf_functions import *
 from pmrf.sample import *
+from pmrf.transforms import *
 from pmrf.utils import *
 
 from pmrf import algorithms, constants, distributions, fitting, math_functions, models, parameters, rf_functions, sampling, util
