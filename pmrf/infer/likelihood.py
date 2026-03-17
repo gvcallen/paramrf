@@ -2,19 +2,12 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpyro.distributions as dist
 
-from pmrf.models import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
-from pmrf.features import Extractor, make_extractors, extract_multiple_features
+from pmrf.extractor import Extractor, make_extractors, extract_multiple_features
 from pmrf.parameters import Parameter
 from pmrf.constants import FeatureSpec
-   
-class CombinedLikelihood(eqx.Module):
-    """Safely evaluates multiple log-likelihood terms and sums them."""
-    terms: tuple
-
-    def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
-        return jnp.sum(jnp.array([term(model, frequency) for term in self.terms]))    
-    
+      
 class GaussianLikelihood(eqx.Module):
     """
     Evaluates the log-likelihood of a Model against measured data.
@@ -45,3 +38,10 @@ class GaussianLikelihood(eqx.Module):
             pred = extract_multiple_features(self.extractors, model, frequency)
             
         return dist.Normal(loc=pred, scale=self.sigma.value).log_prob(self.observed).sum()
+    
+class CombinedLikelihood(eqx.Module):
+    """Safely evaluates multiple log-likelihood terms and sums them."""
+    terms: tuple
+
+    def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
+        return jnp.sum(jnp.array([term(model, frequency) for term in self.terms]))

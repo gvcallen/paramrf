@@ -9,9 +9,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from dataclasses import replace
 
-from pmrf.network_collection import NetworkCollection
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
+from pmrf.network_collection import NetworkCollection
 from pmrf.constants import FeatureSpec
 
 class Extractor(eqx.Module):

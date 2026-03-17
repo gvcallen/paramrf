@@ -7,7 +7,7 @@ from pmrf.utils.misc import *
 from pmrf.utils.mpi import *
 from pmrf.utils.model import *
 from pmrf.utils.network import *
-from pmrf.utils.plotting import *
+from utils.plot import *
 from pmrf.utils.preprocessing import *
 from pmrf.utils.random import *
 from pmrf.utils.tree import *

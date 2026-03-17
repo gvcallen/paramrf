@@ -1,43 +1,38 @@
-import optimistix as optx
+from typing import Callable, Sequence
 
-from pmrf.optimize.base import AbstractOptimizer
+import jax.numpy as jnp
+import equinox as eqx
+import optimistix as optx
+import numpyro.distributions.transforms as transforms
+
+from pmrf.model import Model
+from pmrf.frequency import Frequency
+from pmrf.transforms import HypercubeTransform
+from pmrf.goal import Goal
 from pmrf.optimize.problem import OptimizeProblem
 from pmrf.optimize.result import OptimizeResult
-from pmrf.transforms import SigmoidHypercubeTransform
+from pmrf.optimize.backends.optimistix import OptimistixOptimizer
 
-class OptimistixOptimizer(AbstractOptimizer):
-    solver: optx.AbstractMinimiser
-    options: dict
+class AbstractOptimizer(eqx.Module):
+    """
+    The unified interface for all ParamRF optimization backends.
+    Inherits from eqx.Module to ensure it can be safely passed around in JAX transforms if needed.
+    """
+    def solve(self, problem: OptimizeProblem) -> OptimizeResult:
+        """
+        Executes the optimization routine on the given problem.
+        """
+        raise NotImplementedError("Each optimizer backend must implement the solve method.")
+    
+def optimize_model(
+    model: Model,
+    frequency: Frequency,
+    cost: Callable[[Model, Frequency], jnp.ndarray] | Sequence[Goal],
+    solver: AbstractOptimizer | optx.AbstractMinimiser = optx.BFGS(),
+) -> OptimizeResult:
+    if isinstance(solver, optx.AbstractMinimiser):
+        solver = OptimistixOptimizer(solver)
 
-    def __init__(self, solver: optx.AbstractMinimiser, **options):
-        self.solver = solver
-        self.options = options
-
-    def solve(self, problem: OptimizeProblem, **kwargs) -> OptimizeResult:
-        run_options = {**self.options, **kwargs}
-
-        theta0 = problem.get_initial_guess()
-        theta_cost_fn = problem.make_flat_cost_fn()
-        transform = SigmoidHypercubeTransform(problem.model.distribution())
-        x0 = transform(theta0)
-        cost_fn = lambda x, args: theta_cost_fn(transform.inv(x))
-
-        result = optx.minimise(
-            cost_fn, 
-            self.solver,
-            y0=x0, 
-            **run_options
-        )
-
-        x_opt = result.value 
-        theta_opt = transform.inv(x_opt)
-        optimized_model = problem.reconstruct(theta_opt)
-        final_cost = float(cost_fn(x_opt, None))
-        success = (result.result == optx.RESULTS.successful)
-
-        return OptimizeResult(
-            model=optimized_model,
-            cost=final_cost,
-            history={"optimistix_stats": result.stats},
-            success=success
-        )
+    problem = OptimizeProblem(model, frequency, cost)
+    results = solver.solve(problem)
+    return results

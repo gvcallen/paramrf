@@ -5,7 +5,7 @@ import equinox as eqx
 
 from pmrf.model import Model
 from pmrf.frequency import Frequency
-from pmrf.optimize.goal import Goal
+from pmrf.goal import Goal
 from pmrf.utils import make_flat_fn, make_reconstruct_fn, validate_bounds
 
 SpaceType = Literal['physical', 'hypercube', 'unbounded']

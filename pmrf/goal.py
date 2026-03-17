@@ -1,15 +1,14 @@
-from typing import Callable, Sequence
+from typing import Callable
 
-import jsonpickle
 import equinox as eqx
 import jax.numpy as jnp
 
-from pmrf.models import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.metrics import metric_from_alias
-from pmrf.aggregation import aggregate_from_alias
+from aggregate import aggregate_from_alias
 from pmrf.constants import FeatureSpec
-from pmrf.features import Extractor, make_extractors, extract_multiple_features
+from pmrf.extractor import Extractor, make_extractors, extract_multiple_features
 
 class Goal(eqx.Module):
     """
@@ -116,29 +115,3 @@ class Goal(eqx.Module):
             cost = self.transform_fn(cost)
         
         return cost * self.weight
-        
-    def to_json(self) -> str:
-        """Serialize the goal to a JSON string for HDF5 storage."""
-        return jsonpickle.encode(self)
-        
-    @staticmethod
-    def from_json(json_str: str) -> 'Goal':
-        """Deserialize a goal from a JSON string."""
-        return jsonpickle.decode(json_str)
-    
-class NegativeGoal(eqx.Module):
-    """
-    Converts a positive goal into a negative one. 
-    """
-    goals: Goal
-
-    def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
-        return -self.goal(model, frequency)
-    
-def make_negative_goals(cost_fn: Callable | Sequence) -> Callable | Sequence:
-    """Converts Goals and sequences of Goals into log-likelihoods."""
-    if isinstance(cost_fn, Sequence):
-        return [NegativeGoal(c) if isinstance(c, Goal) else c for c in cost_fn]
-    elif isinstance(cost_fn, Goal):
-        return NegativeGoal(cost_fn)
-    return cost_fn

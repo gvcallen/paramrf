@@ -8,7 +8,7 @@ import numpyro.distributions.transforms as transforms
 from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.transforms import HypercubeTransform
-from pmrf.optimize.goal import Goal
+from pmrf.goal import Goal
 from pmrf.optimize.problem import OptimizeProblem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.backends.optimistix import OptimistixOptimizer
