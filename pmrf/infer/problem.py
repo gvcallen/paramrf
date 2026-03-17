@@ -5,11 +5,11 @@ import jax.numpy as jnp
 import equinox as eqx
 from jax import flatten_util
 
-from pmrf.models import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import is_valid_param
 from pmrf.distributions.joint import JointDistribution
-from pmrf.infer.likelihood import CombinedLikelihood
+from pmrf.likelihood import Likelihood
 
 class InferenceProblem:
     """

@@ -1,10 +1,11 @@
 import io
 
+import jax
 import jax.numpy as jnp
 
-from pmrf.distributions.sampled import SampledDistribution
+from numpyro.distributions import Distribution
 
-class AnestheticDistribution(SampledDistribution):
+class AnestheticDistribution(Distribution):
     """
     Adapter for distributions represented by samples from the Anesthetic library.
     
@@ -39,6 +40,27 @@ class AnestheticDistribution(SampledDistribution):
         csv_payload = state.pop('_csv_payload')
         self.__dict__.update(state)
         self.nested_samples = NestedSamples(read_csv(io.StringIO(csv_payload)))
+
+    def sample(self, key, sample_shape=()):
+        # Ensure sample_shape is a tuple
+        if isinstance(sample_shape, int):
+            sample_shape = (sample_shape,)
+            
+        available_samples = self.samples()
+        num_available = available_samples.shape[0]
+        
+        # Strategy: Sample uniformly with replacement using random integers.
+        # This allows us to draw any number of samples (larger or smaller than num_available)
+        # from the fixed underlying empirical distribution without running out of samples.
+        indices = jax.random.randint(
+            key, 
+            shape=sample_shape, 
+            minval=0, 
+            maxval=num_available
+        )
+        
+        return available_samples[indices]
+
     
     def param_names(self) -> list[str]:
         columns = self.nested_samples.columns

@@ -6,7 +6,6 @@ import jax.numpy as jnp
 from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.metrics import metric_from_alias
-from aggregate import aggregate_from_alias
 from pmrf.constants import FeatureSpec
 from pmrf.extractor import Extractor, make_extractors, extract_multiple_features
 
@@ -26,8 +25,6 @@ class Goal(eqx.Module):
     # Error computation and transformation
     metric_fn: Callable = eqx.field(static=True)
     mask: jnp.ndarray | None = eqx.field(static=True)
-    aggregate_fn: Callable = eqx.field(static=True)
-    transform_fn: Callable | None = eqx.field(static=True)
     weight: float = eqx.field(static=True)
 
     def __init__(
@@ -37,8 +34,6 @@ class Goal(eqx.Module):
         target: float | jnp.ndarray = 0.0,
         *,
         metric_fn: Callable | str = 'rms',
-        aggregate_fn: Callable | str = 'rms',
-        transform_fn: Callable | None = 'db',
         mask: jnp.ndarray | None = None,
         weight: float = 1.0,
     ):
@@ -54,20 +49,11 @@ class Goal(eqx.Module):
             target = jnp.array(target)
         if isinstance(metric_fn, str):
             metric_fn = metric_from_alias(metric_fn)
-        if isinstance(aggregate_fn, str):
-            aggregate_fn = aggregate_from_alias(aggregate_fn)
-        if transform_fn is not None and isinstance(transform_fn, str):
-            if transform_fn == 'db':
-                transform_fn = lambda x: 20*jnp.log10(x)
-            elif transform_fn == 'linear':
-                transform_fn = None
         
         self.extractors = extractors
         self.operator = operator
         self.target = target
         self.metric_fn = metric_fn
-        self.aggregate_fn = aggregate_fn
-        self.transform_fn = transform_fn
         self.mask = mask
         self.weight = weight
 
@@ -109,9 +95,6 @@ class Goal(eqx.Module):
         # Apply the mask, aggregation, and weight
         if self.mask is not None:
             error = error * self.mask
-        cost = self.aggregate_fn(error)
 
-        if self.transform_fn is not None:
-            cost = self.transform_fn(cost)
-        
-        return cost * self.weight
+        error = jnp.sum(error)
+        return error * self.weight

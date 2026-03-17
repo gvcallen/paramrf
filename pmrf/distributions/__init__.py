@@ -12,7 +12,6 @@ from numpyro.distributions import (
 )
 from pmrf.distributions.joint import JointDistribution
 from pmrf.distributions.stacked import StackedDistribution
-from pmrf.distributions.sampled import SampledDistribution
 
 from pmrf.distributions.backends import *
 from pmrf.distributions import backends
@@ -26,6 +25,5 @@ __all__ = [
     "LogNormalDistribution",
     "JointDistribution",
     "StackedDistribution",
-    "SampledDistribution",
 ]
 __all__.extend(backends.__all__)
