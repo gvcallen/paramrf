@@ -25,7 +25,10 @@ class NetworkProperty(Extractor):
 
     def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
         prop, ports = self.prop, self.ports
-        model = operator.attrgetter(self.subattrs)(model)
+        
+        if self.subattrs is not None:
+            model = operator.attrgetter(self.subattrs)(model)
+            
         data = getattr(model, prop)(frequency)
                 
         if ports is not None:
@@ -40,7 +43,8 @@ class NetworkProperty(Extractor):
     def from_alias(cls, alias: str) -> 'Extractor':
         fields = alias.split('.')
         if len(fields) > 1:
-            subattrs = fields[:-1]
+            # FIX: Join back into a dot-separated string for attrgetter
+            subattrs = ".".join(fields[:-1]) 
             alias = fields[-1]
         else:
             subattrs = None
@@ -62,7 +66,8 @@ class NetworkProperty(Extractor):
         else:
             ports = None
         
-        return cls(property=prop, ports=ports, subattrs=subattrs)
+        # FIX: Changed `property` to `prop`
+        return cls(prop=prop, ports=ports, subattrs=subattrs)
     
 
 class CallableExtractor(Extractor):
@@ -93,11 +98,11 @@ class StackedExtractor(Extractor):
         extractors = []
         for spec in features:
             if callable(spec):
-                extractors.append(CallableExtractor(func=spec))
+                extractors.append(CallableExtractor(fn=spec))
             else:
                 extractors.append(NetworkProperty.from_alias(spec))
                 
-        return cls(extractors=extractors, axis=axis)    
+        return cls(extractors=extractors, axis=axis)
     
 
 class ReflectionExtractor(Extractor):
@@ -105,7 +110,8 @@ class ReflectionExtractor(Extractor):
     subattrs: str | None = eqx.field(default=None, static=True)
     
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        model = operator.attrgetter(self.subattrs)(model)
+        if self.subattrs is not None:
+            model = operator.attrgetter(self.subattrs)(model)
         matrix = getattr(model, self.prop)(freq) 
         return jax.vmap(jnp.diag)(matrix)
 
@@ -114,7 +120,8 @@ class TransmissionExtractor(Extractor):
     subattrs: str | None = eqx.field(default=None, static=True)
     
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        model = operator.attrgetter(self.subattrs)(model)
+        if self.subattrs is not None:
+            model = operator.attrgetter(self.subattrs)(model)
 
         matrix = getattr(model, self.prop)(freq)
         F, N, _ = matrix.shape
