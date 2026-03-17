@@ -65,6 +65,15 @@ class NetworkCollection:
     def __iter__(self):
         return iter(self.networks)
 
+    def __getattr__(self, name: str) -> rf.Network:
+        """
+        Allow attribute-like access to networks by name (e.g., collection.my_network).
+        """
+        for ntwk in self.networks:
+            if ntwk.name == name:
+                return ntwk
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute or network named '{name}'")    
+
     def __getitem__(self, key: Union[int, str, slice]) -> Union[rf.Network, "NetworkCollection"]:
         """
         Get a network by index or name.

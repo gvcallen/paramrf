@@ -1,37 +1,38 @@
-from typing import Callable, Sequence
+from typing import Callable, Any
 
 import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.model import Model
-from pmrf.frequency import Frequency
-from pmrf.goal import Goal
-from pmrf.optimize.problem import OptimizeProblem
 from pmrf.optimize.result import OptimizeResult
 
-class AbstractOptimizer(eqx.Module):
+class AbstractMinimizer(eqx.Module):
     """
     The unified interface for all ParamRF optimization backends.
     Inherits from eqx.Module to ensure it can be safely passed around in JAX transforms if needed.
     """
-    def solve(self, problem: OptimizeProblem) -> OptimizeResult:
+    def solve(
+        self,
+        model: Model,
+        cost: Callable[[Model], jnp.ndarray]
+    ) -> OptimizeResult:
         """
         Executes the optimization routine on the given problem.
         """
         raise NotImplementedError("Each optimizer backend must implement the solve method.")
     
-def optimize_model(
+def minimize(
     model: Model,
-    frequency: Frequency,
-    cost: Callable[[Model, Frequency], jnp.ndarray] | Sequence[Goal],
-    solver: AbstractOptimizer | 'optimistix.AbstractMinimizer' = None,
+    cost: Callable[[Model], jnp.ndarray],
+    args: Any,
+    solver: AbstractMinimizer | None = None,
 ) -> OptimizeResult:
 
     if solver is None:
         import optimistix as optx
         solver = optx.LBFGS()
 
-    if not isinstance(solver, AbstractOptimizer):
+    if not isinstance(solver, AbstractMinimizer):
         import optimistix as optx
         if isinstance(solver, optx.AbstractMinimiser):
             from pmrf.optimize.backends.optimistix import OptimistixOptimizer
@@ -39,6 +40,6 @@ def optimize_model(
         else:
             raise Exception(f"Unknown solver class: {type(solver)}")
 
-    problem = OptimizeProblem(model, frequency, cost)
-    results = solver.solve(problem)
+    results = solver.solve(model, cost)
+
     return results

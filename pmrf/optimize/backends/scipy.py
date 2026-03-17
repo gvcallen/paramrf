@@ -4,12 +4,12 @@ import numpy as np
 from scipy.optimize import minimize, Bounds
 import equinox as eqx
 
-from optimize.base import AbstractOptimizer
+from optimize.base import AbstractMinimizer
 from pmrf.optimize.problem import OptimizeProblem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.transforms import SigmoidHypercubeTransform
 
-class ScipyOptimizer(AbstractOptimizer):
+class ScipyOptimizer(AbstractMinimizer):
     method: str
     use_jac: bool
     use_hess: bool
