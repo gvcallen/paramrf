@@ -9,11 +9,8 @@ from numpyro.distributions import Distribution
 from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.parameter import Parameter
+from pmrf.evaluator import Evaluator
 
-class Evaluator(eqx.Module):
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        raise NotImplementedError
-    
 class CustomEvaluator(Evaluator):
     fn: Callable[[Model, Frequency], jnp.ndarray] = eqx.field(static=True)
 
