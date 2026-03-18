@@ -1,9 +1,12 @@
+import jax
+
 import equinox as eqx
 import optimistix as optx
+import parax as prx
+from parax.transforms import UnboundedTransform
 
-from pmrf.core import Model, Frequency, Evaluator, Problem, partition
+from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
-from pmrf.transforms import SigmoidHypercubeTransform
 
 def minimize(
     model: Model,
@@ -16,15 +19,18 @@ def minimize(
         solver = optx.LBFGS()
     
     problem = Problem(model, frequency, cost)
-    params, static = partition(problem)
-    transform = SigmoidHypercubeTransform()
+    transform = UnboundedTransform()
+    unbounded_problem = jax.tree.map(transform, problem, is_leaf=prx.is_valid_param)
+    unbounded_params, unbounded_static = prx.partition(unbounded_problem)
 
-    def cost_fn(param, args):
-        problem = eqx.combine(param, static)
+    def cost_fn(unbounbed_params, _args):
+        unbounded_problem = eqx.combine(unbounbed_params, unbounded_static)
+        problem = jax.tree.map(transform.inv, unbounded_problem, is_leaf=prx.is_valid_param)
         return problem()
 
-    optx_results = optx.minimise(cost_fn, solver, params, **kwargs)
-    solved_problem = eqx.combine(optx_results.value, static)
+    optx_results = optx.minimise(cost_fn, solver, unbounded_params, **kwargs)
+    solved_unbounded_problem = eqx.combine(optx_results.value, unbounded_static)
+    solved_problem = jax.tree.map(transform.inv, solved_unbounded_problem, is_leaf=prx.is_valid_param)
 
     results = OptimizeResult(
         model=solved_problem.model,

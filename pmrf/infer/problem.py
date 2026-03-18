@@ -39,7 +39,7 @@ class InferenceProblem:
         params_tree, static_tree = model.partition()
         model_flat_x, model_unravel_fn = flatten_util.ravel_pytree(params_tree)
         model_names = model.flat_param_names()
-        model_dist = model.distribution()
+        model_dist = model.flat_distribution()
 
         # 3. Extract Likelihood Parameters (Dynamic PyTree Search)
         ll_leaves, ll_treedef = jax.tree_util.tree_flatten(flat_log_likelihood_fn, is_leaf=is_valid_param)
