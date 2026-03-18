@@ -1,4 +1,7 @@
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pmrf.core import Parameter
 
 def is_param(x) -> bool:
     r"""

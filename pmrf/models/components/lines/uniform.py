@@ -6,10 +6,8 @@ from abc import ABC, abstractmethod
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 
-from pmrf.core import Frequency
-from pmrf.rf_functions.conversions import renormalize_s
-from pmrf.core import Parameter
-from pmrf.core import Model
+from pmrf.core import Frequency, Parameter, Model
+from pmrf.rf_functions import renormalize_s
 
 class TransmissionLine(Model, ABC):
     r"""

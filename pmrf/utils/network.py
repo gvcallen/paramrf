@@ -2,7 +2,6 @@ import numpy as np
 import skrf as rf
 from scipy.interpolate import UnivariateSpline
 
-
 def smooth_network(ntwk: rf.Network, smoothing=1e-4, k=3):
     """
     Smooth the S-parameters of a scikit-rf Network using spline smoothing.

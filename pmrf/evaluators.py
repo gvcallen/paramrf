@@ -43,13 +43,6 @@ class Mapped(Evaluator):
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         return self.fn(self.evaluator(model, freq))
-    
-def Diagonal(evaluator: Evaluator) -> Mapped:
-    return Mapped(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
-
-def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
-    mask = ~jnp.eye(n_ports, dtype=bool)
-    return Mask(evaluator=evaluator, mask=mask)
         
 class Stacked(Evaluator):
     evaluators: list[Evaluator]
@@ -84,3 +77,9 @@ class Likelihood(Evaluator):
         probability_dist = self.distribution_fn(prediction, **self.parameters)
         return probability_dist.log_prob(self.target)
         
+def Diagonal(evaluator: Evaluator) -> Mapped:
+    return Mapped(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
+
+def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
+    mask = ~jnp.eye(n_ports, dtype=bool)
+    return Mask(evaluator=evaluator, mask=mask)

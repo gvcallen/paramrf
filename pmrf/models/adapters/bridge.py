@@ -9,8 +9,7 @@ import equinox as eqx
 from functools import partial
 import concurrent.futures
 
-from pmrf.core import Model
-from pmrf.core import Frequency
+from pmrf.core import Model, Frequency
             
 def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     """

@@ -6,7 +6,7 @@ This module contains the core ParamRF :class:`Model` class, as well as various c
 **NB: Models are re-exported** at root :mod:`pmrf.models`.
 """
 
-from pmrf.models.adapters.base import Discrete, SingleProperty, SingleDiscreteProperty
+from pmrf.models.adapters.abstract import AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty
 from pmrf.models.adapters.bridge import Host
 from pmrf.models.adapters.collection import ListModel, DictModel
 from pmrf.models.adapters.static import Measured

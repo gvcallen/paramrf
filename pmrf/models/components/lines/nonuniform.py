@@ -7,10 +7,9 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core import Frequency, Model
+from pmrf.core import Frequency, Model, Parameter
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf_functions.connections import cascade_s
-from pmrf.core import Parameter
 from pmrf.utils import as_param
 
 class ProfiledLine(Model, transparent=True):

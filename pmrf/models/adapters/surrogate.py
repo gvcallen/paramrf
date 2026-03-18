@@ -8,9 +8,9 @@ import jax.numpy as jnp
 
 from pmrf.core import Frequency
 from pmrf.core import Parameter
-from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
+from pmrf.models.adapters.abstract import AbstractSingleProperty, AbstractSingleDiscreteProperty
     
-class ContinuousSurrogate(SingleProperty, transparent=True):
+class ContinuousSurrogate(AbstractSingleProperty, transparent=True):
     """
     A model that predicts its output at an arbitrary frequency using an arbitrary callable.
     
@@ -27,7 +27,7 @@ class ContinuousSurrogate(SingleProperty, transparent=True):
         return self.func(self.flat_param_values(include_fixed=True), freq).reshape(-1, 1, 1)
     
 
-class DiscreteSurrogate(SingleDiscreteProperty, transparent=True):
+class DiscreteSurrogate(AbstractSingleDiscreteProperty, transparent=True):
     """
     A model that predicts its output at a discrete set of frequency values using an arbitrary callable.
     
@@ -40,4 +40,5 @@ class DiscreteSurrogate(SingleDiscreteProperty, transparent=True):
     func: Callable[[jnp.ndarray], jnp.ndarray] = None
     
     def output_discrete(self) -> jnp.ndarray:
+        # Hack reshape for now
         return self.func(self.flat_param_values(include_fixed=True)).reshape(-1, 1, 1)

@@ -8,11 +8,10 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core import Frequency, Model
-from pmrf.core.field import field
+from pmrf.core import Frequency, Model, field
 from pmrf.utils import is_overridden
 
-class Discrete(Model, ABC):
+class AbstractDiscrete(Model, ABC):
     """
     A model whose properties are defined on a tabulated frequency grid.
     
@@ -34,25 +33,25 @@ class Discrete(Model, ABC):
     
     @eqx.filter_jit
     def s(self, freq: Frequency) -> jnp.ndarray:
-        if is_overridden(type(self), Discrete, 's_discrete'):
+        if is_overridden(type(self), AbstractDiscrete, 's_discrete'):
             return self._interp(self.s_discrete(), freq)
         return super().s(freq)
 
     @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
-        if is_overridden(type(self), Discrete, 'a_discrete'):
+        if is_overridden(type(self), AbstractDiscrete, 'a_discrete'):
             return self._interp(self.a_discrete(), freq)
         return super().a(freq)
 
     @eqx.filter_jit
     def y(self, freq: Frequency) -> jnp.ndarray:
-        if is_overridden(type(self), Discrete, 'y_discrete'):
+        if is_overridden(type(self), AbstractDiscrete, 'y_discrete'):
             return self._interp(self.y_discrete(), freq)
         return super().y(freq)
 
     @eqx.filter_jit
     def z(self, freq: Frequency) -> jnp.ndarray:
-        if is_overridden(type(self), Discrete, 'z_discrete'):
+        if is_overridden(type(self), AbstractDiscrete, 'z_discrete'):
             return self._interp(self.z_discrete(), freq)
         return super().z(freq)
 
@@ -80,7 +79,7 @@ class Discrete(Model, ABC):
         return vmap_matrix(x)
 
 
-class SingleProperty(Model, ABC):
+class AbstractSingleProperty(Model, ABC):
     """
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
@@ -106,7 +105,7 @@ class SingleProperty(Model, ABC):
         return self.output(freq) if self.property == 'z' else super().z(freq)
 
 
-class SingleDiscreteProperty(SingleProperty, Discrete, ABC):
+class AbstractSingleDiscreteProperty(AbstractSingleProperty, AbstractDiscrete, ABC):
     """
     A model that provides a single property type from a tabulated grid.
     """    
