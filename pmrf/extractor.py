@@ -18,13 +18,13 @@ class Extractor(eqx.Module):
         raise NotImplementedError
 
 
-class NetworkProperty(Extractor):
-    prop: str = eqx.field(static=True)
-    ports: tuple[int, int] | None = eqx.field(default=None, static=True)
+class NetworkParameterExtractor(Extractor):
+    property: str = eqx.field(static=True)
+    indices: tuple[int, int] | None = eqx.field(default=None, static=True)
     subattrs: str | None = eqx.field(default=None, static=True)
 
     def __call__(self, model: Model, frequency: Frequency) -> jnp.ndarray:
-        prop, ports = self.prop, self.ports
+        prop, ports = self.property, self.indices
         
         if self.subattrs is not None:
             model = operator.attrgetter(self.subattrs)(model)
@@ -32,10 +32,10 @@ class NetworkProperty(Extractor):
         data = getattr(model, prop)(frequency)
                 
         if ports is not None:
-            m, n = ports
-            if m >= model.nports or n >= model.nports:
-                raise IndexError(f"Property {prop}{m+1}{n+1} specified but model is a {model.nports}-port")
-            data = data[..., m, n]
+            i, j = ports
+            if i >= model.nports or j >= model.nports:
+                raise IndexError(f"Property {prop}{i+1}{j+1} specified but model is a {model.nports}-port")
+            data = data[..., i, j]
         
         return data
     
@@ -100,7 +100,7 @@ class StackedExtractor(Extractor):
             if callable(spec):
                 extractors.append(CallableExtractor(fn=spec))
             else:
-                extractors.append(NetworkProperty.from_alias(spec))
+                extractors.append(NetworkParameterExtractor.from_alias(spec))
                 
         return cls(extractors=extractors, axis=axis)
     
@@ -114,6 +114,7 @@ class ReflectionExtractor(Extractor):
             model = operator.attrgetter(self.subattrs)(model)
         matrix = getattr(model, self.prop)(freq) 
         return jax.vmap(jnp.diag)(matrix)
+
 
 class TransmissionExtractor(Extractor):
     prop: str = eqx.field(static=True)
