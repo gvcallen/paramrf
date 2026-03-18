@@ -3,7 +3,7 @@ import optimistix as optx
 
 from pmrf.core import Model, Frequency, Evaluator, Problem, partition
 from pmrf.optimize.result import OptimizeResult
-
+from pmrf.transforms import SigmoidHypercubeTransform
 
 def minimize(
     model: Model,
@@ -17,8 +17,9 @@ def minimize(
     
     problem = Problem(model, frequency, cost)
     params, static = partition(problem)
+    transform = SigmoidHypercubeTransform()
 
-    def cost_fn(param):
+    def cost_fn(param, args):
         problem = eqx.combine(param, static)
         return problem()
 
@@ -30,7 +31,8 @@ def minimize(
         evaluator=solved_problem.evaluator,
         value=solved_problem(),
         history=optx_results.stats,
-        sucess=(optx_results.result == optx.RESULTS.successful),
+        success=(optx_results.result == optx.RESULTS.successful),
     )
 
     return results
+    
