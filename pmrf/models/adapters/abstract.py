@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core import Frequency, Model, field
+from pmrf.core import Frequency, Model
 from pmrf.utils import is_overridden
 
 class AbstractDiscrete(Model, ABC):
@@ -84,7 +84,6 @@ class AbstractSingleProperty(Model, ABC):
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
     """
-    # property: str = field(static=True, default='s') # 's', 'a', 'y', or 'z'
     property: str = 's'
     
     @abstractmethod

@@ -1,14 +1,17 @@
 """
-Probability distributions.
+Distribution wrappers for interfacing with external libraries.
 """
 
-from pmrf.distributions.joint import JointDistribution
-from pmrf.distributions.stacked import StackedDistribution
-from pmrf.distributions.backends import *
+__all__ = []
 
-__all__ = [
-    "JointDistribution",
-    "StackedDistribution",
-]
-from pmrf.distributions import backends
-__all__.extend(backends.__all__)
+try:
+    from distributions.anesthetic import AnestheticDistribution
+    __all__.append("AnestheticDistribution")
+except ImportError:
+    pass
+
+try:
+    from distributions.flowjax import FlowJAXDistribution
+    __all__.append("FlowJAXDistribution")
+except ImportError:
+    pass
