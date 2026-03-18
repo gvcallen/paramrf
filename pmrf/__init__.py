@@ -16,15 +16,13 @@ except PackageNotFoundError:
 __all__ = []
 
 # 3. Main API Hoisting
-from pmrf.io import *
 from pmrf.core import *
-from pmrf import core, io
+from pmrf import core
 
 # Synchronize __all__ and apply branding
 __all__.extend(core.__all__)
-__all__.extend(io.__all__)
 
-for name in core.__all__ + io.__all__:
+for name in core.__all__:
     obj = globals().get(name)
     if hasattr(obj, "__module__"):
         obj.__module__ = "pmrf"
@@ -38,7 +36,7 @@ from pmrf import (
 from pmrf.network_collection import NetworkCollection
 
 __all__.extend([
-    "core", "io", "constants", "distributions", "evaluators", 
+    "core", "constants", "distributions", "evaluators", 
     "infer", "math_functions", "models", "optimize", 
     "parameters", "rf_functions", "transforms",
     "NetworkCollection",    

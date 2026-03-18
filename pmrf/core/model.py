@@ -5,14 +5,12 @@ This module defines :class:`pmrf.Model`, a frozen, JAX-compatible, Equinox modul
 
 """
 
-from typing import Callable
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 import numpy as np
-import skrf as skrf
 import parax as prx
 
 from pmrf.core.frequency import Frequency
@@ -20,6 +18,9 @@ from pmrf.rf_functions import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math_functions import FUNC_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils import is_overridden
+
+if TYPE_CHECKING:
+    import skrf
 
 Z0_WARNING = \
 r"""
@@ -78,7 +79,6 @@ class Model(prx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`partition`                 Partition model into parameters and static trees.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
@@ -218,8 +218,6 @@ class Model(prx.Module):
 
     # ---- Introspection properties --------------------------------------------------------
     
-    @property
-    @eqx.filter_jit
     def number_of_ports(self) -> int:
         """Number of ports.
 
@@ -683,7 +681,7 @@ class Model(prx.Module):
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
-    def to_skrf(self, frequency: Frequency | skrf.Frequency, sigma=0.0, **kwargs) -> skrf.Network:
+    def to_skrf(self, frequency: Frequency | "skrf.Frequency", sigma=0.0, **kwargs) -> "skrf.Network":
         """Convert the model at frequencies to an :class:`skrf.Network`.
 
         The active primary property (``self.primary_property``) is used.
@@ -701,6 +699,9 @@ class Model(prx.Module):
         -------
         skrf.Network
         """
+        import skrf
+        import numpy as np
+
         if isinstance(frequency, Frequency):
             model_freq = frequency
             measured_freq = frequency.to_skrf()
@@ -711,7 +712,7 @@ class Model(prx.Module):
         fval, fname = self.primary(model_freq), self.primary_property
         kwargs = kwargs or {}
         kwargs.update({
-            fname: fval,
+            fname: np.array(fval),
             'frequency': measured_freq,
             'name': kwargs.get('name', self.name),
             'z0': self.z0,
@@ -721,7 +722,7 @@ class Model(prx.Module):
             ntwk.s += (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
         return ntwk        
     
-    def export_touchstone(self, filename: str, frequency: Frequency | skrf.Frequency, sigma: float = 0.0, **skrf_kwargs):
+    def export_touchstone(self, filename: str, frequency: Frequency | "skrf.Frequency", sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.
 
         Parameters
@@ -737,10 +738,11 @@ class Model(prx.Module):
         -------
         Any
             Return value of ``Network.write_touchstone``.
-        """        
+        """
+        import skrf
+
         if not isinstance(filename, str):
             raise Exception('Filename must be a string')
         
         ntwk = self.to_skrf(frequency, sigma=sigma)
-        retval = ntwk.write_touchstone(filename, **skrf_kwargs)
-        return retval
+        return ntwk.write_touchstone(filename, **skrf_kwargs)
