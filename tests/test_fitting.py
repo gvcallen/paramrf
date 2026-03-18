@@ -7,10 +7,12 @@ from pathlib import Path
 import skrf as rf
 import numpy as np
 
+from parax import Uniform, RelativeNormal, Fixed
+import optimistix as optx
+
 import pmrf as prf
-from pmrf.core import CoaxialLine
-from pmrf.parameters import Uniform, RelativeNormal, Fixed
-from pmrf.fitting import SciPyMinimizeFitter
+from pmrf.optimize import minimize
+from pmrf.models import CoaxialLine
 
 TEST_DIR = Path(__file__).parent
 
@@ -28,7 +30,8 @@ def test_fitting():
         mur = Fixed(1.0),
     )
 
-    # Initialize the fitter
+    # Initialize the solver. We use the L-BFGS algorithm
+    solver = optx.LBFGS()
     fitter = SciPyMinimizeFitter(model)
 
     # Run the fit

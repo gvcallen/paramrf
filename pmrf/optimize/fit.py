@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import optimistix as optx
 
-from pmrf.core import Model, Frequency, Evaluator, Problem, partition
+from pmrf.core import Model, Frequency
 from pmrf.optimize.result import OptimizeResult
 from pmrf.network_collection import NetworkCollection
 
