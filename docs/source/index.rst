@@ -8,9 +8,9 @@ ParamRF: Parametric Radio Frequency Modelling, Fitting and Sampling
 +----------+------------------------------------------------+
 | Author   | Gary Allen                                     |
 +----------+------------------------------------------------+
-| Homepage | https://github.com/paramrf/paramrf             |
+| Homepage | https://github.com/gvcallen/paramrf             |
 +----------+------------------------------------------------+
-| Docs     | https://paramrf.github.io/paramrf              |
+| Docs     | https://gvcallen.github.io/paramrf              |
 +----------+------------------------------------------------+
 | Paper    | https://doi.org/10.48550/arXiv.2510.15881      |
 +----------+------------------------------------------------+

@@ -1,5 +1,5 @@
-[![Tests](https://github.com/paramrf/paramrf/actions/workflows/tests.yml/badge.svg)](https://github.com/paramrf/paramrf/actions/workflows/tests.yml)
-[![Docs](https://github.com/paramrf/paramrf/actions/workflows/deploy_docs.yml/badge.svg)](https://github.com/paramrf/paramrf/actions/workflows/deploy_docs.yml)
+[![Tests](https://github.com/gvcallen/paramrf/actions/workflows/tests.yml/badge.svg)](https://github.com/gvcallen/paramrf/actions/workflows/tests.yml)
+[![Docs](https://github.com/gvcallen/paramrf/actions/workflows/deploy_docs.yml/badge.svg)](https://github.com/gvcallen/paramrf/actions/workflows/deploy_docs.yml)
 
 ![paramrf logo](assets/logo.png)
 
@@ -10,8 +10,8 @@
 | **ParamRF** |  |
 |-------------|-------|
 | **Author**  | Gary Allen |
-| **Homepage** | [github.com/paramrf/paramrf](https://github.com/paramrf/paramrf) |
-| **Docs** | [paramrf.github.io/paramrf](https://paramrf.github.io/paramrf) |
+| **Homepage** | [github.com/gvcallen/paramrf](https://github.com/gvcallen/paramrf) |
+| **Docs** | [gvcallen.github.io/paramrf](https://gvcallen.github.io/paramrf) |
 | **Paper** | [ParamRF: A JAX-Native Framework for Declarative Circuit Modelling](https://doi.org/10.48550/arXiv.2510.15881) |
 
 ## Installation
