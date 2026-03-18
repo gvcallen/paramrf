@@ -5,7 +5,8 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.distributions import constraints
 
-from parameter import Parameter, _stack_vectorized_distributions
+from pmrf.core.parameter import Parameter
+from pmrf.utils import stack_vectorized_distributions
 
 def Uniform(low: float | Sequence[float], high: float | Sequence[float], value=None, *, n: int | None = None, **kwargs) -> Parameter:
     r"""
@@ -333,7 +334,7 @@ def Stacked(parameters: Sequence[Parameter], name: str | None = None, **kwargs) 
     
     # 2. Combine distributions
     dists = [p.distribution for p in parameters]
-    stacked_dist = _stack_vectorized_distributions(dists)
+    stacked_dist = stack_vectorized_distributions(dists)
     
     # 3. Preserve or generate flat names
     flat_names = []

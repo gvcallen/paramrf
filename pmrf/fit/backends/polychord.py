@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from typing import Any
-from pmrf.model import Model
+from pmrf.core import Model
 from pmrf.fitting.bayesian import BayesianFitter
 from pmrf.backends.polychord import run_polychord, PolyChordIOMixin
 

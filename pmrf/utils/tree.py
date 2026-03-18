@@ -437,7 +437,7 @@ def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | N
         The combined tree.
     """
     combined = eqx.combine(*pytrees, is_leaf=is_leaf)
-    from pmrf.util import tree
+    from pmrf.utils import tree
     if restore:
         combined = tree.restore(combined, is_leaf=is_leaf)
     return combined

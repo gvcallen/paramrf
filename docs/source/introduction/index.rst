@@ -9,8 +9,8 @@ Core Concepts
 The library revolves around a few key building blocks:
 
 * :class:`pmrf.Model`: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
-* :class:`pmrf.Parameter`: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
-* :class:`pmrf.Frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
+* :class:`pmrf.core.parameter`: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
+* :class:`from pmrf.core.frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
@@ -25,8 +25,8 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
 .. code-block:: python
 
     import pmrf as prf
-    from pmrf.models import Resistor, Inductor, ShuntCapacitor, OPEN
-    from pmrf.parameters import Fixed
+    from pmrf.core import Resistor, Inductor, ShuntCapacitor, OPEN
+    from pmrf.core.parameters import Fixed
 
     # Instantiate the lumped element models
     resistor = Resistor(R=100.0)
@@ -57,7 +57,7 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
 .. code-block:: python
 
     import pmrf as prf
-    from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+    from pmrf.core import Capacitor, Inductor, Circuit, Port, Ground
 
     # Instantiate the elements, ports and grounds
     capacitor1, capacitor2 = Capacitor(C=2e-12), Capacitor(C=1.5e-12)
@@ -78,7 +78,7 @@ The following example uses this method to define a two-port PI-CLC network. "Ext
     pi_clc.plot_s_db(freq, m=1, n=0)
 
     # Note that ParamRF already provides a built in, more efficient PiCLC model
-    from pmrf.models import PiCLC
+    from pmrf.core import PiCLC
     PiCLC(2e-12, 3e-9, 1.5e-12).plot_s_db(freq, m=1, n=0)
 
 
@@ -86,9 +86,9 @@ Model Inheritance
 ~~~~~~~~~~~~~~~~~~~~
 For more complex models (such as equation-based ones), users can inherit directly from the :class:`pmrf.Model` class and override one of the network properties (such as ``s``, ``a``, or ``y``) or the ``__call__`` method.
 
-Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a :class:`pmrf.Parameter` or :class:`pmrf.Model` are dynamic and can be adjusted (for example, by fitting routines).
+Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a :class:`pmrf.core.parameter` or :class:`pmrf.Model` are dynamic and can be adjusted (for example, by fitting routines).
 
-Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.parameters.Uniform`, :class:`pmrf.parameters.Normal` or :class:`pmrf.parameters.Fixed`; or directly using the :class:`pmrf.Parameter` class constructor.
+Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.core.parameters.Uniform`, :class:`pmrf.core.parameters.Normal` or :class:`pmrf.core.parameters.Fixed`; or directly using the :class:`pmrf.core.parameter` class constructor.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
@@ -128,8 +128,8 @@ The following example creates a PI-CLC model once again, but using the above met
 .. code-block:: python
 
     import pmrf as prf
-    from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
-    from pmrf.parameters import Uniform, Fixed
+    from pmrf.core import Capacitor, Inductor, Circuit, Port, Ground
+    from pmrf.core.parameters import Uniform, Fixed
 
     class PiCLC(prf.Model):
         capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))

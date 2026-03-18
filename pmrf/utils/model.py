@@ -1,12 +1,11 @@
-from typing import Callable, Sequence
+from typing import Callable
 from dataclasses import dataclass
 
 import jax.numpy as jnp
 import equinox as eqx
 from jax import flatten_util
 
-from pmrf.models import Model
-from pmrf.frequency import Frequency
+from pmrf.core import Model, Frequency
 
 def make_reconstruct_fn(model: Model) -> tuple[jnp.ndarray, Callable[[jnp.ndarray], Model]]:
     """

@@ -6,10 +6,10 @@ from abc import ABC, abstractmethod
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 
-from pmrf.frequency import Frequency
+from pmrf.core import Frequency
 from pmrf.rf_functions.conversions import renormalize_s
-from pmrf.parameters import Parameter
-from pmrf.model import Model
+from pmrf.core.parameters import Parameter
+from pmrf.core import Model
 
 class TransmissionLine(Model, ABC):
     r"""
@@ -150,7 +150,7 @@ class PhaseLine(TransmissionLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import PhaseLine
+        from pmrf.core import PhaseLine
 
         # Create an ideal 90-degree (quarter-wave) 50-ohm line at 1 GHz
         quarter_wave = PhaseLine(
@@ -202,7 +202,7 @@ class ConstantRLGCLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import ConstantRLGCLine
+        from pmrf.core import ConstantRLGCLine
 
         lossless_line = ConstantRLGCLine(
             L=368.8e-9,  # nH/m
@@ -256,7 +256,7 @@ class PhysicalLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import PhysicalLine
+        from pmrf.core import PhysicalLine
 
         line = PhysicalLine(
             zn=50.0,
@@ -335,7 +335,7 @@ class DatasheetLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import DatasheetLine
+        from pmrf.core import DatasheetLine
 
         cable = DatasheetLine(
             zn=50.0,
@@ -423,7 +423,7 @@ class CoaxialLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import CoaxialLine
+        from pmrf.core import CoaxialLine
 
         phys_cable = CoaxialLine(
             din=0.9e-3,
@@ -537,7 +537,7 @@ class MicrostripLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import MicrostripLine
+        from pmrf.core import MicrostripLine
 
         phys_microstrip = MicrostripLine(
             w=4e-3,

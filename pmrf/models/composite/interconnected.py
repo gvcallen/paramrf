@@ -4,11 +4,11 @@ Composite models that physically connect ports of other models.
 
 import jax.numpy as jnp
 
-from pmrf.frequency import Frequency
-from pmrf.model import Model
-from pmrf.models.components.ideal import Port
+from pmrf.core import Frequency
+from pmrf.core import Model
+from pmrf.core.components.ideal import Port
 from pmrf.rf_functions.connections import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
-from pmrf.field import field
+from pmrf.core.field import field
 
 class Circuit(Model, transparent=True):
     """
@@ -99,7 +99,7 @@ class Cascade(Model, transparent=True):
     an alias for creating a `Cascade` model.
 
     >>> import pmrf as prf
-    >>> from pmrf.models import Resistor, Capacitor, Inductor
+    >>> from pmrf.core import Resistor, Capacitor, Inductor
 
     # Create individual component models
     >>> res = Resistor(50)

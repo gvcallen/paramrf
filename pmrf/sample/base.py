@@ -8,8 +8,8 @@ import numpy as np
 import jax.numpy as jnp
 
 from pmrf.runner import BaseRunner
-from pmrf.model import Model
-from pmrf.util import LivePlotter, RANK
+from pmrf.core import Model
+from pmrf.utils import LivePlotter, RANK
 from pmrf.sampling.results import SampleResults 
 from pmrf.features import extract_features
 

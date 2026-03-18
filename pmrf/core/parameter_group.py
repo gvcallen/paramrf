@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.distributions.distribution import Distribution
 
-from pmrf.field import field
-from parameter import Parameter, MIN_PERCENTILE, MAX_PERCENTILE
+from pmrf.core.field import field
+from pmrf.core.parameter import Parameter, MIN_PERCENTILE, MAX_PERCENTILE
 
 @dataclass
 class ParameterGroup:

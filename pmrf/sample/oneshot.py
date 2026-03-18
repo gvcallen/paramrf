@@ -4,7 +4,7 @@ from typing import Any
 import jax.numpy as jnp
 
 from pmrf.sampling.base import BaseSampler
-from pmrf.util import generate_key
+from pmrf.utils import generate_key
 
 class OneshotSampler(BaseSampler, ABC):
     r"""

@@ -4,12 +4,11 @@ The frequency class to define the frequency grid for models.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
-import skrf
-import equinox as eqx
 
+import equinox as eqx
 import jax.numpy as jnp
-from pmrf.field import field
+
+from pmrf.core import field
 from pmrf.utils import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
 
@@ -136,9 +135,9 @@ class Frequency(eqx.Module):
         return new_freq
         
     @staticmethod
-    def from_skrf(skrf_frequency: skrf.Frequency, *, unit=None) -> 'Frequency':
+    def from_skrf(skrf_frequency, *, unit=None) -> 'Frequency':
         """
-        Create a `pmrf.Frequency` from a `skrf.Frequency` object.
+        Create a `from pmrf.core.frequency` from a `skrf.Frequency` object.
 
         Parameters
         ----------
@@ -150,6 +149,7 @@ class Frequency(eqx.Module):
         Frequency
             The equivalent pmrf Frequency object.
         """
+        import skrf
         if unit is not None:
             skrf_frequency = skrf_frequency.copy()
             skrf_frequency.unit = unit
@@ -157,9 +157,9 @@ class Frequency(eqx.Module):
         freq = Frequency.from_f(skrf_frequency.f_scaled, unit=skrf_frequency.unit)
         return freq
     
-    def to_skrf(self) -> skrf.Frequency:
+    def to_skrf(self):
         """
-        Convert this `pmrf.Frequency` object to a `skrf.Frequency` object.
+        Convert this `from pmrf.core.frequency` object to a `skrf.Frequency` object.
 
         Returns
         -------
@@ -167,6 +167,7 @@ class Frequency(eqx.Module):
             The equivalent scikit-rf Frequency object.
         """
         import numpy as np
+        import skrf
         return skrf.Frequency.from_f(np.array(self.f_scaled), self._unit)
     
     def __getitem__(self, key: str | int | slice) -> Frequency:

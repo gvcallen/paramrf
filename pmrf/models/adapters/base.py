@@ -8,10 +8,9 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.model import Model
-from pmrf.field import field
-from pmrf.util import is_overridden
-from pmrf.frequency import Frequency
+from pmrf.core import Frequency, Model
+from pmrf.core.field import field
+from pmrf.utils import is_overridden
 
 class Discrete(Model, ABC):
     """

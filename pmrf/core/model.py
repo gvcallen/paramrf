@@ -28,12 +28,12 @@ from numpyro.distributions import Distribution, Uniform as UniformDistribution
 
 from pmrf.rf_functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math_functions import FUNC_LOOKUP
-from pmrf.parameters import Parameter, ParameterGroup, is_valid_param, as_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.constants import PRIMARY_PROPERTIES
-from pmrf.frequency import Frequency
+from pmrf.core.parameter import Parameter, ParameterGroup, is_valid_param, as_param
+from pmrf.core.frequency import Frequency
+from pmrf.core.field import field  # Import your newly created field
 from pmrf.utils import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float, nodes_by_type, value_at_path, partition, combine
-from pmrf.field import field  # Import your newly created field
 
 Z0_WARNING = \
 r"""
@@ -116,7 +116,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
     The model is an Equinox ``Module`` (immutable, dataclass-like) and is
     treated as a JAX PyTree. Parameters are declared using standard dataclass
-    field syntax with types like :class:`pmrf.Parameter`.
+    field syntax with types like :class:`pmrf.core.parameter`.
 
     Usage
     -----
@@ -136,7 +136,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
     ================================= ====================================================================
     Method / Property                 Description
     ================================= ====================================================================
-    :attr:`DEFAULT_NAMED_PARAMS`      Mapping from parameter name to :class:`Parameter`.
+    :attr:`DEFAULT_NAMED_PARAMS`      Mapping from pmrf.core.parameter name to :class:`Parameter`.
     :attr:`DEFAULT_PARAM_NAMES`       Default parameter names for the model.
     :attr:`DEFAULT_PARAMS`            Default parameters for the model.
     :attr:`primary_function`          The primary function (``s`` or ``a``) as a callable.
@@ -313,8 +313,8 @@ class Model(eqx.Module, metaclass=ModelMeta):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import Resistor, Capacitor, Inductor, Cascade
-        from pmrf.parameters import Uniform
+        from pmrf.core import Resistor, Capacitor, Inductor, Cascade
+        from pmrf.core.parameters import Uniform
 
         class RLC(prf.Model):
             res: Resistor = Resistor(Uniform(9.0, 11.0))
@@ -732,7 +732,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         Returns
         -------
         dict[str, Parameter]
-            Mapping from parameter name to :class:`Parameter`.
+            Mapping from pmrf.core.parameter name to :class:`Parameter`.
         """
         instance = cls()
         return instance.named_params()
@@ -1239,10 +1239,10 @@ class Model(eqx.Module, metaclass=ModelMeta):
     def __pow__(self, other: 'Model') -> 'Model':
         """Cascade/termination composition operator ``**``."""        
         if other.nports == 1:
-            from pmrf.models import Terminated
+            from pmrf.core import Terminated
             return Terminated(self, other)
         else:
-            from pmrf.models import Cascade
+            from pmrf.core import Cascade
             return Cascade([self, other])
     
     def __getitem__(self, key: str | Sequence[str]):
@@ -1256,7 +1256,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             return [v for k, v in named_param_values.items() if k in key]
         
     def __repr__(self):
-        from pmrf.parameters import Parameter 
+        from pmrf.core.parameters import Parameter 
         
         model_param_fields = []
         other_fields = []
@@ -1359,7 +1359,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         -------
         Model
         """
-        from pmrf.models import Flipped
+        from pmrf.core import Flipped
         if isinstance(self, Flipped):
             return self.model
         return Flipped(self, **kwargs)
@@ -1378,7 +1378,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         -------
         Model
         """
-        from pmrf.models import Renumbered
+        from pmrf.core import Renumbered
         return Renumbered(self, from_ports, to_ports, **kwargs)
     
     def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
@@ -1396,7 +1396,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         -------
         Model
         """
-        from pmrf.models import SHORT, OPEN, Terminated
+        from pmrf.core import SHORT, OPEN, Terminated
 
         if isinstance(load, str):
             if load == 'short':
@@ -2773,7 +2773,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         Parameters
         ----------
-        frequency : pmrf.Frequency | skrf.Frequency
+        frequency : pmrf.core.frequency | skrf.Frequency
             Frequency grid.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
@@ -2827,5 +2827,3 @@ class Model(eqx.Module, metaclass=ModelMeta):
         ntwk = self.to_skrf(frequency, sigma=sigma)
         retval = ntwk.write_touchstone(filename, **skrf_kwargs)
         return retval
-    
-Model.__module__ = "pmrf"

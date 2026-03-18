@@ -6,9 +6,9 @@ import jax.numpy as jnp
 import jax.random as jr
 
 from pmrf.sampling.acqusition import AcquisitionSampler
-from pmrf.model import Model
+from pmrf.core import Model
 from pmrf.sampling.base import BaseSampler, SampleResults
-from pmrf.util import lhs_sample, LivePlotter, RANK
+from pmrf.utils import lhs_sample, LivePlotter, RANK
 from pmrf.algorithms import has_converged
 
 class FieldSampler(AcquisitionSampler, ABC):

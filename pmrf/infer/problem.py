@@ -5,9 +5,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from jax import flatten_util
 
-from pmrf.model import Model
-from pmrf.frequency import Frequency
-from pmrf.parameters import is_valid_param
+from pmrf.core import Model
+from pmrf.core import Frequency
+from pmrf.core.parameters import is_valid_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.likelihood import Likelihood
 

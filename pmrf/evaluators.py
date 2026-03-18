@@ -6,9 +6,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from numpyro.distributions import Distribution
 
-from pmrf.model import Model
-from pmrf.frequency import Frequency
-from pmrf.parameter import Parameter
+from pmrf.core import Model
+from pmrf.core import Frequency
+from pmrf.core.parameter import Parameter
 from pmrf.evaluator import Evaluator
 
 class CustomEvaluator(Evaluator):

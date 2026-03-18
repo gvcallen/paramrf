@@ -5,7 +5,7 @@ import os
 import jsonpickle
 from typing import BinaryIO
 
-from pmrf.models.model import Model
+from pmrf.core.model import Model
 
 def load(source: str | BinaryIO) -> Model:
     """

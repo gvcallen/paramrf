@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.model import Model
-from pmrf.frequency import Frequency
+from pmrf.core import Model
+from pmrf.core import Frequency
 from pmrf.evaluators import Evaluator
 
 class Problem(eqx.Module):

@@ -4,8 +4,8 @@ An expansion of a set of basis functions.
 
 import jax.numpy as jnp
 
-from pmrf.models.adapters.base import SingleDiscreteProperty
-from pmrf.parameters import Parameter
+from pmrf.core.adapters.base import SingleDiscreteProperty
+from pmrf.core.parameters import Parameter
 
 class VectorExpansion(SingleDiscreteProperty):
     """

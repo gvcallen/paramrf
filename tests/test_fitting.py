@@ -8,8 +8,8 @@ import skrf as rf
 import numpy as np
 
 import pmrf as prf
-from pmrf.models import CoaxialLine
-from pmrf.parameters import Uniform, RelativeNormal, Fixed
+from pmrf.core import CoaxialLine
+from pmrf.core.parameters import Uniform, RelativeNormal, Fixed
 from pmrf.fitting import SciPyMinimizeFitter
 
 TEST_DIR = Path(__file__).parent

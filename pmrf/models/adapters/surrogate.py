@@ -6,9 +6,9 @@ from typing import Callable
 
 import jax.numpy as jnp
 
-from pmrf.frequency import Frequency
-from pmrf.parameters import Parameter
-from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
+from from pmrf.core import Frequency
+from pmrf.core.parameters import Parameter
+from pmrf.core.adapters.base import SingleProperty, SingleDiscreteProperty
     
 class ContinuousSurrogate(SingleProperty, transparent=True):
     """

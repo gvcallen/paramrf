@@ -3,7 +3,7 @@ from typing import Callable, Any
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.model import Model
+from pmrf.core import Model
 from pmrf.optimize.result import OptimizeResult
 
 class AbstractMinimizer(eqx.Module):

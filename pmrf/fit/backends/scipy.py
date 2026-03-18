@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from scipy.optimize import OptimizeResult
 
 from pmrf.fitting.frequentist import FrequentistFitter
-from pmrf.model import Model
+from pmrf.core import Model
 from pmrf.backends.scipy import run_scipy_minimize
 
 class SciPyMinimizeFitter(FrequentistFitter):

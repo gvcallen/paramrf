@@ -8,8 +8,8 @@ Core API
    :toctree: generated/
 
    pmrf.Model
-   pmrf.Parameter
-   pmrf.Frequency
+   pmrf.core.parameter
+   from pmrf.core.frequency
    pmrf.load
    pmrf.save
    pmrf.extract_features
@@ -28,7 +28,7 @@ Modules
    pmrf.math_functions
    pmrf.models
    pmrf.optimize
-   pmrf.parameters
+   pmrf.core.parameters
    pmrf.results
    pmrf.rf_functions
    pmrf.runner

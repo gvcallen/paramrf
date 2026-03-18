@@ -12,12 +12,12 @@ import jax.numpy as jnp
 from pmrf.runner import BaseRunner
 from pmrf.constants import FeatureSpecT
 from pmrf.network_collection import NetworkCollection
-from pmrf.model import Model
+from pmrf.core import Model
 from pmrf.fitting.results import FitResults
-from pmrf.frequency import Frequency
+from pmrf.core import Frequency
 from pmrf import extract_features
 from pmrf.io import save
-from pmrf.util import RANK
+from pmrf.utils import RANK
 
 class BaseFitter(BaseRunner, ABC):
     r"""

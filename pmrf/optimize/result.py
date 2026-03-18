@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 
-from pmrf.model import Model
+from pmrf.core import Model
 
 @dataclass
 class OptimizeResult:

@@ -2,7 +2,7 @@
 Test that we can build a simple RLC circuit and that its S-parameters match scikit-rf's.
 """
 import numpy as np
-from pmrf.models import Resistor, Inductor, ShuntCapacitor, SHORT
+from pmrf.core import Resistor, Inductor, ShuntCapacitor, SHORT
 import pmrf as prf
 from skrf.media import DefinedGammaZ0
 

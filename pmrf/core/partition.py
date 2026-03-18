@@ -1,15 +1,13 @@
 import jax
 import equinox as eqx
-from pmrf.parameter import is_valid_param
-
-from equinox import field
+from pmrf.core import is_valid_param
 
 def partition(pytree, include_fixed=False, param_objects=False):
     """
     Partitions an arbitrary PyTree into (dynamic, static) halves.
 
     This upgrades `eqx.partition` to be "parameter-aware",
-    treating only :class:`pmrf.Parameter` objects as dynamic and
+    treating only :class:`pmrf.core.parameter` objects as dynamic and
     also taking into account whether they are fixed or not.
     
     Args:
