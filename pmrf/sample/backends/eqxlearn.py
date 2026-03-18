@@ -4,7 +4,7 @@ from typing import Any
 import jax.numpy as jnp
 import jax.random as jr
 
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.sampling.algorithms import FieldSampler
 from pmrf.sampling.base import SampleResults
 from pmrf.algorithms.anomaly import get_anomaly_mask
@@ -24,7 +24,7 @@ class EqxLearnUncertaintySampler(FieldSampler):
 
     Parameters
     ----------
-    model : :class:`~pmrf.models.model.Model`
+    model : :class:`~pmrf.model.Model`
         The base ParamRF model to sample.
     surrogate : :class:`eqxlearn.BaseModel`
         An ``eqx-learn`` model instance (e.g., a Gaussian Process) that 

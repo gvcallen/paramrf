@@ -5,7 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 import h5py
 
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.results import BaseResults
 from pmrf.features import extract_features
 

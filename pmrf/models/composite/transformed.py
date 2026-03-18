@@ -4,7 +4,7 @@ Models that transform the ports or layout of another model.
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.field import field
         
 class Renumbered(Model, transparent=True):

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skrf
 
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
 from goal import FeatureGoal # Adjust import as needed
 from pmrf.network_collection import NetworkCollection

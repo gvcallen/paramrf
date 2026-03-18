@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from pmrf.parameters import Parameter
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.rf_functions import y2s
 
 class PiCLC(Model):

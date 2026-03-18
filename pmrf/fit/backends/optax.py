@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.fitting.frequentist import FrequentistFitter
 from pmrf.backends.optax import run_optax
 

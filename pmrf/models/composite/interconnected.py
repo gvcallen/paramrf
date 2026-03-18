@@ -5,7 +5,7 @@ Composite models that physically connect ports of other models.
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.models.components.ideal import Port
 from pmrf.rf_functions.connections import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 from pmrf.field import field

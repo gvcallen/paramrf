@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from pmrf.fitting.bayesian import BayesianFitter
-from pmrf.models.model import Model
+from pmrf.model import Model
 
 
 
@@ -147,7 +147,7 @@ class NumPyroMCMCFitter(NumPyroFitter):
 
         Returns
         -------
-        tuple[:class:`~pmrf.models.model.Model`, dict[str, jax.numpy.ndarray]]
+        tuple[:class:`~pmrf.model.Model`, dict[str, jax.numpy.ndarray]]
             The fitted model and a dictionary containing the raw MCMC samples.
         """
         from numpyro.infer import MCMC, NUTS
@@ -224,7 +224,7 @@ class NumPyroNSFitter(NumPyroFitter):
 
         Returns
         -------
-        tuple[:class:`~pmrf.models.model.Model`, dict[str, jax.numpy.ndarray]]
+        tuple[:class:`~pmrf.model.Model`, dict[str, jax.numpy.ndarray]]
             The fitted model and a dictionary containing the generated samples.
         """
         from numpyro.contrib.nested_sampling import NestedSampler

@@ -10,7 +10,7 @@ import equinox as eqx
 from pmrf.frequency import Frequency
 from pmrf.rf_functions.connections import cascade_s
 from pmrf.parameters import Parameter, as_param
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.models.components.lines.uniform import RLGCLine
 
 class ProfiledLine(Model, transparent=True):

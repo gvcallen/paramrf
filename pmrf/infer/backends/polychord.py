@@ -3,7 +3,7 @@ from typing import Callable, Sequence, Any
 import numpy as np
 import jax.numpy as jnp
 
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import time_string
 from pmrf.infer.problem import InferenceProblem

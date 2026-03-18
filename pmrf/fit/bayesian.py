@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 
 from pmrf.fitting.base import BaseFitter, FitResults
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.parameters import Parameter, Uniform
 from pmrf.network_collection import NetworkCollection
 
@@ -34,7 +34,7 @@ class BayesianFitter(BaseFitter, ABC):
 
     Parameters
     ----------
-    model : :class:`~pmrf.models.model.Model`
+    model : :class:`~pmrf.model.Model`
         The ParamRF model containing the parameters to optimize.
     likelihood_kind : str, optional
         The type of likelihood function to use. Options typically include 'gaussian' 
@@ -90,7 +90,7 @@ class BayesianFitter(BaseFitter, ABC):
 
         Returns
         -------
-        tuple[:class:`~pmrf.models.model.Model`, :class:`~pmrf.fitting.base.FitResults`]
+        tuple[:class:`~pmrf.model.Model`, :class:`~pmrf.fitting.base.FitResults`]
             The fitted model and the raw results object.
         """
         # We lazily update the features and likelihood based on the measured data

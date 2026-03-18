@@ -6,7 +6,7 @@ import equinox as eqx
 
 from pmrf.fitting.base import BaseFitter
 from pmrf.fitting.error import independent_rms_error, geometric_rms_error, convolutional_rms_error
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.constants import ArrayFuncT
 
 class FrequentistFitter(BaseFitter, ABC):

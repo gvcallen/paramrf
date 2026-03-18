@@ -8,7 +8,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from pmrf.runner import BaseRunner
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.util import LivePlotter, RANK
 from pmrf.sampling.results import SampleResults 
 from pmrf.features import extract_features
@@ -33,7 +33,7 @@ class BaseSampler(BaseRunner, ABC):
 
     Parameters
     ----------
-    model : :class:`~pmrf.models.model.Model`
+    model : :class:`~pmrf.model.Model`
         The base ParamRF model to be sampled.
     **kwargs
         Additional arguments passed up to :class:`~pmrf.runner.BaseRunner` 

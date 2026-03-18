@@ -9,7 +9,7 @@ from jax.extend.backend import get_backend
 from tqdm.auto import tqdm
 
 from pmrf.fitting.bayesian import BayesianFitter
-from pmrf.models.model import Model
+from pmrf.model import Model
 from pmrf.parameters import ParameterGroup
 
 class BlackJAXNSFitter(BayesianFitter):
@@ -63,7 +63,7 @@ class BlackJAXNSFitter(BayesianFitter):
 
         Returns
         -------
-        tuple[:class:`~pmrf.models.model.Model`, Any]
+        tuple[:class:`~pmrf.model.Model`, Any]
             The fitted model (with parameter groups updated to the full posterior) 
             and the raw ``anesthetic.NestedSamples`` object.
         """
