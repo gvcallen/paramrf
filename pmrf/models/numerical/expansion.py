@@ -3,8 +3,8 @@ An expansion of a set of basis functions.
 """
 
 import jax.numpy as jnp
+from parax import Parameter
 
-from pmrf.core import Parameter
 from pmrf.models.adapters.abstract import AbstractSingleDiscreteProperty
 
 class VectorExpansion(AbstractSingleDiscreteProperty):

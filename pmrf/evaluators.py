@@ -3,19 +3,20 @@ import operator
 
 import jax
 import jax.numpy as jnp
-import equinox as eqx
+import parax as prx
 from numpyro.distributions import Distribution
+from parax import Parameter
 
-from pmrf.core import Model, Frequency, Parameter, Evaluator
+from pmrf.core import Model, Frequency, Evaluator
 
 class CustomEvaluator(Evaluator):
-    fn: Callable[[Model, Frequency], jnp.ndarray] = eqx.field(static=True)
+    fn: Callable[[Model, Frequency], jnp.ndarray] = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         return self.fn(model, freq)
 
 class Method(Evaluator):
-    path: str = eqx.field(static=True)
+    path: str = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         func = operator.attrgetter(self.path)(model)
@@ -23,7 +24,7 @@ class Method(Evaluator):
 
 class Index(Evaluator):
     evaluator: Evaluator
-    indices: Any = eqx.field(static=True)
+    indices: Any = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         data = self.evaluator(model, freq)
@@ -31,7 +32,7 @@ class Index(Evaluator):
 
 class Mask(Evaluator):
     evaluator: Evaluator
-    mask: jnp.ndarray = eqx.field(static=True)
+    mask: jnp.ndarray = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         data = self.evaluator(model, freq)
@@ -39,14 +40,14 @@ class Mask(Evaluator):
 
 class Mapped(Evaluator):
     evaluator: Evaluator
-    fn: Callable[[jnp.ndarray], jnp.ndarray] = eqx.field(static=True)
+    fn: Callable[[jnp.ndarray], jnp.ndarray] = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         return self.fn(self.evaluator(model, freq))
         
 class Stacked(Evaluator):
     evaluators: list[Evaluator]
-    axis: int = eqx.field(default=-1, static=True)
+    axis: int = prx.field(default=-1, static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         results = [ev(model, freq) for ev in self.evaluators]
@@ -69,7 +70,7 @@ class Flatness(Evaluator):
 class Likelihood(Evaluator):
     predictor: Evaluator
     target: jnp.ndarray
-    distribution_fn: Callable[[jnp.ndarray], Distribution] = eqx.field(static=True)
+    distribution_fn: Callable[[jnp.ndarray], Distribution] = prx.field(static=True)
     parameters: dict[str, Parameter]
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:

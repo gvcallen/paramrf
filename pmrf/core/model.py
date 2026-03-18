@@ -1,16 +1,15 @@
 """
 The main model class.
 
-This module defines :class:`pmrf.Model`, a frozen, JAX-compatible, Equinox module.
+This module defines :class:`pmrf.Model`, a frozen, JAX-compatible, Parax/Equinox module.
 
 """
 
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import numpy as np
 import parax as prx
 
 from pmrf.core.frequency import Frequency
@@ -681,7 +680,7 @@ class Model(prx.Module):
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
-    def to_skrf(self, frequency: Frequency | "skrf.Frequency", sigma=0.0, **kwargs) -> "skrf.Network":
+    def to_skrf(self, frequency: Frequency | Any, sigma=0.0, **kwargs) -> 'skrf.Network':
         """Convert the model at frequencies to an :class:`skrf.Network`.
 
         The active primary property (``self.primary_property``) is used.
@@ -722,7 +721,7 @@ class Model(prx.Module):
             ntwk.s += (np.random.normal(0, sigma, ntwk.s.shape) + 1j * np.random.normal(0, sigma, ntwk.s.shape))
         return ntwk        
     
-    def export_touchstone(self, filename: str, frequency: Frequency | "skrf.Frequency", sigma: float = 0.0, **skrf_kwargs):
+    def export_touchstone(self, filename: str, frequency: Frequency | Any, sigma: float = 0.0, **skrf_kwargs):
         """Export the model response to a Touchstone file via scikit-rf.
 
         Parameters

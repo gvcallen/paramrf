@@ -4,8 +4,9 @@ Adapter models that store static RF network data.
 
 import skrf
 import jax.numpy as jnp
+import parax as prx
 
-from pmrf.core import Model, Frequency, field
+from pmrf.core import Model, Frequency
 
 class Measured(Model):
     """
@@ -20,7 +21,7 @@ class Measured(Model):
         The static network data containing S-parameters and frequency information.
         Marked as static to avoid tracing overhead in JAX.
     """
-    network: skrf.Network = field(static=True)
+    network: skrf.Network = prx.field(static=True)
     
     def __post_init__(self):
         self.network.renormalize(self.z0, 'power')

@@ -5,9 +5,9 @@ Adapters to hold discrete and continuous surrogate models.
 from typing import Callable
 
 import jax.numpy as jnp
+from parax import Parameter
 
 from pmrf.core import Frequency
-from pmrf.core import Parameter
 from pmrf.models.adapters.abstract import AbstractSingleProperty, AbstractSingleDiscreteProperty
     
 class ContinuousSurrogate(AbstractSingleProperty, transparent=True):

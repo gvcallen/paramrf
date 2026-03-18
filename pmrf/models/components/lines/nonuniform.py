@@ -6,11 +6,11 @@ from typing import Callable, Any, Dict
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+from parax import Parameter
 
-from pmrf.core import Frequency, Model, Parameter
+from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf_functions.connections import cascade_s
-from pmrf.utils import as_param
 
 class ProfiledLine(Model, transparent=True):
     r"""
@@ -94,7 +94,7 @@ class ProfiledLine(Model, transparent=True):
         # Members
         self.line_fn = line_fn
         self.floating = floating
-        self.length = as_param(length)
+        self.length = length
         self.method = method
         self.options = options
 
@@ -125,14 +125,14 @@ class ProfiledLine(Model, transparent=True):
         for k, v in merged_params.items():
             if isinstance(v, tuple) and len(v) == 2 and callable(v[0]) and isinstance(v[1], dict):
                 parsed_profile_fns[k] = v[0]
-                parsed_profile_params[k] = {arg: as_param(val) for arg, val in v[1].items()}
+                parsed_profile_params[k] = {arg: val for arg, val in v[1].items()}
             elif isinstance(v, dict):
                 if profile_fn is None:
                     raise ValueError(f"Parameter '{k}' was provided as a dict, but no `profile_fn` was specified.")
                 parsed_profile_fns[k] = profile_fn
-                parsed_profile_params[k] = {arg: as_param(val) for arg, val in v.items()}
+                parsed_profile_params[k] = {arg: val for arg, val in v.items()}
             else:
-                parsed_uniform_params[k] = as_param(v)
+                parsed_uniform_params[k] = v
                 
         self.profile_fns = parsed_profile_fns
         self.profile_params = parsed_profile_params
