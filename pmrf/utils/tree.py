@@ -294,7 +294,7 @@ def path_repr(path):
         
     return repr
 
-def dealias(
+def dealias_shared(
     tree: PyTree,
     core_spec: PyTree[TreeAxisSpec],
     is_leaf: Callable[[Any], bool] | None = None,
@@ -345,7 +345,7 @@ def dealias(
     
     return core, ref
     
-def restore(
+def restore_shared(
     ref: PyTree,
     core: PyTree | None = None,
     is_leaf: Callable[[Any], bool] | None = None,
@@ -378,7 +378,7 @@ def restore(
     deref = jax.tree.map(lambda node: value_at_path(core, node.path) if isinstance(node, RefNode) else node, ref, is_leaf=_is_leaf)
     return deref
 
-def partition(
+def partition_shared(
     pytree: PyTree,
     filter_spec: PyTree[TreeAxisSpec],
     shared_spec: PyTree[TreeAxisSpec] | None = None,
@@ -414,11 +414,11 @@ def partition(
         return eqx.partition(pytree, filter_spec, replace=replace, is_leaf=is_leaf)
 
     first, second = eqx.partition(pytree, shared_spec, replace=replace, is_leaf=is_leaf)
-    first_core, first_ref = dealias(first, filter_spec, is_leaf)
+    first_core, first_ref = dealias_shared(first, filter_spec, is_leaf)
     
     return first_core, eqx.combine(first_ref, second)
 
-def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
+def combine_shared(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
     """
     Combine multiple PyTrees, optionally restoring shared references.
 
@@ -439,5 +439,5 @@ def combine(*pytrees: PyTree, restore = True, is_leaf: Callable[[Any], bool] | N
     combined = eqx.combine(*pytrees, is_leaf=is_leaf)
     from pmrf.utils import tree
     if restore:
-        combined = tree.restore(combined, is_leaf=is_leaf)
+        combined = tree.restore_shared(combined, is_leaf=is_leaf)
     return combined

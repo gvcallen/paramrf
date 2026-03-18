@@ -3,7 +3,7 @@ import logging
 import skrf as rf
 
 from pmrf.core import CoaxialLine
-from pmrf.core.parameters import Uniform, RelativeNormal, Fixed
+from pmrf.parameters import Uniform, RelativeNormal, Fixed
 from pmrf.fitting import SciPyMinimizeFitter
 
 logging.basicConfig(level=logging.INFO)

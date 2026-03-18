@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from pmrf.core import Frequency
 from pmrf.rf_functions.conversions import renormalize_s
-from pmrf.core.parameters import Parameter
+from pmrf.core import Parameter
 from pmrf.core import Model
 
 class TransmissionLine(Model, ABC):

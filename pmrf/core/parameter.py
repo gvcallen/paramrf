@@ -1,7 +1,6 @@
 import json
 import dataclasses
 from copy import deepcopy
-from typing import Any
 
 import jax.numpy as jnp
 import equinox as eqx
@@ -61,8 +60,8 @@ class Parameter(eqx.Module):
         p2 = prf.Parameter(value=50.0, fixed=True, name='R2')
 
         # A parameter with a uniform distribution
-        # The provided factory functions in pmrf.core.parameters are a convenient way to create these
-        from pmrf.core.parameters import Uniform
+        # The provided factory functions in pmrf.parameters are a convenient way to create these
+        from pmrf.parameters import Uniform
         p3 = Uniform(0.9, 1.1, scale=1e-9, name='L1')
         print(f"Initial value of L1: {p3.value}") # initialized to the mean
 

@@ -5,9 +5,9 @@ Adapter models that store static RF network data.
 import skrf
 import jax.numpy as jnp
 
-from pmrf.core.adapters.base import Model
+from pmrf.models.adapters.base import Model
 from pmrf.core import Frequency
-from core.field import field
+from pmrf.core.field import field
 
 class Measured(Model):
     """

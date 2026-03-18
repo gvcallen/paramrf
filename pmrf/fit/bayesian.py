@@ -9,7 +9,7 @@ import numpyro.distributions as dist
 
 from pmrf.fitting.base import BaseFitter, FitResults
 from pmrf.core import Model
-from pmrf.core.parameters import Parameter, Uniform
+from pmrf.core import Parameter, Uniform
 from pmrf.network_collection import NetworkCollection
 
 DefaultSigmaPrior = partial(Uniform, 0.0, 20e-3)
@@ -40,7 +40,7 @@ class BayesianFitter(BaseFitter, ABC):
         The type of likelihood function to use. Options typically include 'gaussian' 
         or 'multivariate_gaussian'. If ``None``, it is inferred automatically 
         based on the provided measurement data during :meth:`run`.
-    likelihood_params : dict[str, :class:`~pmrf.core.parameters.Parameter`], optional
+    likelihood_params : dict[str, :class:`~pmrf.parameters.Parameter`], optional
         A dictionary defining the prior distributions for the likelihood noise 
         parameters (e.g., standard deviations). If ``None``, standard uniform 
         priors are generated automatically.

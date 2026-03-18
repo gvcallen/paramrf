@@ -1,8 +1,12 @@
+from typing import TypeVar
+
 import jax
 import equinox as eqx
-from pmrf.core import is_valid_param
+from pmrf.utils import is_valid_param
 
-def partition(pytree, include_fixed=False, param_objects=False):
+T = TypeVar("T")
+
+def partition(pytree: T, include_fixed=False, param_objects=False) -> tuple[T, T]:
     """
     Partitions an arbitrary PyTree into (dynamic, static) halves.
 

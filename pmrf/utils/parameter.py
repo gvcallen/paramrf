@@ -1,7 +1,5 @@
 from typing import Any
 
-from pmrf.core import Parameter
-
 def is_param(x) -> bool:
     r"""
     Check if an object is an instance of a `Parameter`.
@@ -16,6 +14,7 @@ def is_param(x) -> bool:
     bool
         `True` if the object is a Parameter, `False` otherwise.
     """
+    from pmrf.core import Parameter
     return isinstance(x, Parameter)
 
 def is_valid_param(x) -> bool:
@@ -32,6 +31,7 @@ def is_valid_param(x) -> bool:
     bool
         `True` if the object is a valid Parameter, `False` otherwise.
     """
+    from pmrf.core import Parameter
     return isinstance(x, Parameter) and x.value is not None
 
 def is_free_param(x) -> bool:
@@ -48,6 +48,7 @@ def is_free_param(x) -> bool:
     bool
         `True` if the object is a non-fixed Parameter, `False` otherwise.
     """
+    from pmrf.core import Parameter
     return isinstance(x, Parameter) and not x.fixed
 
 def is_fixed_param(x) -> bool:
@@ -64,9 +65,10 @@ def is_fixed_param(x) -> bool:
     bool
         `True` if the object is a fixed Parameter, `False` otherwise.
     """
+    from pmrf.core import Parameter
     return isinstance(x, Parameter) and x.fixed
 
-def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
+def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> "Parameter":
     r"""
     Ensure an object is a `Parameter` or container over parameters.
 
@@ -86,6 +88,7 @@ def as_param(x: Any | list[Any] | dict[str, Any], **kwargs) -> Parameter:
         The object wrapped as a `Parameter`.
     """
     from pmrf.parameters import Free, Fixed
+    from pmrf.core import Parameter
     
     if isinstance(x, Parameter):
         return x

@@ -26,7 +26,7 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
 
     import pmrf as prf
     from pmrf.core import Resistor, Inductor, ShuntCapacitor, OPEN
-    from pmrf.core.parameters import Fixed
+    from pmrf.parameters import Fixed
 
     # Instantiate the lumped element models
     resistor = Resistor(R=100.0)
@@ -88,7 +88,7 @@ For more complex models (such as equation-based ones), users can inherit directl
 
 Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a :class:`pmrf.core.parameter` or :class:`pmrf.Model` are dynamic and can be adjusted (for example, by fitting routines).
 
-Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.core.parameters.Uniform`, :class:`pmrf.core.parameters.Normal` or :class:`pmrf.core.parameters.Fixed`; or directly using the :class:`pmrf.core.parameter` class constructor.
+Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.parameters.Uniform`, :class:`pmrf.parameters.Normal` or :class:`pmrf.parameters.Fixed`; or directly using the :class:`pmrf.core.parameter` class constructor.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
@@ -129,7 +129,7 @@ The following example creates a PI-CLC model once again, but using the above met
 
     import pmrf as prf
     from pmrf.core import Capacitor, Inductor, Circuit, Port, Ground
-    from pmrf.core.parameters import Uniform, Fixed
+    from pmrf.parameters import Uniform, Fixed
 
     class PiCLC(prf.Model):
         capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))

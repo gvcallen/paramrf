@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 
 from pmrf.fitting.bayesian import BayesianFitter
 from pmrf.core import Model
-from pmrf.core.parameters import ParameterGroup
+from pmrf.core import ParameterGroup
 
 class BlackJAXNSFitter(BayesianFitter):
     """

@@ -1,11 +1,15 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 
-from pmrf.core import Model
+import jax.numpy as jnp
+
+from pmrf.core import Model, Evaluator
 
 @dataclass
 class OptimizeResult:
     model: Model
-    cost: float
+    evaluator: Evaluator
+    value: jnp.ndarray
+    
     history: Dict[str, Any]
     success: bool

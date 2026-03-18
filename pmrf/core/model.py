@@ -24,16 +24,19 @@ from jax.tree_util import GetAttrKey, DictKey, SequenceKey, FlattenedIndexKey
 import equinox as eqx
 import numpy as np
 import skrf as skrf
-from numpyro.distributions import Distribution, Uniform as UniformDistribution
+import numpyro.distributions as dist
+from numpyro.distributions import Distribution
 
-from pmrf.rf_functions.conversions import a2s, s2a, s2z, z2s, s2y, y2s
-from pmrf.math_functions import FUNC_LOOKUP
-from pmrf.distributions.joint import JointDistribution
-from pmrf.constants import PRIMARY_PROPERTIES
-from pmrf.core.parameter import Parameter, ParameterGroup, is_valid_param, as_param
+from pmrf.core.parameter import Parameter
+from pmrf.core.parameter_group import ParameterGroup
 from pmrf.core.frequency import Frequency
-from pmrf.core.field import field  # Import your newly created field
-from pmrf.utils import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float, nodes_by_type, value_at_path, partition, combine
+from pmrf.core.field import field
+from pmrf.rf_functions import a2s, s2a, s2z, z2s, s2y, y2s
+from pmrf.math_functions import FUNC_LOOKUP
+from pmrf.distributions import JointDistribution
+from pmrf.constants import PRIMARY_PROPERTIES
+from pmrf.utils import classproperty, is_overridden, get_first_underlying_type, is_convertible_to_float, nodes_by_type, value_at_path
+from pmrf.utils import partition_shared, combine_shared, is_valid_param, as_param
 
 Z0_WARNING = \
 r"""
@@ -314,7 +317,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
 
         import pmrf as prf
         from pmrf.core import Resistor, Capacitor, Inductor, Cascade
-        from pmrf.core.parameters import Uniform
+        from pmrf.parameters import Uniform
 
         class RLC(prf.Model):
             res: Resistor = Resistor(Uniform(9.0, 11.0))
@@ -1256,7 +1259,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
             return [v for k, v in named_param_values.items() if k in key]
         
     def __repr__(self):
-        from pmrf.core.parameters import Parameter 
+        from pmrf.core import Parameter 
         
         model_param_fields = []
         other_fields = []
@@ -1348,7 +1351,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 filter_spec = self._core_value_spec
             else:
                 filter_spec = self._free_value_spec
-        return partition(self, filter_spec, shared_spec)    
+        return partition_shared(self, filter_spec, shared_spec)    
 
     def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
@@ -1768,7 +1771,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 raise Exception("Error: no free model parameters found to make feature function")
             
             params_tree_recon = unravel_fn(params)
-            return combine(params_tree_recon, static)
+            return combine_shared(params_tree_recon, static)
 
         params = params if params is not None else {}
         params.update(param_kwargs)
@@ -1857,7 +1860,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         new_flat_params = list(new_params.values())
     
         # Get the current flat parameter object
-        params_tree, static = partition(self, self._param_object_spec, self._param_object_spec, is_leaf=is_valid_param)
+        params_tree, static = partition_shared(self, self._param_object_spec, self._param_object_spec, is_leaf=is_valid_param)
         flat_params, treedef = jax.tree.flatten(params_tree, is_leaf=is_valid_param)
         
         # We allow the caller to pass None for name and then we update the name. Otherwise names should match
@@ -1867,7 +1870,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
         
         # Create the update tree and return
         new_params_tree = jax.tree.unflatten(treedef, new_flat_params)
-        combined: Model = combine(new_params_tree, static, is_leaf=is_valid_param)
+        combined: Model = combine_shared(new_params_tree, static, is_leaf=is_valid_param)
         return combined         
 
     def with_mapped_params(
@@ -2309,7 +2312,7 @@ class Model(eqx.Module, metaclass=ModelMeta):
                 new_min = max(new_min, param.min)
                 new_max = min(new_max, param.max)
 
-            distribution = UniformDistribution(new_min, new_max)
+            distribution = dist.Uniform(new_min, new_max)
             updates[name] = param.with_distribution(distribution)
             
         new_model = self.with_params(updates)

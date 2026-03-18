@@ -7,7 +7,7 @@ from jax import flatten_util
 
 from pmrf.core import Model
 from pmrf.core import Frequency
-from pmrf.core.parameters import is_valid_param
+from pmrf.parameters import is_valid_param
 from pmrf.distributions.joint import JointDistribution
 from pmrf.likelihood import Likelihood
 

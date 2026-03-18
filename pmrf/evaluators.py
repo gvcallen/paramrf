@@ -6,10 +6,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from numpyro.distributions import Distribution
 
-from pmrf.core import Model
-from pmrf.core import Frequency
-from pmrf.core.parameter import Parameter
-from pmrf.evaluator import Evaluator
+from pmrf.core import Model, Frequency, Parameter, Evaluator
 
 class CustomEvaluator(Evaluator):
     fn: Callable[[Model, Frequency], jnp.ndarray] = eqx.field(static=True)

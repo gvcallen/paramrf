@@ -1,9 +1,9 @@
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core import Model
-from pmrf.core import Frequency
-from pmrf.evaluators import Evaluator
+from pmrf.core.model import Model
+from pmrf.core.frequency import Frequency
+from pmrf.core.evaluator import Evaluator
 
 class Problem(eqx.Module):
     model: Model

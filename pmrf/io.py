@@ -83,3 +83,5 @@ def save(target: str | BinaryIO, model: Model):
             f.write(data)
     else:
         target.write(data)
+
+__all__ = ['save', 'load']

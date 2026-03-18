@@ -5,7 +5,7 @@ This module provides all the built-in components and circuit elements for buildi
 This includes lumped elements, transmission lines, topological sub-circuits, and more.
 """
 
-from pmrf.core.components import ideal, lines, lumped, nonideal, topological
+from pmrf.models.components import ideal, lines, lumped, nonideal, topological
 
 __all__ = [
     "ideal",

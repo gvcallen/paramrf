@@ -1,11 +1,12 @@
 """
 General constrants for the ParamRF library
 """
-from typing import TypeVar, Callable, Literal, Union, Sequence, Any, Tuple
+from typing import Callable, Literal, Union, Sequence, Any, Tuple
 from numbers import Number
 import jax.numpy as jnp
 
-from skrf.constants import INF, LOG_OF_NEG
+INF = 1e99
+LOG_OF_NEG = -100
 
 try:
     from mpi4py import MPI

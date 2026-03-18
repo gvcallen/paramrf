@@ -3,7 +3,7 @@ Adapter models that wrap Python collections.
 """
 
 from pmrf.core import Model
-from pmrf.core.adapters.base import Model
+from pmrf.models.adapters.base import Model
     
 class ListModel(Model):
     """

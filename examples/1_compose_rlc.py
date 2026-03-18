@@ -1,5 +1,5 @@
 from pmrf.core import Resistor, Inductor, ShuntCapacitor, SHORT
-from pmrf.core.parameters import Fixed
+from pmrf.parameters import Fixed
 import pmrf as prf
 import matplotlib.pyplot as plt
 
