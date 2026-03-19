@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from pmrf.runner import BaseRunner
 from pmrf.core import Model
 from pmrf.utils import LivePlotter, RANK
-from pmrf.sampling.results import SampleResults 
+from pmrf.sample.results import SampleResults 
 from pmrf.features import extract_features
 
 class BaseSampler(BaseRunner, ABC):
@@ -89,7 +89,7 @@ class BaseSampler(BaseRunner, ABC):
 
         Returns
         -------
-        :class:`~pmrf.sampling.results.SampleResults`
+        :class:`~pmrf.sample.results.SampleResults`
             The comprehensive results object containing the evaluated parameters 
             and their corresponding extracted features.
         """

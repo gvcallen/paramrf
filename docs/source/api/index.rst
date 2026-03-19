@@ -32,4 +32,4 @@ Modules
    pmrf.results
    pmrf.rf_functions
    pmrf.runner
-   pmrf.sampling
+   pmrf.sample

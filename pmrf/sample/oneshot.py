@@ -3,7 +3,7 @@ from typing import Any
 
 import jax.numpy as jnp
 
-from pmrf.sampling.base import BaseSampler
+from pmrf.sample.base import BaseSampler
 from pmrf.utils import generate_key
 
 class OneshotSampler(BaseSampler, ABC):

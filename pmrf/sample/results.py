@@ -1,16 +1,17 @@
 from dataclasses import dataclass
 import logging
+from typing import Any
 
 import numpy as np
 import jax.numpy as jnp
 import h5py
 
 from pmrf.core import Model
-from pmrf.results import BaseResults
-from pmrf.features import extract_features
+# from pmrf.results import BaseResults
+# from pmrf.features import extract_features
 
 @dataclass
-class SampleResults(BaseResults):
+class SampleResults(Any):
     """Container for the results of a model sampling process."""
     sampled_models: list[Model] | None = None
     sampled_params: jnp.ndarray | None = None

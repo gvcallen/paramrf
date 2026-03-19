@@ -183,14 +183,14 @@ The following provides a complete example of fitting the built in :mod:`pmrf.mod
 Sampling
 ~~~~~~~~~~~~~~~~~~~~
 
-ParamRF also provides the ability to randomly or adaptively sample models. The :mod:`pmrf.sampling` module provides an interface for this, with simple one-shot sampling algorithms such as *uniform* or *Latin Hypercube*, as well as more advanced adaptive sampling algorithms (such as *uncertainty* sampling) for expensive EM simulations.
+ParamRF also provides the ability to randomly or adaptively sample models. The :mod:`pmrf.sample` module provides an interface for this, with simple one-shot sampling algorithms such as *uniform* or *Latin Hypercube*, as well as more advanced adaptive sampling algorithms (such as *uncertainty* sampling) for expensive EM simulations.
 
 Main Samplers
 ^^^^^^^^^^^^^^^^^^^^
 
-* :class:`pmrf.sampling.UniformSampler`: Uniform sampling.
-* :class:`pmrf.sampling.LatinHypercubeSampler`: Latin hypercube sampling.
-* :class:`pmrf.sampling.EqxLearnUncertaintySampler`: Enables surrogate model uncertainty sampling from ``eqx-learn``. This provides the ability to uncertainty sample using classical machine learning surrogate models, such as Gaussian Processes.
+* :class:`pmrf.sample.UniformSampler`: Uniform sampling.
+* :class:`pmrf.sample.LatinHypercubeSampler`: Latin hypercube sampling.
+* :class:`pmrf.sample.EqxLearnUncertaintySampler`: Enables surrogate model uncertainty sampling from ``eqx-learn``. This provides the ability to uncertainty sample using classical machine learning surrogate models, such as Gaussian Processes.
 
 Example
 ^^^^^^^^^^^^^^^^^^^^

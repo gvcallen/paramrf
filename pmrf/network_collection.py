@@ -69,7 +69,8 @@ class NetworkCollection:
         """
         Allow attribute-like access to networks by name (e.g., collection.my_network).
         """
-        for ntwk in self.networks:
+        networks = object.__getattribute__(self, "networks")
+        for ntwk in networks:
             if ntwk.name == name:
                 return ntwk
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute or network named '{name}'")    

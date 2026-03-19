@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from pmrf.sampling.oneshot import OneshotSampler
+from pmrf.sample.oneshot import OneshotSampler
 from pmrf.utils.random import lhs_sample
 
 class LatinHypercubeSampler(OneshotSampler):

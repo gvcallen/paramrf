@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import jax.random as jr
 
 from pmrf.core import Model
-from pmrf.sampling.algorithms import FieldSampler
-from pmrf.sampling.base import SampleResults
+from pmrf.sample.algorithms import FieldSampler
+from pmrf.sample.base import SampleResults
 from pmrf.utils.anomaly import get_anomaly_mask
 
 class EqxLearnUncertaintySampler(FieldSampler):
@@ -35,7 +35,7 @@ class EqxLearnUncertaintySampler(FieldSampler):
     fit_kwargs : dict, optional
         Keyword arguments passed to the ``eqxlearn.fit`` routine.
     **kwargs
-        Additional arguments for the :class:`~pmrf.sampling.algorithms.FieldSampler` 
+        Additional arguments for the :class:`~pmrf.sample.algorithms.FieldSampler` 
         base class.
     """
     def __init__(

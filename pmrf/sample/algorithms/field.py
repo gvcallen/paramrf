@@ -5,9 +5,9 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 
-from pmrf.sampling.acqusition import AcquisitionSampler
+from pmrf.sample.acqusition import AcquisitionSampler
 from pmrf.core import Model
-from pmrf.sampling.base import BaseSampler, SampleResults
+from pmrf.sample.base import BaseSampler, SampleResults
 from pmrf.utils import lhs_sample, LivePlotter, RANK
 from pmrf.algorithms import has_converged
 
@@ -139,7 +139,7 @@ class FieldSampler(AcquisitionSampler, ABC):
             Number of points to propose.
         d : int
             Dimensionality of the parameter space.
-        grid_sampler : :class:`~pmrf.sampling.base.BaseSampler`, optional
+        grid_sampler : :class:`~pmrf.sample.base.BaseSampler`, optional
             An optional sampler used to generate the candidate grid. If ``None``, 
             Latin Hypercube Sampling is used.
         rtol : float, default=0.01

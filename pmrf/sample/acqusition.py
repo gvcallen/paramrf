@@ -5,7 +5,7 @@ import jax
 import jax.random as jr
 import jax.numpy as jnp
 
-from pmrf.sampling.base import BaseSampler
+from pmrf.sample.base import BaseSampler
 from pmrf.core import Model
 from pmrf.utils import lhs_sample
 
