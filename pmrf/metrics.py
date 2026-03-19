@@ -1,8 +1,6 @@
 from typing import Callable, Union
 import jax.numpy as jnp
 
-from pmrf.math_functions import FUNC_LOOKUP
-
 from sklearn.metrics import root_mean_squared_error
 
 def weighted_mean(loss: jnp.ndarray, 
@@ -36,7 +34,6 @@ def weighted_mean(loss: jnp.ndarray,
         if weights.shape != mean_loss.shape:
             raise ValueError(f"multioutput weights shape {weights.shape} does not match output shape {mean_loss.shape}")
         return jnp.sum(mean_loss * weights) / jnp.sum(weights)
-# Now metrics
 
 def mean_squared_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
                        multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:

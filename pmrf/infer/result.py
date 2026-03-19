@@ -10,6 +10,5 @@ class InferResult:
     model: Model
     likelihood: Evaluator
     value: jnp.ndarray | None = None
-    
     history: Dict[str, Any]
     success: bool

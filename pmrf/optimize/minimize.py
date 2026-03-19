@@ -1,7 +1,6 @@
 from typing import Callable
 
 import jax
-import numpy as np
 
 import equinox as eqx
 import optimistix as optx

@@ -5,9 +5,7 @@ import skrf
 
 from pmrf.core import Model
 from pmrf.core import Frequency
-from goal import FeatureGoal # Adjust import as needed
 from pmrf.network_collection import NetworkCollection
-from pmrf.features import extract_features
 
 import logging
 

@@ -7,7 +7,7 @@ import jax.random as jr
 from pmrf.core import Model
 from pmrf.sampling.algorithms import FieldSampler
 from pmrf.sampling.base import SampleResults
-from pmrf.algorithms.anomaly import get_anomaly_mask
+from pmrf.utils.anomaly import get_anomaly_mask
 
 class EqxLearnUncertaintySampler(FieldSampler):
     r"""

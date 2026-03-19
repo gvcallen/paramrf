@@ -1,11 +1,4 @@
-try:
-    from mpi4py import MPI
-    MPI_AVAILABLE = True
-    COMM = MPI.COMM_WORLD
-    RANK = COMM.Get_rank()
-except:
-    RANK = 0
-    MPI_AVAILABLE = False
+from pmrf.constants import MPI_AVAILABLE, COMM
 
 def wait_for_all_ranks():
     if not MPI_AVAILABLE:
