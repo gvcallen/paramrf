@@ -1,15 +1,46 @@
 from typing import Callable, Union
+from functools import partial
+import jax
 import jax.numpy as jnp
 
 from sklearn.metrics import root_mean_squared_error
 
+def geometric_mean(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
+    """
+    Geometric mean over all elements of x.
+    """
+    x = jnp.maximum(x, epsilon)  # prevent collapse
+    x_flat = x.reshape(-1)
+    
+    return jnp.exp(jnp.mean(jnp.log(x_flat)))
+
+def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
+    """
+    Generalized convolutional aggregation over flattened features.
+    """
+    x = jnp.maximum(x, epsilon)
+    x_flat = x.reshape(-1)
+    n = x_flat.shape[0]
+
+    # Use scan instead of Python loop (JAX-friendly)
+    def step(carry, xi):
+        return jnp.convolve(carry, jnp.array([xi])), None
+
+    init = x_flat[0:1]
+    convolved, _ = jax.lax.scan(step, init, x_flat[1:])
+
+    # RMS reduction
+    combined = jnp.sqrt(jnp.mean(convolved**2))
+    
+    return combined ** (1.0 / n)
+
 def weighted_mean(loss: jnp.ndarray, 
                   sample_weight: jnp.ndarray | None = None, 
                   multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
-    # Step 1: apply sample weights
+
+    # Step 1: sample reduction
     if sample_weight is not None:
         w = sample_weight
-        # Expand weights to match remaining dimensions
         for _ in range(loss.ndim - 1):
             w = w[..., None]
         loss = loss * w
@@ -17,22 +48,32 @@ def weighted_mean(loss: jnp.ndarray,
     else:
         weight_sum = loss.shape[0]
     
-    # Step 2: mean over samples (axis 0)
     mean_loss = jnp.sum(loss, axis=0) / jnp.maximum(weight_sum, 1e-12)
-    
-    # Step 3: multioutput aggregation
+
+    # Step 2: multioutput aggregation
     if isinstance(multioutput, str):
+
         if multioutput == 'raw_values':
-            return mean_loss  # keep remaining axes
+            return mean_loss
+
         elif multioutput == 'uniform_average':
-            return jnp.mean(mean_loss)  # scalar across all output dims
+            return jnp.mean(mean_loss)
+
+        elif multioutput == 'geometric_average':
+            return geometric_mean(mean_loss)
+
+        elif multioutput == 'convolution':
+            return convolution_aggregate(mean_loss)
+
         else:
             raise ValueError(f"Unknown multioutput value: {multioutput}")
+
     else:
-        # weighted aggregation across all remaining axes
         weights = jnp.asarray(multioutput)
         if weights.shape != mean_loss.shape:
-            raise ValueError(f"multioutput weights shape {weights.shape} does not match output shape {mean_loss.shape}")
+            raise ValueError(
+                f"multioutput weights shape {weights.shape} does not match output shape {mean_loss.shape}"
+            )
         return jnp.sum(mean_loss * weights) / jnp.sum(weights)
 
 def mean_squared_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
@@ -63,7 +104,7 @@ def huber_loss(y_true: jnp.ndarray, y_pred: jnp.ndarray, delta: float = 1.0, sam
     loss = 0.5 * quadratic**2 + delta * linear
     return weighted_mean(loss, sample_weight, multioutput)
 
-def metric_from_alias(alias: str | Callable) -> Callable:
+def metric_from_alias(alias: str | Callable, multioutput: str = 'uniform_average') -> Callable:
     """
     Resolves a metric function from a string alias or passes a callable through.
     """
@@ -84,7 +125,7 @@ def metric_from_alias(alias: str | Callable) -> Callable:
     clean_alias = str(alias).strip().lower()
     
     if clean_alias in standard_metrics:
-        return standard_metrics[clean_alias]
+        return partial(standard_metrics[clean_alias], multioutput=multioutput)
 
     raise ValueError(
         f"Unknown metric alias: '{alias}'. "

@@ -33,10 +33,13 @@ MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
 Evaluator = TypeVar('Evaluator')
+Multioutput = TypeVar('Multioutput')
+AbstractMinimiser = TypeVar('AbstractMinimiser')
 FeatureSpec = str | Callable | list[str | Callable]
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]
-MetricFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+MetricFn = Callable[[jnp.ndarray, jnp.ndarray, Multioutput], jnp.ndarray]
 EvaluatorLike = str | list[str] | Evaluator | list[Evaluator]
+Solver = AbstractMinimiser | Callable
 
 __all__ = []

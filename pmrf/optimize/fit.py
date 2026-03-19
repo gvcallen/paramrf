@@ -1,13 +1,12 @@
-from typing import Callable
-
+from functools import partial
+from typing import Literal
 import jax.numpy as jnp
 
-import optimistix as optx
 from parax.transforms import ParameterTransform, IdentityTransform
 import skrf
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
-from pmrf.constants import EvaluatorLike
+from pmrf.constants import EvaluatorLike, Solver
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize_problem
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -21,11 +20,12 @@ from pmrf.constants import MetricFn
 def fit(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
-    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
+    solver: Solver = ScipyMinimizer(),
     *,
     frequency: Frequency | None = None,
     features: EvaluatorLike = 's',
     metric_fn: str | MetricFn = 'rms',
+    multioutput: Literal['raw_values', 'uniform_average', 'geometric_average', 'convolutional'] = 'uniform_average',
     transform: ParameterTransform = IdentityTransform(),
     **kwargs,
 ) -> OptimizeResult:
@@ -34,7 +34,9 @@ def fit(
     if not isinstance(features, Evaluator):
         features = Alias(features)
     if isinstance(metric_fn, str):
-        metric_fn = metric_from_alias(metric_fn)
+        metric_fn = metric_from_alias(metric_fn, multioutput=multioutput)
+    else:
+        metric_fn = partial(metric_fn, multioutput=multioutput)
     
     # Make sure data and frequency are in the right format
     if isinstance(data, skrf.Network | NetworkCollection):
@@ -55,7 +57,7 @@ def fit(
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),    
+    solver: Solver = ScipyMinimizer(),    
     *,
     frequency: Frequency | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
