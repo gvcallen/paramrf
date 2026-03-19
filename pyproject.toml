@@ -12,6 +12,7 @@ dependencies = [
     "equinox",
     "parax",
     "optimistix",
+    "inferix",
     "matplotlib",
     "numpy",
     "scikit-rf",

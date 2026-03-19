@@ -6,10 +6,10 @@ import jax.numpy as jnp
 from pmrf.core import Model, Evaluator
 
 @dataclass
-class OptimizeResult:
+class InferResult:
     model: Model
-    cost: Evaluator
-    value: jnp.ndarray
+    likelihood: Evaluator
+    value: jnp.ndarray | None = None
     
     history: Dict[str, Any]
     success: bool

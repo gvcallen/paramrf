@@ -34,7 +34,7 @@ def minimize(
 
     results = OptimizeResult(
         model=solved_problem.model,
-        evaluator=solved_problem.evaluator,
+        cost=solved_problem.evaluator,
         value=solved_problem(),
         history=optx_results.stats,
         success=(optx_results.result == optx.RESULTS.successful),
