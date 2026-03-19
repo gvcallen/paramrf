@@ -1,5 +1,6 @@
-from typing import Callable, Any
+from typing import Callable, Any, Sequence
 import operator
+import re
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +10,7 @@ from parax import Parameter
 
 from pmrf.core import Model, Frequency, Evaluator
 
-class CustomEvaluator(Evaluator):
+class Functional(Evaluator):
     fn: Callable[[Model, Frequency], jnp.ndarray] = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
@@ -60,6 +61,15 @@ class Residual(Evaluator):
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         return self.predictor(model, freq) - self.target
 
+class Metric(Evaluator):
+    predictor: Evaluator
+    target: jnp.ndarray
+    metric_fn: Callable[[jnp.ndarray, jnp.ndarray]] = prx.field(static=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        predicted = self.predictor(model, freq)
+        return self.metric_fn(self.target, predicted)
+
 class Flatness(Evaluator):
     evaluator: Evaluator
 
@@ -84,3 +94,68 @@ def Diagonal(evaluator: Evaluator) -> Mapped:
 def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
     mask = ~jnp.eye(n_ports, dtype=bool)
     return Mask(evaluator=evaluator, mask=mask)
+
+def Alias(alias: str | Sequence[str]) -> Evaluator:
+    """
+    Factory function to generate Evaluators from string aliases.
+    Accepts a single string (e.g., 's11_db', 'amplifier.s_tau') or a list of strings.
+    """
+    # 1. Handle Sequences (wrap in Stacked)
+    if not isinstance(alias, str) and isinstance(alias, Sequence):
+        evaluators = [Alias(a) for a in alias]
+        return Stacked(evaluators=evaluators, axis=-1)
+    
+    # 2. Parse submodel paths (e.g., "submodel.s11_db")
+    fields = alias.split('.')
+    if len(fields) > 1:
+        subattrs = ".".join(fields[:-1]) 
+        local_alias = fields[-1]
+    else:
+        subattrs = ""
+        local_alias = fields[0]
+
+    # 3. Intercept special aliases: s_gamma (reflection) and s_tau (transmission)
+    # By replacing the prefix, "s_gamma_db" elegantly becomes "s_db" for the base method!
+    special_type = None
+    if local_alias.startswith('s_gamma'):
+        base_prop = local_alias.replace('s_gamma', 's', 1)
+        special_type = 'gamma'
+    elif local_alias.startswith('s_tau'):
+        base_prop = local_alias.replace('s_tau', 's', 1)
+        special_type = 'tau'
+        
+    if special_type:
+        path = f"{subattrs}.{base_prop}" if subattrs else base_prop
+        base_evaluator = Method(path=path)
+        
+        if special_type == 'gamma':
+            # Extract diagonals for all frequencies (shape: n_freqs, n_ports)
+            return Mapped(evaluator=base_evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
+        else:
+            # Extract off-diagonals dynamically (shape: n_freqs, n_ports^2 - n_ports)
+            def extract_off_diag(mat):
+                return mat[~jnp.eye(mat.shape[0], dtype=bool)]
+            return Mapped(evaluator=base_evaluator, fn=lambda data: jax.vmap(extract_off_diag)(data))
+
+    # 4. Standard regex matching for specific ports (e.g., s11_db, y21_deg)
+    match = re.match(r'^([a-zA-Z]+)(\d)?(\d)?(.*)$', local_alias)
+    if not match:
+        raise ValueError(f"Invalid feature alias format: '{alias}'")
+
+    prop_prefix = match.group(1)
+    port1 = match.group(2)
+    port2 = match.group(3)
+    prop_suffix = match.group(4)
+    
+    prop = prop_prefix + prop_suffix
+    path = f"{subattrs}.{prop}" if subattrs else prop
+    
+    evaluator = Method(path=path)
+
+    # 5. Map 1-indexed string alias to 0-indexed port array slices
+    if port1 is not None and port2 is not None:
+        # Translates to [:, port1-1, port2-1]
+        indices = (slice(None), int(port1) - 1, int(port2) - 1)
+        evaluator = Index(evaluator=evaluator, indices=indices)
+        
+    return evaluator

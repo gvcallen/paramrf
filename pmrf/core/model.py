@@ -101,12 +101,13 @@ class Model(prx.Module):
     .. code-block:: python
 
         import jax.numpy as jnp
+        import parax as prx
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prf.Parameter = 1.0e-12
-            L:  prf.Parameter = 1.0e-9
-            C2: prf.Parameter = 1.0e-12
+            C1: prx.Parameter = 1.0e-12
+            L:  prx.Parameter = 1.0e-9
+            C2: prx.Parameter = 1.0e-12
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -122,7 +123,7 @@ class Model(prx.Module):
 
         import pmrf as prf
         from pmrf.core import Resistor, Capacitor, Inductor, Cascade
-        from pmrf.parameters import Uniform
+        from parax.parameters import Uniform
 
         class RLC(prf.Model):
             res: Resistor = Resistor(Uniform(9.0, 11.0))
@@ -217,6 +218,7 @@ class Model(prx.Module):
 
     # ---- Introspection properties --------------------------------------------------------
     
+    @property
     def number_of_ports(self) -> int:
         """Number of ports.
 
@@ -264,13 +266,13 @@ class Model(prx.Module):
         """     
         raise NotImplementedError
     
-    @eqx.filter_jit
+    # @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
         """Dispatch to the primary function for the given frequency."""        
         primary_function = self.primary_function
         return primary_function(freq)
     
-    @eqx.filter_jit
+    # @eqx.filter_jit
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Scattering parameter matrix.
 
@@ -311,7 +313,7 @@ class Model(prx.Module):
         
         raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
     
-    @eqx.filter_jit
+    # @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
 
@@ -350,7 +352,7 @@ class Model(prx.Module):
             
         return s2a(s, self.z0)
 
-    @eqx.filter_jit
+    # @eqx.filter_jit
     def z(self, freq: Frequency) -> jnp.ndarray:
         """Impedance (Z) parameter matrix.
 
@@ -389,7 +391,7 @@ class Model(prx.Module):
 
         return s2z(s, self.z0)
 
-    @eqx.filter_jit
+    # @eqx.filter_jit
     def y(self, freq: Frequency) -> jnp.ndarray:
         """Admittance (Y) parameter matrix.
 

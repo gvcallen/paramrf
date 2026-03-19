@@ -1,13 +1,8 @@
-from typing import Any
-
 import jax.numpy as jnp
 import jax
-from jax import lax
-from jax.scipy.special import gammaln
-from jax._src.numpy.ufuncs import _constant_like
 
 from pmrf.constants import NumberLike
-from pmrf.math_functions import rsolve, nudge_eig, nudge_diag
+from pmrf.math_functions import rsolve, nudge_diag
 from pmrf.rf_functions.normalize import fix_z0_shape
 
 ZERO = 1e-4

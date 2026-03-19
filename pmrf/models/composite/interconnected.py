@@ -2,69 +2,62 @@
 Composite models that physically connect ports of other models.
 """
 
+import warnings
 import jax.numpy as jnp
 from parax import field
+from dataclasses import InitVar
 
 from pmrf.core import Model, Frequency
 from pmrf.models.components.ideal import Port
 from pmrf.rf_functions import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 
+# Silence Equinox's false-positive warning for structural PyTree routing
+warnings.filterwarnings(
+    "ignore",
+    message="Using `field\\(init=False\\)` on `equinox.Module` can lead to surprising behaviour",
+    category=UserWarning
+)
+
 class Circuit(Model, transparent=True):
-    """
-    Represents an arbitrary circuit defined by component connections.
+    # Inputs (init=True, but we don't need to keep them around in the PyTree)
+    connections: InitVar[list[list[tuple[Model, int]]]] = None
+    
+    # Computed properties (init=False, they are generated, not passed in)
+    models: list[Model] = field(init=False)
+    indexed_connections: list[list[tuple[int, int]]] = field(init=False, static=True)
+    port_idxs: list[int] = field(init=False, static=True)
 
-    This model allows for the definition of a circuit by specifying how the ports
-    of various sub-models are connected together.
-
-    NB: The ports numbers are exposed in the order they appear in the connections list.
-
-    Attributes
-    ----------
-    models : list[Model]
-        The list of unique models involved in the circuit.
-    indexed_connections : list[list[tuple[int, int]]]
-        Internal representation of connections using model indices instead of objects.
-        Ports are exposed in the order they appear in the list.
-    port_idxs : list[int]
-        Indices of the models that act as external ports for the circuit.
-    """
-    models: list[Model]
-    indexed_connections: list[list[tuple[int, int]]] = field(static=True)
-    port_idxs: list[int] = field(static=True)
-
-    def __init__(self, connections: list[list[tuple[Model, int]]] = None, **kwargs):
-        super().__init__()
-
-        if 'models' in kwargs and 'indexed_connections' in kwargs and 'port_idxs' in kwargs:
-            self.models = kwargs['models']
-            self.indexed_connections = kwargs['indexed_connections']
-            self.port_idxs = kwargs['port_idxs']
-            return
-
-        self.models = []
-        self.indexed_connections = []
-        self.port_idxs = []
-        id_to_index: dict[int, int] = {}
+    def __post_init__(self, connections):
+        # Because the class is frozen, we use object.__setattr__ to assign computed values
+        models = []
+        indexed_connections = []
+        port_idxs = []
+        id_to_index = {}
 
         for connection in connections:
-            indexed_connection = []
+            indexed_conn = []
             for model, value in connection:
                 model_id = id(model)
                 if model_id not in id_to_index:
-                    id_to_index[model_id] = len(self.models)
-                    self.models.append(model)
+                    id_to_index[model_id] = len(models)
+                    models.append(model)
                 
                 model_idx = id_to_index[model_id]
-                indexed_connection.append((model_idx, value))
+                indexed_conn.append((model_idx, value))
                 
                 if value > model.nports - 1:
-                    raise ValueError(f"Port index out of bounds for model {model.name or model}")
+                    raise ValueError(f"Port index out of bounds for model {model.name}")
             
-            self.indexed_connections.append(indexed_connection)
+            indexed_connections.append(indexed_conn)
             
-        for model in self.models:
-            if type(model) == Port: 
-                self.port_idxs.append(id_to_index[id(model)])
+        for model in models:
+            if isinstance(model, Port): 
+                port_idxs.append(id_to_index[id(model)])
+
+        # Assign the computed values
+        self.models = models
+        self.indexed_connections = indexed_connections
+        self.port_idxs = port_idxs
 
     def s(self, freq: Frequency) -> jnp.array:
         Smats = [model.s(freq) for model in self.models]

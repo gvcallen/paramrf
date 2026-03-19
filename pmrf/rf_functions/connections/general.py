@@ -83,13 +83,14 @@ def connect_s_arbitrary(
 
     # Get the sub-matrices of inverse of intermediate temporary matrix t
     # The method np.linalg.solve(A, B) is equivalent to np.inv(A) @ B, but more efficient
-    try:
-        tmp_mat = jnp.linalg.solve(t[D_idx], t[C_idx])
-    except jnp.linalg.LinAlgError:
-        # numpy.linalg.lstsq only works for 2D arrays, so we need to loop over frequencies
-        tmp_mat = jnp.zeros((Nf, len(in_idxs), len(ext_idxs)), dtype='complex')
-        for i in range(Nf):
-            tmp_mat[i, :, :] = jnp.linalg.lstsq(t[i, D_idx[1], D_idx[2]], t[i, C_idx[1], C_idx[2]], rcond=None)[0]
+    tmp_mat = jnp.linalg.pinv(t[D_idx]) @ t[C_idx]
+    # try:
+    #     tmp_mat = jnp.linalg.solve(t[D_idx], t[C_idx])
+    # except jnp.linalg.LinAlgError:
+    #     # numpy.linalg.lstsq only works for 2D arrays, so we need to loop over frequencies
+    #     tmp_mat = jnp.zeros((Nf, len(in_idxs), len(ext_idxs)), dtype='complex')
+    #     for i in range(Nf):
+    #         tmp_mat[i, :, :] = jnp.linalg.lstsq(t[i, D_idx[1], D_idx[2]], t[i, C_idx[1], C_idx[2]], rcond=None)[0]
 
     # Get the external S-parameters for the external ports
     # Calculated by multiplying the sub-matrices of x and t

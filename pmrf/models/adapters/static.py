@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import parax as prx
 
 from pmrf.core import Model, Frequency
+from pmrf.network_collection import NetworkCollection
 
 class Measured(Model):
     """
@@ -21,14 +22,23 @@ class Measured(Model):
         The static network data containing S-parameters and frequency information.
         Marked as static to avoid tracing overhead in JAX.
     """
-    network: skrf.Network = prx.field(static=True)
+    data: skrf.Network | NetworkCollection = prx.field(static=True)
+    
+    def __getattr__(self, name: str) -> 'Measured':
+        if isinstance(self.data, NetworkCollection):
+            if name in self.data:
+                return Model(getattr(self.data, name))
+        return super().__getattr__(name)
     
     def __post_init__(self):
-        self.network.renormalize(self.z0, 'power')
+        self.data.renormalize(self.z0, 'power')
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        S_old = jnp.array(self.network.s)
-        f_old = jnp.array(self.network.f)
+        if isinstance(self.data, NetworkCollection):
+            raise Exception("Cannot call s() on a Measured model that contains a NetworkCollection")
+        
+        S_old = jnp.array(self.data.s)
+        f_old = jnp.array(self.data.f)
         f_new = freq.f
         n_ports = S_old.shape[1]
 

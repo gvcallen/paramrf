@@ -98,6 +98,10 @@ class NetworkCollection:
             raise KeyError(f"No network named '{key}' in this collection.")
         else:
             raise TypeError(f"Key must be int, str, or slice, not {type(key)}")
+        
+    def renormalize(self, z_new, s_def=None):
+        for ntwk in self.networks:
+            ntwk.renormalize(z_new, s_def)
 
     def __add__(self, other: "NetworkCollection") -> "NetworkCollection":
         """

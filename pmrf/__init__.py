@@ -31,6 +31,7 @@ for name in core.__all__:
 from pmrf import (
     constants, distributions, evaluators, 
     math_functions, models, optimize, rf_functions,
+    solvers,
 )
 from pmrf.network_collection import NetworkCollection
 
@@ -38,5 +39,6 @@ __all__.extend([
     "core", "constants", "distributions", "evaluators", 
     "math_functions", "models", "optimize", 
     "rf_functions",
-    "NetworkCollection",    
+    "NetworkCollection",
+    "solvers",
 ])

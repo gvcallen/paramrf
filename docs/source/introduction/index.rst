@@ -9,8 +9,8 @@ Core Concepts
 The library revolves around a few key building blocks:
 
 * :class:`pmrf.Model`: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
-* :class:`pmrf.core.parameter`: A parameter in a model, storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
-* :class:`from pmrf.core.frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
+* :class:`pmrf.Frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
+* :class:`parax.Parameter`: A parameter in a model (from `parax <https://github.com/gvcallen/parax>`_), storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
@@ -24,13 +24,14 @@ The example below creates an RLC filter and terminates it in an open circuit. Th
 
 .. code-block:: python
 
+    from parax import Parameter
+    from parax.parameters import Fixed
     import pmrf as prf
     from pmrf.core import Resistor, Inductor, ShuntCapacitor, OPEN
-    from pmrf.parameters import Fixed
 
     # Instantiate the lumped element models
     resistor = Resistor(R=100.0)
-    inductor = Inductor(L=prf.Parameter(2.0, scale=1e-9)) # we can optionally provide a parameter scale
+    inductor = Inductor(L=Parameter(2.0, scale=1e-9)) # we can optionally provide a parameter scale
     capacitor = ShuntCapacitor(C=1.0e-12, name="cap") # naming makes parameter manipulation later easy
 
     # Cascade the models, storing the result.
@@ -98,11 +99,12 @@ The following example demonstrates custom model definition by defining a capacit
 
     import jax.numpy as jnp
     import pmrf as prf
+    from parax import Parameter
 
     # Define a model class. Behaviour is defined by implementing 
     # a primary matrix function such as "s" in this case.
     class Capacitor(prf.Model):
-        C: prf.Parameter = 1.0e-12
+        C: Parameter = 1.0e-12
 
         def s(self, freq: prf.Frequency) -> jnp.ndarray:
             w = freq.w
@@ -127,9 +129,9 @@ The following example creates a PI-CLC model once again, but using the above met
 
 .. code-block:: python
 
+    from parax.parameters import Uniform, Fixed
     import pmrf as prf
-    from pmrf.core import Capacitor, Inductor, Circuit, Port, Ground
-    from pmrf.parameters import Uniform, Fixed
+    from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
 
     class PiCLC(prf.Model):
         capacitor1: Capacitor =     Capacitor(C=Fixed(1.0e-12))
