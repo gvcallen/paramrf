@@ -8,10 +8,9 @@ import skrf as rf
 import numpy as np
 
 from parax import Uniform, RelativeNormal, Fixed
-import optimistix as optx
 
 import pmrf as prf
-from pmrf.optimize import minimize
+from pmrf.optimize import fit_data, ScipyMinimizer
 from pmrf.models import CoaxialLine
 
 TEST_DIR = Path(__file__).parent
@@ -30,12 +29,9 @@ def test_fitting():
         mur = Fixed(1.0),
     )
 
-    # Initialize the solver. We use the L-BFGS algorithm
-    solver = optx.LBFGS()
-    fitter = SciPyMinimizeFitter(model)
-
     # Run the fit
-    fitted_model, fit_results = fitter.run(measured)
+    results = fit_data(model, measured, solver=ScipyMinimizer())
+    fitted_model = results.model
 
     # Assert the residuals are less than -30 dB
     residuals = measured.s - fitted_model.s(prf.Frequency.from_skrf(measured.frequency))

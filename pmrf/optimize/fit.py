@@ -1,38 +1,39 @@
-from typing import TYPE_CHECKING, Literal
+from typing import Callable
 
 import jax.numpy as jnp
 
 import optimistix as optx
+from parax.transforms import ParameterTransform, IdentityTransform
+import skrf
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize_problem
+from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
-from pmrf.metrics import root_mean_squared_error
 from pmrf.models import Measured
-from pmrf.evaluators import Method, Alias, Metric
+from pmrf.evaluators import Alias, Metric
+from pmrf.metrics import metric_from_alias
 from pmrf.constants import MetricFn
-from pmrf.constants import SolverSpace
 
-if TYPE_CHECKING:
-    import skrf
 
 def fit_data(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
-    solver: optx.AbstractMinimiser | None = None,
+    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     frequency: Frequency | None = None,
-    features: Evaluator | str | list[str] = Method('s'),
-    metric_fn: MetricFn = root_mean_squared_error,
-    space: SolverSpace = None,
+    features: str | list[str] | Evaluator = 's',
+    metric_fn: str | MetricFn = 'rms',
+    transform: ParameterTransform = IdentityTransform(),
     **kwargs,
 ) -> OptimizeResult:
-    if frequency is None and isinstance(data, jnp.ndarray):
+    if isinstance(data, jnp.ndarray) and frequency is None:
         raise Exception("Frequency must be passed if Network data is not provided")
-    
     if isinstance(features, (str, list)):
         features = Alias(features)
+    if isinstance(metric_fn, str):
+        metric_fn = metric_from_alias(metric_fn)
     
     # Make sure data and frequency are in the right format
     if isinstance(data, skrf.Network | NetworkCollection):
@@ -48,4 +49,4 @@ def fit_data(
     metric_evaluator = Metric(features, target, metric_fn)
     problem = Problem(model, frequency, metric_evaluator)
     
-    return minimize_problem(problem, solver, space=space, **kwargs)
+    return minimize_problem(problem, solver, transform=transform, **kwargs)

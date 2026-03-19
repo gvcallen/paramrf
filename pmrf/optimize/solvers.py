@@ -8,22 +8,35 @@ import equinox as eqx
 
 class ScipyMinimizer(eqx.Module):
     method: str = eqx.field(static=True, default="L-BFGS-B")
-    use_grad: bool = eqx.field(static=True, default=True)
+    use_grad: bool = eqx.field(static=True, default=False)
     options: dict = eqx.field(static=True, default_factory=dict)
 
-    def __call__(self, fn, y, args, options):
+    def __call__(self, fn, y, args, options) -> optx.Solution:
         # 1. Flatten the PyTree 'y' into a 1D JAX array
         flat_y, unravel_fn = ravel_pytree(y)
         
         merged_options = dict(self.options)
         merged_options.update(options)
-        bounds = merged_options.pop("bounds", None)
+        
+        # 2. Extract and flatten the bounds PyTrees
+        bounds_trees = merged_options.pop("bounds", None)
+        scipy_bounds = None
+        
+        if bounds_trees is not None:
+            lower_tree, upper_tree = bounds_trees
+            
+            # Flatten the bound trees using the exact same structure logic
+            flat_lower, _ = ravel_pytree(lower_tree)
+            flat_upper, _ = ravel_pytree(upper_tree)
+            
+            # SciPy expects a sequence of (min, max) tuples for each parameter
+            scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))
 
-        # 2. Define the internal JAX objective that works on flat arrays
-        # We unravel the flat array back into the PyTree 'fn' expects
+        # 3. Define the internal JAX objective that works on flat arrays
         @jax.jit
         def flat_fn(_flat_y, _args):
-            return fn(unravel_fn(_flat_y), _args)
+            cost = fn(unravel_fn(_flat_y), _args)
+            return cost
 
         val_and_grad_fn = jax.value_and_grad(flat_fn)
 
@@ -38,17 +51,17 @@ class ScipyMinimizer(eqx.Module):
 
         obj_func = objective_with_grad if self.use_grad else objective_no_grad
 
-        # 3. Optimize on the host
+        # 4. Optimize on the host
         res = scipy_minimize(
             obj_func, 
             np.array(flat_y), 
             jac=self.use_grad, 
             method=self.method,
-            bounds=bounds,
+            bounds=scipy_bounds,  # Pass the newly zipped flat bounds
             options=merged_options,
         )
 
-        # 4. Map results to Optimistix Solution struct
+        # 5. Map results to Optimistix Solution struct
         result_state = optx.RESULTS.successful if res.success else optx.RESULTS.max_steps_reached
         
         return optx.Solution(
@@ -60,5 +73,6 @@ class ScipyMinimizer(eqx.Module):
                 "message": res.message, 
                 "loss": float(res.fun)
             },
+            aux=args,
             state=None
         )

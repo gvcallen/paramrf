@@ -36,6 +36,5 @@ FeatureSpec = str | Callable | list[str | Callable]
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]
 MetricFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-SolverSpace = Literal['physical', 'logit']
 
 __all__ = []

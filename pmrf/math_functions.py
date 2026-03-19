@@ -1320,6 +1320,7 @@ conv_cost = lambda x: dB20(l2_norm_ax0(conv_inter(l2_norm_ax0(x))))
 FUNC_LOOKUP: dict[str, tuple[str, Callable | None]] = {
     're': ('Real Part', jnp.real),
     'im': ('Imag Part', jnp.imag),
+    'abs': ('Magnitude', jnp.abs),
     'mag': ('Magnitude', jnp.abs),
     'db': ('Magnitude (dB)', complex_2_db),
     'db10': ('Magnitude (dB)', complex_2_db10),
