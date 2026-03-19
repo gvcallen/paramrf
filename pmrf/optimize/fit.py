@@ -1,12 +1,11 @@
 from functools import partial
-from typing import Literal
 import jax.numpy as jnp
 
 from parax.transforms import ParameterTransform, IdentityTransform
 import skrf
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
-from pmrf.constants import EvaluatorLike, Solver
+from pmrf.constants import EvaluatorLike, Solver, Aggregation
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize_problem
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -25,7 +24,7 @@ def fit(
     frequency: Frequency | None = None,
     features: EvaluatorLike = 's',
     metric_fn: str | MetricFn = 'rms',
-    multioutput: Literal['raw_values', 'uniform_average', 'geometric_average', 'convolutional'] = 'uniform_average',
+    multioutput: Aggregation = 'uniform_average',
     transform: ParameterTransform = IdentityTransform(),
     **kwargs,
 ) -> OptimizeResult:
@@ -57,12 +56,13 @@ def fit(
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    solver: Solver = ScipyMinimizer(),    
+    solver: Solver | dict[Solver] = ScipyMinimizer(),
     *,
-    frequency: Frequency | None = None,
+    frequency: Frequency | dict[Frequency] | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
     metric_fn: str | MetricFn | dict[str | MetricFn] = 'rms',
-    transform: ParameterTransform = IdentityTransform(),
+    multioutput: Aggregation | dict[Aggregation] = 'uniform_average',
+    transform: ParameterTransform | dict[ParameterTransform] = IdentityTransform(),
     **kwargs,
 ) -> tuple[Model, dict[str, OptimizeResult]]:
     all_results: dict[str, OptimizeResult] = {}
@@ -70,15 +70,30 @@ def fit_sequential(
     for ntwk in data:
         name = ntwk.name
         
-        model_sub = model.with_free_submodules_only(name)
-        data_sub = data.filter(lambda n: n.name == name)
-        metric_fn_sub = metric_fn[name] if isinstance(metric_fn, dict) else metric_fn
-        features_sub = features[name] if isinstance(features, dict) else features
-        comp_result = fit(model_sub, data_sub, solver=solver, frequency=frequency, features=features_sub, metric_fn=metric_fn_sub, transform=transform, **kwargs)
+        sub_model = model.with_free_submodules_only(name)
+        sub_data = data.filter(lambda n: n.name == name)
+        sub_solver = solver[name] if isinstance(solver, dict) else solver
+        sub_frequency = frequency[name] if isinstance(frequency, dict) else frequency
+        sub_metric_fn = metric_fn[name] if isinstance(metric_fn, dict) else metric_fn
+        sub_features = features[name] if isinstance(features, dict) else features
+        sub_multioutput = multioutput[name] if isinstance(multioutput, dict) else multioutput
+        sub_transform = transform[name] if isinstance(transform, dict) else transform
         
-        model = model.with_params(comp_result.model.params())
-        model = model.with_param_groups(comp_result.model.param_groups(explicit_only=True))
+        result_sub = fit(
+            sub_model,
+            sub_data,
+            solver=sub_solver,
+            frequency=sub_frequency,
+            features=sub_features,
+            metric_fn=sub_metric_fn,
+            transform=sub_transform,
+            multioutpt=sub_multioutput,
+            **kwargs
+        )
         
-        all_results[name] = comp_result
+        model = model.with_params(result_sub.model.params())
+        model = model.with_param_groups(result_sub.model.param_groups(explicit_only=True))
+        
+        all_results[name] = result_sub
     
     return model, all_results

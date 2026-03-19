@@ -59,7 +59,7 @@ def weighted_mean(loss: jnp.ndarray,
         elif multioutput == 'uniform_average':
             return jnp.mean(mean_loss)
 
-        elif multioutput == 'geometric_average':
+        elif multioutput == 'geometric_mean':
             return geometric_mean(mean_loss)
 
         elif multioutput == 'convolution':
