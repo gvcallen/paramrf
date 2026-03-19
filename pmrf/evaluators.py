@@ -189,7 +189,7 @@ def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
     return Mask(evaluator=evaluator, mask=mask)
 
 
-def Alias(alias: str | Sequence[str]) -> Evaluator:
+def Alias(alias: str | Sequence[str] | list[Evaluator]) -> Evaluator:
     """
     Factory function to generate Evaluators from shorthand string aliases.
     
@@ -206,6 +206,9 @@ def Alias(alias: str | Sequence[str]) -> Evaluator:
     Evaluator
         The fully composed evaluator chain mapping to the requested feature.
     """
+    if isinstance(alias, list) and isinstance(alias[0], Evaluator):
+        return Summed(alias)
+    
     # 1. Handle Sequences (wrap in Stacked)
     if not isinstance(alias, str) and isinstance(alias, Sequence):
         evaluators = [Alias(a) for a in alias]

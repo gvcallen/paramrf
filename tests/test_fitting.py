@@ -10,7 +10,7 @@ import numpy as np
 from parax import Uniform, RelativeNormal, Fixed
 
 import pmrf as prf
-from pmrf.optimize import fit_data, ScipyMinimizer
+from pmrf.optimize import fit, ScipyMinimizer
 from pmrf.models import CoaxialLine
 
 TEST_DIR = Path(__file__).parent
@@ -30,7 +30,7 @@ def test_fitting():
     )
 
     # Run the fit
-    results = fit_data(model, measured, solver=ScipyMinimizer())
+    results = fit(model, measured, solver=ScipyMinimizer())
     fitted_model = results.model
 
     # Assert the residuals are less than -30 dB

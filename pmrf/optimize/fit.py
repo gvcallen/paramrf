@@ -7,6 +7,7 @@ from parax.transforms import ParameterTransform, IdentityTransform
 import skrf
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
+from pmrf.constants import EvaluatorLike
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize_problem
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -17,20 +18,20 @@ from pmrf.metrics import metric_from_alias
 from pmrf.constants import MetricFn
 
 
-def fit_data(
+def fit(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     frequency: Frequency | None = None,
-    features: str | list[str] | Evaluator = 's',
+    features: EvaluatorLike = 's',
     metric_fn: str | MetricFn = 'rms',
     transform: ParameterTransform = IdentityTransform(),
     **kwargs,
 ) -> OptimizeResult:
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise Exception("Frequency must be passed if Network data is not provided")
-    if isinstance(features, (str, list)):
+    if not isinstance(features, Evaluator):
         features = Alias(features)
     if isinstance(metric_fn, str):
         metric_fn = metric_from_alias(metric_fn)
@@ -50,3 +51,32 @@ def fit_data(
     problem = Problem(model, frequency, metric_evaluator)
     
     return minimize_problem(problem, solver, transform=transform, **kwargs)
+
+def fit_sequential(
+    model: Model, 
+    data: NetworkCollection,
+    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),    
+    *,
+    frequency: Frequency | None = None,
+    features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
+    metric_fn: str | MetricFn | dict[str | MetricFn] = 'rms',
+    transform: ParameterTransform = IdentityTransform(),
+    **kwargs,
+) -> tuple[Model, dict[str, OptimizeResult]]:
+    all_results: dict[str, OptimizeResult] = {}
+    
+    for ntwk in data:
+        name = ntwk.name
+        
+        model_sub = model.with_free_submodules_only(name)
+        data_sub = data.filter(lambda n: n.name == name)
+        metric_fn_sub = metric_fn[name] if isinstance(metric_fn, dict) else metric_fn
+        features_sub = features[name] if isinstance(features, dict) else features
+        comp_result = fit(model_sub, data_sub, solver=solver, frequency=frequency, features=features_sub, metric_fn=metric_fn_sub, transform=transform, **kwargs)
+        
+        model = model.with_params(comp_result.model.params())
+        model = model.with_param_groups(comp_result.model.param_groups(explicit_only=True))
+        
+        all_results[name] = comp_result
+    
+    return model, all_results

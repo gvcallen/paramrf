@@ -1,7 +1,7 @@
 """
 General constrants for the ParamRF library
 """
-from typing import Callable, Literal, Union, Sequence, Any, Tuple
+from typing import Callable, Literal, Union, Sequence, Any, Tuple, TypeVar
 from numbers import Number
 import jax.numpy as jnp
 
@@ -32,9 +32,11 @@ MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
+Evaluator = TypeVar('Evaluator')
 FeatureSpec = str | Callable | list[str | Callable]
 ArrayFuncT = Callable[[jnp.ndarray], jnp.ndarray]
 TreeAxisSpec = bool | Callable[[Any], bool]
 MetricFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+EvaluatorLike = str | list[str] | Evaluator | list[Evaluator]
 
 __all__ = []
