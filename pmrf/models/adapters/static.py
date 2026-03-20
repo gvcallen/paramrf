@@ -25,9 +25,10 @@ class Measured(Model):
     data: skrf.Network | NetworkCollection = prx.field(static=True)
     
     def __getattr__(self, name: str) -> 'Measured':
-        if isinstance(self.data, NetworkCollection):
-            if name in self.data:
-                return Model(getattr(self.data, name))
+        data = self.__getattribute__('data')
+
+        if isinstance(data, NetworkCollection) and name in data.to_dict():
+            return Measured(data[name])
         return super().__getattr__(name)
     
     def __post_init__(self):
