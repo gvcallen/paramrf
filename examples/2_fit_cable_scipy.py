@@ -1,10 +1,9 @@
-import matplotlib.pyplot as plt
 import logging
 import skrf as rf
 
-from pmrf.core import CoaxialLine
+from pmrf.models import CoaxialLine
 from parax.parameters import Uniform, RelativeNormal, Fixed
-from pmrf.fitting import SciPyMinimizeFitter
+from pmrf.optimize import fit, ScipyMinimizer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,10 +22,11 @@ model = CoaxialLine(
     mur = Fixed(1.0),
 )
 
-# Initialize the fitter
-fitter = SciPyMinimizeFitter(model)
 
-# Run the fit and plot some results
-fitted_model, fit_results = fitter.run(measured)
-fit_results.plot_s_db()
-plt.show()
+# Fit the model
+results = fit(model, measured, solver=ScipyMinimizer())
+fitted_model = results.model
+
+# Plot some results
+fitted_model.to_skrf(measured.frequency).plot_s_db()
+measured.plot_s_db()
