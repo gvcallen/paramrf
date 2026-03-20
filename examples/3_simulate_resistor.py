@@ -1,6 +1,7 @@
-import pmrf as prf
-from pmrf.core import Resistor
 from parax.parameters import Uniform
+
+import pmrf as prf
+from pmrf.models import Resistor
 from pmrf.sample import LatinHypercubeSampler
 
 resistor = Resistor(R=Uniform(9.0, 11.0))
