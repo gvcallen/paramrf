@@ -33,9 +33,9 @@ def sample(
         problem = eqx.combine(params, static)
         return problem()
     
-    hypercube_transform = prx.transforms.HypercubeTransform()
+    hypercube_transform = prx.bijectors.HypercubeTransform()
     def prior_transform_fn(u_problem, _args) -> Problem:
-        return jax.tree.map(hypercube_transform.inv, u_problem, prx.is_valid_param)
+        return jax.tree.map(hypercube_transform.inverse, u_problem, prx.is_valid_param)
 
     if isinstance(sampler, infx.AbstractNestedSampler):
         ndims = problem.num_flat_params

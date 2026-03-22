@@ -5,7 +5,8 @@ import jax
 import equinox as eqx
 import optimistix as optx
 import parax as prx
-from parax.transforms import ParameterTransform, IdentityTransform, LowerPercentile, UpperPercentile
+from distreqx.bijectors import AbstractBijector
+from parax.bijectors import Inverse, Identity
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
@@ -19,7 +20,7 @@ def minimize(
     cost: Evaluator | list[Evaluator],
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
-    transform: ParameterTransform = IdentityTransform(),
+    transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -39,9 +40,8 @@ def minimize(
         is provided, they are automatically summed.
     solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
         The optimization backend to use. Defaults to the host-based SciPy L-BFGS-B.
-    transform : ParameterTransform, default=IdentityTransform()
-        The parameter space transformation (e.g., HypercubeTransform) to apply 
-        before optimizing.
+    transform : distreqx.bijectors.AbstractBijector, default=None
+        An invertible transformation to apply to all model parameters before optimization.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -61,7 +61,7 @@ def minimize_problem(
     problem: Problem,
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
-    transform: ParameterTransform = IdentityTransform(),
+    transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -77,8 +77,8 @@ def minimize_problem(
         The combined state containing the model, frequency, and evaluator.
     solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
         The solver instance (e.g., Optimistix or ScipyMinimizer).
-    transform : ParameterTransform, default=IdentityTransform()
-        The geometric transformation mapped across the parameter PyTree.
+    transform : ParameterTransform, default=None
+        An invertible transformation to apply to all model parameters before optimization.
     **kwargs : dict
         Additional solver options. Explicit `bounds` (as PyTrees) can be passed here.
 
@@ -87,17 +87,36 @@ def minimize_problem(
     OptimizeResult
         The solved state, including the un-transformed (physical) circuit model.
     """
-    # 1. Apply the parameter space transform (e.g., to the unit hypercube)
-    params, static = prx.partition(problem)
-    transformed_params, transformed_static = jax.tree.map(
-        transform, (params, static), is_leaf=prx.is_free_param
-    )
+    if transform is None:
+        transform = Identity()
+
+    # Helper to dynamically resolve the bijector for a given parameter
+    def get_bijector(p: prx.Parameter) -> AbstractBijector:
+        return transform(p) if callable(transform) else transform
     
-    def obj_fn(params, _args):
-        full_transformed = eqx.combine(params, transformed_static)
-        # Invert the mapping across ONLY the problem tree to evaluate physical metrics
+    def apply_inverse(orig_x, trans_x):
+        if isinstance(orig_x, prx.Parameter):
+            inv_bij = Inverse(get_bijector(orig_x))
+            return trans_x.transformed(inv_bij)
+        return trans_x
+    
+    # 1. Apply the parameter space transform dynamically
+    transformed_problem = jax.tree.map(
+        lambda x: x.transformed(get_bijector(x)) if isinstance(x, prx.Parameter) else x,
+        problem,
+        is_leaf=prx.is_free_param
+    )
+    transformed_params, transformed_static = prx.partition(transformed_problem)
+    
+    def obj_fn(transformed_params, _args):
+        full_transformed = eqx.combine(transformed_params, transformed_static)
+        
+        # Map over both the source of truth (problem) and the solver state simultaneously
         full_physical = jax.tree.map(
-            transform.inv, full_transformed, is_leaf=prx.is_free_param
+            apply_inverse,
+            problem,
+            full_transformed,
+            is_leaf=prx.is_free_param
         )
         return full_physical()
     
@@ -105,21 +124,28 @@ def minimize_problem(
     if isinstance(solver, optx.AbstractMinimiser):
         solution = optx.minimise(obj_fn, solver, transformed_params, **kwargs)
     else:
-        # Extract or Unpack Bounds as PyTrees for host solvers like SciPy
         if 'bounds' in kwargs:
             lower_tree, upper_tree = kwargs.pop('bounds')
         else:
-            # Automatically build the bound PyTrees from the distribution priors (99.9% support)
-            lower_tree = jax.tree.map(LowerPercentile(0.999), problem, is_leaf=prx.is_free_param)
-            upper_tree = jax.tree.map(UpperPercentile(0.999), problem, is_leaf=prx.is_free_param)
+            def lower_percentile(x):
+                return x.with_value(x.distribution.icdf(0.001)) if isinstance(x, prx.Parameter) else x
+            def upper_percentile(x):
+                return x.with_value(x.distribution.icdf(0.999)) if isinstance(x, prx.Parameter) else x
             
-            # Strip out static attributes so the bound trees match the parameter tree exactly
-            (lower_tree, upper_tree), _ = prx.partition((lower_tree, upper_tree))
+            lower_tree = jax.tree.map(lower_percentile, problem, is_leaf=prx.is_free_param)
+            upper_tree = jax.tree.map(upper_percentile, problem, is_leaf=prx.is_free_param)
             
-            # Transform the bounds so they sit in the correct optimization space (e.g., [0, 1])
-            transformed_lower, transformed_upper = jax.tree.map(
-                transform, (lower_tree, upper_tree), is_leaf=prx.is_free_param
-            )
+            # Transform bounds BEFORE partitioning so the PyTree structure matches `problem`
+            def apply_bound_transform(bound_val, orig_p):
+                if isinstance(orig_p, prx.Parameter):
+                    return bound_val.transformed(get_bijector(orig_p))
+                return bound_val
+
+            transformed_lower_tree = jax.tree.map(apply_bound_transform, lower_tree, problem, is_leaf=prx.is_free_param)
+            transformed_upper_tree = jax.tree.map(apply_bound_transform, upper_tree, problem, is_leaf=prx.is_free_param)
+            
+            # Now strip out static attributes 
+            (transformed_lower, transformed_upper), _ = prx.partition((transformed_lower_tree, transformed_upper_tree))
             kwargs['bounds'] = (transformed_lower, transformed_upper)
             
         if kwargs.get('has_aux', False):
@@ -129,8 +155,12 @@ def minimize_problem(
 
     # 3. Get the solved problem and reconstruct the physical state
     solved_transformed_problem = eqx.combine(solution.value, transformed_static)
+    
     solved_problem = jax.tree.map(
-        transform.inv, solved_transformed_problem, is_leaf=prx.is_free_param
+        apply_inverse,
+        problem,
+        solved_transformed_problem,
+        is_leaf=prx.is_free_param
     )
 
     # 4. Standardize the results

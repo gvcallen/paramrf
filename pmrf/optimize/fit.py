@@ -1,9 +1,8 @@
 from functools import partial
 from typing import Callable
 import jax.numpy as jnp
-
-from parax.transforms import ParameterTransform, IdentityTransform
 import skrf
+from distreqx.bijectors import AbstractBijector
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.math_functions import FUNC_LOOKUP
@@ -28,7 +27,7 @@ def fit(
     metric_fn: str | MetricFn = 'rms',
     multioutput: Aggregation = 'uniform_average',
     metric_transform_fn: str | Callable[[jnp.ndarray], jnp.ndarray] = 'db',
-    transform: ParameterTransform = IdentityTransform(),
+    transform: AbstractBijector | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -57,8 +56,8 @@ def fit(
         How to aggregate losses across multiple ports/outputs.
     metric_transform_fn : str | MetricFn, default='rms'
         A transform to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
-    transform : ParameterTransform, default=IdentityTransform()
-        The numerical space to optimize in (e.g., hypercube, physical).
+    transform : ParameterTransform, default=None
+        An invertible transformation to apply to all model parameters before optimization.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -108,7 +107,7 @@ def fit_sequential(
     features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
     metric_fn: str | MetricFn | dict[str, MetricFn | str] = 'rms',
     multioutput: Aggregation | dict[str, Aggregation] = 'uniform_average',
-    transform: ParameterTransform | dict[str, ParameterTransform] = IdentityTransform(),
+    transform: AbstractBijector | None = None,
     **kwargs,
 ) -> tuple[Model, dict[str, OptimizeResult]]:
     """

@@ -37,7 +37,7 @@ class TransmissionLine(Model, ABC):
     floating: bool = False 
 
     @abstractmethod
-    def zc_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
         r"""
         Calculates characteristic impedance ($Z_c$) and complex electrical length ($\gamma L$).
 
@@ -54,7 +54,7 @@ class TransmissionLine(Model, ABC):
         raise NotImplementedError
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
-        zc, gL = self.zc_gammaL(frequency)
+        zc, gL = self.zc_and_gammaL(frequency)
         
         if self.floating:
             denom = -1 + 9*jnp.exp(2*gL)
@@ -123,7 +123,7 @@ class RLGCLine(TransmissionLine, ABC):
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")       
 
-    def zc_gammaL(self, frequency: Frequency) -> jnp.ndarray:
+    def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         w = frequency.w
         R, L, G, C = self.rlgc(frequency)
         zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
@@ -175,7 +175,7 @@ class PhaseLine(TransmissionLine):
     
     f0: float = 1e9
 
-    def zc_gammaL(self, frequency: Frequency) -> jnp.ndarray:
+    def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         zc = self.zc * jnp.ones(frequency.npoints, dtype=complex)
         theta_rad = self.theta * jnp.pi / 180.0
         w0 = 2 * jnp.pi * self.f0
