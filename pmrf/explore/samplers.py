@@ -202,7 +202,7 @@ class FieldSampler(AbstractAdaptiveSampler):
 
 class EqxLearnUncertainty(FieldSampler):
     """Adaptive sampler targeting regions of high surrogate uncertainty."""
-    surrogate: Any
+    surrogate: Any = None
     fit_kwargs: dict = eqx.field(default_factory=dict)
 
     def train_field(self, params: jnp.ndarray, features: jnp.ndarray, key: jax.Array) -> Any:
