@@ -4,6 +4,9 @@ Distribution wrappers for interfacing with external libraries.
 
 __all__ = []
 
+from pmrf.distributions.empirical import Empirical
+__all__.append("Empirical")
+
 try:
     from pmrf.distributions.anesthetic import AnestheticDistribution
     __all__.append("AnestheticDistribution")

@@ -89,7 +89,7 @@ For more complex models (such as equation-based ones), users can inherit directl
 
 Any attributes of a model are classified as either *static* or *dynamic*. By default, fields of built-in types such as ``str``, ``int``, ``list`` etc. are seen as static in the model hierarchy, whereas those annotated as a :class:`pmrf.core.parameter` or :class:`pmrf.Model` are dynamic and can be adjusted (for example, by fitting routines).
 
-Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`pmrf.parameters.Uniform`, :class:`pmrf.parameters.Normal` or :class:`pmrf.parameters.Fixed`; or directly using the :class:`pmrf.core.parameter` class constructor.
+Note that parameter initialization is flexible: parameters may be populated with a simple float value; using factory methods such as :class:`prx.Parameters.Uniform`, :class:`prx.Parameters.Normal` or :class:`prx.Parameters.Fixed`; or directly using the :class:`pmrf.core.parameter` class constructor.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^

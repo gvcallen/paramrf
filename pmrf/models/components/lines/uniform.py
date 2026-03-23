@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
+import parax as prx
 from parax import Parameter
 
 from pmrf.core import Frequency, Model
@@ -34,7 +35,7 @@ class TransmissionLine(Model, ABC):
         If True, modeled as a 4-port differential network (ports 0/1 and 2/3 
         form terminal pairs). If False, modeled as a 2-port single-ended network.
     """
-    floating: bool = False 
+    floating: bool = prx.field(default=False, static=True)
 
     @abstractmethod
     def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:

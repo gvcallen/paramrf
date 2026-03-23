@@ -6,7 +6,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import parax as prx
-from numpyro.distributions import Distribution
+from distreqx.distributions import AbstractDistribution
 from parax import Parameter
 
 from pmrf.metrics import metric_from_alias
@@ -71,7 +71,7 @@ class Mask(Evaluator):
         return jax.vmap(lambda m: m[self.mask])(data)
 
 
-class Mapped(Evaluator):
+class Map(Evaluator):
     """
     Evaluator that applies an arbitrary transformation function to the data.
     
@@ -85,7 +85,7 @@ class Mapped(Evaluator):
         return self.fn(self.evaluator(model, freq))
         
         
-class Stacked(Evaluator):
+class Stack(Evaluator):
     """
     Evaluator that combines the outputs of multiple evaluators into a single array.
     
@@ -100,7 +100,7 @@ class Stacked(Evaluator):
         return jnp.stack(results, axis=self.axis)
 
 
-class Summed(Evaluator):
+class Sum(Evaluator):
     """
     Evaluator that sums the outputs of multiple Evaluators.
     
@@ -163,24 +163,29 @@ class Likelihood(Evaluator):
     """
     Evaluator that calculates the log-probability of the target data given the model.
     
-    Crucial for Bayesian inference and MCMC sampling. It wraps a NumPyro 
+    Crucial for Bayesian inference and MCMC sampling. It wraps a distreqx 
     distribution parameterized by the circuit's predictions and returns the 
     likelihood of observing the `target` data.
     """
     predictor: Evaluator
     target: jnp.ndarray
-    distribution_fn: Callable[[jnp.ndarray], Distribution] = prx.field(static=True)
-    parameters: dict[str, Parameter]
+    distribution_fn: Callable[[jnp.ndarray], AbstractDistribution] = prx.field(static=True)
+    params: dict[str, Parameter] = prx.field(transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         prediction = self.predictor(model, freq)
-        probability_dist = self.distribution_fn(prediction, **self.parameters)
-        return probability_dist.log_prob(self.target)
+        
+        dist_kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        
+        print(dist_kwargs)
+        
+        probability_dist = self.distribution_fn(prediction, **dist_kwargs)
+        return jnp.sum(probability_dist.log_prob(self.target))
       
         
-def Diagonal(evaluator: Evaluator) -> Mapped:
+def Diagonal(evaluator: Evaluator) -> Map:
     """Helper function to extract the diagonals of N-port scattering matrices."""
-    return Mapped(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
+    return Map(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
 
 
 def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
@@ -207,12 +212,12 @@ def Alias(alias: str | Sequence[str] | list[Evaluator]) -> Evaluator:
         The fully composed evaluator chain mapping to the requested feature.
     """
     if isinstance(alias, list) and isinstance(alias[0], Evaluator):
-        return Summed(alias)
+        return Sum(alias)
     
     # 1. Handle Sequences (wrap in Stacked)
     if not isinstance(alias, str) and isinstance(alias, Sequence):
         evaluators = [Alias(a) for a in alias]
-        return Stacked(evaluators=evaluators, axis=-1)
+        return Stack(evaluators=evaluators, axis=-1)
     
     # 2. Parse submodel paths (e.g., "submodel.s11_db")
     fields = alias.split('.')
@@ -239,12 +244,12 @@ def Alias(alias: str | Sequence[str] | list[Evaluator]) -> Evaluator:
         
         if special_type == 'gamma':
             # Extract diagonals for all frequencies (shape: n_freqs, n_ports)
-            return Mapped(evaluator=base_evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
+            return Map(evaluator=base_evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
         else:
             # Extract off-diagonals dynamically (shape: n_freqs, n_ports^2 - n_ports)
             def extract_off_diag(mat):
                 return mat[~jnp.eye(mat.shape[0], dtype=bool)]
-            return Mapped(evaluator=base_evaluator, fn=lambda data: jax.vmap(extract_off_diag)(data))
+            return Map(evaluator=base_evaluator, fn=lambda data: jax.vmap(extract_off_diag)(data))
 
     # 4. Standard regex matching for specific ports (e.g., s11_db, y21_deg)
     match = re.match(r'^([a-zA-Z]+)(\d)?(\d)?(.*)$', local_alias)

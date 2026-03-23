@@ -6,24 +6,28 @@ import parax as prx
 import inferix as infx
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
-from pmrf.infer.result import InferResult
+from pmrf.evaluators import Sum
+from pmrf.distributions import Empirical
+from pmrf.infer.result import InferenceResult
 from pmrf.utils import generate_key
 
 def sample(
+    likelihood: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
-    likelihood: Evaluator,
-    sampler: infx.AbstractSampler = None,
+    sampler: infx.AbstractNestedSampler = None,
     *,
     nlive_factor: int = 25,
     key = None,
     **kwargs,
-) -> InferResult:
-    problem = Problem(model, frequency, likelihood)
+) -> InferenceResult:
+    if isinstance(likelihood, list):
+        likelihood = Sum(likelihood)
+    
+    problem = Problem(likelihood, model, frequency)
     
     if sampler is None:
-        nlive = nlive_factor * problem.num_flat_params
-        sampler = infx.PolyChord(nlive)
+        sampler = infx.PolyChord()
     if key is None:
         key = generate_key()
         
@@ -33,31 +37,59 @@ def sample(
         problem = eqx.combine(params, static)
         return problem()
     
-    hypercube_transform = prx.bijectors.HypercubeTransform()
     def prior_transform_fn(u_problem, _args) -> Problem:
-        return jax.tree.map(hypercube_transform.inverse, u_problem, prx.is_valid_param)
+        full_u_problem = eqx.combine(u_problem, static)
+        
+        def map_param(x):
+            if isinstance(x, prx.Parameter):
+                return x.with_value(x.distribution.icdf(x.value))
+            return x
+        full_physical_problem = jax.tree.map(map_param, full_u_problem, is_leaf=prx.is_free_param)
+        params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)
+        return params_physical_problem
 
-    if isinstance(sampler, infx.AbstractNestedSampler):
-        ndims = problem.num_flat_params
-        infx_result = infx.nested_sample(
-            log_likelihood_fn,
-            key=key,
-            sampler=sampler,
-            y0=params,
-            prior_transform_fn=prior_transform_fn,
-            nlive=nlive_factor*ndims,
-            ndims=ndims,
-            **kwargs
-        )
-    else:
-        raise Exception("Only nested samplers are currently support in pmrf.infer.sample")
+    infx_result = infx.nested(
+        log_likelihood_fn,
+        key=key,
+        sampler=sampler,
+        y0=params,
+        prior_transform_fn=prior_transform_fn,
+        nlive=nlive_factor*problem.num_flat_params,
+        **kwargs
+    )
+    
+    # 1. Reconstruct the batched Problem and extract sub-components
+    batched_problem = eqx.combine(infx_result.samples, static)
+    model_samples = batched_problem.model
+    likelihood_samples = batched_problem.evaluator
 
-    model, likelihood = infx_result.samples.model, infx_result.samples.likelihood
+    # 2. Extract MLE parameters using the log_likelihoods array
+    best_idx = jnp.argmax(infx_result.log_likelihoods) 
+    mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], infx_result.samples)
+    mle_problem = eqx.combine(mle_problem_params, static)
+    mle_model = mle_problem.model
 
-    return InferResult(
-        model=model,
-        likelihood=likelihood,
-        value=infx_result.samples.logZ,
-        history=infx_result.stats,
-        success=infx_result.result == infx.RESULTS.successful,
+    # 3. Create the flattened Joint Posterior Distribution for the model
+    # Parax distributions expect flat arrays, so we must map ravel_pytree across the batch axis
+    def flatten_model_params(m):
+        flat, _ = jax.flatten_util.ravel_pytree(m)
+        return flat
+    
+    flat_model_samples = jax.vmap(flatten_model_params)(infx_result.samples.model)
+    posterior_dist = Empirical(samples=flat_model_samples)
+
+    # 4. Inject the posterior into the MLE model
+    # We clear any independent prior groups and replace them with the global joint posterior
+    posterior_group = prx.ParameterGroup(
+        param_names=mle_model.param_names(),
+        distribution=posterior_dist
+    )
+    
+    mle_model = mle_model.with_param_groups([posterior_group])
+
+    return InferenceResult(
+        model=mle_model,
+        model_samples=model_samples,
+        likelihood_samples=likelihood_samples, 
+        history=infx_result,
     )

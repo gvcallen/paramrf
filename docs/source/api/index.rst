@@ -28,7 +28,7 @@ Modules
    pmrf.math_functions
    pmrf.models
    pmrf.optimize
-   pmrf.parameters
+   prx.Parameters
    pmrf.results
    pmrf.rf_functions
    pmrf.runner

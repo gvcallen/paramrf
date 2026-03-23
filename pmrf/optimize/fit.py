@@ -4,11 +4,11 @@ import jax.numpy as jnp
 import skrf
 from distreqx.bijectors import AbstractBijector
 
-from pmrf.core import Model, Frequency, Evaluator, Problem
+from pmrf.core import Model, Frequency, Evaluator
 from pmrf.math_functions import FUNC_LOOKUP
 from pmrf.constants import EvaluatorLike, Solver, Aggregation
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.minimize import minimize_problem
+from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
@@ -20,9 +20,9 @@ from pmrf.constants import MetricFn
 def fit(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
+    frequency: Frequency | None = None,
     solver: Solver = ScipyMinimizer(),
     *,
-    frequency: Frequency | None = None,
     features: EvaluatorLike = 's',
     metric_fn: str | MetricFn = 'rms',
     multioutput: Aggregation = 'uniform_average',
@@ -31,7 +31,7 @@ def fit(
     **kwargs,
 ) -> OptimizeResult:
     """
-    Fits an RF circuit model to empirical measurement data.
+    Fits an RF model to measured data using frequentist optimization.
 
     This high-level function handles data format coercion (e.g., extracting arrays 
     from scikit-rf Networks) and automatically composes the necessary evaluator metrics.
@@ -39,14 +39,14 @@ def fit(
     Parameters
     ----------
     model : Model
-        The circuit model to optimize.
+        The model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The target data to fit against. Can be raw JAX arrays or standard Touchstone networks.
-    solver : Solver, default=ScipyMinimizer()
-        The optimization algorithm backend.
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
+    solver : Solver, default=ScipyMinimizer()
+        The optimization algorithm backend.
     features : EvaluatorLike, default='s'
         The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
     metric_fn : str | MetricFn, default='rms'
@@ -92,10 +92,8 @@ def fit(
     else:
         target = data
     
-    metric_evaluator = Metric(features, target, transformed_metric_fn)
-    problem = Problem(model, frequency, metric_evaluator)
-    
-    return minimize_problem(problem, solver, transform=transform, **kwargs)
+    cost = Metric(features, target, transformed_metric_fn)
+    return minimize(cost, model, frequency, solver, transform=transform, **kwargs)
 
 
 def fit_sequential(
@@ -165,10 +163,7 @@ def fit_sequential(
             **kwargs
         )
         
-        # IMMEDIATE UPDATE: Stitch the fitted parameters back into the main state
-        model = model.with_params(result_sub.model.params())
-        model = model.with_param_groups(result_sub.model.param_groups(explicit_only=True))
-        
+        model = model.with_modules(result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results

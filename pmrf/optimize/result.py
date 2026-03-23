@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
 import jax.numpy as jnp
 
@@ -18,15 +18,11 @@ class OptimizeResult:
     cost : Evaluator
         The evaluator (e.g., metric, sum of goals) used to calculate the objective.
     value : jnp.ndarray
-        The final scalar numerical loss value achieved by the optimizer.
-    history : Dict[str, Any]
-        Solver-specific execution stats (e.g., num_evals, num_steps, messages).
-    success : bool
-        True if the optimizer met its convergence criteria, False otherwise.
+        The final cost value achieved by the optimizer.
+    history : Any
+        The underlying solution object returned by the solver.
     """
     model: Model
     cost: Evaluator
     value: jnp.ndarray
-    
-    history: Dict[str, Any]
-    success: bool
+    history: Any = None

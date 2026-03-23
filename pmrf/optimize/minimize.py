@@ -11,33 +11,32 @@ from parax.bijectors import Inverse, Identity
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
-from pmrf.evaluators import Summed
+from pmrf.evaluators import Sum
 
 
 def minimize(
+    cost: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
-    cost: Evaluator | list[Evaluator],
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
-    Minimizes a given cost function for a circuit model over a frequency range.
-
-    This is a convenient wrapper around `minimize_problem` that automatically 
-    aggregates lists of design goals into a single scalar loss function.
+    Minimizes a given cost function for a model over a frequency range.
+    
+    The cost function can have its own hyper-parameters, and is returned in `result.cost`.
 
     Parameters
     ----------
-    model : Model
-        The RF circuit model containing the parameters to be optimized.
-    frequency : Frequency
-        The frequency sweep over which the cost should be evaluated.
     cost : Evaluator | list[Evaluator]
         The objective function to minimize. If a list of Evaluators (e.g., Goals) 
         is provided, they are automatically summed.
+    model : Model
+        The RF model containing the parameters to be optimized.
+    frequency : Frequency
+        The frequency sweep over which the cost should be evaluated.
     solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
         The optimization backend to use. Defaults to the host-based SciPy L-BFGS-B.
     transform : distreqx.bijectors.AbstractBijector, default=None
@@ -51,42 +50,10 @@ def minimize(
         A structured result containing the fitted model and solver statistics.
     """
     if isinstance(cost, list):
-        cost = Summed(cost)
+        cost = Sum(cost)
     
-    problem = Problem(model, frequency, cost)
-    return minimize_problem(problem, solver, transform=transform, **kwargs)
-        
-
-def minimize_problem(
-    problem: Problem,
-    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
-    *,
-    transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
-    **kwargs,
-) -> OptimizeResult:
-    """
-    Core optimization routing engine.
-
-    Handles PyTree state isolation, space transformation (e.g., physical vs. hypercube), 
-    bound extraction for host solvers, and delegates the flat-array math to the 
-    requested solver backend.
-
-    Parameters
-    ----------
-    problem : Problem
-        The combined state containing the model, frequency, and evaluator.
-    solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
-        The solver instance (e.g., Optimistix or ScipyMinimizer).
-    transform : ParameterTransform, default=None
-        An invertible transformation to apply to all model parameters before optimization.
-    **kwargs : dict
-        Additional solver options. Explicit `bounds` (as PyTrees) can be passed here.
-
-    Returns
-    -------
-    OptimizeResult
-        The solved state, including the un-transformed (physical) circuit model.
-    """
+    problem = Problem(cost, model, frequency)    
+    
     if transform is None:
         transform = Identity()
 
@@ -168,7 +135,6 @@ def minimize_problem(
         model=solved_problem.model,
         cost=solved_problem.evaluator,
         value=solved_problem(),
-        history=solution.stats,
-        success=(solution.result == optx.RESULTS.successful),
+        history=solution,
     )
     return results

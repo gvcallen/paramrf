@@ -1,4 +1,4 @@
-from pmrf.optimize.minimize import minimize, minimize_problem
+from pmrf.optimize.minimize import minimize
 from pmrf.optimize.fit import fit, fit_sequential
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
