@@ -42,7 +42,7 @@ TreeAxisSpec = bool | Callable[[Any], bool]
 MetricFn = Callable[[jnp.ndarray, jnp.ndarray, Multioutput], jnp.ndarray]
 Aggregation = Literal['raw_values', 'uniform_average', 'geometric_mean', 'convolution']
 EvaluatorLike = str | list[str] | Evaluator | list[Evaluator]
-Solver = AbstractMinimiser | Callable
-Sampler = AbstractSampler
+Optimizer = AbstractMinimiser | Callable
+Inferer = AbstractSampler
 
 __all__ = []

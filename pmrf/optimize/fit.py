@@ -6,7 +6,7 @@ from distreqx.bijectors import AbstractBijector
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.math_functions import FUNC_LOOKUP
-from pmrf.constants import EvaluatorLike, Solver, Aggregation
+from pmrf.constants import EvaluatorLike, Optimizer, Aggregation
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -21,7 +21,7 @@ def fit(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Solver = ScipyMinimizer(),
+    solver: Optimizer = ScipyMinimizer(),
     *,
     features: EvaluatorLike = 's',
     metric_fn: str | MetricFn = 'rms',
@@ -99,7 +99,7 @@ def fit(
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    solver: Solver | dict[str, Solver] = ScipyMinimizer(),
+    solver: Optimizer | dict[str, Optimizer] = ScipyMinimizer(),
     *,
     frequency: Frequency | dict[str, Frequency] | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] = 's',

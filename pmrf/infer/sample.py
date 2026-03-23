@@ -8,7 +8,7 @@ import inferix as infx
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.evaluators import Sum
 from pmrf.distributions import Empirical
-from pmrf.infer.result import InferenceResult
+from pmrf.infer.result import InferResult
 from pmrf.utils import generate_key
 
 def sample(
@@ -20,7 +20,7 @@ def sample(
     nlive_factor: int = 25,
     key = None,
     **kwargs,
-) -> InferenceResult:
+) -> InferResult:
     if isinstance(likelihood, list):
         likelihood = Sum(likelihood)
     
@@ -87,9 +87,9 @@ def sample(
     
     mle_model = mle_model.with_param_groups([posterior_group])
 
-    return InferenceResult(
+    return InferResult(
         model=mle_model,
-        model_samples=model_samples,
-        likelihood_samples=likelihood_samples, 
+        sampled_models=model_samples,
+        sampled_likelihoods=likelihood_samples, 
         history=infx_result,
     )

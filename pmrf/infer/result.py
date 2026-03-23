@@ -1,14 +1,19 @@
-from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
+import equinox as eqx
 import jax.numpy as jnp
 
 from pmrf.core import Model, Evaluator
 
-@dataclass
-class InferenceResult:
-    model: Model # the model with its joint distribution updated
+class InferResult(eqx.Module):
+    """
+    Standardized return object for Bayesian inference routines.
+    """
+    model: Model               # The model updated with empirical posterior distributions
+    likelihood: Evaluator      # The likelihood evaluator used
     
-    model_samples: Model # the batched model with its samples
-    likelihood_samples: Evaluator # the batched likelihood with its samples 
-    history: Any = None # results from the underlying solver
+    # Raw Sample Data
+    sampled_models: Model      # A batched Model containing all accepted sample states
+    sampled_likelihoods: jnp.ndarray # The evaluated log-likelihoods for each sample
+    
+    history: Any = None        # Results/trace from the underlying nested sampler

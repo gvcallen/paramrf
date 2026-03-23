@@ -30,13 +30,16 @@ for name in core.__all__:
 # 4. Sub-Modules
 from pmrf import (
     constants, distributions, evaluators, 
-    math_functions, models, optimize, rf_functions,
+    math_functions, models,
+    optimize, infer, fit, explore,
+    rf_functions,
 )
 from pmrf.network_collection import NetworkCollection
 
 __all__.extend([
     "core", "constants", "distributions", "evaluators", 
-    "math_functions", "models", "optimize", 
+    "math_functions", "models",
+    "optimize", "infer", "fit", "explore",
     "rf_functions",
     "NetworkCollection",
 ])
