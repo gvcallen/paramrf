@@ -1,10 +1,10 @@
-import equinox as eqx
+import parax as prx
 import jax.numpy as jnp
 from typing import Any
 
 from pmrf.core import Model, Frequency
 
-class ExploreResult(eqx.Module):
+class ExploreResult(prx.Module):
     """
     Container for the results of a parameter space exploration process.
     """

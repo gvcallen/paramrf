@@ -1,11 +1,11 @@
 from typing import Any
 
-import equinox as eqx
+import parax as prx
 import jax.numpy as jnp
 
 from pmrf.core import Model, Evaluator
 
-class InferResult(eqx.Module):
+class InferResult(prx.Module):
     """
     Standardized return object for Bayesian inference routines.
     """

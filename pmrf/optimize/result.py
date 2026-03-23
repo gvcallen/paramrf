@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+import parax as prx
 from typing import Any
 
 import jax.numpy as jnp
@@ -6,8 +6,7 @@ import jax.numpy as jnp
 from pmrf.core import Model, Evaluator
 
 
-@dataclass
-class OptimizeResult:
+class OptimizeResult(prx.Module):
     """
     Standardized return object for parameter optimization routines.
 
