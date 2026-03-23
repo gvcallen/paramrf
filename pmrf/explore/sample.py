@@ -11,9 +11,9 @@ from pmrf.explore.result import ExploreResult
 
 def sample(
     model: Model,
-    engine: AbstractSampler,
-    N: int = 100,
+    sampler: AbstractSampler,
     *,
+    max_samples: int | None = None,
     frequency: Frequency | None = None,
     features: EvaluatorLike | None = None,
     key: jax.Array | None = None,
@@ -30,10 +30,12 @@ def sample(
     ----------
     model : Model
         The parametric model to sample.
-    engine : AbstractSampler
-        The sampling engine/algorithm to use.
-    N : int, default=100
-        The total number of samples to generate (budget).
+    sampler : AbstractSampler
+        The sampling algorithm to use.
+    max_samples : int | None, default=None
+        The maximum number of samples to generate. For one-shot samplers, this 
+        is the exact number generated. For adaptive samplers, this acts as a 
+        computational budget. If None, adaptive samplers run until convergence.
     frequency : Frequency | None, default=None
         The frequency sweep for feature evaluation.
     features : EvaluatorLike | None, default=None
@@ -64,21 +66,21 @@ def sample(
         return _evaluate_batch(model, U_batch, frequency, features, **kwargs)
 
     # 1. Initialize the solver state
-    options = {"target_N": N}
+    options = {"max_samples": max_samples}
     key, init_key = jr.split(key)
-    state = engine.init(eval_fn, d, init_key, options)
+    state = sampler.init(eval_fn, d, init_key, options)
     
     # 2. Standardized Execution Loop
-    while not engine.terminate(state, N):
+    while not sampler.terminate(state, max_samples):
         key, step_key = jr.split(key)
-        state = engine.step(eval_fn, d, state, step_key, options)
+        state = sampler.step(eval_fn, d, state, step_key, options)
 
     # 3. Truncate if batching pushed us slightly over the budget
     thetas = state.sampled_params
     extracted_features = state.sampled_features
-    if len(thetas) > N:
-        thetas = thetas[:N]
-        extracted_features = extracted_features[:N]
+    if max_samples is not None and len(thetas) > max_samples:
+        thetas = thetas[:max_samples]
+        extracted_features = extracted_features[:max_samples]
 
     # 4. Package the array of parameters back into a cleanly batched JAX PyTree
     batched_models = jax.vmap(model.with_params)(thetas)

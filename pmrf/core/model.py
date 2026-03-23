@@ -266,13 +266,13 @@ class Model(prx.Module):
         """     
         raise NotImplementedError
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
         """Dispatch to the primary function for the given frequency."""        
         primary_function = self.primary_function
         return primary_function(freq)
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Scattering parameter matrix.
 
@@ -313,7 +313,7 @@ class Model(prx.Module):
         
         raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
     
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def a(self, freq: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
 
@@ -352,7 +352,7 @@ class Model(prx.Module):
             
         return s2a(s, self.z0)
 
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def z(self, freq: Frequency) -> jnp.ndarray:
         """Impedance (Z) parameter matrix.
 
@@ -391,7 +391,7 @@ class Model(prx.Module):
 
         return s2z(s, self.z0)
 
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def y(self, freq: Frequency) -> jnp.ndarray:
         """Admittance (Y) parameter matrix.
 

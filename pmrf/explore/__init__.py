@@ -1,4 +1,7 @@
 """
+NB: The explore module is currently in 'maintenance mode'
+and is likely not functional
+
 Parameter space exploration and active learning module.
 
 This module provides engines for non-adaptive (One-Shot) and adaptive 
