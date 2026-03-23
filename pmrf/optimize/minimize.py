@@ -21,6 +21,7 @@ def minimize(
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
+    max_steps: int = 512,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -41,6 +42,8 @@ def minimize(
         The optimization backend to use. Defaults to the host-based SciPy L-BFGS-B.
     transform : distreqx.bijectors.AbstractBijector, default=None
         An invertible transformation to apply to all model parameters before optimization.
+    max_steps : int, default=256
+        The maximum number of steps/iterations the underlying solver can take.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -91,9 +94,7 @@ def minimize(
         return full_physical()
     
     # 2. Routing logic for bounding and solver execution
-    if isinstance(solver, optx.AbstractMinimiser):
-        solution = optx.minimise(obj_fn, solver, transformed_params, **kwargs)
-    else:
+    if isinstance(solver, ScipyMinimizer):
         if 'bounds' in kwargs:
             lower_tree, upper_tree = kwargs.pop('bounds')
         else:
@@ -125,7 +126,10 @@ def minimize(
         if kwargs.get('has_aux', False):
             raise Exception("Auxiliary data not supported for host solvers")
             
+        kwargs['maxiter'] = max_steps
         solution = solver(obj_fn, transformed_params, args=None, options=kwargs)
+    else:
+        solution = optx.minimise(obj_fn, solver, transformed_params, max_steps=max_steps, **kwargs)
 
     # 3. Get the solved problem and reconstruct the physical state
     solved_transformed_problem = eqx.combine(solution.value, transformed_static)
@@ -147,4 +151,8 @@ def minimize(
         value=solved_problem(),
         history=solution,
     )
+    
+    if isinstance(solver, optx.AbstractMinimiser):
+        print(f"Final cost = {results.value}")
+    
     return results

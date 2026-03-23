@@ -28,7 +28,7 @@ class ScipyMinimizer(eqx.Module):
         Whether to display a tqdm progress bar during optimization.
     """
     method: str = eqx.field(static=True, default="L-BFGS-B")
-    use_grad: bool = eqx.field(static=True, default=False)
+    use_grad: bool = eqx.field(static=True, default=True)
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True) # Added flag
 

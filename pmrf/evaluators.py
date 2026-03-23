@@ -174,11 +174,7 @@ class Likelihood(Evaluator):
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         prediction = self.predictor(model, freq)
-        
         dist_kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        
-        print(dist_kwargs)
-        
         probability_dist = self.distribution_fn(prediction, **dist_kwargs)
         return jnp.sum(probability_dist.log_prob(self.target))
       

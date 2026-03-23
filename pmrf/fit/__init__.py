@@ -7,11 +7,11 @@ inference (`pmrf.infer`) based on the provided engine.
 """
 
 from pmrf.fit.fit import fit, fit_sequential, is_optimizer, is_inferer
-from pmrf.constants import Optimizer, Inferer, Solver
+from pmrf.constants import Optimizer, Inferer, Solver, FitResult
 
 __all__ = [
     "is_optimizer", "is_inferer",
     "fit",
     "fit_sequential",
-    "Optimizer", "Inferer", "Solver",
+    "Optimizer", "Inferer", "Solver", "FitResult",
 ]
