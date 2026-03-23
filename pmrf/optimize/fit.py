@@ -88,12 +88,24 @@ def fit(
                 frequency = Frequency.from_skrf(data.frequency)
             else:
                 frequency = Frequency.from_skrf(data.common_frequency())
-        target = features(Measured(data), frequency)
+        
+        # Keep a reference to the PyTree-safe Measured model!
+        measured_data = Measured(data)
+        target = features(measured_data, frequency)
     else:
+        measured_data = data
         target = data
     
     cost = Metric(features, target, transformed_metric_fn)
-    return minimize(cost, model, frequency, solver, transform=transform, **kwargs)
+    result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
+    
+    # Inject the plotting context into the frozen result
+    import dataclasses
+    return dataclasses.replace(
+        result, 
+        data=measured_data,    # The raw data for arbitrary extraction
+        frequency=frequency
+    )
 
 
 def fit_sequential(

@@ -89,6 +89,7 @@ def sample(
 
     return InferResult(
         model=mle_model,
+        likelihood=mle_problem.evaluator,
         sampled_models=model_samples,
         sampled_likelihoods=likelihood_samples, 
         history=infx_result,

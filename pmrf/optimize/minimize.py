@@ -54,9 +54,6 @@ def minimize(
     
     problem = Problem(cost, model, frequency)    
     
-    if transform is None:
-        transform = Identity()
-
     # Helper to dynamically resolve the bijector for a given parameter
     def get_bijector(p: prx.Parameter) -> AbstractBijector:
         return transform(p) if callable(transform) else transform
@@ -68,23 +65,29 @@ def minimize(
         return trans_x
     
     # 1. Apply the parameter space transform dynamically
-    transformed_problem = jax.tree.map(
-        lambda x: x.transformed(get_bijector(x)) if isinstance(x, prx.Parameter) else x,
-        problem,
-        is_leaf=prx.is_free_param
-    )
+    if transform is not None:
+        transformed_problem = jax.tree.map(
+            lambda x: x.transformed(get_bijector(x)) if isinstance(x, prx.Parameter) else x,
+            problem,
+            is_leaf=prx.is_free_param
+        )
+    else:
+        transformed_problem = problem
     transformed_params, transformed_static = prx.partition(transformed_problem)
     
     def obj_fn(transformed_params, _args):
         full_transformed = eqx.combine(transformed_params, transformed_static)
         
         # Map over both the source of truth (problem) and the solver state simultaneously
-        full_physical = jax.tree.map(
-            apply_inverse,
-            problem,
-            full_transformed,
-            is_leaf=prx.is_free_param
-        )
+        if transform is not None:
+            full_physical = jax.tree.map(
+                apply_inverse,
+                problem,
+                full_transformed,
+                is_leaf=prx.is_free_param
+            )
+        else:
+            full_physical = full_transformed
         return full_physical()
     
     # 2. Routing logic for bounding and solver execution
@@ -108,8 +111,12 @@ def minimize(
                     return bound_val.transformed(get_bijector(orig_p))
                 return bound_val
 
-            transformed_lower_tree = jax.tree.map(apply_bound_transform, lower_tree, problem, is_leaf=prx.is_free_param)
-            transformed_upper_tree = jax.tree.map(apply_bound_transform, upper_tree, problem, is_leaf=prx.is_free_param)
+            if transform is not None:
+                transformed_lower_tree = jax.tree.map(apply_bound_transform, lower_tree, problem, is_leaf=prx.is_free_param)
+                transformed_upper_tree = jax.tree.map(apply_bound_transform, upper_tree, problem, is_leaf=prx.is_free_param)
+            else:
+                transformed_lower_tree = lower_tree
+                transformed_upper_tree = upper_tree
             
             # Now strip out static attributes 
             (transformed_lower, transformed_upper), _ = prx.partition((transformed_lower_tree, transformed_upper_tree))
@@ -123,12 +130,15 @@ def minimize(
     # 3. Get the solved problem and reconstruct the physical state
     solved_transformed_problem = eqx.combine(solution.value, transformed_static)
     
-    solved_problem = jax.tree.map(
-        apply_inverse,
-        problem,
-        solved_transformed_problem,
-        is_leaf=prx.is_free_param
-    )
+    if transform is not None:
+        solved_problem = jax.tree.map(
+            apply_inverse,
+            problem,
+            solved_transformed_problem,
+            is_leaf=prx.is_free_param
+        )
+    else:
+        solved_problem = solved_transformed_problem
 
     # 4. Standardize the results
     results = OptimizeResult(
