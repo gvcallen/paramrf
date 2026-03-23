@@ -15,11 +15,17 @@ from pmrf.optimize.result import OptimizeResult
 from pmrf.infer.result import InferResult
 from pmrf.constants import Optimizer, Inferer, EvaluatorLike
 
+def is_optimizer(x):
+    return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
+
+def is_inferer(x):
+    return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
+
 def fit(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    engine: Optimizer | Inferer = ScipyMinimizer(),
+    solver: Optimizer | Inferer = ScipyMinimizer(),
     *,
     features: EvaluatorLike | None = None,    
     **kwargs
@@ -28,7 +34,7 @@ def fit(
     Fit a model to data using either optimization or sampling.
 
     This is a unified router. The execution path is determined by the
-    type of `engine` provided.
+    type of `solver` provided.
 
     Parameters
     ----------
@@ -38,13 +44,13 @@ def fit(
         The observed data (e.g., S-parameters).
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array.
-    engine : Optimizer | Sampler, default=ScipyMinimizer()
-        The engine to use. If an optimizer, routes to frequentist minimization
+    solver : Optimizer | Sampler, default=ScipyMinimizer()
+        The solver to use. If an optimizer, routes to frequentist minimization
         via :meth:`pmrf.optimize.fit`. If a sampler, routes to Bayesian inference
         via :meth:`pmrf.infer.fit`.
     features : EvaluatorLike | None, default=None
         The specific circuit feature to evaluate. If None, it defers to the 
-        native default of the chosen engine backend ('s' for optimization, 
+        native default of the chosen solver backend ('s' for optimization, 
         ('s_re', 's_im') for inference).
     **kwargs : dict
         Additional arguments passed directly to the underlying fit function.
@@ -52,27 +58,27 @@ def fit(
     Returns
     -------
     OptimizeResult | InferenceResult
-        A result object containing the newly fitted model. Depending on the engine, 
+        A result object containing the newly fitted model. Depending on the solver, 
         the model contains either optimized point-estimates or empirical posteriors.
     """
     if features is not None:
         kwargs['features'] = features
 
-    if isinstance(engine, optx.AbstractMinimiser | ScipyMinimizer):
-        return optimize_fit(model=model, data=data, frequency=frequency, solver=engine, **kwargs)
-    elif isinstance(engine, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler):
-        return infer_fit(model=model, data=data, frequency=frequency, sampler=engine, **kwargs)
+    if is_optimizer(solver):
+        return optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
+    elif is_inferer(solver):
+        return infer_fit(model=model, data=data, frequency=frequency, sampler=solver, **kwargs)
     else:
         raise TypeError(
-            f"Unrecognized engine type: {type(engine)}. "
-            "Engine must be a valid solver or sampler."
+            f"Unrecognized solver type: {type(solver)}. "
+            "Solver must be a valid optimizer or inferer."
         )
 
 
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    engine: Optimizer | Inferer | dict[str, Optimizer | Inferer] = ScipyMinimizer(),
+    solver: Optimizer | Inferer | dict[str, Optimizer | Inferer] = ScipyMinimizer(),
     *,
     frequency: Frequency | dict[str, Frequency] | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] | None = None,
@@ -84,7 +90,7 @@ def fit_sequential(
 
     This acts as a unified router for sequential fitting, dynamically dispatching 
     to either Bayesian inference or Frequentist minimization depending on the 
-    underlying `engine`.
+    underlying `solver`.
 
     Parameters
     ----------
@@ -92,9 +98,9 @@ def fit_sequential(
         The global circuit model.
     data : NetworkCollection
         A collection of network data whose names match the sub-modules in the model.
-    engine : Optimizer | Sampler | dict, default=ScipyMinimizer()
-        The engine to use. If a dictionary is provided, the type of the first 
-        engine in the mapping determines the execution path.
+    solver : Optimizer | Sampler | dict, default=ScipyMinimizer()
+        The solver to use. If a dictionary is provided, the type of the first 
+        solver in the mapping determines the execution path.
     frequency : Frequency | dict | None, default=None
         The frequency sweep(s).
     features : EvaluatorLike | dict | None, default=None
@@ -110,19 +116,19 @@ def fit_sequential(
     if features is not None:
         kwargs['features'] = features
 
-    # Safely determine the engine type, checking the first value if it's a dict
-    first_engine = next(iter(engine.values())) if isinstance(engine, dict) else engine
+    # Safely determine the solver type, checking the first value if it's a dict
+    first_solver = next(iter(solver.values())) if isinstance(solver, dict) else solver
 
-    if isinstance(first_engine, optx.AbstractMinimiser | ScipyMinimizer):
+    if isinstance(first_solver, optx.AbstractMinimiser | ScipyMinimizer):
         return optimize_fit_sequential(
-            model=model, data=data, solver=engine, frequency=frequency, **kwargs
+            model=model, data=data, solver=solver, frequency=frequency, **kwargs
         )
-    elif isinstance(first_engine, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler):
+    elif isinstance(first_solver, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler):
         return infer_fit_sequential(
-            model=model, data=data, sampler=engine, frequency=frequency, **kwargs
+            model=model, data=data, sampler=solver, frequency=frequency, **kwargs
         )
     else:
         raise TypeError(
-            f"Unrecognized engine type: {type(first_engine)}. "
-            "Engine must be a valid solver or sampler."
+            f"Unrecognized solver type: {type(first_solver)}. "
+            "Solver must be a valid solver or sampler."
         )

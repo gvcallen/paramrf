@@ -44,5 +44,6 @@ Aggregation = Literal['raw_values', 'uniform_average', 'geometric_mean', 'convol
 EvaluatorLike = str | list[str] | Evaluator | list[Evaluator]
 Optimizer = AbstractMinimiser | Callable
 Inferer = AbstractSampler
+Solver = Optimizer | Inferer
 
 __all__ = []
