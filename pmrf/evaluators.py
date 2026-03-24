@@ -19,7 +19,7 @@ from pmrf.core import Model, Frequency, Evaluator
 
 class Functional(Evaluator):
     """
-    Evaluator that wraps a standard Python or JAX callable.
+    Wraps a standard Python or JAX callable.
     
     This is useful for defining quick, custom, on-the-fly objective 
     functions without needing to subclass Evaluator.
@@ -32,7 +32,7 @@ class Functional(Evaluator):
 
 class Method(Evaluator):
     """
-    Evaluator that dynamically accesses and executes a method on the Model.
+    Dynamically accesses and executes a method on the Model.
     
     This uses `operator.attrgetter` to traverse the PyTree and execute
     the requested method (e.g., 's_db', 'amplifier.s_tau') by passing 
@@ -47,7 +47,7 @@ class Method(Evaluator):
 
 class Index(Evaluator):
     """
-    Evaluator that slices or indexes the output of another Evaluator.
+    Slices or indexes the output of another Evaluator.
     
     Useful for extracting specific ports or frequency ranges from a larger
     N-dimensional response array.
@@ -62,7 +62,7 @@ class Index(Evaluator):
 
 class Mask(Evaluator):
     """
-    Evaluator that applies a boolean mask to the final dimension of the data.
+    Applies a boolean mask to the final dimension of the data.
     
     Utilizes `jax.vmap` to efficiently broadcast the masking operation across 
     the batch/frequency dimensions.
@@ -77,7 +77,7 @@ class Mask(Evaluator):
 
 class Map(Evaluator):
     """
-    Evaluator that applies an arbitrary transformation function to the data.
+    Applies an arbitrary transformation function to the data.
     
     Typically used in conjunction with `jax.vmap` to apply operations like 
     matrix diagonal extraction across an entire frequency sweep.
@@ -91,7 +91,7 @@ class Map(Evaluator):
         
 class Stack(Evaluator):
     """
-    Evaluator that combines the outputs of multiple evaluators into a single array.
+    Combines the outputs of multiple evaluators into a single array.
     
     By default, it stacks the results along the last axis (-1), which is useful 
     for aggregating disparate metrics (e.g., S11 and S21) into a single residual vector.
@@ -106,7 +106,7 @@ class Stack(Evaluator):
 
 class Sum(Evaluator):
     """
-    Evaluator that sums the outputs of multiple Evaluators.
+    Sums the outputs of multiple Evaluators.
     
     Useful for creating a composite scalar loss function from multiple 
     independent penalty vectors.
@@ -120,7 +120,7 @@ class Sum(Evaluator):
 
 class Residual(Evaluator):
     """
-    Evaluator that calculates the raw difference between a prediction and a target.
+    Calculates the raw difference between a prediction and a target.
     
     Formula: $e = y_{pred} - y_{target}$
     """
@@ -133,7 +133,7 @@ class Residual(Evaluator):
 
 class Metric(Evaluator):
     """
-    Evaluator that applies a standard mathematical metric to the prediction.
+    Applies a standard mathematical metric to the prediction.
     
     The `metric_fn` must have the signature `f(y_true, y_pred)`. Standard ML 
     metrics like MSE, MAE, or RMS should be routed through this component.
@@ -149,7 +149,7 @@ class Metric(Evaluator):
 
 class Flatness(Evaluator):
     """
-    Evaluator that computes the numerical derivative of the data with respect 
+    Computes the numerical derivative of the data with respect 
     to frequency.
     
     Used to penalize ripple or enforce gain flatness across a band. It relies on 
@@ -165,7 +165,7 @@ class Flatness(Evaluator):
 
 class Likelihood(Evaluator):
     """
-    Evaluator that calculates the log-probability of the target data given the model.
+    Calculates the log-probability of the target data given the model.
     
     Crucial for Bayesian inference and MCMC sampling. It wraps a distreqx 
     distribution parameterized by the circuit's predictions and returns the 
@@ -184,19 +184,19 @@ class Likelihood(Evaluator):
       
         
 def Diagonal(evaluator: Evaluator) -> Map:
-    """Helper function to extract the diagonals of N-port scattering matrices."""
+    """Extracts the diagonals of N-port scattering matrices."""
     return Map(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
 
 
 def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
-    """Helper function to extract the off-diagonals (transmission) of N-port matrices."""
+    """Extract the off-diagonals (transmission) of N-port matrices."""
     mask = ~jnp.eye(n_ports, dtype=bool)
     return Mask(evaluator=evaluator, mask=mask)
 
 
 def Alias(alias: str | Sequence[str] | list[Evaluator]) -> Evaluator:
     """
-    Factory function to generate Evaluators from shorthand string aliases.
+    Generate Evaluators from shorthand string aliases.
     
     Parses regex patterns to automatically route strings like 's11_db' or 
     'amplifier.y21_deg' to the correct Method and Index evaluators.
@@ -284,7 +284,7 @@ def Goal(
     metric_fn: str | Callable = 'rms',
 ) -> Evaluator:
     """
-    Factory function to define a specific one-sided or strict design goal.
+    Define a specific one-sided or strict design goal.
     
     Utilizes a differentiable clamping technique (hinge loss) to ensure the 
     optimizer only experiences a penalty gradient when the constraint is violated.
