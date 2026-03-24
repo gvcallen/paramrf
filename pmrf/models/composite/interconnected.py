@@ -11,6 +11,13 @@ from pmrf.core import Model, Frequency
 from pmrf.models.components.ideal import Port
 from pmrf.rf_functions import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 
+# Silence Equinox's false-positive warning for structural PyTree routing
+warnings.filterwarnings(
+    "ignore",
+    message="Using `field\\(init=False\\)` on `equinox.Module` can lead to surprising behaviour",
+    category=UserWarning
+)
+
 class Circuit(Model, transparent=True):
     # Inputs (init=True, but we don't need to keep them around in the PyTree)
     connections: InitVar[list[list[tuple[Model, int]]]] = None

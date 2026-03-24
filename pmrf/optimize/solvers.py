@@ -65,6 +65,7 @@ class ScipyMinimizer(eqx.Module):
         def objective_with_grad(x_np):
             loss, grad = val_and_grad_fn(jnp.array(x_np), args)
             loss_np = np.asarray(loss, dtype=np.float64)
+            print(loss_np)
             current_loss[0] = loss_np
             return loss_np, np.asarray(grad, dtype=np.float64)
 

@@ -8,11 +8,10 @@ Core API
    :toctree: generated/
 
    pmrf.Model
-   pmrf.core.parameter
-   from pmrf.core.frequency
+   pmrf.Frequency
+   pmrf.Evaluator
    pmrf.load
    pmrf.save
-   pmrf.extract_features
 
 Modules
 -------
@@ -21,15 +20,12 @@ Modules
    :toctree: generated/
    :recursive:
 
-   pmrf.algorithms
    pmrf.constants
    pmrf.distributions
-   pmrf.fitting
+   pmrf.fit
+   pmrf.explore
+   pmrf.infer
    pmrf.math_functions
    pmrf.models
    pmrf.optimize
-   prx.Parameters
-   pmrf.results
    pmrf.rf_functions
-   pmrf.runner
-   pmrf.sample
