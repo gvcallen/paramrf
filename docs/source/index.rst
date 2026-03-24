@@ -5,7 +5,7 @@
    :caption: Documentation
 
    installation
-   introduction/index
+   getting_started/index
    api/index
    skrf_comparison
    license
