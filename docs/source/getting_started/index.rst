@@ -72,11 +72,11 @@ Models can easily be fit using to measured data using the :mod:`pmrf.fit` module
 Solvers
 ^^^^^^^^^^^^^^^^^^^^
 
-ParamRF allows for optimization using either ``scipy.optimize.minimize`` or ``optimistix.minimise``, and Bayesian inference using ``inferix``, which provides wrappers for ``Polychord`` and ``BlackJAX``.
+ParamRF allows for optimization using either ``scipy.optimize.minimize`` or ``optimistix.minimise``, and Bayesian inference using ``inferix``, which provides wrappers for ``PolyChord`` and ``BlackJAX``.
 
-* *Scipy*: Provides a wrapper around gradient-based and gradient-free optimization algorithms from ``scipy.optimize`` in :class:`pmrf.optimize.ScipyMinimizer`. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*. These algorithms are host-native and cannot run on the GPU.
-* *Optimistix*: Provides JAX-native optimization algorithms, such as ``optimistix.BFGS``. These algorithms run their loop directly in JAX, and therefore can be compiled to any architecture (CPU, GPU, TPU).
-* *Inferix*: Enables Bayesian inference through nested sampling and MCMC sampling using e.g. ``inferix.Polychord`` and ``inferix.NUTS``. This approach provides maximum likelihood parameters, as well as full posterior probability distributions and Bayesian evidence for model comparison.
+* **Scipy**: Provides a wrapper around gradient-based and gradient-free optimization algorithms from ``scipy.optimize`` in :class:`pmrf.optimize.ScipyMinimizer`. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*. These algorithms are CPU-native and cannot run on the GPU.
+* **Optimistix**: Provides JAX-native optimization algorithms, such as ``optimistix.BFGS`` and ``optimistix.NelderMead``. These algorithms run their loop directly in JAX, and therefore can be compiled to any architecture (CPU, GPU, TPU).
+* **Inferix**: Enables Bayesian inference through nested sampling and MCMC sampling using e.g. ``inferix.PolyChord`` and ``inferix.NUTS``. This approach provides maximum likelihood parameters, as well as full posterior probability distributions and Bayesian evidence for model comparison. We recommend `this <https://handley-lab.co.uk/nested-sampling-book/intro.html>`_ source for a brief introduction to nested sampling and Bayesian inference.
 
 Example
 ^^^^^^^^^^^^^^^^^^^^
