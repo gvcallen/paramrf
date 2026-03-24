@@ -23,6 +23,7 @@ Modules
    pmrf.constants
    pmrf.distributions
    pmrf.fit
+   pmrf.evaluators
    pmrf.explore
    pmrf.infer
    pmrf.math_functions
