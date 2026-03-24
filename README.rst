@@ -35,10 +35,10 @@ Key Features
 
 Example
 ---------------------
-The example below shows how to define and fit a simple RLC model to measured data using ParamRF.
+The example below shows how to define and fit a simple RLC model to measured data using ParamRF. See the `documentation <https://gvcallen.github.io/paramrf>`_
 
 .. code:: python
-    
+
     import skrf as rf
     import pmrf as prf
     from pmrf.models import Resistor, Inductor, Capacitor
