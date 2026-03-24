@@ -35,7 +35,7 @@ Key Features
 
 Example
 ---------------------
-The example below shows how to define and fit a simple RLC model to measured data using ParamRF. See the `documentation <https://gvcallen.github.io/paramrf>`_
+The example below shows how to define and fit a simple RLC model to measured data using ParamRF. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples.
 
 .. code:: python
 
