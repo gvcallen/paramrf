@@ -44,11 +44,14 @@ The example below shows how to define and fit a simple RLC model to measured dat
     from pmrf.models import Resistor, Inductor, Capacitor
     from pmrf.fit import fit
 
+    # Define the model and load data
     model = Resistor(R=100.0) ** Inductor(L=1e-9) ** Capacitor(L=1e-12)
     data = rf.Network('path/to/rlc.s2p')
     
+    # Fit the model and output results and parmaeters
     results = fit(model, data)
     results.plot('s_db')
+    print(results.model.named_params())
 
 Citation
 ---------------------
