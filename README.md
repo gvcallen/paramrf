@@ -3,7 +3,7 @@
 
 ![paramrf logo](assets/logo.png)
 
-# ParamRF: Parametric Radio Frequency Modelling, Fitting and Sampling
+# ParamRF: Parametric Radio Frequency Modelling, Optimization and Sampling
 
 **ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modelling framework. It provides an object-orientated means of modelling, fitting and sampling both circuit and numerical RF models in the frequency-domain, using [JAX](https://github.com/jax-ml/jax) and [Equinox](https://github.com/patrick-kidger/equinox).
 

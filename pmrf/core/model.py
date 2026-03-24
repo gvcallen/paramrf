@@ -31,8 +31,6 @@ recommended to keep the default z0 and convert your results at the end.
 
 class Model(prx.Module):
     """
-    Overview
-    --------
     This base class is used to represent any computable RF network, referred to in
     **ParamRF** as a "Model". This class can be overridden for defining complex models,
     or can be utilized indirectly by combining models already provided in :mod:`pmrf.models`.
@@ -50,7 +48,7 @@ class Model(prx.Module):
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
     - Use "past tense" functions to modify the model in conjunction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
     - Retrieve parameter information via `Parax` methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc.
-    - Use `Parax` `with_xxx` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.    
+    - Use **Parax** ``with_xxx`` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.    
 
     Methods & Properties Summary
     ----------------------------

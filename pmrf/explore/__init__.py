@@ -1,6 +1,5 @@
 """
-NB: The explore module is currently in 'maintenance mode'
-and is likely not functional
+(experimental) model exploration via random sampling.
 
 Parameter space exploration and active learning module.
 

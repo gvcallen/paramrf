@@ -1,7 +1,7 @@
 Introduction
 =====================
 
-**ParamRF** provides a declarative modelling interface that compiles RF models, such as circuit models, using *JAX*. This page provides in introduction into how such models are created, and an overview of the fitting and sampling procedures.
+**ParamRF** provides a declarative modelling interface that compiles RF models, such as circuit models, using *JAX*. This page provides in introduction into how to define models, as well as fit them.
 
 Core Concepts
 ~~~~~~~~~~~~~~~~~~~~
@@ -11,6 +11,7 @@ The library revolves around a few key building blocks:
 * :class:`pmrf.Model`: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
 * :class:`pmrf.Frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
 * :class:`parax.Parameter`: A parameter in a model (from `parax <https://github.com/gvcallen/parax>`_), storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
+* :class:`pmrf.Evaluator`: A lower level object that is used to extract features from a model in a composable manner. These are created under-the-hood e.g. when specifying custom features for fitting, but can also be specified directly for advanced cost and likelihood functions.
 
 Model Composition
 ~~~~~~~~~~~~~~~~~~~~
@@ -20,7 +21,7 @@ Cascaded Models
 ^^^^^^^^^^^^^^^^^^^
 For simple circuit element chains, the ** operator can be used to cascade several models together.
 
-The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class :class:`pmrf.Model` of type :class:`pmrf.models.composite.interconnected.Cascade`, consisting of parameters representing the respective *R*, *L* and *C* parameters. The S11 is then plotted using matplotlib.
+The example below creates an RLC filter and terminates it in an open circuit. The resultant ``rlc`` is a first-class :class:`pmrf.Model` of type :class:`pmrf.models.Cascade`, consisting of parameters representing the respective *R*, *L* and *C* parameters. The S11 is then plotted using ``scikit-rf`` under the hood.
 
 .. literalinclude:: ../../../examples/1_rlc_cascade.py
    :language: python
@@ -63,32 +64,24 @@ The following example creates a PI-CLC model once again, but using the above met
 .. literalinclude:: ../../../examples/4_clc_inheritance.py
    :language: python
 
-Model Manipulation
-~~~~~~~~~~~~~~~~~~
-ParamRF excels at manipulating models through deep hierarchies.
-
-The following examples creates a circuit model consisting of several nested sub-circuits. Parameters can then be easily manipulated using the `with_xxx` routines.
-
 Fitting
 ~~~~~~~~~~~~~~~~~~~~
 
-ParamRF provides the ability to easily fit models and their parameters to measured data. The :mod:`pmrf.fit` module provides a unified interface to do this using either traditional *frequentist* optimization (e.g. the usual "least squares" approach), or using more state-of-the-art *Bayesian* inference techniques.
+Models can easily be fit using to measured data using the :mod:`pmrf.fit` module. The general workflow consists of defining a model, loading data via *scikit-rf*, initializing the solver (optimizer/inferer), defining the features to optimize (e.g. S11), and running the fit.
 
-The general workflow consists of defining a model, loading data via *scikit-rf*, initializing the fitter, defining the metric function and features to optimize, and running the fit.
-
-Backends
+Solvers
 ^^^^^^^^^^^^^^^^^^^^
 
-ParamRF allows for optimization using either `scipy.optimize.minimize` or `optimistix.minimise`, and Bayesian inference using `inferix.nested` or `inferix.mcmc`. These can be accessed using a unified interface by passing in the appropriate fitter and settings.
+ParamRF allows for optimization using either ``scipy.optimize.minimize`` or ``optimistix.minimise``, and Bayesian inference using ``inferix``, which provides wrappers for ``Polychord`` and ``BlackJAX``.
 
-* :class:`pmrf.optimize.ScipyMinimizer`: Provides a wrapper around gradient-based and gradient-free optimization algorithms from ``scipy.optimize``. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*. These algorithms are host-native and cannot run on the GPU.
-* `Optimistix`: Provides JAX-native optimization algorithms, such as `optimistix.BFGS`. These algorithms run their loop directly in JAX, and therefore can be compiled to any architecture (CPU, GPU, TPU).
-* `inferix`: Enables Bayesian inference through nested sampling and MCMC sampling. Examples include `inferix.Polychord` and `inferix.NUTS`. This approach provides maximum likelihood parameter values, as well as full posterior probability distributions and Bayesian evidence useful for model comparison and uncertainty quantification.
+* *Scipy*: Provides a wrapper around gradient-based and gradient-free optimization algorithms from ``scipy.optimize`` in :class:`pmrf.optimize.ScipyMinimizer`. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*. These algorithms are host-native and cannot run on the GPU.
+* *Optimistix*: Provides JAX-native optimization algorithms, such as ``optimistix.BFGS``. These algorithms run their loop directly in JAX, and therefore can be compiled to any architecture (CPU, GPU, TPU).
+* *Inferix*: Enables Bayesian inference through nested sampling and MCMC sampling using e.g. ``inferix.Polychord`` and ``inferix.NUTS``. This approach provides maximum likelihood parameters, as well as full posterior probability distributions and Bayesian evidence for model comparison.
 
 Example
 ^^^^^^^^^^^^^^^^^^^^
 
-The following provides a complete example of fitting the built in :mod:`pmrf.models.CoaxialLine` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/gvcallen/paramrf/tree/main/examples>`_). Data is loaded using scikit-rf, the model is instantiated with appropriate initial parameters, the fit is run, and results are plotted.
+The following provides an example of fitting the built in :mod:`pmrf.models.CoaxialLine` model to the measurement of 10m coaxial cable (provided as an example in the `GitHub <https://github.com/gvcallen/paramrf/tree/main/examples>`_). Data is loaded using ``scikit-rf``, the model is instantiated with appropriate initial parameters, the fit is run, and results are plotted.
 
 .. literalinclude:: ../../../examples/5_fit_cable_scipy.py
    :language: python

@@ -16,9 +16,19 @@ from pmrf.infer.result import InferResult
 from pmrf.constants import Optimizer, Inferer, EvaluatorLike
 
 def is_optimizer(x):
+    """
+    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
+
+    Returns ``True`` for ``optimistix.AbstractMinimiser`` and :class:``pmrf.optimize.ScipyMinimizer``.
+    """
     return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
 
 def is_inferer(x):
+    """
+    Returns if a solver is suitable for Bayesian inference in :mod:`pmrf.infer`.
+
+    Returns ``True`` for ``infx.AbstractNestedSampler`` and :class:``infx.AbstractHostHypercubeNestedSampler``.
+    """    
     return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
 
 def fit(
@@ -57,7 +67,7 @@ def fit(
 
     Returns
     -------
-    OptimizeResult | InferenceResult
+    OptimizeResult | InferResult
         A result object containing the newly fitted model. Depending on the solver, 
         the model contains either optimized point-estimates or empirical posteriors.
     """

@@ -1,8 +1,8 @@
 import logging
 import skrf as rf
 
-from pmrf.models import CoaxialLine
 from parax.parameters import Uniform, RelativeNormal, Fixed
+from pmrf.models import CoaxialLine
 from pmrf.optimize import fit, ScipyMinimizer
 
 logging.basicConfig(level=logging.INFO)
