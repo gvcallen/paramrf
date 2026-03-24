@@ -1,18 +1,19 @@
+.. image:: assets/logo.png
+   :align: center
+   :alt: ParamRF Logo
+
 ParamRF: Parametric Radio Frequency Modelling, Optimization and Sampling
-===================================================================
+========================================================================
 **ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modelling framework. It provides a declarative, object-orientated syntax for modelling complex RF circuits and surrogates using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
 
-+----------+------------------------------------------------+
-| Version  | |release|                                      |
-+----------+------------------------------------------------+
-| Author   | Gary Allen                                     |
-+----------+------------------------------------------------+
-| Homepage | https://github.com/gvcallen/paramrf            |
-+----------+------------------------------------------------+
-| Docs     | https://gvcallen.github.io/paramrf             |
-+----------+------------------------------------------------+
-| Paper    | https://doi.org/10.48550/arXiv.2510.15881      |
-+----------+------------------------------------------------+
+:Version: |version_badge|
+:Author: Gary Allen
+:Homepage: https://github.com/gvcallen/paramrf
+:Docs: https://gvcallen.github.io/paramrf
+:Paper: https://doi.org/10.48550/arXiv.2510.15881
+
+.. |version_badge| image:: https://img.shields.io/github/v/release/gvcallen/paramrf
+   :alt: GitHub Release
 
 Key Features
 ---------------------
