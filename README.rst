@@ -35,6 +35,22 @@ Key Features
 * **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for data-fitting in ``pmrf.fit``.
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
 
+Example
+---------------------
+The example below shows how to define and fit a simple RLC model to measured data using ParamRF.
+
+.. code:: python
+    import skrf as rf
+    import pmrf as prf
+    from pmrf.models import Resistor, Inductor, Capacitor
+    from pmrf.fit import fit
+
+    model = Resistor(R=100.0) ** Inductor(L=1e-9) ** Capacitor(L=1e-12)
+    data = rf.Network('path/to/rlc.s2p')
+    
+    results = fit(model, data)
+    results.plot('s_db')
+
 Citation
 ---------------------
 
