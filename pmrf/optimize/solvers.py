@@ -10,7 +10,7 @@ from tqdm.auto import tqdm  # Added import
 
 class ScipyMinimizer(eqx.Module):
     """
-    A host-based minimizer utilizing scipy.optimize.minimize.
+    A host-based minimizer utilizing ``scipy.optimize.minimize``.
 
     Acts as an adapter layer between highly nested JAX PyTrees and SciPy's required
     flat 1D NumPy arrays. Safely handles automatic differentiation via jax.value_and_grad

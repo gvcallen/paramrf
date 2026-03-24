@@ -27,7 +27,7 @@ def minimize(
     """
     Minimizes a given cost function for a model over a frequency range.
     
-    The cost function can have its own hyper-parameters, and is returned in `result.cost`.
+    The cost function can have its own hyper-parameters, and is returned in ``result.cost``.
 
     Parameters
     ----------

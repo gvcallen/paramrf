@@ -8,7 +8,7 @@ from pmrf.core import Model, Evaluator, Frequency
 
 class OptimizeResult(prx.Module):
     """
-    Standardized return object for parameter optimization routines.
+    Standardized return object for parameter routines.
 
     Attributes
     ----------

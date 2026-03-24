@@ -15,12 +15,43 @@ def sample(
     likelihood: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
-    sampler: infx.AbstractNestedSampler = None,
+    sampler: infx.AbstractNestedSampler = infx.PolyChord(),
     *,
     nlive_factor: int = 25,
     key = None,
     **kwargs,
 ) -> InferResult:
+    """
+    Samples a given likelihood function for a model over a frequency range.
+    
+    The likelihood function can have its own hyper-parameters, and is returned in ``result.likelihood``.
+
+    Parameters
+    ----------
+    likelihood : Evaluator | list[Evaluator]
+        The likelihood function to sample. If a list of Evaluators (e.g., Goals) 
+        is provided, they are automatically summed.
+    model : Model
+        The RF model containing the parameters to be sample.
+    frequency : Frequency
+        The frequency sweep over which the cost should be evaluated.
+    solver : infx.AbstractNestedSampler, default=infx.PolyChord()
+        The sampler backend to use. Defaults to ``infx.PolyChord()``.
+    transform : distreqx.bijectors.AbstractBijector, default=None
+        An invertible transformation to apply to all model parameters before sampling.
+    nlive_factor : int, default=25
+        The number of live points to use as a factor of the number of parameters.
+        Only used for nested sampling.
+    key : jnp.ndarray
+        The random JAX key.
+    **kwargs : dict
+        Additional options passed to the underlying solver backend.
+
+    Returns
+    -------
+    InferResult
+        A structured result containing the sampled model and solver statistics.
+    """    
     if isinstance(likelihood, list):
         likelihood = Sum(likelihood)
     
