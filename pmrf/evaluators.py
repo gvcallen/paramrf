@@ -1,3 +1,7 @@
+"""
+Callables that extract frequency-dependent features from a model.
+"""
+
 from typing import Callable, Any, Sequence, Literal
 import operator
 import re
