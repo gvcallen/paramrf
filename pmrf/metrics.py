@@ -3,20 +3,35 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from sklearn.metrics import root_mean_squared_error
-
 def geometric_mean(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
     """
     Geometric mean over all elements of x.
+    (Note: Currently implemented with custom pair-wise logic for debugging).
     """
-    x = jnp.maximum(x, epsilon)  # prevent collapse
-    x_flat = x.reshape(-1)
+    feature_rms = x
     
-    return jnp.exp(jnp.mean(jnp.log(x_flat)))
+    grouped = feature_rms.reshape(-1, 2)
+    global_rms = jnp.sqrt(jnp.mean(grouped**2, axis=0))
+    product = jnp.prod(global_rms)
+    combined_rms = product ** (1.0 / 2)
+    
+    return combined_rms
+
+    # x = jnp.maximum(x, epsilon)  # prevent collapse
+    # x_flat = x.reshape(-1)
+    
+    # return jnp.exp(jnp.mean(jnp.log(x_flat)))
 
 def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
     """
     Generalized convolutional aggregation over flattened features.
+    
+    Args:
+        x: Input array of features/losses.
+        epsilon: Small constant to prevent numerical instability.
+        
+    Returns:
+        A scalar JAX array representing the aggregated value.
     """
     x = jnp.maximum(x, epsilon)
     x_flat = x.reshape(-1)
@@ -34,11 +49,17 @@ def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray
     
     return combined ** (1.0 / n)
 
-def weighted_mean(loss: jnp.ndarray, 
-                  sample_weight: jnp.ndarray | None = None, 
-                  multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
-
-    # Step 1: sample reduction
+def reduce_samples(loss: jnp.ndarray, sample_weight: jnp.ndarray | None = None) -> jnp.ndarray:
+    """
+    Reduces the loss over the sample (batch) dimension, applying sample weights if provided.
+    
+    Args:
+        loss: The raw loss array of shape (n_samples, n_outputs).
+        sample_weight: Optional array of weights for each sample, shape (n_samples,).
+        
+    Returns:
+        A JAX array of shape (n_outputs,) containing the sample-reduced loss.
+    """
     if sample_weight is not None:
         w = sample_weight
         for _ in range(loss.ndim - 1):
@@ -48,26 +69,31 @@ def weighted_mean(loss: jnp.ndarray,
     else:
         weight_sum = loss.shape[0]
     
-    mean_loss = jnp.sum(loss, axis=0) / jnp.maximum(weight_sum, 1e-12)
+    return jnp.sum(loss, axis=0) / jnp.maximum(weight_sum, 1e-12)
 
-    # Step 2: multioutput aggregation
+def aggregate_multioutput(mean_loss: jnp.ndarray, multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
+    """
+    Aggregates the sample-reduced loss across multiple output dimensions.
+    
+    Args:
+        mean_loss: The loss array reduced over the batch dimension, shape (n_outputs,).
+        multioutput: String alias ('raw_values', 'uniform_average', 'geometric_mean', 
+                     'convolution') or an array of custom weights for each output.
+                     
+    Returns:
+        The fully aggregated loss as a scalar (or array if 'raw_values' is selected).
+    """
     if isinstance(multioutput, str):
-
         if multioutput == 'raw_values':
             return mean_loss
-
         elif multioutput == 'uniform_average':
             return jnp.mean(mean_loss)
-
         elif multioutput == 'geometric_mean':
             return geometric_mean(mean_loss)
-
         elif multioutput == 'convolution':
             return convolution_aggregate(mean_loss)
-
         else:
             raise ValueError(f"Unknown multioutput value: {multioutput}")
-
     else:
         weights = jnp.asarray(multioutput)
         if weights.shape != mean_loss.shape:
@@ -78,35 +104,67 @@ def weighted_mean(loss: jnp.ndarray,
 
 def mean_squared_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
                        multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
+    """
+    Computes the Mean Squared Error (MSE) between true and predicted values.
+    """
     loss = (jnp.abs(y_true - y_pred))**2
-    return weighted_mean(loss, sample_weight, multioutput)
+    mean_loss = reduce_samples(loss, sample_weight)
+    return aggregate_multioutput(mean_loss, multioutput)
 
 def root_mean_squared_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
                             multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
-    return jnp.sqrt(mean_squared_error(y_true, y_pred, sample_weight, multioutput))
+    """
+    Computes the Root Mean Squared Error (RMSE) between true and predicted values.
+    Applies the square root per-output before aggregating across multiple outputs.
+    """
+    loss = (jnp.abs(y_true - y_pred))**2
+    mean_loss = reduce_samples(loss, sample_weight)
+    rmse_loss = jnp.sqrt(mean_loss)
+    return aggregate_multioutput(rmse_loss, multioutput)
 
 def mean_absolute_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
                         multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
+    """
+    Computes the Mean Absolute Error (MAE) between true and predicted values.
+    """
     loss = jnp.abs(y_true - y_pred)
-    return weighted_mean(loss, sample_weight, multioutput)
+    mean_loss = reduce_samples(loss, sample_weight)
+    return aggregate_multioutput(mean_loss, multioutput)
 
 def mean_absolute_percentage_error(y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None,
                                    multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
+    """
+    Computes the Mean Absolute Percentage Error (MAPE) between true and predicted values.
+    """
     epsilon = 1e-12
     loss = jnp.abs((y_true - y_pred) / jnp.maximum(jnp.abs(y_true), epsilon))
-    return weighted_mean(loss, sample_weight, multioutput)
+    mean_loss = reduce_samples(loss, sample_weight)
+    return aggregate_multioutput(mean_loss, multioutput)
 
 def huber_loss(y_true: jnp.ndarray, y_pred: jnp.ndarray, delta: float = 1.0, sample_weight: jnp.ndarray | None = None,
                multioutput: Union[str, jnp.ndarray] = 'uniform_average') -> jnp.ndarray:
+    """
+    Computes the Huber loss, a robust loss function that transitions from squared error 
+    to absolute error depending on the delta threshold.
+    """
     diff = jnp.abs(y_true - y_pred)
     quadratic = jnp.minimum(diff, delta)
     linear = diff - quadratic
     loss = 0.5 * quadratic**2 + delta * linear
-    return weighted_mean(loss, sample_weight, multioutput)
+    mean_loss = reduce_samples(loss, sample_weight)
+    return aggregate_multioutput(mean_loss, multioutput)
 
 def metric_from_alias(alias: str | Callable, multioutput: str = 'uniform_average') -> Callable:
     """
     Resolves a metric function from a string alias or passes a callable through.
+    
+    Args:
+        alias: A string identifier for a standard metric (e.g., 'mse', 'rmse') 
+               or a custom callable function.
+        multioutput: Defines how multiple outputs are aggregated.
+        
+    Returns:
+        A callable loss function that takes (y_true, y_pred).
     """
     # 1. The Power-User Path: Pass custom JAX math directly
     if callable(alias):

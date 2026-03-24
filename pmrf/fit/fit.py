@@ -119,11 +119,11 @@ def fit_sequential(
     # Safely determine the solver type, checking the first value if it's a dict
     first_solver = next(iter(solver.values())) if isinstance(solver, dict) else solver
 
-    if isinstance(first_solver, optx.AbstractMinimiser | ScipyMinimizer):
+    if is_optimizer(first_solver):
         return optimize_fit_sequential(
             model=model, data=data, solver=solver, frequency=frequency, **kwargs
         )
-    elif isinstance(first_solver, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler):
+    elif is_inferer(first_solver):
         return infer_fit_sequential(
             model=model, data=data, sampler=solver, frequency=frequency, **kwargs
         )

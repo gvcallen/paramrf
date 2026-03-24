@@ -99,9 +99,9 @@ def minimize(
             lower_tree, upper_tree = kwargs.pop('bounds')
         else:
             def lower_percentile(x):
-                return x.with_value(x.distribution.icdf(0.001)) if isinstance(x, prx.Parameter) else x
+                return x.with_value(x.distribution.icdf(0.01)) if isinstance(x, prx.Parameter) else x
             def upper_percentile(x):
-                return x.with_value(x.distribution.icdf(0.999)) if isinstance(x, prx.Parameter) else x
+                return x.with_value(x.distribution.icdf(0.99)) if isinstance(x, prx.Parameter) else x
             
             lower_tree = jax.tree.map(lower_percentile, problem, is_leaf=prx.is_free_param)
             upper_tree = jax.tree.map(upper_percentile, problem, is_leaf=prx.is_free_param)

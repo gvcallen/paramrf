@@ -75,7 +75,10 @@ def fit(
     else:
         metric_fn = partial(metric_fn, multioutput=multioutput)
     if isinstance(metric_transform_fn, str):
-        metric_transform_fn = FUNC_LOOKUP[metric_transform_fn][1]
+        if metric_transform_fn == 'db':
+            metric_transform_fn = lambda x: 20 * jnp.log10(x)
+        else:
+            metric_transform_fn = FUNC_LOOKUP[metric_transform_fn][1]
 
     def transformed_metric_fn(y_true, y_pred):
         metric = metric_fn(y_true, y_pred)
@@ -159,7 +162,9 @@ def fit_sequential(
         sub_frequency = frequency[name] if isinstance(frequency, dict) else frequency
         sub_metric_fn = metric_fn[name] if isinstance(metric_fn, dict) else metric_fn
         sub_features_base = features[name] if isinstance(features, dict) else features
-        sub_features = f"{name}.{sub_features_base}"
+        if isinstance(sub_features_base, str):
+            sub_features_base = [sub_features_base]
+        sub_features = [f"{name}.{sub}" for sub in sub_features_base]
         sub_multioutput = multioutput[name] if isinstance(multioutput, dict) else multioutput
         sub_transform = transform[name] if isinstance(transform, dict) else transform
         
