@@ -1,4 +1,4 @@
-.. image:: assets/logo.png
+.. image:: https://raw.githubusercontent.com/gvcallen/paramrf/main/assets/logo.png
    :align: center
    :alt: ParamRF Logo
 
