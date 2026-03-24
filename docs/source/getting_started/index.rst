@@ -10,7 +10,7 @@ The library revolves around a few key building blocks:
 
 * :class:`pmrf.Model`: The base class for any RF model. When inherited from, methods such as *s*, *a*, *z* and *y* can be overriden to define model S-parameters, ABCD-parameters etc. These methods all accept frequency as input. On the other hand, *__call__* can be overridden to return a model instance itself, for more complex compositional model building.
 * :class:`pmrf.Frequency`: A wrapper around a JAX array that defines the frequency axis over which models are evaluated.
-* :class:`parax.Parameter`: A parameter in a model (from `parax <https://github.com/gvcallen/parax>`_), storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
+* `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_: A parameter in a model (from `parax <https://github.com/gvcallen/parax>`_), storing its value and metadata. This allows for parameter bounds and scaling, marking parameters as *fixed*, and associating a *distribution* with the parameter for Bayesian fitting.
 * :class:`pmrf.Evaluator`: A lower level object that is used to extract features from a model in a composable manner. These are created under-the-hood e.g. when specifying custom features for fitting, but can also be specified directly for advanced cost and likelihood functions.
 
 Model Composition
