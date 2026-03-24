@@ -22,8 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest ipython
-        pip install -e .  # Installs your library so tests can find it
+        pip install -e .[tests]
 
     - name: Run Pytest
       run: |

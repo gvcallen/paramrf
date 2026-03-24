@@ -28,6 +28,11 @@ docs = [
     "ghp-import",
     "sphinx-rtd-theme",
     "sphinx-math-dollar",
+    "ipython",
+]
+tests = [
+    "pytest",
+    "ipython",
 ]
 
 [project.urls]
