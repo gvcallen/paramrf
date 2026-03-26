@@ -159,7 +159,7 @@ class Loss(Evaluator):
     predictor: Evaluator
     target: jnp.ndarray
     loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
-    params: dict[str, Parameter] = prx.field(transparent=True)
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         predicted = self.predictor(model, freq)
@@ -180,7 +180,7 @@ class Likelihood(Evaluator):
     predictor: Evaluator
     target: jnp.ndarray
     distribution_fn: Callable[[jnp.ndarray], AbstractDistribution] = prx.field(static=True)
-    params: dict[str, Parameter] = prx.field(transparent=True)
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         prediction = self.predictor(model, freq)
