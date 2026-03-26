@@ -1,7 +1,7 @@
 from typing import Callable
 
 import jax
-
+import jax.numpy as jnp
 import equinox as eqx
 import optimistix as optx
 import parax as prx
@@ -102,9 +102,19 @@ def minimize(
             lower_tree, upper_tree = kwargs.pop('bounds')
         else:
             def lower_percentile(x):
-                return x.with_value(x.distribution.icdf(0.01)) if isinstance(x, prx.Parameter) else x
+                if isinstance(x, prx.Parameter):
+                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        return x.with_value(x.distribution.icdf(0.01))
+                    else:
+                        return -jnp.inf
+                return x
             def upper_percentile(x):
-                return x.with_value(x.distribution.icdf(0.99)) if isinstance(x, prx.Parameter) else x
+                if isinstance(x, prx.Parameter):
+                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        return x.with_value(x.distribution.icdf(0.99))
+                    else:
+                        return jnp.inf
+                return x
             
             lower_tree = jax.tree.map(lower_percentile, problem, is_leaf=prx.is_free_param)
             upper_tree = jax.tree.map(upper_percentile, problem, is_leaf=prx.is_free_param)

@@ -1,5 +1,7 @@
 from functools import partial
 from typing import Callable
+import dataclasses
+
 import jax.numpy as jnp
 import skrf
 from distreqx.bijectors import AbstractBijector
@@ -56,13 +58,12 @@ def fit(
         See :meth:`pmrf.losses.loss_from_alias`. Used to construct a loss evaluator
         from :class`pmrf.evalutors.Loss`.
     loss_params : dict[str, parax.Parameter], optional
-        Loss parameters to pass to the loss evaluator. This can be useful to define
-        hyper-parameters such as for regulariziation. Passed to :class`pmrf.evalutors.Loss`.
+        Loss parameters to pass to the loss function. This can be useful to define
+        hyper-parameters e.g. for regulariziation. Used in :class`pmrf.evalutors.Loss`.
         Defaults to None.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to ``loss_fn`` indicating
         how to aggregate outputs. For the default of `None`, the argument is not passed.
-    
     scale_fn : str | Callable, default=None
         A scaling to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
     transform : ParameterTransform, default=None
@@ -84,13 +85,10 @@ def fit(
     if multioutput is not None:
         loss_fn = partial(loss_fn, multioutput=multioutput)
     if isinstance(scale_fn, str):
-        if scale_fn == 'db':
-            scale_fn = lambda x: 20 * jnp.log10(x)
-        else:
-            scale_fn = FUNC_LOOKUP[scale_fn][1]
+        scale_fn = FUNC_LOOKUP[scale_fn][1]
 
-    def scaled_loss_fn(y_true, y_pred):
-        metric = loss_fn(y_true, y_pred)
+    def scaled_loss_fn(y_true, y_pred, **kwargs):
+        metric = loss_fn(y_true, y_pred, **kwargs)
         if scale_fn is not None:
             return scale_fn(metric)
         else:
@@ -111,11 +109,10 @@ def fit(
         measured_data = data
         target = data
     
-    cost = Loss(features, target, scaled_loss_fn)
+    cost = Loss(features, target, scaled_loss_fn, params=loss_params)
     result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
     
     # Inject the plotting context into the frozen result
-    import dataclasses
     return dataclasses.replace(
         result, 
         data=measured_data,    # The raw data for arbitrary extraction
@@ -153,7 +150,7 @@ def fit_sequential(
         Optimization settings. These can either be single global rules, or dictionaries 
         mapping the sub-module's string name to specific localized rules.
     **kwargs : dict
-        Additional kwargs passed to the solvers.
+        Additional kwargs passed to :meth:`pmrf.fit.fit`.
 
     Returns
     -------
