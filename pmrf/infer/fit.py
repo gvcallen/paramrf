@@ -49,9 +49,10 @@ def fit(
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
     distribution_fn : Callable, default=dist.Normal
         The distreqx distribution class representing the likelihood noise model.
+        This is used to create a Likelihood evaluator from :class:`pmrf.evaluators.Likelihood`.
     distribution_params : dict[str, prx.Parameter], optional
         The parameters characterizing the likelihood noise model. Defaults to a uniform 
-        scale parameter if None.
+        scale parameter if None. Passed to :class:`pmrf.evaluators.Likelihood`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying sampler.
 

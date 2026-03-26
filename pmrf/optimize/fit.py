@@ -3,6 +3,7 @@ from typing import Callable
 import jax.numpy as jnp
 import skrf
 from distreqx.bijectors import AbstractBijector
+import parax as prx
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.math_functions import FUNC_LOOKUP
@@ -26,6 +27,7 @@ def fit(
     features: EvaluatorLike = 's',
     loss_fn: str | MetricFn = 'mse',
     multioutput: AggregationKind | None = None,
+    loss_params: dict[str, prx.Parameter] = None,
     scale_fn: str | Callable[[jnp.ndarray], jnp.ndarray] = None,
     transform: AbstractBijector | None = None,
     **kwargs,
@@ -51,10 +53,16 @@ def fit(
         The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
     loss_fn : str | MetricFn, default='rms'
         The mathematical loss metric (e.g., 'mse', 'mae', 'rms') comparing prediction to data.
-        See :meth:`pmrf.losses.metric_from_alias`.
+        See :meth:`pmrf.losses.loss_from_alias`. Used to construct a loss evaluator
+        from :class`pmrf.evalutors.Loss`.
+    loss_params : dict[str, parax.Parameter], optional
+        Loss parameters to pass to the loss evaluator. This can be useful to define
+        hyper-parameters such as for regulariziation. Passed to :class`pmrf.evalutors.Loss`.
+        Defaults to None.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to ``loss_fn`` indicating
-        how to aggregate outputs. For the default of `None`, the parameter is not passed.
+        how to aggregate outputs. For the default of `None`, the argument is not passed.
+    
     scale_fn : str | Callable, default=None
         A scaling to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
     transform : ParameterTransform, default=None

@@ -129,24 +129,7 @@ class Residual(Evaluator):
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         return self.predictor(model, freq) - self.target
-
-
-class Loss(Evaluator):
-    """
-    Calculates a loss of a prediction against a target using a callable.
     
-    The `loss_fn` must have the signature `f(y_true, y_pred)` and potentially
-    accept in additional string key-word argument 'multioutput' that should
-    dictate how multiple features (if any) are aggregated.
-    """
-    predictor: Evaluator
-    target: jnp.ndarray
-    loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        predicted = self.predictor(model, freq)
-        return self.loss_fn(self.target, predicted)
-
 
 class Flatness(Evaluator):
     """
@@ -164,13 +147,35 @@ class Flatness(Evaluator):
         return jnp.gradient(data, freq.f_scaled, axis=0)
 
 
+class Loss(Evaluator):
+    """
+    Calculates a loss of a prediction against a target using a callable.
+    
+    The ``loss_fn`` must have the signature ``f(y_true, y_pred)``.
+    It may also accept additional key-word arguments that can be set in ``params``.
+
+    Returns the loss of the model against the ``target`` data.
+    """
+    predictor: Evaluator
+    target: jnp.ndarray
+    loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    params: dict[str, Parameter] = prx.field(transparent=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        predicted = self.predictor(model, freq)
+        loss_kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        return self.loss_fn(self.target, predicted, **loss_kwargs)
+
+
 class Likelihood(Evaluator):
     """
     Calculates the log-probability of the target data given the model.
     
-    Crucial for Bayesian inference and MCMC sampling. It wraps a distreqx 
-    distribution parameterized by the circuit's predictions and returns the 
-    likelihood of observing the `target` data.
+    Wraps a distreqx distribution which must implement ``log_prob``.
+    The distribution is construct with the model's prediction as the first arguments,
+    and any additional parameters stored in ``params`` as additional key-word arguments.
+     
+    Returns the likelihood of observing ``target`` data.
     """
     predictor: Evaluator
     target: jnp.ndarray

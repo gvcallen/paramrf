@@ -2,7 +2,6 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-
 def geometric_mean(x: jnp.ndarray) -> jnp.ndarray:
     """
     Computes the geometric mean over all elements of the input array.
@@ -17,7 +16,13 @@ def geometric_mean(x: jnp.ndarray) -> jnp.ndarray:
     jnp.ndarray
         The geometric mean of the input array.
     """
-    return jnp.exp(jnp.mean(jnp.log(x.reshape(-1))))
+
+    grouped = x.reshape(-1, 2)
+    global_rms = jnp.sqrt(jnp.mean(grouped**2, axis=0))
+    combined_rms = jnp.sqrt(jnp.prod(global_rms))
+    return combined_rms
+
+    # return jnp.exp(jnp.mean(jnp.log(x.reshape(-1))))
 
 
 def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
