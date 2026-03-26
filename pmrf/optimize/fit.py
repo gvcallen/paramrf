@@ -6,14 +6,14 @@ from distreqx.bijectors import AbstractBijector
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.math_functions import FUNC_LOOKUP
-from pmrf.constants import EvaluatorLike, Optimizer, Aggregation
+from pmrf.constants import EvaluatorLike, Optimizer, AggregationKind
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Metric
-from pmrf.metrics import metric_from_alias
+from pmrf.evaluators import Alias, Loss
+from pmrf.losses import loss_from_alias
 from pmrf.constants import MetricFn
 
 
@@ -24,9 +24,9 @@ def fit(
     solver: Optimizer = ScipyMinimizer(),
     *,
     features: EvaluatorLike = 's',
-    metric_fn: str | MetricFn = 'rms',
-    multioutput: Aggregation = 'uniform_average',
-    metric_transform_fn: str | Callable[[jnp.ndarray], jnp.ndarray] = 'db',
+    loss_fn: str | MetricFn = 'mse',
+    multioutput: AggregationKind | None = None,
+    scale_fn: str | Callable[[jnp.ndarray], jnp.ndarray] = None,
     transform: AbstractBijector | None = None,
     **kwargs,
 ) -> OptimizeResult:
@@ -49,13 +49,14 @@ def fit(
         The optimization algorithm backend.
     features : EvaluatorLike, default='s'
         The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
-    metric_fn : str | MetricFn, default='rms'
+    loss_fn : str | MetricFn, default='rms'
         The mathematical loss metric (e.g., 'mse', 'mae', 'rms') comparing prediction to data.
-        See :meth:`pmrf.metric_from_alias`.
-    multioutput : Aggregation, default='uniform_average'
-        How to aggregate losses across multiple ports/outputs.
-    metric_transform_fn : str | MetricFn, default='rms'
-        A transform to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
+        See :meth:`pmrf.losses.metric_from_alias`.
+    multioutput : Aggregation, optional
+        An additional key-word parameter to optionally pass to ``loss_fn`` indicating
+        how to aggregate outputs. For the default of `None`, the parameter is not passed.
+    scale_fn : str | Callable, default=None
+        A scaling to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
     transform : ParameterTransform, default=None
         An invertible transformation to apply to all model parameters before optimization.
     **kwargs : dict
@@ -70,19 +71,22 @@ def fit(
         raise Exception("Frequency must be passed if Network data is not provided")
     if not isinstance(features, Evaluator):
         features = Alias(features)
-    if isinstance(metric_fn, str):
-        metric_fn = metric_from_alias(metric_fn, multioutput=multioutput)
-    else:
-        metric_fn = partial(metric_fn, multioutput=multioutput)
-    if isinstance(metric_transform_fn, str):
-        if metric_transform_fn == 'db':
-            metric_transform_fn = lambda x: 20 * jnp.log10(x)
+    if isinstance(loss_fn, str):
+        loss_fn = loss_from_alias(loss_fn)
+    if multioutput is not None:
+        loss_fn = partial(loss_fn, multioutput=multioutput)
+    if isinstance(scale_fn, str):
+        if scale_fn == 'db':
+            scale_fn = lambda x: 20 * jnp.log10(x)
         else:
-            metric_transform_fn = FUNC_LOOKUP[metric_transform_fn][1]
+            scale_fn = FUNC_LOOKUP[scale_fn][1]
 
-    def transformed_metric_fn(y_true, y_pred):
-        metric = metric_fn(y_true, y_pred)
-        return metric_transform_fn(metric)
+    def scaled_loss_fn(y_true, y_pred):
+        metric = loss_fn(y_true, y_pred)
+        if scale_fn is not None:
+            return scale_fn(metric)
+        else:
+            return metric
     
     # Standardize target data and frequencies
     if isinstance(data, skrf.Network | NetworkCollection):
@@ -99,7 +103,7 @@ def fit(
         measured_data = data
         target = data
     
-    cost = Metric(features, target, transformed_metric_fn)
+    cost = Loss(features, target, scaled_loss_fn)
     result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
     
     # Inject the plotting context into the frozen result
@@ -118,8 +122,8 @@ def fit_sequential(
     *,
     frequency: Frequency | dict[str, Frequency] | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
-    metric_fn: str | MetricFn | dict[str, MetricFn | str] = 'rms',
-    multioutput: Aggregation | dict[str, Aggregation] = 'uniform_average',
+    loss_fn: str | MetricFn | dict[str, MetricFn | str] = 'rms',
+    multioutput: AggregationKind | dict[str, AggregationKind] = 'uniform_average',
     transform: AbstractBijector | None = None,
     **kwargs,
 ) -> tuple[Model, dict[str, OptimizeResult]]:
@@ -137,7 +141,7 @@ def fit_sequential(
         The global circuit model.
     data : NetworkCollection
         A collection of network data whose names match the sub-modules in the model.
-    solver, frequency, features, metric_fn, multioutput, transform:
+    solver, frequency, features, loss_fn, multioutput, transform:
         Optimization settings. These can either be single global rules, or dictionaries 
         mapping the sub-module's string name to specific localized rules.
     **kwargs : dict
@@ -160,7 +164,7 @@ def fit_sequential(
         # Resolve localized arguments if dicts are provided
         sub_solver = solver[name] if isinstance(solver, dict) else solver
         sub_frequency = frequency[name] if isinstance(frequency, dict) else frequency
-        sub_metric_fn = metric_fn[name] if isinstance(metric_fn, dict) else metric_fn
+        sub_loss_fn = loss_fn[name] if isinstance(loss_fn, dict) else loss_fn
         sub_features_base = features[name] if isinstance(features, dict) else features
         if isinstance(sub_features_base, str):
             sub_features_base = [sub_features_base]
@@ -174,13 +178,13 @@ def fit_sequential(
             solver=sub_solver,
             frequency=sub_frequency,
             features=sub_features,
-            metric_fn=sub_metric_fn,
+            loss_fn=sub_loss_fn,
             transform=sub_transform,
             multioutput=sub_multioutput,
             **kwargs
         )
         
-        model = model.with_modules(result_sub.model)
+        model = model.merged(result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results

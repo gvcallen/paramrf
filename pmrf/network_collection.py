@@ -64,6 +64,25 @@ class NetworkCollection:
 
     def __iter__(self):
         return iter(self.networks)
+    
+    def __contains__(self, item: Union[str, rf.Network]) -> bool:
+        """
+        Check if a network or network name is in the collection.
+        
+        Parameters
+        ----------
+        item : str or skrf.Network
+            The name of the network or the Network object itself.
+            
+        Returns
+        -------
+        bool
+        """
+        if isinstance(item, str):
+            return any(ntwk.name == item for ntwk in self.networks)
+        elif isinstance(item, rf.Network):
+            return item in self.networks
+        return False    
 
     def __getattr__(self, name: str) -> rf.Network:
         """
@@ -239,6 +258,40 @@ class NetworkCollection:
             raise ValueError(f"Network with name '{ntwk.name}' already exists.")
 
         self.networks.append(ntwk)
+
+    def pop(self, key: Union[int, str]) -> rf.Network:
+        """
+        Remove a network from the collection by index or name.
+        
+        Parameters
+        ----------
+        key : int or str
+            The index or name of the network to remove.
+            
+        Returns
+        -------
+        skrf.Network
+            The removed network object.
+            
+        Raises
+        ------
+        TypeError
+            If key is not an int or str.
+        KeyError
+            If a string key is not found in the collection.
+        IndexError
+            If an int key is out of bounds.
+        """
+        if isinstance(key, int):
+            # Let the standard list pop handle the IndexError if out of bounds
+            return self.networks.pop(key)
+        elif isinstance(key, str):
+            for i, ntwk in enumerate(self.networks):
+                if ntwk.name == key:
+                    return self.networks.pop(i)
+            raise KeyError(f"No network named '{key}' in this collection.")
+        else:
+            raise TypeError(f"Key must be int or str, not {type(key)}")        
 
     def keys(self) -> List[str]:
         """Return a list of network names."""

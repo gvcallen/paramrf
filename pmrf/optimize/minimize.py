@@ -55,7 +55,10 @@ def minimize(
     if isinstance(cost, list):
         cost = Sum(cost)
     
-    problem = Problem(cost, model, frequency)    
+    problem = Problem(cost, model, frequency)   
+
+    if problem.num_flat_params == 0:
+        raise Exception("Model has no free parameters to fit") 
     
     # Helper to dynamically resolve the bijector for a given parameter
     def get_bijector(p: prx.Parameter) -> AbstractBijector:

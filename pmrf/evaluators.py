@@ -13,7 +13,7 @@ import parax as prx
 from distreqx.distributions import AbstractDistribution
 from parax import Parameter
 
-from pmrf.metrics import metric_from_alias
+from pmrf.losses import loss_from_alias
 from pmrf.core import Model, Frequency, Evaluator
 
 
@@ -131,20 +131,21 @@ class Residual(Evaluator):
         return self.predictor(model, freq) - self.target
 
 
-class Metric(Evaluator):
+class Loss(Evaluator):
     """
-    Applies a standard mathematical metric to the prediction.
+    Calculates a loss of a prediction against a target using a callable.
     
-    The `metric_fn` must have the signature `f(y_true, y_pred)`. Standard ML 
-    metrics like MSE, MAE, or RMS should be routed through this component.
+    The `loss_fn` must have the signature `f(y_true, y_pred)` and potentially
+    accept in additional string key-word argument 'multioutput' that should
+    dictate how multiple features (if any) are aggregated.
     """
     predictor: Evaluator
     target: jnp.ndarray
-    metric_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         predicted = self.predictor(model, freq)
-        return self.metric_fn(self.target, predicted)
+        return self.loss_fn(self.target, predicted)
 
 
 class Flatness(Evaluator):
@@ -281,7 +282,7 @@ def Goal(
     target: float | jnp.ndarray = 0.0,
     weight: float | jnp.ndarray = 1.0,
     mask: jnp.ndarray | None = None,
-    metric_fn: str | Callable = 'rms',
+    loss_fn: str | Callable = 'rms',
 ) -> Evaluator:
     """
     Define a specific one-sided or strict design goal.
@@ -302,7 +303,7 @@ def Goal(
         A scalar or array multiplier to scale the importance of this goal.
     mask : jnp.ndarray | None, default=None
         A boolean array filtering which frequencies apply to this goal.
-    metric_fn : str | Callable, default='rms'
+    loss_fn : str | Callable, default='rms'
         The underlying mathematical metric applied to the constraint residual.
         
     Returns
@@ -313,17 +314,17 @@ def Goal(
     Examples
     --------
     >>> Goal('s11_db', '<', -20)
-    >>> Goal('s21_db', '>', -1, weight=10.0, mask=(freq.f > 2e9), metric_fn='mae')
+    >>> Goal('s21_db', '>', -1, weight=10.0, mask=(freq.f > 2e9), loss_fn='mae')
     """
     predictor = Alias(feature) if isinstance(feature, str) else feature
     
-    # Note: If Metric.metric_fn is static=True, closing over JAX tracers can break Equinox.
+    # Note: If Metric.loss_fn is static=True, closing over JAX tracers can break Equinox.
     # We cast to standard numpy arrays here to keep the static closure safe during JIT.
     _weight = np.array(weight) if isinstance(weight, (jnp.ndarray, list)) else weight
     _mask = np.array(mask) if isinstance(mask, (jnp.ndarray, list)) else mask
     
     # 1. Resolve the metric callable securely
-    _metric_callable = metric_from_alias(metric_fn) if isinstance(metric_fn, str) else metric_fn
+    _metric_callable = loss_from_alias(loss_fn) if isinstance(loss_fn, str) else loss_fn
 
     # 2. Define the clamped metric logic
     def goal_metric(tgt: jnp.ndarray, pred: jnp.ndarray) -> jnp.ndarray:
@@ -350,8 +351,8 @@ def Goal(
         final_pred = tgt + weighted_residual
         return _metric_callable(tgt, final_pred)
 
-    return Metric(
+    return Loss(
         predictor=predictor,
         target=jnp.asarray(target),
-        metric_fn=goal_metric
+        loss_fn=goal_metric
     )

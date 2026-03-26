@@ -156,7 +156,7 @@ def fit_sequential(
         )
         
         # Update the global model with the empirical posteriors of the sub-module
-        model = model.with_modules(result_sub.model)
+        model = model.merged(result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results
