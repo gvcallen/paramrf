@@ -21,7 +21,7 @@ def minimize(
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
-    max_steps: int = 1024,
+    max_steps: int = 10000,
     **kwargs,
 ) -> OptimizeResult:
     """
