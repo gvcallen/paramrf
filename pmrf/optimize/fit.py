@@ -112,10 +112,9 @@ def fit(
     cost = Loss(features, target, scaled_loss_fn, params=loss_params)
     result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
     
-    # Inject the plotting context into the frozen result
     return dataclasses.replace(
         result, 
-        data=measured_data,    # The raw data for arbitrary extraction
+        data=measured_data,
         frequency=frequency
     )
 
@@ -123,12 +122,13 @@ def fit(
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    solver: Optimizer | dict[str, Optimizer] = ScipyMinimizer(),
+    solver: Optimizer | Callable[[Model, skrf.Network], Optimizer] = ScipyMinimizer(),
     *,
-    frequency: Frequency | dict[str, Frequency] | None = None,
-    features: EvaluatorLike | dict[str, EvaluatorLike] = 's',
-    loss_fn: str | MetricFn | dict[str, MetricFn | str] = 'rms',
-    multioutput: AggregationKind | dict[str, AggregationKind] = 'uniform_average',
+    frequency: Frequency | None = None,
+    features: EvaluatorLike = 's',
+    loss_fn: str | MetricFn = 'rms',
+    loss_params: dict[str, prx.Parameter] | Callable[[Model, skrf.Network], dict[str, prx.Parameter]] = None,
+    multioutput: AggregationKind | None = None,
     transform: AbstractBijector | None = None,
     **kwargs,
 ) -> tuple[Model, dict[str, OptimizeResult]]:
@@ -157,6 +157,9 @@ def fit_sequential(
     tuple[Model, dict[str, OptimizeResult]]
         The fully updated global Model, and a dictionary of localized optimization results.
     """
+    if isinstance(features, str):
+        features = [features]
+
     all_results: dict[str, OptimizeResult] = {}
     
     for ntwk in data:
@@ -166,26 +169,22 @@ def fit_sequential(
         sub_model = model.with_free_submodules_only(name)
         sub_data = data.filter(lambda n: n.name == name)
         
-        # Resolve localized arguments if dicts are provided
-        sub_solver = solver[name] if isinstance(solver, dict) else solver
-        sub_frequency = frequency[name] if isinstance(frequency, dict) else frequency
-        sub_loss_fn = loss_fn[name] if isinstance(loss_fn, dict) else loss_fn
-        sub_features_base = features[name] if isinstance(features, dict) else features
-        if isinstance(sub_features_base, str):
-            sub_features_base = [sub_features_base]
-        sub_features = [f"{name}.{sub}" for sub in sub_features_base]
-        sub_multioutput = multioutput[name] if isinstance(multioutput, dict) else multioutput
-        sub_transform = transform[name] if isinstance(transform, dict) else transform
+        # Resolve localized arguments
+        sub_features = [f"{name}.{feature}" for feature in features]
+
+        # Resolve loss parameters
+        sub_loss_params = loss_params(sub_model, ntwk) if callable(loss_params) else loss_params
         
         result_sub = fit(
             sub_model,
             sub_data,
-            solver=sub_solver,
-            frequency=sub_frequency,
+            solver=solver,
+            frequency=frequency,
             features=sub_features,
-            loss_fn=sub_loss_fn,
-            transform=sub_transform,
-            multioutput=sub_multioutput,
+            loss_fn=loss_fn,
+            loss_params=sub_loss_params,
+            transform=transform,
+            multioutput=multioutput,
             **kwargs
         )
         

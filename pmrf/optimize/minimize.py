@@ -21,7 +21,7 @@ def minimize(
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
     transform: AbstractBijector | Callable[[prx.Parameter], AbstractBijector] | None = None,
-    max_steps: int = 512,
+    max_steps: int = 1024,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -101,23 +101,29 @@ def minimize(
         if 'bounds' in kwargs:
             lower_tree, upper_tree = kwargs.pop('bounds')
         else:
-            def lower_percentile(x):
+            def lower(x):
                 if isinstance(x, prx.Parameter):
-                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
-                        return x.with_value(x.distribution.icdf(0.01))
+                    if x.bounds is not None:
+                        low = x.bounds[..., 0]
+                    elif x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        low = x.distribution.icdf(0.01*jnp.ones_like(x.value))
                     else:
-                        return -jnp.inf
+                        low = jnp.full_like(x.value, -jnp.inf)
+                    return x.with_value(low)
                 return x
-            def upper_percentile(x):
+            def upper(x):
                 if isinstance(x, prx.Parameter):
-                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
-                        return x.with_value(x.distribution.icdf(0.99))
+                    if x.bounds is not None:
+                        high = x.bounds[..., 1]
+                    elif x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        high = x.distribution.icdf(0.99*jnp.ones_like(x.value))
                     else:
-                        return jnp.inf
+                        high = jnp.full_like(x.value, jnp.inf)
+                    return x.with_value(high)
                 return x
             
-            lower_tree = jax.tree.map(lower_percentile, problem, is_leaf=prx.is_free_param)
-            upper_tree = jax.tree.map(upper_percentile, problem, is_leaf=prx.is_free_param)
+            lower_tree = jax.tree.map(lower, problem, is_leaf=prx.is_free_param)
+            upper_tree = jax.tree.map(upper, problem, is_leaf=prx.is_free_param)
             
             # Transform bounds BEFORE partitioning so the PyTree structure matches `problem`
             def apply_bound_transform(bound_val, orig_p):
