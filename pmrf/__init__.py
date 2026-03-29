@@ -35,7 +35,7 @@ from pmrf import (
     constants, distributions, evaluators, 
     math_functions, models,
     optimize, infer, fit, explore,
-    rf_functions, losses,
+    rf_functions, losses, bijectors,
 )
 from pmrf.network_collection import NetworkCollection
 
@@ -43,6 +43,6 @@ __all__.extend([
     "core", "constants", "distributions", "evaluators", 
     "math_functions", "models",
     "optimize", "infer", "fit", "explore",
-    "rf_functions", "losses",
+    "rf_functions", "losses", "bijectors",
     "NetworkCollection",
 ])

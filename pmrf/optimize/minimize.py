@@ -6,8 +6,8 @@ import equinox as eqx
 import optimistix as optx
 import parax as prx
 from distreqx.bijectors import AbstractBijector
-from parax.bijectors import Invert, Identity
 
+from pmrf.bijectors import Invert
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
