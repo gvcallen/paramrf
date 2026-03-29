@@ -7,29 +7,11 @@ import inferix as infx
 from pmrf.core import Model, Frequency
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
-from pmrf.optimize import fit as optimize_fit
-from pmrf.optimize import fit_sequential as optimize_fit_sequential
-from pmrf.infer import fit as infer_fit
-from pmrf.infer import fit_sequential as infer_fit_sequential
+from pmrf.optimize import fit as optimize_fit, fit_sequential as optimize_fit_sequential, is_optimizer
+from pmrf.infer import condition as infer_condition, condition_sequential as infer_condition_sequential, is_inferer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.infer.result import InferResult
 from pmrf.constants import Optimizer, Inferer, EvaluatorLike
-
-def is_optimizer(x):
-    """
-    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
-
-    Returns ``True`` for ``optimistix.AbstractMinimiser`` and :class:``pmrf.optimize.ScipyMinimizer``.
-    """
-    return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
-
-def is_inferer(x):
-    """
-    Returns if a solver is suitable for Bayesian inference in :mod:`pmrf.infer`.
-
-    Returns ``True`` for ``infx.AbstractNestedSampler`` and :class:``infx.AbstractHostHypercubeNestedSampler``.
-    """    
-    return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
 
 def fit(
     model: Model,
@@ -77,7 +59,7 @@ def fit(
     if is_optimizer(solver):
         return optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
     elif is_inferer(solver):
-        return infer_fit(model=model, data=data, frequency=frequency, sampler=solver, **kwargs)
+        return infer_condition(model=model, data=data, frequency=frequency, sampler=solver, **kwargs)
     else:
         raise TypeError(
             f"Unrecognized solver type: {type(solver)}. "
@@ -134,7 +116,7 @@ def fit_sequential(
             model=model, data=data, solver=solver, frequency=frequency, **kwargs
         )
     elif is_inferer(first_solver):
-        return infer_fit_sequential(
+        return infer_condition_sequential(
             model=model, data=data, sampler=solver, frequency=frequency, **kwargs
         )
     else:

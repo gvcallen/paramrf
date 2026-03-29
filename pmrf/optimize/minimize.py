@@ -6,13 +6,20 @@ import equinox as eqx
 import optimistix as optx
 import parax as prx
 from distreqx.bijectors import AbstractBijector
-from parax.bijectors import Inverse, Identity
+from parax.bijectors import Invert, Identity
 
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.evaluators import Sum
 
+def is_optimizer(x):
+    """
+    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
+
+    Returns ``True`` for ``optimistix.AbstractMinimiser`` and :class:``pmrf.optimize.ScipyMinimizer``.
+    """
+    return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
 
 def minimize(
     cost: Evaluator | list[Evaluator],
@@ -66,7 +73,7 @@ def minimize(
     
     def apply_inverse(orig_x, trans_x):
         if isinstance(orig_x, prx.Parameter):
-            inv_bij = Inverse(get_bijector(orig_x))
+            inv_bij = Invert(get_bijector(orig_x))
             return trans_x.transformed(inv_bij)
         return trans_x
     

@@ -179,14 +179,21 @@ class Likelihood(Evaluator):
     """
     predictor: Evaluator
     target: jnp.ndarray
-    distribution_fn: Callable[[jnp.ndarray], AbstractDistribution] = prx.field(static=True)
+    distribution_fn: Callable[[jnp.ndarray], AbstractDistribution] | None = prx.field(static=True, default=None)
+    log_likelihood_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] | None = prx.field(static=True, default=None)
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         prediction = self.predictor(model, freq)
-        dist_kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        probability_dist = self.distribution_fn(prediction, **dist_kwargs)
-        return jnp.sum(probability_dist.log_prob(self.target))
+        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        
+        if self.distribution_fn is not None:
+            probability_dist = self.distribution_fn(prediction, **kwargs)
+            return jnp.sum(probability_dist.log_prob(self.target))
+        elif self.log_likelihood_fn is not None:
+            return self.log_likelihood_fn(self.target, prediction, **kwargs)
+        else:
+            raise Exception("Either one of `distribution_fn` or `likelihood_fn` must be overriden for a `Likelihood` evaluator")
       
         
 def Diagonal(evaluator: Evaluator) -> Map:

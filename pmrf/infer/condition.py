@@ -1,3 +1,7 @@
+"""
+Conditioning a model on data using Bayesian inference.
+"""
+
 from typing import Callable
 
 import jax.numpy as jnp
@@ -15,19 +19,20 @@ from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
 
-def fit(
+def condition(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     sampler: Inferer = PolyChord(),
     *,
     features: EvaluatorLike = ('s_re', 's_im'),
-    distribution_fn: Callable[..., dist.AbstractDistribution] = dist.Normal,
-    distribution_params: dict[str, prx.Parameter] = None,
+    distribution_fn: Callable[..., dist.AbstractDistribution] = None,
+    log_likelihood_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
+    likelihood_params: dict[str, prx.Parameter] = None,
     **kwargs,
 ) -> InferResult:
     """
-    Fits an RF model to measured data using Bayesian inference.
+    Conditions an RF model on measured data using Bayesian inference.
     
     This high-level function handles data format coercion (e.g., extracting arrays 
     from scikit-rf Networks) and automatically composes the necessary evaluator metrics
@@ -47,11 +52,17 @@ def fit(
     features : EvaluatorLike, default=('s_re', 's_im')
         The specific circuit feature(s) to compute the likelihood against. 
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
-    distribution_fn : Callable, default=dist.Normal
-        The distreqx distribution class representing the likelihood noise model.
+    distribution_fn : Callable, optional
+        The distreqx distribution class representing the likelihood model.
         This is used to create a Likelihood evaluator from :class:`pmrf.evaluators.Likelihood`.
-    distribution_params : dict[str, prx.Parameter], optional
-        The parameters characterizing the likelihood noise model. Defaults to a uniform 
+        Mutually exclusive with `log_likelihood_fn`.
+    log_likelihood_fn: Callable, optional
+        A directly likelihood function to use, which takes the true and predict features,
+        as well as the likelihood parameters, and returns the log likelihood.
+        This is used to create a Likelihood evaluator from :class:`pmrf.evaluators.Likelihood`.
+        Mutually exclusive with `distribution_fn`.
+    likelihood_params : dict[str, prx.Parameter], optional
+        Additional parameters characterizing the likelihood model. Defaults to a uniform 
         scale parameter if None. Passed to :class:`pmrf.evaluators.Likelihood`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying sampler.
@@ -61,12 +72,16 @@ def fit(
     InferenceResult
         The result containing the model loaded with empirical posterior distributions.
     """
+    if distribution_fn is None and log_likelihood_fn is None:
+        distribution_fn = dist.Normal
+        likelihood_params = {'scale': prx.Uniform(0.0, 20.0, scale=1e-3)}
+    elif distribution_fn is not None and log_likelihood_fn is not None:
+        raise Exception("Cannot pass both `distribution_fn` and `likelihood_params`")
+    
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
     if not isinstance(features, Evaluator):
         features = Alias(features)
-    if distribution_params is None:
-        distribution_params = {'scale': prx.Uniform(0.0, 20.0, scale=1e-3)}
     
     # Standardize target data and frequencies
     if isinstance(data, skrf.Network | NetworkCollection):
@@ -79,11 +94,11 @@ def fit(
     else:
         target = data
     
-    likelihood = Likelihood(features, target, distribution_fn, distribution_params)
+    likelihood = Likelihood(features, target, distribution_fn=distribution_fn, log_likelihood_fn=log_likelihood_fn, likelihood_params=likelihood_params)
     return sample(likelihood, model, frequency, sampler=sampler, **kwargs)
 
 
-def fit_sequential(
+def condition_sequential(
     model: Model, 
     data: NetworkCollection,
     sampler: Inferer | dict[str, Inferer] = PolyChord(),
@@ -95,7 +110,7 @@ def fit_sequential(
     **kwargs,
 ) -> tuple[Model, dict[str, InferResult]]:
     """
-    Sequentially fits sub-modules of a complex circuit cascade using Bayesian inference.
+    Sequentially conditions sub-modules of a complex circuit cascade using Bayesian inference.
 
     Iterates through a collection of networks, extracting matching sub-modules 
     from the main model. Each module is sampled locally, and the main model's state 
@@ -145,14 +160,14 @@ def fit_sequential(
         sub_dist_fn = distribution_fn[name] if isinstance(distribution_fn, dict) else distribution_fn
         sub_dist_params = distribution_params[name] if isinstance(distribution_params, dict) and name in distribution_params else distribution_params
         
-        result_sub = fit(
+        result_sub = condition(
             sub_model,
             sub_data,
             frequency=sub_frequency,
             sampler=sub_sampler,
             features=sub_features,
             distribution_fn=sub_dist_fn,
-            distribution_params=sub_dist_params,
+            likelihood_params=sub_dist_params,
             **kwargs
         )
         

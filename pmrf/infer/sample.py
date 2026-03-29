@@ -11,6 +11,14 @@ from pmrf.distributions import Empirical
 from pmrf.infer.result import InferResult
 from pmrf.utils import generate_key
 
+def is_inferer(x):
+    """
+    Returns if a solver is suitable for Bayesian inference in :mod:`pmrf.infer`.
+
+    Returns ``True`` for ``infx.AbstractNestedSampler`` and :class:``infx.AbstractHostHypercubeNestedSampler``.
+    """    
+    return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
+
 def sample(
     likelihood: Evaluator | list[Evaluator],
     model: Model,

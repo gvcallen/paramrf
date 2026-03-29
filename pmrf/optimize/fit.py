@@ -76,6 +76,8 @@ def fit(
     OptimizeResult
         The optimization result containing the newly fitted Model.
     """
+    if loss_params is None:
+        loss_params = {}
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise Exception("Frequency must be passed if Network data is not provided")
     if not isinstance(features, Evaluator):
