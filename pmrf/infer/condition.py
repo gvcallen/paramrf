@@ -14,7 +14,7 @@ from pmrf.core import Model, Frequency, Evaluator
 from pmrf.constants import EvaluatorLike, Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Metric
+from pmrf.evaluators import Alias, Binary
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
@@ -52,20 +52,20 @@ def condition(
     features : EvaluatorLike, default=('s_re', 's_im')
         The specific circuit feature(s) to compute the likelihood against. 
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
-    distribution_fn : Callable, optional
-        The distreqx distribution class representing the likelihood model.
-        Must accept the model prediction as its first argument, `likelihood_params`
-        as key-word arguments, and implement `log_prob` which accepts the data.
-        Used to create a Metric evaluator from :class:`pmrf.evaluators.Metric`.
-        Mutually exclusive with `log_likelihood_fn`.
     log_likelihood_fn: Callable, optional
         A likelihood function to use, which takes the true and predicted features as
         first and second arguments, `likelihood_params` as key-word arguments,
-        and returns the log likelihood. Used to create a Metric evaluator from :class:`pmrf.evaluators.Metric`.
+        and returns the log likelihood. Used to create a Binary evaluator from :class:`pmrf.evaluators.Binary`.
         Mutually exclusive with `distribution_fn`.
+    distribution_fn : Callable, optional
+        A distribution callable representing the likelihood model.
+        Must accept the model prediction as its first argument and `likelihood_params`
+        as key-word arguments, and return a distribution that implements `log_prob`.
+        Used to create a Binary evaluator from :class:`pmrf.evaluators.Binary`.
+        Mutually exclusive with `log_likelihood_fn`.
     likelihood_params : dict[str, prx.Parameter], optional
         Additional parameters characterizing the likelihood model. Defaults to a uniform 
-        scale parameter if None. Passed to :class:`pmrf.evaluators.Metric`.
+        scale parameter if None. Passed to :class:`pmrf.evaluators.Binary`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -76,15 +76,14 @@ def condition(
     """
     if distribution_fn is None and log_likelihood_fn is None:
         distribution_fn = dist.Normal
-        likelihood_params = {'sigma': prx.Uniform(0.0, 100.0, scale=1e-3)}
+        likelihood_params = {'scale': prx.Uniform(0.0, 100.0, scale=1e-3)}
     elif distribution_fn is not None and log_likelihood_fn is not None:
-        raise Exception("Cannot pass both `distribution_fn` and `likelihood_params`")
+        raise Exception("Cannot pass both `distribution_fn` and `llog_likelihood_params`")
     
     if distribution_fn:
         def dist_log_likelihood_fn(y_true, y_pred, **params):
-            return jnp.sum(distribution_fn(y_true, **params).log_prob(y_pred))
+            return jnp.sum(distribution_fn(y_pred, **params).log_prob(y_true))
         log_likelihood_fn = dist_log_likelihood_fn
-        distribution_fn = None
     
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
@@ -102,5 +101,5 @@ def condition(
     else:
         target = data
     
-    likelihood = Metric(evaluator=features, reference=target, fn=log_likelihood_fn, params=likelihood_params)
+    likelihood = Binary(fn=log_likelihood_fn, left=features, right=target, params=likelihood_params)
     return sample(likelihood, model, frequency, solver=solver, **kwargs)

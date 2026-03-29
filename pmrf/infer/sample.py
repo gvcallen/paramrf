@@ -83,7 +83,7 @@ def sample(
         
         def map_param(x):
             if isinstance(x, prx.Parameter):
-                return x.with_value(x.distribution.icdf(x.value))
+                return x.with_value(x.distribution.icdf(x.value.astype(jnp.float64)))
             return x
         full_physical_problem = jax.tree.map(map_param, full_u_problem, is_leaf=prx.is_free_param)
         params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)

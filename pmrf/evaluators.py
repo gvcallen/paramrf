@@ -33,6 +33,37 @@ class Lambda(Evaluator):
         return self.fn(model, freq, **kwargs)
 
 
+class Binary(Evaluator):
+    """
+    Calculates a metric between two inputs.
+    
+    ``fn`` must have the signature ``f(left, right)``, optionally accepting
+    additional key-word arguments in ``params``.
+    
+    Inputs can be other Evaluators or arrays.
+    """
+    fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    left: Evaluator | jnp.ndarray
+    right: Evaluator | jnp.ndarray
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        # Resolve left branch
+        if isinstance(self.left, Evaluator):
+            val_left = self.left(model, freq)
+        else:
+            val_left = self.left
+            
+        # Resolve right branch
+        if isinstance(self.right, Evaluator):
+            val_right = self.right(model, freq)
+        else:
+            val_right = self.right
+            
+        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        return self.fn(val_left, val_right, **kwargs)
+
+
 class Method(Evaluator):
     """
     Dynamically accesses and executes a method on the Model.
@@ -91,8 +122,8 @@ class Map(Evaluator):
     
     The function may accept arbitrary parameters set in ``self.params``.    
     """
-    evaluator: Evaluator
     fn: Callable[[jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    evaluator: Evaluator
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)    
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
@@ -143,26 +174,6 @@ class Flatness(Evaluator):
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         data = self.evaluator(model, freq)
         return jnp.gradient(data, freq.f_scaled, axis=0)
-
-
-class Metric(Evaluator):
-    """
-    Calculates a metric between an evaluator and a reference.
-    
-    ``fn`` must have the signature ``f(y_ref, y_eval)``.
-    It may also accept additional key-word arguments that can be set in ``params``.
-
-    Returns the value of the metric.
-    """
-    evaluator: Evaluator
-    reference: jnp.ndarray
-    fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
-    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        y_eval = self.evaluator(model, freq)
-        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        return self.fn(self.reference, y_eval, **kwargs)
 
         
 def Diagonal(evaluator: Evaluator) -> Map:
@@ -332,8 +343,8 @@ def Goal(
         final_pred = tgt + weighted_residual
         return _metric_callable(tgt, final_pred)
 
-    return Metric(
-        evaluator=predictor,
-        reference=jnp.asarray(target),
+    return Binary(
+        left=predictor,
+        right=jnp.asarray(target),
         fn=goal_metric
     )
