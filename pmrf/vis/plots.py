@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import logging
 
-from pmrf.optimize.result import OptimizeResult
+from pmrf.fit.result import FitResult
 from pmrf.core import Model, Evaluator
 from pmrf.evaluators import Alias
 
@@ -16,8 +16,8 @@ def _setup_figure(frequency, feature, **kwargs):
     ax.set_ylabel(str(feature))
     return fig, ax
 
-def plot_optimization_result(
-    result: OptimizeResult,
+def plot_fit_result(
+    result: FitResult,
     features: str | list[str] | Evaluator = 's',
     ax=None,
     subplots: bool = False,

@@ -3,8 +3,7 @@ from typing import Any
 
 import jax.numpy as jnp
 
-from pmrf.core import Model, Evaluator, Frequency
-
+from pmrf.core import Model, Evaluator
 
 class OptimizeResult(prx.Module):
     """
@@ -24,19 +23,4 @@ class OptimizeResult(prx.Module):
     model: Model
     cost: Evaluator
     value: jnp.ndarray
-    data: Any = None               # The raw data (e.g., wrapped in a Measured model)
-    frequency: Frequency | None = None
     history: Any = None
-
-    def plot(self, features: str | list[str] | Evaluator = 's', ax=None, **kwargs):
-        """
-        Plots the fit quality.
-        
-        Parameters
-        ----------
-        feature : str | Evaluator
-            The specific feature to extract and plot (e.g., 's_real', 's_mag_db', 
-            or a custom Evaluator instance).
-        """
-        from pmrf.vis.plots import plot_optimization_result
-        return plot_optimization_result(self, features=features, ax=ax, **kwargs)

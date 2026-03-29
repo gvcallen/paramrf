@@ -23,7 +23,7 @@ def sample(
     likelihood: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
-    sampler: infx.AbstractNestedSampler = infx.PolyChord(),
+    solver: infx.AbstractNestedSampler = infx.PolyChord(),
     *,
     nlive_factor: int = 25,
     key = None,
@@ -44,7 +44,7 @@ def sample(
     frequency : Frequency
         The frequency sweep over which the cost should be evaluated.
     solver : infx.AbstractNestedSampler, default=infx.PolyChord()
-        The sampler backend to use. Defaults to ``infx.PolyChord()``.
+        The backend to use. Defaults to ``infx.PolyChord()``.
     transform : distreqx.bijectors.AbstractBijector, default=None
         An invertible transformation to apply to all model parameters before sampling.
     nlive_factor : int, default=25
@@ -65,8 +65,8 @@ def sample(
     
     problem = Problem(likelihood, model, frequency)
     
-    if sampler is None:
-        sampler = infx.PolyChord()
+    if solver is None:
+        solver = infx.PolyChord()
     if key is None:
         key = generate_key()
         
@@ -90,7 +90,7 @@ def sample(
     infx_result = infx.nested(
         log_likelihood_fn,
         key=key,
-        sampler=sampler,
+        sampler=solver,
         y0=params,
         prior_transform_fn=prior_transform_fn,
         nlive=nlive_factor*problem.num_flat_params,

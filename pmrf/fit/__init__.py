@@ -6,13 +6,16 @@ delegates to either frequentist optimization (`pmrf.optimize`) or Bayesian
 inference (`pmrf.infer`) based on the provided engine.
 """
 
-from pmrf.infer.sample import is_inferer
-from pmrf.optimize.minimize import is_optimizer
+from pmrf.infer import is_inferer, InferResult
+from pmrf.optimize import is_optimizer, OptimizeResult
 from pmrf.fit.fit import fit, fit_sequential
-from pmrf.constants import Optimizer, Inferer, Solver, FitResult
+from pmrf.fit.result import FitResult
+from pmrf.constants import Optimizer, Inferer, Solver
+
 
 __all__ = [
     "is_optimizer", "is_inferer",
+    "InferResult", "OptimizeResult",
     "fit",
     "fit_sequential",
     "Optimizer", "Inferer", "Solver", "FitResult",

@@ -1,16 +1,16 @@
+from typing import Any, Callable
+
 import jax.numpy as jnp
 import skrf
-
-import optimistix as optx
-import inferix as infx
 
 from pmrf.core import Model, Frequency
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
-from pmrf.optimize import fit as optimize_fit, fit_sequential as optimize_fit_sequential, is_optimizer
-from pmrf.infer import condition as infer_condition, condition_sequential as infer_condition_sequential, is_inferer
+from pmrf.optimize import fit as optimize_fit, is_optimizer
+from pmrf.infer import condition as infer_condition, is_inferer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.infer.result import InferResult
+from pmrf.fit.result import FitResult
 from pmrf.constants import Optimizer, Inferer, EvaluatorLike
 
 def fit(
@@ -21,7 +21,7 @@ def fit(
     *,
     features: EvaluatorLike | None = None,    
     **kwargs
-) -> OptimizeResult | InferResult:
+) -> FitResult:
     """
     Fit a model to data using either optimization or sampling.
 
@@ -39,7 +39,7 @@ def fit(
     solver : Optimizer | Sampler, default=ScipyMinimizer()
         The solver to use. If an optimizer, routes to frequentist minimization
         via :meth:`pmrf.optimize.fit`. If a sampler, routes to Bayesian inference
-        via :meth:`pmrf.infer.fit`.
+        via :meth:`pmrf.infer.condition`.
     features : EvaluatorLike | None, default=None
         The specific circuit feature to evaluate. If None, it defers to the 
         native default of the chosen solver backend ('s' for optimization, 
@@ -57,70 +57,117 @@ def fit(
         kwargs['features'] = features
 
     if is_optimizer(solver):
-        return optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
+        history = optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
     elif is_inferer(solver):
-        return infer_condition(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
+        history = infer_condition(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
     else:
         raise TypeError(
             f"Unrecognized solver type: {type(solver)}. "
             "Solver must be a valid optimizer or inferer."
         )
-
+        
+    result = FitResult(
+        data=data,
+        frequency=frequency,
+        history=history,
+    )
+    
+    return result
 
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,
-    solver: Optimizer | Inferer | dict[str, Optimizer | Inferer] = ScipyMinimizer(),
     *,
-    frequency: Frequency | dict[str, Frequency] | None = None,
     features: EvaluatorLike | dict[str, EvaluatorLike] | None = None,
+    dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
     **kwargs,
 ) -> tuple[Model, dict[str, OptimizeResult | InferResult]]:
     """
-    Sequentially fits sub-modules of a complex circuit cascade using either 
+    Sequentially fits sub-modules of a circuit using either 
     optimization or sampling.
-
-    This acts as a unified router for sequential fitting, dynamically dispatching 
-    to either Bayesian inference or Frequentist minimization depending on the 
-    underlying `solver`.
+    
+    For each network in the network collection, the network's
+    name is used as a prefix for the features to fit,
+    and :meth:`pmrf.fit.fit` is called.
 
     Parameters
     ----------
     model : Model
         The global circuit model.
     data : NetworkCollection
-        A collection of network data whose names match the sub-modules in the model.
-    solver : Optimizer | Sampler | dict, default=ScipyMinimizer()
-        The solver to use. If a dictionary is provided, the type of the first 
-        solver in the mapping determines the execution path.
-    frequency : Frequency | dict | None, default=None
-        The frequency sweep(s).
+        A collection of network data whose names are used as prefixes for sub-model features.
     features : EvaluatorLike | dict | None, default=None
-        The specific circuit feature(s) to evaluate. If None, defers to the backend's defaults.
+        The circuit feature(s) to evaluate for each sub-model. If None, defers to the backend's defaults.
+    dynamic_kwargs : dict[str, dict | Callable[[skrf.Network], Any]] | None, default=None
+        A mapping of keyword arguments that should be resolved dynamically per network. 
+        If a value is a dict, it is resolved using the network name as the key.
+        If a value is a callable, it is resolved by passing the network to the callable.
     **kwargs : dict
-        Additional kwargs passed to the underlying sequential fitters.
+        Standard static kwargs passed directly to the underlying sequential fitters for all iterations.
 
     Returns
     -------
     tuple[Model, dict[str, OptimizeResult | InferenceResult]]
         The fully updated global Model, and a dictionary of localized results.
     """
-    if features is not None:
-        kwargs['features'] = features
-
-    # Safely determine the solver type, checking the first value if it's a dict
-    first_solver = next(iter(solver.values())) if isinstance(solver, dict) else solver
-
-    if is_optimizer(first_solver):
-        return optimize_fit_sequential(
-            model=model, data=data, solver=solver, frequency=frequency, **kwargs
-        )
-    elif is_inferer(first_solver):
-        return infer_condition_sequential(
-            model=model, data=data, sampler=solver, frequency=frequency, **kwargs
-        )
+    if features is None:
+        features_list = []
+    elif isinstance(features, str):
+        features_list = [features]
     else:
-        raise TypeError(
-            f"Unrecognized solver type: {type(first_solver)}. "
-            "Solver must be a valid solver or sampler."
+        features_list = features
+
+    # Initialize dynamic_kwargs safely
+    dynamic_kwargs = dynamic_kwargs or {}
+    all_results: dict[str, OptimizeResult] = {}
+    
+    for ntwk in data:
+        name = ntwk.name
+        
+        # Isolate the free parameters of this specific sub-module for the optimizer
+        sub_model = model.with_free_submodules_only(name)
+        sub_data = data.filter(lambda n: n.name == name)
+        
+        # Resolve localized arguments for features
+        sub_features = [f"{name}.{feature}" for feature in features_list] if features_list else None
+
+        # Resolve dynamic kwargs (callables and dicts)
+        resolved_dynamics = {}
+        
+        if sub_features is not None:
+            resolved_dynamics['features'] = sub_features
+        
+        for key, value in dynamic_kwargs.items():
+            if callable(value):
+                resolved_dynamics[key] = value(ntwk)
+            elif isinstance(value, dict):
+                if name in value:
+                    resolved_dynamics[key] = value[name]
+                else:
+                    raise KeyError(f"Dynamic kwarg '{key}' is a dict but missing configuration for network '{name}'")
+            else:
+                # Fallback just in case a static value is accidentally passed here
+                resolved_dynamics[key] = value
+
+        # Merge standard kwargs with resolved dynamic kwargs. 
+        # dynamic_kwargs will overwrite static kwargs if there is a name collision.
+        final_kwargs = {**kwargs, **resolved_dynamics}
+        
+        if 'features' not in final_kwargs:
+            if is_optimizer(final_kwargs['solver']):
+                base_features = ['s']
+            else:
+                base_features = ['s_re', 's_im']
+            final_kwargs['features'] = [f"{name}.{feature}" for feature in base_features]
+
+        # Fit the sub-module
+        result_sub = fit(
+            sub_model,
+            sub_data,
+            **final_kwargs,
         )
+        
+        model = model.merged(result_sub.model)
+        all_results[name] = result_sub
+    
+    return model, all_results

@@ -34,9 +34,6 @@ PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
 Evaluator = TypeVar('Evaluator')
 Multioutput = TypeVar('Multioutput')
-OptimizeResult = TypeVar('OptimizeResult')
-InferResult = TypeVar('InferResult')
-Multioutput = TypeVar('Multioutput')
 AbstractMinimiser = TypeVar('AbstractMinimiser')
 AbstractSampler = TypeVar('AbstractSampler')
 FeatureSpec = str | Callable | list[str | Callable]
@@ -48,6 +45,5 @@ EvaluatorLike = str | list[str] | Evaluator | list[Evaluator]
 Optimizer = AbstractMinimiser | Callable
 Inferer = AbstractSampler
 Solver = Optimizer | Inferer
-FitResult = OptimizeResult | InferResult
 
 __all__ = []

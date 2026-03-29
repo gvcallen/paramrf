@@ -3,7 +3,7 @@ from typing import Any
 import parax as prx
 import jax.numpy as jnp
 
-from pmrf.core import Model, Evaluator
+from pmrf.core import Model, Evaluator, Frequency
 
 class InferResult(prx.Module):
     """
@@ -29,4 +29,5 @@ class InferResult(prx.Module):
     sampled_models: Model      # A batched Model containing all accepted sample states
     sampled_likelihoods: jnp.ndarray # The evaluated log-likelihoods for each sample
     
+    frequency: Frequency | None = None    
     history: Any = None        # Results/trace from the underlying nested sampler
