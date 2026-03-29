@@ -23,7 +23,7 @@ def condition(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    sampler: Inferer = PolyChord(),
+    solver: Inferer = PolyChord(),
     *,
     features: EvaluatorLike = ('s_re', 's_im'),
     distribution_fn: Callable[..., dist.AbstractDistribution] = None,
@@ -47,7 +47,7 @@ def condition(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    sampler : Sampler, default=PolyChord()
+    solver : Solver, default=PolyChord()
         The Bayesian sampling algorithm backend (e.g., PolyChord, MultiNest).
     features : EvaluatorLike, default=('s_re', 's_im')
         The specific circuit feature(s) to compute the likelihood against. 
@@ -65,7 +65,7 @@ def condition(
         Additional parameters characterizing the likelihood model. Defaults to a uniform 
         scale parameter if None. Passed to :class:`pmrf.evaluators.Likelihood`.
     **kwargs : dict
-        Additional keyword arguments passed to the underlying sampler.
+        Additional keyword arguments passed to the underlying solver.
 
     Returns
     -------
@@ -95,18 +95,14 @@ def condition(
         target = data
     
     likelihood = Likelihood(features, target, distribution_fn=distribution_fn, log_likelihood_fn=log_likelihood_fn, likelihood_params=likelihood_params)
-    return sample(likelihood, model, frequency, sampler=sampler, **kwargs)
+    return sample(likelihood, model, frequency, solver=solver, **kwargs)
 
 
 def condition_sequential(
     model: Model, 
     data: NetworkCollection,
-    sampler: Inferer | dict[str, Inferer] = PolyChord(),
     *,
-    frequency: Frequency | dict[str, Frequency] | None = None,
-    features: EvaluatorLike | dict[str, EvaluatorLike] = ('s_re', 's_im'),
-    distribution_fn: Callable[..., dist.AbstractDistribution] | dict[str, Callable[..., dist.AbstractDistribution]] = dist.Normal,
-    distribution_params: dict[str, prx.Parameter] | dict[str, dict[str, prx.Parameter]] = None,
+    likelihood_params: dict[str, prx.Parameter] | Callable[[Model, skrf.Network], dict[str, prx.Parameter]] = None,
     **kwargs,
 ) -> tuple[Model, dict[str, InferResult]]:
     """
@@ -123,11 +119,12 @@ def condition_sequential(
         The global circuit model.
     data : NetworkCollection
         A collection of network data whose names match the sub-modules in the model.
-    sampler, frequency, features, distribution_fn, distribution_params:
-        Inference settings. These can either be single global rules, or dictionaries 
-        mapping the sub-module's string name to specific localized rules.
+    likelihood_params : dict[str, prx.Parameter] | Callable[[Model, skrf.Network], dict[str, prx.Parameter]], optional
+        Additional parameters characterizing the likelihood for all models,
+        are a callable accept (model, ntwk) characterizing the likelihood
+        for a given model. Passed to :class:`pmrf.evaluators.Likelihood`.        
     **kwargs : dict
-        Additional kwargs passed to the samplers.
+        Additional kwargs passed to the solvers.
 
     Returns
     -------
@@ -140,34 +137,16 @@ def condition_sequential(
     for ntwk in data:
         name = ntwk.name
         
-        # Isolate the free parameters of this specific sub-module for the sampler
+        # Isolate the free parameters of this specific sub-module for the solver
         sub_model = model.with_free_submodules_only(name)
         sub_data = data.filter(lambda n: n.name == name)
         
-        # Resolve localized arguments if dicts are provided
-        sub_sampler = sampler[name] if isinstance(sampler, dict) else sampler
-        sub_frequency = frequency[name] if isinstance(frequency, dict) else frequency
-        
-        # Resolve features, appending the sub-module prefix safely
-        sub_features_base = features[name] if isinstance(features, dict) else features
-        if isinstance(sub_features_base, tuple):
-            sub_features = tuple(f"{name}.{f}" if isinstance(f, str) else f for f in sub_features_base)
-        elif isinstance(sub_features_base, str):
-            sub_features = f"{name}.{sub_features_base}"
-        else:
-            sub_features = sub_features_base
-
-        sub_dist_fn = distribution_fn[name] if isinstance(distribution_fn, dict) else distribution_fn
-        sub_dist_params = distribution_params[name] if isinstance(distribution_params, dict) and name in distribution_params else distribution_params
+        sub_likelihood_params = likelihood_params(sub_model, ntwk) if callable(likelihood_params) else likelihood_params
         
         result_sub = condition(
             sub_model,
             sub_data,
-            frequency=sub_frequency,
-            sampler=sub_sampler,
-            features=sub_features,
-            distribution_fn=sub_dist_fn,
-            likelihood_params=sub_dist_params,
+            likelihood_params=sub_likelihood_params,
             **kwargs
         )
         

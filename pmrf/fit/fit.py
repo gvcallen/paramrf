@@ -59,7 +59,7 @@ def fit(
     if is_optimizer(solver):
         return optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
     elif is_inferer(solver):
-        return infer_condition(model=model, data=data, frequency=frequency, sampler=solver, **kwargs)
+        return infer_condition(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
     else:
         raise TypeError(
             f"Unrecognized solver type: {type(solver)}. "
