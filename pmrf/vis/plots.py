@@ -2,9 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import logging
 
+import skrf
+
 from pmrf.fit.result import FitResult
 from pmrf.core import Model, Evaluator
+from pmrf.models import Measured
 from pmrf.evaluators import Alias
+from pmrf.network_collection import NetworkCollection
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ def plot_fit_result(
     features: str | list[str] | Evaluator = 's',
     ax=None,
     subplots: bool = False,
-    use_data_prefix: bool = False,
+    use_data_prefix: bool | None = None,
     **fig_kwargs
 ):
     if result.frequency is None:
@@ -34,6 +38,12 @@ def plot_fit_result(
         features_list = features
     else:
         features_list = [str(features)]
+
+    if use_data_prefix is None:
+        if isinstance(result.data, NetworkCollection):
+            use_data_prefix = True
+        else:
+            use_data_prefix = False
         
     # --- Safe Data Prefixing ---
     if use_data_prefix:
@@ -43,12 +53,10 @@ def plot_fit_result(
         # Safely attempt to extract the network name
         prefix = ""
         try:
-            # Check if it's a NetworkCollection wrapper
-            if hasattr(result.data, 'data') and hasattr(result.data.data[0], 'name'):
-                prefix = f"{result.data.data[0].name}."
-            # Check if it's a single Network wrapper
-            elif hasattr(result.data, 'name') and result.data.name:
-                 prefix = f"{result.data.name}."
+            if isinstance(result.data, NetworkCollection):
+                prefix = f"{result.data[0].name}."
+            else:
+                prefix = f"{result.data.name}."
         except Exception as e:
             logger.debug(f"Could not extract data prefix: {e}")
             
@@ -92,8 +100,12 @@ def plot_fit_result(
     # --- Plot measured data ---
     if result.data is not None:
         try:
-            if isinstance(result.data, Model):
-                y_meas = evaluator(result.data, result.frequency)
+            if isinstance(result.data, NetworkCollection | skrf.Network):
+                if isinstance(result, NetworkCollection):
+                    data = Measured(result.data[0])
+                else:
+                    data = Measured(result.data)
+                y_meas = evaluator(data, result.frequency)
             else:
                 y_meas = result.data
 
@@ -118,9 +130,7 @@ def plot_fit_result(
             )
             if i == 0:
                 lines[0].set_label('Fitted Model')
-            
-            # --- Axes Formatting ---
-            axis.legend(fontsize='small')
+                axis.legend(fontsize='small')
             
             # --- Smart Titling Upgrade ---
             if len(features_list) == n_features:

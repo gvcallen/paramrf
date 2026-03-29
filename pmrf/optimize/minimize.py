@@ -62,7 +62,7 @@ def minimize(
     if isinstance(cost, list):
         cost = Sum(cost)
     
-    problem = Problem(cost, model, frequency)   
+    problem = Problem(model=model, frequency=frequency, evaluator=cost)   
 
     if problem.num_flat_params == 0:
         raise Exception("Model has no free parameters to fit") 
@@ -175,7 +175,7 @@ def minimize(
         model=solved_problem.model,
         cost=solved_problem.evaluator,
         value=solved_problem(),
-        history=solution,
+        stats=solution,
     )
     
     if isinstance(solver, optx.AbstractMinimiser):

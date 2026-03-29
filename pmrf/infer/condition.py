@@ -74,7 +74,7 @@ def condition(
     """
     if distribution_fn is None and log_likelihood_fn is None:
         distribution_fn = dist.Normal
-        likelihood_params = {'scale': prx.Uniform(0.0, 20.0, scale=1e-3)}
+        likelihood_params = {'sigma': prx.Uniform(0.0, 100.0, scale=1e-3)}
     elif distribution_fn is not None and log_likelihood_fn is not None:
         raise Exception("Cannot pass both `distribution_fn` and `likelihood_params`")
     

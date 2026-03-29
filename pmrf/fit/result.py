@@ -11,22 +11,20 @@ class FitResult(prx.Module):
 
     Attributes
     ----------
-    model : Model
-        The circuit model holding the finalized, optimized parameter state.
     data: Any
         The data used for the fit.
     frequency: Frequency
         The frequeny used for the fit.
-    history: 
+    solution: 
         The underlying OptimizeResult or InferResult
     """
     data: Any = None
     frequency: Frequency | None = None
-    history: OptimizeResult | InferResult | None = None
+    solution: OptimizeResult | InferResult | None = None
     
     @property
     def model(self):
-        return self.history.model
+        return self.solution.model
 
     def plot(self, features: str | list[str] | Evaluator = 's', ax=None, **kwargs):
         """

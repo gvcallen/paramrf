@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import jax
 import jax.numpy as jnp
 
@@ -63,7 +65,7 @@ def sample(
     if isinstance(likelihood, list):
         likelihood = Sum(likelihood)
     
-    problem = Problem(likelihood, model, frequency)
+    problem = Problem(model=model, frequency=frequency, evaluator=likelihood)
     
     if solver is None:
         solver = infx.PolyChord()
@@ -115,6 +117,10 @@ def sample(
         return flat
     
     flat_model_samples = jax.vmap(flatten_model_params)(infx_result.samples.model)
+    
+    # Strip the samples so we dont store them twice
+    infx_result = replace(infx_result, samples=None)
+    
     posterior_dist = Empirical(samples=flat_model_samples)
 
     # 4. Inject the posterior into the MLE model
@@ -130,6 +136,8 @@ def sample(
         model=mle_model,
         likelihood=mle_problem.evaluator,
         sampled_models=model_samples,
-        sampled_likelihoods=likelihood_samples, 
-        history=infx_result,
+        sampled_likelihoods=likelihood_samples,
+        log_likelihoods=infx_result.log_likelihoods, 
+        weights=infx_result.weights,
+        stats=infx_result,
     )

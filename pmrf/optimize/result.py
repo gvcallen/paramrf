@@ -17,10 +17,10 @@ class OptimizeResult(prx.Module):
         The evaluator (e.g., metric, sum of goals) used to calculate the objective.
     value : jnp.ndarray
         The final cost value achieved by the optimizer.
-    history : Any
-        The underlying solution object returned by the solver.
+    stats : Any
+        The stats from the underlying solver.
     """
     model: Model
     cost: Evaluator
     value: jnp.ndarray
-    history: Any = None
+    stats: Any = None

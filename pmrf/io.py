@@ -10,6 +10,12 @@ from typing import BinaryIO, Any
 # Adjust this import if parax hides them inside parax.io
 import parax
 
+import jsonpickle.ext.numpy as jsonpickle_numpy
+import jsonpickle.ext.pandas as jsonpickle_pandas
+
+# Tell jsonpickle how to handle numpy arrays and pandas dataframes safely
+jsonpickle_numpy.register_handlers()
+jsonpickle_pandas.register_handlers()
 
 def save(target: str | os.PathLike | BinaryIO, tree: Any):
     """

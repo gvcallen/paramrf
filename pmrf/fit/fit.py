@@ -55,6 +55,12 @@ def fit(
     """
     if features is not None:
         kwargs['features'] = features
+        
+    if frequency is None:
+        if isinstance(data, skrf.Network):
+            frequency = Frequency.from_skrf(data.frequency)
+        elif isinstance(data, NetworkCollection):
+            frequency = Frequency.from_skrf(data.common_frequency())        
 
     if is_optimizer(solver):
         history = optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
@@ -69,7 +75,7 @@ def fit(
     result = FitResult(
         data=data,
         frequency=frequency,
-        history=history,
+        solution=history,
     )
     
     return result
@@ -81,7 +87,7 @@ def fit_sequential(
     features: EvaluatorLike | dict[str, EvaluatorLike] | None = None,
     dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
     **kwargs,
-) -> tuple[Model, dict[str, OptimizeResult | InferResult]]:
+) -> tuple[Model, dict[str, FitResult]]:
     """
     Sequentially fits sub-modules of a circuit using either 
     optimization or sampling.
