@@ -14,7 +14,7 @@ from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Loss
+from pmrf.evaluators import Alias, Metric
 from pmrf.losses import loss_from_alias
 from pmrf.constants import MetricFn
 
@@ -54,11 +54,10 @@ def fit(
         The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
     loss_fn : str | MetricFn, default='rms'
         The mathematical loss metric (e.g., 'mse', 'mae', 'rms') comparing prediction to data.
-        See :meth:`pmrf.losses.loss_from_alias`. Used to construct a loss evaluator
-        from :class`pmrf.evalutors.Loss`.
+        See :meth:`pmrf.losses.loss_from_alias`. Used to construct a :class`pmrf.evalutors.Metric` evaluator.
     loss_params : dict[str, parax.Parameter], optional
         Loss parameters to pass to the loss function. This can be useful to define
-        hyper-parameters e.g. for regulariziation. Used in :class`pmrf.evalutors.Loss`.
+        hyper-parameters e.g. for regulariziation. Used in :class`pmrf.evalutors.Metric`.
         Defaults to None.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to ``loss_fn`` indicating
@@ -110,7 +109,7 @@ def fit(
         measured_data = data
         target = data
     
-    cost = Loss(features, target, scaled_loss_fn, params=loss_params)
+    cost = Metric(evaluator=features, reference=target, fn=scaled_loss_fn, params=loss_params)
     result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
     
     return result

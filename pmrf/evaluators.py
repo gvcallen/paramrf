@@ -10,24 +10,27 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import parax as prx
-from distreqx.distributions import AbstractDistribution
 from parax import Parameter
 
 from pmrf.losses import loss_from_alias
 from pmrf.core import Model, Frequency, Evaluator
 
 
-class Functional(Evaluator):
+class Lambda(Evaluator):
     """
     Wraps a standard Python or JAX callable.
     
     This is useful for defining quick, custom, on-the-fly objective 
     functions without needing to subclass Evaluator.
+    
+    The callable may accept arbitrary parameters set in ``self.params``.
     """
     fn: Callable[[Model, Frequency], jnp.ndarray] = prx.field(static=True)
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        return self.fn(model, freq)
+        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        return self.fn(model, freq, **kwargs)
 
 
 class Method(Evaluator):
@@ -37,12 +40,16 @@ class Method(Evaluator):
     This uses `operator.attrgetter` to traverse the PyTree and execute
     the requested method (e.g., 's_db', 'amplifier.s_tau') by passing 
     it the Frequency object.
+    
+    The method may accept arbitrary parameters set in ``self.params``.
     """
     path: str = prx.field(static=True)
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         func = operator.attrgetter(self.path)(model)
-        return func(freq)
+        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
+        return func(freq, **kwargs)
 
 
 class Index(Evaluator):
@@ -81,12 +88,16 @@ class Map(Evaluator):
     
     Typically used in conjunction with `jax.vmap` to apply operations like 
     matrix diagonal extraction across an entire frequency sweep.
+    
+    The function may accept arbitrary parameters set in ``self.params``.    
     """
     evaluator: Evaluator
     fn: Callable[[jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)    
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        return self.fn(self.evaluator(model, freq))
+        kwargs = {k: jnp.array(v) for k, v in self.params.items()}        
+        return self.fn(self.evaluator(model, freq), **kwargs)
         
         
 class Stack(Evaluator):
@@ -118,19 +129,6 @@ class Sum(Evaluator):
         return jnp.sum(jnp.array(results))
 
 
-class Residual(Evaluator):
-    """
-    Calculates the raw difference between a prediction and a target.
-    
-    Formula: $e = y_{pred} - y_{target}$
-    """
-    predictor: Evaluator
-    target: jnp.ndarray
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        return self.predictor(model, freq) - self.target
-    
-
 class Flatness(Evaluator):
     """
     Computes the numerical derivative of the data with respect 
@@ -147,54 +145,25 @@ class Flatness(Evaluator):
         return jnp.gradient(data, freq.f_scaled, axis=0)
 
 
-class Loss(Evaluator):
+class Metric(Evaluator):
     """
-    Calculates a loss of a prediction against a target using a callable.
+    Calculates a metric between an evaluator and a reference.
     
-    The ``loss_fn`` must have the signature ``f(y_true, y_pred)``.
+    ``fn`` must have the signature ``f(y_ref, y_eval)``.
     It may also accept additional key-word arguments that can be set in ``params``.
 
-    Returns the loss of the model against the ``target`` data.
+    Returns the value of the metric.
     """
-    predictor: Evaluator
-    target: jnp.ndarray
-    loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
+    evaluator: Evaluator
+    reference: jnp.ndarray
+    fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        predicted = self.predictor(model, freq)
-        loss_kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        return self.loss_fn(self.target, predicted, **loss_kwargs)
-
-
-class Likelihood(Evaluator):
-    """
-    Calculates the log-probability of the target data given the model.
-    
-    Wraps a distreqx distribution which must implement ``log_prob``.
-    The distribution is construct with the model's prediction as the first arguments,
-    and any additional parameters stored in ``params`` as additional key-word arguments.
-     
-    Returns the likelihood of observing ``target`` data.
-    """
-    predictor: Evaluator
-    target: jnp.ndarray
-    distribution_fn: Callable[[jnp.ndarray], AbstractDistribution] | None = prx.field(static=True, default=None)
-    log_likelihood_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] | None = prx.field(static=True, default=None)
-    params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        prediction = self.predictor(model, freq)
+        y_eval = self.evaluator(model, freq)
         kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        
-        if self.distribution_fn is not None:
-            probability_dist = self.distribution_fn(prediction, **kwargs)
-            return jnp.sum(probability_dist.log_prob(self.target))
-        elif self.log_likelihood_fn is not None:
-            return self.log_likelihood_fn(self.target, prediction, **kwargs)
-        else:
-            raise Exception("Either one of `distribution_fn` or `likelihood_fn` must be overriden for a `Likelihood` evaluator")
-      
+        return self.fn(self.reference, y_eval, **kwargs)
+
         
 def Diagonal(evaluator: Evaluator) -> Map:
     """Extracts the diagonals of N-port scattering matrices."""
@@ -363,8 +332,8 @@ def Goal(
         final_pred = tgt + weighted_residual
         return _metric_callable(tgt, final_pred)
 
-    return Loss(
-        predictor=predictor,
-        target=jnp.asarray(target),
-        loss_fn=goal_metric
+    return Metric(
+        evaluator=predictor,
+        reference=jnp.asarray(target),
+        fn=goal_metric
     )
