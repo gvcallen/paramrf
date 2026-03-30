@@ -33,6 +33,16 @@ Key Features
 * **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for data-fitting in ``pmrf.fit``.
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
 
+Installation
+---------------------
+ParamRF can be installed directly using pip:
+
+``pip install paramrf``
+
+Sometimes this version may not be the latest release. To install from GitHub instead:
+
+``pip install git+https://github.com/gvcallen/paramrf@main``
+
 Example
 ---------------------
 The example below shows how to define and fit a simple RLC model to measured data using ParamRF. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples.
@@ -52,6 +62,22 @@ The example below shows how to define and fit a simple RLC model to measured dat
     results = fit(model, data)
     results.plot('s_db')
     print(results.model.named_params())
+
+Optional dependencies
+---------------------
+Several additional dependencies are required/recommended for more advanced use-cases.
+
+For PolyChord fitting:
+
+``pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py``
+
+For BlackJAX fitting:
+
+``pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic``
+
+For eqx-learn surrogate modeling:
+
+``pip install git+https://github.com/eqx-learn/eqx-learn``   
 
 Citation
 ---------------------

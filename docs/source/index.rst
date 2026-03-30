@@ -4,7 +4,6 @@
    :maxdepth: 2
    :caption: Documentation
 
-   installation
    getting_started/index
    api/index
    skrf_comparison
