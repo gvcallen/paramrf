@@ -67,6 +67,10 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
+For Bayesian inference, you may need an unrelease version of distreqx:
+
+``pip install git+https://github.com/lockwo/distreqx.git``
+
 For PolyChord fitting:
 
 ``pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py``
