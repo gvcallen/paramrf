@@ -122,7 +122,7 @@ def sample(
     # Strip the samples so we dont store them twice
     infx_result = replace(infx_result, samples=None)
     
-    posterior_dist = Empirical(samples=flat_model_samples)
+    posterior_dist = Empirical(samples=flat_model_samples, log_likelihoods=infx_result.log_likelihoods, weights=infx_result.weights)
 
     # 4. Inject the posterior into the MLE model
     # We clear any independent prior groups and replace them with the global joint posterior

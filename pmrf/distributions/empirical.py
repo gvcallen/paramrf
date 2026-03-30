@@ -1,7 +1,10 @@
+import math
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Key, PyTree
 import equinox as eqx
+
 
 from distreqx.distributions import AbstractSampleLogProbDistribution, AbstractProbDistribution
 
@@ -119,3 +122,66 @@ class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
 
     def kl_divergence(self, other_distribution) -> PyTree[Array]:
         raise NotImplementedError("KL divergence is not defined for an empirical sample distribution.")
+    
+    def to_unweighted(self, key: Key[Array, ""], beta: float = 1.0) -> "Empirical":
+        """
+        Compresses the distribution into an unweighted/equally weighted 
+        Empirical distribution. The target number of samples is determined 
+        dynamically by the Effective Sample Size (ESS) using the Huggins-Roy family.
+        
+        Args:
+            key: JAX PRNG key for resampling.
+            beta: Huggins-Roy family parameter.
+                  beta=1.0 uses the theoretical channel capacity (Shannon entropy).
+                  beta=2.0 uses Kish's effective sample size.
+                  beta=math.inf uses the inverse max weight.
+        """
+        if self.weights is None:
+            return self
+
+        beta = float(beta)
+
+        # 1. Calculate the Huggins-Roy Effective Sample Size (ESS)
+        if math.isclose(beta, 1.0):
+            # Limit as beta -> 1 (Shannon Entropy / Theoretical Channel Capacity)
+            # Use jnp.where to safely avoid log(0) NaNs on zero weights
+            safe_w = jnp.where(self.weights > 0, self.weights, 1.0)
+            entropy = -jnp.sum(self.weights * jnp.log(safe_w))
+            ess = jnp.exp(entropy)
+            
+        elif math.isinf(beta):
+            # Limit as beta -> infinity
+            ess = 1.0 / jnp.max(self.weights)
+            
+        elif math.isclose(beta, 0.0):
+            # Limit as beta -> 0 (Count of non-zero weights)
+            ess = jnp.sum(self.weights > 0)
+            
+        else:
+            # General Huggins-Roy formula
+            sum_w_beta = jnp.sum(self.weights ** beta)
+            ess = sum_w_beta ** (1.0 / (1.0 - beta))
+
+        # 2. Extract ESS as a concrete integer
+        # Note: Because the output shape depends dynamically on the values inside 
+        # `self.weights`, this operation concretizes the ESS and is therefore 
+        # incompatible with `jax.jit`. Run this in eager mode.
+        k = int(round(ess.item()))
+        k = max(1, k) # Ensure we sample at least once
+
+        # 3. Resample the indices
+        idx = jax.random.choice(key, self.num_samples, shape=(k,), p=self.weights, replace=True)
+
+        # 4. Map the resampled indices over the samples PyTree
+        new_samples = jax.tree_util.tree_map(lambda x: x[idx], self.samples)
+        
+        new_ll = None
+        if self.log_likelihoods is not None:
+            new_ll = self.log_likelihoods[idx]
+
+        # Return a new equally weighted empirical distribution
+        return Empirical(
+            samples=new_samples,
+            log_likelihoods=new_ll,
+            weights=None
+        )
