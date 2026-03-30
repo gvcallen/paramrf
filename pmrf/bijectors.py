@@ -1,6 +1,7 @@
 """
-Additional bijectors not present in distreqx.
+Bijectors not present in distreqx.
 """
+
 import jax.numpy as jnp
 from jaxtyping import PyTree, Array
 from typing import Callable
@@ -74,7 +75,7 @@ class Inverse(bij.AbstractFwdLogDetJacBijector, bij.AbstractInvLogDetJacBijector
 
     def same_as(self, other: bij.AbstractBijector) -> bool:
         """Returns True if this bijector is guaranteed to be the same as `other`."""
-        if type(other) is Invert:
+        if type(other) is Inverse:
             return self.bijector.same_as(other.bijector)
         else:
             return self.bijector.same_as(other)
@@ -147,42 +148,3 @@ class Exp(
 
     def same_as(self, other) -> bool:
         return isinstance(other, Exp)
-
-class ProbabilityIntegralTransform(
-    bij.AbstractFowardInverseBijector,
-    bij.AbstractInvLogDetJacBijector,
-    bij.AbstractFwdLogDetJacBijector,
-    strict=True,
-):
-    """
-    A bijector that maps a distribution to the unit hypercube [0, 1] 
-    using its Cumulative Distribution Function (CDF).
-    
-    Requires the distribution to have an Inverse Cumulative Distribution Function (ICDF).
-    """
-    distribution: dist.AbstractDistribution
-
-    # The Jacobian is dependent on the input value (the PDF is not constant)
-    _is_constant_jacobian: bool = False
-    _is_constant_log_det: bool = False
-
-    def forward_and_log_det(self, x: PyTree) -> tuple[PyTree, PyTree]:
-        """Computes y = CDF(x) and log|det J(f)(x)| = log(PDF(x))."""
-        y = self.distribution.cdf(x)
-        log_det = self.distribution.log_prob(x)
-        return y, log_det
-
-    def inverse_and_log_det(self, y: PyTree) -> tuple[PyTree, PyTree]:
-        """Computes x = iCDF(y) and log|det J(f^{-1})(y)| = -log(PDF(x))."""
-        # Clip to prevent evaluating icdf at exact 0 or 1, which causes NaNs/Infs
-        eps = jnp.finfo(y.dtype).eps if hasattr(y, 'dtype') else 1e-7
-        y_clipped = jnp.clip(y, a_min=eps, a_max=1.0 - eps)
-        
-        x = self.distribution.icdf(y_clipped)
-        log_det = -self.distribution.log_prob(x)
-        return x, log_det
-
-    def same_as(self, other) -> bool:
-        """Returns True if the other is a CDFBijector with the same distribution."""
-        # Using `is` for type checking ensures exact class match (avoids subclass false positives)
-        return type(other) is ProbabilityIntegralTransform and self.distribution.same_as(other.distribution)

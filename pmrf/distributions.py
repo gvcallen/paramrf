@@ -1,10 +1,14 @@
+"""
+Distributions not present in distreqx.
+"""
+
+
 import math
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Key, PyTree
 import equinox as eqx
-
 
 from distreqx.distributions import AbstractSampleLogProbDistribution, AbstractProbDistribution
 
@@ -123,63 +127,79 @@ class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
     def kl_divergence(self, other_distribution) -> PyTree[Array]:
         raise NotImplementedError("KL divergence is not defined for an empirical sample distribution.")
     
-    def to_unweighted(self, key: Key[Array, ""], beta: float = 1.0) -> "Empirical":
+    def to_unweighted(self, key: Key[Array, ""], beta: float | str = 1.0) -> "Empirical":
         """
         Compresses the distribution into an unweighted/equally weighted 
-        Empirical distribution. The target number of samples is determined 
-        dynamically by the Effective Sample Size (ESS) using the Huggins-Roy family.
-        
+        Empirical distribution using Fractional (or Systematic) Resampling.
+
+        Instead of standard multinomial resampling (which introduces high Monte Carlo noise),
+        this method scales the sample weights by the target Effective Sample Size (ESS). 
+        Each sample is then deterministically repeated a number of times equal to the 
+        integer part of its scaled weight. The remaining fractional part is treated as 
+        a probability for including one additional copy of the sample. This probabilistic 
+        rounding ensures that the total number of drawn samples closely matches the 
+        continuous ESS without excessive sampling variance.
+
+        The target ESS is determined dynamically using the Huggins-Roy family of 
+        effective sample sizes, parameterized by `beta`.
+
         Args:
-            key: JAX PRNG key for resampling.
-            beta: Huggins-Roy family parameter.
-                  beta=1.0 uses the theoretical channel capacity (Shannon entropy).
-                  beta=2.0 uses Kish's effective sample size.
-                  beta=math.inf uses the inverse max weight.
+            key: JAX PRNG key for the probabilistic rounding of fractional weights.
+            beta: Huggins-Roy family parameter dictating the compression level.
+                  - beta=1.0 (or 'entropy'): Uses the theoretical channel capacity 
+                    (exponentiated Shannon entropy). Default.
+                  - beta=2.0 (or 'kish'): Uses Kish's effective sample size 
+                    (inverse sum of squared weights).
+                  - beta=math.inf (or 'inf', 'equal'): Resolves to the inverse 
+                    of the maximum weight.
         """
         if self.weights is None:
             return self
 
-        beta = float(beta)
-
-        # 1. Calculate the Huggins-Roy Effective Sample Size (ESS)
-        if math.isclose(beta, 1.0):
-            # Limit as beta -> 1 (Shannon Entropy / Theoretical Channel Capacity)
-            # Use jnp.where to safely avoid log(0) NaNs on zero weights
+        # 1. Calculate the target Effective Sample Size (ncompress)
+        if beta == 'inf' or beta == 'equal' or beta == math.inf:
+            ncompress = 1.0 / jnp.max(self.weights)
+        elif beta == 'entropy' or (isinstance(beta, (float, int)) and math.isclose(float(beta), 1.0)):
             safe_w = jnp.where(self.weights > 0, self.weights, 1.0)
-            entropy = -jnp.sum(self.weights * jnp.log(safe_w))
-            ess = jnp.exp(entropy)
-            
-        elif math.isinf(beta):
-            # Limit as beta -> infinity
-            ess = 1.0 / jnp.max(self.weights)
-            
-        elif math.isclose(beta, 0.0):
-            # Limit as beta -> 0 (Count of non-zero weights)
-            ess = jnp.sum(self.weights > 0)
-            
+            ncompress = jnp.exp(-jnp.sum(self.weights * jnp.log(safe_w)))
+        elif beta == 'kish' or (isinstance(beta, (float, int)) and math.isclose(float(beta), 2.0)):
+            ncompress = 1.0 / jnp.sum(self.weights ** 2)
         else:
-            # General Huggins-Roy formula
-            sum_w_beta = jnp.sum(self.weights ** beta)
-            ess = sum_w_beta ** (1.0 / (1.0 - beta))
+            beta_val = float(beta)
+            ncompress = jnp.sum(self.weights ** beta_val) ** (1.0 / (1.0 - beta_val))
 
-        # 2. Extract ESS as a concrete integer
-        # Note: Because the output shape depends dynamically on the values inside 
-        # `self.weights`, this operation concretizes the ESS and is therefore 
-        # incompatible with `jax.jit`. Run this in eager mode.
-        k = int(round(ess.item()))
-        k = max(1, k) # Ensure we sample at least once
+        # 2. Scale weights to the target channel capacity
+        W = self.weights * ncompress
 
-        # 3. Resample the indices
-        idx = jax.random.choice(key, self.num_samples, shape=(k,), p=self.weights, replace=True)
+        # 3. Split into guaranteed integer counts and fractional probabilities
+        integer_part = jnp.floor(W).astype(jnp.int32)
+        fractional_part = W - integer_part
 
-        # 4. Map the resampled indices over the samples PyTree
-        new_samples = jax.tree_util.tree_map(lambda x: x[idx], self.samples)
+        # 4. Probabilistically round the fractional parts
+        u = jax.random.uniform(key, shape=(self.num_samples,))
+        extra = (u < fractional_part).astype(jnp.int32)
+        
+        # Total times each sample will be repeated
+        counts = integer_part + extra
+
+        # 5. Concretize counts to perform dynamic array reshaping
+        # We must pull this to the CPU as a concrete numpy array because 
+        # JAX cannot dynamically shape arrays inside jitted functions.
+        import numpy as np
+        concrete_counts = np.array(counts)
+
+        # 6. Use jnp.repeat to duplicate samples based on their counts
+        # jnp.repeat with axis=0 turns [A, B, C] with counts [2, 0, 1] into [A, A, C]
+        new_samples = jax.tree_util.tree_map(
+            lambda x: jnp.repeat(x, concrete_counts, axis=0), 
+            self.samples
+        )
         
         new_ll = None
         if self.log_likelihoods is not None:
-            new_ll = self.log_likelihoods[idx]
+            new_ll = jnp.repeat(self.log_likelihoods, concrete_counts, axis=0)
 
-        # Return a new equally weighted empirical distribution
+        # Return the unweighted distribution
         return Empirical(
             samples=new_samples,
             log_likelihoods=new_ll,

@@ -110,6 +110,7 @@ def sample(
     mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], infx_result.samples)
     mle_problem = eqx.combine(mle_problem_params, static)
     mle_model = mle_problem.model
+    mle_likelihood = mle_problem.evaluator
 
     # 3. Create the flattened Joint Posterior Distribution for the model
     # Parax distributions expect flat arrays, so we must map ravel_pytree across the batch axis
@@ -127,7 +128,7 @@ def sample(
     # 4. Inject the posterior into the MLE model
     # We clear any independent prior groups and replace them with the global joint posterior
     posterior_group = prx.ParameterGroup(
-        param_names=mle_model.param_names(),
+        param_names=mle_model.flat_param_names(),
         distribution=posterior_dist
     )
     
@@ -135,7 +136,7 @@ def sample(
 
     return InferResult(
         model=mle_model,
-        likelihood=mle_problem.evaluator,
+        likelihood=mle_likelihood,
         sampled_models=model_samples,
         sampled_likelihoods=likelihood_samples,
         log_likelihoods=infx_result.log_likelihoods, 
