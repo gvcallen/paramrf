@@ -16,7 +16,6 @@ except PackageNotFoundError:
 __all__ = []
 
 # 3. Main API Hoisting
-from parax import bijectors
 from pmrf.core import *
 from pmrf.io import *
 from pmrf import core
@@ -44,6 +43,6 @@ __all__.extend([
     "core", "constants", "distributions", "evaluators", 
     "math_functions", "models",
     "optimize", "infer", "fit", "explore",
-    "rf_functions", "losses", "bijectors",
+    "rf_functions", "losses",
     "NetworkCollection",
 ])

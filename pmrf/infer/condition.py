@@ -3,6 +3,7 @@ Conditioning a model on data using Bayesian inference.
 """
 
 from typing import Callable
+from functools import partial
 
 import jax.numpy as jnp
 import skrf
@@ -18,6 +19,8 @@ from pmrf.evaluators import Alias, Binary
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
+def distribution_log_likelihood_fn(dist_fn, y_true, y_pred, **params):
+    return jnp.sum(dist_fn(y_pred, **params).log_prob(y_true))
 
 def condition(
     model: Model,
@@ -80,10 +83,11 @@ def condition(
     elif distribution_fn is not None and log_likelihood_fn is not None:
         raise Exception("Cannot pass both `distribution_fn` and `llog_likelihood_params`")
     
+    if likelihood_params is None:
+        likelihood_params = {}
+    
     if distribution_fn:
-        def dist_log_likelihood_fn(y_true, y_pred, **params):
-            return jnp.sum(distribution_fn(y_pred, **params).log_prob(y_true))
-        log_likelihood_fn = dist_log_likelihood_fn
+        log_likelihood_fn = partial(distribution_log_likelihood_fn, distribution_fn)
     
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
@@ -101,5 +105,5 @@ def condition(
     else:
         target = data
     
-    likelihood = Binary(fn=log_likelihood_fn, left=features, right=target, params=likelihood_params)
+    likelihood = Binary(fn=log_likelihood_fn, left=target, right=features, params=likelihood_params)
     return sample(likelihood, model, frequency, solver=solver, **kwargs)

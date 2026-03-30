@@ -109,7 +109,7 @@ def fit(
         measured_data = data
         target = data
     
-    cost = Binary(fn=scaled_loss_fn, left=features, right=target, params=loss_params)
+    cost = Binary(fn=scaled_loss_fn, left=target, right=features, params=loss_params)
     result = minimize(cost, model, frequency, solver, transform=transform, **kwargs)
     
     return result
