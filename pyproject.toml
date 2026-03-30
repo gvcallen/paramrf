@@ -11,7 +11,7 @@ dependencies = [
     "jaxtyping",
     "equinox",
     "parax",
-    "distreqx @ git+https://github.com/lockwo/distreqx.git@main",
+    "distreqx",
     "optimistix",
     "inferix",
     "matplotlib",
