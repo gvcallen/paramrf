@@ -1,3 +1,7 @@
+"""
+Likelihood functions used for optimization with hyperparameters or Bayesian inference.
+"""
+
 import jax
 import jax.numpy as jnp
 import distreqx
