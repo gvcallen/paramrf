@@ -148,6 +148,7 @@ def mean_squared_error(
         Optional array of weights for each sample.
     multioutput : str, jnp.ndarray, or Callable, default='uniform_average'
         Defines aggregating of multiple output values.
+        Can be 'uniform_average', 'raw_values', 'geometric_mean', 'convolution', or a callable.
 
     Returns
     -------
@@ -179,6 +180,7 @@ def root_mean_squared_error(
         Optional array of weights for each sample.
     multioutput : str, jnp.ndarray, or Callable, default='uniform_average'
         Defines aggregating of multiple output values.
+        Can be 'uniform_average', 'raw_values', 'geometric_mean', 'convolution', or a callable.
 
     Returns
     -------
@@ -210,6 +212,7 @@ def mean_absolute_error(
         Optional array of weights for each sample.
     multioutput : str, jnp.ndarray, or Callable, default='uniform_average'
         Defines aggregating of multiple output values.
+        Can be 'uniform_average', 'raw_values', 'geometric_mean', 'convolution', or a callable.
 
     Returns
     -------
@@ -240,6 +243,7 @@ def mean_absolute_percentage_error(
         Optional array of weights for each sample.
     multioutput : str, jnp.ndarray, or Callable, default='uniform_average'
         Defines aggregating of multiple output values.
+        Can be 'uniform_average', 'raw_values', 'geometric_mean', 'convolution', or a callable.
 
     Returns
     -------
@@ -275,6 +279,7 @@ def huber_loss(
         Optional array of weights for each sample.
     multioutput : str, jnp.ndarray, or Callable, default='uniform_average'
         Defines aggregating of multiple output values.
+        Can be 'uniform_average', 'raw_values', 'geometric_mean', 'convolution', or a callable.
 
     Returns
     -------
@@ -336,10 +341,6 @@ def loss_from_alias(alias: str | Callable) -> Callable:
     )
 
 __all__ = [
-    '_geometric_mean',
-    '_convolution_aggregate',
-    '_reduce_samples',
-    '_aggregate_multioutput',
     'root_mean_squared_error',
     'mean_squared_error',
     'mean_absolute_error',
