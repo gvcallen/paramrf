@@ -205,3 +205,49 @@ class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
             log_likelihoods=new_ll,
             weights=None
         )
+        
+    def marginalized(
+        self, 
+        keep_indices: Array | list | int | None = None, 
+        drop_indices: Array | list | int | None = None, 
+        axis: int = 1
+    ) -> "Empirical":
+        """
+        Returns a new marginalized Empirical distribution by keeping or dropping 
+        specific indices along a given axis.
+
+        Args:
+            keep_indices: Indices to retain. Cannot be used with drop_indices.
+            drop_indices: Indices to remove. Cannot be used with keep_indices.
+            axis: The axis to slice along. Defaults to 1 (the first event dimension), 
+                  because axis 0 is strictly reserved for the batch/sample count.
+        """
+        if keep_indices is not None and drop_indices is not None:
+            raise ValueError("Specify either `keep_indices` or `drop_indices`, not both.")
+        
+        if keep_indices is None and drop_indices is None:
+            return self
+
+        # 1. Slice the samples PyTree
+        if keep_indices is not None:
+            # jnp.take extracts specific indices along the axis
+            new_samples = jax.tree_util.tree_map(
+                lambda x: jnp.take(x, jnp.asarray(keep_indices), axis=axis), 
+                self.samples
+            )
+        else:
+            # jnp.delete removes specific indices along the axis
+            new_samples = jax.tree_util.tree_map(
+                lambda x: jnp.delete(x, jnp.asarray(drop_indices), axis=axis), 
+                self.samples
+            )
+
+        # 2. Return the new Marginal Distribution
+        # CRITICAL: We explicitly set log_likelihoods=None because the joint 
+        # probability P(A, B) is not equal to the marginal probability P(A).
+        # Sample weights are preserved as they remain valid for integration.
+        return Empirical(
+            samples=new_samples,
+            log_likelihoods=None,
+            weights=self.weights
+        )    
