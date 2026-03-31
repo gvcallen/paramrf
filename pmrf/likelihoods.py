@@ -4,6 +4,7 @@ Common likelihood functions for Bayesian inference.
 
 import jax.numpy as jnp
 import distreqx.distributions as dist
+from typing import Callable, Any
 
 def _broadcast_sigma(sigma, nports):
     """
@@ -50,9 +51,40 @@ def _broadcast_sigma(sigma, nports):
         
     else:
         raise ValueError(f"Invalid size for sigma: {sigma.size}. Expected 1, 2, or {nports**2}.")
+    
+def distribution_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, distribution_fn: Callable[..., Any], **params) -> jnp.ndarray:
+    """
+    Compute the total log-likelihood of observed data given a general distribution.
 
+    This function instantiates a distribution using the provided `dist_fn`, 
+    parameterized by the predictions (`y_pred`) and any additional `params`, 
+    and then calculates the sum of the log-probabilities of the true data (`y_true`).
 
-def symmetric_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma: jnp.ndarray) -> jnp.ndarray:
+    Parameters
+    ----------
+    y_true : jnp.ndarray
+        The ground truth or measured data.
+    y_pred : jnp.ndarray
+        The predicted data, typically passed as the primary parameter 
+        (e.g., the mean or location) to the distribution function.
+    dist_fn : Callable
+        A factory function or class constructor that returns a distribution 
+        object (e.g., from `distreqx` or `numpyro`). It must accept `y_pred` 
+        as its first positional argument alongside the provided `**params`, 
+        and the returned object must have a `.log_prob()` method.
+    **params : dict
+        Additional keyword arguments to parameterize the distribution 
+        (e.g., `scale`, `concentration`, `df`).
+
+    Returns
+    -------
+    jnp.ndarray
+        A scalar JAX array representing the sum of the log-likelihoods 
+        over all elements in the array.
+    """
+    return jnp.sum(distribution_fn(y_pred, **params).log_prob(y_true))
+
+def symmetric_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma: jnp.ndarray) -> jnp.ndarray:
     """
     Compute the log-likelihood of a complex-valued function under a 
     symmetric Gaussian assumption.
@@ -91,7 +123,7 @@ def symmetric_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
     return jnp.sum(log_prob_real + log_prob_imag)
 
 
-def mag_phase_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
+def mag_phase_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
     """
     Compute the log-likelihood of a complex-valued function by modeling
     the relative magnitude error and the wrapped phase error as independent Gaussians.
@@ -147,7 +179,7 @@ def mag_phase_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
     
     return jnp.sum(log_prob_mag + log_prob_phase)
 
-def radial_tangential_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_complex: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
+def radial_tangential_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_complex: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
     """
     Compute the log-likelihood of a complex-valued function using a locally 
     rotated 2D Gaussian. 
