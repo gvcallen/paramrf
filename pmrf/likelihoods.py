@@ -1,5 +1,5 @@
 """
-Likelihood functions used for optimization with hyperparameters or Bayesian inference.
+Common likelihood functions for Bayesian inference.
 """
 
 import jax

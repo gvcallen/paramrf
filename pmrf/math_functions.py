@@ -1,5 +1,5 @@
 """
-Math functions.
+Core math functions.
 """
 import types
 

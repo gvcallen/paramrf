@@ -1,5 +1,5 @@
 """
-Frequentist optimization module for parametric RF models.
+Optimization using SciPy or Optimistix.
 
 Provides solvers and routines to find the optimal point-estimates 
 that minimize a given objective/cost function.

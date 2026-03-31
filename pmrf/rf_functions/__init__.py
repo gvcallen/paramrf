@@ -1,5 +1,5 @@
 """
-Core RF functions and algorithms, such as parameter conversions and circuit building.
+Core RF functions and algorithms, such as network parameter conversions and circuit composition.
 """
 from pmrf.rf_functions.normalize import fix_z0_shape
 from pmrf.rf_functions.conversions import s2s, a2s, s2a, s2y, y2s, s2z, z2s, renormalize_s

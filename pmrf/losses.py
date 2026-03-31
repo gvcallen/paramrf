@@ -1,5 +1,5 @@
 """
-Loss functions used for optimization or evaluations.
+Common loss functions for optimization.
 """
 
 from typing import Callable

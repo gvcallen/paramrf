@@ -1,5 +1,5 @@
 """
-Bayesian inference module for parametric RF models.
+Bayesian inference using Inferix.
 
 Provides samplers and routines to compute the posterior joint 
 distributions of model parameters given measured data.

@@ -14,7 +14,7 @@ from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DIC
 
 class Frequency(eqx.Module):
     """
-    Represents a frequency axis for **paramrf** models.
+    A frequency axis used to evaluate models over.
 
     This class provides a container for a frequency band, defining the points
     at which network parameters are evaluated. The source code has been
