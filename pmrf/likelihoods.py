@@ -2,9 +2,8 @@
 Common likelihood functions for Bayesian inference.
 """
 
-import jax
 import jax.numpy as jnp
-import distreqx
+import distreqx.distributions as dist
 
 def _broadcast_sigma(sigma, nports):
     """
@@ -67,8 +66,8 @@ def symmetric_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
         Complex-valued JAX array of shape (nfreq, nports, nports) representing 
         the model prediction.
     sigma : scalar or array_like
-        Noise standard deviation. Can be a scalar, 2-element array 
-        (reflection/transmission), or full (nports**2) array.
+        Noise standard deviation. Represents the complex standard deviation.
+        Can be a scalar, 2-element array (reflection/transmission), or full (nports**2) array.
 
     Returns
     -------
@@ -83,8 +82,8 @@ def symmetric_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
     # Split variance evenly across real and imaginary components
     sigma_parts = sigma_matrix / jnp.sqrt(2.0)
     
-    dist_real = distreqx.Normal(loc=jnp.real(y_pred), scale=sigma_parts)
-    dist_imag = distreqx.Normal(loc=jnp.imag(y_pred), scale=sigma_parts)
+    dist_real = dist.Normal(loc=jnp.real(y_pred), scale=sigma_parts)
+    dist_imag = dist.Normal(loc=jnp.imag(y_pred), scale=sigma_parts)
     
     log_prob_real = dist_real.log_prob(jnp.real(y_true))
     log_prob_imag = dist_imag.log_prob(jnp.imag(y_true))
@@ -131,7 +130,7 @@ def mag_phase_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
     log_mag_true = jnp.log(jnp.abs(y_true) + eps)
     log_mag_pred = jnp.log(jnp.abs(y_pred) + eps)
     
-    dist_mag = distreqx.Normal(loc=log_mag_pred, scale=sigma_mag_matrix)
+    dist_mag = dist.Normal(loc=log_mag_pred, scale=sigma_mag_matrix)
     log_prob_mag = dist_mag.log_prob(log_mag_true)
     
     # --- 2. Phase Likelihood ---
@@ -143,7 +142,7 @@ def mag_phase_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigm
     wrapped_phase_diff = (phase_diff + jnp.pi) % (2 * jnp.pi) - jnp.pi
     
     # Model the wrapped error as a zero-mean Gaussian
-    dist_phase = distreqx.Normal(loc=jnp.zeros_like(wrapped_phase_diff), scale=sigma_phase_matrix)
+    dist_phase = dist.Normal(loc=jnp.zeros_like(wrapped_phase_diff), scale=sigma_phase_matrix)
     log_prob_phase = dist_phase.log_prob(wrapped_phase_diff)
     
     return jnp.sum(log_prob_mag + log_prob_phase)
@@ -218,8 +217,8 @@ def radial_tangential_gaussian_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarr
     scale_tangential = jnp.sqrt(var_tangential)
     
     # 4. Evaluate the zero-mean distributions for both axes
-    dist_radial = distreqx.Normal(loc=jnp.zeros_like(err_radial), scale=scale_radial)
-    dist_tangential = distreqx.Normal(loc=jnp.zeros_like(err_tangential), scale=scale_tangential)
+    dist_radial = dist.Normal(loc=jnp.zeros_like(err_radial), scale=scale_radial)
+    dist_tangential = dist.Normal(loc=jnp.zeros_like(err_tangential), scale=scale_tangential)
     
     # Calculate log probabilities
     log_prob_radial = dist_radial.log_prob(err_radial)
