@@ -2,7 +2,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-def geometric_mean(x: jnp.ndarray) -> jnp.ndarray:
+def _geometric_mean(x: jnp.ndarray) -> jnp.ndarray:
     """
     Computes the geometric mean over all elements of the input array.
 
@@ -25,7 +25,7 @@ def geometric_mean(x: jnp.ndarray) -> jnp.ndarray:
     # return jnp.exp(jnp.mean(jnp.log(x.reshape(-1))))
 
 
-def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
+def _convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray:
     """
     Generalized convolutional aggregation over flattened features.
     
@@ -58,7 +58,7 @@ def convolution_aggregate(x: jnp.ndarray, epsilon: float = 1e-12) -> jnp.ndarray
     return combined ** (1.0 / n)
 
 
-def reduce_samples(loss: jnp.ndarray, sample_weight: jnp.ndarray | None = None) -> jnp.ndarray:
+def _reduce_samples(loss: jnp.ndarray, sample_weight: jnp.ndarray | None = None) -> jnp.ndarray:
     """
     Reduces the loss over the sample (batch) dimension, applying sample weights if provided.
     
@@ -86,7 +86,7 @@ def reduce_samples(loss: jnp.ndarray, sample_weight: jnp.ndarray | None = None) 
     return jnp.sum(loss, axis=0) / jnp.maximum(weight_sum, 1e-12)
 
 
-def aggregate_multioutput(
+def _aggregate_multioutput(
     mean_loss: jnp.ndarray, 
     multioutput: str | jnp.ndarray | Callable = 'uniform_average'
 ) -> jnp.ndarray:
@@ -115,9 +115,9 @@ def aggregate_multioutput(
         elif multioutput == 'uniform_average':
             return jnp.mean(mean_loss)
         elif multioutput == 'geometric_mean':
-            return geometric_mean(mean_loss)
+            return _geometric_mean(mean_loss)
         elif multioutput == 'convolution':
-            return convolution_aggregate(mean_loss)
+            return _convolution_aggregate(mean_loss)
         else:
             raise ValueError(f"Unknown multioutput value: {multioutput}")
     else:
@@ -155,8 +155,8 @@ def mean_squared_error(
         The calculated aggregated loss.
     """
     loss = (jnp.abs(y_true - y_pred))**2
-    mean_loss = reduce_samples(loss, sample_weight)
-    return aggregate_multioutput(mean_loss, multioutput)
+    mean_loss = _reduce_samples(loss, sample_weight)
+    return _aggregate_multioutput(mean_loss, multioutput)
 
 
 def root_mean_squared_error(
@@ -186,9 +186,9 @@ def root_mean_squared_error(
         The calculated aggregated loss.
     """
     loss = (jnp.abs(y_true - y_pred))**2
-    mean_loss = reduce_samples(loss, sample_weight)
+    mean_loss = _reduce_samples(loss, sample_weight)
     rmse_loss = jnp.sqrt(mean_loss)
-    return aggregate_multioutput(rmse_loss, multioutput)
+    return _aggregate_multioutput(rmse_loss, multioutput)
 
 
 def mean_absolute_error(
@@ -217,8 +217,8 @@ def mean_absolute_error(
         The calculated aggregated loss.
     """
     loss = jnp.abs(y_true - y_pred)
-    mean_loss = reduce_samples(loss, sample_weight)
-    return aggregate_multioutput(mean_loss, multioutput)
+    mean_loss = _reduce_samples(loss, sample_weight)
+    return _aggregate_multioutput(mean_loss, multioutput)
 
 
 def mean_absolute_percentage_error(
@@ -248,8 +248,8 @@ def mean_absolute_percentage_error(
     """
     epsilon = 1e-12
     loss = jnp.abs((y_true - y_pred) / jnp.maximum(jnp.abs(y_true), epsilon))
-    mean_loss = reduce_samples(loss, sample_weight)
-    return aggregate_multioutput(mean_loss, multioutput)
+    mean_loss = _reduce_samples(loss, sample_weight)
+    return _aggregate_multioutput(mean_loss, multioutput)
 
 
 def huber_loss(
@@ -285,8 +285,8 @@ def huber_loss(
     quadratic = jnp.minimum(diff, delta)
     linear = diff - quadratic
     loss = 0.5 * quadratic**2 + delta * linear
-    mean_loss = reduce_samples(loss, sample_weight)
-    return aggregate_multioutput(mean_loss, multioutput)
+    mean_loss = _reduce_samples(loss, sample_weight)
+    return _aggregate_multioutput(mean_loss, multioutput)
 
 
 def loss_from_alias(alias: str | Callable) -> Callable:
@@ -336,10 +336,10 @@ def loss_from_alias(alias: str | Callable) -> Callable:
     )
 
 __all__ = [
-    'geometric_mean',
-    'convolution_aggregate',
-    'reduce_samples',
-    'aggregate_multioutput',
+    '_geometric_mean',
+    '_convolution_aggregate',
+    '_reduce_samples',
+    '_aggregate_multioutput',
     'root_mean_squared_error',
     'mean_squared_error',
     'mean_absolute_error',

@@ -26,6 +26,8 @@ Modules
    pmrf.evaluators
    pmrf.explore
    pmrf.infer
+   pmrf.likelihoods
+   pmrf.losses
    pmrf.math_functions
    pmrf.models
    pmrf.optimize
