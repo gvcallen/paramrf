@@ -12,9 +12,11 @@ import jax.numpy as jnp
 import parax as prx
 from parax import Parameter
 
-from pmrf.losses import loss_from_alias
-from pmrf.core import Model, Frequency, Evaluator
+from pmrf.core import Model, Frequency, Evaluator, Metric
 
+# ==============================================================================
+# Core evaluators
+# ==============================================================================
 
 class Lambda(Evaluator):
     """
@@ -29,8 +31,20 @@ class Lambda(Evaluator):
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        return self.fn(model, freq, **kwargs)
+        return self.fn(model, freq, **self.params)
+
+
+class Constant(Evaluator):
+    """
+    Returns a fixed constant array or scalar.
+    
+    Useful for inserting fixed thresholds, reference gold-standard data, 
+    or static masks directly into the evaluator tree.
+    """
+    value: Any = prx.field(static=True)
+    
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        return jnp.asarray(self.value)
 
 
 class Binary(Evaluator):
@@ -40,28 +54,43 @@ class Binary(Evaluator):
     ``fn`` must have the signature ``f(left, right)``, optionally accepting
     additional key-word arguments in ``params``.
     
-    Inputs can be other Evaluators or arrays.
+    Inputs can be other Evaluators, arrays, or scalars.
     """
     fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(static=True)
-    left: Evaluator | jnp.ndarray
-    right: Evaluator | jnp.ndarray
+    left: Evaluator | jnp.ndarray | float
+    right: Evaluator | jnp.ndarray | float
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         # Resolve left branch
-        if isinstance(self.left, Evaluator):
-            val_left = self.left(model, freq)
-        else:
-            val_left = self.left
-            
+        val_left = self.left(model, freq) if isinstance(self.left, Evaluator) else self.left
+        
         # Resolve right branch
-        if isinstance(self.right, Evaluator):
-            val_right = self.right(model, freq)
-        else:
-            val_right = self.right
+        val_right = self.right(model, freq) if isinstance(self.right, Evaluator) else self.right
             
-        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        return self.fn(val_left, val_right, **kwargs)
+        return self.fn(val_left, val_right, **self.params)
+
+
+class Where(Evaluator):
+    """
+    A conditional branching node using `jnp.where`.
+
+    Evaluates a boolean condition (from an Evaluator) and returns elements 
+    from the `true_branch` or `false_branch` accordingly. 
+    
+    Useful for applying frequency-dependent logic or piecewise penalty functions.
+    """
+    condition: Evaluator
+    true_branch: Evaluator | jnp.ndarray | float
+    false_branch: Evaluator | jnp.ndarray | float
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        cond_val = self.condition(model, freq)
+        
+        true_val = self.true_branch(model, freq) if isinstance(self.true_branch, Evaluator) else jnp.asarray(self.true_branch)
+        false_val = self.false_branch(model, freq) if isinstance(self.false_branch, Evaluator) else jnp.asarray(self.false_branch)
+            
+        return jnp.where(cond_val, true_val, false_val)
 
 
 class Method(Evaluator):
@@ -79,38 +108,7 @@ class Method(Evaluator):
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
         func = operator.attrgetter(self.path)(model)
-        kwargs = {k: jnp.array(v) for k, v in self.params.items()}
-        return func(freq, **kwargs)
-
-
-class Index(Evaluator):
-    """
-    Slices or indexes the output of another Evaluator.
-    
-    Useful for extracting specific ports or frequency ranges from a larger
-    N-dimensional response array.
-    """
-    evaluator: Evaluator
-    indices: Any = prx.field(static=True)
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        data = self.evaluator(model, freq)
-        return data[self.indices]
-
-
-class Mask(Evaluator):
-    """
-    Applies a boolean mask to the final dimension of the data.
-    
-    Utilizes `jax.vmap` to efficiently broadcast the masking operation across 
-    the batch/frequency dimensions.
-    """
-    evaluator: Evaluator
-    mask: jnp.ndarray = prx.field(static=True)
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        data = self.evaluator(model, freq)
-        return jax.vmap(lambda m: m[self.mask])(data)
+        return func(freq, **self.params)
 
 
 class Map(Evaluator):
@@ -118,7 +116,8 @@ class Map(Evaluator):
     Applies an arbitrary transformation function to the data.
     
     Typically used in conjunction with `jax.vmap` to apply operations like 
-    matrix diagonal extraction across an entire frequency sweep.
+    matrix diagonal extraction or complex-to-magnitude conversions 
+    across an entire frequency sweep.
     
     The function may accept arbitrary parameters set in ``self.params``.    
     """
@@ -127,10 +126,25 @@ class Map(Evaluator):
     params: dict[str, Parameter] = prx.field(default_factory=dict, transparent=True)    
 
     def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        kwargs = {k: jnp.array(v) for k, v in self.params.items()}        
-        return self.fn(self.evaluator(model, freq), **kwargs)
-        
-        
+        return self.fn(self.evaluator(model, freq), **self.params)
+
+
+class Reduce(Evaluator):
+    """
+    Applies a reduction operation (e.g., max, min, mean) over a specific axis.
+    
+    Useful for extracting worst-case performance metrics across a frequency band
+    or calculating the average value of a multi-port response.
+    """
+    evaluator: Evaluator
+    fn: Callable[..., jnp.ndarray] = prx.field(static=True)
+    axis: int | tuple[int, ...] | None = prx.field(default=None, static=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        data = self.evaluator(model, freq)
+        return self.fn(data, axis=self.axis)
+
+
 class Stack(Evaluator):
     """
     Combines the outputs of multiple evaluators into a single array.
@@ -146,42 +160,91 @@ class Stack(Evaluator):
         return jnp.stack(results, axis=self.axis)
 
 
-class Sum(Evaluator):
+class Derivative(Evaluator):
     """
-    Sums the outputs of multiple Evaluators.
+    Computes the discrete numerical derivative of the data.
+    
+    Used to penalize ripple, enforce gain flatness, or calculate group delay.
+    Supports arbitrary axes, higher-order derivatives, and configurable 
+    step sizes via the `step_attr` (e.g., 'f_scaled' to prevent numerical instability).
+    """
+    evaluator: Evaluator
+    axis: int = prx.field(default=0, static=True)
+    order: int = prx.field(default=1, static=True)
+    step_attr: str = prx.field(default='f_scaled', static=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        data = self.evaluator(model, freq)
+        dx = operator.attrgetter(self.step_attr)(freq)
+        
+        for _ in range(self.order):
+            data = jnp.gradient(data, dx, axis=self.axis)
+            
+        return data
+
+
+class Objective(Evaluator):
+    """
+    Computes an objective by comparing an evaluator's prediction to a target using a Metric.
+    """
+    evaluator: Evaluator
+    target: jnp.ndarray
+    metric: Metric
+    
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        y_pred = self.evaluator(model, freq)
+        return self.metric(self.target, y_pred)
+
+# ==============================================================================
+# Generic factories
+# ==============================================================================
+
+def Index(evaluator: Evaluator, indices: Any) -> Evaluator:
+    """
+    Slices or indexes the output of another Evaluator.
+    
+    Useful for extracting specific ports or frequency ranges from a larger
+    N-dimensional response array.
+    """
+    return Map(evaluator=evaluator, fn=lambda data: data[indices])
+
+
+def Mask(evaluator: Evaluator, mask: jnp.ndarray) -> Evaluator:
+    """
+    Applies a boolean mask to the final dimension of the data.
+    
+    Utilizes `jax.vmap` to efficiently broadcast the masking operation across 
+    the batch/frequency dimensions.
+    """
+    return Map(evaluator=evaluator, fn=lambda data: jax.vmap(lambda m: m[mask])(data))
+
+
+def Sum(evaluators: list[Evaluator]) -> Evaluator:
+    """
+    Sums the outputs of multiple Evaluators into a single scalar.
     
     Useful for creating a composite scalar loss function from multiple 
     independent penalty vectors.
     """
-    evaluators: list[Evaluator]
-
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        results = [ev(model, freq) for ev in self.evaluators]
-        return jnp.sum(jnp.array(results))
+    return Map(evaluator=Stack(evaluators=evaluators, axis=0), fn=jnp.sum)
 
 
-class Flatness(Evaluator):
+def Flatness(evaluator: Evaluator) -> Evaluator:
     """
-    Computes the numerical derivative of the data with respect 
-    to frequency.
+    Computes the numerical derivative of the data with respect to frequency.
     
     Used to penalize ripple or enforce gain flatness across a band. It relies on 
-    `freq.f_scaled` to prevent catastrophic numerical instability during JAX 
-    gradient calculations caused by raw Hz values (e.g., 1e9).
+    `freq.f_scaled` to prevent catastrophic numerical instability.
     """
-    evaluator: Evaluator
+    return Derivative(evaluator=evaluator, axis=0, order=1, step_attr='f_scaled')
 
-    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
-        data = self.evaluator(model, freq)
-        return jnp.gradient(data, freq.f_scaled, axis=0)
 
-        
-def Diagonal(evaluator: Evaluator) -> Map:
+def Diagonal(evaluator: Evaluator) -> Evaluator:
     """Extracts the diagonals of N-port scattering matrices."""
     return Map(evaluator=evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
 
 
-def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Mask:
+def OffDiagonal(evaluator: Evaluator, n_ports: int) -> Evaluator:
     """Extract the off-diagonals (transmission) of N-port matrices."""
     mask = ~jnp.eye(n_ports, dtype=bool)
     return Mask(evaluator=evaluator, mask=mask)
@@ -236,8 +299,7 @@ def Alias(alias: str | Sequence[str] | list[Evaluator]) -> Evaluator:
         base_evaluator = Method(path=path)
         
         if special_type == 'gamma':
-            # Extract diagonals for all frequencies (shape: n_freqs, n_ports)
-            return Map(evaluator=base_evaluator, fn=lambda data: jax.vmap(jnp.diag)(data))
+            return Diagonal(base_evaluator)
         else:
             # Extract off-diagonals dynamically (shape: n_freqs, n_ports^2 - n_ports)
             def extract_off_diag(mat):
@@ -302,27 +364,18 @@ def Goal(
     -------
     Evaluator
         A composed Metric evaluator representing the constrained goal.
-        
-    Examples
-    --------
-    >>> Goal('s11_db', '<', -20)
-    >>> Goal('s21_db', '>', -1, weight=10.0, mask=(freq.f > 2e9), loss_fn='mae')
     """
     predictor = Alias(feature) if isinstance(feature, str) else feature
     
-    # Note: If Metric.loss_fn is static=True, closing over JAX tracers can break Equinox.
-    # We cast to standard numpy arrays here to keep the static closure safe during JIT.
     _weight = np.array(weight) if isinstance(weight, (jnp.ndarray, list)) else weight
     _mask = np.array(mask) if isinstance(mask, (jnp.ndarray, list)) else mask
     
     # 1. Resolve the metric callable securely
+    from pmrf.losses import loss_from_alias
     _metric_callable = loss_from_alias(loss_fn) if isinstance(loss_fn, str) else loss_fn
 
-    # 2. Define the clamped metric logic
+    # 2. Define the clamped metric logic (The Hinge)
     def goal_metric(tgt: jnp.ndarray, pred: jnp.ndarray) -> jnp.ndarray:
-        # Step A: Clamping (The Hinge)
-        # This completely zeros out the error for satisfied constraints by mapping
-        # the prediction perfectly onto the target.
         if operator in ['<', '<=']:
             effective_pred = jnp.maximum(pred, tgt)
         elif operator in ['>', '>=']:
@@ -332,14 +385,14 @@ def Goal(
         else:
             raise ValueError(f"Unknown Goal operator: '{operator}'")
             
-        # Step B: Weighting & Masking in Residual Space
+        # Weighting & Masking in Residual Space
         residual = effective_pred - tgt
         weighted_residual = residual * _weight
         
         if _mask is not None:
             weighted_residual = jnp.where(_mask, weighted_residual, 0.0)
             
-        # Step C: Shift back to target space and evaluate!
+        # Shift back to target space and evaluate!
         final_pred = tgt + weighted_residual
         return _metric_callable(tgt, final_pred)
 
@@ -348,3 +401,27 @@ def Goal(
         right=jnp.asarray(target),
         fn=goal_metric
     )
+
+class DiscrepancyCost(Evaluator):
+    evaluator: Evaluator
+    discrepancy_model: prx.Module
+    target: jnp.ndarray
+    loss_fn: Callable
+    loss_params: dict[str, prx.Parameter] = prx.field(default_factory=dict, transparent=True)
+
+    def __call__(self, model: Model, freq: Frequency) -> jnp.ndarray:
+        # 1. Extract the physical feature (e.g., 's11', 's21_db')
+        y_phys = self.evaluator(model, freq)
+        
+        # 2. Evaluate the discrepancy model
+        # Contract: Must return (mean, epistemic_variance)
+        y_disc_mean, y_disc_var = self.discrepancy_model(freq)
+        
+        # 3. Combine predictions in the feature domain
+        y_total = y_phys + y_disc_mean
+        
+        # 4. Evaluate the loss/likelihood
+        # We pass the epistemic variance down to the loss function via kwargs so 
+        # probabilistic likelihoods can use it, while deterministic ones can ignore it.
+        kwargs = {k: jnp.array(v) for k, v in self.loss_params.items()}
+        return self.loss_fn(self.target, y_total, epistemic_var=y_disc_var, **kwargs)

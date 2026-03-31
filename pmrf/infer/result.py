@@ -65,10 +65,10 @@ class InferResult(prx.Module):
         # 4. Flatten and vmap
         flatten_fn = lambda m: jax.flatten_util.ravel_pytree(m)[0]
         sampled_model_params = jax.vmap(flatten_fn)(dynamic_models)
-        sampled_likelihood_params = jax.vmap(flatten_fn)(dynamic_likelihoods)          
+        sampled_log_likelihood_params = jax.vmap(flatten_fn)(dynamic_likelihoods)          
         
         # 5. Concatenate and cast to standard numpy
-        sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_likelihood_params)))
+        sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_log_likelihood_params)))
         
         return param_names, sampled_params
     

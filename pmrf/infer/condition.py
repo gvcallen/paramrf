@@ -28,8 +28,7 @@ def condition(
     *,
     features: EvaluatorLike = 's',
     log_likelihood_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
-    distribution_fn: Callable[..., dist.AbstractDistribution] = None,
-    likelihood_params: dict[str, prx.Parameter] = None,
+    log_likelihood_params: dict[str, prx.Parameter] = None,
     **kwargs,
 ) -> InferResult:
     """
@@ -42,7 +41,7 @@ def condition(
     Parameters
     ----------
     model : Model
-        The parametric model to fit.
+        The RF model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The target data to fit against. Can be raw JAX arrays or standard Touchstone networks.
     frequency : Frequency | None, default=None
@@ -55,18 +54,11 @@ def condition(
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
     log_likelihood_fn: Callable, optional
         A likelihood function to use, which takes the true and predicted features as
-        first and second arguments, `likelihood_params` as key-word arguments,
-        and returns the log likelihood. Used to create a Binary evaluator from :class:`pmrf.evaluators.Binary`.
-        Mutually exclusive with `distribution_fn`.
-        If neither are provided, defaults to :func:`pmrf.likelihoods.symmetric_gaussian_likelihood`.
-    distribution_fn : Callable, optional
-        A distribution callable representing the likelihood model.
-        Must accept the model prediction as its first argument and `likelihood_params`
-        as key-word arguments, and return a distribution that implements `log_prob`.
-        Used to create a Binary evaluator from :class:`pmrf.evaluators.Binary`.
-        Mutually exclusive with `log_likelihood_fn`.
-    likelihood_params : dict[str, prx.Parameter], optional
-        Additional parameters characterizing the likelihood model. Defaults to a uniform 
+        first and second arguments, `log_likelihood_params` as key-word arguments,
+        and returns the log likelihood. If not provided, defaults to :func:`pmrf.likelihoods.symmetric_gaussian_likelihood`.
+        Used to create a Binary evaluator via :class:`pmrf.evaluators.Binary`.
+    log_likelihood_params : dict[str, prx.Parameter], optional
+        Additional parameters to pass to ``log_likelihood_fn``. Defaults to a uniform 
         scale parameter if None. Passed to :class:`pmrf.evaluators.Binary`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
@@ -76,24 +68,13 @@ def condition(
     InferenceResult
         The result containing the model loaded with empirical posterior distributions.
     """
-    if distribution_fn is None and log_likelihood_fn is None:
-        log_likelihood_fn = symmetric_gaussian_log_likelihood
-        likelihood_params = {'sigma': prx.Uniform(0.0, 100.0, scale=1e-3)}
-    elif distribution_fn is not None and log_likelihood_fn is not None:
-        raise Exception("Cannot pass both `distribution_fn` and `llog_likelihood_params`")
-    
-    if likelihood_params is None:
-        likelihood_params = {}
-    
-    if distribution_fn is not None:
-        log_likelihood_fn = partial(distribution_log_likelihood, distribution_fn=distribution_fn)
-    
+    # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
+
+    # Resolve the features and data
     if not isinstance(features, Evaluator):
         features = Alias(features)
-    
-    # Standardize target data and frequencies
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -103,6 +84,14 @@ def condition(
         target = features(Measured(data), frequency)
     else:
         target = data
+        
+    # Resolve the likelihood model
+    if log_likelihood_params is None:
+        log_likelihood_params = {}        
+    if log_likelihood_fn is None:
+        log_likelihood_fn = symmetric_gaussian_log_likelihood
+        log_likelihood_params = {'sigma': prx.Uniform(0.0, 100.0, scale=1e-3)}
+    log_likelihood_model = Binary(fn=log_likelihood_fn, left=target, right=features, params=log_likelihood_params)
     
-    likelihood = Binary(fn=log_likelihood_fn, left=target, right=features, params=likelihood_params)
-    return sample(likelihood, model, frequency, solver=solver, **kwargs)
+    # Run the sampling
+    return sample(log_likelihood_model, model, frequency, solver=solver, **kwargs)

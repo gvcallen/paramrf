@@ -13,7 +13,7 @@ from pmrf.core.frequency import Frequency
 
 class Evaluator(prx.Module):
     """
-    A callable for paremetric, composable, frequency-dependent model feature extraction.
+    A callable for parametric, composable, frequency-dependent model feature extraction.
     
     Supports operator overloading to compose evaluators into complex graphs.
     """

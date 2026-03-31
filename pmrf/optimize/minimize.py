@@ -39,8 +39,8 @@ def minimize(
     Parameters
     ----------
     cost : Evaluator | list[Evaluator]
-        The objective function to minimize. If a list of Evaluators (e.g., Goals) 
-        is provided, they are automatically summed.
+        The cost function to minimize in the form of a :class:``pmrf.Evaluator``.
+        If a list of Evaluators (e.g., Goals) is provided, they are automatically summed.
     model : Model
         The RF model containing the parameters to be optimized.
     frequency : Frequency

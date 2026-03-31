@@ -22,7 +22,7 @@ def is_inferer(x):
     return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
 
 def sample(
-    likelihood: Evaluator | list[Evaluator],
+    log_likelihood: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
     solver: infx.AbstractNestedSampler = infx.PolyChord(),
@@ -38,9 +38,9 @@ def sample(
 
     Parameters
     ----------
-    likelihood : Evaluator | list[Evaluator]
-        The likelihood function to sample. If a list of Evaluators (e.g., Goals) 
-        is provided, they are automatically summed.
+    log_likelihood : Evaluator | list[Evaluator]
+        The log likelihood function to sample in the form of a :class:``pmrf.Evaluator``.
+        If a list of Evaluators (e.g., Goals) is provided, they are automatically summed.
     model : Model
         The RF model containing the parameters to be sample.
     frequency : Frequency
@@ -62,10 +62,10 @@ def sample(
     InferResult
         A structured result containing the sampled model and solver statistics.
     """    
-    if isinstance(likelihood, list):
-        likelihood = Sum(likelihood)
+    if isinstance(log_likelihood, list):
+        log_likelihood = Sum(log_likelihood)
     
-    problem = Problem(model=model, frequency=frequency, evaluator=likelihood)
+    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood)
     
     if solver is None:
         solver = infx.PolyChord()
