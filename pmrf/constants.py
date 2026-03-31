@@ -1,5 +1,5 @@
 """
-General constrants for the ParamRF library
+Undocumented constants.
 """
 from typing import Callable, Literal, Union, Sequence, Any, Tuple, TypeVar
 from numbers import Number
