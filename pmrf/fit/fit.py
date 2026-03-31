@@ -117,11 +117,7 @@ def fit_sequential(
         The fully updated global Model, and a dictionary of localized results.
     """
     if features is None:
-        features_list = []
-    elif isinstance(features, str):
-        features_list = [features]
-    else:
-        features_list = features
+        features = 's'
 
     # Initialize dynamic_kwargs safely
     dynamic_kwargs = dynamic_kwargs or {}
@@ -135,7 +131,10 @@ def fit_sequential(
         sub_data = data.filter(lambda n: n.name == name)
         
         # Resolve localized arguments for features
-        sub_features = [f"{name}.{feature}" for feature in features_list] if features_list else None
+        if isinstance(features, str):
+            sub_features = f"{name}.{features}"
+        else:
+            sub_features = [f"{name}.{feature}" for feature in features]
 
         # Resolve dynamic kwargs (callables and dicts)
         resolved_dynamics = {}
@@ -159,13 +158,6 @@ def fit_sequential(
         # dynamic_kwargs will overwrite static kwargs if there is a name collision.
         final_kwargs = {**kwargs, **resolved_dynamics}
         
-        if 'features' not in final_kwargs:
-            if is_optimizer(final_kwargs['solver']):
-                base_features = ['s']
-            else:
-                base_features = ['s_re', 's_im']
-            final_kwargs['features'] = [f"{name}.{feature}" for feature in base_features]
-
         # Fit the sub-module
         result_sub = fit(
             sub_model,
