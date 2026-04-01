@@ -2,6 +2,8 @@
 Stateful metric modules for frequentist optimization.
 
 These classes wrap pure mathematical loss functions into a :class:``pmrf.Metric``.
+All losses take the true and predict arrays as inputs, and return the loss
+value when called.
 """
 
 from typing import Callable, Literal

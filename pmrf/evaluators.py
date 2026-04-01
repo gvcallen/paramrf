@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import parax as prx
 from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 
-from pmrf.core import Model, Frequency, Evaluator, Metric
+from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss
 
 class Alias(Evaluator):
@@ -83,13 +83,44 @@ class Objective(Evaluator):
     """
     Computes an objective between a predictor and a target using a metric.
     """
-    metric_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-    predictor_fn: Callable[[Model, Frequency], jnp.ndarray]
+    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    predictor: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        y_pred = self.predictor_fn(model, frequency, **kwargs)
-        return self.metric_fn(self.target, y_pred)
+        y_pred = self.predictor(model, frequency, **kwargs)
+        return self.metric(self.target, y_pred)
+
+
+class EpistemicObjective(Evaluator):
+    """
+    Computes an objective between a predictor and a target using a metric
+    with added epistemic uncertainty.
+    
+    The uncertainty adds to both the model's prediction, and to arbitrary
+    metric key-word arguments defined by a mapping.
+    """
+    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    target: jnp.ndarray
+    
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], tuple[jnp.ndarray, jnp.ndarray]]
+    metric_keys: list[str]
+    
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        y_pred = self.predictor(model, frequency, **kwargs)
+
+        model_discrepancy, metric_discrepancy_values = self.discrepancy(frequency.f_scaled, y_pred)
+        y_corrected = y_pred + model_discrepancy
+        
+        metric_discrepancies = dict(zip(self.metric_keys, metric_discrepancy_values))
+        
+        return self.metric(
+            self.target, 
+            y_corrected,
+            **metric_discrepancies,
+            **kwargs
+        )
 
 
 class Goal(Objective):
@@ -106,11 +137,11 @@ class Goal(Objective):
         loss_fn: str | Any = 'rmse',
         multioutput: str | Any = 'uniform_average'
     ):
-        self.predictor_fn = Alias(feature) if isinstance(feature, str) else feature
+        self.predictor = Alias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.
-        self.metric_fn = HingeLoss(
+        self.metric = HingeLoss(
             operator=operator,
             weight=weight,
             mask=mask,

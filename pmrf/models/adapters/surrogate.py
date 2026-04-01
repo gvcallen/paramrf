@@ -20,11 +20,11 @@ class ContinuousSurrogate(AbstractSingleProperty, transparent=True):
     theta: Parameter | list[Parameter] = None
     
     # The underlying model. Must accept an array of shape (P,) and a frequency object, and return an array of shape nfreq x nports x nports.
-    func: Callable[[jnp.ndarray, Frequency], jnp.ndarray] = None
+    fn: Callable[[jnp.ndarray, Frequency], jnp.ndarray] = None
     
     def output(self, freq: Frequency) -> jnp.ndarray:
         # Hack reshape for now
-        return self.func(self.flat_param_values(include_fixed=True), freq).reshape(-1, 1, 1)
+        return self.fn(self.flat_param_values(include_fixed=True), freq).reshape(-1, 1, 1)
     
 
 class DiscreteSurrogate(AbstractSingleDiscreteProperty, transparent=True):

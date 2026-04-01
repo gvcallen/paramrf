@@ -84,6 +84,38 @@ def distribution_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, distri
     """
     return jnp.sum(distribution_fn(y_pred, **params).log_prob(y_true))
 
+def gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma: jnp.ndarray) -> jnp.ndarray:
+    """
+    Compute the log-likelihood of a real-valued function under a 
+    Gaussian assumption.
+
+    Parameters
+    ----------
+    y_true : jax.Array
+        Real-valued JAX array of shape (nfreq, nports, nports) representing 
+        the measured or true data.
+    y_pred : jax.Array
+        Real-valued JAX array of shape (nfreq, nports, nports) representing 
+        the model prediction.
+    sigma : scalar or array_like
+        Noise standard deviation. Represents the real standard deviation.
+        Can be a scalar, 2-element array (reflection/transmission), or full (nports**2) array.
+
+    Returns
+    -------
+    jax.Array
+        Scalar JAX array representing the total sum of the log-likelihoods.
+    """
+    nfreq, nports, _ = y_true.shape
+    
+    # Broadcast sigma using the shared helper
+    sigma_matrix = _broadcast_sigma(sigma, nports)
+    
+    dist = dist.Normal(loc=y_pred, scale=sigma_matrix)
+    
+    log_prob = dist.log_prob(jnp.real(y_true))
+    return jnp.sum(log_prob)
+
 def symmetric_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma: jnp.ndarray) -> jnp.ndarray:
     """
     Compute the log-likelihood of a complex-valued function under a 

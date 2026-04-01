@@ -85,12 +85,10 @@ def condition(
         target = data
         
     # Resolve the likelihood model
-    if log_likelihood_params is None:
-        log_likelihood_params = {}        
     if log_likelihood_fn is None:
         log_likelihood_fn = SymmetricGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
     
-    objective_fn = Objective(metric_fn=log_likelihood_fn, predictor_fn=features, target=target)  
+    objective_fn = Objective(metric=log_likelihood_fn, predictor=features, target=target)  
     
     # Run the sampling
     return sample(objective_fn, model, frequency, solver=solver, **kwargs)

@@ -8,7 +8,7 @@ import parax as prx
 from distreqx.bijectors import AbstractBijector
 
 from pmrf.bijectors import Inverse
-from pmrf.core import Model, Frequency, Evaluator, Problem
+from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
 

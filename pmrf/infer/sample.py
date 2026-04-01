@@ -9,7 +9,6 @@ import parax as prx
 import inferix as infx
 
 from pmrf.core import Model, Frequency, Problem
-from pmrf.evaluators import Sum
 from pmrf.distributions import Empirical
 from pmrf.infer.result import InferResult
 from pmrf.utils import generate_key
