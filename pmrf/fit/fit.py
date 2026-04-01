@@ -3,7 +3,7 @@ from typing import Any, Callable
 import jax.numpy as jnp
 import skrf
 
-from pmrf.core import Model, Frequency
+from pmrf.core import Model, Frequency, EvaluatorLike
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.optimize import fit as optimize_fit, is_optimizer
@@ -11,7 +11,7 @@ from pmrf.infer import condition as infer_condition, is_inferer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.infer.result import InferResult
 from pmrf.fit.result import FitResult
-from pmrf.constants import Optimizer, Inferer, EvaluatorLike
+from pmrf.constants import Optimizer, Inferer
 
 def fit(
     model: Model,

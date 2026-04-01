@@ -1,9 +1,11 @@
 import parax as prx
-from typing import Any
+from typing import Any, Callable
 
 import jax.numpy as jnp
+from jaxtyping import Array
 
-from pmrf.core import Model, Operator
+
+from pmrf.core import Model
 
 class OptimizeResult(prx.Module):
     """
@@ -13,7 +15,7 @@ class OptimizeResult(prx.Module):
     ----------
     model : Model
         The circuit model holding the finalized, optimized parameter state.
-    cost : Evaluator
+    cost : eqx.Module
         The evaluator (e.g., metric, sum of goals) used to calculate the objective.
     value : jnp.ndarray
         The final cost value achieved by the optimizer.
@@ -21,6 +23,6 @@ class OptimizeResult(prx.Module):
         The stats from the underlying solver.
     """
     model: Model
-    cost: Operator
+    cost: Callable
     value: jnp.ndarray
     stats: Any = None

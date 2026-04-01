@@ -1,10 +1,13 @@
+from typing import Callable
+
 import parax as prx
 import jax
 import jax.numpy as jnp
 import inferix as infx
 from parax import partition
+from jaxtyping import Array
 
-from pmrf.core import Model, Operator, Frequency, Problem
+from pmrf.core import Model, Frequency, Problem
 
 class InferResult(prx.Module):
     """
@@ -26,11 +29,11 @@ class InferResult(prx.Module):
         The underlying solution object returned by the solver.
     """
     model: Model                            # The model updated with empirical posterior distributions
-    likelihood: Operator                   # The likelihood evaluator used
+    likelihood: Callable                   # The likelihood evaluator used
     
     # Raw Sample Data
     sampled_models: Model                   # A batched Model containing all accepted sample states
-    sampled_likelihoods: Operator          # A batched Likelihood containing all accepted sample states
+    sampled_likelihoods: Array          # A batched Likelihood containing all accepted sample states
     log_likelihoods: jnp.ndarray            # The evaluated log-likelihoods for each sample
     weights: jnp.ndarray | None = None
     

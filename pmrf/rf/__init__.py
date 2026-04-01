@@ -7,9 +7,6 @@ from pmrf.rf.cascades import cascade_s, cascade_a
 from pmrf.rf.connections import connect_s_arbitrary, connect_s_common
 from pmrf.rf.terminations import terminate_a_in_s, terminate_s_in_s
 
-from pmrf.rf.connections import *
-from pmrf.rf import connections
-
 __all__ = [
     "fix_z0_shape",
     "s2s",
@@ -27,5 +24,3 @@ __all__ = [
     "terminate_a_in_s",
     "terminate_s_in_s",
 ]
-
-__all__.extend(connections.__all__)

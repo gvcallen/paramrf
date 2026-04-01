@@ -32,17 +32,20 @@ for name in core.__all__:
 
 # 4. Sub-Modules
 from pmrf import (
-    constants, bijectors, distributions, evaluators, 
-    models,
+    constants,
+    bijectors, distributions, evaluators, models,
+    math, rf,
     optimize, infer, fit, explore,
-    rf_functions, losses, likelihoods,
+    losses, likelihoods,
 )
 from pmrf.network_collection import NetworkCollection
 
 __all__.extend([
-    "core", "constants", "bijectors", "distributions", "evaluators", 
-    "math", "models",
+    "core",
+    "constants",
+    "bijectors", "distributions", "evaluators", "models",
+    "math", "rf", 
     "optimize", "infer", "fit", "explore",
-    "rf_functions", "losses", "likelihoods",
+    "losses", "likelihoods",
     "NetworkCollection",
 ])

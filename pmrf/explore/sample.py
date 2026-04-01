@@ -1,9 +1,10 @@
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
 
-from pmrf.core import Model, Frequency, Operator
-from pmrf.constants import EvaluatorLike
+from pmrf.core import Model, Frequency, EvaluatorLike
 from pmrf.evaluators import Alias
 from pmrf.explore.samplers import AbstractSampler
 from pmrf.explore.result import ExploreResult
@@ -15,7 +16,7 @@ def sample(
     *,
     max_samples: int | None = None,
     frequency: Frequency | None = None,
-    features: EvaluatorLike | None = None,
+    features: Callable | None = 's',
     key: jax.Array | None = None,
     **kwargs
 ) -> ExploreResult:
@@ -54,9 +55,7 @@ def sample(
     if key is None:
         key = jr.PRNGKey(0)
         
-    if features is None:
-        features = Alias('s')
-    elif not isinstance(features, Operator): 
+    if not isinstance(features, Callable):
         features = Alias(features)
 
     d = model.num_flat_params
@@ -94,7 +93,7 @@ def sample(
     )
 
 
-def _evaluate_batch(model: Model, U: jnp.ndarray, frequency: Frequency | None, features: Operator, **kwargs) -> tuple[jnp.ndarray, jnp.ndarray]:
+def _evaluate_batch(model: Model, U: jnp.ndarray, frequency: Frequency | None, features: Callable, **kwargs) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Helper to map hypercube proposals to physical params and evaluate features."""
     def eval_single(u):
         flat_params = model.flat_params()
