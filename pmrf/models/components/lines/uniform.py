@@ -9,7 +9,7 @@ import parax as prx
 from parax import Parameter
 
 from pmrf.core import Frequency, Model
-from pmrf.rf_functions import renormalize_s
+from pmrf.rf import renormalize_s
 
 class TransmissionLine(Model, ABC):
     r"""
@@ -27,7 +27,7 @@ class TransmissionLine(Model, ABC):
     $$S_{21} = S_{12} = e^{-\gamma L}$$
 
     This model computes these S-parameters and then re-normalized them into $Z_0$ and the power-wave definition
-    using :meth:`pmrf.rf_functions.renormalize_s`.
+    using :meth:`pmrf.rf.renormalize_s`.
 
     Attributes
     ----------

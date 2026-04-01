@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from pmrf.rf_functions.conversions import fix_z0_shape
+from pmrf.rf.conversions import fix_z0_shape
 
 def terminate_s_in_s(
     Smat_from: jnp.ndarray,

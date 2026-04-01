@@ -4,6 +4,6 @@
 s2z
 ===
 
-.. currentmodule:: pmrf.rf_functions
+.. currentmodule:: pmrf.rf
 
 .. autofunction:: s2z

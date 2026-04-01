@@ -3,7 +3,7 @@ from typing import Any
 
 import jax.numpy as jnp
 
-from pmrf.core import Model, Evaluator
+from pmrf.core import Model, Operator
 
 class OptimizeResult(prx.Module):
     """
@@ -21,6 +21,6 @@ class OptimizeResult(prx.Module):
         The stats from the underlying solver.
     """
     model: Model
-    cost: Evaluator
+    cost: Operator
     value: jnp.ndarray
     stats: Any = None

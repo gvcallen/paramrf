@@ -10,8 +10,8 @@ import equinox as eqx
 import parax as prx
 
 from pmrf.core.frequency import Frequency
-from pmrf.rf_functions import a2s, s2a, s2z, z2s, s2y, y2s
-from pmrf.math_functions import FUNC_LOOKUP
+from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
+from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils import is_overridden
 
@@ -144,7 +144,7 @@ class Model(prx.Module):
             return dynamic_method
             
         for prop in PRIMARY_PROPERTIES:
-            for suffix, lookup in FUNC_LOOKUP.items():
+            for suffix, lookup in CONVERSION_LOOKUP.items():
                 func = lookup[1]
                 
                 # Base function (e.g. s_mag)
@@ -277,8 +277,8 @@ class Model(prx.Module):
         
         Note that, in ParamRF, the **power wave** definition of S-parameters
         should be used. If you have a formulation in terms of another definition
-        (such as traveling waves), simply use :meth:`pmrf.rf_functions.s2s`
-        (or :meth:`pmrf.rf_functions.renormalize_s` if you need to change
+        (such as traveling waves), simply use :meth:`pmrf.rf.s2s`
+        (or :meth:`pmrf.rf.renormalize_s` if you need to change
         impedance too).
 
         Parameters

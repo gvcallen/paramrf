@@ -3,7 +3,7 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
-from pmrf.rf_functions.conversions import fix_z0_shape, s2s
+from pmrf.rf.conversions import fix_z0_shape, s2s
 
 def connect_s_arbitrary(
     Smats: Sequence[jnp.ndarray],

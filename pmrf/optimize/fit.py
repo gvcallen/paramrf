@@ -6,15 +6,15 @@ import skrf
 from distreqx.bijectors import AbstractBijector
 import parax as prx
 
-from pmrf.core import Model, Frequency, Evaluator, Metric
-from pmrf.math_functions import FUNC_LOOKUP
+from pmrf.core import Model, Frequency, Operator, Metric
+from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import EvaluatorLike, Optimizer, AggregationKind
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Binary, Map
+from pmrf.evaluators import Feature, Binary, Map
 from pmrf.losses import loss_from_alias
 from pmrf.constants import MetricFn
 
@@ -84,8 +84,8 @@ def fit(
         raise Exception("Cannot pass ``loss_model`` and ``loss_fn`` or ``loss_params``")
     
     # Resolve data and features
-    if not isinstance(features, Evaluator):
-        features = Alias(features)
+    if not isinstance(features, Operator):
+        features = Feature(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -107,7 +107,7 @@ def fit(
     
     # Append an optional scale function
     if isinstance(scale_fn, str):
-        scale_fn = FUNC_LOOKUP[scale_fn][1]
+        scale_fn = CONVERSION_LOOKUP[scale_fn][1]
         scaled_loss_model = Map(scale_fn, loss_model)
     else:
         scaled_loss_model = loss_model

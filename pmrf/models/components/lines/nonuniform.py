@@ -10,7 +10,7 @@ from parax import Parameter
 
 from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
-from pmrf.rf_functions.connections import cascade_s
+from pmrf.rf.connections import cascade_s
 
 class ProfiledLine(Model, transparent=True):
     r"""

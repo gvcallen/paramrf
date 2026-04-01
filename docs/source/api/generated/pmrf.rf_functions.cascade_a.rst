@@ -4,6 +4,6 @@
 cascade_a
 =========
 
-.. currentmodule:: pmrf.rf_functions
+.. currentmodule:: pmrf.rf
 
 .. autofunction:: cascade_a

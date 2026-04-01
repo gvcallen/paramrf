@@ -4,6 +4,6 @@
 a2s
 ===
 
-.. currentmodule:: pmrf.rf_functions
+.. currentmodule:: pmrf.rf
 
 .. autofunction:: a2s

@@ -6,12 +6,12 @@ import equinox as eqx
 import optimistix as optx
 import parax as prx
 from distreqx.bijectors import AbstractBijector
+from parax.op import Sum, Lambda
 
 from pmrf.bijectors import Inverse
 from pmrf.core import Model, Frequency, Evaluator, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
-from pmrf.evaluators import Sum
 
 def is_optimizer(x):
     """
@@ -22,7 +22,7 @@ def is_optimizer(x):
     return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
 
 def minimize(
-    cost: Evaluator | list[Evaluator],
+    cost_fn: Evaluator | list[Evaluator],
     model: Model,
     frequency: Frequency,
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
@@ -39,8 +39,9 @@ def minimize(
     Parameters
     ----------
     cost : Evaluator | list[Evaluator]
-        The cost function to minimize in the form of a :class:``pmrf.Evaluator``.
-        If a list of Evaluators (e.g., Goals) is provided, they are automatically summed.
+        The cost function to minimize. Must be a callable or PyTree with signature
+        (model, freq) -> jnp.ndarray. If a list is provided, they are automatically summed.
+        See :meth:``pmrf.evaluators.Goal`` for an easy way to define goal-based cost functions.
     model : Model
         The RF model containing the parameters to be optimized.
     frequency : Frequency
@@ -59,10 +60,17 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if isinstance(cost, list):
-        cost = Sum(cost)
+    if not isinstance(cost_fn, list):
+        cost_fn = [cost_fn]
+        
+    for i in range(cost_fn):
+        if not isinstance(cost_fn[i], eqx.Module):            
+            cost_fn[i] = Lambda(cost_fn)
+
+    if isinstance(cost_fn, list):
+        cost_fn = Sum(cost_fn)
     
-    problem = Problem(model=model, frequency=frequency, evaluator=cost)   
+    problem = Problem(model=model, frequency=frequency, evaluator=cost_fn)   
 
     if problem.num_flat_params == 0:
         raise Exception("Model has no free parameters to fit") 

@@ -18,7 +18,7 @@ __all__ = []
 # 3. Main API Hoisting
 from pmrf.core import *
 from pmrf.io import *
-from pmrf import core
+from pmrf import core, math
 from pmrf import io
 
 # Synchronize __all__ and apply branding
@@ -33,7 +33,7 @@ for name in core.__all__:
 # 4. Sub-Modules
 from pmrf import (
     constants, bijectors, distributions, evaluators, 
-    math_functions, models,
+    models,
     optimize, infer, fit, explore,
     rf_functions, losses, likelihoods,
 )
@@ -41,7 +41,7 @@ from pmrf.network_collection import NetworkCollection
 
 __all__.extend([
     "core", "constants", "bijectors", "distributions", "evaluators", 
-    "math_functions", "models",
+    "math", "models",
     "optimize", "infer", "fit", "explore",
     "rf_functions", "losses", "likelihoods",
     "NetworkCollection",

@@ -4,6 +4,6 @@
 terminate_s_in_s
 ================
 
-.. currentmodule:: pmrf.rf_functions
+.. currentmodule:: pmrf.rf
 
 .. autofunction:: terminate_s_in_s

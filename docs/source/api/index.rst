@@ -31,4 +31,4 @@ Modules
    pmrf.math_functions
    pmrf.models
    pmrf.optimize
-   pmrf.rf_functions
+   pmrf.rf

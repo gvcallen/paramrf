@@ -2,8 +2,8 @@ import jax.numpy as jnp
 import jax
 
 from pmrf.constants import NumberLike
-from pmrf.math_functions import rsolve, nudge_diag
-from pmrf.rf_functions.normalize import fix_z0_shape
+from pmrf.math import rsolve, nudge_diag
+from pmrf.rf.misc import fix_z0_shape
 
 ZERO = 1e-4
 

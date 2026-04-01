@@ -1,7 +1,7 @@
 import parax as prx
 from typing import Any
 
-from pmrf.core import Evaluator, Frequency
+from pmrf.core import Operator, Frequency
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 
@@ -26,7 +26,7 @@ class FitResult(prx.Module):
     def model(self):
         return self.solution.model
 
-    def plot(self, features: str | list[str] | Evaluator = 's', ax=None, **kwargs):
+    def plot(self, features: str | list[str] | Operator = 's', ax=None, **kwargs):
         """
         Plots the best fit.
         

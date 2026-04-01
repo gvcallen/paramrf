@@ -11,11 +11,11 @@ import distreqx.distributions as dist
 import parax as prx
 from inferix import PolyChord
 
-from pmrf.core import Model, Frequency, Evaluator
+from pmrf.core import Model, Frequency, Operator
 from pmrf.constants import EvaluatorLike, Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Binary
+from pmrf.evaluators import Feature, Binary
 from pmrf.likelihoods import distribution_log_likelihood, symmetric_gaussian_log_likelihood
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
@@ -73,8 +73,8 @@ def condition(
         raise ValueError("Frequency must be passed if Network data is not provided")
 
     # Resolve the features and data
-    if not isinstance(features, Evaluator):
-        features = Alias(features)
+    if not isinstance(features, Operator):
+        features = Feature(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):

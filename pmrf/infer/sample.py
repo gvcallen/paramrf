@@ -7,7 +7,7 @@ import equinox as eqx
 import parax as prx
 import inferix as infx
 
-from pmrf.core import Model, Frequency, Evaluator, Problem
+from pmrf.core import Model, Frequency, Operator, Problem
 from pmrf.evaluators import Sum
 from pmrf.distributions import Empirical
 from pmrf.infer.result import InferResult
@@ -22,7 +22,7 @@ def is_inferer(x):
     return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
 
 def sample(
-    log_likelihood: Evaluator | list[Evaluator],
+    log_likelihood: Operator | list[Operator],
     model: Model,
     frequency: Frequency,
     solver: infx.AbstractNestedSampler = infx.PolyChord(),
