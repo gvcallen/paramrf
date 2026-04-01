@@ -6,7 +6,6 @@ import equinox as eqx
 import optimistix as optx
 import parax as prx
 from distreqx.bijectors import AbstractBijector
-from parax.op import Sum, Lambda
 
 from pmrf.bijectors import Inverse
 from pmrf.core import Model, Frequency, Evaluator, Problem
@@ -22,7 +21,7 @@ def is_optimizer(x):
     return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
 
 def minimize(
-    cost_fn: Evaluator | list[Evaluator],
+    cost_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
@@ -38,9 +37,9 @@ def minimize(
 
     Parameters
     ----------
-    cost : Evaluator | list[Evaluator]
+    cost_fn : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
         The cost function to minimize. Must be a callable or PyTree with signature
-        (model, freq) -> jnp.ndarray. If a list is provided, they are automatically summed.
+        (model, freq) -> jnp.ndarray. If a list of costs is provided, they are automatically summed.
         See :meth:``pmrf.evaluators.Goal`` for an easy way to define goal-based cost functions.
     model : Model
         The RF model containing the parameters to be optimized.
@@ -60,15 +59,10 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if not isinstance(cost_fn, list):
-        cost_fn = [cost_fn]
-        
-    for i in range(cost_fn):
-        if not isinstance(cost_fn[i], eqx.Module):            
-            cost_fn[i] = Lambda(cost_fn)
-
     if isinstance(cost_fn, list):
-        cost_fn = Sum(cost_fn)
+        cost_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in cost_fn])
+    else:
+        cost_fn = cost_fn if isinstance(cost_fn, eqx.Module) else prx.op.Lambda(cost_fn)
     
     problem = Problem(model=model, frequency=frequency, evaluator=cost_fn)   
 

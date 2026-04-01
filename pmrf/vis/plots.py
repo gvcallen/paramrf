@@ -7,7 +7,7 @@ import skrf
 from pmrf.fit.result import FitResult
 from pmrf.core import Model, Operator
 from pmrf.models import Measured
-from pmrf.evaluators import Feature
+from pmrf.evaluators import Alias
 from pmrf.network_collection import NetworkCollection
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def plot_fit_result(
             features_list = [f"{prefix}{f}" for f in features_list]
     
     # Standardize evaluator
-    evaluator = features if isinstance(features, Operator) else Feature(features_list)
+    evaluator = features if isinstance(features, Operator) else Alias(features_list)
     x = result.frequency.f_scaled
     unit = result.frequency.unit if result.frequency else "Hz"
 

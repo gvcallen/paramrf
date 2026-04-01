@@ -4,7 +4,7 @@ import jax.random as jr
 
 from pmrf.core import Model, Frequency, Operator
 from pmrf.constants import EvaluatorLike
-from pmrf.evaluators import Feature
+from pmrf.evaluators import Alias
 from pmrf.explore.samplers import AbstractSampler
 from pmrf.explore.result import ExploreResult
 
@@ -55,9 +55,9 @@ def sample(
         key = jr.PRNGKey(0)
         
     if features is None:
-        features = Feature('s')
+        features = Alias('s')
     elif not isinstance(features, Operator): 
-        features = Feature(features)
+        features = Alias(features)
 
     d = model.num_flat_params
     

@@ -37,8 +37,6 @@ class RMSELoss(Metric):
     """
     Root Mean Squared Error (RMSE) metric.
     
-    Applies the square root per-output before aggregating across multiple outputs.
-
     Attributes
     ----------
     multioutput : str | jnp.ndarray | Callable, default='uniform_average'
@@ -48,6 +46,26 @@ class RMSELoss(Metric):
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None) -> jnp.ndarray:
         return F.root_mean_squared_error(
+            y_true=y_true, 
+            y_pred=y_pred, 
+            sample_weight=sample_weight,
+            multioutput=self.multioutput
+        )
+
+
+class LogMSELoss(Metric):
+    """
+    Log of Mean Squared Error (RMSE) metric.
+    
+    Attributes
+    ----------
+    multioutput : str | jnp.ndarray | Callable, default='uniform_average'
+        Defines the aggregation strategy across multiple output dimensions.
+    """
+    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+
+    def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, sample_weight: jnp.ndarray | None = None) -> jnp.ndarray:
+        return F.log_mean_squared_error(
             y_true=y_true, 
             y_pred=y_pred, 
             sample_weight=sample_weight,
@@ -164,6 +182,7 @@ class HingeLoss(Metric):
 
 
 __all__ = [
+    'LogMSELoss',
     'MSELoss',
     'RMSELoss',
     'L1Loss',

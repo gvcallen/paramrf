@@ -1,4 +1,5 @@
 from dataclasses import replace
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +8,7 @@ import equinox as eqx
 import parax as prx
 import inferix as infx
 
-from pmrf.core import Model, Frequency, Operator, Problem
+from pmrf.core import Model, Frequency, Problem
 from pmrf.evaluators import Sum
 from pmrf.distributions import Empirical
 from pmrf.infer.result import InferResult
@@ -22,7 +23,7 @@ def is_inferer(x):
     return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
 
 def sample(
-    log_likelihood: Operator | list[Operator],
+    log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
     solver: infx.AbstractNestedSampler = infx.PolyChord(),
@@ -38,9 +39,9 @@ def sample(
 
     Parameters
     ----------
-    log_likelihood : Evaluator | list[Evaluator]
-        The log likelihood function to sample in the form of a :class:``pmrf.Evaluator``.
-        If a list of Evaluators (e.g., Goals) is provided, they are automatically summed.
+    log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+        The log likelihood function to sample. Must be a callable or PyTree with signature
+        (model, freq) -> jnp.ndarray. If a list of costs is provided, they are automatically summed.
     model : Model
         The RF model containing the parameters to be sample.
     frequency : Frequency
@@ -62,10 +63,12 @@ def sample(
     InferResult
         A structured result containing the sampled model and solver statistics.
     """    
-    if isinstance(log_likelihood, list):
-        log_likelihood = Sum(log_likelihood)
+    if isinstance(log_likelihood_fn, list):
+        log_likelihood_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in log_likelihood_fn])
+    else:
+        log_likelihood_fn = log_likelihood_fn if isinstance(log_likelihood_fn, eqx.Module) else prx.op.Lambda(log_likelihood_fn)
     
-    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood)
+    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood_fn)
     
     if solver is None:
         solver = infx.PolyChord()
@@ -74,7 +77,7 @@ def sample(
         
     params, static = prx.partition(problem)
 
-    def log_likelihood_fn(params, _args) -> jnp.ndarray:
+    def internal_log_likelihood_fn(params, _args) -> jnp.ndarray:
         problem = eqx.combine(params, static)
         return problem()
     
@@ -91,7 +94,7 @@ def sample(
         return params_physical_problem
 
     infx_result = infx.nested(
-        log_likelihood_fn,
+        internal_log_likelihood_fn,
         key=key,
         sampler=solver,
         y0=params,

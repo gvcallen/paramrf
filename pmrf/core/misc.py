@@ -1,3 +1,5 @@
+from typing import Callable
+
 import jax.numpy as jnp
 import parax as prx
 
@@ -25,3 +27,8 @@ class Problem(prx.Module):
     
     def __call__(self) -> jnp.ndarray:
         return self.evaluator(self.model, self.frequency)
+    
+EvaluatorFn = Callable[[jnp.ndarray, jnp.ndarray]]
+MetricFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+EvaluatorLike = str | list[str] | EvaluatorFn | list[EvaluatorFn]
+MetricLike = str | MetricFn | list[MetricFn]

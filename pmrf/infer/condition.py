@@ -11,12 +11,14 @@ import distreqx.distributions as dist
 import parax as prx
 from inferix import PolyChord
 
-from pmrf.core import Model, Frequency, Operator
-from pmrf.constants import EvaluatorLike, Inferer
+from pmrf.core import Model, Frequency
+from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
+from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Feature, Binary
-from pmrf.likelihoods import distribution_log_likelihood, symmetric_gaussian_log_likelihood
+from pmrf.evaluators import Alias, Objective
+
+from pmrf.likelihoods import SymmetricGaussianLikelihood
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
@@ -26,9 +28,8 @@ def condition(
     frequency: Frequency | None = None,
     solver: Inferer = PolyChord(),
     *,
-    features: EvaluatorLike = 's',
-    log_likelihood_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
-    log_likelihood_params: dict[str, prx.Parameter] = None,
+    features: str | list[str] | Callable = 's',
+    log_likelihood_fn: str | Callable = None,
     **kwargs,
 ) -> InferResult:
     """
@@ -52,14 +53,12 @@ def condition(
     features : EvaluatorLike, default='s'
         The specific circuit feature(s) to compute the likelihood against. 
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
-    log_likelihood_fn: Callable, optional
-        A likelihood function to use, which takes the true and predicted features as
-        first and second arguments, `log_likelihood_params` as key-word arguments,
-        and returns the log likelihood. If not provided, defaults to :func:`pmrf.likelihoods.symmetric_gaussian_likelihood`.
-        Used to create a Binary evaluator via :class:`pmrf.evaluators.Binary`.
-    log_likelihood_params : dict[str, prx.Parameter], optional
-        Additional parameters to pass to ``log_likelihood_fn``. Defaults to a uniform 
-        scale parameter if None. Passed to :class:`pmrf.evaluators.Binary`.
+    log_likelihood_fn : str | Callable, optional
+        The log likelihood function between the model prediction and the data.
+        Can be a callable taking (y_true, y_pred), or a callable PyTree.
+        See :mod:``pmrf.likelihoods`` for common likelihoods.
+        Defaults to `None`, in which case :class:``pmrf.likelihoods.SymmetricGaussianLikelihood``
+        is constructed internally.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -73,8 +72,8 @@ def condition(
         raise ValueError("Frequency must be passed if Network data is not provided")
 
     # Resolve the features and data
-    if not isinstance(features, Operator):
-        features = Feature(features)
+    if not isinstance(features, Callable):
+        features = Alias(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -89,9 +88,9 @@ def condition(
     if log_likelihood_params is None:
         log_likelihood_params = {}        
     if log_likelihood_fn is None:
-        log_likelihood_fn = symmetric_gaussian_log_likelihood
-        log_likelihood_params = {'sigma': prx.Uniform(0.0, 100.0, scale=1e-3)}
-    log_likelihood_model = Binary(fn=log_likelihood_fn, left=target, right=features, params=log_likelihood_params)
+        log_likelihood_fn = SymmetricGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+    
+    objective_fn = Objective(metric_fn=log_likelihood_fn, predictor_fn=features, target=target)  
     
     # Run the sampling
-    return sample(log_likelihood_model, model, frequency, solver=solver, **kwargs)
+    return sample(objective_fn, model, frequency, solver=solver, **kwargs)

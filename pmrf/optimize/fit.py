@@ -6,20 +6,17 @@ import skrf
 from distreqx.bijectors import AbstractBijector
 import parax as prx
 
-from pmrf.core import Model, Frequency, Operator, Metric
-from pmrf.math import CONVERSION_LOOKUP
-from pmrf.constants import EvaluatorLike, Optimizer, AggregationKind
+from pmrf.core import Model, Frequency
+from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
+from pmrf.constants import Optimizer, AggregationKind
+from pmrf.network_collection import NetworkCollection
+from pmrf.models import Measured
+from pmrf.evaluators import Alias, Objective
+from pmrf.losses import LogMSELoss
+
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers import ScipyMinimizer
-from pmrf.network_collection import NetworkCollection
-from pmrf.models import Measured
-from pmrf.evaluators import Feature, Binary, Map
-from pmrf.losses import loss_from_alias
-from pmrf.constants import MetricFn
-
-from flowjax.train import fit_to_data
-
 
 def fit(
     model: Model,
@@ -27,11 +24,10 @@ def fit(
     frequency: Frequency | None = None,
     solver: Optimizer = ScipyMinimizer(),
     *,
-    features: EvaluatorLike = 's',
-    loss_fn: str | MetricFn = 'mse',
-    loss_params: dict[str, prx.Parameter] = None,
+    features: str | list[str] | Callable = 's',
+    loss_fn: str | Callable = LogMSELoss(),
     multioutput: AggregationKind | None = None,
-    scale_fn: str | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    scale_fn: str | Callable | None = None,
     transform: AbstractBijector | None = None,
     **kwargs,
 ) -> OptimizeResult:
@@ -52,21 +48,19 @@ def fit(
         extracted from the Network object.
     solver : Solver, default=ScipyMinimizer()
         The optimization algorithm backend.
-    features : EvaluatorLike, default='s'
+    features : str | list[str] | Callable, default='s'
         The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
-    loss_fn : str | MetricFn, default='rms'
-        The mathematical loss metric (e.g., 'mse', 'mae', 'rms') comparing prediction to data.
-        See :meth:`pmrf.losses.loss_from_alias`.
-        Used to create a Binary evaluator via :class`pmrf.evalutors.Binary`.
-    loss_params : dict[str, parax.Parameter], optional
-        Loss hyper-parameters to pass to ``loss_fn``. This can be useful
-        e.g. for regulariziation. Used in :class`pmrf.evalutors.Binary`.
-        Defaults to None.
+    loss_fn : str | Callable, default=LogMSELoss()
+        The loss function between the model predictionand the data.
+        Can be a string for a lookup into :data:``pmrf.math.LOSS_LOOKUP``        
+        (e.g., 'mse', 'mae', 'rmse'), a callable taking (y_true, y_pred),
+        or a callable PyTree. See :mod:``pmrf.losses`` for common losses.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to ``loss_fn`` indicating
         how to aggregate outputs. For the default of `None`, the argument is not passed.
     scale_fn : str | Callable, default=None
-        A scaling to apply to the output metric after aggregation. See :meth:`pmrf.math_functions`.
+        A scaling to apply to the output metric after aggregation.
+        Can be a string for a lookup into :data:``pmrf.math.CONVERSION_LOOKUP``.
     transform : ParameterTransform, default=None
         An invertible transformation to apply to all model parameters before optimization.
     **kwargs : dict
@@ -80,12 +74,10 @@ def fit(
     # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise Exception("Frequency must be passed if Network data is not provided")
-    if loss_model is not None and (loss_fn is not None or loss_params is not None):
-        raise Exception("Cannot pass ``loss_model`` and ``loss_fn`` or ``loss_params``")
     
     # Resolve data and features
-    if not isinstance(features, Operator):
-        features = Feature(features)
+    if not isinstance(features, Callable):
+        features = Alias(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -97,20 +89,19 @@ def fit(
         target = data
     
     # Resolve the loss model    
-    if loss_params is None:
-        loss_params = {}
     if isinstance(loss_fn, str):
-        loss_fn = loss_from_alias(loss_fn)
+        loss_fn = LOSS_LOOKUP[loss_fn][1]
     if multioutput is not None:
         loss_fn = partial(loss_fn, multioutput=multioutput)
-    loss_model = Binary(fn=loss_fn, left=target, right=features, params=loss_params)
+    cost_fn = Objective(metric_fn=loss_fn, predictor_fn=features, target=target)
     
     # Append an optional scale function
     if isinstance(scale_fn, str):
         scale_fn = CONVERSION_LOOKUP[scale_fn][1]
-        scaled_loss_model = Map(scale_fn, loss_model)
+    if scale_fn is not None:
+        scaled_cost_fn = prx.op.Map(scale_fn, cost_fn)
     else:
-        scaled_loss_model = loss_model
+        scaled_cost_fn = cost_fn
 
     # Run the optimizer
-    return minimize(scaled_loss_model, model, frequency, solver, transform=transform, **kwargs)
+    return minimize(scaled_cost_fn, model, frequency, solver, transform=transform, **kwargs)

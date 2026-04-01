@@ -3,7 +3,7 @@ Model evaluators.
 """
 from __future__ import annotations
 import re
-from typing import Sequence, Literal, Any
+from typing import Sequence, Literal, Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -13,7 +13,7 @@ from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 from pmrf.core import Model, Frequency, Evaluator, Metric
 from pmrf.losses import HingeLoss
 
-class Feature(Evaluator):
+class Alias(Evaluator):
     """
     Extracts an RF feature using a string-based alias.
     
@@ -30,7 +30,7 @@ class Feature(Evaluator):
 
         # 2. Handle Sequences (Recursive Stacking)
         if not isinstance(alias, str) and isinstance(alias, Sequence):
-            evaluators = tuple(Feature(a) for a in alias)
+            evaluators = tuple(Alias(a) for a in alias)
             self.op = Stack(operators=evaluators, axis=-1)
             return
 
@@ -81,15 +81,15 @@ class Feature(Evaluator):
     
 class Objective(Evaluator):
     """
-    Computes an objective between an evaluator and a target using a metric.
+    Computes an objective between a predictor and a target using a metric.
     """
-    evaluator: Evaluator
+    metric_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    predictor_fn: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
-    metric: Metric
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        y_pred = self.evaluator(model, frequency, **kwargs)
-        return self.metric(self.target, y_pred)
+        y_pred = self.predictor_fn(model, frequency, **kwargs)
+        return self.metric_fn(self.target, y_pred)
 
 
 class Goal(Objective):
@@ -106,14 +106,20 @@ class Goal(Objective):
         loss_fn: str | Any = 'rmse',
         multioutput: str | Any = 'uniform_average'
     ):
-        self.evaluator = Feature(feature) if isinstance(feature, str) else feature
+        self.predictor_fn = Alias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.
-        self.metric = HingeLoss(
+        self.metric_fn = HingeLoss(
             operator=operator,
             weight=weight,
             mask=mask,
             base_loss_fn=loss_fn,
             multioutput=multioutput
         )
+        
+__all__ = [
+    'Alias',
+    'Objective',
+    'Goal',
+]
