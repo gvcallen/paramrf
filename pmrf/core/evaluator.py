@@ -6,7 +6,7 @@ import parax as prx
 from pmrf.core.model import Model
 from pmrf.core.frequency import Frequency
 
-class Evaluator(prx.Operator[[Model, Frequency], jnp.ndarray]):
+class Evaluator(prx.Module, prx.Operator):
     """
     Base class for callables that evaluate a model over frequency.
     """

@@ -28,7 +28,7 @@ Modules
    pmrf.infer
    pmrf.likelihoods
    pmrf.losses
-   pmrf.math_functions
+   pmrf.math
    pmrf.models
    pmrf.optimize
    pmrf.rf

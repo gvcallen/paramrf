@@ -23,6 +23,8 @@ class Alias(Evaluator):
     op: prx.Operator
 
     def __init__(self, alias: str | Sequence[str] | list[prx.Operator]):
+        super().__init__()
+        
         # 1. Handle pre-instantiated Operator lists (Summation)
         if isinstance(alias, list) and all(isinstance(a, prx.Operator) for a in alias):
             self.op = Sum(alias)
@@ -137,6 +139,8 @@ class Goal(Objective):
         loss_fn: str | Any = 'rmse',
         multioutput: str | Any = 'uniform_average'
     ):
+        super().__init__()
+        
         self.predictor = Alias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         

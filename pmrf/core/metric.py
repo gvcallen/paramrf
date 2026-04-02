@@ -3,7 +3,7 @@ from typing import Callable
 import jax.numpy as jnp
 import parax as prx
 
-class Metric(prx.Operator[[jnp.ndarray, jnp.ndarray], jnp.ndarray]):
+class Metric(prx.Module, prx.Operator):
     """
     Base class for callables that compare two arrays and return a metric.
     """

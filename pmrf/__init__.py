@@ -17,13 +17,13 @@ __all__ = []
 
 # 3. Main API Hoisting
 from pmrf.core import *
-from pmrf.io import *
+from pmrf.serialization import *
 from pmrf import core, math
-from pmrf import io
+from pmrf import serialization
 
 # Synchronize __all__ and apply branding
 __all__.extend(core.__all__)
-__all__.extend(io.__all__)
+__all__.extend(serialization.__all__)
 
 for name in core.__all__:
     obj = globals().get(name)
