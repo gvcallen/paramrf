@@ -93,7 +93,7 @@ def fit(
         loss_fn = LOSS_LOOKUP[loss_fn][1]
     if multioutput is not None:
         loss_fn = partial(loss_fn, multioutput=multioutput)
-    cost_fn = Objective(metric=loss_fn, predictor=features, target=target)
+    cost_fn = Objective(metric=loss_fn, evaluator=features, target=target)
     
     # Append an optional scale function
     if isinstance(scale_fn, str):

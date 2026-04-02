@@ -85,12 +85,12 @@ class Objective(Evaluator):
     """
     Computes an objective between a predictor and a target using a metric.
     """
-    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
+    evaluator: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        y_pred = self.predictor(model, frequency, **kwargs)
+        y_pred = self.evaluator(model, frequency, **kwargs)
         return self.metric(self.target, y_pred)
 
 
@@ -141,7 +141,7 @@ class Goal(Objective):
     ):
         super().__init__()
         
-        self.predictor = Alias(feature) if isinstance(feature, str) else feature
+        self.evaluator = Alias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.

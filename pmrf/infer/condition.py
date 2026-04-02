@@ -86,9 +86,11 @@ def condition(
         
     # Resolve the likelihood model
     if log_likelihood_fn is None:
-        log_likelihood_fn = SymmetricGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+        log_likelihood_fn = SymmetricGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3), name='likelihood')
+    elif isinstance(log_likelihood_fn, prx.Module) and log_likelihood_fn.name is None:
+        log_likelihood_fn = log_likelihood_fn.with_name('likelihood')
     
-    objective_fn = Objective(metric=log_likelihood_fn, predictor=features, target=target)  
+    objective_fn = Objective(metric=log_likelihood_fn, evaluator=features, target=target)  
     
     # Run the sampling
     return sample(objective_fn, model, frequency, solver=solver, **kwargs)
