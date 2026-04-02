@@ -16,7 +16,7 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, LossEvaluator
+from pmrf.evaluators import Alias, LogLikelihoodEvaluator
 
 from pmrf.likelihoods import ComplexGaussianLikelihood
 from pmrf.infer.result import InferResult
@@ -29,7 +29,7 @@ def condition(
     solver: Inferer = PolyChord(),
     *,
     features: str | list[str] | Callable = 's',
-    log_likelihood_fn: str | Callable = None,
+    likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
     **kwargs,
 ) -> InferResult:
     """
@@ -53,11 +53,11 @@ def condition(
     features : EvaluatorLike, default='s'
         The specific circuit feature(s) to compute the likelihood against. 
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
-    log_likelihood_fn : str | Callable, optional
-        The log likelihood function between the model prediction and the data.
-        Can be a callable taking (y_true, y_pred), or a callable PyTree.
-        See :mod:``pmrf.likelihoods`` for common likelihoods.
-        Defaults to `None`, in which case :class:``pmrf.likelihoods.SymmetricGaussianLikelihood``
+    likelihood_fn : str | Callable, optional
+        The likelihood function that returns a distribution represneting the probability
+        of observing data given a model prediction. Can be a callable taking (y_pred) or
+        a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
+        Defaults to `None`, in which case :class:``pmrf.likelihoods.ComplexGaussianLikelihood``
         is constructed internally.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
@@ -85,10 +85,10 @@ def condition(
         target = data
         
     # Resolve the likelihood model
-    if log_likelihood_fn is None:
-        log_likelihood_fn = ComplexGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+    if likelihood_fn is None:
+        likelihood_fn = ComplexGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
     
-    objective_fn = LossEvaluator(loss=log_likelihood_fn, predictor=features, target=target)  
+    log_likelihood_fn = LogLikelihoodEvaluator(predictor=features, data=target, likelihood=likelihood_fn)  
     
     # Run the sampling
-    return sample(objective_fn, model, frequency, solver=solver, **kwargs)
+    return sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)

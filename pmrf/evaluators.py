@@ -95,6 +95,7 @@ class LossEvaluator(Evaluator):
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
     
+    
 class LogLikelihoodEvaluator(Evaluator):
     """
     Computes the log probability of observing data given a distribution conditioned on a model prediction.

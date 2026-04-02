@@ -11,19 +11,46 @@ from pmrf.distributions import MultivariateNormalFullCovariance
 from pmrf.core import Likelihood
 
 
-def _broadcast_sigma(sigma, nports: int) -> jnp.ndarray:
-    """Broadcasts a sigma parameter into a full (nports, nports) matrix."""
+def fix_sigma_shape(sigma, y_pred: jnp.ndarray) -> jnp.ndarray:
+    """
+    Broadcasts a sigma parameter based on the shape of y_pred.
+    
+    If y_pred is of shape (nfreq, n, n) or (nfreq, n, n, ...), it attempts to 
+    broadcast scalar or 2-element sigmas into an (n, n) matrix. It automatically
+    pads trailing ones (n, n, 1, ...) to ensure safe tensor broadcasting.
+    
+    Otherwise, it returns sigma directly, assuming the caller provided a properly 
+    broadcastable array.
+    """
     sigma = jnp.asarray(sigma)
-    if sigma.size == 1:
-        return jnp.full((nports, nports), sigma.squeeze())
-    elif sigma.size == 2:
-        sigma_matrix = jnp.full((nports, nports), sigma[1])
-        diag_indices = jnp.diag_indices(nports)
-        return sigma_matrix.at[diag_indices].set(sigma[0])
-    elif sigma.size == nports ** 2:
-        return sigma.reshape((nports, nports))
-    else:
-        raise ValueError(f"Invalid size for sigma: {sigma.size}. Expected 1, 2, or {nports**2}.")
+    
+    # Check for port matrix structure: at least 3 dims, and axis 1 == axis 2
+    if y_pred.ndim >= 3 and y_pred.shape[1] == y_pred.shape[2]:
+        n = y_pred.shape[1]
+        sigma_matrix = None
+        
+        if sigma.size == 1:
+            sigma_matrix = jnp.full((n, n), sigma.squeeze())
+        elif sigma.size == 2:
+            sigma_sq = sigma.squeeze()
+            sigma_matrix = jnp.full((n, n), sigma_sq[1])
+            diag_indices = jnp.diag_indices(n)
+            sigma_matrix = sigma_matrix.at[diag_indices].set(sigma_sq[0])
+        elif sigma.shape == (n, n) or sigma.size == n ** 2:
+            sigma_matrix = sigma.reshape((n, n))
+            
+        if sigma_matrix is not None:
+            # Pad with trailing ones for safe right-to-left broadcasting against y_pred
+            # e.g., if y_pred is (nfreq, n, n, k, j), pad_shape becomes (n, n, 1, 1)
+            num_trailing_dims = y_pred.ndim - 3
+            if num_trailing_dims > 0:
+                pad_shape = (n, n) + (1,) * num_trailing_dims
+                sigma_matrix = sigma_matrix.reshape(pad_shape)
+                
+            return sigma_matrix
+            
+    # Fallback: assume the caller provided a correctly shaped/broadcastable array
+    return sigma
 
 
 class GaussianLikelihood(Likelihood):
@@ -31,8 +58,7 @@ class GaussianLikelihood(Likelihood):
     sigma: prx.Parameter | jnp.ndarray | float
 
     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-        nports = y_pred.shape[-1]
-        sigma_matrix = _broadcast_sigma(self.sigma, nports)
+        sigma_matrix = fix_sigma_shape(self.sigma, y_pred)
         return dist.Normal(loc=y_pred, scale=sigma_matrix)
 
 
@@ -41,8 +67,7 @@ class ComplexGaussianLikelihood(Likelihood):
     sigma: prx.Parameter | jnp.ndarray | float
 
     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-        nports = y_pred.shape[-1]
-        sigma_matrix = _broadcast_sigma(self.sigma, nports)
+        sigma_matrix = fix_sigma_shape(self.sigma, y_pred)
         
         # Split variance evenly
         sigma_parts = sigma_matrix / jnp.sqrt(2.0)
@@ -61,9 +86,8 @@ class MagnitudePhaseGaussianLikelihood(Likelihood):
     sigma_phase: prx.Parameter | jnp.ndarray | float
 
     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-        nports = y_pred.shape[-1]
-        sig_m = _broadcast_sigma(self.sigma_mag, nports)
-        sig_p = _broadcast_sigma(self.sigma_phase, nports)
+        sig_m = fix_sigma_shape(self.sigma_mag, y_pred)
+        sig_p = fix_sigma_shape(self.sigma_phase, y_pred)
         
         scale_diag = jnp.stack([sig_m, sig_p], axis=-1)
         
@@ -85,10 +109,9 @@ class RadialTangentialGaussianLikelihood(Likelihood):
     sigma_phase: prx.Parameter | jnp.ndarray | float
 
     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-        nports = y_pred.shape[-1]
-        sig_c = _broadcast_sigma(self.sigma_complex, nports)
-        sig_m = _broadcast_sigma(self.sigma_mag, nports)
-        sig_p = _broadcast_sigma(self.sigma_phase, nports)
+        sig_c = fix_sigma_shape(self.sigma_complex, y_pred)
+        sig_m = fix_sigma_shape(self.sigma_mag, y_pred)
+        sig_p = fix_sigma_shape(self.sigma_phase, y_pred)
         
         # 1. Heteroscedastic Scales
         mag_pred = jnp.abs(y_pred)
@@ -159,11 +182,7 @@ class GaussianProcessLikelihood(Likelihood):
         variances_aligned = jnp.moveaxis(variances, 0, -1)
 
         # 6. Build the N-Dimensional Dense Covariance Matrix
-        # Trick: broadcast arbitrary variances into perfectly batched diagonal matrices
-        # Shape goes from (d1, ..., 2, nfreq) -> (d1, ..., 2, nfreq, nfreq)
         batched_diag_variances = variances_aligned[..., None, :] * jnp.eye(nfreq)
-        
-        # Add the GP covariance block to all independent feature matrices
         dense_cov_matrix = gp_covariances + batched_diag_variances
 
         # 7. Create Dense Base Distribution
@@ -173,8 +192,8 @@ class GaussianProcessLikelihood(Likelihood):
         )
 
         # 8. Re-apply Bijectors
-        # Move the frequency axis (0) to the end (-1) for the dense GP covariance
-        bijector_chain = [MoveAxis(axis_from=0, axis_to=-1)] + bijectors[::-1]
+        # Move the GP event axis (-1) back to the frequency axis (0), THEN apply original bijectors
+        bijector_chain = bijectors + [MoveAxis(axis_from=-1, axis_to=0)]
         
         full_bijector = bij.Chain(bijector_chain)
         return dist.Transformed(dense_base, full_bijector)
