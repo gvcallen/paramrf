@@ -7,6 +7,7 @@ import distreqx.bijectors as bij
 import parax as prx
 
 from pmrf.bijectors import RealToComplex, Rotate, LogPolarToComplex, MoveAxis
+from pmrf.distributions import MultivariateNormalFullCovariance
 from pmrf.core import Likelihood
 
 
@@ -166,8 +167,7 @@ class GaussianProcessLikelihood(Likelihood):
         dense_cov_matrix = gp_covariances + batched_diag_variances
 
         # 7. Create Dense Base Distribution
-        dist.MultivariateNormalDiag()
-        dense_base = dist.MultivariateNormalFullCovariance(
+        dense_base = MultivariateNormalFullCovariance(
             loc=loc_aligned, 
             covariance_matrix=dense_cov_matrix
         )
