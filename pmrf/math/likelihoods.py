@@ -155,7 +155,7 @@ def symmetric_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, 
     return jnp.sum(log_prob_real + log_prob_imag)
 
 
-def mag_phase_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
+def magnitude_phase_gaussian_log_likelihood(y_true: jnp.ndarray, y_pred: jnp.ndarray, sigma_mag: jnp.ndarray, sigma_phase: jnp.ndarray) -> jnp.ndarray:
     """
     Compute the log-likelihood of a complex-valued function by modeling
     the relative magnitude error and the wrapped phase error as independent Gaussians.

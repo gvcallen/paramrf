@@ -64,6 +64,8 @@ def load(source: str | os.PathLike | BinaryIO) -> Any:
     Any
         The deserialized PyTree (e.g., pmrf.Model).
     """
+    print('yes')
+    
     if isinstance(source, (str, os.PathLike)):
         source_path = Path(source)
         

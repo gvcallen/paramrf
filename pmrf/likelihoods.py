@@ -45,7 +45,7 @@ class GaussianLikelihood(Metric):
 
 class SymmetricGaussianLikelihood(Metric):
     """
-    Symmetric, complex Gaussian log-likelihood metric.
+    Circularly symmetric, complex Gaussian log-likelihood metric.
 
     Models the complex error with equal variance across the real and imaginary axes.
 
@@ -72,7 +72,7 @@ class SymmetricGaussianLikelihood(Metric):
         )
 
 
-class MagPhaseGaussianLikelihood(Metric):
+class MagnitudePhaseGaussianLikelihood(Metric):
     """
     Magnitude/Phase Gaussian log-likelihood metric.
 
@@ -98,7 +98,7 @@ class MagPhaseGaussianLikelihood(Metric):
         sigma_mag_total = _add_sigmas(self.sigma_mag, sigma_mag_delta)
         sigma_phase_total = _add_sigmas(self.sigma_phase, sigma_phase_delta)
         
-        return F.mag_phase_gaussian_log_likelihood(
+        return F.magnitude_phase_gaussian_log_likelihood(
             y_true=y_true, 
             y_pred=y_pred, 
             sigma_mag=sigma_mag_total, 
@@ -134,9 +134,9 @@ class RadialTangentialGaussianLikelihood(Metric):
         sigma_mag_delta: jnp.ndarray = 0.0,
         sigma_phase_delta: jnp.ndarray = 0.0,
     ) -> jnp.ndarray:
-        sigma_complex_total = _add_sigmas(self.sigma_mag, sigma_complex_delta)        
+        sigma_complex_total = _add_sigmas(self.sigma_complex, sigma_complex_delta)        
         sigma_mag_total = _add_sigmas(self.sigma_mag, sigma_mag_delta)        
-        sigma_phase_total = _add_sigmas(self.sigma_mag, sigma_phase_delta)        
+        sigma_phase_total = _add_sigmas(self.sigma_phase, sigma_phase_delta)        
         
         return F.radial_tangential_gaussian_log_likelihood(
             y_true=y_true,
@@ -149,7 +149,7 @@ class RadialTangentialGaussianLikelihood(Metric):
 __all__ = [
     'DistributionLikelihood',
     'SymmetricGaussianLikelihood',
-    'MagPhaseGaussianLikelihood',
+    'MagnitudePhaseGaussianLikelihood',
     'RadialTangentialGaussianLikelihood',
     'likelihood_from_alias'
 ]
