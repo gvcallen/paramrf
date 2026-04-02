@@ -11,9 +11,9 @@ import jax.numpy as jnp
 import parax as prx
 
 from pmrf.math import losses as F
-from pmrf.core import Metric
+from pmrf.core import Loss
 
-class MSELoss(Metric):
+class MSELoss(Loss):
     """
     Mean Squared Error (MSE) metric.
     
@@ -35,7 +35,7 @@ class MSELoss(Metric):
         )
 
 
-class RMSELoss(Metric):
+class RMSELoss(Loss):
     """
     Root Mean Squared Error (RMSE) metric.
     
@@ -55,7 +55,7 @@ class RMSELoss(Metric):
         )
 
 
-class LogMSELoss(Metric):
+class LogMSELoss(Loss):
     """
     Log of Mean Squared Error (RMSE) metric.
     
@@ -75,7 +75,7 @@ class LogMSELoss(Metric):
         )
 
 
-class L1Loss(Metric):
+class L1Loss(Loss):
     """
     L1 Loss (Mean Absolute Error) metric.
     
@@ -97,7 +97,7 @@ class L1Loss(Metric):
         )
 
 
-class MAPELoss(Metric):
+class MAPELoss(Loss):
     """
     Mean Absolute Percentage Error (MAPE) metric.
 
@@ -117,7 +117,7 @@ class MAPELoss(Metric):
         )
 
 
-class HuberLoss(Metric):
+class HuberLoss(Loss):
     """
     Huber loss metric.
     
@@ -144,7 +144,7 @@ class HuberLoss(Metric):
         )
         
         
-class HingeLoss(Metric):
+class HingeLoss(Loss):
     """
     Applies a one-sided constraint (hinge) before evaluating a base metric.
     
@@ -162,7 +162,7 @@ class HingeLoss(Metric):
     operator: Literal['<', '<=', '>', '>=', '==', '='] = prx.field(default='==', static=True)
     weight: float | jnp.ndarray = 1.0
     mask: jnp.ndarray | None = prx.field(default=None, static=True)
-    base_loss_fn: str | Callable | Metric = prx.field(default='rmse', static=True)
+    base_loss_fn: str | Callable | Loss = prx.field(default='rmse', static=True)
     multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
 
     def __call__(

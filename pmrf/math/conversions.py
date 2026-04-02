@@ -142,7 +142,7 @@ def complex_2_reim(z: NumberLike):
     imag : array like or scalar
         Imaginary part of input.
     """
-    return (jnp.real(z), jnp.imag(z))
+    return jnp.stack([jnp.real(z), jnp.imag(z)])
 
 
 def complex_components(z: NumberLike):

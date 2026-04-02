@@ -9,9 +9,11 @@ import jax
 import jax.numpy as jnp
 import parax as prx
 from parax.op import Map, Stack, Method, Sum, Diagonal, Index
+import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss
+from pmrf.utils import unwrap_base_distribution
 
 class Alias(Evaluator):
     """
@@ -81,53 +83,35 @@ class Alias(Evaluator):
         return self.op(model, frequency, **kwargs)
     
     
-class Objective(Evaluator):
+class LossEvaluator(Evaluator):
     """
-    Computes an objective between a predictor and a target using a metric.
+    Computes a loss between a model prediction and a target.
     """
-    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
-    evaluator: Callable[[Model, Frequency], jnp.ndarray]
-    target: jnp.ndarray
-
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        y_pred = self.evaluator(model, frequency, **kwargs)
-        return self.metric(self.target, y_pred)
-
-
-class EpistemicObjective(Evaluator):
-    """
-    Computes an objective between a predictor and a target using a metric
-    with added epistemic uncertainty.
-    
-    The uncertainty adds to both the model's prediction, and to arbitrary
-    metric key-word arguments defined by a mapping.
-    """
-    metric: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
-    
-    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], tuple[jnp.ndarray, jnp.ndarray]]
-    metric_keys: list[str]
-    
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
+
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
-
-        model_discrepancy, metric_discrepancy_values = self.discrepancy(frequency.f_scaled, y_pred)
-        y_corrected = y_pred + model_discrepancy
-        
-        metric_discrepancies = dict(zip(self.metric_keys, metric_discrepancy_values))
-        
-        return self.metric(
-            self.target, 
-            y_corrected,
-            **metric_discrepancies,
-            **kwargs
-        )
-
-
-class Goal(Objective):
+        return self.loss(self.target, y_pred)
+    
+class LogLikelihoodEvaluator(Evaluator):
     """
-    Computes a design goal using a hinge-based loss.
+    Computes the log probability of observing data given a distribution conditioned on a model prediction.
+    """
+    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    data: jnp.ndarray
+    likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
+
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        y_pred = self.predictor(model, frequency, **kwargs)
+        likelihood = self.likelihood(y_pred)
+        return jnp.sum(likelihood.log_prob(self.data))
+    
+
+class Goal(LossEvaluator):
+    """
+    Computes a design goal using a hinge-based loss evaluator.
     """
     def __init__(
         self,
@@ -141,11 +125,11 @@ class Goal(Objective):
     ):
         super().__init__()
         
-        self.evaluator = Alias(feature) if isinstance(feature, str) else feature
+        self.predictor = Alias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.
-        self.metric = HingeLoss(
+        self.loss = HingeLoss(
             operator=operator,
             weight=weight,
             mask=mask,
@@ -155,6 +139,6 @@ class Goal(Objective):
         
 __all__ = [
     'Alias',
-    'Objective',
+    'LossEvaluator',
     'Goal',
 ]

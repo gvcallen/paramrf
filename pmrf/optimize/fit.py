@@ -11,7 +11,7 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Optimizer, AggregationKind
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Objective
+from pmrf.evaluators import Alias, LossEvaluator
 from pmrf.losses import LogMSELoss
 
 from pmrf.optimize.result import OptimizeResult
@@ -93,7 +93,7 @@ def fit(
         loss_fn = LOSS_LOOKUP[loss_fn][1]
     if multioutput is not None:
         loss_fn = partial(loss_fn, multioutput=multioutput)
-    cost_fn = Objective(metric=loss_fn, evaluator=features, target=target)
+    cost_fn = LossEvaluator(loss=loss_fn, predictor=features, target=target)
     
     # Append an optional scale function
     if isinstance(scale_fn, str):

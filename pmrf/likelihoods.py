@@ -1,155 +1,185 @@
-"""
-Stateful likelihood modules for Bayesian inference and probabilistic modeling.
+from typing import Callable
 
-These classes wrap pure mathematical log-likelihood functions into a :class:``pmrf.Metric``.
-
-All likelihoods take the true and predicted arrays as inputs, and return the log-likelihood.
-It is assume that the underlying distribution is centred around the predicted value, meaning
-the likelihood returns the log probability of observed the true value given that prediction.
-"""
-
+import jax
 import jax.numpy as jnp
+import distreqx.distributions as dist
+import distreqx.bijectors as bij
 import parax as prx
 
-from pmrf.math import likelihoods as F
-from pmrf.core import Metric
+from pmrf.bijectors import RealToComplex, Rotate, LogPolarToComplex, Transpose
+from pmrf.core import Likelihood
 
-def _add_sigmas(a, b):
-    return jnp.sqrt(jnp.square(a) + jnp.square(b))
 
-class GaussianLikelihood(Metric):
-    """
-    Gaussian log-likelihood metric.
+def _broadcast_sigma(sigma, nports: int) -> jnp.ndarray:
+    """Broadcasts a sigma parameter into a full (nports, nports) matrix."""
+    sigma = jnp.asarray(sigma)
+    if sigma.size == 1:
+        return jnp.full((nports, nports), sigma.squeeze())
+    elif sigma.size == 2:
+        sigma_matrix = jnp.full((nports, nports), sigma[1])
+        diag_indices = jnp.diag_indices(nports)
+        return sigma_matrix.at[diag_indices].set(sigma[0])
+    elif sigma.size == nports ** 2:
+        return sigma.reshape((nports, nports))
+    else:
+        raise ValueError(f"Invalid size for sigma: {sigma.size}. Expected 1, 2, or {nports**2}.")
 
-    Attributes
-    ----------
-    sigma : float | jnp.ndarray | prx.Parameter
-        Noise standard deviation. Can be a scalar, 2-element array (S11/S21), 
-        or a full nports**2 array.
-    """
-    sigma: float | jnp.ndarray | prx.Parameter
 
-    def __call__(
-        self, 
-        y_true: jnp.ndarray, 
-        y_pred: jnp.ndarray,
-        sigma_delta: jnp.ndarray = 0.0,
-    ) -> jnp.ndarray:
-        sigma_total = _add_sigmas(self.sigma, sigma_delta)
+class GaussianLikelihood(Likelihood):
+    """Standard Gaussian for purely real-valued network features."""
+    sigma: prx.Parameter | jnp.ndarray | float
+
+    def __call__(self, y_pred: jnp.ndarray, **kwargs):
+        nports = y_pred.shape[-1]
+        sigma_matrix = _broadcast_sigma(self.sigma, nports)
+        return dist.Normal(loc=y_pred, scale=sigma_matrix)
+
+
+class ComplexGaussianLikelihood(Likelihood):
+    """Complex Gaussian where variance is split evenly between Real and Imaginary."""
+    sigma: prx.Parameter | jnp.ndarray | float
+
+    def __call__(self, y_pred: jnp.ndarray, **kwargs):
+        nports = y_pred.shape[-1]
+        sigma_matrix = _broadcast_sigma(self.sigma, nports)
         
-        return F.gaussian_log_likelihood(
-            y_true=y_true, 
-            y_pred=y_pred, 
-            sigma=sigma_total,
+        # Split variance evenly
+        sigma_parts = sigma_matrix / jnp.sqrt(2.0)
+        scale_diag = jnp.stack([sigma_parts, sigma_parts], axis=-1)
+        
+        # R^2 Prediction Location
+        loc = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=-1)
+        
+        base_dist = dist.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
+        return dist.Transformed(base_dist, RealToComplex())
+
+
+class MagnitudePhaseGaussianLikelihood(Likelihood):
+    """Models relative magnitude and absolute phase noise independently."""
+    sigma_mag: prx.Parameter | jnp.ndarray | float
+    sigma_phase: prx.Parameter | jnp.ndarray | float
+
+    def __call__(self, y_pred: jnp.ndarray, **kwargs):
+        nports = y_pred.shape[-1]
+        sig_m = _broadcast_sigma(self.sigma_mag, nports)
+        sig_p = _broadcast_sigma(self.sigma_phase, nports)
+        
+        scale_diag = jnp.stack([sig_m, sig_p], axis=-1)
+        
+        # R^2 Location in Log-Polar space
+        log_mag_pred = jnp.log(jnp.abs(y_pred) + 1e-12)
+        phase_pred = jnp.angle(y_pred)
+        loc = jnp.stack([log_mag_pred, phase_pred], axis=-1)
+        
+        base_dist = dist.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
+        
+        # The LogPolar bijector naturally wraps the phase when transitioning to complex
+        return dist.Transformed(base_dist, LogPolarToComplex())
+
+
+class RadialTangentialGaussianLikelihood(Likelihood):
+    """Geometrically aligns noise to the prediction vector (Banana shape)."""
+    sigma_complex: prx.Parameter | jnp.ndarray | float
+    sigma_mag: prx.Parameter | jnp.ndarray | float
+    sigma_phase: prx.Parameter | jnp.ndarray | float
+
+    def __call__(self, y_pred: jnp.ndarray, **kwargs):
+        nports = y_pred.shape[-1]
+        sig_c = _broadcast_sigma(self.sigma_complex, nports)
+        sig_m = _broadcast_sigma(self.sigma_mag, nports)
+        sig_p = _broadcast_sigma(self.sigma_phase, nports)
+        
+        # 1. Heteroscedastic Scales
+        mag_pred = jnp.abs(y_pred)
+        var_base = (sig_c ** 2) / 2.0
+        var_rad = var_base + (mag_pred * sig_m) ** 2
+        var_tan = var_base + (mag_pred * sig_p) ** 2
+        
+        scale_diag = jnp.sqrt(jnp.stack([var_rad, var_tan], axis=-1))
+
+        # 2. Base Distribution at the Origin (Unrotated)
+        base_dist = dist.MultivariateNormalDiag(
+            loc=jnp.zeros_like(scale_diag), 
+            scale_diag=scale_diag
         )
 
-class SymmetricGaussianLikelihood(Metric):
-    """
-    Circularly symmetric, complex Gaussian log-likelihood metric.
-
-    Models the complex error with equal variance across the real and imaginary axes.
-
-    Attributes
-    ----------
-    sigma : float | jnp.ndarray | prx.Parameter
-        Noise standard deviation. Can be a scalar, 2-element array (S11/S21), 
-        or a full nports**2 array.
-    """
-    sigma: float | jnp.ndarray | prx.Parameter
-
-    def __call__(
-        self, 
-        y_true: jnp.ndarray, 
-        y_pred: jnp.ndarray,
-        sigma_delta: jnp.ndarray = 0.0,
-    ) -> jnp.ndarray:
-        sigma_total = _add_sigmas(self.sigma, sigma_delta)
+        # 3. Geometric Transforms
+        # A. Rotate the (rad, tan) error to align with the prediction's phase
+        phase_pred = jnp.angle(y_pred)
+        rotate_bij = Rotate(angle=phase_pred)
         
-        return F.symmetric_gaussian_log_likelihood(
-            y_true=y_true, 
-            y_pred=y_pred, 
-            sigma=sigma_total,
+        # B. Shift the rotated error onto the prediction
+        y_pred_reim = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=-1)
+        shift_bij = bij.Shift(shift=y_pred_reim)
+        
+        # 4. Compose Chain: R^2(Origin) -> R^2(Rotated) -> R^2(Shifted) -> Complex
+        bijector_chain = bij.Chain([RealToComplex(), shift_bij, rotate_bij])
+        
+        return dist.Transformed(base_dist, bijector_chain)
+    
+    
+class GaussianProcessLikelihood(Likelihood):
+    """
+    Wraps a base likelihood and injects a Gaussian Process covariance 
+    structure into its base coordinate space.
+    """
+    base_likelihood: Likelihood
+    
+    # Kernel Callable Type Hint:
+    # Expects **kwargs (which contains 'frequency') and returns a covariance 
+    # matrix of shape (n_features, nfreq, nfreq) or (nfreq, nfreq)
+    kernel: Callable[..., jnp.ndarray] 
+
+    def __call__(self, y_pred: jnp.ndarray, **kwargs) -> dist.AbstractDistribution:
+        # 1. Get the independent distribution from the base likelihood
+        base_dist = self.base_likelihood(y_pred, **kwargs)
+
+        # 2. Extract the bijector chain and the foundational Gaussian
+        bijectors = []
+        current_dist = base_dist
+        
+        while isinstance(current_dist, dist.Transformed):
+            bijectors.append(current_dist.bijector)
+            current_dist = current_dist.distribution
+            
+        if not isinstance(current_dist, (dist.Normal, dist.MultivariateNormalDiag)):
+            raise TypeError("GaussianProcessLikelihood requires a Gaussian base likelihood.")
+
+        # 3. Extract the diagonal variances (Observation Noise) and Location
+        variances = current_dist.scale ** 2 if isinstance(current_dist, dist.Normal) else current_dist.scale_diag ** 2
+        loc = current_dist.loc
+
+        # 4. Evaluate the GP Kernel using the kwargs (which holds `frequency`)
+        # Assume gp_covariances shape is (nfreq, nfreq) or (n_features, nfreq, nfreq)
+        gp_covariances = self.kernel(**kwargs)
+
+        # 5. Align axes for Dense MVN
+        # We need the event dimension to be `nfreq` for the covariance matrix.
+        # loc shape goes from (..., nfreq, n_features) -> (..., n_features, nfreq)
+        transposed_loc = jnp.swapaxes(loc, -1, -2)
+        transposed_variances = jnp.swapaxes(variances, -1, -2)
+
+        # 6. Build the Dense Covariance Matrix: K + diag(variances)
+        # We use jax.vmap to add the diagonal noise to each feature's covariance matrix
+        def add_diag(cov, var):
+            return cov + jnp.diag(var)
+            
+        # Ensure gp_covariances broadcasts correctly if it's shared across features
+        dense_cov_matrix = jax.vmap(add_diag)(
+            jnp.broadcast_to(gp_covariances, transposed_variances.shape[:-1] + gp_covariances.shape[-2:]),
+            transposed_variances
         )
 
-
-class MagnitudePhaseGaussianLikelihood(Metric):
-    """
-    Magnitude/Phase Gaussian log-likelihood metric.
-
-    Models the relative magnitude error and wrapped phase error as independent Gaussians.
-
-    Attributes
-    ----------
-    sigma_mag : float | jnp.ndarray | prx.Parameter
-        Standard deviation for the relative magnitude error (log-magnitude).
-    sigma_phase : float | jnp.ndarray | prx.Parameter
-        Standard deviation for the phase error (in radians).
-    """
-    sigma_mag: float | jnp.ndarray | prx.Parameter
-    sigma_phase: float | jnp.ndarray | prx.Parameter
-
-    def __call__(
-        self, 
-        y_true: jnp.ndarray, 
-        y_pred: jnp.ndarray,
-        sigma_mag_delta: jnp.ndarray = 0.0,
-        sigma_phase_delta: jnp.ndarray = 0.0,
-    ) -> jnp.ndarray:
-        sigma_mag_total = _add_sigmas(self.sigma_mag, sigma_mag_delta)
-        sigma_phase_total = _add_sigmas(self.sigma_phase, sigma_phase_delta)
-        
-        return F.magnitude_phase_gaussian_log_likelihood(
-            y_true=y_true, 
-            y_pred=y_pred, 
-            sigma_mag=sigma_mag_total, 
-            sigma_phase=sigma_phase_total,
+        # 7. Create the new Dense Base Distribution
+        dense_base = dist.MultivariateNormalFullCovariance(
+            loc=transposed_loc, 
+            covariance_matrix=dense_cov_matrix
         )
 
-
-class RadialTangentialGaussianLikelihood(Metric):
-    """
-    Radial-Tangential Gaussian log-likelihood metric.
-
-    Geometrically aligns the uncertainty distribution with the predicted signal 
-    to natively model the "banana-shaped" uncertainty profile of RF measurements.
-
-    Attributes
-    ----------
-    sigma_complex : float | jnp.ndarray | prx.Parameter
-        Absolute symmetric complex noise floor (e.g., thermal noise).
-    sigma_mag : float | jnp.ndarray | prx.Parameter
-        Relative magnitude error standard deviation.
-    sigma_phase : float | jnp.ndarray | prx.Parameter
-        Absolute phase error standard deviation (radians).
-    """
-    sigma_complex: float | jnp.ndarray | prx.Parameter
-    sigma_mag: float | jnp.ndarray | prx.Parameter
-    sigma_phase: float | jnp.ndarray | prx.Parameter
-
-    def __call__(
-        self, 
-        y_true: jnp.ndarray, 
-        y_pred: jnp.ndarray,
-        sigma_complex_delta: jnp.ndarray = 0.0,
-        sigma_mag_delta: jnp.ndarray = 0.0,
-        sigma_phase_delta: jnp.ndarray = 0.0,
-    ) -> jnp.ndarray:
-        sigma_complex_total = _add_sigmas(self.sigma_complex, sigma_complex_delta)        
-        sigma_mag_total = _add_sigmas(self.sigma_mag, sigma_mag_delta)        
-        sigma_phase_total = _add_sigmas(self.sigma_phase, sigma_phase_delta)        
+        # 8. Re-apply the Bijectors!
+        # First, we Transpose back to (..., nfreq, n_features)
+        # Then, we apply the original bijectors in reverse order (inside-out)
+        bijector_chain = [Transpose()] + bijectors[::-1]
         
-        return F.radial_tangential_gaussian_log_likelihood(
-            y_true=y_true,
-            y_pred=y_pred, 
-            sigma_complex=sigma_complex_total, 
-            sigma_mag=sigma_mag_total, 
-            sigma_phase=sigma_phase_total,
-        )
-
-__all__ = [
-    'DistributionLikelihood',
-    'SymmetricGaussianLikelihood',
-    'MagnitudePhaseGaussianLikelihood',
-    'RadialTangentialGaussianLikelihood',
-    'likelihood_from_alias'
-]
+        full_bijector = bij.Chain(bijector_chain)
+        return dist.Transformed(dense_base, full_bijector)

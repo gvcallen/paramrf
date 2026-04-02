@@ -16,9 +16,9 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, Objective
+from pmrf.evaluators import Alias, LossEvaluator
 
-from pmrf.likelihoods import SymmetricGaussianLikelihood
+from pmrf.likelihoods import ComplexGaussianLikelihood
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
@@ -86,11 +86,9 @@ def condition(
         
     # Resolve the likelihood model
     if log_likelihood_fn is None:
-        log_likelihood_fn = SymmetricGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3), name='likelihood')
-    elif isinstance(log_likelihood_fn, prx.Module) and log_likelihood_fn.name is None:
-        log_likelihood_fn = log_likelihood_fn.with_name('likelihood')
+        log_likelihood_fn = ComplexGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
     
-    objective_fn = Objective(metric=log_likelihood_fn, evaluator=features, target=target)  
+    objective_fn = LossEvaluator(loss=log_likelihood_fn, predictor=features, target=target)  
     
     # Run the sampling
     return sample(objective_fn, model, frequency, solver=solver, **kwargs)

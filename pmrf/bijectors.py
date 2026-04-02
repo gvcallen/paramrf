@@ -2,13 +2,13 @@
 Bijectors not present in distreqx.
 """
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Array
 from typing import Callable
 
 import jax.numpy as jnp
 import distreqx.bijectors as bij
-import distreqx.distributions as dist
 
 
 class Identity(
@@ -32,6 +32,7 @@ class Identity(
 
     def same_as(self, other) -> bool:
         return isinstance(other, Identity)
+
 
 class Inverse(bij.AbstractFwdLogDetJacBijector, bij.AbstractInvLogDetJacBijector, strict=True):
     """Inverted version of a given bijector."""
@@ -148,3 +149,70 @@ class Exp(
 
     def same_as(self, other) -> bool:
         return isinstance(other, Exp)
+    
+    
+class Transpose(bij.AbstractBijector):
+    """
+    Safely swaps the last two axes.
+    Maps (..., nfreq, n_features) <-> (..., n_features, nfreq)
+    """
+    def forward_and_log_det(self, x: jnp.ndarray):
+        y = jnp.swapaxes(x, -1, -2)
+        return y, jnp.zeros_like(x[..., 0, 0])
+
+    def inverse_and_log_det(self, y: jnp.ndarray):
+        x = jnp.swapaxes(y, -1, -2)
+        return x, jnp.zeros_like(y[..., 0, 0])    
+    
+    
+class RealToComplex(bij.AbstractBijector):
+    """Maps R^2 [real, imag] to a Complex array."""
+    def forward_and_log_det(self, x: jnp.ndarray):
+        y = jax.lax.complex(x[..., 0], x[..., 1])
+        return y, jnp.zeros_like(x[..., 0])
+
+    def inverse_and_log_det(self, y: jnp.ndarray):
+        x = jnp.stack([jnp.real(y), jnp.imag(y)], axis=-1)
+        return x, jnp.zeros_like(jnp.real(y))
+
+
+class Rotate(bij.AbstractBijector):
+    """Rotates an R^2 coordinate space by a given angle."""
+    angle: jnp.ndarray
+
+    def forward_and_log_det(self, x: jnp.ndarray):
+        c, s = jnp.cos(self.angle), jnp.sin(self.angle)
+        x0, x1 = x[..., 0], x[..., 1]
+        y0 = x0 * c - x1 * s
+        y1 = x0 * s + x1 * c
+        return jnp.stack([y0, y1], axis=-1), jnp.zeros_like(x0)
+
+    def inverse_and_log_det(self, y: jnp.ndarray):
+        c, s = jnp.cos(self.angle), jnp.sin(self.angle)
+        y0, y1 = y[..., 0], y[..., 1]
+        # Inverse rotation (transpose)
+        x0 = y0 * c + y1 * s
+        x1 = -y0 * s + y1 * c
+        return jnp.stack([x0, x1], axis=-1), jnp.zeros_like(y0)
+
+
+class LogPolarToComplex(bij.AbstractBijector):
+    """
+    Maps R^2 [log_magnitude, phase] to a Complex array.
+    Mathematically: y = exp(log_mag) * exp(i * phase)
+    """
+    def forward_and_log_det(self, x: jnp.ndarray):
+        log_mag, phase = x[..., 0], x[..., 1]
+        mag = jnp.exp(log_mag)
+        y_real = mag * jnp.cos(phase)
+        y_imag = mag * jnp.sin(phase)
+        y = jax.lax.complex(y_real, y_imag)
+        
+        # The Jacobian determinant of this transformation is exactly 2 * log_mag
+        return y, 2.0 * log_mag
+
+    def inverse_and_log_det(self, y: jnp.ndarray):
+        log_mag = jnp.log(jnp.abs(y) + 1e-12)
+        phase = jnp.angle(y)
+        x = jnp.stack([log_mag, phase], axis=-1)
+        return x, -2.0 * log_mag
