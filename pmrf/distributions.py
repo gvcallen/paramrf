@@ -111,6 +111,9 @@ class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
 
     def cdf(self, value: PyTree[Array]) -> PyTree[Array]:
         raise NotImplementedError("Analytic cdf is not defined for an empirical sample distribution.")
+    
+    def icdf(self, value: PyTree[Array]) -> PyTree[Array]:
+        raise NotImplementedError("Analytic icdf is not defined for an empirical sample distribution.")
 
     def log_cdf(self, value: PyTree[Array]) -> PyTree[Array]:
         raise NotImplementedError("Analytic log_cdf is not defined for an empirical sample distribution.")
