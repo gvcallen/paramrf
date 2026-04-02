@@ -1,16 +1,21 @@
 """
 Distributions not present in distreqx.
 """
-
-
 import math
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Key, PyTree
 import equinox as eqx
+from typing import Optional
 
-from distreqx.distributions import AbstractSampleLogProbDistribution, AbstractProbDistribution
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+from jaxtyping import Array
+
+from distreqx.distributions import AbstractDistribution, AbstractSampleLogProbDistribution, AbstractProbDistribution, Independent, Normal, AbstractMultivariateNormalFromBijector
+from distreqx.bijectors import AbstractLinearBijector, AbstractBijector, Block, Chain, Shift, TriangularLinear
 
 class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
     """
@@ -253,4 +258,121 @@ class Empirical(AbstractSampleLogProbDistribution, AbstractProbDistribution):
             samples=new_samples,
             log_likelihoods=None,
             weights=self.weights
-        )    
+        )
+
+
+def _check_input_parameters_are_valid(
+    scale: AbstractLinearBijector, loc: Array
+) -> None:
+    """Raises an error if `scale` and `loc` are not valid."""
+    if loc.ndim < 1:
+        raise ValueError("`loc` must have at least 1 dimension.")
+    if scale.event_dims != loc.shape[-1]:
+        raise ValueError(
+            f"`scale` and `loc` have inconsistent dimensionality: "
+            f"`scale.event_dims = {scale.event_dims} and "
+            f"`loc.shape[-1] = {loc.shape[-1]}."
+        )
+
+
+
+def _check_full_cov_parameters(loc: Optional[Array], covariance_matrix: Optional[Array]) -> None:
+    """Checks that the `loc` and `covariance_matrix` parameters are correct."""
+    if covariance_matrix is not None:
+        if covariance_matrix.ndim < 2:
+            raise ValueError(
+                "Argument `covariance_matrix` must have at least 2 dimensions."
+            )
+        if covariance_matrix.shape[-1] != covariance_matrix.shape[-2]:
+            raise ValueError(
+                f"The last two dimensions of `covariance_matrix` must be equal "
+                f"(square matrices), but got shapes {covariance_matrix.shape[-2:]}."
+            )
+
+    if loc is not None and not loc.shape:
+        raise ValueError("If provided, argument `loc` must have at least 1 dimension.")
+
+    if (
+        loc is not None
+        and covariance_matrix is not None
+        and (loc.shape[-1] != covariance_matrix.shape[-1])
+    ):
+        raise ValueError(
+            f"The last dimension of arguments `loc` and `covariance_matrix` "
+            f"must coincide, but {loc.shape[-1]} != {covariance_matrix.shape[-1]}."
+        )
+
+
+class MultivariateNormalFullCovariance(AbstractMultivariateNormalFromBijector, strict=True):
+    """Multivariate normal distribution on `R^k` with full covariance matrix."""
+
+    loc: Array
+    scale: AbstractLinearBijector
+    distribution: AbstractDistribution
+    bijector: AbstractBijector
+    covariance_matrix: Array
+
+    def __init__(
+        self, 
+        loc: Optional[Array] = None, 
+        covariance_matrix: Optional[Array] = None
+    ):
+        """Initializes a MultivariateNormalFullCovariance distribution.
+
+        **Arguments:**
+
+        - `loc`: Mean vector of the distribution. If not specified, it defaults
+            to zeros. At least one of `loc` and `covariance_matrix` must be specified.
+        - `covariance_matrix`: A positive-definite covariance matrix. If not specified,
+            it defaults to the identity matrix. At least one of `loc` and 
+            `covariance_matrix` must be specified.
+        """
+        _check_full_cov_parameters(loc, covariance_matrix)
+
+        if covariance_matrix is None and loc is not None:
+            # Default to Identity matrix
+            covariance_matrix = jnp.eye(loc.shape[-1], dtype=loc.dtype)
+        elif loc is None and covariance_matrix is not None:
+            loc = jnp.zeros(covariance_matrix.shape[-1], covariance_matrix.dtype)
+
+        if loc is None or covariance_matrix is None:
+            raise ValueError("At least one of `loc` or `covariance_matrix` must be specified.")
+
+        # 1. Compute the lower Cholesky factor of the covariance matrix
+        # This will raise a LinAlgError if the matrix is not positive definite
+        scale_tril = jax.scipy.linalg.cholesky(covariance_matrix, lower=True)
+        
+        # 2. Form the linear scale bijector
+        scale = TriangularLinear(scale_tril)
+        
+        _check_input_parameters_are_valid(scale, loc)
+
+        # 3. Build a standard multivariate Gaussian (mean 0, variance 1)
+        std_mvn_dist = Independent(
+            distribution=eqx.filter_vmap(Normal)(
+                jnp.zeros_like(loc), jnp.ones_like(loc)
+            ),
+        )
+        
+        # 4. Form the transformation bijector `f(x) = Lz + loc`
+        bijector = Chain([Block(Shift(loc), ndims=loc.ndim), scale])
+        
+        self.distribution = std_mvn_dist
+        self.bijector = bijector
+        self.scale = scale
+        self.loc = loc
+        self.covariance_matrix = covariance_matrix
+
+    def icdf(self, value: Array) -> Array:
+        """See `Distribution.icdf`."""
+        raise NotImplementedError("ICDF is not analytically tractable for full covariance MVN.")
+
+    def cdf(self, value: Array) -> Array:
+        """See `Distribution.cdf`."""
+        # For full covariance, CDF requires numerical integration over a hyper-rectangle.
+        # JAX doesn't have a native batched MVN CDF solver yet.
+        raise NotImplementedError("CDF is not analytically tractable for full covariance MVN.")
+
+    def log_cdf(self, value: Array) -> Array:
+        """See `Distribution.log_cdf`."""
+        raise NotImplementedError("Log CDF is not analytically tractable for full covariance MVN.")

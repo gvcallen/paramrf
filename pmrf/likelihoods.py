@@ -6,7 +6,7 @@ import distreqx.distributions as dist
 import distreqx.bijectors as bij
 import parax as prx
 
-from pmrf.bijectors import RealToComplex, Rotate, LogPolarToComplex, Transpose
+from pmrf.bijectors import RealToComplex, Rotate, LogPolarToComplex, MoveAxis
 from pmrf.core import Likelihood
 
 
@@ -121,20 +121,18 @@ class RadialTangentialGaussianLikelihood(Likelihood):
 class GaussianProcessLikelihood(Likelihood):
     """
     Wraps a base likelihood and injects a Gaussian Process covariance 
-    structure into its base coordinate space.
+    structure into its base coordinate space across the frequency axis.
     """
     base_likelihood: Likelihood
     
-    # Kernel Callable Type Hint:
-    # Expects **kwargs (which contains 'frequency') and returns a covariance 
-    # matrix of shape (n_features, nfreq, nfreq) or (nfreq, nfreq)
+    # Expects **kwargs (contains 'frequency') and returns covariance matrix of shape (nfreq, nfreq)
     kernel: Callable[..., jnp.ndarray] 
 
     def __call__(self, y_pred: jnp.ndarray, **kwargs) -> dist.AbstractDistribution:
-        # 1. Get the independent distribution from the base likelihood
+        # 1. Base independent distribution
         base_dist = self.base_likelihood(y_pred, **kwargs)
 
-        # 2. Extract the bijector chain and the foundational Gaussian
+        # 2. Extract Bijectors & Foundation
         bijectors = []
         current_dist = base_dist
         
@@ -145,41 +143,38 @@ class GaussianProcessLikelihood(Likelihood):
         if not isinstance(current_dist, (dist.Normal, dist.MultivariateNormalDiag)):
             raise TypeError("GaussianProcessLikelihood requires a Gaussian base likelihood.")
 
-        # 3. Extract the diagonal variances (Observation Noise) and Location
+        # 3. Extract parameters
+        # Shape: (nfreq, d1, d2, ..., 2)
         variances = current_dist.scale ** 2 if isinstance(current_dist, dist.Normal) else current_dist.scale_diag ** 2
         loc = current_dist.loc
+        nfreq = loc.shape[0]
 
-        # 4. Evaluate the GP Kernel using the kwargs (which holds `frequency`)
-        # Assume gp_covariances shape is (nfreq, nfreq) or (n_features, nfreq, nfreq)
+        # 4. Evaluate GP Kernel (Shape: nfreq, nfreq)
         gp_covariances = self.kernel(**kwargs)
 
-        # 5. Align axes for Dense MVN
-        # We need the event dimension to be `nfreq` for the covariance matrix.
-        # loc shape goes from (..., nfreq, n_features) -> (..., n_features, nfreq)
-        transposed_loc = jnp.swapaxes(loc, -1, -2)
-        transposed_variances = jnp.swapaxes(variances, -1, -2)
+        # 5. Move Frequency to the Event Dimension
+        # Shape: (d1, d2, ..., 2, nfreq)
+        loc_aligned = jnp.moveaxis(loc, 0, -1)
+        variances_aligned = jnp.moveaxis(variances, 0, -1)
 
-        # 6. Build the Dense Covariance Matrix: K + diag(variances)
-        # We use jax.vmap to add the diagonal noise to each feature's covariance matrix
-        def add_diag(cov, var):
-            return cov + jnp.diag(var)
-            
-        # Ensure gp_covariances broadcasts correctly if it's shared across features
-        dense_cov_matrix = jax.vmap(add_diag)(
-            jnp.broadcast_to(gp_covariances, transposed_variances.shape[:-1] + gp_covariances.shape[-2:]),
-            transposed_variances
-        )
+        # 6. Build the N-Dimensional Dense Covariance Matrix
+        # Trick: broadcast arbitrary variances into perfectly batched diagonal matrices
+        # Shape goes from (d1, ..., 2, nfreq) -> (d1, ..., 2, nfreq, nfreq)
+        batched_diag_variances = variances_aligned[..., None, :] * jnp.eye(nfreq)
+        
+        # Add the GP covariance block to all independent feature matrices
+        dense_cov_matrix = gp_covariances + batched_diag_variances
 
-        # 7. Create the new Dense Base Distribution
+        # 7. Create Dense Base Distribution
+        dist.MultivariateNormalDiag()
         dense_base = dist.MultivariateNormalFullCovariance(
-            loc=transposed_loc, 
+            loc=loc_aligned, 
             covariance_matrix=dense_cov_matrix
         )
 
-        # 8. Re-apply the Bijectors!
-        # First, we Transpose back to (..., nfreq, n_features)
-        # Then, we apply the original bijectors in reverse order (inside-out)
-        bijector_chain = [Transpose()] + bijectors[::-1]
+        # 8. Re-apply Bijectors
+        # Move the frequency axis (0) to the end (-1) for the dense GP covariance
+        bijector_chain = [MoveAxis(axis_from=0, axis_to=-1)] + bijectors[::-1]
         
         full_bijector = bij.Chain(bijector_chain)
         return dist.Transformed(dense_base, full_bijector)

@@ -151,18 +151,30 @@ class Exp(
         return isinstance(other, Exp)
     
     
-class Transpose(bij.AbstractBijector):
+class MoveAxis(bij.AbstractBijector):
     """
-    Safely swaps the last two axes.
-    Maps (..., nfreq, n_features) <-> (..., n_features, nfreq)
+    Safely plucks a specific dimension and moves it to a target dimension.
+    By default Maps: (m, d1, d2, ..., d_k) <-> (d1, d2, ..., d_k, m)
     """
+    axis_from: int = 0
+    axis_to: int = -1
+    
+    # Optional but highly recommended for distreqx to optimize graph compilation
+    _is_constant_jacobian: bool = True
+    _is_constant_log_det: bool = True
+
     def forward_and_log_det(self, x: jnp.ndarray):
-        y = jnp.swapaxes(x, -1, -2)
-        return y, jnp.zeros_like(x[..., 0, 0])
+        y = jnp.moveaxis(x, self.axis_from, self.axis_to)
+        
+        # A scalar 0.0 broadcasts safely to any batch shape, 
+        # completely avoiding the need to deduce event vs batch ranks.
+        return y, jnp.array(0.0, dtype=x.dtype)
 
     def inverse_and_log_det(self, y: jnp.ndarray):
-        x = jnp.swapaxes(y, -1, -2)
-        return x, jnp.zeros_like(y[..., 0, 0])    
+        # To invert, we just swap the 'to' and 'from' arguments!
+        x = jnp.moveaxis(y, self.axis_to, self.axis_from)
+        
+        return x, jnp.array(0.0, dtype=y.dtype)
     
     
 class RealToComplex(bij.AbstractBijector):
