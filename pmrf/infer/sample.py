@@ -1,15 +1,14 @@
+import logging
 from dataclasses import replace
 from typing import Callable
 
 import jax
 import jax.numpy as jnp
-
 import equinox as eqx
 import parax as prx
 import inferix as infx
 
 from pmrf.core import Model, Frequency, Problem
-from pmrf.distributions import Empirical
 from pmrf.infer.result import InferResult
 from pmrf.utils import generate_key
 
@@ -125,16 +124,18 @@ def sample(
     # Strip the samples so we dont store them twice
     infx_result = replace(infx_result, samples=None)
     
-    posterior_dist = Empirical(samples=flat_model_samples, log_likelihoods=infx_result.log_likelihoods, weights=infx_result.weights)
+    try:
+        from distreqx.distributions import WeightedEmpirical
+        posterior_dist = WeightedEmpirical(samples=flat_model_samples, weights=infx_result.weights)
 
-    # 4. Inject the posterior into the MLE model
-    # We clear any independent prior groups and replace them with the global joint posterior
-    posterior_group = prx.ParameterGroup(
-        param_names=mle_model.flat_param_names(),
-        distribution=posterior_dist
-    )
+        posterior_group = prx.ParameterGroup(
+            param_names=mle_model.flat_param_names(),
+            distribution=posterior_dist
+        )
     
-    mle_model = mle_model.with_param_groups([posterior_group])
+        mle_model = mle_model.with_param_groups([posterior_group])
+    except Exception as e:
+        logging.info(f"Could not assigned weighted empirical distribution to model. Error: {e}")
 
     return InferResult(
         model=mle_model,

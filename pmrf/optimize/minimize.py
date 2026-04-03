@@ -7,7 +7,6 @@ import optimistix as optx
 import parax as prx
 from distreqx.bijectors import AbstractBijector
 
-from pmrf.bijectors import Inverse
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -75,6 +74,7 @@ def minimize(
     
     def apply_inverse(orig_x, trans_x):
         if isinstance(orig_x, prx.Parameter):
+            from distreqx.bijectors import Inverse
             inv_bij = Inverse(get_bijector(orig_x))
             return trans_x.transformed(inv_bij)
         return trans_x
