@@ -1,3 +1,7 @@
+"""
+Models that cater for the discrepancy between a physical model and data.
+"""
+
 import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist

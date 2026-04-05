@@ -1,3 +1,7 @@
+"""
+Core maths functions.
+"""
+
 from pmrf.math.aggregations import *
 from pmrf.math.conversions import *
 from pmrf.math.losses import *

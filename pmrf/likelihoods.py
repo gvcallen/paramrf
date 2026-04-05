@@ -1,3 +1,8 @@
+"""
+Statistical likelihood models.
+"""
+
+
 from typing import Callable
 import jax.numpy as jnp
 import distreqx.distributions as dist
