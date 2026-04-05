@@ -15,7 +15,7 @@ from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss
 from pmrf.utils import unwrap_base_distribution
 
-class Alias(Evaluator):
+class FeatureAlias(Evaluator):
     """
     Extracts an RF feature using a string-based alias.
     
@@ -34,7 +34,7 @@ class Alias(Evaluator):
 
         # 2. Handle Sequences (Recursive Stacking)
         if not isinstance(alias, str) and isinstance(alias, Sequence):
-            evaluators = tuple(Alias(a) for a in alias)
+            evaluators = tuple(FeatureAlias(a) for a in alias)
             self.op = Stack(operators=evaluators, axis=-1)
             return
 
@@ -81,11 +81,11 @@ class Alias(Evaluator):
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return self.op(model, frequency, **kwargs)
+  
     
-    
-class LossEvaluator(Evaluator):
+class TargetLoss(Evaluator):
     """
-    Computes a loss between a model prediction and a target.
+    Computes a loss between a model prediction and a given target.
     """
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
@@ -96,21 +96,32 @@ class LossEvaluator(Evaluator):
         return self.loss(self.target, y_pred)
     
     
-class LogLikelihoodEvaluator(Evaluator):
+class DataLikelihood(Evaluator):
     """
-    Computes the log probability of observing data given a distribution conditioned on a model prediction.
+    Computes the log probability of observing given data
+    given a likelihood function conditioned on a model prediction.
+    
+    Allows for a probabilistic discrepancy model (e.g. a gaussian process),
+    which returns the distribution over a model's prediction given that prediction.
+    The discrepancy model accepts the model prediction and scaled frequency vector,
+    and returns a distribution over the model's prediction.
     """
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     data: jnp.ndarray
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
+        
+        if self.discrepancy is not None:
+            y_pred = self.discrepancy(y_pred, frequency.f_scaled)
+        
         likelihood = self.likelihood(y_pred)
         return jnp.sum(likelihood.log_prob(self.data))
     
 
-class Goal(LossEvaluator):
+class Goal(TargetLoss):
     """
     Computes a design goal using a hinge-based loss evaluator.
     """
@@ -126,7 +137,7 @@ class Goal(LossEvaluator):
     ):
         super().__init__()
         
-        self.predictor = Alias(feature) if isinstance(feature, str) else feature
+        self.predictor = FeatureAlias(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.
@@ -139,7 +150,8 @@ class Goal(LossEvaluator):
         )
         
 __all__ = [
-    'Alias',
-    'LossEvaluator',
+    'FeatureAlias',
+    'TargetLoss',
+    'DataLikelihood',
     'Goal',
 ]

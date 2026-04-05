@@ -16,7 +16,7 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Alias, LogLikelihoodEvaluator
+from pmrf.evaluators import FeatureAlias, DataLikelihood
 
 from pmrf.likelihoods import ComplexGaussianLikelihood
 from pmrf.infer.result import InferResult
@@ -73,7 +73,7 @@ def condition(
 
     # Resolve the features and data
     if not isinstance(features, Callable):
-        features = Alias(features)
+        features = FeatureAlias(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -88,7 +88,7 @@ def condition(
     if likelihood_fn is None:
         likelihood_fn = ComplexGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
     
-    log_likelihood_fn = LogLikelihoodEvaluator(predictor=features, data=target, likelihood=likelihood_fn)  
+    log_likelihood_fn = DataLikelihood(predictor=features, data=target, likelihood=likelihood_fn)  
     
     # Run the sampling
     return sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)

@@ -36,7 +36,7 @@ from pmrf import (
     evaluators, models,
     math, rf,
     optimize, infer, fit, explore,
-    losses, likelihoods, noise_models,
+    losses, likelihoods, noise_models, discrepancy_models,
 )
 from pmrf.network_collection import NetworkCollection
 
@@ -46,6 +46,6 @@ __all__.extend([
     "evaluators", "models",
     "math", "rf", 
     "optimize", "infer", "fit", "explore",
-    "losses", "likelihoods", "noise_models",
+    "losses", "likelihoods", "noise_models", "discrepancy_models",
     "NetworkCollection",
 ])

@@ -10,8 +10,14 @@ Core API
    pmrf.Model
    pmrf.Frequency
    pmrf.Evaluator
+   pmrf.Loss
+   pmrf.Likelihood
+   pmrf.NoiseModel
+   pmrf.DiscrepancyModel
+   pmrf.Problem
    pmrf.load
    pmrf.save
+
 
 Modules
 -------
@@ -21,6 +27,7 @@ Modules
    :recursive:
 
    pmrf.constants
+   pmrf.discrepancy_models
    pmrf.distributions
    pmrf.fit
    pmrf.evaluators
@@ -30,5 +37,6 @@ Modules
    pmrf.losses
    pmrf.math
    pmrf.models
+   pmrf.noise_models
    pmrf.optimize
    pmrf.rf

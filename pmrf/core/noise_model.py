@@ -12,6 +12,8 @@ class NoiseModel(prx.Module, prx.Operator):
     
     For complex-valued likelihoods (:class:`pmrf.likelihoods.ComplexGaussianLikehood`), a tuple can
     be returned, representing the Hermitian and pseudo-noise separately.
+    
+    See :mod:`pmrf.noise_models` for built-in noise models.
     """
     def __call__(self, y_pred: jnp.ndarray) -> jnp.ndarray | tuple[jnp.ndarray | jnp.ndarray]:
         raise NotImplementedError

@@ -6,6 +6,12 @@ from pmrf.core.frequency import Frequency
 from pmrf.core.evaluator import Evaluator
 
 class Problem(prx.Module):
+    """
+    A class representing a callable problem to solve.
+    
+    For example, this class can be used to encapsulate a model and a loss or likelihood function
+    """
+    
     model: Model
     frequency: Frequency
     evaluator: Evaluator
