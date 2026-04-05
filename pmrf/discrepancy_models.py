@@ -11,6 +11,7 @@ from pmrf.core import DiscrepancyModel
 import parax as prx
 from abc import abstractmethod
 
+bij.Reshape()
 
 def _fmt(val: jnp.ndarray) -> str:
     """Helper to format JAX arrays as clean strings for printing."""
@@ -149,7 +150,7 @@ class GaussianProcessDiscrepancy(DiscrepancyModel):
         Small value added to the Gram matrix diagonal for numerical stability.
     """
     kernel: Kernel
-    jitter: float = 1e-8
+    jitter: float = 1e-10
 
     def __call__(self, y_pred: jnp.ndarray, x: jnp.ndarray) -> dist.AbstractDistribution:
         """
@@ -217,15 +218,35 @@ class GaussianProcessDiscrepancy(DiscrepancyModel):
         dist.TransformedDistribution
             A complex-valued distribution mapped via bijector.
         """
-        y_ri = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=-1)
-        loc = jnp.moveaxis(y_ri, 0, -1)
+        N = y_pred.shape[-1]
         
-        base_dist = dist.MultivariateNormalFullCovariance(loc=loc, covariance_matrix=K)
-        combined_dist = dist.Independent(base_dist, reinterpreted_batch_ndims=loc.ndim - 1)
+        # 1. Stack Real/Imag to create an array of shape (2, N)
+        y_ri = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=0)
         
-        # Corrected to dist.TransformedDistribution
-        return dist.Transformed(combined_dist, bij.R2ToComplex())
-    
+        # 2. Vmap the MVN constructor to create a batch of 2 distributions
+        batched_mvn = jax.vmap(dist.MultivariateNormalFullCovariance, in_axes=(0, None))(y_ri, K)
+        
+        # 3. Fuse the batch into a single event of shape (2, N)
+        indep_dist = dist.Independent(batched_mvn)
+        
+        # 4. Use your existing Reshape to flatten to (2N,)
+        import numpy as np
+        b_flatten = bij.Reshape(in_shape=(2, N), out_shape=(2 * N,))
+        
+        # 5. Build a permutation array that interleaves Reals and Imags
+        # This maps [R0, R1, I0, I1] -> [R0, I0, R1, I1]
+        interleave_perm = np.arange(2 * N).reshape((2, N)).T.flatten()
+        b_permute = bij.Permute(permutation=interleave_perm)
+        
+        # 6. Use your existing Reshape to group into (N, 2)
+        b_regroup = bij.Reshape(in_shape=(2 * N,), out_shape=(N, 2))
+        
+        # 7. Chain them together
+        d = dist.Transformed(indep_dist, b_flatten)
+        d = dist.Transformed(d, b_permute)
+        d = dist.Transformed(d, b_regroup)
+        
+        return dist.Transformed(d, bij.R2ToComplex())
     
 __all__ = [
     "Kernel",

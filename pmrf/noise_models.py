@@ -72,15 +72,15 @@ class ReflectionTransmissionNoise(NoiseModel):
             matrix_p = self._build_matrix(gamma_p, tau_p, y_pred.shape)
             
             return matrix_h, matrix_p
-    
+
 
 class RadialTangentialNoise(NoiseModel):
     """
     Radial/tangential complex-valued heteroscedastic variance noise model.
     
-    Models noise as relative radial and tangential noise that scales
-    with the magnitude of the signal. Requires that the underlying
-    noise in `self.magnitude` and `self.phase` represents variance.
+    Models noise as relative radial and tangential variance that scales
+    with the squared magnitude of the signal. The parameters `magnitude` 
+    and `phase` represent the relative variance components.
     
     Returns the hermitian and pseudo variance as a tuple.
     """
@@ -88,19 +88,17 @@ class RadialTangentialNoise(NoiseModel):
     phase: prx.Parameter | jnp.ndarray | Callable
 
     def __call__(self, y_pred: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-        # 1. Calculate base variances
-        mag = jnp.abs(y_pred)
-        var_rad = (mag * self.magnitude)**2 
-        var_tan = (mag * self.phase)**2
+        # Unpack callables
+        var_rad_rel = self.magnitude(y_pred) if callable(self.magnitude) else self.magnitude
+        var_tan_rel = self.phase(y_pred) if callable(self.phase) else self.phase
         
-        # 2. Total Hermitian Variance (Gamma)
-        # This is real-valued
-        variance = var_rad + var_tan
+        # 1. Total Hermitian Variance (Gamma)
+        # Gamma = |y|^2 * (V_rad + V_tan)
+        mag_sq = jnp.real(y_pred * jnp.conj(y_pred))
+        variance = mag_sq * (var_rad_rel + var_tan_rel)
         
-        # 3. Pseudo-Variance (C)
-        # This captures the directionality/impropriety
-        # phase = arg(y_pred), so exp(1j * 2 * phase) is (y_pred / mag)**2
-        unit_phase_sq = (y_pred / (mag + 1e-12))**2
-        pseudo_covariance = (var_rad - var_tan) * unit_phase_sq
+        # 2. Pseudo-Variance (C)
+        # C = y^2 * (V_rad - V_tan)
+        pseudo_covariance = (y_pred**2) * (var_rad_rel - var_tan_rel)
         
         return variance, pseudo_covariance

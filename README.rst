@@ -67,7 +67,7 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Bayesian inference, you may need this fork of distreqx:
+For Bayesian inference or complex statistical modelling, you may need this fork of distreqx:
 
 ``pip install git+https://github.com/gvcallen/distreqx.git@extra_bijs_and_dists``
 
