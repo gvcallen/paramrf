@@ -54,9 +54,9 @@ def condition(
         The specific circuit feature(s) to compute the likelihood against. 
         Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
     likelihood_fn : Callable[[jnp.ndarray], dist.AbstractDistribution], optional
-        The likelihood function that returns a distribution representing the probability
-        of observing data given a model prediction. Can be a callable taking (y_pred) or
-        a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
+        The likelihood function that accepts a model prediction and returns a distribution
+        representing the probability of observing data given that prediction.
+        Can be a function or a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
         Defaults to `None`, in which case :class:``pmrf.likelihoods.ComplexGaussianLikelihood``
         is constructed internally with a symmetric noise model.
     **kwargs : dict
