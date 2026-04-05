@@ -1,5 +1,5 @@
 """
-Built-in models, such as RF components and surrogates.
+RF models, such as lumped components and surrogates.
 
 This module contains the core ParamRF :class:`Model` class, as well as various components, composite building models, adapters and numerical models.
 
