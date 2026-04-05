@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Union
+from typing import Callable
 import jax.numpy as jnp
 import distreqx.distributions as dist
 import parax as prx
@@ -23,9 +23,9 @@ class GaussianLikelihood(Likelihood):
     
     For complex gaussian likelihoods, see :class:`pmrf.likelihoods.ComplexGaussianLikelihood`.
     """
-    noise: Union[prx.Parameter, Callable[[jnp.ndarray], jnp.ndarray]]
+    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray]
 
-    def __call__(self, y_pred: Union[jnp.ndarray, dist.AbstractDistribution], **kwargs):
+    def __call__(self, y_pred: jnp.ndarray | dist.AbstractDistribution, **kwargs):
         if jnp.iscomplexobj(y_pred):
             raise TypeError("`GaussianLikelihood` does not support complex model features. Use `ComplexGaussianLikelihood` instead.")
         
@@ -68,9 +68,9 @@ class ComplexGaussianLikelihood(Likelihood):
     `noise` components must be broadcastable to `y_pred`. Supports arbitrary shapes 
     like (nfreq, nports, nports) as long as broadcasting aligns.
     """
-    noise: Union[prx.Parameter, Callable[[jnp.ndarray], jnp.ndarray]]
+    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
 
-    def __call__(self, y_pred: Union[jnp.ndarray, dist.AbstractDistribution], **kwargs):
+    def __call__(self, y_pred: jnp.ndarray | dist.AbstractDistribution, **kwargs):
         if isinstance(y_pred, jnp.ndarray) and not jnp.iscomplexobj(y_pred):
             raise TypeError("`y_pred` must be a complex array for `ComplexGaussianLikelihood`.")
             
@@ -144,60 +144,3 @@ class ComplexGaussianLikelihood(Likelihood):
             
         else:
             raise TypeError(f"Unsupported distribution type for ComplexGaussianLikelihood: {type(y_pred)}")
-    
-    
-# class GaussianProcessLikelihood(Likelihood):
-#     """
-#     Wraps a base likelihood and injects a Gaussian Process covariance 
-#     structure into its base coordinate space across the frequency axis.
-#     """
-#     base_likelihood: Likelihood
-    
-#     # Expects **kwargs (contains 'frequency') and returns covariance matrix of shape (nfreq, nfreq)
-#     kernel: Callable[..., jnp.ndarray] 
-
-#     def __call__(self, y_pred: jnp.ndarray, **kwargs) -> dist.AbstractDistribution:
-#         # 1. Base independent distribution
-#         base_dist = self.base_likelihood(y_pred, **kwargs)
-
-#         # 2. Extract Bijectors & Foundation
-#         bijectors = []
-#         current_dist = base_dist
-        
-#         while isinstance(current_dist, dist.Transformed):
-#             bijectors.append(current_dist.bijector)
-#             current_dist = current_dist.distribution
-            
-#         if not isinstance(current_dist, (dist.Normal, dist.MultivariateNormalDiag)):
-#             raise TypeError("GaussianProcessLikelihood requires a Gaussian base likelihood.")
-
-#         # 3. Extract parameters
-#         # Shape: (nfreq, d1, d2, ..., 2)
-#         variances = current_dist.scale ** 2 if isinstance(current_dist, dist.Normal) else current_dist.scale_diag ** 2
-#         loc = current_dist.loc
-#         nfreq = loc.shape[0]
-
-#         # 4. Evaluate GP Kernel (Shape: nfreq, nfreq)
-#         gp_covariances = self.kernel(**kwargs)
-
-#         # 5. Move Frequency to the Event Dimension
-#         # Shape: (d1, d2, ..., 2, nfreq)
-#         loc_aligned = jnp.moveaxis(loc, 0, -1)
-#         variances_aligned = jnp.moveaxis(variances, 0, -1)
-
-#         # 6. Build the N-Dimensional Dense Covariance Matrix
-#         batched_diag_variances = variances_aligned[..., None, :] * jnp.eye(nfreq)
-#         dense_cov_matrix = gp_covariances + batched_diag_variances
-
-#         # 7. Create Dense Base Distribution
-#         dense_base = MultivariateNormalFullCovariance(
-#             loc=loc_aligned, 
-#             covariance_matrix=dense_cov_matrix
-#         )
-
-#         # 8. Re-apply Bijectors
-#         # Move the GP event axis (-1) back to the frequency axis (0), THEN apply original bijectors
-#         bijector_chain = bijectors + [MoveAxis(axis_from=-1, axis_to=0)]
-        
-#         full_bijector = bij.Chain(bijector_chain)
-#         return dist.Transformed(dense_base, full_bijector)

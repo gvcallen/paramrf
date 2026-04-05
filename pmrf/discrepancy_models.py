@@ -21,10 +21,10 @@ class Kernel(prx.Module):
     """
     Abstract base class for kernel functions enabling kernel algebra.
     """
-    def __add__(self, other: Kernel) -> SumKernel:
+    def __add__(self, other: 'Kernel') -> 'SumKernel':
         return SumKernel(self, other)
 
-    def __mul__(self, other: Kernel) -> ProductKernel:
+    def __mul__(self, other: 'Kernel') -> 'ProductKernel':
         return ProductKernel(self, other)
 
     @abstractmethod
