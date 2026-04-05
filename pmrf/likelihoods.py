@@ -1,161 +1,149 @@
+from typing import Callable, Tuple, Union
 import jax.numpy as jnp
 import distreqx.distributions as dist
 import parax as prx
 
 from pmrf.core import Likelihood
+from pmrf.utils import make_complex_normal
 
+def is_complex_array(x):
+    return isinstance(x, jnp.ndarray) and jnp.iscomplexobj(x)
 
-def fix_sigma_shape(sigma, y_pred: jnp.ndarray) -> jnp.ndarray:
-    """
-    Broadcasts a sigma parameter based on the shape of y_pred.
-    
-    If y_pred is of shape (nfreq, n, n) or (nfreq, n, n, ...), it attempts to 
-    broadcast scalar or 2-element sigmas into an (n, n) matrix. It automatically
-    pads trailing ones (n, n, 1, ...) to ensure safe tensor broadcasting.
-    
-    Otherwise, it returns sigma directly, assuming the caller provided a properly 
-    broadcastable array.
-    """
-    sigma = jnp.asarray(sigma)
-    
-    # Check for port matrix structure: at least 3 dims, and axis 1 == axis 2
-    if y_pred.ndim >= 3 and y_pred.shape[1] == y_pred.shape[2]:
-        n = y_pred.shape[1]
-        sigma_matrix = None
-        
-        if sigma.size == 1:
-            sigma_matrix = jnp.full((n, n), sigma.squeeze())
-        elif sigma.size == 2:
-            sigma_sq = sigma.squeeze()
-            sigma_matrix = jnp.full((n, n), sigma_sq[1])
-            diag_indices = jnp.diag_indices(n)
-            sigma_matrix = sigma_matrix.at[diag_indices].set(sigma_sq[0])
-        elif sigma.shape == (n, n) or sigma.size == n ** 2:
-            sigma_matrix = sigma.reshape((n, n))
-            
-        if sigma_matrix is not None:
-            # Pad with trailing ones for safe right-to-left broadcasting against y_pred
-            # e.g., if y_pred is (nfreq, n, n, k, j), pad_shape becomes (n, n, 1, 1)
-            num_trailing_dims = y_pred.ndim - 3
-            if num_trailing_dims > 0:
-                pad_shape = (n, n) + (1,) * num_trailing_dims
-                sigma_matrix = sigma_matrix.reshape(pad_shape)
-                
-            return sigma_matrix
-            
-    # Fallback: assume the caller provided a correctly shaped/broadcastable array
-    return sigma
+def is_complex_distribution(x):
+    from distreqx.bijectors import R2ToComplex
+    return isinstance(x, dist.Transformed) and isinstance(x.bijector, R2ToComplex)
 
 class GaussianLikelihood(Likelihood):
     """
-    Standard Gaussian likelihood.
+    Gaussian likelihood with variance `noise`.
     
-    Accepts real-valued inputs, and returns a normal distribution with scale ``sigma``.
+    `noise` must be broadcastable to `y_pred`. The shapes can be arbitrary 
+    combinations (e.g., scalar, (nfreq,), (nfreq, nports, nports)), as long as 
+    they follow standard NumPy broadcasting rules.
+    
+    For complex gaussian likelihoods, see :class:`pmrf.likelihoods.ComplexGaussianLikelihood`.
     """
-    sigma: prx.Parameter | jnp.ndarray | float
+    noise: Union[prx.Parameter, Callable[[jnp.ndarray], jnp.ndarray]]
 
-    def __call__(self, y_pred: jnp.ndarray | dist.AbstractDistribution, **kwargs):
-        sigma_matrix = fix_sigma_shape(self.sigma, y_pred)
-        if isinstance(y_pred, jnp.ndarray):
-            return dist.Normal(loc=y_pred, scale=sigma_matrix)
-        elif isinstance(y_pred, dist.AbstractMultivariateNormalFromBijector):
-            from distreqx.distributions import MultivariateNormalFullCovariance
+    def __call__(self, y_pred: Union[jnp.ndarray, dist.AbstractDistribution], **kwargs):
+        if jnp.iscomplexobj(y_pred):
+            raise TypeError("`GaussianLikelihood` does not support complex model features. Use `ComplexGaussianLikelihood` instead.")
+        
+        noise = self.noise(y_pred) if callable(self.noise) else self.noise
+        
+        if isinstance(y_pred, dist.AbstractDistribution):
             loc = y_pred.mean()
             cov = y_pred.covariance()
-            noise_cov = jnp.diag(sigma_matrix.flatten() ** 2) 
-            marginal_cov = cov + noise_cov
-            return MultivariateNormalFullCovariance(loc=loc, covariance_matrix=marginal_cov)
+            
+            # 1. Broadcast noise to match the exact shape of loc (..., k)
+            noise_b = jnp.broadcast_to(noise, loc.shape)
+            
+            # 2. Convert the broadcasted variance into diagonal covariance blocks (..., k, k)
+            noise_diag = jnp.vectorize(jnp.diag, signature='(n)->(n,n)')(noise_b)
+            
+            # 3. Marginalize
+            marginal_cov = cov + noise_diag
+            
+            return dist.MultivariateNormalFullCovariance(loc=loc, covariance_matrix=marginal_cov)
+            
+        elif isinstance(y_pred, jnp.ndarray):
+            # dist.Normal handles broadcasting of `loc` and `scale` natively
+            scale = jnp.sqrt(noise)
+            return dist.Normal(loc=y_pred, scale=scale)
+            
         else:
-            raise TypeError("y_pred must be a jnp.ndarray or a distrax/distreqx Distribution")
+            raise TypeError(f"Unsupported distribution type for GaussianLikelihood: {type(y_pred)}")
 
 
 class ComplexGaussianLikelihood(Likelihood):
     """
-    Complex Gaussian likelihood.
+    Complex Gaussian likelihood with variance/covariance defined by `noise`.
     
-    Accepts complex-valued inputs, and returns a complex normal distribution with scale ``sigma``.
-    """    
-    sigma: prx.Parameter | jnp.ndarray | float
+    The noise model can return either:
+    1. A single JAX array: Represents the real-valued variance (Hermitian covariance) 
+       for a circularly-symmetric complex Gaussian.
+    2. A tuple of two JAX arrays: Represents (covariance, pseudo_covariance) for a 
+       general complex Gaussian.
+       
+    `noise` components must be broadcastable to `y_pred`. Supports arbitrary shapes 
+    like (nfreq, nports, nports) as long as broadcasting aligns.
+    """
+    noise: Union[prx.Parameter, Callable[[jnp.ndarray], jnp.ndarray]]
 
-    def __call__(self, y_pred: jnp.ndarray | dist.AbstractDistribution, **kwargs):
-        from distreqx.bijectors import R2ToComplex
+    def __call__(self, y_pred: Union[jnp.ndarray, dist.AbstractDistribution], **kwargs):
+        if isinstance(y_pred, jnp.ndarray) and not jnp.iscomplexobj(y_pred):
+            raise TypeError("`y_pred` must be a complex array for `ComplexGaussianLikelihood`.")
+            
+        noise_val = self.noise(y_pred) if callable(self.noise) else self.noise
         
-        if isinstance(y_pred, dist.AbstractDistribution):
-            raise Exception("Marginalization over y_pred not yet supported for ComplexGaussianLikelihood")
-        
-        sigma_matrix = fix_sigma_shape(self.sigma, y_pred)
-        
-        # Split variance evenly
-        sigma_parts = sigma_matrix / jnp.sqrt(2.0)
-        scale_diag = jnp.stack([sigma_parts, sigma_parts], axis=-1)
-        
-        # R^2 Prediction Location
-        loc = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=-1)
-        
-        base_dist = dist.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
-        return dist.Transformed(base_dist, R2ToComplex())
+        # Unpack based on whether it's circularly symmetric (single array) or general (tuple)
+        if isinstance(noise_val, tuple):
+            if len(noise_val) != 2:
+                raise ValueError("If `noise` returns a tuple, it must contain exactly two elements: (covariance, pseudo_covariance).")
+            covariance, pseudo_covariance = noise_val
+        else:
+            covariance = noise_val
+            pseudo_covariance = None
 
+        if isinstance(y_pred, jnp.ndarray):
+            # `make_complex_normal` uses standard JAX operators which natively support broadcastable shapes
+            return make_complex_normal(loc=y_pred, covariance=covariance, pseudo_covariance=pseudo_covariance)
+            
+        elif isinstance(y_pred, dist.AbstractDistribution):
+            if not is_complex_distribution(y_pred):
+                raise TypeError("`y_pred` must be a complex distribution transformed by `R2ToComplex`.")
+            
+            # The complex mean tells us the underlying shape we need to broadcast to
+            loc_complex = y_pred.mean() 
+            base_dist = y_pred.distribution
+            loc_r2 = base_dist.mean() # Shape: (*loc_complex.shape, 2)
+            
+            # 1. Extract the R2 covariance of the prediction
+            if hasattr(base_dist, "covariance") and callable(base_dist.covariance):
+                try:
+                    cov_r2 = base_dist.covariance() # Shape: (*loc_complex.shape, 2, 2)
+                except NotImplementedError:
+                    var_r2 = base_dist.variance()
+                    # Vectorize diag safely converts shape (..., 2) to (..., 2, 2)
+                    cov_r2 = jnp.vectorize(jnp.diag, signature='(n)->(n,n)')(var_r2)
+            else:
+                var_r2 = base_dist.variance()
+                cov_r2 = jnp.vectorize(jnp.diag, signature='(n)->(n,n)')(var_r2)
 
-# class MagnitudePhaseGaussianLikelihood(Likelihood):
-#     """Models relative magnitude and absolute phase noise independently."""
-#     sigma_mag: prx.Parameter | jnp.ndarray | float
-#     sigma_phase: prx.Parameter | jnp.ndarray | float
-
-#     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-#         sig_m = fix_sigma_shape(self.sigma_mag, y_pred)
-#         sig_p = fix_sigma_shape(self.sigma_phase, y_pred)
-        
-#         scale_diag = jnp.stack([sig_m, sig_p], axis=-1)
-        
-#         # R^2 Location in Log-Polar space
-#         log_mag_pred = jnp.log(jnp.abs(y_pred) + 1e-12)
-#         phase_pred = jnp.angle(y_pred)
-#         loc = jnp.stack([log_mag_pred, phase_pred], axis=-1)
-        
-#         base_dist = dist.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
-        
-#         # The LogPolar bijector naturally wraps the phase when transitioning to complex
-#         return dist.Transformed(base_dist, LogPolarToComplex())
-
-
-# class RadialTangentialGaussianLikelihood(Likelihood):
-#     """Geometrically aligns noise to the prediction vector (Banana shape)."""
-#     sigma_complex: prx.Parameter | jnp.ndarray | float
-#     sigma_mag: prx.Parameter | jnp.ndarray | float
-#     sigma_phase: prx.Parameter | jnp.ndarray | float
-
-#     def __call__(self, y_pred: jnp.ndarray, **kwargs):
-#         sig_c = fix_sigma_shape(self.sigma_complex, y_pred)
-#         sig_m = fix_sigma_shape(self.sigma_mag, y_pred)
-#         sig_p = fix_sigma_shape(self.sigma_phase, y_pred)
-        
-#         # 1. Heteroscedastic Scales
-#         mag_pred = jnp.abs(y_pred)
-#         var_base = (sig_c ** 2) / 2.0
-#         var_rad = var_base + (mag_pred * sig_m) ** 2
-#         var_tan = var_base + (mag_pred * sig_p) ** 2
-        
-#         scale_diag = jnp.sqrt(jnp.stack([var_rad, var_tan], axis=-1))
-
-#         # 2. Base Distribution at the Origin (Unrotated)
-#         base_dist = dist.MultivariateNormalDiag(
-#             loc=jnp.zeros_like(scale_diag), 
-#             scale_diag=scale_diag
-#         )
-
-#         # 3. Geometric Transforms
-#         # A. Rotate the (rad, tan) error to align with the prediction's phase
-#         phase_pred = jnp.angle(y_pred)
-#         rotate_bij = Rotate(angle=phase_pred)
-        
-#         # B. Shift the rotated error onto the prediction
-#         y_pred_reim = jnp.stack([jnp.real(y_pred), jnp.imag(y_pred)], axis=-1)
-#         shift_bij = bij.Shift(shift=y_pred_reim)
-        
-#         # 4. Compose Chain: R^2(Origin) -> R^2(Rotated) -> R^2(Shifted) -> Complex
-#         bijector_chain = bij.Chain([RealToComplex(), shift_bij, rotate_bij])
-        
-#         return dist.Transformed(base_dist, bijector_chain)
+            # 2. Broadcast the noise terms to the complex shape before mapping to R2
+            cov_b = jnp.broadcast_to(covariance, loc_complex.shape)
+            gamma = jnp.real(cov_b)
+            
+            if pseudo_covariance is None:
+                c_real = jnp.zeros_like(gamma)
+                c_imag = jnp.zeros_like(gamma)
+            else:
+                pseudo_b = jnp.broadcast_to(pseudo_covariance, loc_complex.shape)
+                c_real = jnp.real(pseudo_b)
+                c_imag = jnp.imag(pseudo_b)
+            
+            # 3. Construct the R2 covariance block for the noise
+            cov_11 = 0.5 * (gamma + c_real)
+            cov_22 = 0.5 * (gamma - c_real)
+            cov_12 = 0.5 * c_imag
+            
+            row1 = jnp.stack([cov_11, cov_12], axis=-1)
+            row2 = jnp.stack([cov_12, cov_22], axis=-1)
+            noise_cov_r2 = jnp.stack([row1, row2], axis=-2) # Shape: (*loc_complex.shape, 2, 2)
+            
+            # 4. Marginalize in R2 space
+            marginal_cov_r2 = cov_r2 + noise_cov_r2
+            
+            marginal_base_dist = dist.MultivariateNormalFullCovariance(
+                loc=loc_r2, 
+                covariance_matrix=marginal_cov_r2
+            )
+            
+            from distreqx.bijectors import R2ToComplex
+            return dist.Transformed(distribution=marginal_base_dist, bijector=R2ToComplex())
+            
+        else:
+            raise TypeError(f"Unsupported distribution type for ComplexGaussianLikelihood: {type(y_pred)}")
     
     
 # class GaussianProcessLikelihood(Likelihood):
