@@ -67,9 +67,9 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Bayesian inference, you may need an unrelease version of distreqx:
+For Bayesian inference, you may need this fork of distreqx:
 
-``pip install git+https://github.com/lockwo/distreqx.git``
+``pip install git+https://github.com/gvcallen/distreqx.git@extra_bijs_and_dists``
 
 For PolyChord fitting:
 
