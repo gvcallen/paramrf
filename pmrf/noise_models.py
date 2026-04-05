@@ -1,5 +1,5 @@
 """
-Noise models, usually used with a likelihood.
+Noise models, used to model the noise of a likelihood.
 """
 import jax.numpy as jnp
 from typing import Callable
@@ -12,16 +12,16 @@ class ReflectionTransmissionNoise(NoiseModel):
     """
     Reflection and transmission coefficient noise model.
     
-    Maps underlying `noise_gamma` and `noise_tau` noises
+    Maps underlying `gamma` and `tau` noises
     to a full matrix based on the specified port axes.
     
-    Supports both circularly-symmetric noise (returns a single array) 
-    and general complex noise (returns a tuple of (variance, pseudo_covariance)).
+    Supports both circularly-symmetric underlying noise (returns a single array) 
+    and general complex noise (returns a tuple of (hermitian, pseudo)).
     """    
     port_axes: tuple[int, int] = prx.field(static=True, default=(-2, -1))
     
-    noise_gamma: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
-    noise_tau: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
+    gamma: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
+    tau: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
     
     def _build_matrix(self, val_gamma: jnp.ndarray, val_tau: jnp.ndarray, target_shape: tuple) -> jnp.ndarray:
         """Helper to map diagonal/off-diagonal values using robust broadcasting."""
@@ -50,8 +50,8 @@ class ReflectionTransmissionNoise(NoiseModel):
         return jnp.where(eye_broadcastable, val_gamma, val_tau)
 
     def __call__(self, y_pred: jnp.ndarray):
-        val_gamma = self.noise_gamma(y_pred) if callable(self.noise_gamma) else self.noise_gamma
-        val_tau = self.noise_tau(y_pred) if callable(self.noise_tau) else self.noise_tau
+        val_gamma = self.gamma(y_pred) if callable(self.gamma) else self.gamma
+        val_tau = self.tau(y_pred) if callable(self.tau) else self.tau
         
         is_gamma_tuple = isinstance(val_gamma, tuple)
         is_tau_tuple = isinstance(val_tau, tuple)
@@ -76,10 +76,11 @@ class ReflectionTransmissionNoise(NoiseModel):
 
 class RadialTangentialNoise(NoiseModel):
     """
-    Radial/tangential complex-valued heteroscedastic noise model.
+    Radial/tangential complex-valued heteroscedastic variance noise model.
     
     Models noise as relative radial and tangential noise that scales
-    with the magnitude of the signal.
+    with the magnitude of the signal. Requires that the underlying
+    noise in `self.magnitude` and `self.phase` represents variance.
     
     Returns the hermitian and pseudo variance as a tuple.
     """
