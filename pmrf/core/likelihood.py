@@ -5,7 +5,7 @@ import parax as prx
 
 class Likelihood(prx.Module):
     """
-    Base class for likelihood models.
+    Base class for likelihood functions.
     
     A likelihood in ParamRF specifies a mapping from model predictions to a probability over observerd data.
     

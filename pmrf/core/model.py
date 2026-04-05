@@ -28,7 +28,7 @@ recommended to keep the default z0 and convert your results at the end.
 
 class Model(prx.Module):
     """
-    The base class used to represent a parametric RF model.
+    Base class for RF models.
 
     This base class is used to represent any computable RF network, referred to in
     **ParamRF** as a "Model". This class can be overridden for defining complex models,
