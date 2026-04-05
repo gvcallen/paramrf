@@ -234,4 +234,5 @@ __all__ = [
     "ConstantKernel",
     "RBFKernel",
     "WhiteNoiseKernel",
+    "GaussianProcessDiscrepancy",
 ]
