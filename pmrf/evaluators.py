@@ -1,5 +1,5 @@
 """
-Model evaluators.
+Extractors that evaluate a model across frequency and output an array.
 """
 from __future__ import annotations
 import re
