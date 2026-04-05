@@ -18,10 +18,10 @@ class ReflectionTransmissionNoise(NoiseModel):
     Supports both circularly-symmetric underlying noise (returns a single array) 
     and general complex noise (returns a tuple of (hermitian, pseudo)).
     """    
-    port_axes: tuple[int, int] = prx.field(static=True, default=(-2, -1))
-    
     gamma: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
     tau: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]]
+    
+    port_axes: tuple[int, int] = prx.field(static=True, default=(-2, -1))
     
     def _build_matrix(self, val_gamma: jnp.ndarray, val_tau: jnp.ndarray, target_shape: tuple) -> jnp.ndarray:
         """Helper to map diagonal/off-diagonal values using robust broadcasting."""
