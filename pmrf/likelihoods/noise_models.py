@@ -1,5 +1,5 @@
 """
-Models that represent the noise of a measurements, generally used in a likelihood.
+Models that represent the noise of a measurement, used within in a likelihood.
 """
 import jax.numpy as jnp
 from typing import Callable

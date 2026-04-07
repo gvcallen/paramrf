@@ -1,5 +1,5 @@
 """
-Models that cater for the discrepancy between an RF model and data.
+Built-in discrepancy models.
 """
 from collections.abc import Callable
 

@@ -26,10 +26,9 @@ Modules
    :toctree: generated/
    :recursive:
 
-   pmrf.constants
    pmrf.discrepancy_models
    pmrf.distributions
-   pmrf.fit
+   pmrf.fitting
    pmrf.evaluators
    pmrf.explore
    pmrf.infer

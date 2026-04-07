@@ -1,3 +1,7 @@
+"""
+Models that cater for the discrepancy between an RF model and data.
+"""
+
 from pmrf.discrepancy_models.models import GaussianProcess as GaussianProcess
 from pmrf.discrepancy_models.kernels import (
     SumKernel as SumKernel,

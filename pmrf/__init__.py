@@ -36,7 +36,6 @@ from pmrf.network_collection import NetworkCollection as NetworkCollection
 
 # 4. Sub-Modules
 from pmrf import (
-    constants as constants,
     discrepancy_models as discrepancy_models,
     evaluators as evaluators,
     explore as explore,
