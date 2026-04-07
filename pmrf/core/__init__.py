@@ -11,7 +11,7 @@ from pmrf.core.likelihood import (
 )
 from pmrf.core.discrepancy import (
     DiscrepancyModel as DiscrepancyModel,
-    Kernel as Kernel,
+    CovarianceKernel as CovarianceKernel,
 )
 from pmrf.core.evaluator import (
     Evaluator as Evaluator,

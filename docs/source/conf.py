@@ -1,4 +1,5 @@
 # docs/source/conf.py
+import types
 import logging
 
 class MuteMathDollarWarnings(logging.Filter):
@@ -143,9 +144,34 @@ html_static_path = []  # Reverted back to an empty list
 
 # --- Event Hooks ---
 def skip_member(app, what, name, obj, skip, options):
-    """Skip members marked with the internal auto flag."""
+    """Custom logic for skipping specific documentation members."""
+    
+    # 1. Skip members marked with the internal auto flag
     if what == "class" and getattr(obj, "_pmrf_auto", False):
         return True
+
+    # 2. Prevent sub-modules from being documented as members of their parent namespace
+    if isinstance(obj, types.ModuleType):
+        return True
+
+    # 3. Filter external inherited members from `parax`
+    # First, figure out where the object was originally defined
+    obj_module = getattr(obj, '__module__', None)
+    
+    # Python properties don't hold __module__ directly, so we check their getter
+    if obj_module is None and isinstance(obj, property):
+        obj_module = getattr(obj.fget, '__module__', '')
+
+    # If the method/attribute originated from the 'parax' package...
+    if obj_module and obj_module.startswith('parax'):
+        # 'name' is the full path Sphinx is documenting (e.g., 'pmrf.core.Model.tree_flatten')
+        # If we are documenting the base Model class, allow the inherited methods
+        if '.Model.' in name:
+            return skip 
+            
+        # For all other subclasses (Resistor, etc.), hide the parax methods
+        return True
+
     return skip
 
 def process_docstring(app, what, name, obj, options, lines):

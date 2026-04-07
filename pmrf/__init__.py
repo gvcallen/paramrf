@@ -22,6 +22,7 @@ from pmrf.core import (
     Loss as Loss,
     Model as Model,
     NoiseModel as NoiseModel,
+    CovarianceKernel as CovarianceKernel,
     Problem as Problem,
 )
 from pmrf.serialization import (

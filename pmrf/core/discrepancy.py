@@ -25,17 +25,17 @@ class DiscrepancyModel(prx.Module):
         raise NotImplementedError
     
     
-class Kernel(prx.Module):
+class CovarianceKernel(prx.Module):
     """
     Abstract base class for covariance kernel functions.
     
     These kernels are used in a Gaussian Process for discrepancy modeling.
     """
-    def __add__(self, other: 'Kernel') -> 'Kernel':
+    def __add__(self, other: 'CovarianceKernel') -> 'CovarianceKernel':
         from pmrf.discrepancy_models import SumKernel
         return SumKernel(self, other)
 
-    def __mul__(self, other: 'Kernel') -> 'Kernel':
+    def __mul__(self, other: 'CovarianceKernel') -> 'CovarianceKernel':
         from pmrf.discrepancy_models import ProductKernel
         return ProductKernel(self, other)
 

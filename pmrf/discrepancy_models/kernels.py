@@ -3,11 +3,11 @@ Covariance kernels for Gaussian process discrepancy models.
 """
 import jax.numpy as jnp
 
-from pmrf.core import Kernel
+from pmrf.core import CovarianceKernel
 import parax as prx
 
 
-class SumKernel(Kernel):
+class SumKernel(CovarianceKernel):
     """
     Kernel representing the sum of two kernels.
 
@@ -18,14 +18,14 @@ class SumKernel(Kernel):
     k2 : Kernel
         Second kernel operand.
     """
-    k1: Kernel
-    k2: Kernel
+    k1: CovarianceKernel
+    k2: CovarianceKernel
 
     def __call__(self, x1, x2, key=None):
         return self.k1(x1, x2) + self.k2(x1, x2)
 
 
-class ProductKernel(Kernel):
+class ProductKernel(CovarianceKernel):
     """
     Kernel representing the product of two kernels.
 
@@ -36,14 +36,14 @@ class ProductKernel(Kernel):
     k2 : Kernel
         Second kernel operand.
     """
-    k1: Kernel
-    k2: Kernel
+    k1: CovarianceKernel
+    k2: CovarianceKernel
 
     def __call__(self, x1, x2, key=None):
         return self.k1(x1, x2) * self.k2(x1, x2)
 
 
-class ConstantKernel(Kernel):
+class ConstantKernel(CovarianceKernel):
     """
     Kernel that returns a constant variance.
 
@@ -58,7 +58,7 @@ class ConstantKernel(Kernel):
         return self.variance
 
 
-class RBFKernel(Kernel):
+class RBFKernel(CovarianceKernel):
     """
     Radial Basis Function (Squared Exponential) kernel.
 
@@ -75,7 +75,7 @@ class RBFKernel(Kernel):
         return jnp.exp(-0.5 * sq_dist)
     
     
-class PeriodicKernel(Kernel):
+class PeriodicKernel(CovarianceKernel):
     """
     Periodic (Exp-Sine-Squared) kernel.
     
@@ -104,7 +104,7 @@ class PeriodicKernel(Kernel):
         return jnp.exp(-2.0 * (sin_term / self.length_scale)**2)
 
 
-class WhiteNoiseKernel(Kernel):
+class WhiteNoiseKernel(CovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
 
