@@ -43,31 +43,37 @@ def condition(
     model : Model
         The RF model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
-        The target data to fit against. Can be raw JAX arrays or standard Touchstone networks.
+        The data to condition on. Can either be a JAX array,
+        a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
     solver : Solver, default=PolyChord()
-        The Bayesian sampling algorithm backend (e.g., PolyChord, MultiNest).
-    features : EvaluatorLike, default='s'
-        The specific circuit feature(s) to compute the likelihood against. 
-        Usually passed as a tuple of real and imaginary parts for Bayesian analysis.
+        The sampler to use. Currently, only :class:`inferix.PolyChord` from
+        `Inferix <https://github.com/gvcallen/inferix>`_ is supported.
+    features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
+        The RF features to condition on.
+        Can either be function, a callable PyTree with optional parameters, or a string,
+        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
+        Defaults to all S-parameters.
     likelihood_fn : Callable[[jnp.ndarray], dist.AbstractDistribution], optional
-        The likelihood function that accepts a model prediction and returns a distribution
-        representing the probability of observing data given that prediction.
-        Can be a function or a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
-        Defaults to `None`, in which case :class:``pmrf.likelihoods.GaussianLikelihood``
-        is constructed internally with a symmetric noise model.
-    discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution], optional
-        A discrepancy function the models the discrepancy between the model and measured data.
-        To use a Gaussian process as a discrepancy model, see :class:``pmrf.discrepancy_models.GaussianProcess``.
+        The likelihood function, which accepts a model prediction (in event space)
+        and returns a distribution representing the probability of observing the data.
+        Can be a function or a callable PyTree with optional parameters.
+        See :mod:``pmrf.likelihoods`` for common likelihoods.
+        Defaults to `None`, in which case :class:`pmrf.likelihoods.GaussianLikelihood` is used.
+    discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
+        A discrepancy function, which models the discrepancy between the model and measured data.
+        Can either be a function, or a callable PyTree with optional parameters.
+        To use a Gaussian process as a discrepancy model,
+        see :class:``pmrf.discrepancy_models.GaussianProcess``.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
     Returns
     -------
-    InferenceResult
-        The result containing the model loaded with empirical posterior distributions.
+    InferResult
+        The result containing the model maximume likelikhood estimate model with an empirical posterior.
     """
     # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:

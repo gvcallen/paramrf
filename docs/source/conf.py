@@ -79,7 +79,7 @@ add_module_names = False               # Strips the fully qualified paths from s
 autoclass_content = 'class'
 
 # Type hinting formatting (crucial for JAX arrays)
-autodoc_typehints = 'description'
+autodoc_typehints = 'signature'
 python_use_unqualified_type_names = True 
 
 # Stop Python from copying parent docstrings into children automatically
@@ -103,7 +103,8 @@ autodoc_default_options = {
     "show-inheritance": True,
     "imported-members": True,     
     "member-order": "bysource",
-    "exclude-members": "__weakref__"
+    "exclude-members": "__weakref__",
+    'special-members': '__call__',
 }
 
 # --- Intersphinx Configuration ---

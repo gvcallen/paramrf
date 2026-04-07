@@ -17,9 +17,9 @@ def is_optimizer(x):
     """
     Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
 
-    Returns ``True`` for ``optimistix.AbstractMinimiser`` and :class:``pmrf.optimize.ScipyMinimizer``.
+    Returns `True` for :class:`pmrf.optimize.ScipyMinimizer` and :class:`optimistix.AbstractMinimiser`.
     """
-    return isinstance(x, optx.AbstractMinimiser | ScipyMinimizer)
+    return isinstance(x, ScipyMinimizer | optx.AbstractMinimiser)
 
 def minimize(
     objective_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
@@ -27,28 +27,31 @@ def minimize(
     frequency: Frequency,
     solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
     *,
-    max_steps: int = 10000,
+    max_iters: int = 512,
     **kwargs,
 ) -> OptimizeResult:
     """
     Minimizes a given objective function for a model over a frequency range.
     
-    The objective function can have its own hyper-parameters, and is returned in ``result.objective``.
+    The objective function can have its own hyper-parameters, and is returned in `result.objective`.
 
     Parameters
     ----------
     objective_fn : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
-        The objective function to minimize. Must be a callable or PyTree with signature
-        (model, freq) -> jnp.ndarray. If a list of objectives is provided, they are automatically summed.
-        See :meth:``pmrf.evaluators.Goal`` for an easy way to define goal-based objectives e.g. for design.
+        The objective function to minimize. Can be a function or a callable PyTree
+        with optional parameters. If a list of objectives is provided,
+        they are automatically summed.
+        See :meth:`pmrf.evaluators.Goal` for an easy way to define goal-based objectives.
     model : Model
         The RF model containing the parameters to be optimized.
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
     solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
-        The optimization backend to use. Defaults to the host-based SciPy L-BFGS-B.
-    max_steps : int, default=256
-        The maximum number of steps/iterations the underlying solver can take.
+        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`
+        or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
+        (such as :class:`optimistix.LBFGS`).
+    max_iters : int, default=512
+        The maximum number of iterations.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -106,10 +109,10 @@ def minimize(
         if kwargs.get('has_aux', False):
             raise Exception("Auxiliary data not supported for host solvers")
             
-        kwargs['maxiter'] = max_steps
+        kwargs['maxiter'] = max_iters
         solver_results = solver(obj_fn, params, args=None, options=kwargs)
     else:
-        solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_steps, **kwargs)
+        solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iters, **kwargs)
 
     optimized_problem = eqx.combine(solver_results.value, static)
     results = OptimizeResult(

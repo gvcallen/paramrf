@@ -16,9 +16,9 @@ def is_inferer(x):
     """
     Returns if a solver is suitable for Bayesian inference in :mod:`pmrf.infer`.
 
-    Returns ``True`` for ``infx.AbstractNestedSampler`` and :class:``infx.AbstractHostHypercubeNestedSampler``.
+    Returns `True` for :class:`infx.PolyChord`.
     """    
-    return isinstance(x, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler)
+    return isinstance(x, infx.AbstractSampler | infx.AbstractHostHypercubeNestedSampler | infx.AbstractHostPhysicalNestedSampler)
 
 def sample(
     log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
@@ -33,24 +33,26 @@ def sample(
     """
     Samples a given log likelihood function for a model over a frequency range.
     
-    The log likelihood function can have its own hyper-parameters, and is returned in ``result.log_likelihood_fn``.
+    The log likelihood function can have its own hyper-parameters, and is returned in `result.log_likelihood_fn`.
 
     Parameters
     ----------
     log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
-        The log likelihood function to sample. Must be a callable or PyTree with signature
-        (model, freq) -> jnp.ndarray. If a list of costs is provided, they are automatically summed.
+        The log likelihood function to sample. Can be a function or a callable PyTree
+        with optional parameters. If a list of log likelihoods is provided,
+        they are automatically summed.
     model : Model
         The RF model containing the parameters to be sample.
     frequency : Frequency
-        The frequency sweep over which the cost should be evaluated.
+        The frequency sweep over which the log likelihood should be evaluated.
     solver : infx.AbstractNestedSampler, default=infx.PolyChord()
-        The backend to use. Defaults to ``infx.PolyChord()``.
+        The sampler to use. Can be any sampler from `Inferix <https://github.com/gvcallen/inferix>`_,
+        such as :class:`inferix.PolyChord`.
     nlive_factor : int, default=25
-        The number of live points to use as a factor of the number of parameters.
+        The number of live points to use as a factor of the number of total parameters.
         Only used for nested sampling.
     key : jnp.ndarray
-        The random JAX key.
+        The random JAX key. Note required for all samplers.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -58,7 +60,19 @@ def sample(
     -------
     InferResult
         A structured result containing the sampled model and solver statistics.
-    """    
+    """
+    try:
+        from distreqx.distributions import WeightedEmpirical, Empirical
+    except ImportError as e:
+        logging.info(
+            f"Could not loaded `WeightedEmpirical` or `Empirical` distribution class. "
+            "Make sure that your version of distreqx supports Empirical distributions. "
+            "You may need a custom fork at https://github.com/gvcallen/distreqx.git"
+        )
+
+    if not is_inferer(solver):
+        raise Exception(f"Expected an Inferix solver. Got: {solver}")
+    
     if isinstance(log_likelihood_fn, list):
         log_likelihood_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in log_likelihood_fn])
     else:
@@ -89,15 +103,26 @@ def sample(
         params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)
         return params_physical_problem
 
-    infx_result = infx.nested(
-        internal_log_likelihood_fn,
-        key=key,
-        sampler=solver,
-        y0=params,
-        prior_transform_fn=prior_transform_fn,
-        nlive=nlive_factor*problem.num_flat_params,
-        **kwargs
-    )
+    if isinstance(solver, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler | infx.AbstractHostPhysicalNestedSampler):    
+        nested_sampler = True
+        infx_result = infx.nested(
+            internal_log_likelihood_fn,
+            key=key,
+            sampler=solver,
+            y0=params,
+            prior_transform_fn=prior_transform_fn,
+            nlive=nlive_factor*problem.num_flat_params,
+            **kwargs
+        )
+    else:
+        nested_sampler = False
+        infx_result = infx.mcmc(
+            internal_log_likelihood_fn,
+            key=key,
+            sampler=solver,
+            y0=params,
+            **kwargs
+        )        
     
     # 1. Reconstruct the batched Problem and extract sub-components
     batched_problem = eqx.combine(infx_result.samples, static)
@@ -122,25 +147,27 @@ def sample(
     # Strip the samples so we dont store them twice
     infx_result = replace(infx_result, samples=None)
     
-    try:
+    if nested_sampler:
         from distreqx.distributions import WeightedEmpirical
-        posterior_dist = WeightedEmpirical(samples=flat_model_samples, weights=infx_result.weights)
+        weights = infx_result.weights
+        posterior_dist = WeightedEmpirical(samples=flat_model_samples, weights=weights)
+    else:
+        from distreqx.distributions import Empirical
+        weights = None
+        posterior_dist = Empirical(samples=flat_model_samples)
 
-        posterior_group = prx.ParameterGroup(
-            param_names=mle_model.flat_param_names(),
-            distribution=posterior_dist
-        )
-    
-        mle_model = mle_model.with_param_groups([posterior_group])
-    except Exception as e:
-        logging.info(f"Could not assigned weighted empirical distribution to model. Error: {e}")
+    posterior_group = prx.ParameterGroup(
+        param_names=mle_model.flat_param_names(),
+        distribution=posterior_dist
+    )
+    mle_model = mle_model.with_param_groups([posterior_group])
 
     return InferResult(
         model=mle_model,
         log_likelihood_fn=mle_log_likelihood,
         sampled_models=batched_model,
         sampled_log_likelihoods=batched_log_likelihoods,
-        log_likelihoods=infx_result.log_likelihoods, 
-        weights=infx_result.weights,
+        log_likelihoods=infx_result.log_likelihoods,
+        weights=weights,
         solver_results=infx_result,
     )

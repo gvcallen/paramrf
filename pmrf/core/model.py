@@ -2,6 +2,7 @@
 The main model class.
 """
 
+from abc import ABC, abstractmethod
 from typing import Callable, TYPE_CHECKING, Any
 
 import jax
@@ -26,28 +27,33 @@ is not yet officially supported and you may encounter subtle bugs. For now, it i
 recommended to keep the default z0 and convert your results at the end.
 """
 
-class Model(prx.Module):
+class Model(prx.Module, ABC):
     """
-    Base class for RF models.
+    Abstract base class for RF models.
 
     This base class is used to represent any computable RF network, referred to in
     **ParamRF** as a "Model". This class can be overridden for defining complex models,
     or can be utilized indirectly by combining models already provided in :mod:`pmrf.models`.
+
+    Note that, since this inherits from `parax.Module <https://gvcallen.github.io/parax/api/#parax.Module>`_,
+    models can easily be manipulated using e.g. ``mymodel.with_params(xxx)``. See the
+    `Parax <https://gvcallen.github.io/parax>`_ documentation for more details.
     
     This class is abstract and should not be instantiated directly. Derive from :class:`Model`
-    and override one of the primary property functions (e.g. :meth:`.__call__`, :meth:`.s`, :meth:`.a`).
+    and override one of the primary property functions (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`,
+    :meth:`pmrf.Model.a`).
 
-    The model is a Parax/Equinox ``Module`` (immutable, dataclass-like) and is
-    treated as a JAX PyTree. Parameters are declared using standard dataclass
-    field syntax using `parax.Parameter`.
+    The model is a Parax/Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
+    (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
+    field syntax using `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_.
 
     Usage
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
     - Use "past tense" functions to modify the model in conjunction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
-    - Retrieve parameter information via `Parax` methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc.
-    - Use **Parax** ``with_xxx`` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.    
+    - Retrieve parameter information via Parax methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc.
+    - Use Parax ``with_xxx`` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.    
 
     Methods & Properties Summary
     ----------------------------

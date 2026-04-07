@@ -41,7 +41,7 @@ def fit(
     model : Model
         The RF model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
-        The data to fit. Can either be a JAX array,
+        The data to fit to. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
@@ -50,13 +50,17 @@ def fit(
         The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`).
-    features : str | list[str] | Callable, default='s'
-        The RF features to fit. Defaults to all S-parameters.
-        Can either be callable, an instance of :class:`pmrf.Evaluator`, or a string,
+    features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
+        The RF features to fit.
+        Can either be function, a callable PyTree with optional parameters, or a string,
         in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
-    loss_fn : str Callable, default=LogMSELoss()
+        Defaults to all S-parameters.
+    loss_fn : str | Callable, default=LogMSELoss()
         The loss function between the model prediction and the data.
+        Can be a function, a callable PyTree with optional parameters, or a string
+        for a lookup into :data:`pmrf.math.LOSS_LOOKUP`
         See :mod:`pmrf.losses` for common losses.
+        Defaults to `None`, in which case :class:``pmrf.losses.LogMSELoss` is used.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to `loss_fn` indicating
         how to aggregate outputs. For the default of None, the argument is not passed.
@@ -69,7 +73,7 @@ def fit(
     Returns
     -------
     OptimizeResult
-        The optimization result containing the newly fitted Model.
+        The optimization result containing the fitted Model.
     """
     # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:

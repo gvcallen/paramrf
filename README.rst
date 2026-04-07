@@ -5,7 +5,7 @@
    :alt: ParamRF Logo
 
 
-**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modelling framework. It provides a declarative, object-orientated syntax for modelling complex RF circuits and surrogates using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
+**ParamRF**, or `pmrf`, is an open-source radio frequency (RF) modelling framework. It provides a declarative, object-orientated syntax for modelling complex RF circuits and surrogates using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen
@@ -27,21 +27,25 @@
 Key Features
 ---------------------
 
-* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or node composition. Since models can consist of a mix of `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_ and other ``pmrf.Model`` objects, this allows for a natural means of building complex, hierarchial models.
-* **Differentiable**: Since the framework is built using ``jax``, all models can be differentiated with respect to frequency and parameters. This allows for complex optimization and sensitivity analysis.
-* **High performance and hardware flexibile**: Since models are compiled using ``jax`` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
-* **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for data-fitting in ``pmrf.fit``.
+* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or node composition. Since models can consist of a mix of `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_ and other :class:`pmrf.Model` objects, this allows for a natural means of building complex, hierarchial models.
+* **Differentiable**: Since the framework is built using :mod:`jax`, all models can be differentiated with respect to frequency and parameters. This allows for complex optimization and sensitivity analysis.
+* **High performance and hardware flexibile**: Since models are compiled using :mod:`jax` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
+* **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in :mod:`pmrf.optimize` and :mod:`pmrf.infer`, as well as high-level wrappers for data-fitting such as :func:`pmrf.fit`.
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
 
 Installation
 ---------------------
-ParamRF can be installed directly using pip:
+ParamRF can be installed directly using pip (requires Python 3.11+):
 
-``pip install paramrf``
+.. code-block:: bash
 
-Sometimes this version may not be the latest release. To install from GitHub instead:
+   $ pip install paramrf
 
-``pip install git+https://github.com/gvcallen/paramrf@main``
+Note that For Bayesian inference or complex statistical modelling, you may need this fork of distreqx:
+
+.. code-block:: bash
+
+   $ pip install git+https://github.com/gvcallen/distreqx.git
 
 Example
 ---------------------
@@ -67,21 +71,23 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Bayesian inference or complex statistical modelling, you may need this fork of distreqx:
-
-``pip install git+https://github.com/gvcallen/distreqx.git``
-
 For PolyChord fitting:
 
-``pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py``
+.. code-block:: bash
+
+   $ pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
 
 For BlackJAX fitting:
 
-``pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic``
+.. code-block:: bash
+
+   $ pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic
 
 For eqx-learn surrogate modeling:
 
-``pip install git+https://github.com/eqx-learn/eqx-learn``   
+.. code-block:: bash
+
+   $ pip install git+https://github.com/eqx-learn/eqx-learn
 
 Citation
 ---------------------

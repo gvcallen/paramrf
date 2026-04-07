@@ -11,16 +11,16 @@ from pmrf.core import Model, Frequency
 
 class InferResult(prx.Module):
     """
-    Standardized return object for inference routines.
+    The result of an inference run.
 
     Attributes
     ----------
     model : Model
         The RF model containing the maximum likelihood parameters and the posterior over parameters.
     log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray]
-        The log likelihood function (e.g., :class:`pmrf.evaluators.MarginalLogLikelihood`)
-        used to calculate the log likelihood during sampling. If the log likelihood was an evaluator
-        with parameters, then this contains the maximum log likelihood model.
+        The log likelihood function used to calculate the log likelihood during sampling.
+        If the log likelihood was a module with parameters, then this contains
+        the maximum likelihood log likelihood model.
     sampled_models : Model
         A batched model containing the sampled models.
     sampled_likelihoods : Evaluator
@@ -84,6 +84,15 @@ class InferResult(prx.Module):
         return self._prepare_export_data(model_prefix='model', likelihood_prefix='likelihood')[1]
 
     def to_arviz(self, model_prefix='', likelihood_prefix=''):
+        """Converts the model to Arviz results.
+
+        Parameters
+        ----------
+        model_prefix : str, optional
+            A string prefix for the model parameters, by default ''
+        likelihood_prefix : str, optional
+            A string prefix for the likelihood parameters, by default ''
+        """
         import numpy as np
         import arviz as az
         
@@ -110,6 +119,15 @@ class InferResult(prx.Module):
         )
         
     def to_anesthetic(self, model_prefix='', likelihood_prefix='', logL_birth=None):
+        """Converts the model to Anesthetic samples.
+
+        Parameters
+        ----------
+        model_prefix : str, optional
+            A string prefix for the model parameters, by default ''
+        likelihood_prefix : str, optional
+            A string prefix for the likelihood parameters, by default ''
+        """        
         import numpy as np
         import pandas as pd
         import anesthetic as an

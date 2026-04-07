@@ -1,23 +1,21 @@
-import parax as prx
 from typing import Any, Callable
 
 import jax.numpy as jnp
-from jaxtyping import Array
+import parax as prx
 
-
-from pmrf.core import Model
+from pmrf.core import Model, Frequency
 
 class OptimizeResult(prx.Module):
     """
-    Standardized return object for parameter routines.
+    The result of an optimization run.
 
     Attributes
     ----------
     model : Model
         The RF model holding the final optimized parameters.
-    objective_fn : eqx.Module
+    objective_fn : Callable[[Model, Frequency], jnp.ndarray]
         The objective function (e.g., :class:`pmrf.evaluators.TargetLoss`)
-        used to calculate the objective during optimization. If the objective was an evaluator
+        used to calculate the objective during optimization. If the objective was an module
         with hyper-parameters, then this contains the optimized objective model.
     value : jnp.ndarray
         The final objective function value achieved by the optimizer.
@@ -25,6 +23,6 @@ class OptimizeResult(prx.Module):
         The underlying solution object returned by the solver, if any.
     """
     model: Model
-    objective_fn: Callable
+    objective_fn: Callable[[Model, Frequency], jnp.ndarray]
     value: jnp.ndarray
     solver_results: Any = None
