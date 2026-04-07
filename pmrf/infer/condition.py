@@ -66,7 +66,7 @@ def condition(
         A discrepancy function, which models the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
-        see :class:``pmrf.discrepancy_models.GaussianProcess``.
+        see :class:`pmrf.discrepancy_models.GaussianProcess`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
