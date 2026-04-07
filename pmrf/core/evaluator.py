@@ -9,9 +9,6 @@ from pmrf.core.frequency import Frequency
 class Evaluator(prx.Module, prx.Operator):
     """
     Base class for callables that evaluate a model over frequency.
-    
-    Returns either an array for a deterministic model,
-    or a distribution for a probabilistic model.
     """
     def __call__(self, model: Model, freq: Frequency, **kwargs) -> jnp.ndarray:
         raise NotImplementedError

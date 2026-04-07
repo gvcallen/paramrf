@@ -10,7 +10,7 @@ from pmrf.optimize import fit as optimize_fit, is_optimizer
 from pmrf.infer import condition as infer_condition, is_inferer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.infer.result import InferResult
-from pmrf.fit.result import FitResult
+from pmrf.fitting.result import FitResult
 from pmrf.constants import Optimizer, Inferer
 
 def fit(

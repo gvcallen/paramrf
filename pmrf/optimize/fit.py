@@ -11,7 +11,7 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Optimizer, AggregationKind
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import FeatureAlias, TargetLoss
+from pmrf.evaluators import Feature, TargetLoss
 from pmrf.losses import LogMSELoss
 
 from pmrf.optimize.result import OptimizeResult
@@ -77,7 +77,7 @@ def fit(
     
     # Resolve data and features
     if not isinstance(features, Callable):
-        features = FeatureAlias(features)
+        features = Feature(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):

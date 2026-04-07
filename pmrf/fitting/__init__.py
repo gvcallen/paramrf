@@ -8,8 +8,8 @@ inference (`pmrf.infer`) based on the provided engine.
 
 from pmrf.infer import is_inferer, InferResult
 from pmrf.optimize import is_optimizer, OptimizeResult
-from pmrf.fit.fit import fit, fit_sequential
-from pmrf.fit.result import FitResult
+from pmrf.fitting.fit import fit, fit_sequential
+from pmrf.fitting.result import FitResult
 from pmrf.constants import Optimizer, Inferer, Solver
 
 

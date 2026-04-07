@@ -13,39 +13,48 @@ try:
 except PackageNotFoundError:
     pass
 
-__all__ = []
-
 # 3. Main API Hoisting
-from pmrf.core import *
-from pmrf.serialization import *
-from pmrf import core, math
-from pmrf import serialization
+from pmrf.core import (
+    DiscrepancyModel as DiscrepancyModel,
+    Evaluator as Evaluator,
+    Frequency as Frequency,
+    Likelihood as Likelihood,
+    Loss as Loss,
+    Model as Model,
+    NoiseModel as NoiseModel,
+    Problem as Problem,
+)
+from pmrf.serialization import (
+    load as load,
+    save as save,
+)
+from pmrf.fitting import (
+    fit as fit,
+    fit_sequential as fit_sequential
+)
+from pmrf.network_collection import NetworkCollection as NetworkCollection
 
-# Synchronize __all__ and apply branding
-__all__.extend(core.__all__)
-__all__.extend(serialization.__all__)
+# 4. Sub-Modules
+from pmrf import (
+    constants as constants,
+    discrepancy_models as discrepancy_models,
+    evaluators as evaluators,
+    explore as explore,
+    fitting as fitting,
+    likelihoods as likelihoods,
+    losses as losses,
+    infer as infer,
+    models as models,
+    math as math,
+    noise_models as noise_models,
+    optimize as optimize,
+    rf as rf,
+    serialization as serialization,
+)
 
+# 5. Module manipulation
+import pmrf.core as core
 for name in core.__all__:
     obj = globals().get(name)
     if hasattr(obj, "__module__"):
         obj.__module__ = "pmrf"
-
-# 4. Sub-Modules
-from pmrf import (
-    constants,
-    evaluators, models,
-    math, rf,
-    optimize, infer, fit, explore,
-    losses, likelihoods, noise_models, discrepancy_models,
-)
-from pmrf.network_collection import NetworkCollection
-
-__all__.extend([
-    "core",
-    "constants",
-    "evaluators", "models",
-    "math", "rf", 
-    "optimize", "infer", "fit", "explore",
-    "losses", "likelihoods", "noise_models", "discrepancy_models",
-    "NetworkCollection",
-])

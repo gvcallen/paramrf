@@ -69,7 +69,7 @@ Several additional dependencies are required/recommended for more advanced use-c
 
 For Bayesian inference or complex statistical modelling, you may need this fork of distreqx:
 
-``pip install git+https://github.com/gvcallen/distreqx.git@extra_bijs_and_dists``
+``pip install git+https://github.com/gvcallen/distreqx.git``
 
 For PolyChord fitting:
 

@@ -16,9 +16,9 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import FeatureAlias, DataLikelihood
+from pmrf.evaluators import Feature, DataLikelihood
 
-from pmrf.likelihoods import ComplexGaussianLikelihood
+from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
@@ -29,7 +29,7 @@ def condition(
     solver: Inferer = PolyChord(),
     *,
     features: str | list[str] | Callable = 's',
-    likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
+    likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
     **kwargs,
 ) -> InferResult:
     """
@@ -57,7 +57,7 @@ def condition(
         The likelihood function that accepts a model prediction and returns a distribution
         representing the probability of observing data given that prediction.
         Can be a function or a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
-        Defaults to `None`, in which case :class:``pmrf.likelihoods.ComplexGaussianLikelihood``
+        Defaults to `None`, in which case :class:``pmrf.likelihoods.GaussianLikelihood``
         is constructed internally with a symmetric noise model.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
@@ -73,7 +73,7 @@ def condition(
 
     # Resolve the features and data
     if not isinstance(features, Callable):
-        features = FeatureAlias(features)
+        features = Feature(features)
     if isinstance(data, skrf.Network | NetworkCollection):
         if frequency is None:
             if isinstance(data, skrf.Network):
@@ -86,7 +86,10 @@ def condition(
         
     # Resolve the likelihood model
     if likelihood_fn is None:
-        likelihood_fn = ComplexGaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+        likelihood_fn = GaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+    
+    # if isinstance(likelihood_fn, list):
+        
     
     log_likelihood_fn = DataLikelihood(predictor=features, data=target, likelihood=likelihood_fn)  
     

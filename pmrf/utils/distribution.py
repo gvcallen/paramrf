@@ -1,50 +1,43 @@
-import jax
 import jax.numpy as jnp
+import equinox as eqx
+from jaxtyping import Array
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
-from jaxtyping import Array
 
-
-def unwrap_base_distribution(distribution: dist.AbstractDistribution, data: jnp.ndarray) -> tuple[dist.AbstractDistribution, jnp.ndarray, jnp.ndarray]:
+def unwrap_distribution(distribution: dist.AbstractDistribution) -> tuple[dist.AbstractDistribution, bij.AbstractBijector]:
     """
-    Recursively unwraps nested `distreqx.Transformed` distributions.
+    Recursively unwraps a potentially Transformed distribution.
+    Returns the core base distribution and a bijector
+    that transforms the base distribution to the supplied distribution.
+    """
+    if not isinstance(distribution, dist.Transformed):
+        return distribution, bij.Identity()
+    elif isinstance(distribution, dist.Transformed) and not isinstance(distribution.distribution, dist.Transformed):
+        return distribution.distribution, distribution.bijector
     
-    Returns the foundational base distribution, the data mapped into that 
-    base coordinate space, and the accumulated log-determinant of the Jacobian.
-    """
     base_dist = distribution
-    base_data = data
-    log_det_jacobian = 0.0
-
+    bijectors = []
     while isinstance(base_dist, dist.Transformed):
-        bijector = base_dist.bijector
-        base_data, layer_log_det = bijector.inverse_and_log_det(base_data)
-        log_det_jacobian += layer_log_det
+        bijectors.append(base_dist.bijector)
         base_dist = base_dist.distribution
-        
-    return base_dist, base_data, log_det_jacobian
 
-def _batched_mvn(loc: Array, cov: Array) -> dist.MultivariateNormalFullCovariance:
-    """Helper to cleanly initialize batched MVNs."""
+    chain = bij.Chain(bijectors)
+    return base_dist, chain
+
+def build_batched_mvn(loc, cov):
     batch_ndims = loc.ndim - 1
-    init_fn = dist.MultivariateNormalFullCovariance
+    builder = dist.MultivariateNormalFullCovariance
     for _ in range(batch_ndims):
-        init_fn = jax.vmap(init_fn)
-    return init_fn(loc, cov)
+        builder = eqx.filter_vmap(builder)
+    return builder(loc=loc, covariance_matrix=cov)
 
-def unwrap_base_distribution(distribution: dist.AbstractDistribution, data: jnp.ndarray) -> tuple[dist.AbstractDistribution, jnp.ndarray, jnp.ndarray]:
-    """Recursively unwraps nested `distreqx.Transformed` distributions."""
-    base_dist = distribution
-    base_data = data
-    log_det_jacobian = 0.0
+def build_batched_normal(loc, scale):
+    batch_ndims = loc.ndim
+    builder = dist.Normal
+    for _ in range(batch_ndims):
+        builder = eqx.filter_vmap(builder)
+    return builder(loc=loc, scale=scale)
 
-    while isinstance(base_dist, dist.Transformed):
-        bijector = base_dist.bijector
-        base_data, layer_log_det = bijector.inverse_and_log_det(base_data)
-        log_det_jacobian += layer_log_det
-        base_dist = base_dist.distribution
-        
-    return base_dist, base_data, log_det_jacobian
 
 def make_complex_normal(
     loc: Array, 

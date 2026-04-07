@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Sequence, Literal, Any, Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import parax as prx
@@ -13,9 +14,8 @@ import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss
-from pmrf.utils import unwrap_base_distribution
 
-class FeatureAlias(Evaluator):
+class Feature(Evaluator):
     """
     Extracts an RF feature using a string-based alias.
     
@@ -34,7 +34,7 @@ class FeatureAlias(Evaluator):
 
         # 2. Handle Sequences (Recursive Stacking)
         if not isinstance(alias, str) and isinstance(alias, Sequence):
-            evaluators = tuple(FeatureAlias(a) for a in alias)
+            evaluators = tuple(Feature(a) for a in alias)
             self.op = Stack(operators=evaluators, axis=-1)
             return
 
@@ -85,7 +85,7 @@ class FeatureAlias(Evaluator):
     
 class TargetLoss(Evaluator):
     """
-    Computes a loss between a model prediction and a given target.
+    Computes a loss between a model prediction and some target.
     """
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     target: jnp.ndarray
@@ -98,28 +98,40 @@ class TargetLoss(Evaluator):
     
 class DataLikelihood(Evaluator):
     """
-    Computes the log probability of observing given data
+    Computes the log of the probability of observing some data
     given a likelihood function conditioned on a model prediction.
     
-    Allows for a probabilistic discrepancy model (e.g. a gaussian process),
-    which returns the distribution over a model's prediction given that prediction.
-    The discrepancy model accepts the model prediction and scaled frequency vector,
-    and returns a distribution over the model's prediction.
+    Performs the mapping from "data space" to "event space".
+    By default, this places the probabilistic event, usually the
+    frequency measurement, on the last axis, and also stacks
+    the real and imaginary parts.
     """
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     data: jnp.ndarray
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
+    event_map: Callable[[jnp.ndarray], jnp.ndarray] | None = None
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
         
-        if self.discrepancy is not None:
-            y_pred = self.discrepancy(y_pred, frequency.f_scaled)
+        def default_event_map(y_pred):
+            y_event = y_pred
+            if jnp.iscomplexobj(y_event):
+                y_event = jnp.stack([jnp.real(y_event), jnp.imag(y_event)], axis=-1)
+            y_event = jnp.moveaxis(y_event, 0, -1)
+            return y_event
         
-        likelihood = self.likelihood(y_pred)
-        return jnp.sum(likelihood.log_prob(self.data))
-    
+        mapper = self.event_map if self.event_map is not None else default_event_map
+        y_event = mapper(y_pred)
+        data_event = mapper(self.data)
+        
+        if self.discrepancy is not None:
+            y_event = self.discrepancy(y_event, frequency.f_scaled)
+        
+        likelihood = self.likelihood(y_event)
+        return jnp.sum(likelihood.log_prob(data_event))
+
 
 class Goal(TargetLoss):
     """
@@ -137,7 +149,7 @@ class Goal(TargetLoss):
     ):
         super().__init__()
         
-        self.predictor = FeatureAlias(feature) if isinstance(feature, str) else feature
+        self.predictor = Feature(feature) if isinstance(feature, str) else feature
         self.target = jnp.asarray(target)
         
         # We store the metric logic. HingeLoss should be a PyTree or static.
@@ -150,7 +162,7 @@ class Goal(TargetLoss):
         )
         
 __all__ = [
-    'FeatureAlias',
+    'Feature',
     'TargetLoss',
     'DataLikelihood',
     'Goal',
