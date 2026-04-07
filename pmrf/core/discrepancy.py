@@ -8,17 +8,15 @@ class DiscrepancyModel(prx.Module):
     """
     Base class for discrepancy models.
     
-    A discrepancy model maps a model prediction  to an updated model prediction.
-    This updated prediction can either be deterministic (e.g. a neural network)
-    or probabilistic (e.g. a Gaussian process) by either returning a JAX array
-    or a probability distribution.
+    A discrepancy model maps a model prediction to an updated model prediction.
+    This updated prediction can either be deterministic (e.g. a polynomial)
+    or probabilistic (e.g. a Gaussian process) by either returning a `JAX` array
+    or a `distreqx` probability distribution. Note that probabilistic discrepancy
+    models operate in "event space". Here, probability events are moved
+    to the **last axis**, such as frequency.
     
-    These models can then either be used deterministically, or to account for
-    the uncertainty in the model itself in conjuction with a likelihood function,
-    for example using :class:`pmrf.discrepancy_models.GaussianProcessDiscrepancy
-    with :class:`pmrf.likelihoods.ComplexGaussianLikehood`.
-    
-    NB: Discrepancy models in "event space", where frequency is the generally last axis.
+    These models are commonly used in conjuction with a likelihood function
+    via :class:`pmrf.evaluators.DataLikelihood`.
     
     See :mod:`pmrf.discrepancy_models` for built-in discrepancy models.
     """
@@ -29,7 +27,9 @@ class DiscrepancyModel(prx.Module):
     
 class Kernel(prx.Module):
     """
-    Abstract base class for covariance kernel functions enabling gaussian processes.
+    Abstract base class for covariance kernel functions.
+    
+    These kernels are used in a Gaussian Process for discrepancy modeling.
     """
     def __add__(self, other: 'Kernel') -> 'Kernel':
         from pmrf.discrepancy_models import SumKernel

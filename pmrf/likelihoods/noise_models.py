@@ -102,3 +102,6 @@ class RadialTangentialNoise(NoiseModel):
         pseudo_covariance = (y_pred**2) * (var_rad_rel - var_tan_rel)
         
         return variance, pseudo_covariance
+    
+    
+# Okay my last question, I previously had a ComplexGaussianLikelihood, but now that everything is written in terms of event space (which is purely real) this has fallen away. However I had the following noise model which return hermitian and pseudo variance:

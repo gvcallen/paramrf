@@ -16,7 +16,7 @@ from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Feature, DataLikelihood
+from pmrf.evaluators import Feature, MarginalLogLikelihood
 
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer.result import InferResult
@@ -91,7 +91,7 @@ def condition(
     # if isinstance(likelihood_fn, list):
         
     
-    log_likelihood_fn = DataLikelihood(predictor=features, data=target, likelihood=likelihood_fn)  
+    log_likelihood_fn = MarginalLogLikelihood(predictor=features, data=target, likelihood=likelihood_fn)  
     
     # Run the sampling
     return sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)

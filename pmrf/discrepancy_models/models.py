@@ -1,5 +1,5 @@
 """
-Models that cater for the discrepancy between a physical model and data.
+Models that cater for the discrepancy between an RF model and data.
 """
 from collections.abc import Callable
 
@@ -7,15 +7,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
-import distreqx.bijectors as bij
 
 from pmrf.core import DiscrepancyModel
-import parax as prx
-from abc import abstractmethod
 
 class GaussianProcess(DiscrepancyModel):
     """
-    Gaussian process discrepancy model with a given kernel.
+    Gaussian process discrepancy model with a covariance kernel.
     
     Maps model predictions to a Gaussian Process distribution over frequency.
     
@@ -27,6 +24,8 @@ class GaussianProcess(DiscrepancyModel):
     This easily allows for kernel batching. For example, to create multiple RBF kernels
     that model the last batch dimension D with independent kernels, simply create a kernel
     with parameters of shape (D,).
+    
+    See :class:`pmrf.DiscrepancyModel` for more information on general discrepancy models.
     """
     kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     jitter: float = eqx.field(default=1e-10, static=True)

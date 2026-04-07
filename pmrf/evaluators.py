@@ -96,10 +96,11 @@ class TargetLoss(Evaluator):
         return self.loss(self.target, y_pred)
     
     
-class DataLikelihood(Evaluator):
+class MarginalLogLikelihood(Evaluator):
     """
     Computes the log of the probability of observing some data
-    given a likelihood function conditioned on a model prediction.
+    by conditioning a likelihood function on a model prediction
+    while marginalizing out a potential discrepancy model.
     
     Performs the mapping from "data space" to "event space".
     By default, this places the probabilistic event, usually the
@@ -110,7 +111,7 @@ class DataLikelihood(Evaluator):
     data: jnp.ndarray
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
-    event_map: Callable[[jnp.ndarray], jnp.ndarray] | None = None
+    event_mapper: Callable[[jnp.ndarray], jnp.ndarray] | None = None
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
@@ -122,7 +123,7 @@ class DataLikelihood(Evaluator):
             y_event = jnp.moveaxis(y_event, 0, -1)
             return y_event
         
-        mapper = self.event_map if self.event_map is not None else default_event_map
+        mapper = self.event_mapper if self.event_mapper is not None else default_event_map
         y_event = mapper(y_pred)
         data_event = mapper(self.data)
         
@@ -164,6 +165,6 @@ class Goal(TargetLoss):
 __all__ = [
     'Feature',
     'TargetLoss',
-    'DataLikelihood',
+    'MarginalLogLikelihood',
     'Goal',
 ]
