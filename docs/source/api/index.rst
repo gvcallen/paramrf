@@ -2,7 +2,7 @@ API Reference
 =============
 
 Main Classes
---------
+------------
 
 .. autosummary::
    :toctree: generated/
@@ -19,16 +19,16 @@ Main Classes
 
 
 Main Functions
----------
+--------------
 
 .. autosummary::
    :toctree: generated/
 
-pmrf.fit
-pmrf.optimize.minimize
-pmrf.infer.sample
-pmrf.load
-pmrf.save
+   pmrf.fit
+   pmrf.optimize.minimize
+   pmrf.infer.sample
+   pmrf.load
+   pmrf.save
 
 
 Modules
