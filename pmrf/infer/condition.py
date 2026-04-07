@@ -73,7 +73,7 @@ def condition(
     Returns
     -------
     InferResult
-        The result containing the model maximume likelikhood estimate model with an empirical posterior.
+        The result containing the model maximum likelikhood estimate model with an empirical posterior.
     """
     # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:

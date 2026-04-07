@@ -56,7 +56,7 @@ def fit(
     -------
     FitResult
         A result object containing the fitted model and backend solution results.
-        Frequentist optimizer return a single best model, whereas Bayesian inferers also
+        Frequentist optimizers return a single best model, whereas Bayesian inferers also
         return full posterior distributions on the model.
     """
     if features is not None:
