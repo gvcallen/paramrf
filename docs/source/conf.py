@@ -155,23 +155,28 @@ def skip_member(app, what, name, obj, skip, options):
     if isinstance(obj, types.ModuleType):
         return True
 
-    # 3. Filter external inherited members from `parax`
-    # First, figure out where the object was originally defined
+    # 3. Identify where the object was originally defined
     obj_module = getattr(obj, '__module__', None)
     
-    # Python properties don't hold __module__ directly, so we check their getter
+    # Python properties don't hold __module__ directly, check their getter
     if obj_module is None and isinstance(obj, property):
         obj_module = getattr(obj.fget, '__module__', '')
 
-    # If the method/attribute originated from the 'parax' package...
-    if obj_module and obj_module.startswith('parax'):
-        # 'name' is the full path Sphinx is documenting (e.g., 'pmrf.core.Model.tree_flatten')
-        # If we are documenting the base Model class, allow the inherited methods
-        if '.Model.' in name:
-            return skip 
+    if obj_module:
+        # Define modules that we consider "Base/Parent" modules
+        # Add 'pmrf.core' (or wherever Model is defined) to this list
+        base_modules = ('parax', 'pmrf.core') 
+
+        is_inherited_base = any(obj_module.startswith(m) for m in base_modules)
+
+        if is_inherited_base:
+            # If we are documenting the base Model class itself, allow the members
+            # Otherwise, if 'Model' isn't the current class in the 'name' path, skip it.
+            if '.Model.' in name:
+                return skip 
             
-        # For all other subclasses (Resistor, etc.), hide the parax methods
-        return True
+            # This hides inherited methods/attrs from subclasses (e.g., Resistor)
+            return True
 
     return skip
 
