@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Core API
+Main Classes
 --------
 
 .. autosummary::
@@ -10,13 +10,25 @@ Core API
    pmrf.Model
    pmrf.Frequency
    pmrf.Evaluator
+   pmrf.Problem
    pmrf.Loss
    pmrf.Likelihood
    pmrf.NoiseModel
    pmrf.DiscrepancyModel
-   pmrf.Problem
-   pmrf.load
-   pmrf.save
+   pmrf.CovarianceKernel
+
+
+Main Functions
+---------
+
+.. autosummary::
+   :toctree: generated/
+
+pmrf.fit
+pmrf.optimize.minimize
+pmrf.infer.sample
+pmrf.load
+pmrf.save
 
 
 Modules
