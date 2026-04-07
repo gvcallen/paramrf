@@ -37,19 +37,18 @@ class GaussianProcess(DiscrepancyModel):
         """
         x_feat = x[:, None]
         
-        # 1. Double vmap using out_axes natively pushes the N x N grid to the back
         inner_vmap = jax.vmap(self.kernel, in_axes=(None, 0), out_axes=-1)
         outer_vmap = jax.vmap(inner_vmap, in_axes=(0, None), out_axes=-2)
         
-        # K shape is now guaranteed to be (N, N) OR (*batch_dims, N, N)
         K = outer_vmap(x_feat, x_feat) 
-            
-        # 2. Add jitter (broadcasting handles the batch dims automatically)
         K = K + jnp.eye(x.shape[0]) * self.jitter
 
-        # 3. Build the batched distribution safely
+        # ---> NEW FIX: Explicitly broadcast K to match y's batch dimensions <---
+        target_K_shape = y.shape[:-1] + K.shape[-2:]
+        K = jnp.broadcast_to(K, target_K_shape)
+
         init_fn = dist.MultivariateNormalFullCovariance
         for _ in range(y.ndim - 1):
             init_fn = eqx.filter_vmap(init_fn)
             
-        return init_fn(loc=y, covariance_matrix=K)
+        return init_fn(y, K)

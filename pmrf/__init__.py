@@ -46,15 +46,7 @@ from pmrf import (
     infer as infer,
     models as models,
     math as math,
-    noise_models as noise_models,
     optimize as optimize,
     rf as rf,
     serialization as serialization,
 )
-
-# 5. Module manipulation
-import pmrf.core as core
-for name in core.__all__:
-    obj = globals().get(name)
-    if hasattr(obj, "__module__"):
-        obj.__module__ = "pmrf"

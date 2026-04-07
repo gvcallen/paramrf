@@ -7,7 +7,7 @@ import inferix as infx
 from parax import partition
 from jaxtyping import Array
 
-from pmrf.core import Model, Frequency, Problem
+from pmrf.core import Model, Frequency
 
 class InferResult(prx.Module):
     """
@@ -16,29 +16,30 @@ class InferResult(prx.Module):
     Attributes
     ----------
     model : Model
-        The circuit model holding the finalized, optimized parameter state and posterior.
-    likelihood : Evaluator
-        The evaluator (e.g., :class:`pmrf.evaluators.Likelihood`) used to calculate the likelihood.
+        The RF model containing the maximum likelihood parameters and the posterior over parameters.
+    log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray]
+        The log likelihood function (e.g., :class:`pmrf.evaluators.MarginalLogLikelihood`)
+        used to calculate the log likelihood during sampling. If the log likelihood was an evaluator
+        with parameters, then this contains the maximum log likelihood model.
     sampled_models : Model
-        The final batched model of sampled models.
+        A batched model containing the sampled models.
     sampled_likelihoods : Evaluator
-        A batched Likelihood containing all accepted sample states.
+        A batched model containing the sampled log likelihoods if an evaluator was used.
     log_likelihoods : jnp.ndarray
-        The evaluated log-likelihoods for each sample.
-    history : Any
-        The underlying solution object returned by the solver.
+        The log-likelihood values related to each sample.
+    weights : jnp.ndarray
+        The weights related to each sample, if any.
+    solver_results : Any
+        The underlying solution object returned by the solver, if any.
     """
-    model: Model                            # The model updated with empirical posterior distributions
-    likelihood: Callable                   # The likelihood evaluator used
+    model: Model
+    log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray]
     
-    # Raw Sample Data
-    sampled_models: Model                   # A batched Model containing all accepted sample states
-    sampled_likelihoods: Array          # A batched Likelihood containing all accepted sample states
-    log_likelihoods: jnp.ndarray            # The evaluated log-likelihoods for each sample
+    sampled_models: Model
+    sampled_log_likelihoods: Array
+    log_likelihoods: jnp.ndarray
     weights: jnp.ndarray | None = None
-    
-    frequency: Frequency | None = None    
-    stats: infx.Result = None               # Results/trace from the underlying nested sampler
+    solver_results: infx.Result = None
        
     def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
         """Helper method to extract, format, and check parameter data for export."""
@@ -50,7 +51,11 @@ class InferResult(prx.Module):
         l_prefix = f"{likelihood_prefix}_" if likelihood_prefix else ""
         
         model_param_names = [f"{m_prefix}{name}" for name in self.model.flat_param_names()]
-        likelihood_param_names = [f"{l_prefix}{name}" for name in self.likelihood.flat_param_names()]
+        
+        if isinstance(self.log_likelihood_fn, prx.Module):
+            likelihood_param_names = [f"{l_prefix}{name}" for name in self.log_likelihood_fn.flat_param_names()]
+        else:
+            likelihood_param_names = []
         
         # 2. Perform Collision Check
         param_names = model_param_names + likelihood_param_names
@@ -63,7 +68,7 @@ class InferResult(prx.Module):
             
         # 3. Partition out static variables to isolate batched dynamic parameters
         dynamic_models, _ = partition(self.sampled_models)
-        dynamic_likelihoods, _ = partition(self.sampled_likelihoods)
+        dynamic_likelihoods, _ = partition(self.sampled_log_likelihoods)
 
         # 4. Flatten and vmap
         flatten_fn = lambda m: jax.flatten_util.ravel_pytree(m)[0]

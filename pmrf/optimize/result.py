@@ -14,15 +14,17 @@ class OptimizeResult(prx.Module):
     Attributes
     ----------
     model : Model
-        The circuit model holding the finalized, optimized parameter state.
-    cost : eqx.Module
-        The evaluator (e.g., metric, sum of goals) used to calculate the objective.
+        The RF model holding the final optimized parameters.
+    objective_fn : eqx.Module
+        The objective function (e.g., :class:`pmrf.evaluators.TargetLoss`)
+        used to calculate the objective during optimization. If the objective was an evaluator
+        with hyper-parameters, then this contains the optimized objective model.
     value : jnp.ndarray
-        The final cost value achieved by the optimizer.
-    stats : Any
-        The stats from the underlying solver.
+        The final objective function value achieved by the optimizer.
+    solver_results : Any
+        The underlying solution object returned by the solver, if any.
     """
     model: Model
-    cost: Callable
+    objective_fn: Callable
     value: jnp.ndarray
-    stats: Any = None
+    solver_results: Any = None

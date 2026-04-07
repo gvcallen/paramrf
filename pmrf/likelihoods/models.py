@@ -69,4 +69,4 @@ class GaussianLikelihood(Likelihood):
             for _ in range(num_batch_dims):
                 init_fn = eqx.filter_vmap(init_fn)
                 
-            return init_fn(loc=y_mean, covariance_matrix=new_cov)
+            return init_fn(y_mean, new_cov)

@@ -103,19 +103,23 @@ class MarginalLogLikelihood(Evaluator):
     while marginalizing out a potential discrepancy model.
     
     Performs the mapping from "data space" to "event space".
-    By default, this places the probabilistic event, usually the
-    frequency measurement, on the last axis, and also stacks
-    the real and imaginary parts.
+    By default, this defines the frequency axis as the probabilistic event,
+    by moving it to the last axis before passing it to the likelihood/discrepancy.
+    Real and imaginary parts are also stacked appropriately.
     """
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     data: jnp.ndarray
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
     event_mapper: Callable[[jnp.ndarray], jnp.ndarray] | None = None
+    event_ndims: int = prx.field(default=1, static=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        y_pred = self.predictor(model, frequency, **kwargs)
+        if self.event_ndims != 1:
+            raise Exception("MarginalLogLikelihood currently only supports a single event dimension")
         
+        # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
+        # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
         def default_event_map(y_pred):
             y_event = y_pred
             if jnp.iscomplexobj(y_event):
@@ -123,15 +127,26 @@ class MarginalLogLikelihood(Evaluator):
             y_event = jnp.moveaxis(y_event, 0, -1)
             return y_event
         
+        # Get pred_event and obs_event
+        y_pred = self.predictor(model, frequency, **kwargs)
         mapper = self.event_mapper if self.event_mapper is not None else default_event_map
-        y_event = mapper(y_pred)
-        data_event = mapper(self.data)
-        
+        pred_event = mapper(y_pred)
+        obs_event = mapper(self.data)
         if self.discrepancy is not None:
-            y_event = self.discrepancy(y_event, frequency.f_scaled)
+            pred_event = self.discrepancy(pred_event, frequency.f_scaled)
         
-        likelihood = self.likelihood(y_event)
-        return jnp.sum(likelihood.log_prob(data_event))
+        # Get the distribution over obs_event
+        obs_dist = self.likelihood(pred_event)
+        
+        # Sum the log probs over the batch dimension
+        batch_ndims = obs_event.ndim - self.event_ndims
+        def eval_log_prob(d, x):
+            return d.log_prob(x)
+        mapped_log_prob = eval_log_prob
+        for _ in range(batch_ndims):
+            mapped_log_prob = eqx.filter_vmap(mapped_log_prob)
+        log_probs = mapped_log_prob(obs_dist, obs_event)
+        return jnp.sum(log_probs)
 
 
 class Goal(TargetLoss):

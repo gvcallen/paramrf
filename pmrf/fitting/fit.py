@@ -94,7 +94,7 @@ def fit_sequential(
     
     For each network in the network collection, the network's
     name is used as a prefix for the features to fit,
-    and :meth:`pmrf.fit.fit` is called.
+    and :meth:`pmrf.fit` is called.
 
     Parameters
     ----------

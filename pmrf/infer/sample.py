@@ -31,9 +31,9 @@ def sample(
     **kwargs,
 ) -> InferResult:
     """
-    Samples a given likelihood function for a model over a frequency range.
+    Samples a given log likelihood function for a model over a frequency range.
     
-    The likelihood function can have its own hyper-parameters, and is returned in ``result.likelihood``.
+    The log likelihood function can have its own hyper-parameters, and is returned in ``result.log_likelihood_fn``.
 
     Parameters
     ----------
@@ -46,8 +46,6 @@ def sample(
         The frequency sweep over which the cost should be evaluated.
     solver : infx.AbstractNestedSampler, default=infx.PolyChord()
         The backend to use. Defaults to ``infx.PolyChord()``.
-    transform : distreqx.bijectors.AbstractBijector, default=None
-        An invertible transformation to apply to all model parameters before sampling.
     nlive_factor : int, default=25
         The number of live points to use as a factor of the number of parameters.
         Only used for nested sampling.
@@ -103,15 +101,15 @@ def sample(
     
     # 1. Reconstruct the batched Problem and extract sub-components
     batched_problem = eqx.combine(infx_result.samples, static)
-    model_samples = batched_problem.model
-    likelihood_samples = batched_problem.evaluator
+    batched_model = batched_problem.model
+    batched_log_likelihoods = batched_problem.evaluator
 
     # 2. Extract MLE parameters using the log_likelihoods array
     best_idx = jnp.argmax(infx_result.log_likelihoods) 
     mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], infx_result.samples)
     mle_problem = eqx.combine(mle_problem_params, static)
     mle_model = mle_problem.model
-    mle_likelihood = mle_problem.evaluator
+    mle_log_likelihood = mle_problem.evaluator
 
     # 3. Create the flattened Joint Posterior Distribution for the model
     # Parax distributions expect flat arrays, so we must map ravel_pytree across the batch axis
@@ -139,10 +137,10 @@ def sample(
 
     return InferResult(
         model=mle_model,
-        likelihood=mle_likelihood,
-        sampled_models=model_samples,
-        sampled_likelihoods=likelihood_samples,
+        log_likelihood_fn=mle_log_likelihood,
+        sampled_models=batched_model,
+        sampled_log_likelihoods=batched_log_likelihoods,
         log_likelihoods=infx_result.log_likelihoods, 
         weights=infx_result.weights,
-        stats=infx_result,
+        solver_results=infx_result,
     )

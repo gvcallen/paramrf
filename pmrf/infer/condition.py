@@ -3,7 +3,6 @@ Conditioning a model on data using Bayesian inference.
 """
 
 from typing import Callable
-from functools import partial
 
 import jax.numpy as jnp
 import skrf
@@ -12,7 +11,6 @@ import parax as prx
 from inferix import PolyChord
 
 from pmrf.core import Model, Frequency
-from pmrf.math import CONVERSION_LOOKUP, LOSS_LOOKUP
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
@@ -30,6 +28,7 @@ def condition(
     *,
     features: str | list[str] | Callable = 's',
     likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
+    discrepancy_fn: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     **kwargs,
 ) -> InferResult:
     """
@@ -59,6 +58,9 @@ def condition(
         Can be a function or a callable PyTree. See :mod:``pmrf.likelihoods`` for common likelihoods.
         Defaults to `None`, in which case :class:``pmrf.likelihoods.GaussianLikelihood``
         is constructed internally with a symmetric noise model.
+    discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution], optional
+        A discrepancy function the models the discrepancy between the model and measured data.
+        To use a Gaussian process as a discrepancy model, see :class:``pmrf.discrepancy_models.GaussianProcess``.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -88,10 +90,7 @@ def condition(
     if likelihood_fn is None:
         likelihood_fn = GaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
     
-    # if isinstance(likelihood_fn, list):
-        
-    
-    log_likelihood_fn = MarginalLogLikelihood(predictor=features, data=target, likelihood=likelihood_fn)  
+    log_likelihood_fn = MarginalLogLikelihood(predictor=features, data=target, likelihood=likelihood_fn, discrepancy=discrepancy_fn)
     
     # Run the sampling
     return sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)
