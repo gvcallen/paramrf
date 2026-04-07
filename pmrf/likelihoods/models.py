@@ -26,7 +26,7 @@ class GaussianLikelihood(Likelihood):
     """
     noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray]
 
-    def __call__(self, y: jnp.ndarray | dist.AbstractDistribution) -> dist.MultivariateNormalFullCovariance:
+    def __call__(self, y: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
         is_dist = isinstance(y, dist.AbstractDistribution)
         y_mean = y.mean() if is_dist else y
         
