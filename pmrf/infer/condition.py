@@ -60,7 +60,7 @@ def condition(
         The likelihood function, which accepts a model prediction (in event space)
         and returns a distribution representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
-        See :mod:``pmrf.likelihoods`` for common likelihoods.
+        See :mod:`pmrf.likelihoods` for common likelihoods.
         Defaults to `None`, in which case :class:`pmrf.likelihoods.GaussianLikelihood` is used.
     discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy function, which models the discrepancy between the model and measured data.
