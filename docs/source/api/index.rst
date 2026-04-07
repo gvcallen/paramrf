@@ -39,10 +39,9 @@ Modules
    :recursive:
 
    pmrf.discrepancy_models
-   pmrf.distributions
-   pmrf.fitting
    pmrf.evaluators
    pmrf.explore
+   pmrf.fitting
    pmrf.infer
    pmrf.likelihoods
    pmrf.losses
