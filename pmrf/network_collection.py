@@ -1,5 +1,5 @@
 """
-A network collection classing for storing an arbitrary list of scikit-rf Networks.
+A class for storing an arbitrary list of scikit-rf Networks.
 """
 import glob
 import os

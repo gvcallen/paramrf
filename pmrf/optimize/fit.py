@@ -25,10 +25,9 @@ def fit(
     solver: Optimizer = ScipyMinimizer(),
     *,
     features: str | list[str] | Callable = 's',
-    loss_fn: str | Callable = LogMSELoss(),
+    loss_fn: Callable = LogMSELoss(),
     multioutput: AggregationKind | None = None,
     scale_fn: str | Callable | None = None,
-    transform: AbstractBijector | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -36,33 +35,34 @@ def fit(
 
     This high-level function handles data format coercion (e.g., extracting arrays 
     from scikit-rf Networks) and automatically composes the necessary evaluator metrics.
-
+    
     Parameters
     ----------
     model : Model
-        The model to fit.
+        The RF model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
-        The target data to fit against. Can be raw JAX arrays or standard Touchstone networks.
+        The data to fit. Can either be a JAX array,
+        a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
     solver : Solver, default=ScipyMinimizer()
-        The optimization algorithm backend.
+        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`
+        or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
+        (such as :class:`optimistix.LBFGS`).
     features : str | list[str] | Callable, default='s'
-        The specific circuit feature to fit (e.g., 's', 's11_db', 'y').
-    loss_fn : str | Callable, default=LogMSELoss()
-        The loss function between the model predictionand the data.
-        Can be a string for a lookup into :data:``pmrf.math.LOSS_LOOKUP``        
-        (e.g., 'mse', 'mae', 'rmse'), a callable taking (y_true, y_pred),
-        or a callable PyTree. See :mod:``pmrf.losses`` for common losses.
+        The RF features to fit. Defaults to all S-parameters.
+        Can either be callable, an instance of :class:`pmrf.Evaluator`, or a string,
+        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
+    loss_fn : str Callable, default=LogMSELoss()
+        The loss function between the model prediction and the data.
+        See :mod:`pmrf.losses` for common losses.
     multioutput : Aggregation, optional
-        An additional key-word parameter to optionally pass to ``loss_fn`` indicating
-        how to aggregate outputs. For the default of `None`, the argument is not passed.
+        An additional key-word parameter to optionally pass to `loss_fn` indicating
+        how to aggregate outputs. For the default of None, the argument is not passed.
     scale_fn : str | Callable, default=None
         A scaling to apply to the output metric after aggregation.
-        Can be a string for a lookup into :data:``pmrf.math.CONVERSION_LOOKUP``.
-    transform : ParameterTransform, default=None
-        An invertible transformation to apply to all model parameters before optimization.
+        Can be a string for a lookup into :data:`pmrf.math.CONVERSION_LOOKUP`.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -104,4 +104,4 @@ def fit(
         scaled_cost_fn = cost_fn
 
     # Run the optimizer
-    return minimize(scaled_cost_fn, model, frequency, solver, transform=transform, **kwargs)
+    return minimize(scaled_cost_fn, model, frequency, solver, **kwargs)

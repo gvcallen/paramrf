@@ -1,5 +1,5 @@
 """
-Unified routing module for model fitting.
+Higher-level fitting utilities.
 
 Provides a high-level `fit` and `fit_sequential` interface that dynamically 
 delegates to either frequentist optimization (`pmrf.optimize`) or Bayesian 

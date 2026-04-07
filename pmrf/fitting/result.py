@@ -9,6 +9,9 @@ class FitResult(prx.Module):
     """
     Standardized return object for a fitting routines.
 
+    Wraps an :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult`
+    with added information for easy plotting.
+
     Attributes
     ----------
     data: Any
@@ -16,7 +19,7 @@ class FitResult(prx.Module):
     frequency: Frequency
         The frequeny used for the fit.
     solution: 
-        The underlying OptimizeResult or InferResult
+        The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` solution.
     """
     data: Any = None
     frequency: Frequency | None = None

@@ -19,39 +19,45 @@ def fit(
     frequency: Frequency | None = None,
     solver: Optimizer | Inferer = ScipyMinimizer(),
     *,
-    features: EvaluatorLike | None = None,    
+    features: EvaluatorLike | None = 's',
     **kwargs
 ) -> FitResult:
     """
     Fit a model to data using either optimization or sampling.
 
-    This is a unified router. The execution path is determined by the
+    This is a unified router to either :meth:`pmrf.optimize.fit`
+    or :meth:`pmrf.infer.condition`. The execution path is determined by the
     type of `solver` provided.
 
     Parameters
     ----------
     model : Model
-        The parametric model to fit.
+        The RF model to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
-        The observed data (e.g., S-parameters).
+        The data to fit. Can either be a JAX array,
+        a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array.
     solver : Optimizer | Sampler, default=ScipyMinimizer()
-        The solver to use. If an optimizer, routes to frequentist minimization
+        The solver to use. If an optimizer is passed, routes to frequentist minimization
         via :meth:`pmrf.optimize.fit`. If a sampler, routes to Bayesian inference
-        via :meth:`pmrf.infer.condition`.
-    features : EvaluatorLike | None, default=None
-        The specific circuit feature to evaluate. If None, it defers to the 
-        native default of the chosen solver backend ('s' for optimization, 
-        ('s_re', 's_im') for inference).
+        via :meth:`pmrf.infer.condition`. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`,
+        a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
+        (such as :class:`optimistix.LBFGS`) or a sampler from `Inferix <https://github.com/gvcallen/inferix>`_
+        (such as :class:`inferix.PolyChord`).
+    features : EvaluatorLike | None, default='s'
+        The RF features to fit. Defaults to all S-parameters.
+        Can either be an instance of :class:`pmrf.Evaluator` or a string,
+        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
     **kwargs : dict
-        Additional arguments passed directly to the underlying fit function.
+        Additional arguments passed to the underlying solver.
 
     Returns
     -------
-    OptimizeResult | InferResult
-        A result object containing the newly fitted model. Depending on the solver, 
-        the model contains either optimized point-estimates or empirical posteriors.
+    FitResult
+        A result object containing the fitted model and backend solution results.
+        Frequentist optimizer return a single best model, whereas Bayesian inferers also
+        return full posterior distributions on the model.
     """
     if features is not None:
         kwargs['features'] = features
@@ -84,7 +90,7 @@ def fit_sequential(
     model: Model, 
     data: NetworkCollection,
     *,
-    features: EvaluatorLike | dict[str, EvaluatorLike] | None = None,
+    features: EvaluatorLike | dict[str, EvaluatorLike] | None = 's',
     dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
     **kwargs,
 ) -> tuple[Model, dict[str, FitResult]]:
@@ -99,29 +105,28 @@ def fit_sequential(
     Parameters
     ----------
     model : Model
-        The global circuit model.
+        The RF model to fit.
     data : NetworkCollection
         A collection of network data whose names are used as prefixes for sub-model features.
-    features : EvaluatorLike | dict | None, default=None
-        The circuit feature(s) to evaluate for each sub-model. If None, defers to the backend's defaults.
+    features : EvaluatorLike | None, default='s'
+        The RF features to fit. Defaults to all S-parameters.
+        Can either be an instance of :class:`pmrf.Evaluator` or a string,
+        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
     dynamic_kwargs : dict[str, dict | Callable[[skrf.Network], Any]] | None, default=None
         A mapping of keyword arguments that should be resolved dynamically per network. 
         If a value is a dict, it is resolved using the network name as the key.
         If a value is a callable, it is resolved by passing the network to the callable.
     **kwargs : dict
-        Standard static kwargs passed directly to the underlying sequential fitters for all iterations.
+        Standard kwargs passed to :func:`pmrf.fit`.
 
     Returns
     -------
     tuple[Model, dict[str, OptimizeResult | InferenceResult]]
         The fully updated global Model, and a dictionary of localized results.
     """
-    if features is None:
-        features = 's'
-
     # Initialize dynamic_kwargs safely
     dynamic_kwargs = dynamic_kwargs or {}
-    all_results: dict[str, OptimizeResult] = {}
+    all_results: dict[str, OptimizeResult | InferResult] = {}
     
     for ntwk in data:
         name = ntwk.name
