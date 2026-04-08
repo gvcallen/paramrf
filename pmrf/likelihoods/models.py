@@ -17,9 +17,9 @@ class GaussianLikelihood(Likelihood):
     Maps measurement noise to a normal distribution over frequency.
     
     The noise model is responsibile for returning the measurement variance.
-    Given an input `y` of shape (*batch_shape, event_dims), the noise model
+    Given an input `y` of shape `(*batch_shape, event_dims)`, the noise model
     must accept accept the prediction `y` and return an array that is either
-    broadcastable to (*batch_shape) or the full shape of `y`.
+    broadcastable to `(*batch_shape)` or the full shape of `y`.
     
     This allows for complex, independent heteroskedastic and homoskedastic
     noise for a given inputs.

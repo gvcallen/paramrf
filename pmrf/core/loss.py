@@ -1,3 +1,6 @@
+"""
+Abstract base class for frequentist loss functions.
+"""
 from abc import ABC, abstractmethod
 
 from typing import Callable

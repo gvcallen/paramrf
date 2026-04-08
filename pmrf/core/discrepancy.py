@@ -1,3 +1,7 @@
+"""
+Abstract base class for discrepancy models.
+"""
+
 from abc import ABC, abstractmethod
 
 import distreqx.distributions as dist

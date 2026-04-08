@@ -1,3 +1,9 @@
+"""
+The core module, containing the core classes in ParamRF.
+
+Re-exported at root.
+"""
+
 from pmrf.core.model import Model as Model
 from pmrf.core.frequency import Frequency as Frequency
 from pmrf.core.loss import (
@@ -19,3 +25,6 @@ from pmrf.core.evaluator import (
     EvaluatorLike as EvaluatorLike,
 )
 from pmrf.core.problem import Problem as Problem
+
+for _cls in (DiscrepancyModel, Evaluator, Frequency, Likelihood, Loss, Model, NoiseModel, CovarianceKernel, Problem):
+    _cls.__module__ = "pmrf"

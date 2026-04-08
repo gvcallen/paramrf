@@ -1,3 +1,6 @@
+"""
+Abstract base class for likelihood models.
+"""
 from abc import ABC, abstractmethod
 
 from distreqx.distributions import AbstractDistribution

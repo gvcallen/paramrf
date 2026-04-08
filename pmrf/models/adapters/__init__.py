@@ -7,7 +7,8 @@ This includes scikit-rf Networks, EM simulation software, and generic Equinox mo
 """
 
 from pmrf.models.adapters import abstract
-from pmrf.models.adapters import bridge, collection, static, surrogate
+from pmrf.models.adapters import bridge, static, surrogate
+from pmrf.models.composite import collection
 
 __all__ = [
     "abstract",

@@ -1,5 +1,5 @@
 """
-The frequency class to define the frequency grid for models.
+A frequency axis used to evaluate models over.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from parax import field
 
 from pmrf.utils import slice_domain, find_nearest_index
-from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_DICT, MULTIPLIER_DICT
+from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
 
 class Frequency(eqx.Module):
     """
@@ -24,13 +24,6 @@ class Frequency(eqx.Module):
     corresponding frequency unit (`unit`). It provides numerous properties
     for accessing different representations of the frequency axis, such as
     angular frequency (`w`) and scaled frequency (`f_scaled`).
-
-    Attributes
-    ----------
-    _f : jnp.ndarray
-        The frequency vector in Hz.
-    _unit : str
-        The frequency unit (e.g., 'hz', 'ghz'). Marked as static for JAX/Equinox.
 
     Examples
     --------
@@ -53,8 +46,11 @@ class Frequency(eqx.Module):
         # Create from a scikit-rf Frequency object
         freq_from_skrf = prf.Frequency.from_skrf(skrf_freq)
     """
-    _f: jnp.array
-    _unit: str = field(static=True)
+    #: The frequency vector in Hz.
+    f: jnp.array
+
+    #: The frequency unit. Possible options are "Hz", "kHz", "MHz", "GHz" or "THz".
+    unit: str = field(static=True)
 
     def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, unit: FrequencyUnitT | None = 'Hz') -> None:
         """
@@ -97,13 +93,13 @@ class Frequency(eqx.Module):
         >>> wr1p5band = Frequency(start=500, stop=750, npoints=401, unit='ghz')
         >>> logband = Frequency(1, 1e9, 301, sweep_type='log')
         """
-        self._unit = unit.lower()
+        self.unit = UNIT_LOWER_TO_FORMATED[unit.lower()]
         start =  self.multiplier * start
         stop = self.multiplier * stop
-        self._f = jnp.linspace(start, stop, npoints)
+        self.f = jnp.linspace(start, stop, npoints)
 
     @classmethod
-    def from_f(cls, f: NumberLike, unit: FrequencyUnitT | None = None) -> Frequency:
+    def from_f(cls, f_scaled: NumberLike, unit: FrequencyUnitT | None = None) -> Frequency:
         """
         Construct Frequency object from a frequency vector.
 
@@ -111,8 +107,8 @@ class Frequency(eqx.Module):
 
         Parameters
         ----------
-        f : scalar or array-like
-            Frequency vector.
+        f_scaled : scalar or array-like
+            Frequency vector in the units of `unit`.
         unit : FrequencyUnitT, optional
             Frequency unit of the band. Default is None (defaults to 'Hz').
 
@@ -127,10 +123,11 @@ class Frequency(eqx.Module):
         >>> rf.Frequency.from_f(f, unit='GHz')
         """
         unit = unit or 'Hz'
-        if jnp.isscalar(f):
-            f = [f]
+        unit = UNIT_LOWER_TO_FORMATED[unit.lower()]
+        if jnp.isscalar(f_scaled):
+            f_scaled = [f_scaled]
         temp_freq =  cls(0,0,0,unit=unit)
-        new_freq = eqx.tree_at(lambda freq: freq._f, temp_freq, jnp.asarray(f) * temp_freq.multiplier)
+        new_freq = eqx.tree_at(lambda freq: freq.f, temp_freq, jnp.asarray(f_scaled) * temp_freq.multiplier)
 
         return new_freq
         
@@ -149,7 +146,6 @@ class Frequency(eqx.Module):
         Frequency
             The equivalent pmrf Frequency object.
         """
-        import skrf
         if unit is not None:
             skrf_frequency = skrf_frequency.copy()
             skrf_frequency.unit = unit
@@ -168,7 +164,7 @@ class Frequency(eqx.Module):
         """
         import numpy as np
         import skrf
-        return skrf.Frequency.from_f(np.array(self.f_scaled), self._unit)
+        return skrf.Frequency.from_f(np.array(self.f_scaled), self.unit)
     
     def __getitem__(self, key: str | int | slice) -> Frequency:
         """
@@ -227,10 +223,10 @@ class Frequency(eqx.Module):
         return Frequency.from_f(f_scaled, unit=self.unit)
     
     def __hash__(self):
-        return hash((self._f, self.unit))
+        return hash((self.f, self.unit))
 
     def __eq__(self, other: Frequency):
-        return jnp.array_equal(self._f, other._f) and self.unit == other.unit
+        return jnp.array_equal(self.f, other.f) and self.unit == other.unit
 
     def __len__(self) -> int:
         """
@@ -259,7 +255,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f + (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f + (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __sub__(self, other: Frequency | NumberLike) -> Frequency:
@@ -278,7 +274,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f - (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f - (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __mul__(self, other: Frequency | NumberLike) -> Frequency:
@@ -297,7 +293,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f * (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f * (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __rmul__(self, other: Frequency | NumberLike) -> Frequency:
@@ -315,7 +311,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f * (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f * (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __div__(self, other: Frequency | NumberLike) -> Frequency:
@@ -334,7 +330,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f / (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f / (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __truediv__(self, other: Frequency | NumberLike) -> Frequency:
@@ -353,7 +349,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f / (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f / (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __floordiv__(self, other: Frequency | NumberLike) -> Frequency:
@@ -371,7 +367,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f // (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f // (other.f if isinstance(other, Frequency) else other)
         return out
 
     def __mod__(self, other: Frequency | NumberLike) -> Frequency:
@@ -389,7 +385,7 @@ class Frequency(eqx.Module):
             A new object with updated frequency vector.
         """
         out = self.copy()
-        out._f = self.f % (other.f if isinstance(other, Frequency) else other)
+        out.f = self.f % (other.f if isinstance(other, Frequency) else other)
         return out
 
     @property
@@ -415,6 +411,7 @@ class Frequency(eqx.Module):
             Scaled start frequency.
         """
         return self.f_scaled[0]
+    
     @property
     def stop_scaled(self) -> float:
         """
@@ -542,18 +539,6 @@ class Frequency(eqx.Module):
         return abs(self.stop_scaled-self.start_scaled)
 
     @property
-    def f(self) -> jnp.ndarray:
-        """
-        The frequency vector in Hz.
-
-        Returns
-        -------
-        jnp.ndarray
-            The frequency vector in Hz.
-        """
-        return self._f
-
-    @property
     def f_scaled(self) -> jnp.ndarray:
         """
         The frequency vector in the specified `unit`.
@@ -616,25 +601,6 @@ class Frequency(eqx.Module):
         return jnp.gradient(self.w)
 
     @property
-    def unit(self) -> FrequencyUnitT:
-        """
-        The frequency unit.
-
-        Possible values are 'Hz', 'kHz', 'MHz', 'GHz', 'THz'.
-        Setting this attribute is not case-sensitive.
-
-        Returns
-        -------
-        str
-            String representing the frequency unit.
-        """
-        return UNIT_DICT[self._unit]
-
-    @unit.setter
-    def unit(self, unit: FrequencyUnitT) -> None:
-        self._unit = unit.lower()
-
-    @property
     def multiplier(self) -> float:
         """
         The multiplier to convert from the specified `unit` back to Hz.
@@ -644,4 +610,4 @@ class Frequency(eqx.Module):
         float
             Multiplier for this frequency's unit.
         """
-        return MULTIPLIER_DICT[self._unit]
+        return UNIT_TO_MULTIPLER[self.unit]

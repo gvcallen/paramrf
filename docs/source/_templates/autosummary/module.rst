@@ -21,7 +21,7 @@
 
 {% for item in modules %}
    {{ item }}
-{%- endfor %}
+{% endfor %}
 {% endif %}
 {% endblock %}
 
@@ -35,7 +35,7 @@
 
 {% for item in classes %}
    {{ item }}
-{%- endfor %}
+{% endfor %}
 {% endif %}
 {% endblock %}
 
@@ -49,6 +49,6 @@
 
 {% for item in functions %}
    {{ item }}
-{%- endfor %}
+{% endfor %}
 {% endif %}
 {% endblock %}

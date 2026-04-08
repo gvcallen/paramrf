@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Main Classes
+Core Classes
 ------------
 
 .. autosummary::
@@ -31,7 +31,7 @@ Main Functions
    pmrf.save
 
 
-Modules
+All Modules
 -------
 
 .. autosummary::

@@ -25,10 +25,9 @@ IndexArray = Union[int, slice, Sequence[int], jnp.ndarray, Tuple, None, type(Ell
 
 FrequencyUnitT = Literal["Hz", "kHz", "MHz", "GHz", "THz"]
 
-FREQ_UNITS: dict[FrequencyUnitT, float] = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "GHz": 1e9, "THz": 1e12}
-
-UNIT_DICT: dict[str] = {k.lower(): k for k in FREQ_UNITS}
-MULTIPLIER_DICT = {k.lower(): v for k,v in FREQ_UNITS.items()}
+UNIT_TO_MULTIPLER: dict[FrequencyUnitT, float] = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "GHz": 1e9, "THz": 1e12}
+UNIT_LOWER_TO_FORMATED: dict[str] = {k.lower(): k for k in UNIT_TO_MULTIPLER}
+UNIT_TO_MULTIPLER = {k.lower(): v for k,v in UNIT_TO_MULTIPLER.items()}
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 

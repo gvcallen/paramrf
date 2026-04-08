@@ -1,3 +1,7 @@
+"""
+Built-in optimization solvers/wrappers.
+"""
+
 import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
@@ -7,6 +11,13 @@ import optimistix as optx
 import equinox as eqx
 from tqdm.auto import tqdm  # Added import
 
+def is_optimizer(x):
+    """
+    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
+
+    Returns `True` for :class:`pmrf.optimize.ScipyMinimizer` and :class:`optimistix.AbstractMinimiser`.
+    """
+    return isinstance(x, ScipyMinimizer | optx.AbstractMinimiser)
 
 class ScipyMinimizer(eqx.Module):
     """

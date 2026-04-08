@@ -1,3 +1,7 @@
+"""
+A container for an optimization result.
+"""
+
 from typing import Any, Callable
 
 import jax.numpy as jnp

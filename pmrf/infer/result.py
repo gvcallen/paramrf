@@ -1,3 +1,7 @@
+"""
+A container for an inference result.
+"""
+
 from typing import Callable
 
 import parax as prx

@@ -1,3 +1,7 @@
+"""
+Abstract base class for callables that evaluate a model over frequency.
+"""
+
 from abc import ABC, abstractmethod
 
 from typing import Callable

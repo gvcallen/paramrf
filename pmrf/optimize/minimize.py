@@ -7,19 +7,10 @@ import jax.numpy as jnp
 import equinox as eqx
 import optimistix as optx
 import parax as prx
-from distreqx.bijectors import AbstractBijector
 
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.solvers import ScipyMinimizer
-
-def is_optimizer(x):
-    """
-    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
-
-    Returns `True` for :class:`pmrf.optimize.ScipyMinimizer` and :class:`optimistix.AbstractMinimiser`.
-    """
-    return isinstance(x, ScipyMinimizer | optx.AbstractMinimiser)
+from pmrf.optimize.solvers import ScipyMinimizer, is_optimizer
 
 def minimize(
     objective_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],

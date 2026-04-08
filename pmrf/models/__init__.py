@@ -12,7 +12,7 @@ from pmrf.models.adapters.abstract import (
     AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
 )
 from pmrf.models.adapters.bridge import Host as Host
-from pmrf.models.adapters.collection import (
+from pmrf.models.composite.collection import (
     ListModel as ListModel,
     DictModel as DictModel,
 )

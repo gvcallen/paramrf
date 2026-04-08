@@ -1,5 +1,5 @@
 """
-The main model class.
+Abstract base class for RF models.
 """
 
 from abc import ABC, abstractmethod
@@ -137,6 +137,8 @@ class Model(prx.Module, ABC):
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
+    #: The characteristic impedance of the model.
+    #: NB: Mixing impedances across models is not fully supported.
     z0: complex = prx.field(default=50.0+0j, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
