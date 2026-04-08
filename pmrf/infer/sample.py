@@ -73,6 +73,12 @@ def sample(
         log_likelihood_fn = log_likelihood_fn if isinstance(log_likelihood_fn, eqx.Module) else prx.op.Lambda(log_likelihood_fn)
     
     problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood_fn)
+
+    if problem.num_flat_params == 0:
+        raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
+
+    model.validate_params()
+    problem.validate_params()    
     
     if solver is None:
         solver = infx.PolyChord()

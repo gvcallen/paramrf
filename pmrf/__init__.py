@@ -49,6 +49,7 @@ from pmrf import (
     optimize as optimize,
     rf as rf,
     serialization as serialization,
+    viz as viz,
 )
 
 
@@ -84,4 +85,5 @@ __all__ = [
     "optimize",
     "rf",
     "serialization",
+    "viz",
 ]

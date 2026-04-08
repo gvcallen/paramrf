@@ -38,7 +38,7 @@ def minimize(
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
     solver : optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution], default=ScipyMinimizer()
-        The optimizer to use. Can be either a string, an instance of :class:`pmrf.optimize.ScipyMinimizer`
+        The optimizer to use. Can be either an instance of :class:`pmrf.optimize.ScipyMinimizer`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`). If a string is passed, a ScipyMinimizer is created
         with that method.
@@ -52,9 +52,6 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if isinstance(solver, str):
-        solver = ScipyMinimizer(method=solver)
-
     if isinstance(objective_fn, list):
         objective_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in objective_fn])
     else:
@@ -63,6 +60,9 @@ def minimize(
     problem = Problem(model=model, frequency=frequency, evaluator=objective_fn)   
     if problem.num_flat_params == 0:
         raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
+    
+    model.validate_params()
+    problem.validate_params()
     
     params, static = prx.partition(problem)
     def obj_fn(transformed_params, _args):
@@ -105,7 +105,7 @@ def minimize(
             raise Exception("Auxiliary data not supported for host solvers")
             
         kwargs['maxiter'] = max_iters
-        solver_results = solver(obj_fn, params, args=None, options=kwargs)
+        solver_results = solver(obj_fn, params, args=None, **kwargs)
     else:
         solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iters, **kwargs)
 

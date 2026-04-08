@@ -7,7 +7,7 @@
    :alt: ParamRF Logo
 
 
-**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modelling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
+**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen
@@ -43,7 +43,7 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
    $ pip install paramrf
 
-Note that For Bayesian inference or complex statistical modelling, you may need this fork of distreqx:
+Note that For Bayesian inference or complex statistical modeling, you may need this fork of distreqx:
 
 .. code-block:: bash
 
@@ -51,7 +51,7 @@ Note that For Bayesian inference or complex statistical modelling, you may need 
 
 Example
 -------
-The example below shows how to define and optimize a simple RLC model to a goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples.
+The example below shows how to define and optimize a simple RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples, or have a look at the `tutorials <https://github.com/gvcallen/paramrf/tree/main/docs/tutorials>`_ folder on GitHub.
 
 .. code-block:: python
 
@@ -75,13 +75,13 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For PolyChord fitting:
+For PolyChord inference:
 
 .. code-block:: bash
 
    $ pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
 
-For BlackJAX fitting:
+For BlackJAX inference:
 
 .. code-block:: bash
 

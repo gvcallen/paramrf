@@ -1,0 +1,58 @@
+Quickstart
+==========
+
+**ParamRF** provides a declarative interface for creating RF circuit and surrogate models in `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_. This guide provides a brief introduction into defining models, and demonstrates optimization using a simple design goal.
+
+Installation
+------------
+First, ensure ParamRF is installed (requires Python 3.11+):
+
+.. code-block:: bash
+
+   $ pip install paramrf
+
+Note that for Bayesian inferenc, you may need this fork of distreqx:
+
+.. code-block:: bash
+
+   $ pip install git+https://github.com/gvcallen/distreqx.git
+
+Creating an RLC model
+---------------------
+Models can easily be built using composition with the built in :mod:`pmrf.models` library. For example, the ``**`` operator can be used to cascade several models together. In the example below, we define a frequency band, cascade a resistor, inductor, and capacitor to create a series RLC model, and then plot the resultant S-parameters.
+
+.. code-block:: python
+
+  import pmrf as prf
+  from pmrf.models import Resistor, Inductor, Capacitor
+  
+  # Define the frequency band
+  freq = prf.Frequency(1, 10, 101, 'GHz')
+  
+  # Cascade elements using the ** operator
+  rlc_model = Resistor(50) ** Inductor(1e-9) ** Capacitor(1e-12)
+  
+  # Plot the model's S11 parameter
+  rlc_model.plot_s_db(freq, m=0, n=0)
+
+Optimizing the S-parameters
+---------------------------
+ParamRF provides several optimization and inference wrappers around backends like :mod:`scipy.minimize`, :mod:`Optimistix` and :mod:`PolyChord`. The following snippet demonstrates how to optimize the previous RLC model to achieve a simple design goal using the built-in :class:`~pmrf.evaluators.Goal` hinge loss evaluator.
+
+.. code-block:: python
+
+  # Define the optimization frequency and goal
+  opt_freq = prf.Frequency(4.0, 6.0, 101, 'GHz')
+  goal = prf.evaluators.Goal('s11_db', '<', -20)
+  
+  # Optimize the previous RLC model. For this problem, Nelder-Mead works well.
+  result = prf.optimize.minimize(goal, rlc_model, opt_freq, method='Nelder-Mead')
+  
+  # Plot the optimized model
+  result.model.plot_s_db(freq, m=0, n=0)
+
+
+Next steps
+----------
+* To delve a bit deeper into the library's core building blocks, see the :doc:`core_concepts/index` page.
+* For a step-by-step guide on more advanced features, the :doc:`tutorials/index` is a good place to start.

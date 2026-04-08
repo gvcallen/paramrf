@@ -60,5 +60,6 @@ Modules
    pmrf.models
    pmrf.network_collection
    pmrf.optimize
+   pmrf.viz
    pmrf.rf
    pmrf.serialization

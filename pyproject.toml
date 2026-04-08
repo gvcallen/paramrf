@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.14.3"
+version = "0.15.0"
 description = "Parametric radio frequency modelling, optimization and sampling"
 readme = "README.rst"
 authors = [
@@ -25,6 +25,8 @@ dependencies = [
 [project.optional-dependencies]
 docs = [
     "sphinx",
+    "nbsphinx",
+    "pandoc",
     "myst-parser",
     "ghp-import",
     "sphinx-rtd-theme",

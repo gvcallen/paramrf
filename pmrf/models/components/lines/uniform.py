@@ -313,8 +313,8 @@ class PhysicalLine(RLGCLine):
 
 class DatasheetLine(RLGCLine):
     r"""
-    Transmission line defined by common datasheet parameters (nominal impedance, 
-    dielectric constant, and loss factors). Includes skin effect (`k1`) and 
+    Transmission line defined by common datasheet parameters (nominal impedance
+    and velocity/loss factors). Includes skin effect (`k1`) and 
     dielectric loss (`k2`).
 
     **Mathematical Formulation**
@@ -326,9 +326,9 @@ class DatasheetLine(RLGCLine):
 
     Resulting in the per-unit-length components:
     $$R = 2 z_n \alpha_c$$
-    $$L = \frac{z_n \sqrt{\varepsilon_r}}{c}$$
+    $$L = \frac{z_n}{v_f c}$$
     $$G = \frac{2 \alpha_d}{z_n}$$
-    $$C = \frac{\sqrt{\varepsilon_r}}{z_n c}$$
+    $$C = \frac{1}{z_n v_f c}$$
 
     Example
     --------
@@ -339,7 +339,7 @@ class DatasheetLine(RLGCLine):
 
         cable = DatasheetLine(
             zn=50.0,
-            epr=2.1,
+            vf=0.69,  # Velocity factor (e.g., solid PTFE)
             k1=0.2,   # Skin effect loss factor
             k2=0.01,  # Dielectric loss factor
             length=1.0
@@ -352,21 +352,19 @@ class DatasheetLine(RLGCLine):
     ----------
     zn : Parameter, default=50.0
         Nominal characteristic impedance.
-    epr : Parameter, default=1.0
-        Relative permittivity.
+    vf : Parameter, default=1.0
+        Velocity factor (ratio of propagation speed to the speed of light).
     k1 : Parameter, default=0.0
         Skin effect loss factor.
     k2 : Parameter, default=0.0
         Dielectric loss factor.
-    epr_slope : Parameter | None, default=None
-        Linear slope to apply to permittivity over the frequency bounds.
     loss_coeffs_normalized : bool, default=False
         If True, k1 and k2 are evaluated directly without normalizing to 100MHz references.
     freq_bounds : tuple | None, default=None
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
     zn: Parameter = 50.0
-    epr: Parameter = 1.0
+    vf: Parameter = 1.0
     k1: Parameter = 0.0
     k2: Parameter = 0.0
     
@@ -374,13 +372,11 @@ class DatasheetLine(RLGCLine):
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         w = freq.w
-        zn, k1, k2 = self.zn, self.k1, self.k2
+        zn, k1, k2, vf = self.zn, self.k1, self.k2, self.vf
 
-        epr = jnp.ones(w.shape[0]) * self.epr
-        
         if not self.loss_coeffs_normalized:
-            k1_norm = k1 * (1.0 / (100 * jnp.sqrt(2*jnp.pi * 10**6)))
-            k2_norm = k2 * (1.0 / (100 * 2*jnp.pi * 10**6))
+            k1_norm = k1 * (1.0 / (100 * jnp.sqrt(2 * jnp.pi * 10**6)))
+            k2_norm = k2 * (1.0 / (100 * 2 * jnp.pi * 10**6))
         else:
             k1_norm = k1
             k2_norm = k2
@@ -389,12 +385,14 @@ class DatasheetLine(RLGCLine):
         dBtoNeper = jnp.log(10) / 20
         alpha_c = k1_norm * dBtoNeper * sqrt_w
         alpha_d = k2_norm * dBtoNeper * w
-        sqrt_epr = jnp.sqrt(epr)
         
-        R = 2*zn * alpha_c
-        L = (zn * sqrt_epr) / c
-        G = 2/zn * alpha_d
-        C = (sqrt_epr) / (zn * c)
+        R = 2 * zn * alpha_c
+        G = (2 / zn) * alpha_d
+        
+        # Broadcast L and C to the same shape as frequency arrays 
+        # (w) in case zn and vf are provided as scalars.
+        L = (zn / (vf * c)) * jnp.ones_like(w)
+        C = (1.0 / (zn * vf * c)) * jnp.ones_like(w)
         
         return R, L, G, C
     

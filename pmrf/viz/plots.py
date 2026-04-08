@@ -20,14 +20,49 @@ def _setup_figure(frequency, feature, **kwargs):
     ax.set_ylabel(str(feature))
     return fig, ax
 
+
 def plot_fit_result(
     result: FitResult,
     features: str | list[str] | Evaluator = 's',
     ax=None,
     subplots: bool = False,
     use_data_prefix: bool | None = None,
+    model_frequency: skrf.Frequency | None = None,
     **fig_kwargs
 ):
+    """
+    Plots the fit results comparing measured data and the fitted model.
+
+    Parameters
+    ----------
+    result : FitResult
+        The result object containing the fitted model, original data, and base frequency.
+    features : str | list[str] | Evaluator, optional
+        The features to evaluate and plot. Can be a string (e.g., 's'), a list of 
+        strings, or a custom Evaluator object. Defaults to 's'.
+    ax : matplotlib.axes.Axes, optional
+        An existing Axes object to plot on. If None, a new figure and axes are created.
+    subplots : bool, optional
+        If True and multiple features are evaluated (e.g., multi-port S-parameters), 
+        plots them in a dynamic grid of subplots. Defaults to False.
+    use_data_prefix : bool | None, optional
+        If True, prefixes feature titles with the name of the data network. If None, 
+        this is automatically set to True when using a NetworkCollection.
+    model_frequency : skrf.Frequency | None, optional
+        An optional frequency object to evaluate the model against. If provided, the 
+        model will be simulated and plotted at these frequencies, while the measured 
+        data will still be plotted at `result.frequency`. Useful for extrapolating 
+        or smoothing the model plot. Defaults to None (uses `result.frequency`).
+    **fig_kwargs : dict
+        Additional keyword arguments passed to `plt.subplots()` when creating a new figure.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib figure containing the plot.
+    axes : matplotlib.axes.Axes or numpy.ndarray
+        The axes or array of axes used for the plot.
+    """
     if result.frequency is None:
         raise ValueError("Cannot plot: frequency is missing from the result.")
     
@@ -65,12 +100,18 @@ def plot_fit_result(
     
     # Standardize evaluator
     evaluator = features if isinstance(features, Evaluator) else Feature(features_list)
-    x = result.frequency.f_scaled
+    
+    # Define measured frequency axes
+    x_meas = result.frequency.f_scaled
     unit = result.frequency.unit if result.frequency else "Hz"
 
+    # Define model frequency axes (override if model_frequency is provided)
+    mod_freq = model_frequency if model_frequency is not None else result.frequency
+    x_mod = mod_freq.f_scaled
+
     # --- Evaluate model first to determine shape ---
-    y_mod = evaluator(result.model, result.frequency)
-    y_mod_real = np.real(y_mod).reshape(len(x), -1)
+    y_mod = evaluator(result.model, mod_freq)
+    y_mod_real = np.real(y_mod).reshape(len(x_mod), -1)
 
     n_features = y_mod_real.shape[1]
 
@@ -109,12 +150,12 @@ def plot_fit_result(
             else:
                 y_meas = result.data
 
-            y_meas_real = np.real(y_meas).reshape(len(x), -1)
+            y_meas_real = np.real(y_meas).reshape(len(x_meas), -1)
 
             for i, axis in enumerate(axes_flat):
                 if i < y_meas_real.shape[1]:
                     lines = axis.plot(
-                        x, y_meas_real[:, i], linestyle='--', color='k', linewidth=1.5
+                        x_meas, y_meas_real[:, i], linestyle='--', color='k', linewidth=1.5
                     )
                     if i == 0:
                         lines[0].set_label('Measured Data')
@@ -126,7 +167,7 @@ def plot_fit_result(
     for i, axis in enumerate(axes_flat):
         if i < y_mod_real.shape[1]:
             lines = axis.plot(
-                x, y_mod_real[:, i], linestyle='-', linewidth=1.5, color='C0'
+                x_mod, y_mod_real[:, i], linestyle='-', linewidth=1.5, color='C0'
             )
             if i == 0:
                 lines[0].set_label('Fitted Model')

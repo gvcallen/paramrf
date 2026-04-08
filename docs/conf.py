@@ -8,7 +8,7 @@ import sphinx.addnodes
 from sphinx_math_dollar import NODE_BLACKLIST
 
 # --- 1. Path Setup -----------------------------------------------------------
-_repo_root = os.path.abspath('../../')
+_repo_root = os.path.abspath('../')
 sys.path.insert(0, os.path.join(_repo_root, 'src'))
 sys.path.insert(0, _repo_root)
 
@@ -27,12 +27,14 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.napoleon',
+    'nbsphinx',
     'sphinx_math_dollar',      # Parses $math$ in .rst files
     'sphinx.ext.mathjax',      # Renders the math via MathJax
     'myst_parser',             # Parses markdown files
 ]
 
 # --- 4. Sphinx Options -------------------------------------------------------
+nbsphinx_execute = 'auto'
 autoclass_content = 'both'
 autosummary_generate = True
 autosummary_ignore_module_all = False
@@ -70,6 +72,10 @@ mathjax3_config = {
 
 # --- 7. HTML Theme -----------------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
+html_static_path = ['_static']
+html_css_files = [
+    'custom.css',
+]
 
 # --- 8. Event Hooks ----------------------------------------------------------
 def is_pmrf_auto(obj):

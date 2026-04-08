@@ -16,33 +16,28 @@ from pmrf.core import Model, Frequency
 class InferResult(prx.Module):
     """
     The result of an inference run.
-
-    Attributes
-    ----------
-    model : Model
-        The RF model containing the maximum likelihood parameters and the posterior over parameters.
-    log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray]
-        The log likelihood function used to calculate the log likelihood during sampling.
-        If the log likelihood was a module with parameters, then this contains
-        the maximum likelihood log likelihood model.
-    sampled_models : Model
-        A batched model containing the sampled models.
-    sampled_likelihoods : Evaluator
-        A batched model containing the sampled log likelihoods if an evaluator was used.
-    log_likelihoods : jnp.ndarray
-        The log-likelihood values related to each sample.
-    weights : jnp.ndarray
-        The weights related to each sample, if any.
-    solver_results : Any
-        The underlying solution object returned by the solver, if any.
     """
+    #: The RF model containing the maximum likelihood parameters and the posterior over parameters.
     model: Model
+
+    #: The log likelihood function used to calculate the log likelihood during sampling.
+    #: If the log likelihood was a module with parameters, then this contains
+    #: the maximum likelihood log likelihood model.
     log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray]
     
+    #: A batched model containing the sampled models.
     sampled_models: Model
+    
+    #: A batched model containing the sampled log likelihoods if an evaluator was used.
     sampled_log_likelihoods: Array
+        
+    #: The log-likelihood values related to each sample.
     log_likelihoods: jnp.ndarray
+    
+    #: The weights related to each sample, if any.
     weights: jnp.ndarray | None = None
+    
+    #: The underlying solution object returned by the solver, if any.
     solver_results: infx.Result = None
        
     def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):

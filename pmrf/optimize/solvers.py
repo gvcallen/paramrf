@@ -42,7 +42,16 @@ class ScipyMinimizer(eqx.Module):
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True) # Added flag
 
-    def __call__(self, fn, y, args, options) -> optx.Solution:
+    def __call__(self, fn, y, args=None, bounds=None, **kwargs) -> optx.Solution:
+        method = kwargs.setdefault('method', self.method)
+        options = kwargs.pop('options', {})
+
+        if 'bounds' in 'options':
+            raise Exception("Bounds should not be passed under scipy minimize options. ")
+
+        gradient_free_methods = {'nelder-mead', 'powell', 'cobyla'}
+        use_grad = self.use_grad and (method.lower() not in gradient_free_methods)
+
         # 1. Flatten the PyTree 'y' into a 1D JAX array
         flat_y, unravel_fn = ravel_pytree(y)
         
@@ -50,7 +59,7 @@ class ScipyMinimizer(eqx.Module):
         merged_options.update(options)
         
         # 2. Extract and flatten the bounds PyTrees natively
-        bounds_trees = merged_options.pop("bounds", None)
+        bounds_trees = bounds
         scipy_bounds = None
         
         if bounds_trees is not None:
@@ -59,7 +68,7 @@ class ScipyMinimizer(eqx.Module):
             flat_lower, _ = ravel_pytree(lower_tree)
             flat_upper, _ = ravel_pytree(upper_tree)
             
-            scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))
+            scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))        
 
         # 3. Define the internal JAX objective that unravels the flat array dynamically
         @jax.jit
@@ -84,13 +93,13 @@ class ScipyMinimizer(eqx.Module):
             current_loss[0] = loss_np
             return loss_np
 
-        obj_func = objective_with_grad if self.use_grad else objective_no_grad
+        obj_func = objective_with_grad if use_grad else objective_no_grad
 
         # 4. Setup the progress bar and callback
         pbar = None
         if self.show_progress:
             maxiter = merged_options.get("maxiter", None)
-            pbar = tqdm(total=maxiter, desc=f"SciPy {self.method}")
+            pbar = tqdm(total=maxiter, desc=f"SciPy {method}")
 
         def callback(*cb_args, **cb_kwargs):
             if pbar is not None:
@@ -102,8 +111,8 @@ class ScipyMinimizer(eqx.Module):
             res = scipy_minimize(
                 obj_func, 
                 np.array(flat_y), 
-                jac=self.use_grad, 
-                method=self.method,
+                jac=use_grad, 
+                method=method,
                 bounds=scipy_bounds,  
                 options=merged_options,
                 callback=callback, # Hooked the callback here
