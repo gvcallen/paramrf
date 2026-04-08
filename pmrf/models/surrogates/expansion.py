@@ -7,18 +7,22 @@ from parax import Parameter
 
 from pmrf.models.adapters.abstract import AbstractSingleDiscreteProperty
 
-class VectorExpansion(AbstractSingleDiscreteProperty):
+class LinearExpansion(AbstractSingleDiscreteProperty):
     """
-    A model where the output is a linear expansion of vector basis functions.
+    A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
     
     The S-parameters are returned as offset + coefficients @ basis, where the coefficients are the model parameters.
     """
-    # The coefficients parameters (coefficients)
+    #: The real coefficients parameters
     coefficients_real: Parameter = None
+    
+    #: The imaginary coefficients parameters
     coefficients_imag: Parameter = None
     
-    # The basis functions themselves and an optional offset
+    #: The fixed basis functions
     basis: jnp.ndarray = None
+    
+    #: An optional fixed offset
     offset: jnp.ndarray = None
     
     def output_discrete(self) -> jnp.ndarray:

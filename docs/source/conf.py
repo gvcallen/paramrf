@@ -42,6 +42,7 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": False,
     "show-inheritance": True,
+    'inherited-members': False,
     "member-order": "groupwise", 
     "special-members": "__call__,__getitem__,__len__,__add__,__sub__,__mul__,__rmul__,__div__,__truediv__,__floordiv__,__mod__", 
 }
@@ -70,20 +71,43 @@ mathjax3_config = {
 html_theme = 'sphinx_rtd_theme'
 
 # --- 8. Event Hooks ----------------------------------------------------------
+def is_pmrf_auto(obj):
+    """Robustly detect auto-generated pmrf methods."""
+    if getattr(obj, "_pmrf_auto", False):
+        return True
+    
+    # Bound method → underlying function
+    func = getattr(obj, "__func__", None)
+    if func and getattr(func, "_pmrf_auto", False):
+        return True
+
+    # Property → getter function
+    if isinstance(obj, property):
+        if getattr(obj.fget, "_pmrf_auto", False):
+            return True
+
+    return False
+
+
 def skip_member(app, what, name, obj, skip, options):
-    """Custom logic for skipping specific documentation members."""
+    # 1. Skip pmrf auto-generated methods
+    if is_pmrf_auto(obj):
+        return True
+
+    # 2. Skip modules
     if isinstance(obj, types.ModuleType):
         return True
 
+    # 3. Skip parax stuff
     obj_module = getattr(obj, '__module__', None)
     if obj_module is None and isinstance(obj, property):
         obj_module = getattr(obj.fget, '__module__', '')
 
-    # Mutes inherited methods specifically from parax
     if obj_module and obj_module.startswith('parax'):
         return True
 
     return skip
 
 def setup(app):
+    # Only connect the single unified function
     app.connect("autodoc-skip-member", skip_member)

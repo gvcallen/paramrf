@@ -1,0 +1,30 @@
+
+
+
+expansion
+=========
+
+.. automodule:: pmrf.models.surrogates.expansion
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   LinearExpansion
+
+
+
+
+
+

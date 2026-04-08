@@ -1,7 +1,7 @@
 """
-ParamRF IO helpers for model loading and saving.
-Delegates to Parax backend while enforcing ParamRF conventions.
+Functions for model loading and saving.
 """
+
 import os
 from pathlib import Path
 from typing import BinaryIO, Any

@@ -1,7 +1,7 @@
 """
 RF models, such as lumped components and surrogates.
 
-This module contains various components, composite building models, adapters and numerical models.
+This module contains various components, surrogate models, composite building models, and model adapters.
 
 Note that all models are re-exported under `pmrf.models`.
 """
@@ -17,9 +17,9 @@ from pmrf.models.composite.collection import (
     DictModel as DictModel,
 )
 from pmrf.models.adapters.static import Measured as Measured
-from pmrf.models.adapters.surrogate import (
-    ContinuousSurrogate as ContinuousSurrogate,
-    DiscreteSurrogate as DiscreteSurrogate,
+from pmrf.models.adapters.callable import (
+    ContinuousCallable as ContinuousCallable,
+    DiscreteCallable as DiscreteCallable,
 )
 from pmrf.models.components.ideal import (
     Port as Port,
@@ -71,12 +71,12 @@ from pmrf.models.composite.transformed import (
     Flipped as Flipped,
     Stacked as Stacked,
 )
-from pmrf.models.numerical.expansion import VectorExpansion as VectorExpansion
-from pmrf.models import adapters, components, composite, numerical
+from pmrf.models.surrogates.expansion import LinearExpansion as LinearExpansion
+from pmrf.models import adapters, components, composite, surrogates
 
 __all__ = [
     "adapters",
     "components",
     "composite",
-    "numerical",
+    "surrogates",
 ]

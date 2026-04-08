@@ -10,15 +10,10 @@ from pmrf.core import Model, Frequency
 class Load(Model):
     """
     An abstract base class for N-port loads defined by their reflection coefficient.
-
-    Parameters:
-    -----------
-    gamma : Parameter
-        The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-    nports : int
-        The number of ports this load presents. Default is 1.
     """
+    #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
     gamma: Parameter
+    #: The number of ports this load presents. Default is 1.
     nports: int = 1
     
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -33,16 +28,11 @@ class Load(Model):
 class Resistor(Model):
     """
     A 2-port or 4-port floating model of a series resistor.
-
-    Parameters:
-    -----------
-    R : Parameter
-        The resistance in Ohms. Default is 50.0.
-    floating : bool
-        If True, returns a 4-port network where the element is between 
-        Port 0 and Port 2, and Port 1 is shorted to Port 3.
     """
+    #: The resistance in Ohms. Default is 50.0.
     R: Parameter = 50.0
+    #: If True, returns a 4-port network where the element is between 
+    #: Port 0 and Port 2, and Port 1 is shorted to Port 3. Default is False.
     floating: bool = False
     
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -98,14 +88,11 @@ class Resistor(Model):
 class Capacitor(Model):
     """
     A 2-port or 4-port floating model of a series capacitor.
-
-    Parameters:
-    -----------
-    C : Parameter
-        The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    floating : bool
     """
+    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
     C: Parameter = 1.0e-12
+    #: If True, returns a 4-port network where the element is between 
+    #: Port 0 and Port 2, and Port 1 is shorted to Port 3. Default is False.
     floating: bool = False
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -159,14 +146,11 @@ class Capacitor(Model):
 class Inductor(Model):
     """
     A 2-port or 4-port floating model of a series inductor.
-
-    Parameters:
-    -----------
-    L : Parameter
-        The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    floating : bool
     """
+    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
     L: Parameter = 1.0e-9
+    #: If True, returns a 4-port network where the element is between 
+    #: Port 0 and Port 2, and Port 1 is shorted to Port 3. Default is False.
     floating: bool = False
     
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -220,18 +204,13 @@ class Inductor(Model):
 class ShuntResistor(Model):
     """
     A model of a shunt resistor.
-
-    Parameters:
-    -----------
-    R : Parameter
-        The resistance in Ohms. Default is 50.0.
-    floating : bool
-        If False (default), returns a standard 2-port model shunting to ground.
-        If True, returns a 4-port differential model where the resistor bridges
-        the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
-        2 & 3 act as the output pair.
     """
+    #: The resistance in Ohms. Default is 50.0.
     R: Parameter = 50.0
+    #: If False (default), returns a standard 2-port model shunting to ground.
+    #: If True, returns a 4-port differential model where the resistor bridges
+    #: the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
+    #: 2 & 3 act as the output pair.
     floating: bool = False
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -322,18 +301,13 @@ class ShuntResistor(Model):
 class ShuntCapacitor(Model):
     """
     A model of a shunt capacitor.
-
-    Parameters:
-    -----------
-    C : Parameter
-        The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    floating : bool
-        If False (default), returns a standard 2-port model shunting to ground.
-        If True, returns a 4-port differential model where the capacitor bridges
-        the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
-        2 & 3 act as the output pair.
     """
+    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
     C: Parameter = 1.0e-12
+    #: If False (default), returns a standard 2-port model shunting to ground.
+    #: If True, returns a 4-port differential model where the capacitor bridges
+    #: the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
+    #: 2 & 3 act as the output pair.
     floating: bool = False
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -414,18 +388,13 @@ class ShuntInductor(Model):
     """
     A model of a shunt inductor. 
     Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
-
-    Parameters:
-    -----------
-    L : Parameter
-        The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    floating : bool
-        If False (default), returns a standard 2-port model shunting to ground.
-        If True, returns a 4-port differential model where the inductor bridges
-        the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
-        2 & 3 act as the output pair.
     """
+    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
     L: Parameter = 1e-9
+    #: If False (default), returns a standard 2-port model shunting to ground.
+    #: If True, returns a 4-port differential model where the inductor bridges
+    #: the top and bottom lines. Ports 0 & 1 act as the input pair, and Ports
+    #: 2 & 3 act as the output pair.
     floating: bool = False
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -508,15 +477,10 @@ class ShuntInductor(Model):
 class InductorQ(Model):
     """
     A 2-port model of a series inductor with a finite Quality Factor (Q).
-
-    Parameters:
-    -----------
-    L : Parameter
-        The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    Q : Parameter
-        The quality factor representing non-ideal losses. Default is 50.0.
     """
+    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
     L: Parameter = 1e-9
+    #: The quality factor representing non-ideal losses. Default is 50.0.
     Q: Parameter = 50.0
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -546,15 +510,10 @@ class InductorQ(Model):
 class CapacitorQ(Model):
     """
     A 2-port model of a series capacitor with a finite Quality Factor (Q).
-
-    Parameters:
-    -----------
-    C : Parameter
-        The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    Q : Parameter
-        The quality factor representing non-ideal losses. Default is 50.0.
     """
+    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
     C: Parameter = 1e-12
+    #: The quality factor representing non-ideal losses. Default is 50.0.
     Q: Parameter = 50.0
 
     def s(self, freq: Frequency) -> jnp.ndarray:
@@ -579,7 +538,9 @@ class CapacitorQ(Model):
 
         return s
     
-    
+#: A standard ideal short circuit load (gamma = -1.0).
 SHORT = Load(Fixed(-1.0))
+#: A standard ideal open circuit load (gamma = 1.0).
 OPEN = Load(Fixed(1.0))
+#: A standard ideal matched load (gamma = 0.0).
 MATCH = Load(Fixed(0.0))

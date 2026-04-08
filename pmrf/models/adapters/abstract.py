@@ -13,7 +13,7 @@ from pmrf.utils import is_overridden
 
 class AbstractDiscrete(Model, ABC):
     """
-    A model whose properties are defined on a tabulated frequency grid.
+    A model whose properties are defined on a discrete (tabulated) frequency grid.
     
     To use, set self.frequency and override one or more of the `xxx_discrete` methods.
     The base Model conversions (s2a, s2z, etc.) will be applied automatically

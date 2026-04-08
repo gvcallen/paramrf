@@ -28,3 +28,15 @@ from pmrf.core.problem import Problem as Problem
 
 for _cls in (DiscrepancyModel, Evaluator, Frequency, Likelihood, Loss, Model, NoiseModel, CovarianceKernel, Problem):
     _cls.__module__ = "pmrf"
+
+__all__ = [
+    "DiscrepancyModel",
+    "Evaluator",
+    "Frequency",
+    "Likelihood",
+    "Loss",
+    "Model",
+    "NoiseModel",
+    "CovarianceKernel",
+    "Problem",
+]
