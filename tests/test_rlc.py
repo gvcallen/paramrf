@@ -2,7 +2,7 @@
 Test that we can build a simple RLC circuit and that its S-parameters match scikit-rf's.
 """
 import numpy as np
-from pmrf.models import Resistor, Inductor, ShuntCapacitor, SHORT
+from pmrf.models import Resistor, Inductor, ShuntCapacitor, Short
 import pmrf as prf
 from skrf.media import DefinedGammaZ0
 
@@ -17,7 +17,7 @@ def test_rlc():
 
     freq = prf.Frequency(50, 200, 151, 'MHz')
     rlc = resistor ** inductor ** capacitor
-    terminated_rlc_pmrf = rlc.terminated(SHORT)
+    terminated_rlc_pmrf = rlc.terminated(Short())
     s_pmrf = terminated_rlc_pmrf.s(freq)
 
     freq = freq.to_skrf()
