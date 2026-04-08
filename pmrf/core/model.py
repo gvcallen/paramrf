@@ -461,13 +461,24 @@ class Model(prx.Module, ABC):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
-        """Cascade/termination composition operator ``**``."""        
-        if other.nports == 1:
-            from pmrf.models import Terminated
-            return Terminated(self, other)
-        else:
-            from pmrf.models import Cascade
-            return Cascade([self, other])
+        """Cascade operator `**`."""        
+        return self.cascaded(other)
+    
+    def __matmul__(self, other: 'Model') -> 'Model':
+        """Termination operator `@`."""        
+        return self.terminated(other)
+        
+    def cascaded(self, other, **kwargs) -> 'Model':
+        """Cascade this model with another, returning a new model.
+        
+        See :class:`pmrf.models.composite.transformed.Flipped`.
+
+        Returns
+        -------
+        Model
+        """
+        from pmrf.models import Cascade
+        return Cascade([self, other], **kwargs)
         
     def flipped(self, **kwargs) -> 'Model':
         """Return a version of the model with ports flipped.
@@ -500,33 +511,34 @@ class Model(prx.Module, ABC):
         from pmrf.models import Renumbered
         return Renumbered(self, from_ports, to_ports, **kwargs)
     
-    def terminated(self, load: 'Model' = None, **kwargs) -> 'Model':
-        """Returns a new model that contains this model terminated in another.
+    def terminated(self, other: 'Model' = 'short', **kwargs) -> 'Model':
+        """Terminate this model in another, returning a new model.
         
         See :class:`pmrf.models.composite.transformed.Terminated`.
 
         Parameters
         ----------
-        load : Model | str, optional
-            Load network. Can be 'short' or 'open' as aliases for SHORT and OPEN.
-            Defaults to a SHORT.
+        other : Model | str, optional
+            The model to terminate this one in. Can be literals 'short', 'open'
+            or any model with half the ports of this one.
+            Defaults to a 'short'.
 
         Returns
         -------
         Model
         """
-        from pmrf.models import SHORT, OPEN, Terminated
+        from pmrf.models import Short, Open, Terminated
 
-        if isinstance(load, str):
-            if load == 'short':
-                load = SHORT
-            elif load == 'open':
-                load = OPEN
+        if isinstance(other, str):
+            if other == 'short':
+                other = Short()
+            elif other == 'open':
+                other = Open()
             else:
-                raise ValueError(f"Unknown load alias {load} received in 'Model.terminated()'")
+                raise ValueError(f"Unknown load alias {other} received in 'Model.terminated()'")
 
-        load = load or SHORT
-        return Terminated(self, load, **kwargs)
+        other = other or Short()
+        return Terminated(self, other, **kwargs)
     
     # ---- Plotting --------------------------------------------------    
 

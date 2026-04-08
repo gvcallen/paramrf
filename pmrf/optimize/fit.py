@@ -3,7 +3,6 @@ from typing import Callable
 
 import jax.numpy as jnp
 import skrf
-from distreqx.bijectors import AbstractBijector
 import parax as prx
 
 from pmrf.core import Model, Frequency
@@ -53,14 +52,14 @@ def fit(
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,
-        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
+        in which case a feature evaluator is created (see :class:`pmrf.evaluators.Feature`).
         Defaults to all S-parameters.
     loss_fn : str | Callable, default=LogMSELoss()
         The loss function between the model prediction and the data.
         Can be a function, a callable PyTree with optional parameters, or a string
         for a lookup into :data:`pmrf.math.LOSS_LOOKUP`
         See :mod:`pmrf.losses` for common losses.
-        Defaults to `None`, in which case :class:``pmrf.losses.LogMSELoss` is used.
+        Defaults to `None`, in which case :class:`pmrf.losses.LogMSELoss` is used.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to `loss_fn` indicating
         how to aggregate outputs. For the default of None, the argument is not passed.

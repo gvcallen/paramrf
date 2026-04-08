@@ -1,3 +1,5 @@
+.. title:: Home
+
 |tests_badge| |docs_badge|
 
 .. image:: https://raw.githubusercontent.com/gvcallen/paramrf/main/assets/logo.png
@@ -24,8 +26,8 @@
 .. |version_badge_text| image:: https://img.shields.io/github/v/release/gvcallen/paramrf
    :alt: GitHub Release
 
-Key Features
----------------------
+Features
+--------
 
 * **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or node composition. Since models can consist of a mix of `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_ and other ``pmrf.Model`` objects, this allows for a natural means of building complex, hierarchial models.
 * **Differentiable**: Since the framework is built using ``jax``, all models can be differentiated with respect to frequency and parameters. This allows for complex optimization and sensitivity analysis.
@@ -34,7 +36,7 @@ Key Features
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
 
 Installation
----------------------
+------------
 ParamRF can be installed directly using pip (requires Python 3.11+):
 
 .. code-block:: bash
@@ -48,24 +50,26 @@ Note that For Bayesian inference or complex statistical modelling, you may need 
    $ pip install git+https://github.com/gvcallen/distreqx.git
 
 Example
----------------------
-The example below shows how to define and fit a simple RLC model to measured data using ParamRF. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples.
+-------
+The example below shows how to define and optimize a simple RLC model to a goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples.
 
-.. code:: python
+.. code-block:: python
 
-    import skrf as rf
-    import pmrf as prf
-    from pmrf.models import Resistor, Inductor, Capacitor
-    from pmrf.fit import fit
-
-    # Define the model and load data
-    model = Resistor(R=100.0) ** Inductor(L=1e-9) ** Capacitor(L=1e-12)
-    data = rf.Network('path/to/rlc.s2p')
-    
-    # Fit the model and output results and parmaeters
-    results = fit(model, data)
-    results.plot('s_db')
-    print(results.model.named_params())
+  import pmrf as prf
+  from pmrf.models import Resistor, Inductor, Capacitor
+  
+  # Define the model and frequency
+  freq = prf.Frequency(1, 10, 101, 'GHz')
+  rlc_model = Resistor(50) ** Inductor(1e-9) ** Capacitor(1e-12)
+  
+  # Define the optimization frequency and goal
+  opt_freq = prf.Frequency(4, 6, 101, 'GHz')
+  goal = prf.evaluators.Goal('s11_db', '<', -20)
+  
+  # Optimize the model with Nelder-Mead and output results
+  result = prf.optimize.minimize(goal, rlc_model, opt_freq, solver='Nelder-Mead')
+  result.model.plot_s_db(freq, m=0, n=0)
+  print(result.model.named_param_values())
 
 Optional dependencies
 ---------------------

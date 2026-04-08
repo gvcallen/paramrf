@@ -48,9 +48,9 @@ from pmrf.models.components.lumped import (
     ShuntInductor as ShuntInductor,
     CapacitorQ as CapacitorQ,
     InductorQ as InductorQ,
-    SHORT as SHORT,
-    OPEN as OPEN,
-    MATCH as MATCH,
+    Short as Short,
+    Open as Open,
+    Match as Match,
 )
 from pmrf.models.components.nonideal import (
     NonIdealResistor as NonIdealResistor,

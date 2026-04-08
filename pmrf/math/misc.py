@@ -384,30 +384,6 @@ def find_closest(z1: NumberLike, z2: NumberLike, z_approx: NumberLike):
 
     return jnp.where(z1_dist<z2_dist,z1, z2)
 
-def sqrt_phase_unwrap(z: NumberLike):
-    r"""
-    Take the square root of a complex number with unwrapped phase.
-
-    This idea came from Lihan Chen.
-
-    .. math::
-
-        \sqrt{|z|} \exp( \arg_{unwrap}(z) / 2 )
-
-
-    Parameters
-    ----------
-    z : number or array_like
-        A complex number or sequence of complex numbers.
-
-    Returns
-    -------
-    z : number of array_like
-        A complex number or sequence of complex numbers.
-    """
-    return jnp.sqrt(abs(z))*\
-            jnp.exp(0.5*1j*unwrap_rad(complex_2_radian(z)))
-
 
 # mathematical functions
 def dirac_delta(x: NumberLike):
@@ -533,45 +509,6 @@ def cross_ratio(a: NumberLike, b: NumberLike, c: NumberLike, d:NumberLike):
     """
     return ((a-b)*(c-d))/((a-d)*(c-b))
 
-
-def complexify(f: Callable, name: str = None):
-    """
-    Make a function f(scalar) into f(complex).
-
-    If `f(x)` then it returns `f_c(z) = f(real(z)) + 1j*f(imag(z))`
-
-    If the real/imag arguments are not first, then you may specify the
-    name given to them as kwargs.
-
-    Parameters
-    ----------
-    f : Callable
-        Function of real variable.
-    name : string, optional
-        Name of the real/imag argument names if they are not first.
-
-    Returns
-    -------
-    f_c : Callable
-        Function of a complex variable.
-
-    Examples
-    ----------
-    >>> def f(x): return x
-    >>> f_c = rf.complexify(f)
-    >>> z = 0.2 -1j*0.3
-    >>> f_c(z)
-    """
-    def f_c(z, *args, **kw):
-        if name is not None:
-            kw_re = {name: real(z)}
-            kw_im = {name: imag(z)}
-            kw_re.update(kw)
-            kw_im.update(kw)
-            return f(*args, **kw_re) + 1j*f(*args, **kw_im)
-        else:
-            return f(real(z), *args,**kw) + 1j*f(imag(z), *args, **kw)
-    return f_c
 
 
 def multiply_by(x: jnp.ndarray, by: jnp.ndarray, axis=None) -> jnp.ndarray:

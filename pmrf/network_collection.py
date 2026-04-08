@@ -178,7 +178,7 @@ class NetworkCollection:
         directory : str
             Path to the directory.
         pattern : str, optional
-            Glob pattern to match files. Default is "*.s*p".
+            Glob pattern to match files. Default is `"*.s*p"`.
         name : str, optional
             Name of the collection. Defaults to directory name.
 

@@ -3,7 +3,7 @@ Ideal models, such as ports, grounds and transformers.
 """
 import jax.numpy as jnp
 from pmrf.core import Model, Frequency
-from pmrf.models.components.lumped import MATCH, SHORT
+from pmrf.models.components.lumped import Match, Short
 
 class Port(Model):
     """
@@ -21,7 +21,7 @@ class Port(Model):
         Model
             A matched load (`MATCH`).
         """
-        return MATCH
+        return Match()
     
 class Ground(Model):
     """
@@ -31,7 +31,7 @@ class Ground(Model):
     Calling an instance returns a short circuit model.
     """
     def __call__(self) -> Model:
-        return SHORT
+        return Short()
 
 class Transformer(Model):
     """

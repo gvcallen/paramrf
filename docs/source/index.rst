@@ -3,8 +3,12 @@
 .. toctree::
    :maxdepth: 2
    :caption: Documentation
+   :hidden:
 
-   getting_started/index
+   Home <self>
+   quickstart
+   core_concepts/index
+   tutorials/index
    api/index
    skrf_comparison
    license

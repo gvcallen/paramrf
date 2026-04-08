@@ -3,13 +3,13 @@ Lumped elements (resistors, capacitors, inductors).
 """
 
 import jax.numpy as jnp
-from parax import Parameter, Fixed
+from parax import Parameter
 
 from pmrf.core import Model, Frequency
 
-class Load(Model):
+class Load(Model, transparent=True):
     """
-    An abstract base class for N-port loads defined by their reflection coefficient.
+    An class for N-port loads defined by their reflection coefficient.
     """
     #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
     gamma: Parameter
@@ -24,8 +24,21 @@ class Load(Model):
             repeat(freq.npoints, 0)
         return s
     
+
+class StaticLoad(Model):
+    """
+    An class for N-port loads defined by static (non-parametric) reflection coefficient.
+    """
+    #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
+    gamma: float
+    #: The number of ports this load presents. Default is 1.
+    nports: int = 1
     
-class Resistor(Model):
+    def __call__(self) -> jnp.ndarray:
+        return Load(gamma=self.gamma, nports=self.nports)
+
+    
+class Resistor(Model, transparent=True):
     """
     A 2-port or 4-port floating model of a series resistor.
     """
@@ -85,7 +98,7 @@ class Resistor(Model):
         return s    
  
  
-class Capacitor(Model):
+class Capacitor(Model, transparent=True):
     """
     A 2-port or 4-port floating model of a series capacitor.
     """
@@ -143,7 +156,7 @@ class Capacitor(Model):
         return s
             
               
-class Inductor(Model):
+class Inductor(Model, transparent=True):
     """
     A 2-port or 4-port floating model of a series inductor.
     """
@@ -201,7 +214,7 @@ class Inductor(Model):
         return s
     
 
-class ShuntResistor(Model):
+class ShuntResistor(Model, transparent=True):
     """
     A model of a shunt resistor.
     """
@@ -298,7 +311,7 @@ class ShuntResistor(Model):
             return s    
     
     
-class ShuntCapacitor(Model):
+class ShuntCapacitor(Model, transparent=True):
     """
     A model of a shunt capacitor.
     """
@@ -384,7 +397,7 @@ class ShuntCapacitor(Model):
             return s                
 
 
-class ShuntInductor(Model):
+class ShuntInductor(Model, transparent=True):
     """
     A model of a shunt inductor. 
     Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
@@ -538,9 +551,14 @@ class CapacitorQ(Model):
 
         return s
     
-#: A standard ideal short circuit load (gamma = -1.0).
-SHORT = Load(Fixed(-1.0))
-#: A standard ideal open circuit load (gamma = 1.0).
-OPEN = Load(Fixed(1.0))
-#: A standard ideal matched load (gamma = 0.0).
-MATCH = Load(Fixed(0.0))
+def Short(nports=1):
+    """A standard ideal short circuit load (gamma = -1.0)."""
+    return StaticLoad(-1.0, nports=nports)
+
+def Open(nports=1):
+    """A standard ideal open circuit load (gamma = 1.0)."""
+    return StaticLoad(1.0, nports=nports)
+
+def Match(nports=1):
+    """A standard ideal open circuit load (gamma = 1.0)."""
+    return StaticLoad(0.0, nports=nports)

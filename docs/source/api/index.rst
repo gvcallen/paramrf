@@ -4,7 +4,7 @@ API
 This page contains the main API reference, providing a quick access section, as well as a detailed list of core classes and Python modules.
 
 Quick Reference
-------------
+---------------
 
 .. rubric:: Models
 

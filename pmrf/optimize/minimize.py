@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Any
 
 import logging
 
@@ -10,13 +10,13 @@ import parax as prx
 
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.solvers import ScipyMinimizer, is_optimizer
+from pmrf.optimize.solvers import ScipyMinimizer
 
 def minimize(
     objective_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: optx.AbstractMinimiser | Callable = ScipyMinimizer(),
+    solver: str | optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution] = ScipyMinimizer(),
     *,
     max_iters: int = 512,
     **kwargs,
@@ -37,10 +37,11 @@ def minimize(
         The RF model containing the parameters to be optimized.
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
-    solver : optx.AbstractMinimiser | Callable, default=ScipyMinimizer()
-        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`
+    solver : optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution], default=ScipyMinimizer()
+        The optimizer to use. Can be either a string, an instance of :class:`pmrf.optimize.ScipyMinimizer`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
-        (such as :class:`optimistix.LBFGS`).
+        (such as :class:`optimistix.LBFGS`). If a string is passed, a ScipyMinimizer is created
+        with that method.
     max_iters : int, default=512
         The maximum number of iterations.
     **kwargs : dict
@@ -51,6 +52,9 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
+    if isinstance(solver, str):
+        solver = ScipyMinimizer(method=solver)
+
     if isinstance(objective_fn, list):
         objective_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in objective_fn])
     else:

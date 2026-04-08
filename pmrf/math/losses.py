@@ -67,7 +67,7 @@ def log_mean_squared_error(
     """
     loss = (jnp.abs(y_true - y_pred))**2
     mean_loss = weighted_sum(loss, sample_weight)
-    rmse_loss = jnp.log(mean_loss)
+    rmse_loss = jnp.log(mean_loss + 1e-12)
     return multioutput_aggregate(rmse_loss, multioutput)
 
 

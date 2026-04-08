@@ -13,7 +13,7 @@ from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency, Evaluator
-from pmrf.losses import HingeLoss
+from pmrf.losses import HingeLoss, LogMSELoss
 
 class Feature(Evaluator):
     """
@@ -22,9 +22,17 @@ class Feature(Evaluator):
     Parses regex patterns to automatically route strings like 's11_db' or 
     'amplifier.y21_deg' to the appropriate Method and Indexing chain.
     """
+    #: The underlying operator created that does the final feature extraction.
     op: prx.Operator
 
     def __init__(self, alias: str | Sequence[str] | list[prx.Operator]):
+        """Initialize the feature evalutor.
+
+        Parameters
+        ----------
+        alias : str | Sequence[str] | list[prx.Operator]
+            A string alias, list of string aliases, or list of other evaluators for the feature.
+        """
         super().__init__()
         
         # 1. Handle pre-instantiated Operator lists (Summation)
@@ -87,8 +95,16 @@ class TargetLoss(Evaluator):
     """
     Computes a loss between a model prediction and some target.
     """
+    #: The predictor (e.g. another Evaluator) that extracts model features.
+    #: Can be a function or a PyTree with optional parameters.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
+
+    #: The fixed or 'true' target that the loss function should compare the prediction to.
     target: jnp.ndarray
+    
+    #: The loss function that takes (y_true, y_pred) and returns a loss metric.
+    #: Can be a function or a PyTree with optional parameters.
+    #: See :mod:`pmrf.losses` for common losses.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -107,11 +123,27 @@ class MarginalLogLikelihood(Evaluator):
     by moving it to the last axis before passing it to the likelihood/discrepancy.
     Real and imaginary parts are also stacked appropriately.
     """
+    #: The predictor (e.g. another Evaluator) that extracts model features.
+    #: Can be a function or a PyTree with optional parameters.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
+    
+    #: The fixed 'observed' data that the log probability will be computed of.
     data: jnp.ndarray
+    
+    #: The likelihood function that takes the model prediction and returns the probability of observing some data.
+    #: Can be a function or a PyTree with optional parameters.
+    #: See :mod:`pmrf.likelihoods` for common likelihoods.
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
+
+    #: An optional discrepancy model to cater for model misspecification.
+    #: Can be a function or a PyTree with optional parameters.
+    #: See :class:`pmrf.discrepancy_models` for common discrepancy models.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
+
+    #: A mapper to map the "data space" (predicted features) to an "event space" (probability).
     event_mapper: Callable[[jnp.ndarray], jnp.ndarray] | None = None
+
+    #: The number of trailing event dimensions returned by the event mapped. Defaults to 1.
     event_ndims: int = prx.field(default=1, static=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -160,22 +192,60 @@ class Goal(TargetLoss):
         target: float | jnp.ndarray = 0.0,
         weight: float | jnp.ndarray = 1.0,
         mask: jnp.ndarray | None = None,
-        loss_fn: str | Any = 'rmse',
+        loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = LogMSELoss(),
         multioutput: str | Any = 'uniform_average'
     ):
-        super().__init__()
-        
-        self.predictor = Feature(feature) if isinstance(feature, str) else feature
-        self.target = jnp.asarray(target)
-        
-        # We store the metric logic. HingeLoss should be a PyTree or static.
-        self.loss = HingeLoss(
+        """
+        Initializes the optimization goal.
+
+        Parameters
+        ----------
+        feature : str or prx.Operator
+            The feature to be evaluated. If a string is provided, it is 
+            automatically wrapped in a :class:`Feature` operator.
+        operator : {'<', '<=', '>', '>=', '==', '='}, optional
+            The relational operator defining the goal condition. 
+            '==' and '=' are treated as equivalent (equality). 
+            Default is '=='.
+        target : float or jnp.ndarray, optional
+            The target value or array of values for the goal. 
+            Default is 0.0.
+        weight : float or jnp.ndarray, optional
+            A scaling factor applied to the computed loss. Can be a 
+            scalar or an array for element-wise weighting. 
+            Default is 1.0.
+        mask : jnp.ndarray, optional
+            A boolean or numerical mask used to include or exclude specific 
+            data points (e.g., specific frequencies) from the loss calculation. 
+            Default is None.
+        loss_fn : str or Any, optional
+            The base loss function. Defaults to LogMSE.
+            See :mod:`pmrf.losses` for common losses.
+        multioutput : str or Any, optional
+            Defines how to aggregate losses across multiple outputs. 
+            Default is 'uniform_average'.
+
+        Attributes
+        ----------
+        predictor : prx.Operator
+            The operator used to extract the feature from the model response.
+        target : jnp.ndarray
+            The processed target value(s) stored as a JAX array.
+        loss : HingeLoss
+            The internal evaluator that implements the hinge logic and 
+            metric calculation.
+        """        
+        predictor = Feature(feature) if isinstance(feature, str) else feature
+        target = jnp.asarray(target)
+        loss = HingeLoss(
             operator=operator,
             weight=weight,
             mask=mask,
             base_loss_fn=loss_fn,
             multioutput=multioutput
         )
+        
+        super().__init__(predictor=predictor, target=target, loss=loss)
         
 __all__ = [
     'Feature',
