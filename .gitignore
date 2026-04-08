@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
-docs/sources/api/generated/*
+docs/source/api/generated/*
 
 # Distribution / packaging
 .Python
