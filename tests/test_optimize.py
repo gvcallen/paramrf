@@ -7,7 +7,6 @@ import parax as prx
 
 from pmrf.core import Model, Frequency
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.fit import fit
 from pmrf.optimize.solvers import ScipyMinimizer
 
 # ---------------------------------------------------------
@@ -96,40 +95,3 @@ def test_minimize_no_free_params(basic_freq):
         
     with pytest.raises(Exception, match="Received no free parameters"):
         minimize(obj_fn, frozen_model, basic_freq)
-
-# ---------------------------------------------------------
-# `fit` Tests
-# ---------------------------------------------------------
-
-def test_fit_ndarray_target(model, basic_freq):
-    """Test fitting directly to a JAX/Numpy array."""
-    # We want the 1-port S-parameters to perfectly match 5.0 + 0j
-    target_data = jnp.ones((basic_freq.npoints, 1, 1), dtype=complex) * 5.0
-    
-    # fit will automatically wrap the 's' feature and target data in a TargetLoss
-    result = fit(model, target_data, basic_freq, features='s')
-    
-    assert jnp.allclose(result.model.val, 5.0, atol=1e-3)
-
-def test_fit_missing_freq_error(model):
-    """Ensure raw arrays throw an error if no frequency axis is provided."""
-    target_data = jnp.ones((5, 1, 1))
-    
-    with pytest.raises(Exception, match="Frequency must be passed"):
-        fit(model, target_data, frequency=None)
-
-def test_fit_skrf_network(model, basic_freq):
-    """Test fitting to a scikit-rf Network, verifying auto-extraction of frequency."""
-    skrf = pytest.importorskip("skrf")
-    import numpy as np
-    
-    # Create a mock target scikit-rf Network with S-params = 4.0
-    skrf_freq = basic_freq.to_skrf()
-    target_s = np.ones((basic_freq.npoints, 1, 1), dtype=complex) * 4.0
-    ntwk = skrf.Network(frequency=skrf_freq, s=target_s, z0=50)
-    
-    # We omit the `frequency` argument here intentionally. `fit` should extract it!
-    # Because 's' is the default feature, we don't strictly need to pass it, but we can.
-    result = fit(model, ntwk, features='s')
-    
-    assert jnp.allclose(result.model.val, 4.0, atol=1e-3)

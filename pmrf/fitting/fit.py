@@ -10,11 +10,11 @@ except ImportError:
 from pmrf.core import Model, Frequency, EvaluatorLike
 from pmrf.optimize.solvers import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
-from pmrf.optimize import fit as optimize_fit, is_optimizer
-from pmrf.infer import condition as infer_condition, is_inferer
-from pmrf.optimize.result import OptimizeResult
-from pmrf.infer.result import InferResult
+from pmrf.optimize import is_optimizer, OptimizeResult
+from pmrf.infer import is_inferer, InferResult
 from pmrf.fitting.result import FitResult
+from pmrf.fitting.minimize import fit_minimize
+from pmrf.fitting.sample import fit_sample
 from pmrf.constants import Optimizer, Inferer
 
 def fit(
@@ -27,10 +27,10 @@ def fit(
     **kwargs
 ) -> FitResult:
     """
-    Fit a model to data using either frequentist optimization or Bayesian inference.
+    Fit a model to data using either frequentist optimization or Bayesian sampling.
 
-    This is a unified router to either :meth:`pmrf.optimize.fit`
-    or :meth:`pmrf.infer.condition`. The execution path is determined by the
+    This is a unified router to either :meth:`pmrf.fitting.fit_minimize`
+    or :meth:`pmrf.fitting.fit_sample`. The execution path is determined by the
     type of `solver` provided.
 
     Parameters
@@ -44,8 +44,8 @@ def fit(
         The frequency sweep. Required if `data` is a raw array.
     solver : Optimizer | Sampler, default=ScipyMinimizer()
         The solver to use. If an optimizer is passed, routes to frequentist minimization
-        via :meth:`pmrf.optimize.fit`. If a sampler, routes to Bayesian inference
-        via :meth:`pmrf.infer.condition`. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`,
+        via :meth:`pmrf.fitting.fit_minimize`. If a sampler, routes to Bayesian inference
+        via :meth:`pmrf.fitting.fit_sample`. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`,
         a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`) or a sampler from `Inferix <https://github.com/gvcallen/inferix>`_
         (such as :class:`inferix.PolyChord`).
@@ -63,33 +63,16 @@ def fit(
         Frequentist optimizers return a single best model, whereas Bayesian inferers also
         return full posterior distributions on the model.
     """
-    if features is not None:
-        kwargs['features'] = features
-        
-    if frequency is None:
-        if isinstance(data, skrf.Network):
-            frequency = Frequency.from_skrf(data.frequency)
-        elif isinstance(data, NetworkCollection):
-            frequency = Frequency.from_skrf(data.common_frequency())        
-
     if is_optimizer(solver):
-        history = optimize_fit(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
+        return fit_minimize(model=model, data=data, frequency=frequency, solver=solver, features=features, **kwargs)
     elif is_inferer(solver):
-        history = infer_condition(model=model, data=data, frequency=frequency, solver=solver, **kwargs)
+        return fit_sample(model=model, data=data, frequency=frequency, solver=solver, features=features, **kwargs)
     else:
         raise TypeError(
             f"Unrecognized solver type: {type(solver)}. "
             "Solver must be a valid optimizer or inferer."
         )
         
-    result = FitResult(
-        data=data,
-        frequency=frequency,
-        solution=history,
-    )
-    
-    return result
-
 def fit_sequential(
     model: Model, 
     data: NetworkCollection,

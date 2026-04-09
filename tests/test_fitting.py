@@ -6,7 +6,8 @@ import parax as prx
 
 from pmrf.core import Frequency
 from pmrf.models import CoaxialLine
-from pmrf.optimize import fit, ScipyMinimizer
+from pmrf.optimize import ScipyMinimizer
+from pmrf.fitting import fit_minimize
 
 # ---------------------------------------------------------
 # Fixtures
@@ -65,7 +66,7 @@ def test_fit_skrf_synthetic_data(starting_model, target_network):
     Fits a perturbed model to an in-memory scikit-rf Network.
     """
     # Notice we don't pass frequency; `fit` should extract it from the Network
-    results = fit(starting_model, target_network, solver=ScipyMinimizer())
+    results = fit_minimize(starting_model, target_network, solver=ScipyMinimizer())
     fitted_model = results.model
 
     # 1. Did it find the correct physical length?
@@ -89,7 +90,7 @@ def test_fit_raw_ndarray(truth_model, starting_model, fit_freq):
     target_s = truth_model.s(fit_freq)
 
     # Must pass frequency explicitly when using raw arrays
-    results = fit(starting_model, target_s, frequency=fit_freq)
+    results = fit_minimize(starting_model, target_s, frequency=fit_freq)
     
     assert jnp.allclose(results.model.length.value, 0.1, atol=1e-3)
 
@@ -100,7 +101,7 @@ def test_fit_missing_freq_error(starting_model, fit_freq):
     dummy_s = jnp.zeros((fit_freq.npoints, 2, 2), dtype=complex)
     
     with pytest.raises(Exception, match="Frequency must be passed if Network data is not provided"):
-        fit(starting_model, dummy_s, frequency=None)
+        fit_minimize(starting_model, dummy_s, frequency=None)
 
 def test_fit_specific_feature(truth_model, starting_model, fit_freq):
     """
@@ -112,7 +113,7 @@ def test_fit_specific_feature(truth_model, starting_model, fit_freq):
     s21_mag_target = Feature('s21_mag')(truth_model, fit_freq)
 
     # Pass the string alias into the fit wrapper
-    results = fit(
+    results = fit_minimize(
         starting_model, 
         s21_mag_target, 
         frequency=fit_freq, 

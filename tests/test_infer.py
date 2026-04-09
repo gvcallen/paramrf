@@ -5,7 +5,7 @@ import parax as prx
 
 from pmrf.core import Frequency, Model
 from pmrf.infer.sample import sample
-from pmrf.infer.condition import condition
+from pmrf.fitting import fit_sample
 
 # ---------------------------------------------------------
 # Fixtures
@@ -85,9 +85,9 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     assert batched_model.val.value.shape == (n_samples,)
 
 
-def test_condition_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path here
+def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path here
     """
-    Test the high-level condition() wrapper using PolyChord.
+    Test the high-level fit_sample() wrapper using PolyChord.
     Ensures Feature extractors, Likelihoods, and Data coercion work.
     """
     pytest.importorskip("mpi4py")
@@ -99,7 +99,7 @@ def test_condition_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_p
     
     target_data = jnp.ones(basic_freq.npoints) * 3.0
     
-    result = condition(
+    result = fit_sample(
         model=infer_model,
         data=target_data,
         frequency=basic_freq,
@@ -118,5 +118,5 @@ def test_condition_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_p
     )
     
     assert isinstance(result.model, DummyInferModel)
-    n_samples = result.log_likelihoods.shape[0]
-    assert result.sampled_models.val.value.shape == (n_samples,)
+    n_samples = result.solution.log_likelihoods.shape[0]
+    assert result.solution.sampled_models.val.value.shape == (n_samples,)

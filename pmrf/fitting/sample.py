@@ -19,12 +19,11 @@ from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, MarginalLogLikelihood
-
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.infer.result import InferResult
-from pmrf.infer.sample import sample
+from pmrf.infer import InferResult, sample
+from pmrf.fitting.result import FitResult
 
-def condition(
+def fit_sample(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
@@ -34,13 +33,12 @@ def condition(
     likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
     discrepancy_fn: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     **kwargs,
-) -> InferResult:
+) -> FitResult:
     """
-    Conditions an RF model on measured data using Bayesian inference.
+    Conditions an RF model on measured data using Bayesian sampling.
     
-    This high-level function handles data format coercion (e.g., extracting arrays 
-    from scikit-rf Networks) and automatically composes the necessary evaluator metrics
-    to compute the log-likelihood over the parameter space.
+    This high-level function handles data format formatting (e.g., extracting arrays 
+    from scikit-rf Networks) and forwards to :func:`pmrf.infer.sample`.
 
     Parameters
     ----------
@@ -76,7 +74,7 @@ def condition(
 
     Returns
     -------
-    InferResult
+    FitResult
         The result containing the model maximum likelikhood estimate model with an empirical posterior.
     """
     # Error checking
@@ -103,4 +101,10 @@ def condition(
     log_likelihood_fn = MarginalLogLikelihood(predictor=features, data=target, likelihood=likelihood_fn, discrepancy=discrepancy_fn)
     
     # Run the sampling
-    return sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)
+    infer_result = sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)
+
+    return FitResult(
+        data=data,
+        frequency=frequency,
+        solution=infer_result,
+    )    

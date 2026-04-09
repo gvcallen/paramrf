@@ -6,7 +6,6 @@ that minimize a given objective/cost function.
 """
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.fit import fit
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer, is_optimizer
 
@@ -14,9 +13,7 @@ from pmrf.constants import Optimizer
 
 __all__ = [
     "minimize",
-    "fit",
     "is_optimizer",
-    "fit_sequential",
     "ScipyMinimizer",
     "OptimizeResult",
     "Optimizer",
