@@ -2,12 +2,14 @@
 Core maths functions.
 """
 
+import pmrf.math.aggregations as aggregations
 from pmrf.math.aggregations import (
     weighted_sum as weighted_sum,
     geometric_mean as geometric_mean,
     convolution_aggregate as convolution_aggregate,
     multioutput_aggregate as multioutput_aggregate,
 )
+
 from pmrf.math.conversions import (
     complex_2_magnitude as complex_2_magnitude,
     complex_2_db as complex_2_db,
@@ -38,6 +40,7 @@ from pmrf.math.conversions import (
     complexify as complexify,
     CONVERSION_LOOKUP as CONVERSION_LOOKUP,
 )
+import pmrf.math.losses as losses
 from pmrf.math.losses import (
     mean_squared_error as mean_squared_error,
     log_mean_squared_error as log_mean_squared_error,
@@ -51,10 +54,7 @@ from pmrf.math.losses import (
 from pmrf.math.misc import *
 
 __all__ = [
-    "weighted_sum",
-    "geometric_mean",
-    "convolution_aggregate",
-    "multioutput_aggregate",
+    "aggregations",
     "complex_2_magnitude",
     "complex_2_db",
     "complex_2_db10",
@@ -82,13 +82,7 @@ __all__ = [
     "rect_2_polar",
     "sqrt_phase_unwrap",
     "complexify",
+    "losses",
     "CONVERSION_LOOKUP",
-    "mean_squared_error",
-    "log_mean_squared_error",
-    "root_mean_squared_error",
-    "mean_absolute_error",
-    "mean_absolute_percentage_error",
-    "huber_loss",
-    "hinge_loss",
     "LOSS_LOOKUP",
 ]

@@ -1,15 +1,15 @@
 Model Building
 --------------
-**ParamRF** provides a :class:`~pmrf.models` library with common components such as lumped and distributed elements. Models can be built directly using these in a compositional approach without needing to inherit from the :class:`~pmrf.Model`. For more complex modeling, an inheritance-based approach is likely prefered. Both options are described below.
+**ParamRF** provides a :class:`~pmrf.models` library with common components such as lumped and distributed elements. Models can be built directly using these in a compositional approach without needing to inherit from :class:`~pmrf.Model`. For more complex modeling, however, an inheritance-based approach is likely prefered. This page provides an introduction into both approaches.
 
 Compositional Modeling
 ~~~~~~~~~~~~~~~~~~~~~~
-"Compositional" modeling refers to the approach of directly combining model objects together to create new ones. In ParamRF, this can be done by combining built-in models.
+"Compositional" modeling refers to the approach of directly combining model objects together to create new ones. In ParamRF, this can be done by combining built-in models using operator overloading and wrapper classes.
 
 Cascaded and Terminated Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For simple circuit element chains, the ``**`` and ``@`` operators can be used to cascade and terminate models together.
+For simple circuit element chains, the ``**`` and ``@`` operators can be used to cascade and terminate models.
 
 The example below creates a parallel RLC model and terminates it in an open circuit. The resultant ``rlc`` is a :class:`~pmrf.Model` of type :class:`~pmrf.models.composite.interconnected.Cascade`, consisting of parameters representing R, L and C. ``rlc_terminated``, on the other hand, is of type :class:`~pmrf.models.composite.interconnected.Terminated`. Both :class:`~pmrf.models.composite.interconnected.Cascade` and :class:`~pmrf.models.composite.interconnected.Terminated` can, of course, be instantiated directly, as also demonstrated.
 
@@ -100,13 +100,13 @@ Any parameters in the model should be marked with the type `parax.Parameter <htt
 
 Note that although parameters must be annotated using :class:`parax.Parameter`, parameter initialization is flexible:
 
-  * Parameters may be populated with a simple float value, and are automatically converted as long as only `__post_init__` (and not `__init__`) is overriden.
+  * Parameters may be populated with a simple float value, and are automatically converted as long as only ``__post_init__`` (and not ```__init__``) is overriden.
   * Factory methods such as :class:`parax.Uniform`, :class:`parax.Normal` or :class:`parax.Fixed` can be used directly inline without Python mutable object reference issues.
   * Parameters can be instantiated using the :class:`parax.Parameter` class constructor directly.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
-The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as if it were a JAX array during the computation, even though it is indeed a parameter when ``s`` is called.
+The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as if it were a JAX array during the computation.
 
 .. code-block:: python
 
@@ -141,9 +141,13 @@ The following example demonstrates custom model definition by defining a capacit
 
 Circuit Models
 ^^^^^^^^^^^^^^
-For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via :class:`~pmrf.models.composite.interconnected.Circuit`. The following example creates a PI-CLC model once again, but using this approach.
+For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via :class:`~pmrf.models.composite.interconnected.Circuit`.
 
-Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it may still be desirable to provide initialization parameters separate to your model parameters to provide more advance user initializations. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach, as demonstrated below. However, as a last resort, overriding ``__init__`` is still possible, but parameter annotations initialized with other types must then be manually converted during initialization, and ``super().__init__`` **must** be called.
+The following example creates a PI-CLC model once again, but using this approach.
+
+Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is often still desirable to have temporary init parameters separate to your model parameters. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach. This is demonstrated below.
+
+As a last resort, overriding ``__init__`` is still possible, but parameters must be manually converter using the :class:`parax.Parameter` constructor, and ``super().__init__`` **must** explicitly be called.
 
 .. code-block:: python
 
