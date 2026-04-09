@@ -11,7 +11,7 @@ First, ensure ParamRF is installed (requires Python 3.11+):
 
    $ pip install paramrf
 
-Note that for Bayesian inferenc, you may need this fork of distreqx:
+Note that for Bayesian inference, you may need this fork of distreqx:
 
 .. code-block:: bash
 
@@ -37,7 +37,7 @@ Models can easily be built using composition with the built in :mod:`pmrf.models
 
 Optimizing the S-parameters
 ---------------------------
-ParamRF provides several optimization and inference wrappers around backends like :mod:`scipy.minimize`, :mod:`Optimistix` and :mod:`PolyChord`. The following snippet demonstrates how to optimize the previous RLC model to achieve a simple design goal using the built-in :class:`~pmrf.evaluators.Goal` hinge loss evaluator.
+ParamRF provides several optimization and inference wrappers around backends like :mod:`scipy.minimize`, :mod:`Optimistix` and :mod:`PolyChord`. The following snippet demonstrates how to optimize the previous RLC model to satisfy a simple design goal using the built-in :class:`~pmrf.evaluators.Goal` evaluator.
 
 .. code-block:: python
 
@@ -54,5 +54,5 @@ ParamRF provides several optimization and inference wrappers around backends lik
 
 Next steps
 ----------
-* To delve a bit deeper into the library's core building blocks, see the :doc:`core_concepts/index` page.
-* For a step-by-step guide on more advanced features, the :doc:`tutorials/index` is a good place to start.
+* To delve a bit deeper into understanding the library's core building blocks, see the :doc:`core_concepts/index` page.
+* For a step-by-step guide, the :doc:`tutorials/index` is a good place to start.

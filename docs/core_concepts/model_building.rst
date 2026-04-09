@@ -4,7 +4,7 @@ Model Building
 
 Compositional Modeling
 ~~~~~~~~~~~~~~~~~~~~~~
-"Compositional" modeling refers to the approach of directly combining model objects to create a new model. This can be doing using a combination of built-in models, as well as operator overloading.
+"Compositional" modeling refers to the approach of directly combining model objects together to create new ones. In ParamRF, this can be done by combining built-in models.
 
 Cascaded and Terminated Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -72,7 +72,7 @@ If the above sounded confusing, don't worry - the method is easy to understand u
 
 Parameter Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~
-Although more detailed parameter manipulation is described in the `Parax <https://gvcallen.github.io/parax/api/#parax.Module>`_ documentation, we provide a basic example here for the case of compositional model building using the previous cascade example. Note that :class:`pmrf.models.components.lumped.ShuntResistor`, :class:`pmrf.models.components.lumped.ShuntInductor`, and :class:`pmrf.models.components.lumped.ShuntCapacitor` are marked as "transparent" Parax models, meaning that their internally parameters are directly accessed via the model name. However, for models with several parameters, the model name acts as a prefix.
+Although more detailed parameter manipulation is described in the `Parax <https://gvcallen.github.io/parax/api/#parax.Module>`_ documentation, we provide a basic example here for the case of compositional model building using the previous cascade example. Note that :class:`~pmrf.models.components.lumped.ShuntResistor`, :class:`~pmrf.models.components.lumped.ShuntInductor`, and :class:`~pmrf.models.components.lumped.ShuntCapacitor` are marked as "transparent" Parax models, allowing their internal parameters to be directly accessed using the model name. However, for models without this flag set, the model name acts as a prefix, with the parameter variables as the suffix.
 
 .. code-block:: python
 
@@ -100,13 +100,13 @@ Any parameters in the model should be marked with the type `parax.Parameter <htt
 
 Note that although parameters must be annotated using :class:`parax.Parameter`, parameter initialization is flexible:
 
-  * Parameters may be populated with a simple float value, and are automatically converted if only  `__post_init__` is overriden.
-  * Factory methods such as :class:`parax.Uniform`, :class:`parax.Normal` or :class:`parax.Fixed` can be used. Parameters are deepcopied internally to avoid Python mutation issues.
+  * Parameters may be populated with a simple float value, and are automatically converted as long as only `__post_init__` (and not `__init__`) is overriden.
+  * Factory methods such as :class:`parax.Uniform`, :class:`parax.Normal` or :class:`parax.Fixed` can be used directly inline without Python mutable object reference issues.
   * Parameters can be instantiated using the :class:`parax.Parameter` class constructor directly.
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
-The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as if it were a JAX array during the computation, even though it is a parameter when ``s`` is called.
+The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as if it were a JAX array during the computation, even though it is indeed a parameter when ``s`` is called.
 
 .. code-block:: python
 
@@ -141,9 +141,9 @@ The following example demonstrates custom model definition by defining a capacit
 
 Circuit Models
 ^^^^^^^^^^^^^^
-For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via :class:`~pmrf.models.composite.interconnected.Circuit`. The following example therefore creates a PI-CLC model once again, but using this approach.
+For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via :class:`~pmrf.models.composite.interconnected.Circuit`. The following example creates a PI-CLC model once again, but using this approach.
 
-Note that, when inheriting from models, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is still common to want to initialized a model using user-provided settings. In this case, using :class:`dataclasses.InitVar` with ``__post_init`` is the canonical approach, as demonstrated below. However, overriding ``__init__`` is still possible, but float-initialized parameters must then be manually converted during initialization, and ``super().__init__`` **must** be called.
+Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it may still be desirable to provide initialization parameters separate to your model parameters to provide more advance user initializations. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach, as demonstrated below. However, as a last resort, overriding ``__init__`` is still possible, but parameter annotations initialized with other types must then be manually converted during initialization, and ``super().__init__`` **must** be called.
 
 .. code-block:: python
 
@@ -151,17 +151,18 @@ Note that, when inheriting from models, an explicit ``__init__`` method is not r
   from parax.parameters import Uniform
   import pmrf as prf
   from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+  import parax as prx
   
   class PiCLC(prf.Model):
       C1_divided_by_5: InitVar[float]
   
       # To be instantiated in post init
-      cap1: Capacitor
+      cap1: Capacitor = prx.field(init=False)
       cap2: Capacitor = Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
       ind: Inductor = Inductor(L=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
   
-      def __post_init__(self):
-          self.cap1 = Capacitor(self.C1_divided_by_5 * 5.0)
+      def __post_init__(self, C1_divided_by_5: float):
+          self.cap1 = Capacitor(C1_divided_by_5 * 5.0)
   
       def __call__(self) -> prf.Model:
           # Instantiate the ports and grounds
@@ -176,3 +177,6 @@ Note that, when inheriting from models, an explicit ``__init__`` method is not r
   
           # Return the model
           return Circuit(connections)
+      
+  model = PiCLC(C1_divided_by_5=1e-12, cap2=Capacitor(1e-12), ind=Inductor(1e-9))
+  assert model.cap1.C.value == 1e-12 * 5.0
