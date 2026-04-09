@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.15.3"
+version = "0.15.4"
 description = "Parametric radio frequency modelling, optimization and sampling"
 readme = "README.rst"
 authors = [
