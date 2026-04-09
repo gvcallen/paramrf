@@ -67,9 +67,9 @@ The example below shows how to define and optimize a simple RLC model to satisfy
   goal = prf.evaluators.Goal('s11_db', '<', -20)
   
   # Optimize the model with Nelder-Mead and output results
-  result = prf.optimize.minimize(goal, rlc_model, opt_freq, solver='Nelder-Mead')
+  result = prf.optimize.minimize(goal, rlc_model, opt_freq, method='Nelder-Mead')
   result.model.plot_s_db(freq, m=0, n=0)
-  print(result.model.named_param_values())
+  print(result.model.param_values())
 
 Optional dependencies
 ---------------------
