@@ -27,11 +27,11 @@ def fit(
     **kwargs
 ) -> FitResult:
     """
-    Fit a model to data using either frequentist optimization or Bayesian sampling.
+    Fit a model to data using a variety of methods.
 
     This is a unified router to either :meth:`pmrf.fitting.fit_minimize`
     or :meth:`pmrf.fitting.fit_sample`. The execution path is determined by the
-    type of `solver` provided.
+    type of `solver` provided. All key-word arguments are forward appropriately.
 
     Parameters
     ----------
