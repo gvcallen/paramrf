@@ -29,6 +29,7 @@ from pmrf.models.components.ideal import (
 )
 from pmrf.models.components.lines import (
     TransmissionLine as TransmissionLine,
+    FloatingLine as FloatingLine,
     RLGCLine as RLGCLine,
     PhaseLine as PhaseLine,
     ConstantRLGCLine as ConstantRLGCLine,
@@ -70,7 +71,10 @@ from pmrf.models.composite.transformed import (
     Renumbered as Renumbered,
     Flipped as Flipped,
     Stacked as Stacked,
+    GroundLifted as GroundLifted,
+    GroundExposed as GroundExposed,
 )
+
 from pmrf.models.surrogates.expansion import LinearExpansion as LinearExpansion
 from pmrf.models import adapters, components, composite, surrogates
 

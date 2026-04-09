@@ -211,8 +211,8 @@ def hinge_loss(
     weight: float | jnp.ndarray = 1.0,
     mask: jnp.ndarray | None = None,
     base_loss_fn: str | Callable = 'rmse', 
-    sample_weight: jnp.ndarray | None = None,
     multioutput: str | jnp.ndarray | Callable = 'uniform_average',
+    **kwargs,
 ) -> jnp.ndarray:
     """
     Applies a differentiable one-sided constraint (hinge) before evaluating a base metric.
@@ -235,10 +235,8 @@ def hinge_loss(
     base_loss_fn : str | Callable, default='rmse'
         The underlying mathematical metric applied to the constraint residual.
         Can be a string alias (resolved via LOSS_LOOKUP) or a custom callable.
-    sample_weight : jnp.ndarray | None, default=None
-        Optional array of weights for each sample, passed to the base loss function.
-    multioutput : str | jnp.ndarray | Callable, default='uniform_average'
-        Defines the aggregation strategy across multiple output dimensions.
+    **kwargs
+        Key-word arguments to forward to the underlying loss function.
 
     Returns
     -------
@@ -276,10 +274,9 @@ def hinge_loss(
     
     # 4. Defer actual distance calculation to the base metric
     return base_loss_fn(
-        y_true=y_true,
-        y_pred=final_pred,
-        sample_weight=sample_weight,
-        multioutput=multioutput,
+        y_true,
+        final_pred,
+        **kwargs,
     )
     
 LOSS_LOOKUP: dict[str, tuple[str, Callable | None]] = {

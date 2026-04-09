@@ -130,10 +130,10 @@ class HingeLoss(Loss):
     weight: float | jnp.ndarray = 1.0
     
     #: A boolean array filtering which data points apply to this loss.
-    mask: jnp.ndarray | None = prx.field(default=None, static=True)
+    mask: jnp.ndarray | None = prx.field(default=None)
     
     #: The underlying loss function.
-    base_loss_fn: str | Callable | Loss = prx.field(default='rmse', static=True)
+    base_loss_fn: str | Callable | Loss = prx.field(default=RMSELoss())
     
     #: Defines the aggregation strategy across multiple output dimensions.    
     multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)

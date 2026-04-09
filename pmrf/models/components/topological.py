@@ -10,18 +10,12 @@ from pmrf.rf import y2s
 
 class PiCLC(Model):
     """
-    A 2-port or 3-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
+    A 2-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
 
     This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
     and a second shunt capacitor (`C2`). It is a fundamental building block
     for various filters and matching networks, and is also commonly used to
     model the parasitic effects of physical components like SMD resistors.
-
-    The parameter `three_port` determines whether all four ports are exposed or not.
-
-    To ensure numerical stability when using with JAX, this model provides a
-    special case for when the series inductance `L` is zero, where the network
-    behaves as a single shunt capacitor.
 
     Attributes
     ----------
@@ -31,35 +25,28 @@ class PiCLC(Model):
         The value of the series inductor in Henrys.
     C2 : Parameter, default=1.0e-12
         The value of the second shunt capacitor in Farads.
-    three_port : bool, default=False
         If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
         If False, treats it as a standard 2-port network.
     """
     C1: Parameter = 1.0e-12
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
-    three_port: bool = False
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
-        if not self.three_port:
-            raise Exception('y only available for pi-CLC for three_port == True')
+    # def y(self, freq: Frequency) -> jnp.ndarray:
+    #     if not self.three_port:
+    #         raise Exception('y only available for pi-CLC for three_port == True')
         
-        Y1 = 1j * freq.w * self.C1
-        Y2 = 1j * freq.w * self.C2
-        Y3 = 1 / (1j * freq.w * self.L)
+    #     Y1 = 1j * freq.w * self.C1
+    #     Y2 = 1j * freq.w * self.C2
+    #     Y3 = 1 / (1j * freq.w * self.L)
 
-        return jnp.array([
-            [Y1 + Y3,       -Y3,            -Y1],
-            [-Y3,           Y2 + Y3,        -Y2],
-            [-Y1,           -Y2,            Y1 + Y2],
-        ]).transpose(2, 0, 1)        
+    #     return jnp.array([
+    #         [Y1 + Y3,       -Y3,            -Y1],
+    #         [-Y3,           Y2 + Y3,        -Y2],
+    #         [-Y1,           -Y2,            Y1 + Y2],
+    #     ]).transpose(2, 0, 1)        
     
     def a(self, freq: Frequency) -> jnp.ndarray:
-        if self.three_port:
-            raise Exception('Cannot calculate ABCD matrix of pi network when three_port == True')
-
-        # This conditional dispatch is used to avoid division-by-zero errors
-        # during JAX transformations if L becomes zero.
         return jax.lax.cond(
             self.L == 0.0,
             lambda: self.a_zero_inductance(freq),
@@ -123,16 +110,16 @@ class PiCLC(Model):
             [Y,     ones]
         ]).transpose(2, 0, 1)
     
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        if not self.three_port:
-            from pmrf.rf import a2s
-            return a2s(self.a(freq), self.z0)
+    # def s(self, freq: Frequency) -> jnp.ndarray:
+    #     if not self.three_port:
+    #         from pmrf.rf import a2s
+    #         return a2s(self.a(freq), self.z0)
         
-        return y2s(self.y(freq), self.z0)
+    #     return y2s(self.y(freq), self.z0)
     
 class BoxCLCC(Model):
     """
-    A 3-port or 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
+    A 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
 
     This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
     and a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
@@ -156,12 +143,8 @@ class BoxCLCC(Model):
     L: Parameter = 1.0e-9
     C2: Parameter = 1.0e-12
     C3: Parameter = 1.0e-12
-    four_port: bool = False
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        if not self.four_port:
-            raise NotImplementedError('y only available for pi-CLC for four_port == True')
-
         return jax.lax.cond(
             jnp.array(self.L) <= 1e-18,
             lambda: self.y_zero_inductance(freq),
@@ -231,7 +214,4 @@ class BoxCLCC(Model):
         ]).transpose(2, 0, 1)    
     
     def s(self, freq: Frequency) -> jnp.ndarray:
-        if not self.four_port:
-            raise NotImplementedError('Box-CLCC network not yet available for four_port == False')
-        
         return y2s(self.y(freq), self.z0)

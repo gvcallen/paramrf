@@ -13,7 +13,7 @@ from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency, Evaluator
-from pmrf.losses import HingeLoss, LogMSELoss
+from pmrf.losses import HingeLoss, RMSELoss
 
 class Feature(Evaluator):
     """
@@ -69,22 +69,30 @@ class Feature(Evaluator):
                 )
             return
 
-        # 5. Standard Regex Parsing (e.g., s11_db)
-        match = re.match(r'^([a-zA-Z]+)(\d)?(\d)?(.*)$', local_alias)
-        if not match:
-            raise ValueError(f"Invalid feature alias format: '{alias}'")
-
-        prop_prefix, p1, p2, prop_suffix = match.groups()
-        path = f"{subattrs}.{prop_prefix}{prop_suffix}" if subattrs else f"{prop_prefix}{prop_suffix}"
+        # 5. Regex Parsing for Port Indices (e.g., s11_db, y21)
+        # Matches a string starting with letters, exactly 2 digits, and an optional suffix
+        rf_match = re.match(r'^([a-zA-Z]+)(\d)(\d)(_[a-zA-Z0-9_]+)?$', local_alias)
         
-        node = Method(path=path)
-
-        # 6. Apply Port Indexing if specified
-        if p1 is not None and p2 is not None:
-            # Slices lead freq dim + 0-indexed ports
+        if rf_match:
+            prop_prefix, p1, p2, prop_suffix = rf_match.groups()
+            prop_suffix = prop_suffix or ""  # Convert None to empty string
+            
+            path = f"{subattrs}.{prop_prefix}{prop_suffix}" if subattrs else f"{prop_prefix}{prop_suffix}"
+            node = Method(path=path)
+            
+            # Apply Port Indexing (slices lead freq dim + 0-indexed ports)
             indices = (slice(None), int(p1) - 1, int(p2) - 1)
             node = Index(operator=node, indices=indices)
-        
+            
+        else:
+            # 6. Standard Attribute Fallback (e.g., 's_mag', 'my_custom_prop2')
+            # Must strictly be a valid python identifier!
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', local_alias):
+                raise ValueError(f"Invalid feature alias format: '{alias}'")
+                
+            path = f"{subattrs}.{local_alias}" if subattrs else local_alias
+            node = Method(path=path)
+
         self.op = node
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -192,7 +200,7 @@ class Goal(TargetLoss):
         target: float | jnp.ndarray = 0.0,
         weight: float | jnp.ndarray = 1.0,
         mask: jnp.ndarray | None = None,
-        loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = LogMSELoss(),
+        loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = RMSELoss(),
         multioutput: str | Any = 'uniform_average'
     ):
         """

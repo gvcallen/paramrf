@@ -28,14 +28,7 @@ class TransmissionLine(Model, ABC):
 
     This model computes these S-parameters and then re-normalized them into $Z_0$ and the power-wave definition
     using :meth:`pmrf.rf.renormalize_s`.
-
-    Attributes
-    ----------
-    floating : bool, default=False
-        If True, modeled as a 4-port differential network (ports 0/1 and 2/3 
-        form terminal pairs). If False, modeled as a 2-port single-ended network.
     """
-    floating: bool = prx.field(default=False, static=True)
 
     @abstractmethod
     def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
@@ -57,30 +50,46 @@ class TransmissionLine(Model, ABC):
     def s(self, frequency: Frequency) -> jnp.ndarray:
         zc, gL = self.zc_and_gammaL(frequency)
         
-        if self.floating:
-            denom = -1 + 9*jnp.exp(2*gL)
-            a = (1 + 3*jnp.exp(2*gL)) / denom
-            b = 4*jnp.exp(gL) / denom
-            c = (-2 + 6*jnp.exp(2*gL)) / denom
-            d = -b
+        a = jnp.zeros(frequency.npoints, dtype=complex)
+        s21 = jnp.exp(-1*gL)
 
-            s = jnp.array([
-                [a, c, b, d],
-                [c, a, d, b],
-                [b, d, a, c],
-                [d, b, c, a],
-            ]).transpose(2, 0, 1)
-        else:
-            a = jnp.zeros(frequency.npoints, dtype=complex)
-            s21 = jnp.exp(-1*gL)
-
-            s = jnp.array([
-                [a, s21],
-                [s21, a],
-            ]).transpose(2, 0, 1)
+        s = jnp.array([
+            [a, s21],
+            [s21, a],
+        ]).transpose(2, 0, 1)
 
         # Renormalize into the model's characteristic impedance and power waves
         # (the above formulation is in terms of traveling waves).
+        return renormalize_s(s, zc, self.z0, 'traveling', 'power')
+    
+
+class FloatingLine(Model, transparent=True):
+    """
+    A wrapper that converts a 2-port single-ended transmission line 
+    into a 4-port floating line with an explicit return path.
+    """
+    #: The inner transmission line model to be wrapped.
+    line: TransmissionLine
+
+    def s(self, frequency: Frequency) -> jnp.ndarray:
+        # 1. Extract the physical wave parameters from the inner line
+        zc, gL = self.line.zc_and_gammaL(frequency)
+        
+        # 2. Apply the coupled/floating traveling-wave math
+        denom = -1 + 9 * jnp.exp(2 * gL)
+        a = (1 + 3 * jnp.exp(2 * gL)) / denom
+        b = 4 * jnp.exp(gL) / denom
+        c = (-2 + 6 * jnp.exp(2 * gL)) / denom
+        d = -b
+
+        s = jnp.array([
+            [a, c, b, d],
+            [c, a, d, b],
+            [b, d, a, c],
+            [d, b, c, a],
+        ]).transpose(2, 0, 1)
+
+        # 3. Renormalize the 4-port matrix
         return renormalize_s(s, zc, self.z0, 'traveling', 'power')
     
 

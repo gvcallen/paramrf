@@ -254,9 +254,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f + (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f + (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __sub__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -273,9 +272,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f - (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f - (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __mul__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -292,9 +290,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f * (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f * (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __rmul__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -310,9 +307,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f * (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f * (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __div__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -329,9 +325,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f / (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f / (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __truediv__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -348,9 +343,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f / (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f / (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __floordiv__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -366,9 +360,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f // (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f // (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     def __mod__(self, other: Frequency | NumberLike) -> Frequency:
         """
@@ -384,9 +377,8 @@ class Frequency(eqx.Module):
         Frequency
             A new object with updated frequency vector.
         """
-        out = self.copy()
-        out.f = self.f % (other.f if isinstance(other, Frequency) else other)
-        return out
+        new_f = self.f % (other.f if isinstance(other, Frequency) else other)
+        return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
     @property
     def start(self) -> float:

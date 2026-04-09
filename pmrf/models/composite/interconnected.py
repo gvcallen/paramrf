@@ -145,7 +145,7 @@ class Terminated(Model, transparent=True):
     
     def __post_init__(self):
         if self.from_model.nports != 2*self.into_model.nports:
-            raise ValueError("Currently, Terminated only supports 2-port networks terminated in a 1-port")
+            raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         Smat_from = self.from_model.s(freq)
