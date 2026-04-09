@@ -1,5 +1,4 @@
 import jax.numpy as jnp
-
 from pmrf.utils.anomaly import has_sudden_changes
 
 def has_converged_by_absolute_tolerance(values, atol, window=5):

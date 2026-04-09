@@ -33,7 +33,14 @@ from pmrf.fitting import (
     fit as fit,
     fit_sequential as fit_sequential
 )
-from pmrf.network_collection import NetworkCollection as NetworkCollection
+
+try:
+    import skrf as rf
+    skrf_available = True
+    from pmrf.network_collection import NetworkCollection as NetworkCollection
+except ImportError:
+    skrf_available = False
+    pass
 
 # 4. Sub-Modules
 from pmrf import (
@@ -66,7 +73,6 @@ __all__ = [
     "Problem",
     
     # Utilities & Functions
-    "NetworkCollection",
     "fit",
     "fit_sequential",
     "load",
@@ -87,3 +93,6 @@ __all__ = [
     "serialization",
     "viz",
 ]
+
+if skrf_available:
+    __all__.append('NetworkCollection')

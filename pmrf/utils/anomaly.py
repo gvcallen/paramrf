@@ -1,9 +1,5 @@
 import jax.numpy as jnp
-import os
-import numpy as np
-import jax.numpy as jnp
 from jax import vmap
-import matplotlib.pyplot as plt
 
 def get_anomaly_mask(Y, threshold):
     """

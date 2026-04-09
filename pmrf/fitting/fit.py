@@ -1,7 +1,11 @@
 from typing import Any, Callable
 
 import jax.numpy as jnp
-import skrf
+
+try:
+    import skrf
+except ImportError:
+    pass
 
 from pmrf.core import Model, Frequency, EvaluatorLike
 from pmrf.optimize.solvers import ScipyMinimizer
@@ -15,7 +19,7 @@ from pmrf.constants import Optimizer, Inferer
 
 def fit(
     model: Model,
-    data: jnp.ndarray | skrf.Network | NetworkCollection,
+    data: jnp.ndarray | 'skrf.Network' | NetworkCollection,
     frequency: Frequency | None = None,
     solver: Optimizer | Inferer = ScipyMinimizer(),
     *,

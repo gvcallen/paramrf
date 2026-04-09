@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import logging
 
@@ -13,6 +12,8 @@ from pmrf.network_collection import NetworkCollection
 logger = logging.getLogger(__name__)
 
 def _setup_figure(frequency, feature, **kwargs):
+    import matplotlib.pyplot as plt
+
     kwargs.setdefault('figsize', (8, 6))
     fig, ax = plt.subplots(**kwargs)
     unit = frequency.unit if frequency else "Hz"
@@ -63,6 +64,8 @@ def plot_fit_result(
     axes : matplotlib.axes.Axes or numpy.ndarray
         The axes or array of axes used for the plot.
     """
+    import matplotlib.pyplot as plt
+
     if result.frequency is None:
         raise ValueError("Cannot plot: frequency is missing from the result.")
     

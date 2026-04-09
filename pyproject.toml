@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.15.2"
+version = "0.15.3"
 description = "Parametric radio frequency modelling, optimization and sampling"
 readme = "README.rst"
 authors = [
@@ -14,12 +14,10 @@ dependencies = [
     "distreqx",
     "optimistix",
     "inferix",
-    "matplotlib",
     "numpy",
+    "scipy",
     "scikit-rf",
-    "joblib",
     "tqdm",
-    
 ]
 
 [project.optional-dependencies]
@@ -36,6 +34,7 @@ docs = [
 tests = [
     "pytest",
     "ipython",
+    "scikit-rf",
 ]
 
 [project.urls]

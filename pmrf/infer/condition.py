@@ -5,10 +5,14 @@ Conditioning a model on data using Bayesian inference.
 from typing import Callable
 
 import jax.numpy as jnp
-import skrf
 import distreqx.distributions as dist
 import parax as prx
 from inferix import PolyChord
+
+try:
+    import skrf
+except ImportError:
+    pass
 
 from pmrf.core import Model, Frequency
 from pmrf.constants import Inferer
@@ -22,7 +26,7 @@ from pmrf.infer.sample import sample
 
 def condition(
     model: Model,
-    data: jnp.ndarray | skrf.Network | NetworkCollection,
+    data: jnp.ndarray | 'skrf.Network' | NetworkCollection,
     frequency: Frequency | None = None,
     solver: Inferer = PolyChord(),
     *,
