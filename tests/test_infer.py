@@ -36,7 +36,7 @@ def infer_model():
 # PolyChord / Inference Tests
 # ---------------------------------------------------------
 
-def test_sample_polychord(infer_model, basic_freq):
+def test_sample_polychord(infer_model, basic_freq, tmp_path):
     """
     Test the lower-level sample() wrapper using PolyChord.
     Exercises the ICDF prior transformation, batched models, and posterior packing.
@@ -48,7 +48,6 @@ def test_sample_polychord(infer_model, basic_freq):
     
     from inferix import PolyChord
     
-    # Define a simple log-likelihood: Gaussian centered at 7.0
     def log_like(m, f):
         return -0.5 * jnp.sum((m.val - 7.0)**2)
         
@@ -56,40 +55,37 @@ def test_sample_polychord(infer_model, basic_freq):
         log_likelihood_fn=log_like,
         model=infer_model,
         frequency=basic_freq,
-        solver=PolyChord(),
+        solver=PolyChord(do_clustering=False),
         nlive_factor=5,
         num_repeats=1,
         precision_criterion=1.0,
-        feedback=0,         # Mute terminal output
-        write_resume=False, # Don't litter the test directory
+        feedback=0,         
+        write_resume=False, 
         write_live=False,
         write_dead=False,
-        write_stats=False
+        write_stats=False,
+        base_dir=str(tmp_path)  # <-- Force PolyChord to write to the temp directory!
     )
     
-    # 1. Verify the Maximum Likelihood Estimate (MLE) model was extracted
     assert isinstance(result.model, DummyInferModel)
-    assert result.model.val.value > 0.0 # Should have moved toward 7.0
+    assert result.model.val.value > 0.0 
     
-    # 2. Verify the posterior distribution mechanics
-    assert len(result.model.param_groups()) > 0
-    posterior_dist = result.model.param_groups()[0].distribution
+    groups = result.model.param_groups()
+    assert len(groups) > 0
+    posterior_dist = groups[0].distribution
     assert isinstance(posterior_dist, distreqx.distributions.WeightedEmpirical)
     
-    # Ensure the empirical distribution can be sampled or averaged
     mean_val = posterior_dist.mean()
     assert mean_val.shape == (1,)
     assert not jnp.isnan(mean_val)
     
-    # 3. Verify the batched models were returned correctly
     batched_model = result.sampled_models
     assert isinstance(batched_model, DummyInferModel)
-    
-    # The internal arrays of the batched model should have a leading batch dimension
     n_samples = result.log_likelihoods.shape[0]
     assert batched_model.val.value.shape == (n_samples,)
 
-def test_condition_polychord(infer_model, basic_freq):
+
+def test_condition_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path here
     """
     Test the high-level condition() wrapper using PolyChord.
     Ensures Feature extractors, Likelihoods, and Data coercion work.
@@ -101,28 +97,26 @@ def test_condition_polychord(infer_model, basic_freq):
     from inferix import PolyChord
     from pmrf.likelihoods import GaussianLikelihood
     
-    # Our target data: S-parameter magnitude is 3.0 at all frequencies
     target_data = jnp.ones(basic_freq.npoints) * 3.0
     
     result = condition(
         model=infer_model,
         data=target_data,
         frequency=basic_freq,
-        solver=PolyChord(),
+        solver=PolyChord(do_clustering=False),
         features='s_mag',
-        likelihood_fn=GaussianLikelihood(noise=1.0), # FIXED: was sigma=1.0
+        likelihood_fn=GaussianLikelihood(noise=1.0),
         nlive_factor=5,
         num_repeats=1,
         precision_criterion=1.0,
-        feedback=0, # Mute terminal output
+        feedback=0, 
         write_resume=False,
         write_live=False,
         write_dead=False,
-        write_stats=False
+        write_stats=False,
+        base_dir=str(tmp_path)  # <-- Force PolyChord to write to the temp directory!
     )
     
     assert isinstance(result.model, DummyInferModel)
-    
-    # Check that the batched models are properly synced with the likelihoods
     n_samples = result.log_likelihoods.shape[0]
     assert result.sampled_models.val.value.shape == (n_samples,)
