@@ -1,42 +1,14 @@
 """
 Non-ideal models (e.g. resistors with parasitics)
 """
-from abc import abstractmethod
-
 import jax.numpy as jnp
 
 from pmrf.core import Model, Frequency
 from pmrf.models.components.lumped import Resistor
 from pmrf.models.components.topological import PiCLC
 
-class NonIdealResistor(Model):
-    """
-    An abstract base class for creating realistic resistor models that include parasitic effects.
 
-    This class provides a framework for representing a physical resistor as a
-    combination of an ideal resistive element and a network of parasitic
-    components (like series inductance and parallel capacitance).
-
-    Subclasses are required to implement the `ideal` and `parasitics`
-    properties to define the specific topology of the non-ideal model.
-    """
-    @property
-    @abstractmethod
-    def ideal(self) -> Model:
-        """
-        Model: The ideal part of the component (e.g., the pure resistance).
-        """
-        raise Exception("Subclasses must implement the 'ideal' property.")
-
-    @property
-    @abstractmethod
-    def parasitics(self) -> Model:
-        """
-        Model: The parasitic network of the component.
-        """
-        raise Exception("Subclasses must implement the 'parasitics' property.")
-
-class CLCResistor(NonIdealResistor):
+class CLCResistor(Model):
     """
     A model for a non-ideal resistor with parasitic capacitance and inductance.
 

@@ -1,7 +1,7 @@
 """
 Adapter models to bridge ParamRF with external software.
 """
-
+from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,43 +12,28 @@ import concurrent.futures
 from pmrf.core import Model, Frequency
             
 def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
-    """
-    Host-side wrapper that handles both single and batched (vmapped) execution.
-    """
-    # 1. Detect if we are running in a batch (vmap) or single mode
-    # We check all input leaves (params + freq). 'broadcast_all' ensures
-    # that if we are vmapped, ALL leaves will have an extra leading dimension.
     all_leaves = jax.tree.leaves((dynamic_vals, freq))
-    all_shapes = leaf_shapes + [x.shape for x in jax.tree.leaves(freq)]
     
     is_batched = False
     if len(all_leaves) > 0:
-        # If the actual array has more dimensions than the original, it's a batch.
-        if all_leaves[0].ndim > len(all_shapes[0]):
+        # leaf_shapes already contains the unbatched shapes for both dynamic and freq
+        if all_leaves[0].ndim > len(leaf_shapes[0]):
             is_batched = True
     
-    # 2. Single execution (Standard behavior)
+    # 2. Single execution
     if not is_batched:
         model = eqx.combine(dynamic_vals, static_model)
-        # Ensure we return a standard numpy array to JAX
         return np.array(model.compute(freq))
 
     # 3. Batched execution (Multithreading)
-    # vmap_method='broadcast_all' ensures all inputs share the same batch size
     batch_size = all_leaves[0].shape[0]
     
     def run_job(i):
-        # a. Slice the dynamic params AND freq for the i-th job
         dynamic_i = jax.tree.map(lambda x: x[i], dynamic_vals)
         freq_i = jax.tree.map(lambda x: x[i], freq)
-        
-        # b. Reconstruct the i-th model
         model_i = eqx.combine(dynamic_i, static_model)
-        
-        # c. Run simulation
         return np.array(model_i.compute(freq_i))
 
-    # Use ThreadPoolExecutor to run the external simulations in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(run_job, range(batch_size)))
         
@@ -57,8 +42,11 @@ def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
 
 class Host(Model):
     """
-    A base class for models where computation occurs on the Host (CPU/Python)
+    An abstract base class for models where computation occurs on the Host (CPU/Python)
     rather than the Device (XLA/GPU).
+    
+    Inherit from this class (defining your parameters as usual)
+    to create a ParamRF model that calls external software.
     
     These models break the JAX trace and cannot be JIT-compiled internally.
     Execution is threaded automatically when vmapped.
@@ -76,14 +64,15 @@ class Host(Model):
     def number_of_ports(self):
         raise NotImplementedError("Override 'number_of_ports' directly when using a Host model")
 
+    @abstractmethod
     def compute(self, freq: Frequency) -> np.ndarray | jnp.ndarray:
         """
-        The user-defined host-side computation. 
+        The user-defined host-side computation, to be overriden.
         
         This method receives concrete values (not tracers) and should return
         a numpy array of shape (n_freq, n_ports, n_ports).
         """
-        raise NotImplementedError("Subclasses of Host must implement 'compute'.")
+        raise NotImplementedError("Subclasses of `Host` must implement 'compute'.")
 
     def primary(self, freq: Frequency) -> jnp.ndarray:
         """
@@ -105,3 +94,5 @@ class Host(Model):
         # 'broadcast_all' ensures that if vmap is present, ALL arguments passed to 'cb'
         # (even those that weren't mapped) get the batch dimension added. 
         return jax.pure_callback(cb, result_shape, dynamic, freq, vmap_method='broadcast_all')
+    
+__all__ = ['host']

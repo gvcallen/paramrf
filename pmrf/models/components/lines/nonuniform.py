@@ -16,6 +16,8 @@ class ProfiledLine(Model, transparent=True):
     r"""
     A non-uniform transmission line defined by an arbitrary profile.
 
+    NB: Not yet tested.
+
     This model wraps any RLGC transmission line model and allows its parameters
     to vary as a function of length. For example, the line's characteristic impedance
     can be varied exponentially for impedance matching purposes.

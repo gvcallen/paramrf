@@ -54,25 +54,29 @@ from pmrf.models.components.lumped import (
     Match as Match,
 )
 from pmrf.models.components.nonideal import (
-    NonIdealResistor as NonIdealResistor,
     CLCResistor as CLCResistor,
 )
 from pmrf.models.components.topological import (
     PiCLC as PiCLC,
     BoxCLCC as BoxCLCC,
+    TeeLCL as TeeLCL,
+    LSectionLC as LSectionLC,
 )
 from pmrf.models.composite.interconnected import (
     Circuit as Circuit,
     Cascade as Cascade,
     Terminated as Terminated,
-    Shunt as Shunt,
 )
 from pmrf.models.composite.transformed import (
     Renumbered as Renumbered,
     Flipped as Flipped,
-    Stacked as Stacked,
+    Stacked as Stacked,    
+)
+
+from pmrf.models.composite.nodal import (
     GroundLifted as GroundLifted,
     GroundExposed as GroundExposed,
+    Shunt as Shunt,
 )
 
 from pmrf.models.surrogates.expansion import LinearExpansion as LinearExpansion

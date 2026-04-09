@@ -28,25 +28,48 @@ class Circuit(Model, transparent=True):
     port_idxs: list[int] = field(init=False, static=True)
 
     def __post_init__(self, connections):
-        # Because the class is frozen, we use object.__setattr__ to assign computed values
+        if not isinstance(connections, list):
+            raise TypeError("`connections` must be a list of lists (representing nodes).")
+
         models = []
         indexed_connections = []
         port_idxs = []
         id_to_index = {}
+        seen_ports = set()
 
-        for connection in connections:
+        for node_idx, connection in enumerate(connections):
+            if not isinstance(connection, list):
+                raise TypeError(f"Node {node_idx} in `connections` must be a list of (Model, port_index) tuples.")
+
             indexed_conn = []
-            for model, value in connection:
+            for item in connection:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    raise TypeError(f"Item {item} in node {node_idx} is invalid. Must be a tuple of (Model, port_index).")
+
+                model, value = item
+                
+                if not isinstance(model, Model):
+                    raise TypeError(f"Expected a Model instance in node {node_idx}, got {type(model).__name__}.")
+                if not isinstance(value, int):
+                    raise TypeError(f"Expected an integer port index in node {node_idx}, got {type(value).__name__}.")
+
                 model_id = id(model)
                 if model_id not in id_to_index:
                     id_to_index[model_id] = len(models)
                     models.append(model)
                 
                 model_idx = id_to_index[model_id]
-                indexed_conn.append((model_idx, value))
                 
-                if value > model.nports - 1:
-                    raise ValueError(f"Port index out of bounds for model {model.name}")
+                if value < 0 or value >= model.nports:
+                    raise ValueError(f"Port index {value} out of bounds for model '{getattr(model, 'name', 'unnamed')}' (nports={model.nports}).")
+                
+                # Prevent the same port of the same model instance from being connected to multiple nodes
+                port_signature = (model_id, value)
+                if port_signature in seen_ports:
+                    raise ValueError(f"Port {value} of model '{getattr(model, 'name', 'unnamed')}' is connected multiple times. A port can only belong to one node.")
+                seen_ports.add(port_signature)
+
+                indexed_conn.append((model_idx, value))
             
             indexed_connections.append(indexed_conn)
             
@@ -59,7 +82,7 @@ class Circuit(Model, transparent=True):
         self.indexed_connections = indexed_connections
         self.port_idxs = port_idxs
 
-    def s(self, freq: Frequency) -> jnp.array:
+    def s(self, freq: Frequency) -> jnp.ndarray:
         Smats = [model.s(freq) for model in self.models]
         z0s = [model.z0 for model in self.models]
 
@@ -154,45 +177,3 @@ class Terminated(Model, transparent=True):
         z0_into = self.into_model.z0
         S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
         return S_term
-
-
-class Shunt(Model, transparent=True):
-    r"""
-    Represents a 1-port network connected in parallel (shunt) across a 2-port line.
-
-    This maps the reflection coefficient ($\Gamma$ or $S_{11}$) of a 1-port 
-    model into a 2-port transmission matrix. 
-
-    Attributes
-    ----------
-    model : Model
-        The 1-port model to be connected in shunt.
-    """
-    model: Model
-    
-    def __post_init__(self):
-        if self.model.nports != 1:
-            raise ValueError(f"Shunt requires a 1-port model. Received a {self.model.nports}-port model.")
-
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        # Get the 1-port S-parameters. Shape: (npoints, 1, 1)
-        # Note: This assumes self.model.z0 == self.z0. If your library allows 
-        # mixed reference impedances, you will need to renormalize s_1p first.
-        s_1p = self.model.s(freq)
-        
-        # Extract the reflection coefficient array
-        gamma = s_1p[:, 0, 0]
-        
-        # Calculate 2-port S-parameters directly from 1-port Gamma
-        # This avoids divide-by-zero errors for ideal opens/shorts
-        denom = gamma + 3.0
-        s11 = (gamma - 1.0) / denom
-        s21 = 2.0 * (1.0 + gamma) / denom
-        
-        # Construct the (npoints, 2, 2) S-parameter array
-        S_shunt = jnp.array([
-            [s11, s21],
-            [s21, s11],
-        ]).transpose(2, 0, 1)
-        
-        return S_shunt

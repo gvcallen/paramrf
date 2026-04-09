@@ -84,7 +84,12 @@ class AbstractSingleProperty(Model, ABC):
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
     """
-    property: str = 's'
+    prop: str = 's'
+
+    @property
+    def primary_property(self) -> str:
+        # Prevents infinite recursion by explicitly telling Model the primary type
+        return self.prop    
     
     @abstractmethod
     def output(self, freq: Frequency) -> jnp.ndarray:
@@ -92,16 +97,16 @@ class AbstractSingleProperty(Model, ABC):
         raise NotImplementedError
     
     def s(self, freq: Frequency) -> jnp.ndarray:
-        return self.output(freq) if self.property == 's' else super().s(freq)
+        return self.output(freq) if self.prop == 's' else super().s(freq)
 
     def a(self, freq: Frequency) -> jnp.ndarray:
-        return self.output(freq) if self.property == 'a' else super().a(freq)
+        return self.output(freq) if self.prop == 'a' else super().a(freq)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        return self.output(freq) if self.property == 'y' else super().y(freq)
+        return self.output(freq) if self.prop == 'y' else super().y(freq)
 
     def z(self, freq: Frequency) -> jnp.ndarray:
-        return self.output(freq) if self.property == 'z' else super().z(freq)
+        return self.output(freq) if self.prop == 'z' else super().z(freq)
 
 
 class AbstractSingleDiscreteProperty(AbstractSingleProperty, AbstractDiscrete, ABC):
@@ -122,17 +127,17 @@ class AbstractSingleDiscreteProperty(AbstractSingleProperty, AbstractDiscrete, A
     # it as NotImplemented, forcing the Model to use high-level conversions.
     
     def s_discrete(self) -> jnp.ndarray:
-        if self.property == 's': return self.output_discrete()
+        if self.prop == 's': return self.output_discrete()
         raise NotImplementedError
 
     def a_discrete(self) -> jnp.ndarray:
-        if self.property == 'a': return self.output_discrete()
+        if self.prop == 'a': return self.output_discrete()
         raise NotImplementedError
 
     def y_discrete(self) -> jnp.ndarray:
-        if self.property == 'y': return self.output_discrete()
+        if self.prop == 'y': return self.output_discrete()
         raise NotImplementedError
 
     def z_discrete(self) -> jnp.ndarray:
-        if self.property == 'z': return self.output_discrete()
+        if self.prop == 'z': return self.output_discrete()
         raise NotImplementedError    

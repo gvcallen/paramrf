@@ -215,3 +215,127 @@ class BoxCLCC(Model):
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         return y2s(self.y(freq), self.z0)
+    
+
+class TeeLCL(Model):
+    """
+    A 2-port model of a Tee-network with an Inductor-Capacitor-Inductor topology.
+
+    This is the dual of the Pi-CLC network. It consists of a series inductor (`L1`),
+    a shunt capacitor (`C`), and a second series inductor (`L2`). It is often 
+    used for low-pass filtering and impedance matching.
+
+    Attributes
+    ----------
+    L1 : Parameter, default=1.0e-9
+        The value of the first series inductor in Henrys.
+    C : Parameter, default=1.0e-12
+        The value of the shunt capacitor in Farads.
+    L2 : Parameter, default=1.0e-9
+        The value of the second series inductor in Henrys.
+    """
+    L1: Parameter = 1.0e-9
+    C: Parameter = 1.0e-12
+    L2: Parameter = 1.0e-9
+
+    def a(self, freq: Frequency) -> jnp.ndarray:
+        return jax.lax.cond(
+            self.C == 0.0,
+            lambda: self.a_zero_capacitance(freq),
+            lambda: self.a_general(freq),
+        )
+
+    def a_general(self, freq: Frequency):
+        """
+        Internal calculation for the general case (C != 0).
+        """
+        L1, C, L2 = self.L1, self.C, self.L2
+        w = freq.w
+        Z1 = 1j * w * L1
+        Z2 = 1j * w * L2
+        Y3 = 1j * w * C
+
+        return jnp.array([
+            [1 + Z1 * Y3,           Z1 + Z2 + Z1 * Z2 * Y3],
+            [Y3,                    1 + Z2 * Y3           ],
+        ]).transpose(2, 0, 1)
+
+    def a_zero_capacitance(self, freq: Frequency):
+        """
+        Internal calculation for the zero capacitance case (C == 0).
+
+        The network simplifies to a single series inductor L = L1 + L2.
+        """
+        L1, L2 = self.L1, self.L2
+        w = freq.w
+        
+        Z = 1j * w * (L1 + L2)
+        ones = jnp.ones_like(Z)
+        zeros = jnp.zeros_like(Z)
+        
+        return jnp.array([
+            [ones,  Z],
+            [zeros, ones]
+        ]).transpose(2, 0, 1)
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        from pmrf.rf import a2s
+        return a2s(self.a(freq), self.z0)
+
+
+class LSectionLC(Model):
+    """
+    A 2-port model of an L-section impedance matching network.
+    
+    This specific topology uses a series inductor (`L`) followed by a shunt 
+    capacitor (`C`), acting as a standard low-pass impedance transformer.
+
+    Attributes
+    ----------
+    L : Parameter, default=1.0e-9
+        The value of the series inductor in Henrys.
+    C : Parameter, default=1.0e-12
+        The value of the shunt capacitor in Farads.
+    """
+    L: Parameter = 1.0e-9
+    C: Parameter = 1.0e-12
+
+    def a(self, freq: Frequency) -> jnp.ndarray:
+        return jax.lax.cond(
+            (self.L == 0.0) & (self.C == 0.0),
+            lambda: self.a_thru(freq),
+            lambda: self.a_general(freq),
+        )
+
+    def a_general(self, freq: Frequency) -> jnp.ndarray:
+        """
+        Internal calculation for the L-section ABCD matrix.
+        """
+        w = freq.w
+        Z = 1j * w * self.L
+        Y = 1j * w * self.C
+        ones = jnp.ones_like(Z)
+
+        # ABCD of Series Z cascaded with Shunt Y
+        return jnp.array([
+            [1 + Z * Y, Z],
+            [Y,         ones]
+        ]).transpose(2, 0, 1)
+
+    def a_thru(self, freq: Frequency) -> jnp.ndarray:
+        """
+        Internal calculation for the case where both L and C are zero (ideal thru).
+        """
+        w = freq.w
+        
+        ones = jnp.ones_like(w, dtype=complex)
+        zeros = jnp.zeros_like(w, dtype=complex)
+        
+        return jnp.array([
+            [ones,  zeros],
+            [zeros, ones]
+        ]).transpose(2, 0, 1)
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        from pmrf.rf import a2s
+        return a2s(self.a(freq), self.z0)

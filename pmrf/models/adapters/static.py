@@ -11,7 +11,7 @@ from pmrf.network_collection import NetworkCollection
 
 class Measured(Model):
     """
-    A model wrapping a static Measured Network (e.g., from a Touchstone file).
+    A model wrapping a static :class:`skrf.Network` or :class:`NetworkCollection`.
 
     This model takes a `skrf.Network` and interpolates its S-parameters to the
     frequency grid requested during simulation.

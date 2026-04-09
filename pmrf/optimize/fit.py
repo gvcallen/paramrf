@@ -14,7 +14,7 @@ from pmrf.constants import Optimizer, AggregationKind
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss
-from pmrf.losses import LogMSELoss
+from pmrf.losses import RMSELoss
 
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
@@ -27,7 +27,7 @@ def fit(
     solver: Optimizer = ScipyMinimizer(),
     *,
     features: str | list[str] | Callable = 's',
-    loss_fn: Callable = LogMSELoss(),
+    loss_fn: Callable = RMSELoss(),
     multioutput: AggregationKind | None = None,
     scale_fn: str | Callable | None = None,
     **kwargs,
@@ -57,12 +57,12 @@ def fit(
         Can either be function, a callable PyTree with optional parameters, or a string,
         in which case a feature evaluator is created (see :class:`pmrf.evaluators.Feature`).
         Defaults to all S-parameters.
-    loss_fn : str | Callable, default=LogMSELoss()
+    loss_fn : str | Callable, default=RMSELoss()
         The loss function between the model prediction and the data.
         Can be a function, a callable PyTree with optional parameters, or a string
         for a lookup into :data:`pmrf.math.LOSS_LOOKUP`
         See :mod:`pmrf.losses` for common losses.
-        Defaults to `None`, in which case :class:`pmrf.losses.LogMSELoss` is used.
+        Defaults to `None`, in which case :class:`pmrf.losses.RMSELoss` is used.
     multioutput : Aggregation, optional
         An additional key-word parameter to optionally pass to `loss_fn` indicating
         how to aggregate outputs. For the default of None, the argument is not passed.

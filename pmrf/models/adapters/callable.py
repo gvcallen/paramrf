@@ -25,7 +25,7 @@ class ContinuousCallable(AbstractSingleProperty, transparent=True):
     #: The underlying callable model which predicts the response as a function of scaled frequency.
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
     #: Must accept an array of shape `(nfreq,)` or `(nparams, nfreq,)` depending on if `theta` is None,
-    # and return an array of shape `(nfreq, nports, nports)`.
+    #: and return an array of shape `(nfreq, nports, nports)`.
     fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None
     
     def output(self, freq: Frequency) -> jnp.ndarray:

@@ -35,6 +35,8 @@ tests = [
     "pytest",
     "ipython",
     "scikit-rf",
+    "anesthetic",
+    "mpi4py",
 ]
 
 [project.urls]
