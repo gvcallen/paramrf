@@ -26,7 +26,7 @@ from pmrf.infer.sample import sample
 
 def condition(
     model: Model,
-    data: jnp.ndarray | 'skrf.Network' | NetworkCollection,
+    data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: Inferer = PolyChord(),
     *,

@@ -9,15 +9,13 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
+import skrf
 
 from pmrf.core.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils import is_overridden
-
-if TYPE_CHECKING:
-    import skrf
 
 Z0_WARNING = \
 r"""
@@ -699,7 +697,7 @@ class Model(prx.Module, ABC):
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
-    def to_skrf(self, frequency: Frequency | Any, sigma=0.0, **kwargs) -> 'skrf.Network':
+    def to_skrf(self, frequency: Frequency | Any, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
 
         The active primary property (``self.primary_property``) is used.
