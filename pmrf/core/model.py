@@ -459,8 +459,11 @@ class Model(prx.Module, ABC):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
-        """Cascade operator `**`."""        
-        return self.cascaded(other)
+        """Cascade operator `**`."""    
+        if other.nports == self.nports:    
+            return self.cascaded(other)
+        else:
+            return self.terminated(other)
     
     def __matmul__(self, other: 'Model') -> 'Model':
         """Termination operator `@`."""        

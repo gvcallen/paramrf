@@ -13,6 +13,7 @@ from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.result import FitResult
 
+from pmrf.constants import Solver
 
 __all__ = [
     "fit",
@@ -20,4 +21,5 @@ __all__ = [
     "fit_minimize",
     "fit_sample",
     "FitResult",
+    "Solver",
 ]

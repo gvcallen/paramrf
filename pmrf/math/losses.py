@@ -6,7 +6,7 @@ from typing import Callable, Literal
 import jax
 import jax.numpy as jnp
 
-from pmrf.math.aggregations import multioutput_aggregate, weighted_sum
+from pmrf.math.aggregations import aggregate, weighted_sum
 
 def mean_squared_error(
     y_true: jnp.ndarray, 
@@ -36,7 +36,7 @@ def mean_squared_error(
     """
     loss = (jnp.abs(y_true - y_pred))**2
     mean_loss = weighted_sum(loss, sample_weight)
-    return multioutput_aggregate(mean_loss, multioutput)
+    return aggregate(mean_loss, multioutput)
 
 
 def log_mean_squared_error(
@@ -68,7 +68,7 @@ def log_mean_squared_error(
     loss = (jnp.abs(y_true - y_pred))**2
     mean_loss = weighted_sum(loss, sample_weight)
     rmse_loss = jnp.log(mean_loss + 1e-12)
-    return multioutput_aggregate(rmse_loss, multioutput)
+    return aggregate(rmse_loss, multioutput)
 
 
 def root_mean_squared_error(
@@ -100,7 +100,7 @@ def root_mean_squared_error(
     loss = (jnp.abs(y_true - y_pred))**2
     mean_loss = weighted_sum(loss, sample_weight)
     rmse_loss = jnp.sqrt(mean_loss)
-    return multioutput_aggregate(rmse_loss, multioutput)
+    return aggregate(rmse_loss, multioutput)
 
 
 def mean_absolute_error(
@@ -131,7 +131,7 @@ def mean_absolute_error(
     """
     loss = jnp.abs(y_true - y_pred)
     mean_loss = weighted_sum(loss, sample_weight)
-    return multioutput_aggregate(mean_loss, multioutput)
+    return aggregate(mean_loss, multioutput)
 
 
 def mean_absolute_percentage_error(
@@ -163,7 +163,7 @@ def mean_absolute_percentage_error(
     epsilon = 1e-12
     loss = jnp.abs((y_true - y_pred) / jnp.maximum(jnp.abs(y_true), epsilon))
     mean_loss = weighted_sum(loss, sample_weight)
-    return multioutput_aggregate(mean_loss, multioutput)
+    return aggregate(mean_loss, multioutput)
 
 
 def huber_loss(
@@ -201,7 +201,7 @@ def huber_loss(
     linear = diff - quadratic
     loss = 0.5 * quadratic**2 + delta * linear
     mean_loss = weighted_sum(loss, sample_weight)
-    return multioutput_aggregate(mean_loss, multioutput)
+    return aggregate(mean_loss, multioutput)
 
 
 def hinge_loss(

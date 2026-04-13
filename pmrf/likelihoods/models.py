@@ -19,16 +19,13 @@ class GaussianLikelihood(Likelihood):
     The noise model is responsibile for returning the measurement variance.
     Given an input `y` of shape `(*batch_shape, event_dims)`, the noise model
     must accept accept the prediction `y` and return an array that is either
-    broadcastable to `(*batch_shape)` or the full shape of `y`.
-    
-    This allows for complex, independent heteroskedastic and homoskedastic
-    noise for a given inputs.
+    broadcastable to `(*batch_shape)` or to the full (*batch_shape, event_dims).
     """
     noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray]
 
-    def __call__(self, y: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
-        is_dist = isinstance(y, dist.AbstractDistribution)
-        y_mean = y.mean() if is_dist else y
+    def __call__(self, y_event: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
+        is_dist = isinstance(y_event, dist.AbstractDistribution)
+        y_mean = y_event.mean() if is_dist else y_event
         
         # Evaluate noise
         var = self.noise(y_mean) if callable(self.noise) else self.noise
@@ -48,14 +45,14 @@ class GaussianLikelihood(Likelihood):
                 
             return mapped_normal(y_mean, mapped_var)
         else:
-            if not hasattr(y, "covariance"):
+            if not hasattr(y_event, "covariance"):
                 raise TypeError("The predicted distribution must natively implement `covariance()`.")
             
             def get_cov(d): return d.covariance()
             mapped_get_cov = get_cov
             for _ in range(num_batch_dims):
                 mapped_get_cov = eqx.filter_vmap(mapped_get_cov)
-            pred_cov = mapped_get_cov(y)
+            pred_cov = mapped_get_cov(y_event)
             
             def add_noise(cov, var_diag):
                 return cov + jnp.diag(var_diag)

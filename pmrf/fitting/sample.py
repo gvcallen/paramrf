@@ -31,6 +31,7 @@ def fit_sample(
     *,
     features: str | list[str] | Callable = 's',
     likelihood_fn: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
+    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy_fn: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     **kwargs,
 ) -> FitResult:
@@ -64,6 +65,13 @@ def fit_sample(
         Can be a function or a callable PyTree with optional parameters.
         See :mod:`pmrf.likelihoods` for common likelihoods.
         Defaults to `None`, in which case :class:`pmrf.likelihoods.GaussianLikelihood` is used.
+    noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
+        Gaussian likelihood noise, either a fixed parameter, or a callable that accepts
+        a model prediction (in event space) and returns noise parameters
+        for a Gaussian likelihood. Mutually exclusive with `likelihood_fn`.
+        For the function case, can be a callable PyTree with optional parameters.
+        See :mod:`pmrf.likelihoods.noise_models` for built-in noise models.
+        Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
     discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy function, which models the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
@@ -80,6 +88,8 @@ def fit_sample(
     # Error checking
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
+    if likelihood_fn is not None and noise is not None:
+        raise Exception("Cannot pass both `noise` and `likelihood_fn`.")
 
     # Resolve the features and data
     if not isinstance(features, Callable):
@@ -96,11 +106,11 @@ def fit_sample(
         
     # Resolve the likelihood model
     if likelihood_fn is None:
-        likelihood_fn = GaussianLikelihood(sigma=prx.Uniform(0.0, 100.0, scale=1e-3))
+        if noise is None:
+            noise = prx.Uniform(0.0, 0.1)
+        likelihood_fn = GaussianLikelihood(noise=noise)
     
     log_likelihood_fn = MarginalLogLikelihood(predictor=features, data=target, likelihood=likelihood_fn, discrepancy=discrepancy_fn)
-    
-    # Run the sampling
     infer_result = sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)
 
     return FitResult(

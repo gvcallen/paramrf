@@ -7,7 +7,7 @@ from pmrf.math.aggregations import (
     weighted_sum as weighted_sum,
     geometric_mean as geometric_mean,
     convolution_aggregate as convolution_aggregate,
-    multioutput_aggregate as multioutput_aggregate,
+    aggregate as aggregate,
 )
 
 from pmrf.math.conversions import (
