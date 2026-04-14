@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Sequence, Literal, Any, Callable
 
+import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -206,7 +207,24 @@ class MarginalLogLikelihood(Evaluator):
         Returns a sample from the predictive distribution in data space.
         """
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        event_sample = obs_dist.sample(key)
+        obs_event = self.event_transform.forward(self.data)        
+        
+        # Get the actual shape of the batch dimensions
+        batch_shape = obs_event.shape[:-self.event_ndims]
+        batch_ndims = len(batch_shape)
+        
+        num_elements = np.prod(batch_shape) if batch_shape else 1
+        keys = jax.random.split(key, num_elements)
+        keys = keys.reshape(*batch_shape, -1) 
+
+        def sample_one(d, k):
+            return d.sample(jnp.squeeze(k))
+            
+        mapped_sample_fn = sample_one
+        for _ in range(batch_ndims):
+            mapped_sample_fn = eqx.filter_vmap(mapped_sample_fn)
+        
+        event_sample = mapped_sample_fn(obs_dist, keys)
         data_sample = self.event_transform.inverse(event_sample)
         return data_sample
 
