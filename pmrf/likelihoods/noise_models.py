@@ -7,24 +7,27 @@ import parax as prx
 from pmrf.core import NoiseModel
 
 
-class ReflectionTransmissionNoise(NoiseModel):
+class AutoCrossNoise(NoiseModel):
     """
-    Reflection and transmission coefficient noise model.
+    Auto and cross term noise model.
     
-    Maps underlying `gamma` and `tau` noises
+    Maps underlying `auto` and `cross` noise models
     to a full matrix based on the specified port axes.
 
-    Operates in "event space". Specifically, for a standard
+    Can be used to assign separate noise variances
+    to reflection and (auto) transmission (cross) coefficients.
+
+    Operates in "event space". For example, for a standard
     N-port S-parameter feature, the input `y_event` will be
     of shape (nports, nports, nfreq) or (nports, nports, 2, nfreq).
     """    
-    gamma: prx.Parameter
-    tau: prx.Parameter
+    auto: prx.Parameter
+    cross: prx.Parameter
     
     port_axes: tuple[int, int] = prx.field(static=True, default=(0, 1))
     
     def __call__(self, y_event: jnp.ndarray):
-        val_gamma, val_tau = self.gamma, self.tau
+        val_gamma, val_tau = self.auto, self.cross
         target_shape = y_event.shape
         
         ax1 = self.port_axes[0] % len(target_shape)

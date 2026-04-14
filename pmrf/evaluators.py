@@ -124,22 +124,23 @@ class TargetLoss(Evaluator):
     
 class MarginalLogLikelihood(Evaluator):
     """
-    Computes the log of the probability of observing some data
+    Computes the log of the probability of observed data
     by conditioning a likelihood function on a model prediction
     while marginalizing out a potential discrepancy model.
     
-    Performs the mapping from "data space" to "event space".
+    Includes a mapping from model "observation space" to "event space".
     By default, this defines the frequency axis as the probabilistic event,
     by moving it to the last axis before passing it to the likelihood/discrepancy.
-    Real and imaginary parts are also stacked appropriately.
+    However, an bijective transform can be applied to model probability
+    in an arbitrary latent space.
     """
     #: The predictor (e.g. another Evaluator) that extracts model features.
     #: Can be a function or a PyTree with optional parameters.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
-    #: The fixed 'observed' data that the log probability will be computed of.
-    #: Must have a shaoe that matches the shape of the predictor output..
-    data: jnp.ndarray
+    #: The observed data that the log probability will be computed of.
+    #: Must have a shape that matches the shape of the predictor output.
+    observed: jnp.ndarray
     
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
     #: Can be a function or a PyTree with optional parameters.
@@ -151,7 +152,7 @@ class MarginalLogLikelihood(Evaluator):
     #: See :class:`pmrf.discrepancy_models` for common discrepancy models.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
 
-    #: A bijective transform that maps from "data space" (predicted features) to "event space" (probability).
+    #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
     #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
     event_transform: bij.AbstractBijector = None
 
@@ -165,8 +166,8 @@ class MarginalLogLikelihood(Evaluator):
             raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
         
         if self.event_transform is None:
-            ndims = self.data.ndim
-            if jnp.iscomplexobj(self.data):
+            ndims = self.observed.ndim
+            if jnp.iscomplexobj(self.observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
             else:
@@ -176,7 +177,7 @@ class MarginalLogLikelihood(Evaluator):
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(self.data)
+        obs_event = self.event_transform.forward(self.observed)
         batch_ndims = obs_event.ndim - self.event_ndims
         def eval_log_prob(d, x):
             return d.log_prob(x)
@@ -191,7 +192,7 @@ class MarginalLogLikelihood(Evaluator):
         Returns the full predictive distribution of an observed event for a given model.
         
         The returned distribution is in event space. To draw a sample from this distribution in
-        data space, see :meth:`MarginalLogLikelihood.sample_data`.
+        observation space, see :meth:`MarginalLogLikelihood.sample_observation`.
         """
         # 1. Evaluate physical model
         y_pred = self.predictor(model, frequency, **kwargs)
@@ -202,12 +203,12 @@ class MarginalLogLikelihood(Evaluator):
         # 4. Apply measurement noise likelihood (adds noise to the GP covariance)
         return self.likelihood(pred_event)
         
-    def sample_data(self, key: jax.Array, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def sample_observation(self, key: jax.Array, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         """
-        Returns a sample from the predictive distribution in data space.
+        Returns a sample from the predictive distribution in observation space.
         """
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(self.data)        
+        obs_event = self.event_transform.forward(self.observed)        
         
         # Get the actual shape of the batch dimensions
         batch_shape = obs_event.shape[:-self.event_ndims]

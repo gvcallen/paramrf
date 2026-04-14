@@ -120,30 +120,73 @@ class WhiteNoiseKernel(CovarianceKernel):
         return jnp.where(is_equal, self.variance, 0.0)
     
     
-class ReflectionTransmissionKernel(CovarianceKernel):
+class AutoCrossKernel(CovarianceKernel):
     """
-    Kernel that routes between a reflection (gamma) and transmission (tau) kernel.
+    Kernel that routes between a auto-correlation and cross-correlation kernels.
     
-    Constructs a block matrix where diagonal port elements evaluate the gamma kernel
-    and off-diagonal port elements evaluate the tau kernel.
+    Constructs a block matrix where diagonal elements evaluate the auto kernel
+    and off-diagonal elements evaluate the cross kernel.
+
+    This can be used to model reflection (auto) and transmission (cross) discrepancy separately.
+    In this case, set `num_outputs` to the number of ports.
     """
-    gamma: CovarianceKernel
-    tau: CovarianceKernel
-    nports: int = prx.field(static=True)
+    auto: CovarianceKernel
+    cross: CovarianceKernel
+    num_outputs: int = prx.field(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate both underlying kernels
-        val_gamma = self.gamma(x1, x2, key=key)
-        val_tau = self.tau(x1, x2, key=key)
+        val_gamma = self.auto(x1, x2, key=key)
+        val_tau = self.cross(x1, x2, key=key)
         
         # Create a 2D boolean mask for the diagonal
-        eye = jnp.eye(self.nports, dtype=bool)
+        eye = jnp.eye(self.num_outputs, dtype=bool)
         
         # If the base kernels return batched arrays (e.g., shape (2,) for real/imag),
         # we need to append dummy dimensions to the mask so jnp.where broadcasts correctly.
         # This results in a mask shape of (nports, nports, 1, ..., 1)
-        eye_shape = [self.nports, self.nports] + [1] * val_gamma.ndim
+        eye_shape = [self.num_outputs, self.num_outputs] + [1] * val_gamma.ndim
         eye_broadcastable = eye.reshape(eye_shape)
-        
+
         # Route the kernel evaluations
         return jnp.where(eye_broadcastable, val_gamma, val_tau)
+    
+
+class SharedKernel(CovarianceKernel):
+    """
+    Evaluates a base kernel and broadcasts its output to represent 
+    multiple independent dimensions (e.g., real and imaginary parts) 
+    withed share hyperparameters.
+
+    Attributes
+    ----------
+    base_kernel : CovarianceKernel
+        The underlying kernel whose parameters are shared.
+    output_shape : tuple
+        The shape of the independent outputs to broadcast to.
+    """
+    base_kernel: CovarianceKernel
+    output_shape: tuple = prx.field(static=True)
+
+    def __call__(self, x1, x2, key=None):
+        # Evaluate the underlying shared kernel
+        val = self.base_kernel(x1, x2, key=key)
+        
+        # Broadcast the evaluation to the target shape.
+        # By appending the output_shape to the end of val.shape, 
+        # this safely handles both scalar evaluations and already-batched evaluations.
+        target_shape = val.shape + self.output_shape
+        
+        return jnp.broadcast_to(val, target_shape)
+    
+
+class ZeroKernel(CovarianceKernel):
+    """
+    Kernel that always evaluates to zero.
+
+    Useful for masking out cross-covariances in multi-output models
+    to enforce strict independence between tasks.
+    """
+
+    def __call__(self, x1, x2, key=None):
+        return 0.0

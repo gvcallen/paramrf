@@ -177,7 +177,7 @@ def test_marginal_log_likelihood(model, basic_freq):
         
     mll = MarginalLogLikelihood(
         predictor=Feature('s11_mag'),
-        data=target_data,
+        observed=target_data,
         likelihood=likelihood_fn
     )
     
@@ -200,7 +200,7 @@ def test_mll_complex_default_event_map(model, basic_freq):
         
     mll = MarginalLogLikelihood(
         predictor=Feature('s'),
-        data=target_data,
+        observed=target_data,
         likelihood=likelihood_fn
     )
     
