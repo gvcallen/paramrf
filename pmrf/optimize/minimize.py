@@ -110,9 +110,8 @@ def minimize(
     else:
         solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iters, **kwargs)
         
-    solver_results = dataclasses.replace(solver_results, value=None)
-
     optimized_problem = eqx.combine(solver_results.value, static)
+    solver_results = dataclasses.replace(solver_results, value=None)
     results = OptimizeResult(
         model=optimized_problem.model,
         objective=optimized_problem.evaluator,
