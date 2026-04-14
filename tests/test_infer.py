@@ -97,7 +97,7 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
     from inferix import PolyChord
     from pmrf.likelihoods import GaussianLikelihood
     
-    target_data = jnp.ones(basic_freq.npoints) * 3.0
+    target_data = 3.0 * jnp.ones(basic_freq.npoints).reshape(2, 1, 1)
     
     result = fit_sample(
         model=infer_model,
