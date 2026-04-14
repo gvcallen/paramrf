@@ -118,3 +118,32 @@ class WhiteNoiseKernel(CovarianceKernel):
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
         return jnp.where(is_equal, self.variance, 0.0)
+    
+    
+class ReflectionTransmissionKernel(CovarianceKernel):
+    """
+    Kernel that routes between a reflection (gamma) and transmission (tau) kernel.
+    
+    Constructs a block matrix where diagonal port elements evaluate the gamma kernel
+    and off-diagonal port elements evaluate the tau kernel.
+    """
+    gamma: CovarianceKernel
+    tau: CovarianceKernel
+    nports: int = prx.field(static=True)
+
+    def __call__(self, x1, x2, key=None):
+        # Evaluate both underlying kernels
+        val_gamma = self.gamma(x1, x2, key=key)
+        val_tau = self.tau(x1, x2, key=key)
+        
+        # Create a 2D boolean mask for the diagonal
+        eye = jnp.eye(self.nports, dtype=bool)
+        
+        # If the base kernels return batched arrays (e.g., shape (2,) for real/imag),
+        # we need to append dummy dimensions to the mask so jnp.where broadcasts correctly.
+        # This results in a mask shape of (nports, nports, 1, ..., 1)
+        eye_shape = [self.nports, self.nports] + [1] * val_gamma.ndim
+        eye_broadcastable = eye.reshape(eye_shape)
+        
+        # Route the kernel evaluations
+        return jnp.where(eye_broadcastable, val_gamma, val_tau)

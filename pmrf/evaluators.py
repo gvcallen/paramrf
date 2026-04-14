@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import parax as prx
 from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 import distreqx.distributions as dist
+import distreqx.bijectors as bij
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss, RMSELoss
@@ -136,6 +137,7 @@ class MarginalLogLikelihood(Evaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
     #: The fixed 'observed' data that the log probability will be computed of.
+    #: Must have a shaoe that matches the shape of the predictor output..
     data: jnp.ndarray
     
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
@@ -148,37 +150,32 @@ class MarginalLogLikelihood(Evaluator):
     #: See :class:`pmrf.discrepancy_models` for common discrepancy models.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
 
-    #: A mapper to map the "data space" (predicted features) to an "event space" (probability).
-    event_mapper: Callable[[jnp.ndarray], jnp.ndarray] | None = None
+    #: A bijective transform that maps from "data space" (predicted features) to "event space" (probability).
+    #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
+    event_transform: bij.AbstractBijector = None
 
-    #: The number of trailing event dimensions returned by the event mapped. Defaults to 1.
+    #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     event_ndims: int = prx.field(default=1, static=True)
-
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        if self.event_ndims != 1:
-            raise Exception("MarginalLogLikelihood currently only supports a single event dimension")
-        
+    
+    def __post_init__(self):
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
         # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
-        def default_event_map(y_pred):
-            y_event = y_pred
-            if jnp.iscomplexobj(y_event):
-                y_event = jnp.stack([jnp.real(y_event), jnp.imag(y_event)], axis=-1)
-            y_event = jnp.moveaxis(y_event, 0, -1)
-            return y_event
+        if self.event_ndims != 1:
+            raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
         
-        # Get pred_event and obs_event
-        y_pred = self.predictor(model, frequency, **kwargs)
-        mapper = self.event_mapper if self.event_mapper is not None else default_event_map
-        pred_event = mapper(y_pred)
-        obs_event = mapper(self.data)
-        if self.discrepancy is not None:
-            pred_event = self.discrepancy(pred_event, frequency.f_scaled)
+        if self.event_transform is None:
+            ndims = self.data.ndim
+            if jnp.iscomplexobj(self.data):
+                perm = tuple(range(1, ndims + 1)) + (0,)
+                self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
+            else:
+                perm = tuple(range(1, ndims)) + (0,)
+                self.event_transform = bij.Chain([bij.Transpose(perm)])
         
-        # Get the distribution over obs_event
-        obs_dist = self.likelihood(pred_event)
-        
-        # Sum the log probs over the batch dimension
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        # Get the distribution over obs_event and the actual observed event
+        obs_dist = self.predictive_distribution(model, frequency, **kwargs)
+        obs_event = self.event_transform.forward(self.data)
         batch_ndims = obs_event.ndim - self.event_ndims
         def eval_log_prob(d, x):
             return d.log_prob(x)
@@ -187,7 +184,31 @@ class MarginalLogLikelihood(Evaluator):
             mapped_log_prob = eqx.filter_vmap(mapped_log_prob)
         log_probs = mapped_log_prob(obs_dist, obs_event)
         return jnp.sum(log_probs)
-
+    
+    def predictive_distribution(self, model: Model, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
+        """
+        Returns the full predictive distribution of an observed event for a given model.
+        
+        The returned distribution is in event space. To draw a sample from this distribution in
+        data space, see :meth:`MarginalLogLikelihood.sample_data`.
+        """
+        # 1. Evaluate physical model
+        y_pred = self.predictor(model, frequency, **kwargs)
+        pred_event = self.event_transform.forward(y_pred)
+        if self.discrepancy is not None:
+            pred_event = self.discrepancy(pred_event, frequency.f_scaled)
+            
+        # 4. Apply measurement noise likelihood (adds noise to the GP covariance)
+        return self.likelihood(pred_event)
+        
+    def sample_data(self, key: jax.Array, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        """
+        Returns a sample from the predictive distribution in data space.
+        """
+        obs_dist = self.predictive_distribution(model, frequency, **kwargs)
+        event_sample = obs_dist.sample(key)
+        data_sample = self.event_transform.inverse(event_sample)
+        return data_sample
 
 class Goal(TargetLoss):
     """
