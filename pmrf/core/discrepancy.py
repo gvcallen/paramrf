@@ -70,9 +70,9 @@ class CovarianceKernel(prx.Module, ABC):
         raise NotImplementedError
 
     def __add__(self, other: 'CovarianceKernel') -> 'CovarianceKernel':
-        from pmrf.discrepancy_models import SumKernel
+        from pmrf.covariance_kernels import SumKernel
         return SumKernel(self, other)
 
     def __mul__(self, other: 'CovarianceKernel') -> 'CovarianceKernel':
-        from pmrf.discrepancy_models import ProductKernel
+        from pmrf.covariance_kernels import ProductKernel
         return ProductKernel(self, other)    
