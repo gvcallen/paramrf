@@ -49,7 +49,7 @@ class NoiseModel(prx.Module, prx.Operator, ABC):
     For example, for a Gaussian likelihood, a noise model can be used to model
     the variance with non-standard broadcasting rules.
     
-    See :mod:`pmrf.likelihoods.noise_models` for built-in noise models.
+    See :mod:`pmrf.noise_models` for built-in noise models.
     """
     @abstractmethod
     def __call__(self, y_event: jnp.ndarray) -> jnp.ndarray | tuple[jnp.ndarray | jnp.ndarray]:

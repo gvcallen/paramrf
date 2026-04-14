@@ -70,7 +70,7 @@ def fit_sample(
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood_fn`.
         For the function case, can be a callable PyTree with optional parameters.
-        See :mod:`pmrf.likelihoods.noise_models` for built-in noise models.
+        See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
     discrepancy_fn : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy function, which models the discrepancy between the model and measured data.

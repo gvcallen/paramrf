@@ -44,6 +44,7 @@ except ImportError:
 
 # 4. Sub-Modules
 from pmrf import (
+    covariance_kernels as covariance_kernels,
     discrepancy_models as discrepancy_models,
     evaluators as evaluators,
     explore as explore,
@@ -53,6 +54,7 @@ from pmrf import (
     infer as infer,
     models as models,
     math as math,
+    noise_models as noise_models,
     optimize as optimize,
     rf as rf,
     serialization as serialization,
@@ -79,6 +81,7 @@ __all__ = [
     "save",
     
     # Sub-modules
+    "covariance_kernels",
     "discrepancy_models",
     "evaluators",
     "explore",
@@ -88,6 +91,7 @@ __all__ = [
     "losses",
     "math",
     "models",
+    "noise_models",
     "optimize",
     "rf",
     "serialization",
