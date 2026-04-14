@@ -63,13 +63,13 @@ class TransmissionLine(Model, ABC):
         return renormalize_s(s, zc, self.z0, 'traveling', 'power')
     
 
-class FloatingLine(Model, transparent=True):
+class FloatingLine(Model):
     """
     A wrapper that converts a 2-port single-ended transmission line 
     into a 4-port floating line with an explicit return path.
     """
     #: The inner transmission line model to be wrapped.
-    line: TransmissionLine
+    line: TransmissionLine = prx.field(transparent=True)
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         # 1. Extract the physical wave parameters from the inner line

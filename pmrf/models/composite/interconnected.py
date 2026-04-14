@@ -18,12 +18,12 @@ warnings.filterwarnings(
     category=UserWarning
 )
 
-class Circuit(Model, transparent=True):
+class Circuit(Model):
     # Inputs (init=True, but we don't need to keep them around in the PyTree)
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
     # Computed properties (init=False, they are generated, not passed in)
-    models: list[Model] = field(init=False)
+    models: list[Model] = field(init=False, transparent=True)
     indexed_connections: list[list[tuple[int, int]]] = field(init=False, static=True)
     port_idxs: list[int] = field(init=False, static=True)
 
@@ -89,7 +89,7 @@ class Circuit(Model, transparent=True):
         Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
         return Scon
 
-class Cascade(Model, transparent=True):
+class Cascade(Model):
     """
     Represents a cascade, or series connection, of two or more `Model` objects.
 
@@ -134,7 +134,7 @@ class Cascade(Model, transparent=True):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-    models: tuple[Model]
+    models: tuple[Model] = field(transparent=True)
     
     def __post_init__(self):
         model_reduced = []
@@ -159,7 +159,7 @@ class Cascade(Model, transparent=True):
         return Scas
     
     
-class Terminated(Model, transparent=True):
+class Terminated(Model):
     """
     Represents one network terminated in another.
     """

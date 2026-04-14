@@ -64,7 +64,7 @@ class RBFKernel(CovarianceKernel):
 
     Attributes
     ----------
-    length_scale : prx.Parameter
+    lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
     lengthscale: prx.Parameter = 1.0
@@ -85,7 +85,7 @@ class PeriodicKernel(CovarianceKernel):
     ----------
     period : prx.Parameter
         The period of the kernel, dictating the distance between repetitions (default 1.0).
-    length_scale : prx.Parameter
+    lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
     period: prx.Parameter = 1.0
@@ -152,7 +152,7 @@ class AutoCrossKernel(CovarianceKernel):
         return jnp.where(eye_broadcastable, val_gamma, val_tau)
     
 
-class SharedIndependentKernel(CovarianceKernel, transparent=True):
+class SharedIndependentKernel(CovarianceKernel):
     """
     Evaluates a base kernel and broadcasts its output to represent 
     multiple independent dimensions (e.g., real and imaginary parts) 
@@ -165,7 +165,7 @@ class SharedIndependentKernel(CovarianceKernel, transparent=True):
     output_shape : tuple
         The shape of the independent outputs to broadcast to.
     """
-    base_kernel: CovarianceKernel
+    base_kernel: CovarianceKernel = prx.field(transparent=True)
     output_shape: tuple = prx.field(static=True)
 
     def __call__(self, x1, x2, key=None):

@@ -6,13 +6,13 @@ from typing import Callable, Any, Dict
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from parax import Parameter
+from parax import Parameter, field
 
 from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf import cascade_s
 
-class ProfiledLine(Model, transparent=True):
+class ProfiledLine(Model):
     r"""
     A non-uniform transmission line defined by an arbitrary profile.
 
@@ -55,16 +55,16 @@ class ProfiledLine(Model, transparent=True):
         s_taper = tapered_line.s(freq)
     """
     # Config
-    line_fn: Callable[[Any], RLGCLine] = eqx.field(static=True)
+    line_fn: Callable[[Any], RLGCLine] = field(static=True)
     floating: bool = False
-    profile_fns: Dict[str, Callable] = eqx.field(static=True)
-    method: str = eqx.field(static=True)
-    options: dict = eqx.field(static=True)
+    profile_fns: Dict[str, Callable] = field(static=True)
+    method: str = field(static=True)
+    options: dict = field(static=True)
 
     # Parameters and sub-models
     length: Parameter
-    profile_params: Dict[str, Dict[str, Parameter]]
-    uniform_params: Dict[str, Parameter]
+    profile_params: Dict[str, Dict[str, Parameter]] = field(transparent=True)
+    uniform_params: Dict[str, Parameter] = field(transparent=True)
 
     def __init__(
         self, 
