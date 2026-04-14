@@ -49,6 +49,7 @@ Modules
    :toctree: generated/
    :recursive:
 
+   pmrf.covariance_kernels
    pmrf.discrepancy_models
    pmrf.evaluators
    pmrf.explore
@@ -58,6 +59,7 @@ Modules
    pmrf.losses
    pmrf.math
    pmrf.models
+   pmrf.noise_models
    pmrf.network_collection
    pmrf.optimize
    pmrf.viz

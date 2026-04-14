@@ -202,14 +202,28 @@ class MarginalLogLikelihood(Evaluator):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
         
+        discrepancy_kwargs = {}
         if self.use_orthogonal_discrepancy:
-            raise NotImplementedError("use_orthogonal_discrepancy is not yet implemented")  
+            jitter = 1e-12
             jac_dict = model.func_jacobian(event_fn, frequency)
-            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)   
+            
+            # J_b : shape (..., N, P)  # e.g., (nports, nports, nfreq, P)
+            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)
+            
+            N, P = J_b.shape[-2], J_b.shape[-1]
+            I = jnp.eye(N)
+            
+            J_b_T = jnp.swapaxes(J_b, -1, -2)
+            JT_J = J_b_T @ J_b
+            JT_J_stable = JT_J + jitter * jnp.eye(P)
+            
+            # JAX automatically vectorizes linalg.inv over leading dimensions
+            JT_J_inv = jnp.linalg.inv(JT_J_stable) # Shape: (..., P, P)
+            discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
         
         pred_event = event_fn(model, frequency)
         if self.discrepancy is not None:
-            pred_event = self.discrepancy(pred_event, frequency.f_scaled)
+            pred_event = self.discrepancy(pred_event, frequency.f_scaled, **discrepancy_kwargs)
             
         # 4. Apply measurement noise likelihood (adds noise to the GP covariance)
         return self.likelihood(pred_event)

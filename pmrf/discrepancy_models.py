@@ -10,7 +10,7 @@ import distreqx.distributions as dist
 
 from pmrf.core import DiscrepancyModel
 
-class GaussianProcess(DiscrepancyModel):
+class GaussianProcess(DiscrepancyModel, transparent=True):
     """
     Gaussian process discrepancy model with a covariance kernel.
     

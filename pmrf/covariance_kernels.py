@@ -67,10 +67,10 @@ class RBFKernel(CovarianceKernel):
     length_scale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    length_scale: prx.Parameter = 1.0
+    lengthscale: prx.Parameter = 1.0
 
     def __call__(self, x1, x2, key=None):
-        scaled_diff = (x1 - x2) / self.length_scale
+        scaled_diff = (x1 - x2) / self.lengthscale
         sq_dist = jnp.sum(scaled_diff**2)
         return jnp.exp(-0.5 * sq_dist)
     
@@ -89,7 +89,7 @@ class PeriodicKernel(CovarianceKernel):
         Characteristic length scale of the correlation (default 1.0).
     """
     period: prx.Parameter = 1.0
-    length_scale: prx.Parameter = 1.0
+    lengthscale: prx.Parameter = 1.0
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -101,7 +101,7 @@ class PeriodicKernel(CovarianceKernel):
         arg = jnp.pi * dist / self.period
         sin_term = jnp.sin(arg)
         
-        return jnp.exp(-2.0 * (sin_term / self.length_scale)**2)
+        return jnp.exp(-2.0 * (sin_term / self.lengthscale)**2)
 
 
 class WhiteNoiseKernel(CovarianceKernel):
@@ -152,7 +152,7 @@ class AutoCrossKernel(CovarianceKernel):
         return jnp.where(eye_broadcastable, val_gamma, val_tau)
     
 
-class SharedKernel(CovarianceKernel):
+class SharedIndependentKernel(CovarianceKernel, transparent=True):
     """
     Evaluates a base kernel and broadcasts its output to represent 
     multiple independent dimensions (e.g., real and imaginary parts) 
@@ -189,4 +189,4 @@ class ZeroKernel(CovarianceKernel):
     """
 
     def __call__(self, x1, x2, key=None):
-        return 0.0
+        return jnp.asarray(0.0)

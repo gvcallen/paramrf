@@ -105,7 +105,7 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
         frequency=basic_freq,
         solver=PolyChord(do_clustering=False),
         features='s_mag',
-        likelihood_fn=GaussianLikelihood(noise=1.0),
+        likelihood=GaussianLikelihood(noise=1.0),
         nlive_factor=5,
         num_repeats=1,
         precision_criterion=1.0,

@@ -73,6 +73,11 @@ class CovarianceKernel(prx.Module, ABC):
         from pmrf.covariance_kernels import SumKernel
         return SumKernel(self, other)
 
-    def __mul__(self, other: 'CovarianceKernel') -> 'CovarianceKernel':
-        from pmrf.covariance_kernels import ProductKernel
-        return ProductKernel(self, other)    
+    def __mul__(self, other: 'CovarianceKernel | prx.Parameter | float') -> 'CovarianceKernel':
+        from pmrf.covariance_kernels import ProductKernel, ConstantKernel
+        
+        if isinstance(other, CovarianceKernel):
+            return ProductKernel(self, other)    
+        else:
+            return ProductKernel(self, ConstantKernel(other))
+            
