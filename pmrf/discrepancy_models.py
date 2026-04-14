@@ -26,9 +26,10 @@ class GaussianProcess(DiscrepancyModel):
     with parameters of shape (D,).
     
     See :class:`pmrf.DiscrepancyModel` for more information on general discrepancy models.
+    See :mod:`pmrf.covariance_kernels` for built-in covariance kernels.
     """
     
-    #: The covariance function that computes the correlation between two input arrays.
+    #: The covariance kernel function that computes the correlation between two input arrays.
     kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
     #: A small scalar added to the diagonal of the covariance matrix for numerical stability.
