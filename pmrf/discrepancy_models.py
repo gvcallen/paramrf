@@ -35,7 +35,7 @@ class GaussianProcess(DiscrepancyModel):
     #: A small scalar added to the diagonal of the covariance matrix for numerical stability.
     jitter: float = eqx.field(default=1e-10, static=True)
 
-    def __call__(self, y_event: jnp.ndarray, x: jnp.ndarray) -> dist.AbstractDistribution:
+    def __call__(self, y_event: jnp.ndarray, x: jnp.ndarray, orthogonal_projection: jnp.ndarray | None = None) -> dist.AbstractDistribution:
         """
         Evaluate the Gaussian process distribution over the given inputs.
 
@@ -45,6 +45,10 @@ class GaussianProcess(DiscrepancyModel):
             The model prediction in event space, with shape `(..., N)`.
         x : jnp.ndarray
             The frequency points, with shape `(N,)`.
+        orthogonal_projection : jnp.ndarray, optional
+            An optional matrix P of shape (N, N) which the kernel matrix
+            is projected onto using P @ K @ P.T. This can be used to
+            specify the subspace which the kernel is allowed.
 
         Returns
         -------
@@ -59,6 +63,9 @@ class GaussianProcess(DiscrepancyModel):
         
         K = outer_vmap(x_feat, x_feat) 
         K = K + jnp.eye(x.shape[0]) * self.jitter
+        
+        if orthogonal_projection is not None:
+            K = orthogonal_projection @ K @ orthogonal_projection.T
 
         # ---> NEW FIX: Explicitly broadcast K to match y's batch dimensions <---
         target_K_shape = y_event.shape[:-1] + K.shape[-2:]

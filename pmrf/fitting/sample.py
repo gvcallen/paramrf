@@ -107,7 +107,7 @@ def fit_sample(
     # Resolve the likelihood model
     if likelihood_fn is None:
         if noise is None:
-            noise = prx.Uniform(0.0, 0.1)
+            noise = prx.Uniform(0.0, 0.01)
         likelihood_fn = GaussianLikelihood(noise=noise)
     
     log_likelihood_fn = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood_fn, discrepancy=discrepancy_fn)

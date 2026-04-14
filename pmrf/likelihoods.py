@@ -43,7 +43,7 @@ class GaussianLikelihood(Likelihood):
             for _ in range(num_batch_dims):
                 mapped_normal = eqx.filter_vmap(mapped_normal)
                 
-            return mapped_normal(y_mean, mapped_var)
+            return mapped_normal(y_mean, jnp.sqrt(mapped_var))
         else:
             if not hasattr(y_event, "covariance"):
                 raise TypeError("The predicted distribution must natively implement `covariance()`.")

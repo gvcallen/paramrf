@@ -151,6 +151,10 @@ class MarginalLogLikelihood(Evaluator):
     #: Can be a function or a PyTree with optional parameters.
     #: See :class:`pmrf.discrepancy_models` for common discrepancy models.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
+    
+    #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
+    #: which defines the model's orthogonal sub-space. Used for gaussian processes.
+    use_orthogonal_discrepancy: bool = False
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
     #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
@@ -194,9 +198,16 @@ class MarginalLogLikelihood(Evaluator):
         The returned distribution is in event space. To draw a sample from this distribution in
         observation space, see :meth:`MarginalLogLikelihood.sample_observation`.
         """
-        # 1. Evaluate physical model
-        y_pred = self.predictor(model, frequency, **kwargs)
-        pred_event = self.event_transform.forward(y_pred)
+        def event_fn(m, f):
+            y_pred = self.predictor(m, f, **kwargs)
+            return self.event_transform.forward(y_pred)
+        
+        if self.use_orthogonal_discrepancy:
+            raise NotImplementedError("use_orthogonal_discrepancy is not yet implemented")  
+            jac_dict = model.func_jacobian(event_fn, frequency)
+            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)   
+        
+        pred_event = event_fn(model, frequency)
         if self.discrepancy is not None:
             pred_event = self.discrepancy(pred_event, frequency.f_scaled)
             
