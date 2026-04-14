@@ -227,7 +227,7 @@ class Goal(TargetLoss):
             data points (e.g., specific frequencies) from the loss calculation. 
             Default is None.
         loss_fn : str or Any, optional
-            The base loss function. Defaults to LogMSE.
+            The base loss function. Defaults to RMSE.
             See :mod:`pmrf.losses` for common losses.
         multioutput : str or Any, optional
             Defines how to aggregate losses across multiple outputs. 

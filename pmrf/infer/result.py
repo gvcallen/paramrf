@@ -20,10 +20,10 @@ class InferResult(prx.Module):
     #: The RF model containing the maximum likelihood parameters and the posterior over parameters.
     model: Model
 
-    #: The log likelihood function used to calculate the log likelihood during sampling.
+    #: The log likelihood function/model used to calculate the log likelihood during sampling.
     #: If the log likelihood was a module with parameters, then this contains
     #: the maximum likelihood log likelihood model.
-    log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray]
+    log_likelihood: Callable[[Model, Frequency], jnp.ndarray]
     
     #: A batched model containing the sampled models.
     sampled_models: Model
@@ -32,12 +32,13 @@ class InferResult(prx.Module):
     sampled_log_likelihoods: Array
         
     #: The log-likelihood values related to each sample.
-    log_likelihoods: jnp.ndarray
+    log_likelihood_values: jnp.ndarray
     
     #: The weights related to each sample, if any.
     weights: jnp.ndarray | None = None
     
-    #: The underlying solution object returned by the solver, if any.
+    #: The underlying results object returned by the solver, if any.
+    #: May be a stripped-down version of the original results object.
     solver_results: infx.Result = None
        
     def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
@@ -51,8 +52,8 @@ class InferResult(prx.Module):
         
         model_param_names = [f"{m_prefix}{name}" for name in self.model.flat_param_names()]
         
-        if isinstance(self.log_likelihood_fn, prx.Module):
-            likelihood_param_names = [f"{l_prefix}{name}" for name in self.log_likelihood_fn.flat_param_names()]
+        if isinstance(self.log_likelihood, prx.Module):
+            likelihood_param_names = [f"{l_prefix}{name}" for name in self.log_likelihood.flat_param_names()]
         else:
             likelihood_param_names = []
         
@@ -106,7 +107,7 @@ class InferResult(prx.Module):
             
         # 3. Extract sample statistics
         sample_stats = {
-            "log_likelihood": np.expand_dims(np.asarray(self.log_likelihoods), axis=0)
+            "log_likelihood": np.expand_dims(np.asarray(self.log_likelihood_values), axis=0)
         }
         if self.weights is not None:
             sample_stats["weights"] = np.expand_dims(np.asarray(self.weights), axis=0)
@@ -138,7 +139,7 @@ class InferResult(prx.Module):
         df = pd.DataFrame(sampled_params, columns=param_names)
         
         # 3. Extract sample statistics
-        logL = np.asarray(self.log_likelihoods)
+        logL = np.asarray(self.log_likelihood_values)
         weights = np.asarray(self.weights) if self.weights is not None else None
         
         # 4. Determine which Anesthetic object to build

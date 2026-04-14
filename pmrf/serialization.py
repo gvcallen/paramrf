@@ -19,7 +19,9 @@ jsonpickle_pandas.register_handlers()
 
 def save(target: str | os.PathLike | BinaryIO, tree: Any):
     """
-    Save a ParamRF Model (or any Parax PyTree) to a file.
+    (experimental) Save a ParamRF Model (or any Parax PyTree) to a file.
+    
+    Note that this function is experimental, and may break between version releases.
     
     Automatically appends the '.prf' (ParamRF) extension to the target path 
     if no file extension is provided. This enforces the ParamRF file convention 
@@ -48,7 +50,9 @@ def save(target: str | os.PathLike | BinaryIO, tree: Any):
 
 def load(source: str | os.PathLike | BinaryIO) -> Any:
     """
-    Load a ParamRF Model (or any Parax PyTree) from a file.
+    (experimental) Load a ParamRF Model (or any Parax PyTree) from a file.
+    
+    Note that this function is experimental, and may break between version releases.
     
     Delegates to Parax's loading logic. If the provided path does not exist 
     and lacks an extension, this function will automatically check if a file 

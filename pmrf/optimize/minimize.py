@@ -1,4 +1,5 @@
 from typing import Callable, Any
+import dataclasses
 
 import logging
 
@@ -108,16 +109,18 @@ def minimize(
         solver_results = solver(obj_fn, params, args=None, **kwargs)
     else:
         solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iters, **kwargs)
+        
+    solver_results = dataclasses.replace(solver_results, value=None)
 
     optimized_problem = eqx.combine(solver_results.value, static)
     results = OptimizeResult(
         model=optimized_problem.model,
-        objective_fn=optimized_problem.evaluator,
-        value=optimized_problem(),
+        objective=optimized_problem.evaluator,
+        objective_value=optimized_problem(),
         solver_results=solver_results,
     )
     
     if isinstance(solver, optx.AbstractMinimiser):
-        logging.info(f"Final objective value = {results.value}")
+        logging.info(f"Final objective value = {results.objective_value}")
     
     return results

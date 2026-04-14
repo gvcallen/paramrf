@@ -144,9 +144,6 @@ def sample(
     
     flat_model_samples = jax.vmap(flatten_model_params)(infx_result.samples.model)
     
-    # Strip the samples so we dont store them twice
-    infx_result = replace(infx_result, samples=None)
-    
     if nested_sampler:
         from distreqx.distributions import WeightedEmpirical
         weights = infx_result.weights
@@ -161,13 +158,17 @@ def sample(
         distribution=posterior_dist
     )
     mle_model = mle_model.with_param_groups([posterior_group])
+    
+    # Strip the samples, log_likelihoods and weights so we dont store them twice
+    log_likelihood_values = infx_result.log_likelihoods
+    infx_result = replace(infx_result, samples=None, log_likelihoods=None, weights=None)
 
     return InferResult(
         model=mle_model,
-        log_likelihood_fn=mle_log_likelihood,
+        log_likelihood=mle_log_likelihood,
         sampled_models=batched_model,
         sampled_log_likelihoods=batched_log_likelihoods,
-        log_likelihoods=infx_result.log_likelihoods,
+        log_likelihood_values=log_likelihood_values,
         weights=weights,
         solver_results=infx_result,
     )
