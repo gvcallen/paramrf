@@ -65,8 +65,7 @@ def log_mean_squared_error(
     jnp.ndarray
         The calculated aggregated loss.
     """
-    # jnp.abs is redundant before squaring
-    loss = (y_true - y_pred)**2 
+    loss = (jnp.abs(y_true - y_pred))**2 
     
     # Assuming weighted_sum is defined elsewhere in your codebase
     mean_loss = weighted_sum(loss, sample_weight) 
