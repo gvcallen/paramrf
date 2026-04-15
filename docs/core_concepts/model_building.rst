@@ -79,17 +79,17 @@ Although more detailed parameter manipulation is described in the `Parax <https:
   from pmrf.models import ShuntResistor, ShuntInductor, ShuntCapacitor
   
   # Create the RLC model from before, but provide the models with names
-  R = ShuntResistor(100.0, name='R')
-  L = ShuntInductor(2.0e-9, name='L')
-  C = ShuntCapacitor(1.0e-12, name='C')
+  R = ShuntResistor(100.0, name='res')
+  L = ShuntInductor(2.0e-9, name='ind')
+  C = ShuntCapacitor(1.0e-12, name='cap')
   rlc = R ** L ** C
   
   # Print the named parameters
   print(rlc.named_params())
   
   # We can now manipulate the model appropriately
-  rlc_with_fixedC = rlc.with_fixed_params('L')
-  rlc_with_R200 = rlc.with_params(R=200)
+  rlc_with_fixedC = rlc.with_fixed_params('ind_L')
+  rlc_with_R200 = rlc.with_params(res_R=200)
   
 
 Hierachical Modeling

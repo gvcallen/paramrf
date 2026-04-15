@@ -7,7 +7,7 @@ from parax import Parameter
 
 from pmrf.core import Model, Frequency
 
-class Load(Model, transparent=True):
+class Load(Model):
     """
     An class for N-port loads defined by their reflection coefficient.
     """
@@ -38,7 +38,7 @@ class StaticLoad(Model):
         return Load(gamma=self.gamma, nports=self.nports)
 
 
-class Resistor(Model, transparent=True):
+class Resistor(Model):
     """
     A 2-port model of a series resistor.
     """
@@ -71,7 +71,7 @@ class Resistor(Model, transparent=True):
         return s    
  
  
-class Capacitor(Model, transparent=True):
+class Capacitor(Model):
     """
     A 2-port model of a series capacitor.
     """
@@ -102,7 +102,7 @@ class Capacitor(Model, transparent=True):
         return s
             
               
-class Inductor(Model, transparent=True):
+class Inductor(Model):
     """
     A 2-port model of a series inductor.
     """
@@ -133,7 +133,7 @@ class Inductor(Model, transparent=True):
         return s
     
 
-class ShuntResistor(Model, transparent=True):
+class ShuntResistor(Model):
     """
     A 2-port model of a shunt resistor shunting to ground.
     """
@@ -166,7 +166,7 @@ class ShuntResistor(Model, transparent=True):
         return s    
     
     
-class ShuntCapacitor(Model, transparent=True):
+class ShuntCapacitor(Model):
     """
     A 2-port model of a shunt capacitor shunting to ground.
     """
@@ -198,7 +198,7 @@ class ShuntCapacitor(Model, transparent=True):
         return s                
 
 
-class ShuntInductor(Model, transparent=True):
+class ShuntInductor(Model):
     """
     A 2-port model of a shunt inductor shunting to ground. 
     Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
