@@ -23,7 +23,7 @@ The example below creates a parallel RLC model and terminates it in an open circ
   
   # Terminate the RLC in an open-circuit, resulting in a one-port model
   open = Open()
-  rlc_terminated = rlc @ open
+  rlc_terminated = rlc ** open
   
   # We can also achieve the same results explicitly
   explicit_rlc = Cascade([R, L, C])

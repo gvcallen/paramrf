@@ -253,6 +253,42 @@ class MarginalLogLikelihood(Evaluator):
         event_sample = mapped_sample_fn(obs_dist, keys)
         data_sample = self.event_transform.inverse(event_sample)
         return data_sample
+    
+    
+class NegativeLogLikelihood(Evaluator):
+    """
+    Computes the negative of the log of the probability of observed data.
+    
+    Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
+    that is useful for performing Maximum Likelihood Estimation.
+    """
+    #: The underlying marginal log likelihood
+    mll: MarginalLogLikelihood = prx.field(transparent=True)
+
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        return -self.mll(model, frequency, **kwargs)
+
+
+class NegativeLogPosterior(Evaluator):
+    """
+    Computes the negative of the log of the probability of observed data,
+    plus the negative of the log of the prior on the parameters.
+    
+    Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
+    that is useful for performing Maximum A Posteriori (MAP) estimation.
+    
+    The prior is assumed to be attached to the passing in model.
+    The log prior is then calculated by passing the model's grouped parameter
+    values into its own grouped distribution's `log_prob` method.
+    """
+    #: The underlying marginal log likelihood
+    mll: MarginalLogLikelihood = prx.field(transparent=True)
+    
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        nll = -self.mll(model, frequency, **kwargs)
+        nlp = -model.grouped_distribution().log_prob(model.grouped_param_values())
+        return nll + nlp
+
 
 class Goal(TargetLoss):
     """
