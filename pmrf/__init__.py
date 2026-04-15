@@ -29,10 +29,6 @@ from pmrf.serialization import (
     load as load,
     save as save,
 )
-from pmrf.fitting import (
-    fit as fit,
-    fit_sequential as fit_sequential
-)
 
 try:
     import skrf as rf

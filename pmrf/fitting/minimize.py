@@ -102,15 +102,15 @@ def fit_minimize(
         loss_fn = LOSS_LOOKUP[loss_fn][1]
     if multioutput is not None:
         loss_fn = partial(loss_fn, multioutput=multioutput)
-    cost_fn = TargetLoss(loss=loss_fn, predictor=features, target=target)
+    objective_fn = TargetLoss(loss=loss_fn, predictor=features, target=target)
     
     # Append an optional scale function
     if isinstance(scale_fn, str):
         scale_fn = CONVERSION_LOOKUP[scale_fn][1]
     if scale_fn is not None:
-        scaled_cost_fn = prx.op.Map(scale_fn, cost_fn)
+        scaled_cost_fn = prx.op.Map(scale_fn, objective_fn)
     else:
-        scaled_cost_fn = cost_fn
+        scaled_cost_fn = objective_fn
 
     # Run the optimizer
     optimize_result = minimize(scaled_cost_fn, model, frequency, solver, **kwargs)

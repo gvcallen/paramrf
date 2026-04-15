@@ -71,11 +71,11 @@ def plot_fit_result(
     
     # Safely convert to list for iteration/prefixing
     if isinstance(features, str):
-        features_list = [features]
+        feature_list = [features]
     elif isinstance(features, list):
-        features_list = features
+        feature_list = features
     else:
-        features_list = [str(features)]
+        feature_list = [str(features)]
 
     if use_data_prefix is None:
         if isinstance(result.data, NetworkCollection):
@@ -99,10 +99,13 @@ def plot_fit_result(
             logger.debug(f"Could not extract data prefix: {e}")
             
         if prefix:
-            features_list = [f"{prefix}{f}" for f in features_list]
+            model_feature_list = [f"{prefix}{f}" for f in feature_list]
+    else:
+        model_feature_list = feature_list
     
     # Standardize evaluator
-    evaluator = features if isinstance(features, Evaluator) else Feature(features_list)
+    model_evaluator = features if isinstance(features, Evaluator) else Feature(model_feature_list)
+    data_evaluator = features if isinstance(features, Evaluator) else Feature(feature_list)
     
     # Define measured frequency axes
     x_meas = result.frequency.f_scaled
@@ -113,7 +116,7 @@ def plot_fit_result(
     x_mod = mod_freq.f_scaled
 
     # --- Evaluate model first to determine shape ---
-    y_mod = evaluator(result.model, mod_freq)
+    y_mod = model_evaluator(result.model, mod_freq)
     y_mod_real = np.real(y_mod).reshape(len(x_mod), -1)
 
     n_features = y_mod_real.shape[1]
@@ -133,7 +136,7 @@ def plot_fit_result(
             fig, axes = plt.subplots(rows, cols, sharex=True, **fig_kwargs)
             axes_flat = np.atleast_1d(axes).flatten()
         else:
-            fig, ax = _setup_figure(result.frequency, features_list, **fig_kwargs)
+            fig, ax = _setup_figure(result.frequency, model_feature_list, **fig_kwargs)
             axes_flat = np.array([ax])
             cols = 1
     else:
@@ -149,7 +152,7 @@ def plot_fit_result(
                     data = Measured(result.data[0])
                 else:
                     data = Measured(result.data)
-                y_meas = evaluator(data, result.frequency)
+                y_meas = data_evaluator(data, result.frequency)
             else:
                 y_meas = result.data
 
@@ -177,12 +180,12 @@ def plot_fit_result(
                 axis.legend(fontsize='small')
             
             # --- Smart Titling Upgrade ---
-            if len(features_list) == n_features:
+            if len(model_feature_list) == n_features:
                 # Exact 1:1 map of strings to features
-                title = features_list[i]
-            elif len(features_list) == 1:
+                title = model_feature_list[i]
+            elif len(model_feature_list) == 1:
                 # A single string expanded into multiple features (e.g., 's' -> 4 features)
-                base_feature = features_list[0]
+                base_feature = model_feature_list[0]
                 n_ports = int(np.sqrt(n_features))
                 
                 # Check if it forms a perfect square matrix

@@ -277,17 +277,26 @@ class NegativeLogPosterior(Evaluator):
     Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
     that is useful for performing Maximum A Posteriori (MAP) estimation.
     
-    The prior is assumed to be attached to the passing in model.
-    The log prior is then calculated by passing the model's grouped parameter
-    values into its own grouped distribution's `log_prob` method.
+    The model prior is assumed to be attached to the passed in model.
+    The log priors are for the RF model, likelihood, and discrepancy model
+    are all calculated individually and the summed. Each prior is calculated
+    by passing the module's grouped parameters into their grouped distribution's
+    `log_prob` method.
     """
     #: The underlying marginal log likelihood
     mll: MarginalLogLikelihood = prx.field(transparent=True)
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
-        nlp = -model.grouped_distribution().log_prob(model.grouped_param_values())
-        return nll + nlp
+
+        components = [model, self.mll.likelihood, self.mll.discrepancy]
+        nlps = []
+        for comp in components:
+            if isinstance(comp, prx.Module):
+                nlp = -comp.grouped_distribution().log_prob(model.grouped_param_values())
+                nlps.append(nlp)
+
+        return nll + jnp.sum(jnp.array(nlps))
 
 
 class Goal(TargetLoss):
