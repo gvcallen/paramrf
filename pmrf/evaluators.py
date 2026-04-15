@@ -293,7 +293,7 @@ class NegativeLogPosterior(Evaluator):
         nlps = []
         for comp in components:
             if isinstance(comp, prx.Module):
-                nlp = -comp.grouped_distribution().log_prob(model.grouped_param_values())
+                nlp = -comp.grouped_distribution().log_prob(comp.grouped_param_values())
                 nlps.append(nlp)
 
         return nll + jnp.sum(jnp.array(nlps))

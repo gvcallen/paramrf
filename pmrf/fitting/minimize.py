@@ -7,7 +7,7 @@ except ImportError:
     pass
 
 import parax as prx
-
+import numpy as np
 import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency
@@ -24,7 +24,7 @@ from pmrf.fitting.result import FitResult
 
 def fit_minimize(
     model: Model,
-    data: jnp.ndarray | skrf.Network | NetworkCollection,
+    data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: Optimizer = ScipyMinimizer(),
     *,
@@ -104,10 +104,12 @@ def fit_minimize(
         The optimization result containing the fitted Model.
     """
     # Error checking
-    if isinstance(data, jnp.ndarray) and frequency is None:
+    if isinstance(data, np.ndarray | jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
     if loss_fn is not None and likelihood is not None:
         raise ValueError("Only one of either `loss_fn` or `likelihood` can be past to `fit_minimize`")
+    if loss_fn is not None and inference == 'bayesian':
+        raise Exception("Generalized bayesian inference not yet supported in `fit_minimize`")
     
     # Resolve data and features
     if not isinstance(features, Callable):

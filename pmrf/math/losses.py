@@ -46,7 +46,7 @@ def log_mean_squared_error(
     multioutput: str | jnp.ndarray | Callable = 'uniform_average'
 ) -> jnp.ndarray:
     """
-    Computes the log of the Mean Squared Error (RMSE) between true and predicted values.
+    Computes the log of the Mean Squared Error (MSE) between true and predicted values.
 
     Parameters
     ----------
@@ -65,10 +65,21 @@ def log_mean_squared_error(
     jnp.ndarray
         The calculated aggregated loss.
     """
-    loss = (jnp.abs(y_true - y_pred))**2
-    mean_loss = weighted_sum(loss, sample_weight)
-    rmse_loss = jnp.log(mean_loss + 1e-12)
-    return aggregate(rmse_loss, multioutput)
+    # jnp.abs is redundant before squaring
+    loss = (y_true - y_pred)**2 
+    
+    # Assuming weighted_sum is defined elsewhere in your codebase
+    mean_loss = weighted_sum(loss, sample_weight) 
+    
+    # Dynamically fetch the smallest safe float for the current dtype
+    epsilon = jnp.finfo(mean_loss.dtype).tiny
+    safe_mean_loss = jnp.maximum(mean_loss, epsilon)
+    
+    # Calculate the log safely
+    log_mse_loss = jnp.log(safe_mean_loss)
+    
+    # Assuming aggregate is defined elsewhere in your codebase
+    return aggregate(log_mse_loss, multioutput)
 
 
 def root_mean_squared_error(
