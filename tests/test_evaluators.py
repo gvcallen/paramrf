@@ -139,7 +139,7 @@ def test_goal_hinge_loss(model, basic_freq):
         operator='>',
         target=2.0,
         weight=1.0,
-        loss_fn=lambda t, p: (t - p) ** 2  # simple MSE base
+        loss=lambda t, p: (t - p) ** 2  # simple MSE base
     )
     
     # Because 1.0 is NOT > 2.0, there is a penalty of (2.0 - 1.0)^2 = 1.0
