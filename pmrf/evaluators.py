@@ -310,7 +310,7 @@ class Goal(TargetLoss):
         target: float | jnp.ndarray = 0.0,
         weight: float | jnp.ndarray = 1.0,
         mask: jnp.ndarray | None = None,
-        loss_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = RMSELoss(),
+        loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = RMSELoss(),
         multioutput: str | Any = 'uniform_average'
     ):
         """
@@ -336,7 +336,7 @@ class Goal(TargetLoss):
             A boolean or numerical mask used to include or exclude specific 
             data points (e.g., specific frequencies) from the loss calculation. 
             Default is None.
-        loss_fn : str or Any, optional
+        loss : str or Any, optional
             The base loss function. Defaults to RMSE.
             See :mod:`pmrf.losses` for common losses.
         multioutput : str or Any, optional
@@ -359,7 +359,7 @@ class Goal(TargetLoss):
             operator=operator,
             weight=weight,
             mask=mask,
-            base_loss_fn=loss_fn,
+            base_loss=loss,
             multioutput=multioutput
         )
         

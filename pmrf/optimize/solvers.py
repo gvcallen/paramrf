@@ -43,9 +43,9 @@ class ScipyMinimizer(eqx.Module):
     show_progress: bool = eqx.field(static=True, default=True) # Added flag
 
     def __call__(self, fn, y, args=None, bounds=None, **kwargs) -> optx.Solution:
-        method = kwargs.setdefault('method', self.method)
+        method = kwargs.pop('method', self.method)
         options = kwargs.pop('options', {})
-
+        
         if 'bounds' in 'options':
             raise Exception("Bounds should not be passed under scipy minimize options. ")
 
@@ -116,6 +116,7 @@ class ScipyMinimizer(eqx.Module):
                 bounds=scipy_bounds,  
                 options=merged_options,
                 callback=callback, # Hooked the callback here
+                **kwargs,
             )
         finally:
             # Ensure the progress bar closes cleanly even if an error occurs

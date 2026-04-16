@@ -133,7 +133,7 @@ class HingeLoss(Loss):
     mask: jnp.ndarray | None = prx.field(default=None)
     
     #: The underlying loss function.
-    base_loss_fn: str | Callable | Loss = prx.field(default=RMSELoss())
+    base_loss: str | Callable | Loss = prx.field(default=RMSELoss())
     
     #: Defines the aggregation strategy across multiple output dimensions.    
     multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
@@ -152,7 +152,7 @@ class HingeLoss(Loss):
             operator=self.operator,
             weight=self.weight,
             mask=self.mask,
-            base_loss_fn=self.base_loss_fn,
+            base_loss=self.base_loss,
             **kwargs,
         )
 

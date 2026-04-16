@@ -19,7 +19,7 @@ def minimize(
     frequency: Frequency,
     solver: str | optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution] = ScipyMinimizer(),
     *,
-    max_iters: int = 512,
+    max_iter: int = 512,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -43,7 +43,7 @@ def minimize(
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`). If a string is passed, a ScipyMinimizer is created
         with that method.
-    max_iters : int, default=512
+    max_iter : int, default=512
         The maximum number of iterations.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
@@ -105,10 +105,12 @@ def minimize(
         if kwargs.get('has_aux', False):
             raise Exception("Auxiliary data not supported for host solvers")
             
-        kwargs['maxiter'] = max_iters
+        options = kwargs.pop('options', {})
+        options.setdefault('maxiter', max_iter)
+        kwargs['options'] = options
         solver_results = solver(obj_fn, params, args=None, **kwargs)
     else:
-        solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iters, **kwargs)
+        solver_results = optx.minimise(obj_fn, solver, params, max_steps=max_iter, **kwargs)
         
     optimized_problem = eqx.combine(solver_results.value, static)
     solver_results = dataclasses.replace(solver_results, value=None)

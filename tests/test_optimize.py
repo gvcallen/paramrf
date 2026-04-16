@@ -73,7 +73,7 @@ def test_minimize_optimistix(model, basic_freq):
     # Use a gradient-free JAX solver
     solver = optx.NelderMead(rtol=1e-5, atol=1e-5)
     
-    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iters=500)
+    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
     assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
 
 def test_minimize_list_of_objectives(model, basic_freq):

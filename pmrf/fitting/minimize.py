@@ -30,8 +30,8 @@ def fit_minimize(
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',
-    loss_fn: Callable = None,
-    likelihood: Callable = None,
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
+    likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
     noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy_model: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     **kwargs,
@@ -46,7 +46,7 @@ def fit_minimize(
     ----------
     model : Model
         The RF model to fit.
-    data : jnp.ndarray | skrf.Network | NetworkCollection
+    data :np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection
         The data to fit to. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
     frequency : Frequency | None, default=None
@@ -63,13 +63,13 @@ def fit_minimize(
         Defaults to all S-parameters.
     inference : str
         The type of inference to use, either 'frequentist' or 'bayesian'.
-        See `loss_fn` and `likelihood` for more information.
-    loss_fn : str | Callable, optional
+        See `loss` and `likelihood` for more information.
+    loss : str | Callable, optional
         A loss function between the model prediction and the data.
         Can be a function or a callable PyTree with optional parameters.
         Used to internally create a :class:`pmrf.evaluators.TargetLoss` evaluator.
-        Mutually exclusive with `likelihood`. If neither `loss_fn` nor `likelihood` is passed,
-        :class:`pmrf.losses.RMSELoss` is used for `loss_fn` if `inference` is 'frequentist',
+        Mutually exclusive with `likelihood`. If neither `loss` nor `likelihood` is passed,
+        :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
     likelihood : str | Callable, optional
@@ -77,14 +77,14 @@ def fit_minimize(
         Can be a function or a callable PyTree with optional parameters.
         Used to internally create a :class:`pmrf.evaluators.NegativeLogLikelihood`
         or :class:`pmrf.evaluators.NegativeLogPosterior` evaluator.
-        Mutually exclusive with `loss_fn`. If neither `loss_fn` nor `likelihood` is passed,
-        :class:`pmrf.losses.RMSELoss` is used for `loss_fn` if `inference` is 'frequentist',
+        Mutually exclusive with `loss`. If neither `loss` nor `likelihood` is passed,
+        :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
     noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
-        for a Gaussian likelihood. Mutually exclusive with `likelihood_fn`.
+        for a Gaussian likelihood. Mutually exclusive with `likelihood`.
         For the function case, can be a callable PyTree with optional parameters.
         See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
@@ -106,9 +106,9 @@ def fit_minimize(
     # Error checking
     if isinstance(data, np.ndarray | jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
-    if loss_fn is not None and likelihood is not None:
-        raise ValueError("Only one of either `loss_fn` or `likelihood` can be past to `fit_minimize`")
-    if loss_fn is not None and inference == 'bayesian':
+    if loss is not None and likelihood is not None:
+        raise ValueError("Only one of either `loss` or `likelihood` can be past to `fit_minimize`")
+    if loss is not None and inference == 'bayesian':
         raise Exception("Generalized bayesian inference not yet supported in `fit_minimize`")
     
     # Resolve data and features
@@ -125,16 +125,16 @@ def fit_minimize(
         target = data
 
     # Resolve defaults e.g. loss vs MLE vs MAP optimization
-    if loss_fn is None and likelihood is None:
+    if loss is None and likelihood is None:
         if inference == 'frequentist':
-            loss_fn = RMSELoss()
+            loss = RMSELoss()
         else:
             if noise is None:
                 noise = prx.Uniform(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
         
-    if loss_fn is not None:
-        objective_fn = TargetLoss(predictor=features, target=target, loss=loss_fn)
+    if loss is not None:
+        objective_fn = TargetLoss(predictor=features, target=target, loss=loss)
     else:
         mll = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
         if inference == 'frequentist':

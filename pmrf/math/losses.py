@@ -220,7 +220,7 @@ def hinge_loss(
     operator: Literal['<', '<=', '>', '>=', '==', '='],
     weight: float | jnp.ndarray = 1.0,
     mask: jnp.ndarray | None = None,
-    base_loss_fn: str | Callable = 'rmse', 
+    base_loss: str | Callable = 'rmse', 
     multioutput: str | jnp.ndarray | Callable = 'uniform_average',
     **kwargs,
 ) -> jnp.ndarray:
@@ -242,7 +242,7 @@ def hinge_loss(
         A scalar or array multiplier to scale the importance of the penalty.
     mask : jnp.ndarray | None, default=None
         A boolean array filtering which data points apply to this loss.
-    base_loss_fn : str | Callable, default='rmse'
+    base_loss : str | Callable, default='rmse'
         The underlying mathematical metric applied to the constraint residual.
         Can be a string alias (resolved via LOSS_LOOKUP) or a custom callable.
     **kwargs
@@ -279,11 +279,11 @@ def hinge_loss(
     final_pred = y_true + weighted_residual
     
     # Resolve the base metric if a string alias is provided
-    if isinstance(base_loss_fn, str):
-        base_loss_fn = LOSS_LOOKUP[base_loss_fn][1]
+    if isinstance(base_loss, str):
+        base_loss = LOSS_LOOKUP[base_loss][1]
     
     # 4. Defer actual distance calculation to the base metric
-    return base_loss_fn(
+    return base_loss(
         y_true,
         final_pred,
         **kwargs,
