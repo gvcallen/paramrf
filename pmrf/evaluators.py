@@ -16,6 +16,7 @@ import distreqx.bijectors as bij
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.utils import log_prob
 
 class Feature(Evaluator):
     """
@@ -293,7 +294,8 @@ class NegativeLogPosterior(Evaluator):
         nlps = []
         for comp in components:
             if isinstance(comp, prx.Module):
-                nlp = -comp.grouped_distribution().log_prob(comp.grouped_param_values())
+                # nlp = -comp.grouped_distribution().log_prob(comp.grouped_param_values())
+                nlp = -log_prob(comp)
                 nlps.append(nlp)
 
         return nll + jnp.sum(jnp.array(nlps))

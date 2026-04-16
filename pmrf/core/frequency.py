@@ -146,6 +146,10 @@ class Frequency(eqx.Module):
         Frequency
             The equivalent pmrf Frequency object.
         """
+        import skrf
+        if not isinstance(skrf_frequency, skrf.Frequency):
+            raise Exception(f"Expect skrf.Frequency in Frequency.from_skrf, got: {type(skrf_frequency)}")
+        
         if unit is not None:
             skrf_frequency = skrf_frequency.copy()
             skrf_frequency.unit = unit

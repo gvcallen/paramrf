@@ -110,8 +110,8 @@ def fit_sample(
             noise = prx.Uniform(0.0, 0.01)
         likelihood = GaussianLikelihood(noise=noise)
     
-    log_likelihood_fn = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
-    infer_result = sample(log_likelihood_fn, model, frequency, solver=solver, **kwargs)
+    log_likelihood = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
+    infer_result = sample(log_likelihood, model, frequency, solver=solver, **kwargs)
 
     return FitResult(
         data=data,

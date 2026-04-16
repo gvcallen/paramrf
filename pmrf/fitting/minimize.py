@@ -64,6 +64,8 @@ def fit_minimize(
     inference : str
         The type of inference to use, either 'frequentist' or 'bayesian'.
         See `loss` and `likelihood` for more information.
+        For frequentist inference, the default search space is set to 'physical',
+        whereas for bayesian inference it is set to 'hypercube'.
     loss : str | Callable, optional
         A loss function between the model prediction and the data.
         Can be a function or a callable PyTree with optional parameters.
@@ -104,6 +106,8 @@ def fit_minimize(
         The optimization result containing the fitted Model.
     """
     # Error checking
+    if inference != 'frequentist' and inference != 'bayesian':
+        raise Exception(f"`inference` must be either 'frequentist' or 'bayesian'. Got {inference}")
     if isinstance(data, np.ndarray | jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
     if loss is not None and likelihood is not None:
@@ -132,18 +136,22 @@ def fit_minimize(
             if noise is None:
                 noise = prx.Uniform(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
+    if inference == 'frequentist':
+        kwargs.setdefault('search_space', 'physical')
+    else:
+        kwargs.setdefault('search_space', 'hypercube')
         
     if loss is not None:
-        objective_fn = TargetLoss(predictor=features, target=target, loss=loss)
+        objective = TargetLoss(predictor=features, target=target, loss=loss)
     else:
         mll = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
         if inference == 'frequentist':
-            objective_fn = NegativeLogLikelihood(mll)
+            objective = NegativeLogLikelihood(mll)
         else:
-            objective_fn = NegativeLogPosterior(mll)
+            objective = NegativeLogPosterior(mll)
 
     # Run the optimizer
-    optimize_result = minimize(objective_fn, model, frequency, solver, **kwargs)
+    optimize_result = minimize(objective, model, frequency, solver, **kwargs)
 
     return FitResult(
         data=data,

@@ -15,26 +15,26 @@ from pmrf.utils import generate_key
 
 
 def sample(
-    log_likelihood_fn: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+    log_likelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
     solver: infx.AbstractNestedSampler = infx.PolyChord(),
     *,
-    nlive_factor: int = 25,
-    key = None,
+    key: jnp.ndarray | None = None,
     **kwargs,
 ) -> InferResult:
     """
     Samples a given log likelihood function for a model over a frequency range.
     
-    The log likelihood function can have its own hyper-parameters, and is returned in `result.log_likelihood_fn`.
+    The log likelihood function can have its own hyper-parameters, and is returned in `result.log_likelihood`.
 
     Parameters
     ----------
-    log_likelihood_fn : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+    log_likelihood : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
         The log likelihood function to sample. Can be a function or a callable PyTree
         with optional parameters. If a list of log likelihoods is provided,
-        they are automatically summed.
+        they are automatically summed, however the inner likelihoods may not
+        have hyperparameters in this case.
     model : Model
         The RF model containing the parameters to be sample.
     frequency : Frequency
@@ -42,11 +42,9 @@ def sample(
     solver : infx.AbstractNestedSampler, default=infx.PolyChord()
         The sampler to use. Can be any sampler from `Inferix <https://github.com/gvcallen/inferix>`_,
         such as :class:`inferix.PolyChord`.
-    nlive_factor : int, default=25
-        The number of live points to use as a factor of the number of total parameters.
-        Only used for nested sampling.
-    key : jnp.ndarray
-        The random JAX key. Note required for all samplers.
+    key : jnp.ndarray, optional
+        The random JAX key. Not required for all samplers.
+        Automatically generated if not passed.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -67,17 +65,19 @@ def sample(
     if not is_inferer(solver):
         raise Exception(f"Expected an Inferix solver. Got: {solver}")
     
-    if isinstance(log_likelihood_fn, list):
-        log_likelihood_fn = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in log_likelihood_fn])
+    if isinstance(log_likelihood, list):
+        for logl in log_likelihood:
+            if isinstance(logl, prx.Module) and logl.num_flat_params > 0:
+                raise Exception("Cannot pass a list of likelihoods that include parameters.")        
+        log_likelihood = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in log_likelihood])
     else:
-        log_likelihood_fn = log_likelihood_fn if isinstance(log_likelihood_fn, eqx.Module) else prx.op.Lambda(log_likelihood_fn)
+        log_likelihood = log_likelihood if isinstance(log_likelihood, eqx.Module) else prx.op.Lambda(log_likelihood)
     
-    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood_fn)
+    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood)
 
     if problem.num_flat_params == 0:
         raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
 
-    model.validate_params()
     problem.validate_params()    
     
     if solver is None:
@@ -87,37 +87,69 @@ def sample(
         
     params, static = prx.partition(problem)
 
-    def internal_log_likelihood_fn(params, _args) -> jnp.ndarray:
+    def internal_log_likelihood(params, _args) -> jnp.ndarray:
         problem = eqx.combine(params, static)
         return problem()
     
     def prior_transform_fn(u_problem, _args) -> Problem:
         full_u_problem = eqx.combine(u_problem, static)
         
-        def map_param(x):
-            if isinstance(x, prx.Parameter):
-                value = jnp.array(x.value, dtype=jnp.float64)
-                return x.with_value(x.distribution.icdf(value))
-            return x
-        full_physical_problem = jax.tree.map(map_param, full_u_problem, is_leaf=prx.is_free_param)
-        params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)
-        return params_physical_problem
+        # 1. Extract unit values and the joint distribution structurally matched
+        unit_vals = full_u_problem.grouped_param_values()
+        joint_dist = full_u_problem.grouped_distribution()
+        
+        # 2. Transform from unit hypercube to physical space using the joint inverse CDF
+        physical_vals = joint_dist.icdf(unit_vals)
+        
+        # 3. Unpack the structural dictionary back to flat parameter updates
+        named_grouped = full_u_problem.named_grouped_params()
+        flat_updates = {}
+        
+        for group_key, param_dict in named_grouped.items():
+            phys_val = physical_vals[group_key]
+            
+            # Handle scalar/univariate vs stacked/multivariate distributions
+            # matching the logic inside your grouped_param_values() method
+            if len(param_dict) == 1:
+                name = list(param_dict.keys())[0]
+                flat_updates[name] = phys_val
+            else:
+                for i, name in enumerate(param_dict.keys()):
+                    flat_updates[name] = phys_val[i]
+                    
+        # 4. Inject the physical values back into the problem tree
+        full_physical_problem = full_u_problem.with_params(flat_updates)
+        
+        # 5. Repartition to return just the dynamic parameters for Inferix
+        params_physical_problem, _ = prx.partition(full_physical_problem)
+        return params_physical_problem    
+    
+    # def prior_transform_fn(u_problem, _args) -> Problem:
+    #     full_u_problem = eqx.combine(u_problem, static)
+        
+    #     def map_param(x):
+    #         if isinstance(x, prx.Parameter):
+    #             value = jnp.array(x.value, dtype=jnp.float64)
+    #             return x.with_value(x.distribution.icdf(value))
+    #         return x
+    #     full_physical_problem = jax.tree.map(map_param, full_u_problem, is_leaf=prx.is_free_param)
+    #     params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)
+    #     return params_physical_problem
 
     if isinstance(solver, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler | infx.AbstractHostPhysicalNestedSampler):    
         nested_sampler = True
         infx_result = infx.nested(
-            internal_log_likelihood_fn,
+            internal_log_likelihood,
             key=key,
             sampler=solver,
             y0=params,
             prior_transform_fn=prior_transform_fn,
-            nlive=nlive_factor*problem.num_flat_params,
             **kwargs
         )
     else:
         nested_sampler = False
         infx_result = infx.mcmc(
-            internal_log_likelihood_fn,
+            internal_log_likelihood,
             key=key,
             sampler=solver,
             y0=params,

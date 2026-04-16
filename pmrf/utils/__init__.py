@@ -8,3 +8,4 @@ from pmrf.utils.distribution import *
 from pmrf.utils.misc import *
 from pmrf.utils.network import *
 from pmrf.utils.random import *
+from pmrf.utils.module import *

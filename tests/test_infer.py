@@ -52,7 +52,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
         return -0.5 * jnp.sum((m.val - 7.0)**2)
         
     result = sample(
-        log_likelihood_fn=log_like,
+        log_likelihood=log_like,
         model=infer_model,
         frequency=basic_freq,
         solver=PolyChord(do_clustering=False),
