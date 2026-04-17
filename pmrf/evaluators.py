@@ -146,7 +146,7 @@ class MarginalLogLikelihood(Evaluator):
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
     #: Can be a function or a PyTree with optional parameters.
     #: See :mod:`pmrf.likelihoods` for common likelihoods.
-    likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution]
+    likelihood: Callable[[jnp.ndarray | dist.AbstractDistribution], dist.AbstractDistribution]
 
     #: An optional discrepancy model to cater for model misspecification.
     #: Can be a function or a PyTree with optional parameters.
@@ -256,6 +256,104 @@ class MarginalLogLikelihood(Evaluator):
         return data_sample
     
     
+class GibbsMarginalLogLikelihood(Evaluator):
+    """
+    Computes a generalized log-posterior (the Gibbs measure) using a loss function 
+    instead of a strict generative likelihood.
+    
+    This is used for Generalized Bayesian Inference (GBI). It supports conditioning 
+    a physical model prediction while marginalizing out a potential discrepancy model 
+    using an Expected Loss framework.
+    """
+    #: The predictor (e.g. another Evaluator) that extracts model features.
+    #: Can be a function or a PyTree with optional parameters.
+    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    
+    #: The observed data that the loss will be computed against.
+    #: Must have a shape that matches the shape of the predictor output.
+    observed: jnp.ndarray
+    
+    #: The loss function that takes (y_true, y_pred) and returns a loss metric.
+    #: Can be a function or a PyTree with optional parameters.
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
+    
+    #: The inverse-weight (temperature) of the Gibbs measure. 
+    #: Higher temperatures create wider, less confident posteriors.
+    temperature: float = 1.0
+
+    #: An optional discrepancy model to cater for model misspecification.
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
+    
+    #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
+    #: which defines the model's orthogonal sub-space. Used for gaussian processes.
+    use_orthogonal_discrepancy: bool = False
+
+    #: A bijective transform that maps from "observation space" (predicted features) to "event space".
+    event_transform: bij.AbstractBijector = None
+
+    #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
+    event_ndims: int = prx.field(default=1, static=True)
+    
+    def __post_init__(self):
+        # Default mapping logic (matches standard MarginalLogLikelihood)
+        if self.event_ndims != 1:
+            raise Exception("GibbsMarginalLogLikelihood currently only supports a single dependent event dimension")
+        
+        if self.event_transform is None:
+            ndims = self.observed.ndim
+            if jnp.iscomplexobj(self.observed):
+                perm = tuple(range(1, ndims + 1)) + (0,)
+                self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
+            else:
+                perm = tuple(range(1, ndims)) + (0,)
+                self.event_transform = bij.Chain([bij.Transpose(perm)])
+                
+    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        def event_fn(m, f):
+            y_pred = self.predictor(m, f, **kwargs)
+            return self.event_transform.forward(y_pred)
+            
+        discrepancy_kwargs = {}
+        if self.use_orthogonal_discrepancy and self.discrepancy is not None:
+            jitter = 1e-12
+            jac_dict = model.func_jacobian(event_fn, frequency)
+            
+            # J_b : shape (..., N, P)
+            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)
+            N, P = J_b.shape[-2], J_b.shape[-1]
+            I = jnp.eye(N)
+            
+            J_b_T = jnp.swapaxes(J_b, -1, -2)
+            JT_J = J_b_T @ J_b
+            JT_J_stable = JT_J + jitter * jnp.eye(P)
+            
+            JT_J_inv = jnp.linalg.inv(JT_J_stable)
+            discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
+            
+        # 1. Base physical prediction
+        pred_event = event_fn(model, frequency)
+        variance_penalty = 0.0
+        
+        # 2. Discrepancy application (Expected Loss framework)
+        if self.discrepancy is not None:
+            pred_dist = self.discrepancy(pred_event, frequency.f_scaled, **discrepancy_kwargs)
+            # Shift the prediction by the discrepancy mean
+            pred_event = pred_dist.mean 
+            # Penalize the loss by the discrepancy variance (Tr(Sigma))
+            # Note: Assumes pred_dist exposes marginal variances via .variance
+            variance_penalty = jnp.sum(pred_dist.variance)
+            
+        # 3. Target mapping
+        obs_event = self.event_transform.forward(self.observed)
+        
+        # 4. Calculate Expected Loss
+        # (Evaluated globally directly on the arrays, no vmap required)
+        base_loss = self.loss(obs_event, pred_event)
+        expected_loss = base_loss + variance_penalty
+        
+        # 5. Return the generalized log-posterior (Gibbs measure)
+        return -(expected_loss / self.temperature)
+        
 class NegativeLogLikelihood(Evaluator):
     """
     Computes the negative of the log of the probability of observed data.
@@ -264,7 +362,7 @@ class NegativeLogLikelihood(Evaluator):
     that is useful for performing Maximum Likelihood Estimation.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood = prx.field(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.field(transparent=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.mll(model, frequency, **kwargs)
@@ -285,7 +383,7 @@ class NegativeLogPosterior(Evaluator):
     `log_prob` method.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood = prx.field(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.field(transparent=True)
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
@@ -371,5 +469,6 @@ __all__ = [
     'Feature',
     'TargetLoss',
     'MarginalLogLikelihood',
+    'GibbsMarginalLogLikelihood',
     'Goal',
 ]

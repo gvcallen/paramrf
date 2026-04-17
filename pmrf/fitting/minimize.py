@@ -14,7 +14,7 @@ from pmrf.core import Model, Frequency
 from pmrf.constants import Optimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
+from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 
@@ -33,7 +33,8 @@ def fit_minimize(
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
     noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
-    discrepancy_model: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
+    temperature: float = None,
     **kwargs,
 ) -> FitResult:
     """
@@ -91,14 +92,19 @@ def fit_minimize(
         See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
         Only used if a `likelihood` is passed or `inference` is 'bayesian'.
-    discrepancy_model : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
+    discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
         see :class:`pmrf.discrepancy_models.GaussianProcess`.
         Only used if a `likelihood` is passed or `inference` is 'bayesian'.
+    temperature : float, optional
+        The temperature value for generalized Bayesian optimization.
+        Only used when `inference` is 'bayesian' and `loss` is not None.
+        Defaults to 1.0 internally.
     **kwargs : dict
-        Additional keyword arguments passed to the underlying solver.
+        Additional keyword arguments passed to :func:`pmrf.optimize.minimize`
+        and then underlying solver.
 
     Returns
     -------
@@ -112,8 +118,6 @@ def fit_minimize(
         raise ValueError("Frequency must be passed if Network data is not provided")
     if loss is not None and likelihood is not None:
         raise ValueError("Only one of either `loss` or `likelihood` can be past to `fit_minimize`")
-    if loss is not None and inference == 'bayesian':
-        raise Exception("Generalized bayesian inference not yet supported in `fit_minimize`")
     
     # Resolve data and features
     if not isinstance(features, Callable):
@@ -140,11 +144,15 @@ def fit_minimize(
         kwargs.setdefault('search_space', 'physical')
     else:
         kwargs.setdefault('search_space', 'hypercube')
-        
-    if loss is not None:
+
+    if inference == 'frequentist' and loss is not None:
         objective = TargetLoss(predictor=features, target=target, loss=loss)
     else:
-        mll = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
+        if likelihood is not None:
+            mll = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy)
+        else:
+            temperature = temperature if temperature is not None else 1.0
+            mll = GibbsMarginalLogLikelihood(predictor=features, observed=target, loss=loss, discrepancy=discrepancy, temperature=temperature)
         if inference == 'frequentist':
             objective = NegativeLogLikelihood(mll)
         else:

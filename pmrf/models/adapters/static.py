@@ -29,6 +29,8 @@ class Measured(Model):
 
         if isinstance(data, NetworkCollection) and name in data.to_dict():
             return Measured(data[name])
+        elif isinstance(data, skrf.Network) and name == data.name:
+            return Measured(data)
         return super().__getattr__(name)
     
     def __post_init__(self):

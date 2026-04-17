@@ -41,8 +41,7 @@ def minimize(
     solver : optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution], default=ScipyMinimizer()
         The optimizer to use. Can be either an instance of :class:`pmrf.optimize.ScipyMinimizer`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
-        (such as :class:`optimistix.LBFGS`). If a string is passed, a ScipyMinimizer is created
-        with that method.
+        (such as :class:`optimistix.LBFGS`).
     search_space : Literal["physical", "hypercube"], default="physical"
         The domain over which the solver operates. "physical" optimizes within the native parameter bounds,
         while "hypercube" maps all free parameters to a [0, 1] during optimization based on their distributions.
