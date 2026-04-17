@@ -18,9 +18,9 @@ from pmrf.core import Model, Frequency
 from pmrf.constants import Inferer
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
-from pmrf.evaluators import Feature, MarginalLogLikelihood
+from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.infer import InferResult, sample
+from pmrf.infer import sample
 from pmrf.fitting.result import FitResult
 
 def fit_sample(
@@ -32,7 +32,9 @@ def fit_sample(
     features: str | list[str] | Callable = 's',
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
     noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
-    discrepancy_model: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
+    temperature: float = None,
     **kwargs,
 ) -> FitResult:
     """
@@ -64,19 +66,27 @@ def fit_sample(
         and returns a distribution representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
         See :mod:`pmrf.likelihoods` for common likelihoods.
-        Defaults to `None`, in which case :class:`pmrf.likelihoods.GaussianLikelihood` is used.
+        Mutually exclusive with `loss`.
     noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
-        for a Gaussian likelihood. Mutually exclusive with `likelihood_fn`.
+        for a Gaussian likelihood. Mutually exclusive with `likelihood` and `loss`.
         For the function case, can be a callable PyTree with optional parameters.
         See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
-    discrepancy_model : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
+    loss : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray], optional
+        A loss function between the model prediction and the data to construct a Gibbs measure.
+        Can be a function or a callable PyTree with optional parameters.
+        Mutually exclusive with `likelihood` and `noise`. If neither `loss` nor `likelihood` 
+        is passed, a :class:`pmrf.likelihoods.GaussianLikelihood` is constructed.
+    discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
-        see :class:`pmrf.discrepancy_models.GaussianProcess`.
+        see :class:`pmrf.discrepancys.GaussianProcess`.
+    temperature : float, optional
+        The temperature value for generalized Bayesian optimization.
+        Only used when `loss` is not None. Defaults to 1.0 internally.
     **kwargs : dict
         Additional keyword arguments passed to the underlying solver.
 
@@ -89,7 +99,11 @@ def fit_sample(
     if isinstance(data, jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
     if likelihood is not None and noise is not None:
-        raise Exception("Cannot pass both `noise` and `likelihood_fn`.")
+        raise ValueError("Cannot pass both `noise` and `likelihood`.")
+    if loss is not None and likelihood is not None:
+        raise ValueError("Only one of either `loss` or `likelihood` can be passed to `fit_sample`.")
+    if loss is not None and noise is not None:
+        raise ValueError("Cannot pass `noise` when using a `loss` function for Generalized Bayesian Inference.")
 
     # Resolve the features and data
     if not isinstance(features, Callable):
@@ -100,21 +114,37 @@ def fit_sample(
                 frequency = Frequency.from_skrf(data.frequency)
             else:
                 frequency = Frequency.from_skrf(data.common_frequency())
-        target = features(Measured(data), frequency)
+        observed = features(Measured(data), frequency)
     else:
-        target = data
+        observed = data
         
-    # Resolve the likelihood model
-    if likelihood is None:
+    # Resolve the likelihood or loss model
+    if loss is None and likelihood is None:
         if noise is None:
             noise = prx.Uniform(0.0, 0.01)
         likelihood = GaussianLikelihood(noise=noise)
     
-    log_likelihood = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy_model)
+    if likelihood is not None:
+        log_likelihood = MarginalLogLikelihood(
+            predictor=features, 
+            observed=observed, 
+            likelihood=likelihood, 
+            discrepancy=discrepancy
+        )
+    else:
+        temperature = temperature if temperature is not None else 1.0
+        log_likelihood = GibbsMarginalLogLikelihood(
+            predictor=features, 
+            observed=observed, 
+            loss=loss, 
+            discrepancy=discrepancy, 
+            temperature=temperature
+        )
+
     infer_result = sample(log_likelihood, model, frequency, solver=solver, **kwargs)
 
     return FitResult(
         data=data,
         frequency=frequency,
         solution=infer_result,
-    )    
+    )
