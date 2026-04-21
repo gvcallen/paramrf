@@ -109,8 +109,7 @@ def minimize(
                 if x.bounds is not None:
                     return x.with_value(x.bounds[..., 0])
                 if x.distribution is not None:
-                    eps = jnp.finfo(jnp.result_type(x.value)).resolution
-                    return x.with_value(jnp.full_like(x.value, eps))
+                    return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.001)))
                 return x.with_value(jnp.full_like(x.value, -jnp.inf))
                 
             def upper_fn(x: prx.Parameter):
@@ -119,8 +118,7 @@ def minimize(
                 if x.bounds is not None:
                     return x.with_value(x.bounds[..., 1])
                 if x.distribution is not None:
-                    eps = jnp.finfo(jnp.result_type(x.value)).resolution
-                    return x.with_value(jnp.full_like(x.value, 1.0-eps))
+                    return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.999)))
                 return x.with_value(jnp.full_like(x.value, jnp.inf))
             
             lower_tree = jax.tree.map(lower_fn, problem, is_leaf=prx.is_free_param)
@@ -128,7 +126,7 @@ def minimize(
             
             (lower, upper), _ = prx.partition((lower_tree, upper_tree))
             bounds_tuple = (lower, upper)
-        
+            
     # Run the solver
     if isinstance(solver, ScipyMinimizer):
         if bounds_tuple is not None:
@@ -137,8 +135,6 @@ def minimize(
             options.setdefault('upper', bounds_tuple[1])
             kwargs['options'] = options
         solver_results = solver(obj_fn, params, **kwargs)
-        # solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
-        
     elif isinstance(solver, optx.AbstractMinimiser):
         if bounds_tuple is not None:
              raise Exception("Bounds are not supported for standard `optimistix` solvers.")
