@@ -136,8 +136,8 @@ def minimize(
             options.setdefault('lower', bounds_tuple[0])
             options.setdefault('upper', bounds_tuple[1])
             kwargs['options'] = options
-        # solver_results = solver(obj_fn, params, **kwargs)
-        solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
+        solver_results = solver(obj_fn, params, **kwargs)
+        # solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
         
     elif isinstance(solver, optx.AbstractMinimiser):
         if bounds_tuple is not None:
