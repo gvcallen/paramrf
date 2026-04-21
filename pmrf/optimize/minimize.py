@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Callable, Any, TypeVar, Union
 import dataclasses
 import inspect
 import functools
@@ -8,17 +8,19 @@ import jax.numpy as jnp
 import equinox as eqx
 import optimistix as optx
 import parax as prx
-import jaxopt  # <-- Added jaxopt import
+import jaxopt
 
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.solvers import ScipyMinimizer
+from pmrf.optimize.scipy import ScipyMinimizer
+
+JaxoptSolver = Union[TypeVar('JaxoptSolver'), functools.partial]
 
 def minimize(
     objective: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: optx.AbstractMinimiser | ScipyMinimizer | 'type[jaxopt.base.Solver]' | functools.partial = ScipyMinimizer(),
+    solver: ScipyMinimizer | optx.AbstractMinimiser | JaxoptSolver = ScipyMinimizer(),
     use_bounds: bool | None = None,
     **kwargs,
 ) -> OptimizeResult:
@@ -39,9 +41,9 @@ def minimize(
         The RF model containing the parameters to be optimized.
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
-    solver : optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution], default=ScipyMinimizer()
+    solver : ScipyMinimizer | optx.AbstractMinimiser | JaxoptSolver, default=ScipyMinimizer()
         The optimizer to use. Can be either an instance of :class:`pmrf.optimize.ScipyMinimizer`,
-        a minimizer from Optimistix, a jaxopt solver class, or a functools.partial of a jaxopt solver.
+        a minimizer from Optimistix, or a jaxopt solver class (or a functools.partial of a jaxopt solver class).
     use_bounds : bool, optional
         Use bounds from the model for optimization algorithms that support it.
         Note that only individual parameter bounds are used (parameter groups are ignored).
@@ -128,19 +130,19 @@ def minimize(
             bounds_tuple = (lower, upper)
         
     # Run the solver
-    if isinstance(solver, optx.AbstractMinimiser):
-        if bounds_tuple is not None:
-             raise Exception("Bounds are not supported for standard `optimistix` solvers.")
-        solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
-        
-    elif isinstance(solver, ScipyMinimizer):
+    if isinstance(solver, ScipyMinimizer):
         if bounds_tuple is not None:
             options = kwargs.get('options', {})
             options.setdefault('lower', bounds_tuple[0])
             options.setdefault('upper', bounds_tuple[1])
             kwargs['options'] = options
-        solver_results = solver(obj_fn, params, **kwargs)
+        # solver_results = solver(obj_fn, params, **kwargs)
+        solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
         
+    elif isinstance(solver, optx.AbstractMinimiser):
+        if bounds_tuple is not None:
+             raise Exception("Bounds are not supported for standard `optimistix` solvers.")
+        solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
     elif is_jaxopt:
         jaxopt_solver = solver(fun=obj_fn, **kwargs)
         

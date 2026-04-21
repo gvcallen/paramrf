@@ -11,7 +11,7 @@ except ImportError:
 from pmrf.core import Model, Frequency, EvaluatorLike
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
-from pmrf.optimize.solvers import ScipyMinimizer
+from pmrf.optimize.scipy import ScipyMinimizer
 from pmrf.network_collection import NetworkCollection
 from pmrf.optimize import is_optimizer, OptimizeResult
 from pmrf.infer import is_inferer, InferResult

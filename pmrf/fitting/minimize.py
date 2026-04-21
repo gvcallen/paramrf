@@ -19,7 +19,7 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.solvers import ScipyMinimizer
+from pmrf.optimize.scipy import ScipyMinimizer
 from pmrf.fitting.result import FitResult
 
 def fit_minimize(

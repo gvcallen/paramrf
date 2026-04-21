@@ -7,7 +7,7 @@ import parax as prx
 
 from pmrf.core import Model, Frequency
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.solvers import ScipyMinimizer
+from pmrf.optimize.scipy import ScipyMinimizer
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

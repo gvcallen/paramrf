@@ -6,8 +6,9 @@ that minimize a given objective/cost function.
 """
 
 from pmrf.optimize.minimize import minimize
+from pmrf.optimize.base import is_optimizer
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.solvers import ScipyMinimizer, is_optimizer
+from pmrf.optimize.scipy import ScipyMinimizer
 
 from pmrf.constants import Optimizer
 
