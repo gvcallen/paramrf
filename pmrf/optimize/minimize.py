@@ -1,24 +1,25 @@
-from typing import Callable, Any, Literal
+from typing import Callable, Any
 import dataclasses
-import logging
+import inspect
+import functools
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 import optimistix as optx
 import parax as prx
+import jaxopt  # <-- Added jaxopt import
 
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers import ScipyMinimizer
-from pmrf.utils import hypercube_to_physical, physical_to_hypercube
 
 def minimize(
     objective: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: str | optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution] = ScipyMinimizer(),
-    search_space: Literal["physical", "hypercube"] = "physical",
+    solver: optx.AbstractMinimiser | ScipyMinimizer | 'type[jaxopt.base.Solver]' | functools.partial = ScipyMinimizer(),
+    use_bounds: bool | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -39,12 +40,11 @@ def minimize(
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
     solver : optx.AbstractMinimiser | Callable[[Callable, jnp.ndarray, Any], optx.Solution], default=ScipyMinimizer()
-        The optimizer to use. Can be either an instance of :class:`pmrf.optimize.ScipyMinimizer`
-        or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
-        (such as :class:`optimistix.LBFGS`).
-    search_space : Literal["physical", "hypercube"], default="physical"
-        The domain over which the solver operates. "physical" optimizes within the native parameter bounds,
-        while "hypercube" maps all free parameters to a [0, 1] during optimization based on their distributions.
+        The optimizer to use. Can be either an instance of :class:`pmrf.optimize.ScipyMinimizer`,
+        a minimizer from Optimistix, a jaxopt solver class, or a functools.partial of a jaxopt solver.
+    use_bounds : bool, optional
+        Use bounds from the model for optimization algorithms that support it.
+        Note that only individual parameter bounds are used (parameter groups are ignored).
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -53,9 +53,24 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if search_space not in ("physical", "hypercube"):
-        raise ValueError(f"search_space must be 'physical' or 'hypercube', got: {search_space}")    
+    # Identify if the solver is from jaxopt
+    is_jaxopt = False
+    if hasattr(solver, 'func') and hasattr(solver.func, '__module__') and 'jaxopt' in solver.func.__module__:
+        is_jaxopt = True
+    elif inspect.isclass(solver) and hasattr(solver, '__module__') and 'jaxopt' in solver.__module__:
+        is_jaxopt = True
+
+    # Error checking for supported solver type
+    if not (isinstance(solver, (optx.AbstractMinimiser, ScipyMinimizer)) or is_jaxopt):
+        raise TypeError(f"Unsupported solver passed to `minimize`. Got type {type(solver)}")
     
+    # Input standardization
+    use_bounds_explicitly_passed = False
+    if use_bounds is None:
+        use_bounds = True if (isinstance(solver, ScipyMinimizer) or is_jaxopt) else False
+    else:
+        use_bounds_explicitly_passed = True
+        
     if isinstance(objective, list):
         for obj in objective:
             if isinstance(obj, prx.Module) and obj.num_flat_params > 0:
@@ -64,119 +79,107 @@ def minimize(
     else:
         objective = objective if isinstance(objective, eqx.Module) else prx.op.Lambda(objective)
     
+    # Create and validate the problem
     problem = Problem(model=model, frequency=frequency, evaluator=objective)   
     if problem.num_flat_params == 0:
         raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
-    
     problem.validate_params()
     
-    if search_space == "hypercube":
-        problem = physical_to_hypercube(problem)    
-    
+    # Setup the parameters and objective
     params, static = prx.partition(problem)
-    
-    def obj_fn(transformed_params, _args):
+    def obj_fn(transformed_params, _args=None):
         full_eval_problem = eqx.combine(transformed_params, static)
-        
-        if search_space == "hypercube":
-            full_eval_problem = hypercube_to_physical(full_eval_problem)
-            
-        return full_eval_problem()
-    
-    if isinstance(solver, ScipyMinimizer):
-        if search_space == "hypercube":
-            def lower_fn(x):
-                if isinstance(x, prx.Parameter):
-                    if x.distribution is not None:
-                        eps = jnp.finfo(jnp.result_type(x.value)).resolution
-                        return x.with_value(jnp.full_like(x.value, eps))
-                    
-                    if x.bounds is not None:
-                        return x.with_value(x.bounds[..., 0])
-                    return x.with_value(jnp.full_like(x.value, -jnp.inf))
-                return x
+        return full_eval_problem()    
+
+    # Initialize the bounds    
+    bounds_tuple = None
+    if use_bounds:
+        if 'lower' in kwargs and 'upper' in kwargs:
+            # Extract explicit bounds if user passed them in kwargs
+            lower = kwargs.pop('lower')
+            upper = kwargs.pop('upper')
+            bounds_tuple = (lower, upper)
+        else:
+            # Generate bounds from model parameters
+            def lower_fn(x: prx.Parameter):
+                if not prx.is_free_param(x):
+                    return x
+                if x.bounds is not None:
+                    return x.with_value(x.bounds[..., 0])
+                if x.distribution is not None:
+                    eps = jnp.finfo(jnp.result_type(x.value)).resolution
+                    return x.with_value(jnp.full_like(x.value, eps))
+                return x.with_value(jnp.full_like(x.value, -jnp.inf))
                 
-            def upper_fn(x):
-                if isinstance(x, prx.Parameter):
-                    if x.distribution is not None:
-                        eps = jnp.finfo(jnp.result_type(x.value)).resolution
-                        return x.with_value(jnp.full_like(x.value, 1.0 - eps))
-                    
-                    if x.bounds is not None:
-                        return x.with_value(x.bounds[..., 1])
-                    return x.with_value(jnp.full_like(x.value, jnp.inf))
-                return x
+            def upper_fn(x: prx.Parameter):
+                if not prx.is_free_param(x):
+                    return x
+                if x.bounds is not None:
+                    return x.with_value(x.bounds[..., 1])
+                if x.distribution is not None:
+                    eps = jnp.finfo(jnp.result_type(x.value)).resolution
+                    return x.with_value(jnp.full_like(x.value, 1.0-eps))
+                return x.with_value(jnp.full_like(x.value, jnp.inf))
             
             lower_tree = jax.tree.map(lower_fn, problem, is_leaf=prx.is_free_param)
             upper_tree = jax.tree.map(upper_fn, problem, is_leaf=prx.is_free_param)
             
             (lower, upper), _ = prx.partition((lower_tree, upper_tree))
-            kwargs.setdefault('bounds', (lower, upper))
-        else:
-            if 'bounds' in kwargs:
-                lower_tree, upper_tree = kwargs.pop('bounds')
-            else:
-                groups = problem.param_groups(include_fixed=False)
-                flat_params = problem.named_flat_params(include_fixed=False)
-                flat_vals = problem.named_flat_param_values(include_fixed=False)
-                
-                lower_vals = {}
-                upper_vals = {}
-                
-                for group in groups:
-                    arrays = [flat_vals[name] for name in group.param_names]
-                    x_val = jnp.stack(arrays)
-                    if len(arrays) == 1:
-                        x_val = jnp.squeeze(x_val, axis=0)
-                    
-                    # Compute bounds at the group level
-                    if group.distribution is not None and hasattr(group.distribution, 'icdf'):
-                        low = group.distribution.icdf(0.01 * jnp.ones_like(x_val))
-                        high = group.distribution.icdf(0.99 * jnp.ones_like(x_val))
-                    else:
-                        low_list = []
-                        high_list = []
-                        for name in group.param_names:
-                            p = flat_params[name]
-                            if p.bounds is not None:
-                                low_list.append(p.bounds[..., 0])
-                                high_list.append(p.bounds[..., 1])
-                            else:
-                                low_list.append(jnp.full_like(flat_vals[name], -jnp.inf))
-                                high_list.append(jnp.full_like(flat_vals[name], jnp.inf))
-                        
-                        low = jnp.stack(low_list) if len(low_list) > 1 else low_list[0]
-                        high = jnp.stack(high_list) if len(high_list) > 1 else high_list[0]
-                        
-                    # Unpack bounds back into the flat dictionary
-                    if len(arrays) == 1:
-                        lower_vals[group.param_names[0]] = low
-                        upper_vals[group.param_names[0]] = high
-                    else:
-                        for i, name in enumerate(group.param_names):
-                            lower_vals[name] = low[i]
-                            upper_vals[name] = high[i]
-                
-                # Apply the bulk updates to generate the bounded modules
-                lower_problem = problem.with_params(lower_vals)
-                upper_problem = problem.with_params(upper_vals)
-                
-                # Strip out static attributes using partition
-                (lower, upper), _ = prx.partition((lower_problem, upper_problem))
-                kwargs.setdefault('bounds', (lower, upper))
-            
-        if kwargs.get('has_aux', False):
-            raise Exception("Auxiliary data not supported for host solvers")
-            
-        solver_results = solver(obj_fn, params, args=None, **kwargs)
-    else:
+            bounds_tuple = (lower, upper)
+        
+    # Run the solver
+    if isinstance(solver, optx.AbstractMinimiser):
+        if bounds_tuple is not None:
+             raise Exception("Bounds are not supported for standard `optimistix` solvers.")
         solver_results = optx.minimise(obj_fn, solver, params, **kwargs)
         
+    elif isinstance(solver, ScipyMinimizer):
+        if bounds_tuple is not None:
+            options = kwargs.get('options', {})
+            options.setdefault('lower', bounds_tuple[0])
+            options.setdefault('upper', bounds_tuple[1])
+            kwargs['options'] = options
+        solver_results = solver(obj_fn, params, **kwargs)
+        
+    elif is_jaxopt:
+        jaxopt_solver = solver(fun=obj_fn, **kwargs)
+        
+        # Now that the solver is instantiated, we can safely check its signature
+        supports_bounds = False
+        if hasattr(jaxopt_solver, "init_state") and "bounds" in inspect.signature(jaxopt_solver.init_state).parameters:
+            supports_bounds = True
+        elif hasattr(jaxopt_solver, "run") and "bounds" in inspect.signature(jaxopt_solver.run).parameters:
+            supports_bounds = True
+            
+        if not supports_bounds and not use_bounds_explicitly_passed:
+            use_bounds = False
+            bounds_tuple = None
+            
+        if bounds_tuple is not None:
+            if not supports_bounds:
+                raise ValueError(
+                    f"The provided jaxopt solver '{jaxopt_solver.__class__.__name__}' "
+                    "does not support box constraints. Please use a bounded solver like "
+                    "'jaxopt.LBFGSB' or 'jaxopt.ScipyBoundedMinimize', or set `use_bounds=False`."
+                )
+            opt_step = jaxopt_solver.run(init_params=params, bounds=bounds_tuple)
+        else:
+            opt_step = jaxopt_solver.run(init_params=params)
+            
+        solver_results = optx.Solution(
+            value=opt_step.params,
+            result=optx.RESULTS.successful,
+            stats={
+                "num_steps": int(getattr(opt_step.state, "iter_num", 0)),
+                "loss": float(getattr(opt_step.state, "value", 0.0)),
+                "error": float(getattr(opt_step.state, "error", 0.0))
+            },
+            aux=None,
+            state=opt_step.state
+        )
+        
+    # Return the results
     optimized_problem = eqx.combine(solver_results.value, static)
-    
-    if search_space == "hypercube":
-        optimized_problem = hypercube_to_physical(optimized_problem)
-    
     solver_results = dataclasses.replace(solver_results, value=None)
     results = OptimizeResult(
         model=optimized_problem.model,
@@ -184,8 +187,4 @@ def minimize(
         objective_value=optimized_problem(),
         solver_results=solver_results,
     )
-    
-    if isinstance(solver, optx.AbstractMinimiser):
-        logging.info(f"Final objective value = {results.objective_value}")
-    
     return results

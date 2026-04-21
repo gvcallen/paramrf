@@ -165,7 +165,7 @@ def sample(
     best_idx = jnp.argmax(infx_result.log_likelihoods) 
     mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], infx_result.samples)
     mle_problem = eqx.combine(mle_problem_params, static)
-    mle_model = mle_problem.model
+    mle_model: Model = mle_problem.model
     mle_log_likelihood = mle_problem.evaluator
 
     # 3. Create the flattened Joint Posterior Distribution for the model
@@ -189,7 +189,8 @@ def sample(
         param_names=mle_model.flat_param_names(),
         distribution=posterior_dist
     )
-    mle_model = mle_model.with_param_groups([posterior_group])
+    
+    mle_model = mle_model.with_param_groups([posterior_group]).with_demoted_param_groups()
     
     # Strip the samples, log_likelihoods and weights so we dont store them twice
     log_likelihood_values = infx_result.log_likelihoods

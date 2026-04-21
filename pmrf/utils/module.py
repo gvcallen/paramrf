@@ -69,7 +69,7 @@ def hypercube_to_physical(module: prx.Module):
                 
     return module.with_params(new_vals)
 
-def log_prob(module: prx.Module):
+def module_log_prob(module: prx.Module):
     """
     Calculates the total summed log probability of the module's parameters
     based on their assigned distributions.

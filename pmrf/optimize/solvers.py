@@ -1,7 +1,7 @@
 """
 Built-in optimization solvers/wrappers.
 """
-
+import logging
 import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
@@ -18,6 +18,8 @@ def is_optimizer(x):
     Returns `True` for :class:`pmrf.optimize.ScipyMinimizer` and :class:`optimistix.AbstractMinimiser`.
     """
     return isinstance(x, ScipyMinimizer | optx.AbstractMinimiser)
+
+DEBUG_PRINT = False
 
 class ScipyMinimizer(eqx.Module):
     """
@@ -42,11 +44,14 @@ class ScipyMinimizer(eqx.Module):
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True) # Added flag
 
-    def __call__(self, fn, y, args=None, bounds=None, **kwargs) -> optx.Solution:
+    def __call__(self, fn, y, args=None, **kwargs) -> optx.Solution:
         method = kwargs.pop('method', self.method)
         options = kwargs.pop('options', {})
         
-        if 'bounds' in 'options':
+        lower_tree = options.pop('lower', None)
+        upper_tree = options.pop('upper', None)
+        
+        if 'bounds' in options:
             raise Exception("Bounds should not be passed under scipy minimize options. ")
 
         gradient_free_methods = {'nelder-mead', 'powell', 'cobyla'}
@@ -59,16 +64,16 @@ class ScipyMinimizer(eqx.Module):
         merged_options.update(options)
         
         # 2. Extract and flatten the bounds PyTrees natively
-        bounds_trees = bounds
         scipy_bounds = None
         
-        if bounds_trees is not None:
-            lower_tree, upper_tree = bounds_trees
-            
+        if lower_tree is not None and upper_tree is not None:
             flat_lower, _ = ravel_pytree(lower_tree)
             flat_upper, _ = ravel_pytree(upper_tree)
             
             scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))        
+            
+            if DEBUG_PRINT:
+                print(f"scipy_bounds = {scipy_bounds}")
 
         # 3. Define the internal JAX objective that unravels the flat array dynamically
         @jax.jit
@@ -82,10 +87,26 @@ class ScipyMinimizer(eqx.Module):
         current_loss = [np.inf]
 
         def objective_with_grad(x_np):
+            nan_logged = False
+            
             loss, grad = val_and_grad_fn(jnp.array(x_np), args)
             loss_np = np.asarray(loss, dtype=np.float64)
+            grad_np = np.asarray(grad, dtype=np.float64)
             current_loss[0] = loss_np
-            return loss_np, np.asarray(grad, dtype=np.float64)
+            
+            if DEBUG_PRINT:
+                print(f"params = {x_np}")
+                print(f"loss = {loss_np}, grad_np = {grad_np}")
+                
+            if not nan_logged and np.any(np.isnan(loss_np)):
+                logging.warning(f"Loss value was NaN")
+                nan_logged = True
+            
+            if not nan_logged and np.any(np.isnan(grad)):
+                logging.warning(f"Loss gradients were NaN")
+                nan_logged = True
+            
+            return loss_np, grad_np
 
         def objective_no_grad(x_np):
             loss = flat_fn(jnp.array(x_np), args)

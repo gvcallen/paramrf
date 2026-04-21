@@ -16,7 +16,7 @@ import distreqx.bijectors as bij
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils import log_prob
+from pmrf.utils import module_log_prob
 
 class Feature(Evaluator):
     """
@@ -388,15 +388,24 @@ class NegativeLogPosterior(Evaluator):
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
 
-        components = [model, self.mll.likelihood, self.mll.discrepancy]
+        components = [model, self.mll.discrepancy]
+        
+        if isinstance(self.mll, MarginalLogLikelihood):
+            components.append(self.mll.likelihood)
+        elif isinstance(self.mll, GibbsMarginalLogLikelihood):
+            components.append(self.mll.loss)
+        else:
+            raise Exception(f"NegativeLogPosterior `mll` can only be of type `MarginalLogLikelihood` or `GibbsMarginalLogLikelihood`. Got: {type(self.mll)}")
+
         nlps = []
         for comp in components:
             if isinstance(comp, prx.Module):
                 # nlp = -comp.grouped_distribution().log_prob(comp.grouped_param_values())
-                nlp = -log_prob(comp)
+                nlp = -module_log_prob(comp)
                 nlps.append(nlp)
 
-        return nll + jnp.sum(jnp.array(nlps))
+        # return nll + jnp.sum(jnp.array(nlps))
+        return nll
 
 
 class Goal(TargetLoss):

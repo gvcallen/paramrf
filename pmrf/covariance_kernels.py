@@ -120,6 +120,64 @@ class WhiteNoiseKernel(CovarianceKernel):
         return jnp.where(is_equal, self.variance, 0.0)
     
     
+class Matern32Kernel(CovarianceKernel):
+    """
+    Matérn kernel with nu=3/2.
+    
+    This kernel represents functions that are once differentiable, 
+    making it less smooth than the RBF kernel and better suited 
+    for realistic physical signals.
+
+    Attributes
+    ----------
+    lengthscale : prx.Parameter
+        Characteristic length scale of the correlation (default 1.0).
+    """
+    lengthscale: prx.Parameter = 1.0
+
+    def __call__(self, x1, x2, key=None):
+        scaled_diff = (x1 - x2) / self.lengthscale
+        sq_dist = jnp.sum(scaled_diff**2)
+        
+        # Add a tiny jitter to the squared distance before taking the square root.
+        # This prevents NaN gradients during backpropagation when x1 == x2.
+        dist = jnp.sqrt(sq_dist + 1e-12)
+        
+        sqrt3_dist = jnp.sqrt(3.0) * dist
+        return (1.0 + sqrt3_dist) * jnp.exp(-sqrt3_dist)
+
+
+class Matern52Kernel(CovarianceKernel):
+    """
+    Matérn kernel with nu=5/2.
+    
+    This kernel represents functions that are twice differentiable. 
+    It strikes a balance between the rougher Matérn 3/2 and the 
+    infinitely smooth RBF kernel.
+
+    Attributes
+    ----------
+    lengthscale : prx.Parameter
+        Characteristic length scale of the correlation (default 1.0).
+    """
+    lengthscale: prx.Parameter = 1.0
+
+    def __call__(self, x1, x2, key=None):
+        scaled_diff = (x1 - x2) / self.lengthscale
+        sq_dist = jnp.sum(scaled_diff**2)
+        
+        # Add a tiny jitter to the squared distance before taking the square root.
+        # This prevents NaN gradients during backpropagation when x1 == x2.
+        dist = jnp.sqrt(sq_dist + 1e-12)
+        
+        sqrt5_dist = jnp.sqrt(5.0) * dist
+        # Note: We use the sq_dist directly for the squared term to avoid 
+        # compounding numerical inaccuracies from the jittered square root
+        sq_term = (5.0 / 3.0) * sq_dist 
+        
+        return (1.0 + sqrt5_dist + sq_term) * jnp.exp(-sqrt5_dist)
+    
+    
 class AutoCrossKernel(CovarianceKernel):
     """
     Kernel that routes between a auto-correlation and cross-correlation kernels.

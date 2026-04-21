@@ -91,16 +91,16 @@ def fit_minimize(
         For the function case, can be a callable PyTree with optional parameters.
         See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
-        Only used if a `likelihood` is passed or `inference` is 'bayesian'.
+        Only allowed if `likelihood` is passed and/or `inference` is 'bayesian'.
     discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
         see :class:`pmrf.discrepancy_models.GaussianProcess`.
-        Only used if a `likelihood` is passed or `inference` is 'bayesian'.
+        Only allowed if `likelihood` is passed and/or `inference` is 'bayesian'.
     temperature : float, optional
         The temperature value for generalized Bayesian optimization.
-        Only used when `inference` is 'bayesian' and `loss` is not None.
+        Only allowed if `inference` is 'bayesian' and `loss` is not None.
         Defaults to 1.0 internally.
     **kwargs : dict
         Additional keyword arguments passed to :func:`pmrf.optimize.minimize`
@@ -113,11 +113,13 @@ def fit_minimize(
     """
     # Error checking
     if inference != 'frequentist' and inference != 'bayesian':
-        raise Exception(f"`inference` must be either 'frequentist' or 'bayesian'. Got {inference}")
+        raise ValueError(f"`inference` must be either 'frequentist' or 'bayesian'. Got {inference}")
     if isinstance(data, np.ndarray | jnp.ndarray) and frequency is None:
         raise ValueError("Frequency must be passed if Network data is not provided")
     if loss is not None and likelihood is not None:
         raise ValueError("Only one of either `loss` or `likelihood` can be past to `fit_minimize`")
+    if discrepancy is not None and not (likelihood is not None or inference == 'bayesian'):
+        raise ValueError("Discrepancy models can only be passed if `likelihood` is passed or `inference` is 'bayesian'`")
     
     # Resolve data and features
     if not isinstance(features, Callable):
@@ -140,10 +142,10 @@ def fit_minimize(
             if noise is None:
                 noise = prx.Uniform(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
-    if inference == 'frequentist':
-        kwargs.setdefault('search_space', 'physical')
-    else:
-        kwargs.setdefault('search_space', 'hypercube')
+    # if inference == 'frequentist':
+    #     kwargs.setdefault('search_space', 'physical')
+    # else:
+    #     kwargs.setdefault('search_space', 'hypercube')
 
     if inference == 'frequentist' and loss is not None:
         objective = TargetLoss(predictor=features, target=target, loss=loss)
@@ -156,7 +158,7 @@ def fit_minimize(
         if inference == 'frequentist':
             objective = NegativeLogLikelihood(mll)
         else:
-            objective = NegativeLogPosterior(mll)
+            objective = NegativeLogPosterior(mll)       
 
     # Run the optimizer
     optimize_result = minimize(objective, model, frequency, solver, **kwargs)
