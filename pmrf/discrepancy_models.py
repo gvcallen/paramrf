@@ -67,7 +67,6 @@ class GaussianProcess(DiscrepancyModel, transparent=True):
         if orthogonal_projection is not None:
             K = orthogonal_projection @ K @ orthogonal_projection.T
 
-        # ---> NEW FIX: Explicitly broadcast K to match y's batch dimensions <---
         target_K_shape = y_event.shape[:-1] + K.shape[-2:]
         K = jnp.broadcast_to(K, target_K_shape)
 
