@@ -245,6 +245,5 @@ class ZeroKernel(CovarianceKernel):
     Useful for masking out cross-covariances in multi-output models
     to enforce strict independence between tasks.
     """
-
     def __call__(self, x1, x2, key=None):
         return jnp.asarray(0.0)
