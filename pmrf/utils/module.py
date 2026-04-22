@@ -1,7 +1,9 @@
 import jax.numpy as jnp
 import parax as prx
 
-def physical_to_hypercube(module: prx.Module):
+from pmrf.utils.distribution import distribution_hypercube_to_physical, distribution_physical_to_hypercube
+
+def module_physical_to_hypercube(module: prx.Module):
     """
     Transforms the module's parameters from their physical domain 
     to the [0, 1] hypercube using the cumulative distribution function (CDF).
@@ -26,7 +28,7 @@ def physical_to_hypercube(module: prx.Module):
             x = jnp.squeeze(x, axis=0)
             
         # Map to hypercube [0, 1]
-        u = group.distribution.cdf(x)
+        u = distribution_physical_to_hypercube(group.distribution, x)
         
         # Unpack back into the flat dictionary
         if len(arrays) == 1:
@@ -37,13 +39,13 @@ def physical_to_hypercube(module: prx.Module):
                 
     return module.with_params(new_vals)
 
-def hypercube_to_physical(module: prx.Module):
+def module_hypercube_to_physical(module: prx.Module):
     """
     Transforms the module's parameters from the [0, 1] hypercube 
     back to their physical domain using the inverse CDF (icdf).
     """
-    groups = module.param_groups(include_fixed=False)
-    flat_vals = module.named_flat_param_values(include_fixed=False)
+    groups = module.param_groups()
+    flat_vals = module.named_flat_param_values()
     
     new_vals = {}
     for group in groups:
@@ -59,6 +61,7 @@ def hypercube_to_physical(module: prx.Module):
             u = jnp.squeeze(u, axis=0)
             
         # Map from hypercube [0, 1] back to physical values
+        x = distribution_hypercube_to_physical(group.distribution, u)
         x = group.distribution.icdf(u)
         
         if len(arrays) == 1:
@@ -74,8 +77,8 @@ def module_log_prob(module: prx.Module):
     Calculates the total summed log probability of the module's parameters
     based on their assigned distributions.
     """
-    groups = module.param_groups(include_fixed=False)
-    flat_vals = module.named_flat_param_values(include_fixed=False)
+    groups = module.param_groups()
+    flat_vals = module.named_flat_param_values()
     
     total_log_prob = 0.0
     for group in groups:

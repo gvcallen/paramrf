@@ -142,10 +142,10 @@ def fit_minimize(
             if noise is None:
                 noise = prx.Uniform(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
-    # if inference == 'frequentist':
-    #     kwargs.setdefault('search_space', 'physical')
-    # else:
-    #     kwargs.setdefault('search_space', 'hypercube')
+    if inference == 'frequentist':
+        kwargs.setdefault('search_space', 'physical')
+    else:
+        kwargs.setdefault('search_space', 'hypercube')
 
     if inference == 'frequentist' and loss is not None:
         objective = TargetLoss(predictor=features, target=target, loss=loss)
@@ -158,7 +158,7 @@ def fit_minimize(
         if inference == 'frequentist':
             objective = NegativeLogLikelihood(mll)
         else:
-            objective = NegativeLogPosterior(mll)       
+            objective = NegativeLogPosterior(mll)
 
     # Run the optimizer
     optimize_result = minimize(objective, model, frequency, solver, **kwargs)

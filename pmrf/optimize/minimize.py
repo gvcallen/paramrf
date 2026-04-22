@@ -13,6 +13,7 @@ import jaxopt
 from pmrf.core import Model, Frequency, Problem
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.scipy import ScipyMinimizer
+from pmrf.utils import module_hypercube_to_physical, module_physical_to_hypercube
 
 JaxoptSolver = Union[TypeVar('JaxoptSolver'), functools.partial]
 
@@ -22,6 +23,7 @@ def minimize(
     frequency: Frequency,
     solver: ScipyMinimizer | optx.AbstractMinimiser | JaxoptSolver = ScipyMinimizer(),
     use_bounds: bool | None = None,
+    search_space: str = "physical",
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -47,6 +49,10 @@ def minimize(
     use_bounds : bool, optional
         Use bounds from the model for optimization algorithms that support it.
         Note that only individual parameter bounds are used (parameter groups are ignored).
+    search_space : str, default="physical"
+        The parameter space in which the optimization operates. Can be "physical"
+        or "hypercube". If "hypercube", the initial parameter values are transformed to the 
+        [0, 1] range and clipped by machine epsilon to avoid edge instabilities.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
 
@@ -55,6 +61,9 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
+    if search_space not in ("physical", "hypercube"):
+        raise ValueError(f"search_space must be either 'physical' or 'hypercube', got '{search_space}'")
+
     # Identify if the solver is from jaxopt
     is_jaxopt = False
     if hasattr(solver, 'func') and hasattr(solver.func, '__module__') and 'jaxopt' in solver.func.__module__:
@@ -87,11 +96,24 @@ def minimize(
         raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
     problem.validate_params()
     
+    if search_space == "hypercube":
+        problem = module_physical_to_hypercube(problem)
+        
+        def _clip_to_eps(x: prx.Parameter):
+            if not prx.is_free_param(x): return x
+            eps = jnp.finfo(x.value.dtype).eps
+            return x.with_value(jnp.clip(x.value, eps, 1.0 - eps))
+            
+        problem = jax.tree.map(_clip_to_eps, problem, is_leaf=prx.is_free_param)
+    
     # Setup the parameters and objective
     params, static = prx.partition(problem)
-    def obj_fn(transformed_params, _args=None):
-        full_eval_problem = eqx.combine(transformed_params, static)
-        return full_eval_problem()    
+        
+    def obj_fn(params, _args=None):
+        problem = eqx.combine(params, static)
+        if search_space == "hypercube":
+            problem = module_hypercube_to_physical(problem)
+        return problem()    
 
     # Initialize the bounds    
     bounds_tuple = None
@@ -102,30 +124,45 @@ def minimize(
             upper = kwargs.pop('upper')
             bounds_tuple = (lower, upper)
         else:
-            # Generate bounds from model parameters
-            def lower_fn(x: prx.Parameter):
-                if not prx.is_free_param(x):
-                    return x
-                if x.bounds is not None:
-                    return x.with_value(x.bounds[..., 0])
-                if x.distribution is not None:
-                    return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.001)))
-                return x.with_value(jnp.full_like(x.value, -jnp.inf))
+            if search_space == "hypercube":
+                def lower_fn(x: prx.Parameter):
+                    if not prx.is_free_param(x): 
+                        return x
+                    return x.with_value(jnp.full_like(x.value, 0.001))
+                def upper_fn(x: prx.Parameter):
+                    if not prx.is_free_param(x): 
+                        return x
+                    return x.with_value(jnp.full_like(x.value, 0.999))
                 
-            def upper_fn(x: prx.Parameter):
-                if not prx.is_free_param(x):
-                    return x
-                if x.bounds is not None:
-                    return x.with_value(x.bounds[..., 1])
-                if x.distribution is not None:
-                    return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.999)))
-                return x.with_value(jnp.full_like(x.value, jnp.inf))
-            
-            lower_tree = jax.tree.map(lower_fn, problem, is_leaf=prx.is_free_param)
-            upper_tree = jax.tree.map(upper_fn, problem, is_leaf=prx.is_free_param)
-            
-            (lower, upper), _ = prx.partition((lower_tree, upper_tree))
-            bounds_tuple = (lower, upper)
+                lower_problem = jax.tree.map(lower_fn, problem, is_leaf=prx.is_free_param)
+                upper_problem = jax.tree.map(upper_fn, problem, is_leaf=prx.is_free_param)
+                
+                # 4. Partition to extract just the bounding parameters for the solver
+                (lower, upper), _ = prx.partition((lower_problem, upper_problem))
+                bounds_tuple = (lower, upper)
+            else:
+                # Generate physical bounds from model parameters
+                def lower_fn(x: prx.Parameter):
+                    if not prx.is_free_param(x): return x
+                    if x.bounds is not None:
+                        return x.with_value(x.bounds[..., 0])
+                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.001)))
+                    return x.with_value(jnp.full_like(x.value, -jnp.inf))
+                    
+                def upper_fn(x: prx.Parameter):
+                    if not prx.is_free_param(x): return x
+                    if x.bounds is not None:
+                        return x.with_value(x.bounds[..., 1])
+                    if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+                        return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.999)))
+                    return x.with_value(jnp.full_like(x.value, jnp.inf))
+                
+                lower_tree = jax.tree.map(lower_fn, problem, is_leaf=prx.is_free_param)
+                upper_tree = jax.tree.map(upper_fn, problem, is_leaf=prx.is_free_param)
+                
+                (lower, upper), _ = prx.partition((lower_tree, upper_tree))
+                bounds_tuple = (lower, upper)
             
     # Run the solver
     if isinstance(solver, ScipyMinimizer):
@@ -177,7 +214,11 @@ def minimize(
         )
         
     # Return the results
-    optimized_problem = eqx.combine(solver_results.value, static)
+    final_params = solver_results.value
+    optimized_problem = eqx.combine(final_params, static)
+    if search_space == "hypercube":
+        optimized_problem = module_hypercube_to_physical(optimized_problem)
+        
     solver_results = dataclasses.replace(solver_results, value=None)
     results = OptimizeResult(
         model=optimized_problem.model,

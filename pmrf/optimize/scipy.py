@@ -11,14 +11,6 @@ import optimistix as optx
 import equinox as eqx
 from tqdm.auto import tqdm  # Added import
 
-def is_optimizer(x):
-    """
-    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
-
-    Returns `True` for :class:`pmrf.optimize.ScipyMinimizer` and :class:`optimistix.AbstractMinimiser`.
-    """
-    return isinstance(x, ScipyMinimizer | optx.AbstractMinimiser)
-
 DEBUG_PRINT = False
 
 class ScipyMinimizer(eqx.Module):
