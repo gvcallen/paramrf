@@ -46,7 +46,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     pytest.importorskip("anesthetic")
     distreqx = pytest.importorskip("distreqx")
     
-    from inferix import PolyChord
+    from pmrf.infer import PolyChord
     
     def log_like(m, f):
         return -0.5 * jnp.sum((m.val - 7.0)**2)
@@ -94,7 +94,7 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
     pytest.importorskip("pypolychord")
     pytest.importorskip("anesthetic")
     
-    from inferix import PolyChord
+    from pmrf.infer import PolyChord
     from pmrf.likelihoods import GaussianLikelihood
     
     target_data = 3.0 * jnp.ones(basic_freq.npoints).reshape(2, 1, 1)

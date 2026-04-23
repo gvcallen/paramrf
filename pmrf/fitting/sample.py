@@ -7,7 +7,7 @@ from typing import Callable
 import jax.numpy as jnp
 import distreqx.distributions as dist
 import parax as prx
-from inferix import PolyChord
+from pmrf.infer import PolyChord
 
 try:
     import skrf

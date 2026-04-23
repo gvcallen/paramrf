@@ -52,7 +52,7 @@ def test_abstract_discrete_interpolation(coarse_freq, fine_freq):
     
 class DummySinglePropertyY(SingleProperty):
     """A model that only natively knows its Y-parameters."""
-    prop: str = 'y'
+    kind: str = 'y'
     def output(self, freq: Frequency) -> jnp.ndarray:
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * 0.02 # 50 ohm admittance
 

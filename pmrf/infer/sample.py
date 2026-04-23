@@ -125,6 +125,7 @@ def sample(
         # return params_physical_problem    
 
     if isinstance(solver, PolyChord):
+        nested_sampler = True
         infx_result = solver(internal_log_likelihood, prior_transform_fn, y0=params, **kwargs)
     elif isinstance(solver, infx.AbstractNestedSampler):
         nested_sampler = True

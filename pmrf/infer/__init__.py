@@ -6,8 +6,7 @@ distributions of model parameters given measured data.
 """
 
 from pmrf.infer.sample import sample
-from pmrf.infer.result import InferResult
-from pmrf.infer.base import is_inferer
+from pmrf.infer.base import is_inferer, InferResult
 from pmrf.infer.polychord import PolyChord
 from pmrf.constants import Inferer
 

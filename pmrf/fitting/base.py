@@ -13,9 +13,6 @@ from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
 from pmrf.constants import Optimizer, Inferer
 
-from pmrf.fitting.minimize import fit_minimize
-from pmrf.fitting.sample import fit_sample
-
 class FitResult(prx.Module):
     """
     Standardized return object for a fitting routines.
