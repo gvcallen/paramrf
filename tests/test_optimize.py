@@ -7,7 +7,7 @@ import parax as prx
 
 from pmrf.core import Model, Frequency
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.scipy import ScipyMinimizer
+from pmrf.optimize.scipy import ScipyMinimize
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing
@@ -44,7 +44,7 @@ def test_minimize_scipy_unbounded(model, basic_freq):
     def obj_fn(m, f):
         return jnp.sum(jnp.abs(m.val - 5.0)**2)
     
-    result = minimize(obj_fn, model, basic_freq, solver=ScipyMinimizer())
+    result = minimize(obj_fn, model, basic_freq, solver=ScipyMinimize())
     
     assert isinstance(result.model, DummyOptModel)
     assert jnp.allclose(result.model.val, 5.0, atol=1e-3)
@@ -58,7 +58,7 @@ def test_minimize_scipy_bounded(basic_freq):
     def obj_fn(m, f):
         return jnp.sum(jnp.abs(m.val - 5.0)**2)
     
-    result = minimize(obj_fn, bounded_model, basic_freq, solver=ScipyMinimizer())
+    result = minimize(obj_fn, bounded_model, basic_freq, solver=ScipyMinimize())
     
     # The optimizer should hit the upper bound and stop
     assert jnp.allclose(result.model.val, 3.0, atol=1e-3)

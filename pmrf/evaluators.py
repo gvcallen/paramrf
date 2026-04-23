@@ -16,7 +16,7 @@ import distreqx.bijectors as bij
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils import module_log_prob
+from pmrf.utils.module import log_prob
 
 class Feature(Evaluator):
     """
@@ -387,7 +387,7 @@ class NegativeLogPosterior(Evaluator):
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
-        nlps = [-module_log_prob(mod) for mod in [model, self.mll]]
+        nlps = [-log_prob(mod) for mod in [model, self.mll]]
         return nll + jnp.sum(jnp.array(nlps))
 
 

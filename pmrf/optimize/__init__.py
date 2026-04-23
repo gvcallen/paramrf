@@ -6,16 +6,15 @@ that minimize a given objective/cost function.
 """
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.base import is_optimizer
-from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.scipy import ScipyMinimizer
+from pmrf.optimize.base import is_optimizer, OptimizeResult
+from pmrf.optimize.scipy import ScipyMinimize
 
 from pmrf.constants import Optimizer
 
 __all__ = [
     "minimize",
     "is_optimizer",
-    "ScipyMinimizer",
+    "ScipyMinimize",
     "OptimizeResult",
     "Optimizer",
 ]

@@ -1,9 +1,13 @@
+"""
+RF parameter conversion algorithms.
+"""
+
 import jax.numpy as jnp
 import jax
 
 from pmrf.constants import NumberLike
 from pmrf.math import rsolve, nudge_diag
-from pmrf.rf.misc import fix_z0_shape
+from pmrf.utils.rf import fix_z0_shape
 
 ZERO = 1e-4
 

@@ -9,16 +9,17 @@ import parax as prx
 import inferix as infx
 
 from pmrf.core import Model, Frequency, Problem
-from pmrf.infer.result import InferResult
-from pmrf.infer.solvers import is_inferer
-from pmrf.utils import generate_key
+from pmrf.infer.base import is_inferer, InferResult
+from pmrf.infer.polychord import PolyChord
+from pmrf.utils.random import generate_key
 
+from pmrf.utils.module import hypercube_to_physical, physical_to_hypercube
 
 def sample(
     log_likelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: infx.AbstractNestedSampler = infx.PolyChord(),
+    solver: PolyChord | infx.AbstractSampler = PolyChord(),
     *,
     key: jnp.ndarray | None = None,
     **kwargs,
@@ -63,7 +64,7 @@ def sample(
         )
 
     if not is_inferer(solver):
-        raise Exception(f"Expected an Inferix solver. Got: {solver}")
+        raise Exception(f"Expected an inference solver. Got: {solver}")
     
     if isinstance(log_likelihood, list):
         for logl in log_likelihood:
@@ -74,14 +75,10 @@ def sample(
         log_likelihood = log_likelihood if isinstance(log_likelihood, eqx.Module) else prx.op.Lambda(log_likelihood)
     
     problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood)
-
     if problem.num_flat_params == 0:
-        raise Exception("Received no free parameters in `pmrf.optimize.minimize`") 
-
+        raise Exception("Received no free parameters in `pmrf.infer.sample`") 
     problem.validate_params()    
     
-    if solver is None:
-        solver = infx.PolyChord()
     if key is None:
         key = generate_key()
         
@@ -93,50 +90,43 @@ def sample(
     
     def prior_transform_fn(u_problem, _args) -> Problem:
         full_u_problem = eqx.combine(u_problem, static)
-        
-        # 1. Extract unit values and the joint distribution structurally matched
-        unit_vals = full_u_problem.grouped_param_values()
-        joint_dist = full_u_problem.grouped_distribution()
-        
-        # 2. Transform from unit hypercube to physical space using the joint inverse CDF
-        physical_vals = joint_dist.icdf(unit_vals)
-        
-        # 3. Unpack the structural dictionary back to flat parameter updates
-        named_grouped = full_u_problem.named_grouped_params()
-        flat_updates = {}
-        
-        for group_key, param_dict in named_grouped.items():
-            phys_val = physical_vals[group_key]
-            
-            # Handle scalar/univariate vs stacked/multivariate distributions
-            # matching the logic inside your grouped_param_values() method
-            if len(param_dict) == 1:
-                name = list(param_dict.keys())[0]
-                flat_updates[name] = phys_val
-            else:
-                for i, name in enumerate(param_dict.keys()):
-                    flat_updates[name] = phys_val[i]
-                    
-        # 4. Inject the physical values back into the problem tree
-        full_physical_problem = full_u_problem.with_params(flat_updates)
-        
-        # 5. Repartition to return just the dynamic parameters for Inferix
+        full_physical_problem = hypercube_to_physical(full_u_problem)
         params_physical_problem, _ = prx.partition(full_physical_problem)
-        return params_physical_problem    
-    
-    # def prior_transform_fn(u_problem, _args) -> Problem:
-    #     full_u_problem = eqx.combine(u_problem, static)
+        return params_physical_problem
         
-    #     def map_param(x):
-    #         if isinstance(x, prx.Parameter):
-    #             value = jnp.array(x.value, dtype=jnp.float64)
-    #             return x.with_value(x.distribution.icdf(value))
-    #         return x
-    #     full_physical_problem = jax.tree.map(map_param, full_u_problem, is_leaf=prx.is_free_param)
-    #     params_physical_problem, static_physical_problem = prx.partition(full_physical_problem)
-    #     return params_physical_problem
+        # # 1. Extract unit values and the joint distribution structurally matched
+        # unit_vals = full_u_problem.grouped_param_values()
+        # joint_dist = full_u_problem.grouped_distribution()
+        
+        # # 2. Transform from unit hypercube to physical space using the joint inverse CDF
+        # physical_vals = joint_dist.icdf(unit_vals)
+        
+        # # 3. Unpack the structural dictionary back to flat parameter updates
+        # named_grouped = full_u_problem.named_grouped_params()
+        # flat_updates = {}
+        
+        # for group_key, param_dict in named_grouped.items():
+        #     phys_val = physical_vals[group_key]
+            
+        #     # Handle scalar/univariate vs stacked/multivariate distributions
+        #     # matching the logic inside your grouped_param_values() method
+        #     if len(param_dict) == 1:
+        #         name = list(param_dict.keys())[0]
+        #         flat_updates[name] = phys_val
+        #     else:
+        #         for i, name in enumerate(param_dict.keys()):
+        #             flat_updates[name] = phys_val[i]
+                    
+        # # 4. Inject the physical values back into the problem tree
+        # full_physical_problem = full_u_problem.with_params(flat_updates)
+        
+        # # 5. Repartition to return just the dynamic parameters for Inferix
+        # params_physical_problem, _ = prx.partition(full_physical_problem)
+        # return params_physical_problem    
 
-    if isinstance(solver, infx.AbstractNestedSampler | infx.AbstractHostHypercubeNestedSampler | infx.AbstractHostPhysicalNestedSampler):    
+    if isinstance(solver, PolyChord):
+        infx_result = solver(internal_log_likelihood, prior_transform_fn, y0=params, **kwargs)
+    elif isinstance(solver, infx.AbstractNestedSampler):
         nested_sampler = True
         infx_result = infx.nested(
             internal_log_likelihood,

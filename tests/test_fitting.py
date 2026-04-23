@@ -6,7 +6,7 @@ import parax as prx
 
 from pmrf.core import Frequency
 from pmrf.models import CoaxialLine
-from pmrf.optimize import ScipyMinimizer
+from pmrf.optimize import ScipyMinimize
 from pmrf.fitting import fit_minimize
 
 # ---------------------------------------------------------
@@ -66,7 +66,7 @@ def test_fit_skrf_synthetic_data(starting_model, target_network):
     Fits a perturbed model to an in-memory scikit-rf Network.
     """
     # Notice we don't pass frequency; `fit` should extract it from the Network
-    results = fit_minimize(starting_model, target_network, solver=ScipyMinimizer())
+    results = fit_minimize(starting_model, target_network, solver=ScipyMinimize())
     fitted_model = results.model
 
     # 1. Did it find the correct physical length?

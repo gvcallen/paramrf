@@ -8,9 +8,9 @@ import jax.numpy as jnp
 import parax as prx
 
 from pmrf.core import Frequency
-from pmrf.models.adapters.abstract import AbstractSingleProperty, AbstractSingleDiscreteProperty
+from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
     
-class ContinuousCallable(AbstractSingleProperty):
+class ContinuousCallable(SingleProperty):
     """
     A model that predicts its output at an arbitrary frequency using an arbitrary callable.
     
@@ -41,7 +41,7 @@ class ContinuousCallable(AbstractSingleProperty):
             return self.fn(freq.f_scaled)
     
 
-class DiscreteCallable(AbstractSingleDiscreteProperty):
+class DiscreteCallable(SingleDiscreteProperty):
     """
     A model that predicts its output at a discrete set of frequencies already known to the model using an arbitrary callable.
     

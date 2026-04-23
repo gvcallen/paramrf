@@ -7,7 +7,7 @@ import parax as prx
 
 from pmrf.core import Frequency
 from pmrf.models import (
-    AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
+    Discrete, SingleProperty, SingleDiscreteProperty,
     Host, ContinuousCallable, DiscreteCallable, Measured
 )
 from pmrf.network_collection import NetworkCollection
@@ -30,7 +30,7 @@ def fine_freq():
 # Abstract Adapter Dummies & Tests
 # ---------------------------------------------------------
 
-class DummyDiscrete(AbstractDiscrete):
+class DummyDiscrete(Discrete):
     """A 1-port discrete model with tabulated S-parameters."""
     # Define as a class attribute so Equinox handles __init__ automatically
     frequency: Frequency
@@ -50,7 +50,7 @@ def test_abstract_discrete_interpolation(coarse_freq, fine_freq):
     # The middle point (1.5 GHz) should interpolate perfectly to 1.5
     assert jnp.allclose(s_interp[1, 0, 0], 1.5 + 0.0j)
     
-class DummySinglePropertyY(AbstractSingleProperty):
+class DummySinglePropertyY(SingleProperty):
     """A model that only natively knows its Y-parameters."""
     prop: str = 'y'
     def output(self, freq: Frequency) -> jnp.ndarray:

@@ -71,8 +71,6 @@ __all__ = [
     "Problem",
     
     # Utilities & Functions
-    "fit",
-    "fit_sequential",
     "load",
     "save",
     

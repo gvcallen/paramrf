@@ -5,9 +5,9 @@ An expansion of a set of basis functions.
 import jax.numpy as jnp
 from parax import Parameter
 
-from pmrf.models.adapters.abstract import AbstractSingleDiscreteProperty
+from pmrf.models.adapters.base import SingleDiscreteProperty
 
-class LinearExpansion(AbstractSingleDiscreteProperty):
+class VectorExpansion(SingleDiscreteProperty):
     """
     A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
     
@@ -26,8 +26,11 @@ class LinearExpansion(AbstractSingleDiscreteProperty):
     offset: jnp.ndarray = None
     
     def output_discrete(self) -> jnp.ndarray:
+        coeff = self.coefficients_real
+        if self.coefficients_imag is not None:
+            coeff += 1j * self.coefficients_imag
+        
         # The model output which multiplies the current coefficients onto the basis vectors
-        coeff = self.coefficients_complex
         X = jnp.einsum('imn,ikmn->kmn', coeff, self.basis)
         
         if self.offset is not None:
@@ -52,19 +55,4 @@ class LinearExpansion(AbstractSingleDiscreteProperty):
             coefficients = jnp.concat([coefficients.real, coefficients.imag])
         else:
             coefficients = coefficients.real
-        return coefficients    
-    
-    @property
-    def num_basis(self) -> int:
-        return len(self.basis)
-    
-    @property
-    def basis_separate(self) -> jnp.ndarray:
-        return jnp.concatenate([self.basis.real, self.basis.imag], axis=0)
-    
-    @property
-    def coefficients_complex(self) -> jnp.ndarray:
-        coefficients = self.coefficients_real
-        if self.coefficients_imag is not None:
-            coefficients += 1j * self.coefficients_imag
-        return coefficients    
+        return coefficients        

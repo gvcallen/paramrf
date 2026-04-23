@@ -13,7 +13,7 @@ from tqdm.auto import tqdm  # Added import
 
 DEBUG_PRINT = False
 
-class ScipyMinimizer(eqx.Module):
+class ScipyMinimize(eqx.Module):
     """
     A JAX-wrapped optimizer using :func:`scipy.optimize.minimize`.
 

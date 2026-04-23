@@ -15,7 +15,7 @@ from pmrf.core.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
-from pmrf.utils import is_overridden
+from pmrf.utils.type import is_overridden
 
 Z0_WARNING = \
 r"""
@@ -603,100 +603,7 @@ class Model(prx.Module, ABC):
 
         ax.plot(x_axis, y_val, **plot_kwargs)
         
-        return ax    
-
-    def plot_func_samples(
-        self,
-        func: Callable[['Model', Frequency], jnp.ndarray],
-        freq: Frequency,
-        *,
-        key: jax.Array,
-        num_samples: int = 1000,
-        contours: bool = True,
-        ax = None,
-        label: str | None = None,
-        color: str = 'C0',
-        alpha: float = 0.1,
-    ):
-        """Evaluate and plot a function over samples from the parameter distribution.
-
-        This method draws samples from the model's joint parameter distribution, 
-        evaluates the provided function for each sample, and plots the resulting 
-        responses over frequency.
-
-        Parameters
-        ----------
-        func : Callable[[Model, Frequency], jnp.ndarray]
-            Function to evaluate. Must take a Model and a Frequency object and 
-            return a jnp.ndarray of shape (n_freqs,).
-        freq : Frequency
-            Frequency grid to evaluate over.
-        key : jax.Array
-            PRNG key for sampling the distribution.
-        num_samples : int, default=1000
-            Number of samples to draw.
-        contours : bool, default=True
-            If True, plots the mean response and filled contours corresponding 
-            to 1, 2, and 3 standard deviations. If False, plots all individual 
-            sample responses as transparent lines.
-        ax : matplotlib.axes.Axes, optional
-            Axes to plot on. If None, the current axes (`plt.gca()`) are used.
-        label : str, optional
-            Label for the mean line (used in legends).
-        color : str, default='C0'
-            Base color for the lines and shaded regions.
-        alpha : float, default=0.1
-            Transparency of the individual lines (when `contours=False`). 
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes containing the plot.
-        """
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        if ax is None:
-            ax = plt.gca()
-
-        # 1. Evaluate the ensemble
-        y_samples = self.func_samples(func, freq, key=key, num_samples=num_samples)
-        y_samples = np.asarray(y_samples)
-        
-        # Extract the x-axis automatically from the frequency object
-        x_axis = np.asarray(freq.f_scaled) 
-
-        # 2. Calculate central tendency
-        y_mean = np.mean(y_samples, axis=0)
-
-        # 3. Plotting logic
-        if not contours:
-            # Plot all individual samples
-            # Transpose y_samples so matplotlib interprets columns as individual lines
-            ax.plot(x_axis, y_samples.T, color=color, alpha=alpha)
-            # Plot the mean as a solid line on top
-            ax.plot(x_axis, y_mean, color=color, label=label, linewidth=2)
-            
-        else:
-            # Plot mean line
-            ax.plot(x_axis, y_mean, color=color, label=label, linewidth=2)
-            
-            # Plot contours for 1, 2, and 3 standard deviations
-            y_std = np.std(y_samples, axis=0)
-            
-            # Decreasing opacity for outer standard deviations
-            for i, sig_alpha in zip([1, 2, 3], [0.3, 0.2, 0.1]):
-                ax.fill_between(
-                    x_axis, 
-                    y_mean - i * y_std, 
-                    y_mean + i * y_std, 
-                    color=color, 
-                    alpha=sig_alpha, 
-                    linewidth=0
-                )
-        
-        return ax
-        
+        return ax            
     
     # ---- File and conversion utilities  --------------------------------------------------            
     

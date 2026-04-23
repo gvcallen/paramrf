@@ -1,11 +1,11 @@
 """
 General undocumented internal utilities.
 """
-from pmrf.utils.array import *
-from pmrf.utils.anomaly import *
-from pmrf.utils.convergence import *
-from pmrf.utils.distribution import *
-from pmrf.utils.misc import *
-from pmrf.utils.network import *
-from pmrf.utils.random import *
-from pmrf.utils.module import *
+from pmrf.utils import array as array
+from pmrf.utils import distribution as distribution
+from pmrf.utils import type as type
+from pmrf.utils import network as network
+from pmrf.utils import rf as rf
+from pmrf.utils import random as random
+from pmrf.utils import module as module
+from pmrf.utils import tree as tree

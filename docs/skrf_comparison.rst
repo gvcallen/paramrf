@@ -39,6 +39,6 @@ In a practical fitting workflow, both ``scikit-rf`` and ``ParamRF`` are used:
 
 - Use ``scikit-rf`` to load your raw VNA measurements and perform TRL de-embedding.
 - Define your theoretical, deeply nested circuit topology using :class:`pmrf.Model` and the models library in :mod:`pmrf.models`.
-- Use a solver such as :class:`pmrf.optimize.ScipyMinimizer` to optimize your model's parameters to the measured scikit-rf ``Network``.
+- Use a solver such as :class:`pmrf.optimize.ScipyMinimize` to optimize your model's parameters to the measured scikit-rf ``Network``.
 
 Further, ``pmrf.Model`` can easily be converted to ``skrf.Network`` by simply passing a frequency using ``pmrf.Model.to_skrf(freq)``, so you can easily define your model in ``ParamRF`` and then do any further analysis in ``scikit-rf``!

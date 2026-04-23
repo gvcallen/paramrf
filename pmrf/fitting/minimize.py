@@ -19,14 +19,14 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.scipy import ScipyMinimizer
-from pmrf.fitting.result import FitResult
+from pmrf.optimize.scipy import ScipyMinimize
+from pmrf.fitting.base import FitResult
 
 def fit_minimize(
     model: Model,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Optimizer = ScipyMinimizer(),
+    solver: Optimizer = ScipyMinimize(),
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',
@@ -53,8 +53,8 @@ def fit_minimize(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    solver : Solver, default=ScipyMinimizer()
-        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimizer`
+    solver : Solver, default=ScipyMinimize()
+        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimize`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`).
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'

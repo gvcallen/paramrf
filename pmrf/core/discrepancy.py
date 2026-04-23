@@ -20,7 +20,7 @@ class DiscrepancyModel(prx.Module, ABC):
     to the **last axis**, such as frequency.
     
     These models are commonly used in conjuction with a likelihood function
-    via :class:`pmrf.evaluators.DataLikelihood`.
+    via :class:`pmrf.evaluators.MarginalLogLikelihood`.
     
     See :mod:`pmrf.discrepancy_models` for built-in discrepancy models.
     """

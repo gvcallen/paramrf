@@ -16,7 +16,7 @@ class Likelihood(prx.Module, ABC):
     A likelihood in ParamRF specifies a mapping from model predictions to a probability over observed data.
     It operates in "event space", where the probabilistic event, such as frequency, is the last axis.
     
-    This works for both deterministic and probabilistic models (e.g. from Gaussian processes):
+    This works for both deterministic and probabilistic models (e.g. Gaussian processes):
 
     * For deterministic predictions, returns the conditional distribution $p(y_{true} \mid y_{pred})$.
     * For probabilistic predictions, returns the marginal distribution $p(y_{true})$ over $y_{pred}$.

@@ -21,7 +21,7 @@ from pmrf.models import Measured
 from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample
-from pmrf.fitting.result import FitResult
+from pmrf.fitting.base import FitResult
 
 def fit_sample(
     model: Model,

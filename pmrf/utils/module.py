@@ -1,9 +1,9 @@
 import jax.numpy as jnp
 import parax as prx
 
-from pmrf.utils.distribution import distribution_hypercube_to_physical, distribution_physical_to_hypercube
+from pmrf.utils.distribution import hypercube_to_physical as dist_hypercube_to_physical, physical_to_hypercube as dist_physical_to_hypercube
 
-def module_physical_to_hypercube(module: prx.Module):
+def physical_to_hypercube(module: prx.Module):
     """
     Transforms the module's parameters from their physical domain 
     to the [0, 1] hypercube using the cumulative distribution function (CDF).
@@ -28,7 +28,7 @@ def module_physical_to_hypercube(module: prx.Module):
             x = jnp.squeeze(x, axis=0)
             
         # Map to hypercube [0, 1]
-        u = distribution_physical_to_hypercube(group.distribution, x)
+        u = dist_physical_to_hypercube(group.distribution, x)
         
         # Unpack back into the flat dictionary
         if len(arrays) == 1:
@@ -39,7 +39,7 @@ def module_physical_to_hypercube(module: prx.Module):
                 
     return module.with_params(new_vals)
 
-def module_hypercube_to_physical(module: prx.Module):
+def hypercube_to_physical(module: prx.Module):
     """
     Transforms the module's parameters from the [0, 1] hypercube 
     back to their physical domain using the inverse CDF (icdf).
@@ -61,7 +61,7 @@ def module_hypercube_to_physical(module: prx.Module):
             u = jnp.squeeze(u, axis=0)
             
         # Map from hypercube [0, 1] back to physical values
-        x = distribution_hypercube_to_physical(group.distribution, u)
+        x = dist_hypercube_to_physical(group.distribution, u)
         x = group.distribution.icdf(u)
         
         if len(arrays) == 1:
@@ -72,7 +72,7 @@ def module_hypercube_to_physical(module: prx.Module):
                 
     return module.with_params(new_vals)
 
-def module_log_prob(module: prx.Module):
+def log_prob(module: prx.Module):
     """
     Calculates the total summed log probability of the module's parameters
     based on their assigned distributions.

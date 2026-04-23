@@ -1,6 +1,10 @@
+"""
+RF termination algorithms.
+"""
+
 import jax
 import jax.numpy as jnp
-from pmrf.rf.conversions import fix_z0_shape
+from pmrf.utils.rf import fix_z0_shape
 
 def terminate_s_in_s(
     Smat_from: jnp.ndarray,

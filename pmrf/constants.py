@@ -17,9 +17,6 @@ except:
     RANK = 0
     MPI_AVAILABLE = False
     
-MIN_PERCENTILE = 0.01
-MAX_PERCENTILE = 0.99
-
 NumberLike = Union[Number, Sequence[Number], jnp.ndarray]
 IndexArray = Union[int, slice, Sequence[int], jnp.ndarray, Tuple, None, type(Ellipsis)]
 
@@ -31,12 +28,10 @@ UNIT_LOWER_TO_MULTIPLER = {k.lower(): v for k,v in UNIT_TO_MULTIPLER.items()}
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
-AbstractMinimiser = TypeVar('AbstractMinimiser')
-AbstractSampler = TypeVar('AbstractSampler')
 TreeAxisSpec = bool | Callable[[Any], bool]
 AggregationKind = Literal['raw_values', 'uniform_average', 'geometric_mean', 'convolution']
-Optimizer = AbstractMinimiser | Callable
-Inferer = AbstractSampler
+Optimizer = TypeVar('Optimizer')
+Inferer = TypeVar('Inferer')
 Solver = Optimizer | Inferer
 
 __all__ = []

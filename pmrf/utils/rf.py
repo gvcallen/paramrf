@@ -1,3 +1,7 @@
+"""
+RF utilities.
+"""
+
 import jax.numpy as jnp
 from typing import Any # Replace with NumberLike if imported locally
 

@@ -9,7 +9,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from parax import field
 
-from pmrf.utils import slice_domain, find_nearest_index
+from pmrf.utils.array import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
 
 class Frequency(eqx.Module):

@@ -6,12 +6,12 @@ ParamRF's internal representations and external standards, software, and librari
 This includes scikit-rf Networks, EM simulation software, and generic Equinox models.
 """
 
-from pmrf.models.adapters import abstract
+from pmrf.models.adapters import base
 from pmrf.models.adapters import bridge, static, callable
 from pmrf.models.composite import collection
 
 __all__ = [
-    "abstract",
+    "base",
     "bridge",
     "collection",
     "static",

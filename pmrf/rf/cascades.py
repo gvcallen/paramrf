@@ -1,3 +1,7 @@
+"""
+Cascade algorithms.
+"""
+
 from typing import Sequence
 
 import jax
@@ -5,7 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.constants import NumberLike
-from pmrf.rf.conversions import fix_z0_shape
+from pmrf.utils.rf import fix_z0_shape
 from pmrf.math import nudge_diag
 
 @eqx.filter_jit

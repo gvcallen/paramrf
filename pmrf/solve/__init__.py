@@ -1,3 +1,3 @@
 """
-Placeholder module for future "exact" solvers such as vector fitting.
+Placeholder module for future deterministic solvers (vector fitting, PCA etc.)
 """

@@ -1,9 +1,14 @@
+"""
+General circuit connection algorithms.
+"""
+
 from typing import Sequence
 from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
-from pmrf.rf.conversions import fix_z0_shape, s2s
+from pmrf.rf.conversions import s2s
+from pmrf.utils.rf import fix_z0_shape
 
 def connect_s_arbitrary(
     Smats: Sequence[jnp.ndarray],

@@ -3,7 +3,7 @@ import logging
 
 import skrf
 
-from pmrf.fitting.result import FitResult
+from pmrf.fitting.base import FitResult
 from pmrf.core import Model, Evaluator
 from pmrf.models import Measured
 from pmrf.evaluators import Feature

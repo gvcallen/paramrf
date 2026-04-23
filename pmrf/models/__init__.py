@@ -6,10 +6,10 @@ This module contains various components, surrogate models, composite building mo
 Note that all models are re-exported under `pmrf.models`.
 """
 
-from pmrf.models.adapters.abstract import (
-    AbstractDiscrete as AbstractDiscrete,
-    AbstractSingleProperty as AbstractSingleProperty,
-    AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
+from pmrf.models.adapters.base import (
+    Discrete as Discrete,
+    SingleProperty as SingleProperty,
+    SingleDiscreteProperty as SingleDiscreteProperty,
 )
 from pmrf.models.adapters.bridge import Host as Host
 from pmrf.models.composite.collection import (
@@ -79,7 +79,13 @@ from pmrf.models.composite.nodal import (
     Shunt as Shunt,
 )
 
-from pmrf.models.surrogates.expansion import LinearExpansion as LinearExpansion
+from pmrf.models.surrogates.expansion import VectorExpansion as VectorExpansion
+from pmrf.models.surrogates.rational import (
+    PolynomialRatio as PolynomialRatio,
+    PoleResidue as PoleResidue,
+    StateSpace as StateSpace,
+    BarycentricRational as BarycentricRational,
+)
 from pmrf.models import adapters, components, composite, surrogates
 
 __all__ = [
