@@ -13,6 +13,7 @@ dependencies = [
     "parax",
     "distreqx",
     "optimistix",
+    "blackjax",
     "numpy",
     "scipy",
     "scikit-rf",
