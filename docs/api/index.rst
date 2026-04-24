@@ -11,7 +11,7 @@ Quick Reference
 * :mod:`~pmrf.models.adapters` (:mod:`~pmrf.models.adapters.static.Measured`, :mod:`~pmrf.models.adapters.callable.DiscreteCallable`, :mod:`~pmrf.models.adapters.callable.ContinuousCallable`, ...)
 * :mod:`~pmrf.models.components` (:mod:`~pmrf.models.components.ideal`, :mod:`~pmrf.models.components.lines`, :mod:`~pmrf.models.components.lumped`, :mod:`~pmrf.models.components.nonideal`, :mod:`~pmrf.models.components.topological`, ...)
 * :mod:`~pmrf.models.composite` (:mod:`~pmrf.models.composite.interconnected.Cascade`, :mod:`~pmrf.models.composite.interconnected.Circuit`, ...)
-* :mod:`~pmrf.models.surrogates` (:mod:`~pmrf.models.surrogates.expansion.LinearExpansion`)
+* :mod:`~pmrf.models.surrogates` (:mod:`~pmrf.models.surrogates.rational.PoleResidue`, :mod:`~pmrf.models.surrogates.expansion.VectorExpansion`)
 
 .. rubric:: Fitting, optimization and sampling
  

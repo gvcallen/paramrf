@@ -1,5 +1,5 @@
 """
-Optimization using SciPy or Optimistix.
+Optimization using Optimistix or SciPy.
 
 Provides solvers and routines to find the optimal point-estimates 
 that minimize a given objective/cost function.

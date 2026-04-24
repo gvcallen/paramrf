@@ -1,3 +1,7 @@
+"""
+Rational approximation surrogate models.
+"""
+
 import jax.numpy as jnp
 from parax import Parameter
 

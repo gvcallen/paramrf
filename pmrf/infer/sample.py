@@ -41,7 +41,7 @@ def sample(
         The RF model containing the parameters to be sample.
     frequency : Frequency
         The frequency sweep over which the log likelihood should be evaluated.
-    solver : AbstractSampler, default=PolyChord()
+    solver : AbstractCallableSampler, default=PolyChord()
         The sampler to use. Can be either a MCMC or nested sampler in :mod:`pmrf.infer`.
     key : jnp.ndarray, optional
         The random JAX key.

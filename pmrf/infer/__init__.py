@@ -1,5 +1,5 @@
 """
-Bayesian inference algorithms.
+Bayesian inference using BlackJAX or PolyChord.
 
 Provides samplers and routines to compute the posterior joint 
 distributions of model parameters.
