@@ -1,24 +1,25 @@
 from typing import Any, Callable, Dict
+import logging
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.flatten_util
 import numpy as np
-from jaxtyping import PyTree
+from jaxtyping import PyTree, Scalar, Array
 
-MPI_AVAIABLE = False
+MPI_AVAILABLE = False
 try:
     from mpi4py import MPI
     import pypolychord
     from anesthetic import NestedSamples
-    MPI_AVAIABLE = True
+    MPI_AVAILABLE = True
 except ImportError:
     pass
 
-from inferix.result import Result, RESULTS
+from pmrf.infer.base import NestedSamplingResult, AbstractBackendNestedSampler
 
-class PolyChord(eqx.Module):
+class PolyChord(AbstractBackendNestedSampler):
     """
     A JAX-wrapped Nested Sampler using PolyChord.
 
@@ -117,17 +118,30 @@ class PolyChord(eqx.Module):
     seed: int = -1
     nlives: Dict[float, int] = eqx.field(static=True, default_factory=dict)
     cube_samples: Any | None = None  
-    paramnames: list[(str, str)] | None = None
+    paramnames: list[tuple[str, str]] | None = None
+
+    @property
+    def requires_hypercube(self):
+        return True 
     
-    def __call__(self, log_likelihood_fn: Callable, prior_transform_fn: Callable, y0: PyTree, args=None, options=None, **kwargs) -> Result:
-        if not MPI_AVAIABLE:
+    def __call__(
+        self,
+        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
+        prior_fn: Callable[[PyTree, Any], PyTree],
+        y0: PyTree,
+        key: Array,
+        args: PyTree[Any],
+        options: dict[str, Any],
+    ) -> NestedSamplingResult:
+        if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the inferix PolyChord sampler.")
 
         # 1. DERIVE GEOMETRY FROM y0
         flat_y0, reconstruct_fn = jax.flatten_util.ravel_pytree(y0)
         ndims = flat_y0.size
         
-        # Combine kwargs
+        # Combine options
+        options = options or {}
         base_kwargs = {
             'num_repeats': self.num_repeats if self.num_repeats is not None else ndims*5,
             'nprior': self.nprior,
@@ -160,22 +174,22 @@ class PolyChord(eqx.Module):
             'paramnames': self.paramnames,
         }
         
-        unknown_kwargs = kwargs.keys() - base_kwargs.keys() - set(('nlive',))
-        if len(unknown_kwargs) != 0:
-            raise Exception(f"PolyChord sample got unknown kwargs: {unknown_kwargs}")
+        unknown_options = options.keys() - base_kwargs.keys() - {'nlive'}
+        if unknown_options:
+            raise ValueError(f"PolyChord sample got unknown options: {unknown_options}")
         
-        base_kwargs.update(kwargs)        
+        base_kwargs.update(options)        
 
         # 2. JIT-COMPILED BRIDGES
         @jax.jit
         def jitted_likelihood(flat_theta_jax):
             struct_theta = reconstruct_fn(flat_theta_jax)
-            return log_likelihood_fn(struct_theta, args)
+            return loglikelihood_fn(struct_theta, args)
 
         @jax.jit
         def jitted_prior(flat_u_jax):
             struct_u = reconstruct_fn(flat_u_jax)
-            struct_theta = prior_transform_fn(struct_u, args)
+            struct_theta = prior_fn(struct_u, args)
             flat_theta, _ = jax.flatten_util.ravel_pytree(struct_theta)
             return flat_theta
 
@@ -186,11 +200,11 @@ class PolyChord(eqx.Module):
         def polychord_prior(u_np):
             return np.array(jitted_prior(jnp.asarray(u_np)))
         
+        # Warmup / Test evaluation
         _dummy_prior = polychord_prior(0.5*np.ones(ndims))
         _dummy_logL = polychord_likelihood(_dummy_prior)
 
         # 3. EXECUTE POLYCHORD
-        
         nested_samples = pypolychord.run(
             loglikelihood=polychord_likelihood,
             nDims=ndims,
@@ -201,19 +215,23 @@ class PolyChord(eqx.Module):
         
         loglikes = jnp.array(np.array(nested_samples['logL']))
         samples = jnp.array(np.array(nested_samples.iloc[:, :ndims]))
-        weights = nested_samples.get_weights()
+        weights = jnp.array(nested_samples.get_weights())
         
-        # 4. RESTRUCTURE RESULTS -> Returns a Batch of Caller PyTrees!
+        # Attempt to extract log evidence safely
+        logevidence = None
+        if hasattr(nested_samples, 'logZ'):
+            try:
+                logevidence = float(nested_samples.logZ())
+            except Exception as e:
+                logging.debug(f"Could not extract logZ from anesthetic NestedSamples: {e}")
+        
+        # 4. RESTRUCTURE RESULTS
         structured_samples = jax.vmap(reconstruct_fn)(jnp.array(samples))
 
-        return Result(
-            samples=structured_samples, 
-            log_likelihoods=loglikes,
-            final_state=None,
-            log_evidence=None,
-            log_evidence_err=None,
-            converged=jnp.array(True),
-            result=RESULTS.successful,
+        return NestedSamplingResult(
+            samples=structured_samples,
+            loglikelihoods=loglikes,
             weights=weights,
-            stats={'output': nested_samples}
+            logevidence=logevidence,
+            stats={'nested_samples': nested_samples}            
         )

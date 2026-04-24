@@ -6,20 +6,19 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
-import inferix as infx
 
 from pmrf.core import Model, Frequency, Problem
-from pmrf.infer.base import is_inferer, InferResult
+from pmrf.infer.base import is_inferer, InferResult, NestedSamplingResult, AbstractBackendMCMCSampler, AbstractBackendNestedSampler
 from pmrf.infer.polychord import PolyChord
 from pmrf.utils.random import generate_key
 
 from pmrf.utils.module import hypercube_to_physical, physical_to_hypercube
 
 def sample(
-    log_likelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+    loglikelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: PolyChord | infx.AbstractSampler = PolyChord(),
+    solver: AbstractBackendMCMCSampler | AbstractBackendNestedSampler = PolyChord(),
     *,
     key: jnp.ndarray | None = None,
     **kwargs,
@@ -31,7 +30,7 @@ def sample(
 
     Parameters
     ----------
-    log_likelihood : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+    loglikelihood : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
         The log likelihood function to sample. Can be a function or a callable PyTree
         with optional parameters. If a list of log likelihoods is provided,
         they are automatically summed, however the inner likelihoods may not
@@ -40,11 +39,10 @@ def sample(
         The RF model containing the parameters to be sample.
     frequency : Frequency
         The frequency sweep over which the log likelihood should be evaluated.
-    solver : infx.AbstractNestedSampler, default=infx.PolyChord()
-        The sampler to use. Can be any sampler from `Inferix <https://github.com/gvcallen/inferix>`_,
-        such as :class:`inferix.PolyChord`.
+    solver : AbstractBackendMCMCSampler | AbstractBackendNestedSampler, default=PolyChord()
+        The sampler to use. Can be either a MCMC or nested sampler in :mod:`pmrf.infer`.
     key : jnp.ndarray, optional
-        The random JAX key. Not required for all samplers.
+        The random JAX key.
         Automatically generated if not passed.
     **kwargs : dict
         Additional options passed to the underlying solver backend.
@@ -66,15 +64,15 @@ def sample(
     if not is_inferer(solver):
         raise Exception(f"Expected an inference solver. Got: {solver}")
     
-    if isinstance(log_likelihood, list):
-        for logl in log_likelihood:
+    if isinstance(loglikelihood, list):
+        for logl in loglikelihood:
             if isinstance(logl, prx.Module) and logl.num_flat_params > 0:
                 raise Exception("Cannot pass a list of likelihoods that include parameters.")        
-        log_likelihood = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in log_likelihood])
+        loglikelihood = prx.op.Sum([c if isinstance(c, eqx.Module) else prx.op.Lambda(c) for c in loglikelihood])
     else:
-        log_likelihood = log_likelihood if isinstance(log_likelihood, eqx.Module) else prx.op.Lambda(log_likelihood)
+        loglikelihood = loglikelihood if isinstance(loglikelihood, eqx.Module) else prx.op.Lambda(loglikelihood)
     
-    problem = Problem(model=model, frequency=frequency, evaluator=log_likelihood)
+    problem = Problem(model=model, frequency=frequency, evaluator=loglikelihood)
     if problem.num_flat_params == 0:
         raise Exception("Received no free parameters in `pmrf.infer.sample`") 
     problem.validate_params()    
@@ -94,70 +92,22 @@ def sample(
         params_physical_problem, _ = prx.partition(full_physical_problem)
         return params_physical_problem
         
-        # # 1. Extract unit values and the joint distribution structurally matched
-        # unit_vals = full_u_problem.grouped_param_values()
-        # joint_dist = full_u_problem.grouped_distribution()
-        
-        # # 2. Transform from unit hypercube to physical space using the joint inverse CDF
-        # physical_vals = joint_dist.icdf(unit_vals)
-        
-        # # 3. Unpack the structural dictionary back to flat parameter updates
-        # named_grouped = full_u_problem.named_grouped_params()
-        # flat_updates = {}
-        
-        # for group_key, param_dict in named_grouped.items():
-        #     phys_val = physical_vals[group_key]
-            
-        #     # Handle scalar/univariate vs stacked/multivariate distributions
-        #     # matching the logic inside your grouped_param_values() method
-        #     if len(param_dict) == 1:
-        #         name = list(param_dict.keys())[0]
-        #         flat_updates[name] = phys_val
-        #     else:
-        #         for i, name in enumerate(param_dict.keys()):
-        #             flat_updates[name] = phys_val[i]
-                    
-        # # 4. Inject the physical values back into the problem tree
-        # full_physical_problem = full_u_problem.with_params(flat_updates)
-        
-        # # 5. Repartition to return just the dynamic parameters for Inferix
-        # params_physical_problem, _ = prx.partition(full_physical_problem)
-        # return params_physical_problem    
-
     if isinstance(solver, PolyChord):
-        nested_sampler = True
-        infx_result = solver(internal_log_likelihood, prior_transform_fn, y0=params, **kwargs)
-    elif isinstance(solver, infx.AbstractNestedSampler):
-        nested_sampler = True
-        infx_result = infx.nested(
-            internal_log_likelihood,
-            key=key,
-            sampler=solver,
-            y0=params,
-            prior_transform_fn=prior_transform_fn,
-            **kwargs
-        )
+        solver_results = solver(internal_log_likelihood, prior_transform_fn, y0=params, **kwargs)
     else:
-        nested_sampler = False
-        infx_result = infx.mcmc(
-            internal_log_likelihood,
-            key=key,
-            sampler=solver,
-            y0=params,
-            **kwargs
-        )        
+        raise ValueError("Got unexpected solver")
     
-    # 1. Reconstruct the batched Problem and extract sub-components
-    batched_problem = eqx.combine(infx_result.samples, static)
+    # 1. Extract components of the batched problem
+    batched_problem = solver_results.samples
     batched_model = batched_problem.model
-    batched_log_likelihoods = batched_problem.evaluator
+    batched_loglikelihoods = batched_problem.evaluator
 
     # 2. Extract MLE parameters using the log_likelihoods array
-    best_idx = jnp.argmax(infx_result.log_likelihoods) 
-    mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], infx_result.samples)
+    best_idx = jnp.argmax(solver_results.loglikelihoods) 
+    mle_problem_params = jax.tree_util.tree_map(lambda x: x[best_idx], solver_results.samples)
     mle_problem = eqx.combine(mle_problem_params, static)
     mle_model: Model = mle_problem.model
-    mle_log_likelihood = mle_problem.evaluator
+    mle_loglikelihood = mle_problem.evaluator
 
     # 3. Create the flattened Joint Posterior Distribution for the model
     # Parax distributions expect flat arrays, so we must map ravel_pytree across the batch axis
@@ -165,11 +115,11 @@ def sample(
         flat, _ = jax.flatten_util.ravel_pytree(m)
         return flat
     
-    flat_model_samples = jax.vmap(flatten_model_params)(infx_result.samples.model)
-    
-    if nested_sampler:
+    flat_model_samples = jax.vmap(flatten_model_params)(solver_results.samples.model)
+
+    if isinstance(solver_results, NestedSamplingResult):
         from distreqx.distributions import WeightedEmpirical
-        weights = infx_result.weights
+        weights = solver_results.weights
         posterior_dist = WeightedEmpirical(samples=flat_model_samples, weights=weights)
     else:
         from distreqx.distributions import Empirical
@@ -184,15 +134,15 @@ def sample(
     mle_model = mle_model.with_param_groups([posterior_group]).with_demoted_param_groups()
     
     # Strip the samples, log_likelihoods and weights so we dont store them twice
-    log_likelihood_values = infx_result.log_likelihoods
-    infx_result = replace(infx_result, samples=None, log_likelihoods=None, weights=None)
+    loglikelihood_values = solver_results.loglikelihoods
+    solver_results = replace(solver_results, samples=None, log_likelihoods=None, weights=None)
 
     return InferResult(
         model=mle_model,
-        log_likelihood=mle_log_likelihood,
+        loglikelihood=mle_loglikelihood,
         sampled_models=batched_model,
-        sampled_log_likelihoods=batched_log_likelihoods,
-        log_likelihood_values=log_likelihood_values,
+        sampled_loglikelihoods=batched_loglikelihoods,
+        loglikelihood_values=loglikelihood_values,
         weights=weights,
-        solver_results=infx_result,
+        solver_results=solver_results,
     )

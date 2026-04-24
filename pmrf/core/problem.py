@@ -27,7 +27,7 @@ class Problem(prx.Module):
     #: and frequency to a scalar or array result.
     evaluator: Evaluator
     
-    def __call__(self) -> jnp.ndarray:
+    def __call__(self, *args, **kwargs) -> jnp.ndarray:
         """
         Call the evaluator on the model and frequency.
 
@@ -36,4 +36,4 @@ class Problem(prx.Module):
         jnp.ndarray
             The result of evaluating the model with the stored evaluator and frequency.
         """        
-        return self.evaluator(self.model, self.frequency)
+        return self.evaluator(self.model, self.frequency, *args, **kwargs)

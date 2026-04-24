@@ -1,7 +1,52 @@
+import jax
 import jax.numpy as jnp
 import parax as prx
 
 from pmrf.utils.distribution import hypercube_to_physical as dist_hypercube_to_physical, physical_to_hypercube as dist_physical_to_hypercube
+
+def make_bounds(
+    module: prx.Module, 
+    lower_override: float | None = None, 
+    upper_override: float | None = None
+) -> tuple[prx.Module, prx.Module]:
+    def get_lower(x: prx.Parameter):
+        if not prx.is_free_param(x):
+            return x
+            
+        if lower_override is not None:
+            return x.with_value(jnp.full_like(x.value, lower_override))
+            
+        if x.bounds is not None:
+            return x.with_value(x.bounds[..., 0])
+            
+        if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+            return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 0.001))) # TODO deprecate
+            
+        return x.with_value(jnp.full_like(x.value, -jnp.inf))
+
+    def get_upper(x: prx.Parameter):
+        if not prx.is_free_param(x):
+            return x
+            
+        if upper_override is not None:
+            return x.with_value(jnp.full_like(x.value, upper_override))
+            
+        if x.bounds is not None:
+            return x.with_value(x.bounds[..., 1])
+            
+        if x.distribution is not None and hasattr(x.distribution, 'icdf'):
+            return x.with_value(x.distribution.icdf(jnp.full_like(x.value, 1.0 - 0.001))) # TODO deprecate
+            
+        return x.with_value(jnp.full_like(x.value, jnp.inf))
+
+    # 1. Map the respective bound functions over the module tree
+    lower_tree = jax.tree.map(get_lower, module, is_leaf=prx.is_free_param)
+    upper_tree = jax.tree.map(get_upper, module, is_leaf=prx.is_free_param)
+
+    # 2. Partition to extract just the bounding parameters for the solver
+    (lower_bounds, upper_bounds), _ = prx.partition((lower_tree, upper_tree))
+    
+    return lower_bounds, upper_bounds  
 
 def physical_to_hypercube(module: prx.Module):
     """

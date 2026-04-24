@@ -2,6 +2,7 @@
 Built-in optimization solvers/wrappers.
 """
 import logging
+
 import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
@@ -9,11 +10,13 @@ import numpy as np
 from scipy.optimize import minimize as scipy_minimize
 import optimistix as optx
 import equinox as eqx
-from tqdm.auto import tqdm  # Added import
+from tqdm.auto import tqdm
+
+from pmrf.optimize.base import AbstractBackendMinimizer
 
 DEBUG_PRINT = False
 
-class ScipyMinimize(eqx.Module):
+class ScipyMinimize(AbstractBackendMinimizer):
     """
     A JAX-wrapped optimizer using :func:`scipy.optimize.minimize`.
 
@@ -26,6 +29,9 @@ class ScipyMinimize(eqx.Module):
         The SciPy solver method (default: "L-BFGS-B" for bounded problems).
     use_grad : bool
         Whether to calculate exact gradients via JAX to pass to the SciPy Jacobian hook.
+    tol : float or None
+        Tolerance for termination. When `tol` is specified, the selected minimization 
+        algorithm sets some relevant solver-specific tolerance(s) equal to `tol`.
     options : dict
         Standard SciPy minimizer options (e.g., 'maxiter', 'ftol', 'disp').
     show_progress : bool
@@ -33,10 +39,15 @@ class ScipyMinimize(eqx.Module):
     """
     method: str = eqx.field(static=True, default="L-BFGS-B")
     use_grad: bool = eqx.field(static=True, default=True)
+    tol: float | None = eqx.field(static=True, default=None)
     options: dict = eqx.field(static=True, default_factory=dict)
-    show_progress: bool = eqx.field(static=True, default=True) # Added flag
+    show_progress: bool = eqx.field(static=True, default=True)
 
-    def __call__(self, fn, y, args=None, options=None, **kwargs) -> optx.Solution:
+    @property
+    def supports_bounds(self) -> bool:
+        return True
+
+    def __call__(self, fn, y, args, options) -> optx.Solution:
         method = self.method
         options = options or {}
         
@@ -44,7 +55,7 @@ class ScipyMinimize(eqx.Module):
         upper_tree = options.pop('upper', None)
         
         if 'bounds' in options:
-            raise Exception("Bounds should not be passed under scipy minimize options. ")
+            raise Exception("Bounds should not be passed under scipy minimize options.")
 
         gradient_free_methods = {'nelder-mead', 'powell', 'cobyla'}
         use_grad = self.use_grad and (method.lower() not in gradient_free_methods)
@@ -67,19 +78,16 @@ class ScipyMinimize(eqx.Module):
                 print(f"scipy_bounds = {scipy_bounds}")
 
         # 3. Define the internal JAX objective that unravels the flat array dynamically
-        @jax.jit
         def flat_fn(_flat_y, _args):
-            cost = fn(unravel_fn(_flat_y), _args)
-            return cost
+            return fn(unravel_fn(_flat_y), _args)
+            
+        val_and_grad_fn = jax.jit(jax.value_and_grad(flat_fn))
 
-        val_and_grad_fn = jax.value_and_grad(flat_fn)
-
-        # State container to pass the loss to the progress bar callback
+        # State containers to pass data to callbacks and prevent log spam
         current_loss = [np.inf]
+        nan_logged = [False] 
 
         def objective_with_grad(x_np):
-            nan_logged = False
-            
             loss, grad = val_and_grad_fn(jnp.array(x_np), args)
             loss_np = np.asarray(loss, dtype=np.float64)
             grad_np = np.asarray(grad, dtype=np.float64)
@@ -89,13 +97,13 @@ class ScipyMinimize(eqx.Module):
                 print(f"params = {x_np}")
                 print(f"loss = {loss_np}, grad_np = {grad_np}")
                 
-            if not nan_logged and np.any(np.isnan(loss_np)):
-                logging.warning(f"Loss value was NaN")
-                nan_logged = True
+            if not nan_logged[0] and np.any(np.isnan(loss_np)):
+                logging.warning("Loss value was NaN")
+                nan_logged[0] = True
             
-            if not nan_logged and np.any(np.isnan(grad)):
-                logging.warning(f"Loss gradients were NaN")
-                nan_logged = True
+            if not nan_logged[0] and np.any(np.isnan(grad_np)):
+                logging.warning("Loss gradients were NaN")
+                nan_logged[0] = True
             
             return loss_np, grad_np
 
@@ -125,10 +133,10 @@ class ScipyMinimize(eqx.Module):
                 np.array(flat_y), 
                 jac=use_grad, 
                 method=method,
+                tol=self.tol,
                 bounds=scipy_bounds,  
                 options=scipy_options,
-                callback=callback, # Hooked the callback here
-                **kwargs,
+                callback=callback,
             )
         finally:
             # Ensure the progress bar closes cleanly even if an error occurs

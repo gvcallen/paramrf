@@ -52,7 +52,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
         return -0.5 * jnp.sum((m.val - 7.0)**2)
         
     result = sample(
-        log_likelihood=log_like,
+        loglikelihood=log_like,
         model=infer_model,
         frequency=basic_freq,
         solver=PolyChord(do_clustering=False),
@@ -81,7 +81,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     
     batched_model = result.sampled_models
     assert isinstance(batched_model, DummyInferModel)
-    n_samples = result.log_likelihood_values.shape[0]
+    n_samples = result.loglikelihood_values.shape[0]
     assert batched_model.val.value.shape == (n_samples,)
 
 
@@ -118,5 +118,5 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
     )
     
     assert isinstance(result.model, DummyInferModel)
-    n_samples = result.solution.log_likelihood_values.shape[0]
+    n_samples = result.solution.loglikelihood_values.shape[0]
     assert result.solution.sampled_models.val.value.shape == (n_samples,)

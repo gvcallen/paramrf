@@ -2,12 +2,16 @@
 Base optimization functions and classes.
 """
 from typing import Any, Callable
+import abc
 
 import jax.numpy as jnp
+from jaxtyping import PyTree
 import optimistix as optx
+import equinox as eqx
 import parax as prx
 
 from pmrf.core import Model, Frequency
+
 
 class OptimizeResult(prx.Module):
     """
@@ -26,14 +30,63 @@ class OptimizeResult(prx.Module):
     
     #: The underlying results object returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
-    solver_results: Any = None
+    #: Not saved to file.
+    solver_results: Any = prx.field(default=None, save=False)
 
+
+class AbstractBackendMinimizer(eqx.Module):
+    """
+    An interface for JAX-wrapped minimization algorithms.
+
+    The interface should accept pure PyTrees and return a standardized `optx.Solution`.
+    """
+    #: Signifies whether the minimizer supports bounds or not.
+    #: If True, PyTree bounds will be passed in options['lower'] and options['upper'].
+    supports_bounds: eqx.AbstractClassVar[bool]
+
+    @abc.abstractmethod
+    def __call__(
+        self,
+        fn: Callable[[PyTree], PyTree],
+        y0: PyTree,
+        args: PyTree[Any],
+        options: dict[str, Any],
+    ) -> optx.Solution:
+        """
+        Execute the minimization algorithm.
+
+        Parameters
+        ----------
+        fn : callable
+            The objective function to minimize.
+        y0 : PyTree
+            The initial parameter guess.
+        args : PyTree
+            Additional static arguments passed to the objective function.
+        options : dict
+            Runtime configuration for the solver. If `supports_bounds` is True,
+            boundary constraints are provided here via 'lower' and 'upper' keys.
+
+        Returns
+        -------
+        optx.Solution
+            A standard optimistix solution object containing the optimized parameters,
+            convergence status, and solver statistics.
+        """
+        raise NotImplementedError
     
+def is_minimizer(x):
+    """
+    Returns if a solver is suitable for minimization in :mod:`pmrf.optimize.minimize`.
+
+    Returns `True` for :class:`pmrf.optimize.ScipyMinimize` and :class:`optimistix.AbstractMinimiser`.
+    """
+    return isinstance(x, AbstractBackendMinimizer | optx.AbstractMinimiser)
+
 def is_optimizer(x):
     """
     Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
 
     Returns `True` for :class:`pmrf.optimize.ScipyMinimize` and :class:`optimistix.AbstractMinimiser`.
     """
-    from pmrf.optimize.minimize import ScipyMinimize
-    return isinstance(x, ScipyMinimize | optx.AbstractMinimiser)
+    return is_minimizer(x)
