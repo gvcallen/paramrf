@@ -1,7 +1,7 @@
 Optimization and Inference
 --------------------------
 
-Models can be optimized using :mod:`pmrf.optimize.minimize`, sampled for statistical inference using :mod:`pmrf.infer.sample`, or fit to measured data using the high-level :func:`pmrf.fit` function.
+Models can be optimized using :mod:`pmrf.optimize.minimize`, sampled for statistical inference using :mod:`pmrf.infer.sample`, or fit to measured data using the high-level :func:`pmrf.fitting.fit` function.
 
 Lower-level routines directly accept an :class:`~pmrf.Evaluator` to define the objective or log-likelihood function. For design purposes, the built-in :class:`~pmrf.evaluators.Goal` evaluator is highly useful. When fitting data, datasets can be passed directly as a :class:`skrf.Network` or :class:`pmrf.NetworkCollection`. Target features are specified using simple strings (e.g., ``'s11'``), and you can easily apply specific loss or likelihood objects, such as :class:`pmrf.losses.RMSELoss` or :class:`pmrf.likelihoods.GaussianLikelihood`.
 

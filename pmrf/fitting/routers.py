@@ -84,7 +84,7 @@ def fit_sequential(
     
     For each network in the network collection, the network's
     name is used as a prefix for the features to fit,
-    and :meth:`pmrf.fit` is called.
+    and :meth:`pmrf.fitting.fit` is called.
 
     Parameters
     ----------
@@ -97,7 +97,7 @@ def fit_sequential(
         If a value is a dict, it is resolved using the network name as the key.
         If a value is a callable, it is resolved by passing the network to the callable.
     **kwargs : dict
-        Standard kwargs passed to :func:`pmrf.fit`.
+        Standard kwargs passed to :func:`pmrf.fitting.fit`.
 
     Returns
     -------
@@ -186,7 +186,7 @@ def fit_joint(
     data : NetworkCollection
         A collection of network data whose names are used as prefixes for sub-model features.
     **kwargs : dict
-        Standard kwargs passed to :func:`pmrf.fit`.
+        Standard kwargs passed to :func:`pmrf.fitting.fit`.
 
     Returns
     -------
