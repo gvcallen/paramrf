@@ -8,7 +8,7 @@ Lower-level routines directly accept an :class:`~pmrf.Evaluator` to define the o
 Solvers
 ^^^^^^^
 
-All of the above methods take a "solver" argument. ParamRF allows for optimization using either :func:`scipy.optimize.minimize` or :func:`optimistix.minimise`, and Bayesian inference using :func:`pypolychord.run` and :func:`BlackJAX`.
+All of the above methods take a "solver" argument. ParamRF allows for optimization using either :func:`scipy.optimize.minimize` or :func:`optimistix.minimise`, and Bayesian inference using :func:`pypolychord.run` and :mod:`blackjax`.
 
 * **Optimistix**: JAX-native optimization algorithms, such as :class:`optimistix.BFGS` and :class:`optimistix.NelderMead`. These algorithms run their loop directly in JAX, and therefore can be compiled to any architecture (CPU, GPU, TPU).
 * **Scipy**: A wrapper around gradient-based and gradient-free optimization algorithms from :func:`scipy.optimize` in :class:`pmrf.optimize.ScipyMinimize`. This includes algorithms such as *SLSQP*, *Nelder-Mead* and *L-BFGS*. These algorithms are CPU-native and cannot run on the GPU.
