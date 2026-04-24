@@ -38,6 +38,8 @@ class AbstractBackendMinimizer(eqx.Module):
     """
     An interface for JAX-wrapped minimization algorithms.
 
+    Provided to cater for algorithms that `Optimistix` does not support.
+
     The interface should accept pure PyTrees and return a standardized `optx.Solution`.
     """
     #: Signifies whether the minimizer supports bounds or not.

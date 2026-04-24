@@ -1,6 +1,6 @@
 import logging
 from dataclasses import replace
-from typing import Callable
+from typing import Callable, Any
 
 import jax
 import jax.numpy as jnp
@@ -8,7 +8,7 @@ import equinox as eqx
 import parax as prx
 
 from pmrf.core import Model, Frequency, Problem
-from pmrf.infer.base import is_inferer, InferResult, NestedSamplingResult, AbstractBackendMCMCSampler, AbstractBackendNestedSampler
+from pmrf.infer.base import is_inferer, InferResult, NestedSamplingResult, AbstractMCMCSampler, AbstractNestedSampler
 from pmrf.infer.polychord import PolyChord
 from pmrf.utils.random import generate_key
 
@@ -18,10 +18,10 @@ def sample(
     loglikelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: AbstractBackendMCMCSampler | AbstractBackendNestedSampler = PolyChord(),
+    solver: AbstractMCMCSampler | AbstractNestedSampler = PolyChord(),
     *,
     key: jnp.ndarray | None = None,
-    **kwargs,
+    options: dict[str, Any] = None,
 ) -> InferResult:
     """
     Samples a given log likelihood function for a model over a frequency range.
@@ -44,7 +44,7 @@ def sample(
     key : jnp.ndarray, optional
         The random JAX key.
         Automatically generated if not passed.
-    **kwargs : dict
+    options : dict
         Additional options passed to the underlying solver backend.
 
     Returns
@@ -93,7 +93,7 @@ def sample(
         return params_physical_problem
         
     if isinstance(solver, PolyChord):
-        solver_results = solver(internal_log_likelihood, prior_transform_fn, y0=params, **kwargs)
+        solver_results = solver(internal_log_likelihood, prior_transform_fn, y0=params, init_samples=None, key=key, args=None, options=options)
     else:
         raise ValueError("Got unexpected solver")
     

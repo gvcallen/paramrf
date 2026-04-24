@@ -15,7 +15,7 @@ except ImportError:
     pass
 
 from pmrf.core import Model, Frequency
-from pmrf.constants import Inferer
+from pmrf.constants import Solver
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
@@ -27,7 +27,7 @@ def fit_sample(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Inferer = PolyChord(),
+    solver: Solver = PolyChord(),
     *,
     features: str | list[str] | Callable = 's',
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
@@ -54,8 +54,8 @@ def fit_sample(
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
     solver : Solver, default=PolyChord()
-        The sampler to use. Currently, only :class:`inferix.PolyChord` from
-        `Inferix <https://github.com/gvcallen/inferix>`_ is supported.
+        The sampler to use.
+        Can be any sampler from :mod:`pmrf.infer` (such as :mod:`pmrf.infer.PolyChord).
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
         The RF features to condition on.
         Can either be function, a callable PyTree with optional parameters, or a string,

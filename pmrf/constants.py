@@ -30,8 +30,6 @@ PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 
 TreeAxisSpec = bool | Callable[[Any], bool]
 AggregationKind = Literal['raw_values', 'uniform_average', 'geometric_mean', 'convolution']
-Optimizer = TypeVar('Optimizer')
-Inferer = TypeVar('Inferer')
-Solver = Optimizer | Inferer
+Solver = TypeVar('Solver')
 
 __all__ = []

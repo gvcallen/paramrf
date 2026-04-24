@@ -11,7 +11,7 @@ import numpy as np
 import distreqx.distributions as dist
 
 from pmrf.core import Model, Frequency
-from pmrf.constants import Optimizer
+from pmrf.constants import Solver
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
@@ -26,7 +26,7 @@ def fit_minimize(
     model: Model,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Optimizer = ScipyMinimize(),
+    solver: Solver = ScipyMinimize(),
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',

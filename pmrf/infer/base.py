@@ -2,7 +2,7 @@
 Base inference functions and classes.
 """
 
-from typing import Callable, Any, TypeVar
+from typing import Callable, Any, TypeVar, Optional
 import collections
 import abc
 
@@ -222,9 +222,9 @@ class NestedSamplingResult(eqx.Module):
     #: Static or summary statistics about the run (e.g., number of likelihood evaluations).
 
 
-class AbstractBackendMCMCSampler(eqx.Module):
+class AbstractMCMCSampler(eqx.Module):
     """
-    An interface for JAX-wrapped MCMC sampling algorithms.
+    An interface for JAX-compatible MCMC sampling algorithms.
     """
     @abc.abstractmethod
     def __call__(
@@ -262,7 +262,7 @@ class AbstractBackendMCMCSampler(eqx.Module):
         raise NotImplementedError
     
 
-class AbstractBackendNestedSampler(eqx.Module):
+class AbstractNestedSampler(eqx.Module):
     """
     An interface for JAX-wrapped Nested sampling algorithms.
     """
@@ -276,7 +276,8 @@ class AbstractBackendNestedSampler(eqx.Module):
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Scalar],
         prior_fn: Callable[[PyTree, Any], PyTree] | Callable[[PyTree, Any], Scalar],
-        y0: PyTree | None,
+        y0: PyTree,
+        init_samples: Optional[PyTree],
         key: Array,
         args: PyTree[Any],
         options: dict[str, Any],
@@ -292,8 +293,11 @@ class AbstractBackendNestedSampler(eqx.Module):
             Depending on `requires_hypercube`, either a prior transform function mapping 
             the unit hypercube to physical space, or a function returning the log-prior scalar.
         y0 : PyTree or None
-            A prototype PyTree to infer parameter shapes, or initial live points for 
-            samplers that support warm-starting.
+            A prototype PyTree to infer parameter shapes.
+        init_samples : PyTree or None
+            A batch of PyTrees of the same non-batched shape as `y0` representing initial live points.
+            Required for non-hypercube samplers.
+            For non-hypercube samplers, these samples should be in the hypercube.
         key : Array
             A JAX PRNGKey for stochastic point generation.
         args : PyTree
@@ -315,7 +319,7 @@ def is_sampler(x):
 
     Returns `True` for :class:`pmrf.infer.AbstractBackendMCMCSampler` and :class:`pmrf.infer.AbstractBackendNestedSampler`.
     """    
-    return isinstance(x, AbstractBackendMCMCSampler | AbstractBackendNestedSampler)
+    return isinstance(x, AbstractMCMCSampler | AbstractNestedSampler)
     
 
 def is_inferer(x):

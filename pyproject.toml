@@ -14,7 +14,6 @@ dependencies = [
     "distreqx",
     "optimistix",
     "jaxopt",
-    "inferix",
     "numpy",
     "scipy",
     "scikit-rf",

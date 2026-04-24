@@ -17,9 +17,9 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import NestedSamplingResult, AbstractBackendNestedSampler
+from pmrf.infer.base import NestedSamplingResult, AbstractNestedSampler
 
-class PolyChord(AbstractBackendNestedSampler):
+class PolyChord(AbstractNestedSampler):
     """
     A JAX-wrapped Nested Sampler using PolyChord.
 
@@ -85,11 +85,11 @@ class PolyChord(AbstractBackendNestedSampler):
         Random seed for the sampler. Uses time if set to -1 (default: -1).
     nlives : dict
         A dictionary mapping log-likelihood contours to the number of live points.
-    cube_samples : Any | None
-        Optional initial samples in the unit hypercube to seed the sampler.
     paramnames : list of tuple
         A list of parameter names and LaTeX formatted names, e.g., `[("p1", r"\theta_1")]`.
+        Must match the flatten dimension of `y0`.
     """
+    nlive: int = -1
     num_repeats: int | None = None
     nprior: int = -1
     nfail: int = -1
@@ -117,7 +117,6 @@ class PolyChord(AbstractBackendNestedSampler):
     cluster_dir: str = "clusters"
     seed: int = -1
     nlives: Dict[float, int] = eqx.field(static=True, default_factory=dict)
-    cube_samples: Any | None = None  
     paramnames: list[tuple[str, str]] | None = None
 
     @property
@@ -129,12 +128,13 @@ class PolyChord(AbstractBackendNestedSampler):
         loglikelihood_fn: Callable[[PyTree, Any], Scalar],
         prior_fn: Callable[[PyTree, Any], PyTree],
         y0: PyTree,
+        init_samples: PyTree | None,
         key: Array,
         args: PyTree[Any],
         options: dict[str, Any],
     ) -> NestedSamplingResult:
         if not MPI_AVAILABLE:
-            raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the inferix PolyChord sampler.")
+            raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
         # 1. DERIVE GEOMETRY FROM y0
         flat_y0, reconstruct_fn = jax.flatten_util.ravel_pytree(y0)
@@ -143,6 +143,7 @@ class PolyChord(AbstractBackendNestedSampler):
         # Combine options
         options = options or {}
         base_kwargs = {
+            'nlive': self.nlive,
             'num_repeats': self.num_repeats if self.num_repeats is not None else ndims*5,
             'nprior': self.nprior,
             'nfail': self.nfail,
@@ -170,7 +171,6 @@ class PolyChord(AbstractBackendNestedSampler):
             'cluster_dir': self.cluster_dir,
             'seed': self.seed,
             'nlives': self.nlives,
-            'cube_samples': self.cube_samples,
             'paramnames': self.paramnames,
         }
         
@@ -178,7 +178,12 @@ class PolyChord(AbstractBackendNestedSampler):
         if unknown_options:
             raise ValueError(f"PolyChord sample got unknown options: {unknown_options}")
         
-        base_kwargs.update(options)        
+        if init_samples is not None:
+            flatten_single = lambda x: jax.flatten_util.ravel_pytree(x)[0]
+            cube_samples = jax.vmap(flatten_single)(init_samples)
+            base_kwargs['cube_samples'] = np.array(cube_samples)
+        
+        base_kwargs.update(options)
 
         # 2. JIT-COMPILED BRIDGES
         @jax.jit

@@ -55,16 +55,18 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
         loglikelihood=log_like,
         model=infer_model,
         frequency=basic_freq,
-        solver=PolyChord(do_clustering=False),
-        nlive=5,
-        num_repeats=1,
-        precision_criterion=1.0,
-        feedback=0,         
-        write_resume=False, 
-        write_live=False,
-        write_dead=False,
-        write_stats=False,
-        base_dir=str(tmp_path)
+        solver=PolyChord(
+            nlive=5,
+            do_clustering=False,
+            num_repeats=1,
+            precision_criterion=1.0,
+            feedback=0,         
+            write_resume=False, 
+            write_live=False,
+            write_dead=False,
+            write_stats=False,
+            base_dir=str(tmp_path)
+        ),
     )
     
     assert isinstance(result.model, DummyInferModel)
@@ -103,18 +105,20 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
         model=infer_model,
         data=target_data,
         frequency=basic_freq,
-        solver=PolyChord(do_clustering=False),
+        solver=PolyChord(
+            nlive=5,
+            do_clustering=False,
+            num_repeats=1,
+            precision_criterion=1.0,
+            feedback=0, 
+            write_resume=False,
+            write_live=False,
+            write_dead=False,
+            write_stats=False,
+            base_dir=str(tmp_path)
+        ),
         features='s_mag',
         likelihood=GaussianLikelihood(noise=1.0),
-        nlive=5,
-        num_repeats=1,
-        precision_criterion=1.0,
-        feedback=0, 
-        write_resume=False,
-        write_live=False,
-        write_dead=False,
-        write_stats=False,
-        base_dir=str(tmp_path)  # <-- Force PolyChord to write to the temp directory!
     )
     
     assert isinstance(result.model, DummyInferModel)
