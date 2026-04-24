@@ -54,6 +54,7 @@ class AbstractCallableMinimizer(eqx.Module):
         args: PyTree[Any],
         options: dict[str, Any],
         max_steps: int = 1024,
+        **kwargs
     ) -> optx.Solution:
         """
         Execute the minimization algorithm.
@@ -69,6 +70,8 @@ class AbstractCallableMinimizer(eqx.Module):
         options : dict
             Runtime configuration for the solver. If `supports_bounds` is True,
             boundary constraints are provided here via 'lower' and 'upper' keys.
+        **kwargs
+            Runtime arguments forward to the solver backend.
 
         Returns
         -------

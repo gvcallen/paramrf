@@ -47,7 +47,7 @@ class ScipyMinimize(AbstractCallableMinimizer):
     def supports_bounds(self) -> bool:
         return True
 
-    def __call__(self, fn, y, args, options, max_steps) -> optx.Solution:
+    def __call__(self, fn, y, args, options, max_steps, **kwargs) -> optx.Solution:
         method = self.method
         options = options or {}
         
@@ -139,6 +139,7 @@ class ScipyMinimize(AbstractCallableMinimizer):
                 bounds=scipy_bounds,  
                 options=scipy_options,
                 callback=callback,
+                **kwargs,
             )
         finally:
             # Ensure the progress bar closes cleanly even if an error occurs

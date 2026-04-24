@@ -26,6 +26,7 @@ def minimize(
     icdf_bounds: float = 0.001,
     options: dict[str, Any] = None,
     max_steps: int | None = 1024,
+    **kwargs,
 ) -> OptimizeResult:
     """
     Minimizes a given objective function for a model over a frequency range.
@@ -63,6 +64,8 @@ def minimize(
         Problem-specific runtime options passed to the underlying solver routine.
     max_steps : int
         The maximum number of iterations to take. 
+    **kwargs
+        Additional arguments forwarded to the solver backend.
 
     Returns
     -------
@@ -131,9 +134,9 @@ def minimize(
             
     # Run the solver
     if isinstance(solver, AbstractCallableMinimizer):
-        solver_results = solver(obj_fn, params, args=None, options=options, max_steps=max_steps)
+        solver_results = solver(obj_fn, params, args=None, options=options, max_steps=max_steps, **kwargs)
     elif isinstance(solver, optx.AbstractMinimiser):
-        solver_results = optx.minimise(obj_fn, solver, params, args=None, options=None, max_steps=max_steps)
+        solver_results = optx.minimise(obj_fn, solver, params, args=None, options=None, max_steps=max_steps, **kwargs)
     else:
         raise ValueError("Got unexpected solver type")
         
