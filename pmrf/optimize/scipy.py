@@ -12,11 +12,11 @@ import optimistix as optx
 import equinox as eqx
 from tqdm.auto import tqdm
 
-from pmrf.optimize.base import AbstractBackendMinimizer
+from pmrf.optimize.base import AbstractCallableMinimizer
 
 DEBUG_PRINT = False
 
-class ScipyMinimize(AbstractBackendMinimizer):
+class ScipyMinimize(AbstractCallableMinimizer):
     """
     A JAX-wrapped optimizer using :func:`scipy.optimize.minimize`.
 
@@ -47,7 +47,7 @@ class ScipyMinimize(AbstractBackendMinimizer):
     def supports_bounds(self) -> bool:
         return True
 
-    def __call__(self, fn, y, args, options) -> optx.Solution:
+    def __call__(self, fn, y, args, options, max_steps) -> optx.Solution:
         method = self.method
         options = options or {}
         
@@ -64,6 +64,8 @@ class ScipyMinimize(AbstractBackendMinimizer):
         flat_y, unravel_fn = ravel_pytree(y)
         
         scipy_options = dict(self.options)
+
+        scipy_options.setdefault('maxiter', max_steps)
         
         # 2. Extract and flatten the bounds PyTrees natively
         scipy_bounds = None

@@ -125,7 +125,7 @@ def fit_sample(
         likelihood = GaussianLikelihood(noise=noise)
     
     if likelihood is not None:
-        log_likelihood = MarginalLogLikelihood(
+        loglikelihood = MarginalLogLikelihood(
             predictor=features, 
             observed=observed, 
             likelihood=likelihood, 
@@ -133,7 +133,7 @@ def fit_sample(
         )
     else:
         temperature = temperature if temperature is not None else 1.0
-        log_likelihood = GibbsMarginalLogLikelihood(
+        loglikelihood = GibbsMarginalLogLikelihood(
             predictor=features, 
             observed=observed, 
             loss=loss, 
@@ -141,7 +141,7 @@ def fit_sample(
             temperature=temperature
         )
 
-    infer_result = sample(log_likelihood, model, frequency, solver=solver, **kwargs)
+    infer_result = sample(loglikelihood, model, frequency, solver=solver, **kwargs)
 
     return FitResult(
         data=data,

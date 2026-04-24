@@ -17,9 +17,9 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import NestedSamplingResult, AbstractNestedSampler
+from pmrf.infer.base import SamplingResult, AbstractCallableSampler
 
-class PolyChord(AbstractNestedSampler):
+class PolyChord(AbstractCallableSampler):
     """
     A JAX-wrapped Nested Sampler using PolyChord.
 
@@ -45,8 +45,6 @@ class PolyChord(AbstractNestedSampler):
         The stopping criterion based on the estimated evidence precision (default: 1e-3).
     logzero : float
         The numerical value used to represent log(0) (default: -1e30).
-    max_ndead : int
-        Maximum number of dead points allowed before terminating the run (default: -1, no limit).
     boost_posterior : float
         Boost the number of live points near the peak to improve posterior samples (default: 0.0).
     posteriors : bool
@@ -97,7 +95,6 @@ class PolyChord(AbstractNestedSampler):
     feedback: int = 1
     precision_criterion: float = 1e-3
     logzero: float = -1e30
-    max_ndead: int = -1
     boost_posterior: float = 0.0
     posteriors: bool = True
     equals: bool = True
@@ -132,13 +129,16 @@ class PolyChord(AbstractNestedSampler):
         key: Array,
         args: PyTree[Any],
         options: dict[str, Any],
-    ) -> NestedSamplingResult:
+        max_steps: int | None,
+    ) -> SamplingResult:
         if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
         # 1. DERIVE GEOMETRY FROM y0
         flat_y0, reconstruct_fn = jax.flatten_util.ravel_pytree(y0)
         ndims = flat_y0.size
+
+        max_ndead = max_steps if max_steps is not None else -1
         
         # Combine options
         options = options or {}
@@ -151,7 +151,7 @@ class PolyChord(AbstractNestedSampler):
             'feedback': self.feedback,
             'precision_criterion': self.precision_criterion,
             'logzero': self.logzero,
-            'max_ndead': self.max_ndead,
+            'max_ndead': max_ndead,
             'boost_posterior': self.boost_posterior,
             'posteriors': self.posteriors,
             'equals': self.equals,
@@ -233,10 +233,10 @@ class PolyChord(AbstractNestedSampler):
         # 4. RESTRUCTURE RESULTS
         structured_samples = jax.vmap(reconstruct_fn)(jnp.array(samples))
 
-        return NestedSamplingResult(
+        return SamplingResult(
             samples=structured_samples,
             loglikelihoods=loglikes,
             weights=weights,
             logevidence=logevidence,
-            stats={'nested_samples': nested_samples}            
+            stats={'nested_samples': nested_samples, 'max_steps': max_steps}            
         )

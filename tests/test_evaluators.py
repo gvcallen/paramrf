@@ -164,7 +164,7 @@ def test_goal_met_zero_loss(model, basic_freq):
 # MarginalLogLikelihood Tests
 # ---------------------------------------------------------
 
-def test_marginal_log_likelihood(model, basic_freq):
+def test_marginal_loglikelihood(model, basic_freq):
     """Test probabilistic evaluation and the data/event mapping."""
     # We observe s11_mag data that is exactly 1.0 for all 5 points
     target_data = jnp.ones(5)

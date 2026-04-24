@@ -11,7 +11,7 @@ import parax as prx
 from pmrf.core import Model, Frequency, Problem
 from pmrf.utils.module import hypercube_to_physical, physical_to_hypercube, make_bounds
 
-from pmrf.optimize.base import OptimizeResult, AbstractBackendMinimizer, is_minimizer
+from pmrf.optimize.base import OptimizeResult, AbstractCallableMinimizer, is_minimizer
 from pmrf.optimize.scipy import ScipyMinimize
 
 JaxoptSolver = Union[TypeVar('JaxoptSolver'), functools.partial]
@@ -20,11 +20,12 @@ def minimize(
     objective: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: optx.AbstractMinimiser | AbstractBackendMinimizer = ScipyMinimize(),
+    solver: optx.AbstractMinimiser | AbstractCallableMinimizer = ScipyMinimize(),
     use_bounds: bool | None = None,
     search_space: str = "physical",
     icdf_bounds: float = 0.001,
     options: dict[str, Any] = None,
+    max_steps: int | None = 1024,
 ) -> OptimizeResult:
     """
     Minimizes a given objective function for a model over a frequency range.
@@ -58,8 +59,10 @@ def minimize(
     icdf_bounds : float | None, default=0.001
         The lower inverse CDF value to use for hypercube-space bounds.
         Only used when `search_space` is "hypercube".
-    options : dict
+    options : dict 
         Problem-specific runtime options passed to the underlying solver routine.
+    max_steps : int
+        The maximum number of iterations to take. 
 
     Returns
     -------
@@ -76,7 +79,7 @@ def minimize(
     
     # Input standardization
     if use_bounds is None:
-        use_bounds = True if (isinstance(solver, AbstractBackendMinimizer) and solver.supports_bounds) else False
+        use_bounds = True if (isinstance(solver, AbstractCallableMinimizer) and solver.supports_bounds) else False
     else:
         use_bounds = False
         
@@ -127,10 +130,10 @@ def minimize(
         return problem()            
             
     # Run the solver
-    if isinstance(solver, AbstractBackendMinimizer):
-        solver_results = solver(obj_fn, params, args=None, options=options)
+    if isinstance(solver, AbstractCallableMinimizer):
+        solver_results = solver(obj_fn, params, args=None, options=options, max_steps=max_steps)
     elif isinstance(solver, optx.AbstractMinimiser):
-        solver_results = optx.minimise(obj_fn, solver, params, args=None, options=None)
+        solver_results = optx.minimise(obj_fn, solver, params, args=None, options=None, max_steps=max_steps)
     else:
         raise ValueError("Got unexpected solver type")
         

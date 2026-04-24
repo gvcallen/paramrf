@@ -34,9 +34,9 @@ class OptimizeResult(prx.Module):
     solver_results: Any = prx.field(default=None, save=False)
 
 
-class AbstractBackendMinimizer(eqx.Module):
+class AbstractCallableMinimizer(eqx.Module):
     """
-    An interface for JAX-wrapped minimization algorithms.
+    An interface for JAX-wrapped minimization algorithms that require a single `__call__`.
 
     Provided to cater for algorithms that `Optimistix` does not support.
 
@@ -53,6 +53,7 @@ class AbstractBackendMinimizer(eqx.Module):
         y0: PyTree,
         args: PyTree[Any],
         options: dict[str, Any],
+        max_steps: int = 1024,
     ) -> optx.Solution:
         """
         Execute the minimization algorithm.
@@ -83,7 +84,7 @@ def is_minimizer(x):
 
     Returns `True` for :class:`pmrf.optimize.ScipyMinimize` and :class:`optimistix.AbstractMinimiser`.
     """
-    return isinstance(x, AbstractBackendMinimizer | optx.AbstractMinimiser)
+    return isinstance(x, AbstractCallableMinimizer | optx.AbstractMinimiser)
 
 def is_optimizer(x):
     """

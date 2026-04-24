@@ -2,14 +2,14 @@
 Bayesian inference algorithms.
 
 Provides samplers and routines to compute the posterior joint 
-distributions of model parameters given measured data.
+distributions of model parameters.
 """
 
 from pmrf.infer.sample import sample
 from pmrf.infer.base import is_sampler, is_inferer, InferResult
 from pmrf.infer.polychord import PolyChord
 from pmrf.infer.blackjax import HMC, NUTS, NSS
-from pmrf.infer.base import AbstractMCMCSampler, AbstractNestedSampler
+from pmrf.infer.base import AbstractCallableSampler
 
 __all__ = [
     "is_sampler",
@@ -20,6 +20,5 @@ __all__ = [
     "HMC",
     "NUTS",
     "NSS",
-    "AbstractMCMCSampler",
-    "AbstractNestedSampler",
+    "AbstractCallableSampler",
 ]

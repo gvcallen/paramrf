@@ -89,10 +89,10 @@ class InferResult(prx.Module):
         # 3. Flatten and vmap
         flatten_fn = lambda m: jax.flatten_util.ravel_pytree(m)[0]
         sampled_model_params = jax.vmap(flatten_fn)(self.sampled_models)
-        sampled_log_likelihood_params = jax.vmap(flatten_fn)(self.sampled_loglikelihoods)          
+        sampled_loglikelihood_params = jax.vmap(flatten_fn)(self.sampled_loglikelihoods)          
         
         # 4. Concatenate and cast to standard numpy
-        sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_log_likelihood_params)))
+        sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_loglikelihood_params)))
         
         return param_names, sampled_params
     
@@ -122,7 +122,7 @@ class InferResult(prx.Module):
             
         # 3. Extract sample statistics
         sample_stats = {
-            "log_likelihood": np.expand_dims(np.asarray(self.loglikelihood_values), axis=0)
+            "loglikelihood": np.expand_dims(np.asarray(self.loglikelihood_values), axis=0)
         }
         if self.weights is not None:
             sample_stats["weights"] = np.expand_dims(np.asarray(self.weights), axis=0)
@@ -172,30 +172,9 @@ class InferResult(prx.Module):
             )
         
 
-class MCMCSamplingResult(eqx.Module):
+class SamplingResult(eqx.Module):
     """
-    A standardized result structure for MCMC sampling algorithms.
-    """
-    samples: PyTree[Array]
-    #: The stacked trajectory of samples. Each leaf in the PyTree has a leading 
-    #: batch dimension corresponding to the number of steps/samples.
-    
-    loglikelihoods: Array
-    #: A 1D array of log-likelihood values corresponding to each sample.
-    
-    final_state: Any | None = None
-    #: The final internal state of the algorithm, useful for warm-starting or resuming chains.
-    
-    aux: PyTree[Array] | None = None
-    #: Stacked auxiliary variables generated during sampling (e.g., momenta, acceptance probs).
-    
-    stats: dict[str, Any] | None = eqx.field(default_factory=dict, static=True)
-    #: Static or summary statistics about the sampling run (e.g., total steps, divergences).
-
-
-class NestedSamplingResult(eqx.Module):
-    """
-    A standardized result structure for Nested sampling algorithms.
+    A standardized result structure for MCMC and Nested sampling algorithms.
     """
     samples: PyTree[Array]
     #: The stacked trajectory of posterior samples (dead points).
@@ -204,13 +183,16 @@ class NestedSamplingResult(eqx.Module):
     #: A 1D array of log-likelihood values corresponding to each sample.
     
     weights: Array | None = None
-    #: The statistical weights associated with each sample, used for posterior reconstruction.
+    #: The statistical weights associated with each sample.
+    #: Only provided by algorithms that require it (e.g. nested sampling).
     
     logevidence: Scalar | None = None
     #: The final estimate of the log-evidence (log Z) of the model.
+    #: Only provided by algorithms that support it (e.g. nested sampling).
     
     logevidence_err: Scalar | None = None
     #: The estimated statistical error on the log-evidence.
+    #: Only provided by algorithms that support it (e.g. nested sampling).
     
     final_state: Any | None = None
     #: The final internal state of the algorithm.
@@ -220,55 +202,15 @@ class NestedSamplingResult(eqx.Module):
     
     stats: dict[str, Any] | None = eqx.field(default_factory=dict, static=True)
     #: Static or summary statistics about the run (e.g., number of likelihood evaluations).
-
-
-class AbstractMCMCSampler(eqx.Module):
-    """
-    An interface for JAX-compatible MCMC sampling algorithms.
-    """
-    @abc.abstractmethod
-    def __call__(
-        self,
-        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
-        logprior_fn: Callable[[PyTree, Any], Scalar],
-        y0: PyTree,
-        key: Array,
-        args: PyTree[Any],
-        options: dict[str, Any],
-    ) -> MCMCSamplingResult:
-        """
-        Execute the MCMC sampling algorithm.
-
-        Parameters
-        ----------
-        loglikelihood_fn : callable
-            A function taking `(params, args)` and returning the scalar log-likelihood.
-        logprior_fn : callable
-            A function taking `(params, args)` and returning the scalar log-prior density.
-        y0 : PyTree
-            The initial parameter state for the chain.
-        key : Array
-            A JAX PRNGKey for stochastic transitions.
-        args : PyTree
-            Additional static arguments passed to the likelihood and prior functions.
-        options : dict
-            Runtime configuration for the sampler (e.g., bounds, dynamic settings).
-
-        Returns
-        -------
-        MCMCSamplingResult
-            The structured results containing the samples and trajectory data.
-        """
-        raise NotImplementedError
     
 
-class AbstractNestedSampler(eqx.Module):
+class AbstractCallableSampler(eqx.Module):
     """
-    An interface for JAX-wrapped Nested sampling algorithms.
+    An interface for JAX-wrapped MCMC and Nested sampling algorithms that require a single `__call__`.
     """
     #: Signifies whether the sampler operates in the unit hypercube.
-    #: If True, `prior_fn` must be a transform from the unit hypercube to physical space.
-    #: If False, `prior_fn` must return the log-prior probability scalar.
+    #: If True, `prior_fn` must be a transform from a unit hypercube PyTree to a physical space PyTree.
+    #: If False, `prior_fn` must return the log-prior probability directly as a scalar.
     requires_hypercube: eqx.AbstractClassVar[bool]
 
     @abc.abstractmethod
@@ -281,7 +223,8 @@ class AbstractNestedSampler(eqx.Module):
         key: Array,
         args: PyTree[Any],
         options: dict[str, Any],
-    ) -> NestedSamplingResult:
+        max_steps: int | None,
+    ) -> SamplingResult:
         """
         Execute the Nested sampling algorithm.
 
@@ -296,19 +239,21 @@ class AbstractNestedSampler(eqx.Module):
             A prototype PyTree to infer parameter shapes.
         init_samples : PyTree or None
             A batch of PyTrees of the same non-batched shape as `y0` representing initial live points.
-            Required for non-hypercube samplers.
-            For non-hypercube samplers, these samples should be in the hypercube.
+            Required for non-hypercube nested samplers.
+            For hypercube samplers, these samples should be in the hypercube.
         key : Array
             A JAX PRNGKey for stochastic point generation.
         args : PyTree
             Additional static arguments passed to the likelihood and prior functions.
         options : dict
             Runtime configuration for the sampler.
-
+        max_steps: int | None
+            The maximum number of steps the sampler can take, or None for no limit.
+        
         Returns
         -------
-        NestedSamplingResult
-            The structured results containing the samples, weights, and evidence estimates.
+        SamplingResult
+            The structured results containing the samples, log likelihood values, and potentially weights/evidence estimates.
         """
         raise NotImplementedError
     
@@ -317,16 +262,16 @@ def is_sampler(x):
     """
     Returns if a solver is suitable for Bayesian sampling in :mod:`pmrf.infer.sample`.
 
-    Returns `True` for :class:`pmrf.infer.AbstractBackendMCMCSampler` and :class:`pmrf.infer.AbstractBackendNestedSampler`.
+    Returns `True` for :class:`pmrf.infer.AbstractSampler`.
     """    
-    return isinstance(x, AbstractMCMCSampler | AbstractNestedSampler)
+    return isinstance(x, AbstractCallableSampler)
     
 
 def is_inferer(x):
     """
     Returns if a solver is suitable for Bayesian inference in :mod:`pmrf.infer`.
 
-    Returns `True` for :class:`pmrf.infer.AbstractBackendMCMCSampler` and :class:`pmrf.infer.AbstractBackendNestedSampler`.
+    Returns `True` for :class:`pmrf.infer.AbstractSampler`.
     """    
     return is_sampler(x)
     
