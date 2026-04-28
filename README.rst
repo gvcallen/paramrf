@@ -75,23 +75,17 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For PolyChord inference:
+For Bayesian inference, you may need this fork of distreqx:
+
+.. code-block:: bash
+
+   $ pip install git+https://github.com/gvcallen/distreqx
+
+For PolyChord Bayesian inference:
 
 .. code-block:: bash
 
    $ pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
-
-For BlackJAX inference:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic
-
-For eqx-learn surrogate modeling:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/eqx-learn/eqx-learn
 
 Citation
 ---------------------
