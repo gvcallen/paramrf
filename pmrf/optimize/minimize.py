@@ -2,7 +2,7 @@ from typing import Callable, TypeVar, Union, Any, Literal
 import functools
 import dataclasses
 
-from jaxtyping import Array
+from jaxtyping import Array, PyTree
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -115,8 +115,8 @@ def minimize(
 
 
 def minimize_parax(
-    fn: Callable[[eqx.Module], Array],
-    module: eqx.Module,
+    fn: Callable[[PyTree], Array],
+    module: PyTree,
     solver: optx.AbstractMinimiser | Callable,
     search_space: Literal['latent', 'hypercube'] = 'latent',
     supports_bounded: bool = False,
@@ -126,9 +126,9 @@ def minimize_parax(
     max_steps: int | None = 1024,
     filter_spec: Any = None,
     **kwargs,
-) -> tuple[eqx.Module, Any]:
+) -> tuple[PyTree, Any]:
     """
-    Minimize an Equinox module containing Parax parameters.
+    Minimize as PyTree containing Parax parameters.
 
     This wrapper automatically handles parameter partitioning, boundary enforcement, 
     and spatial transformations (e.g., mapping to the unit hypercube) before 
