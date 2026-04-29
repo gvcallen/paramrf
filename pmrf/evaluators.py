@@ -13,10 +13,10 @@ import parax as prx
 from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
-from pmrf.utils.module import log_prob
 
 from pmrf.core import Model, Frequency, Evaluator
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.utils.module import log_prob
 
 class Feature(Evaluator):
     """

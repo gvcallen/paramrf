@@ -143,7 +143,7 @@ def fit_minimize(
                 noise = prx.Uniform(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
-        kwargs.setdefault('search_space', 'physical')
+        kwargs.setdefault('search_space', 'latent')
     else:
         kwargs.setdefault('search_space', 'hypercube')
 

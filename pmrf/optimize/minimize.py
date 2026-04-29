@@ -92,7 +92,7 @@ def minimize(
     
     # Run the optimization
     optimized_problem, solver_results = minimize_parax(
-        lambda p, _args: p(),
+        lambda p: p(),
         problem,
         solver=solver,
         supports_bounded=solver.supports_bounds if isinstance(solver, AbstractCallableMinimizer) else False,
@@ -219,13 +219,8 @@ def minimize_parax(
     def obj_fn(params, _args=None):
         mod = eqx.combine(params, static)
         
-        # 1. Map from computational space back to physical wrappers
         if search_space == 'hypercube':
             mod = prx.hypercube_to_physical(mod)
-            
-        # 2. Unwrap Parameters to pure jax.Arrays for safe and fast objective evaluation
-        mod = prx.unwrap(mod) 
-        
         return fn(mod)
             
     # Run the solver
