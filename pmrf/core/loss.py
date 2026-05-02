@@ -1,14 +1,14 @@
 """
 Abstract base class for frequentist loss functions.
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from typing import Callable
 
 import jax.numpy as jnp
-import parax as prx
+import equinox as eqx
 
-class Loss(prx.Module, prx.Operator, ABC):
+class Loss(eqx.Module):
     """
     Abstract base class for frequentist loss functions.
     

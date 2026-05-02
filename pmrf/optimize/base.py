@@ -31,7 +31,7 @@ class OptimizeResult(prx.Module):
     #: The underlying results object returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
     #: Not saved to file.
-    solver_results: Any = prx.field(default=None, save=False)
+    solver_results: Any = prx.param(default=None, save=False)
 
 
 class AbstractCallableMinimizer(eqx.Module):

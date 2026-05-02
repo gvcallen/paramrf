@@ -190,7 +190,7 @@ class AutoCrossKernel(CovarianceKernel):
     """
     auto: CovarianceKernel
     cross: CovarianceKernel
-    num_outputs: int = prx.field(static=True)
+    num_outputs: int = prx.param(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate both underlying kernels
@@ -223,8 +223,8 @@ class SharedIndependentKernel(CovarianceKernel):
     output_shape : tuple
         The shape of the independent outputs to broadcast to.
     """
-    base_kernel: CovarianceKernel = prx.field(transparent=True)
-    output_shape: tuple = prx.field(static=True)
+    base_kernel: CovarianceKernel = prx.param(transparent=True)
+    output_shape: tuple = prx.param(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate the underlying shared kernel

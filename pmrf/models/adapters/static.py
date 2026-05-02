@@ -22,7 +22,7 @@ class Measured(Model):
         The static network data containing S-parameters and frequency information.
         Marked as static to avoid tracing overhead in JAX.
     """
-    data: skrf.Network | NetworkCollection = prx.field(static=True)
+    data: skrf.Network | NetworkCollection = prx.param(static=True)
     
     def __getattr__(self, name: str) -> 'Measured':
         data = self.__getattribute__('data')

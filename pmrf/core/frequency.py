@@ -7,7 +7,7 @@ import re
 
 import equinox as eqx
 import jax.numpy as jnp
-from parax import field
+from parax import param
 
 from pmrf.utils.array import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
@@ -50,7 +50,7 @@ class Frequency(eqx.Module):
     f: jnp.array
 
     #: The frequency unit. Possible options are "Hz", "kHz", "MHz", "GHz" or "THz".
-    unit: str = field(static=True)
+    unit: str = param(static=True)
 
     def __init__(self, start: float = 0, stop: float = 0, npoints: int = 0, unit: FrequencyUnitT | None = 'Hz') -> None:
         """

@@ -2,13 +2,14 @@
 Abstract base class for discrepancy models.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import distreqx.distributions as dist
 import jax.numpy as jnp
-import parax as prx
+import equinox as eqx
+from parax import Parameter
 
-class DiscrepancyModel(prx.Module, ABC):
+class DiscrepancyModel(eqx.Module):
     """
     Abstract base class for discrepancy models.
     
@@ -42,7 +43,7 @@ class DiscrepancyModel(prx.Module, ABC):
         raise NotImplementedError
     
     
-class CovarianceKernel(prx.Module, ABC):
+class CovarianceKernel(eqx.Module):
     """
     Abstract base class for covariance kernel functions.
     
@@ -73,7 +74,7 @@ class CovarianceKernel(prx.Module, ABC):
         from pmrf.covariance_kernels import SumKernel
         return SumKernel(self, other)
 
-    def __mul__(self, other: 'CovarianceKernel | prx.Parameter | float') -> 'CovarianceKernel':
+    def __mul__(self, other: 'CovarianceKernel | Parameter | float') -> 'CovarianceKernel':
         from pmrf.covariance_kernels import ProductKernel, ConstantKernel
         
         if isinstance(other, CovarianceKernel):

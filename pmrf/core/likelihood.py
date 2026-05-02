@@ -1,15 +1,15 @@
 """
 Abstract base class for likelihood models.
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from distreqx.distributions import AbstractDistribution
 
 import jax.numpy as jnp
-import parax as prx
+import equinox as eqx
 
 
-class Likelihood(prx.Module, ABC):
+class Likelihood(eqx.Module):
     r"""
     Abstract base class for likelihood models.
     
@@ -41,7 +41,7 @@ class Likelihood(prx.Module, ABC):
         raise NotImplementedError
     
 
-class NoiseModel(prx.Module, prx.Operator, ABC):
+class NoiseModel(eqx.Module):
     """
     Abstract base class for likelihood noise models.
     

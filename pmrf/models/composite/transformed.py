@@ -2,7 +2,7 @@
 Models that transform the ports or layout of another model.
 """
 import jax.numpy as jnp
-from parax import field
+from parax import param
 
 import jax.numpy as jnp
 from pmrf.core import Model, Frequency
@@ -81,8 +81,8 @@ class Flipped(Renumbered):
     For a 4-port network, ports (1,2) are swapped with (3,4), and so on.
     This is a convenient specialization of the `Renumbered` model.
     """
-    to_ports: tuple[int] = field(init=False)
-    from_ports: tuple[int] = field(init=False)
+    to_ports: tuple[int] = param(init=False)
+    from_ports: tuple[int] = param(init=False)
 
     def __post_init__(self):
         if self.model.nports % 2 != 0:

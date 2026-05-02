@@ -3,13 +3,13 @@ A callable to be "solved" (i.e. minimized or sampled).
 """
 
 import jax.numpy as jnp
-import parax as prx
+import equinox as eqx
 
 from pmrf.core.model import Model
 from pmrf.core.frequency import Frequency
 from pmrf.core.evaluator import Evaluator
 
-class Problem(prx.Module):
+class Problem(eqx.Module):
     """
     A callable to be "solved" (i.e. minimized or sampled).
     

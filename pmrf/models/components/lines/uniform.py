@@ -1,7 +1,7 @@
 """
 Uniform transmission lines (RLGC, coaxial, microstrip)
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
@@ -11,7 +11,7 @@ from parax import Parameter
 from pmrf.core import Frequency, Model
 from pmrf.rf import renormalize_s
 
-class TransmissionLine(Model, ABC):
+class TransmissionLine(Model):
     r"""
     Abstract base class for all uniform transmission line models.
 
@@ -69,7 +69,7 @@ class FloatingLine(Model):
     into a 4-port floating line with an explicit return path.
     """
     #: The inner transmission line model to be wrapped.
-    line: TransmissionLine = prx.field(transparent=True)
+    line: TransmissionLine = prx.param(transparent=True)
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         # 1. Extract the physical wave parameters from the inner line
@@ -93,7 +93,7 @@ class FloatingLine(Model):
         return renormalize_s(s, zc, self.z0, 'traveling', 'power')
     
 
-class RLGCLine(TransmissionLine, ABC):
+class RLGCLine(TransmissionLine):
     r"""
     Abstract base class for a transmission line defined by its per-unit-length
     RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.

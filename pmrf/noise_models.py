@@ -24,7 +24,7 @@ class AutoCrossNoise(NoiseModel):
     auto: prx.Parameter
     cross: prx.Parameter
     
-    port_axes: tuple[int, int] = prx.field(static=True, default=(0, 1))
+    port_axes: tuple[int, int] = prx.param(static=True, default=(0, 1))
     
     def __call__(self, y_event: jnp.ndarray):
         val_gamma, val_tau = self.auto, self.cross

@@ -70,7 +70,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     )
     
     assert isinstance(result.model, DummyInferModel)
-    assert result.model.val.value > 0.0 
+    assert result.model.val.physical_value > 0.0 
     
     groups = result.model.param_groups()
     assert len(groups) > 0
@@ -84,7 +84,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     batched_model = result.sampled_models
     assert isinstance(batched_model, DummyInferModel)
     n_samples = result.loglikelihood_values.shape[0]
-    assert batched_model.val.value.shape == (n_samples,)
+    assert batched_model.val.physical_value.shape == (n_samples,)
 
 
 def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path here
