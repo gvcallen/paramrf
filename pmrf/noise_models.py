@@ -21,10 +21,10 @@ class AutoCrossNoise(NoiseModel):
     N-port S-parameter feature, the input `y_event` will be
     of shape (nports, nports, nfreq) or (nports, nports, 2, nfreq).
     """    
-    auto: prx.Parameter
-    cross: prx.Parameter
+    auto: prx.Param
+    cross: prx.Param
     
-    port_axes: tuple[int, int] = prx.param(static=True, default=(0, 1))
+    port_axes: tuple[int, int] = prx.constrained(static=True, default=(0, 1))
     
     def __call__(self, y_event: jnp.ndarray):
         val_gamma, val_tau = self.auto, self.cross

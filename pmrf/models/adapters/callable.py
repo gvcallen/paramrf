@@ -20,13 +20,13 @@ class ContinuousCallable(SingleProperty):
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
     #: If a list is provided, the parameters are first stacked.
-    theta: prx.Parameter | list[prx.Parameter] = None
+    theta: prx.Param | list[prx.Param] = None
     
     #: The underlying callable model which predicts the response as a function of scaled frequency.
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
     #: Must accept an array of shape `(nfreq,)` or `(nparams, nfreq,)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
-    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.param(default=None, transparent=True)
+    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.constrained(default=None, transparent=True)
     
     def output(self, freq: Frequency) -> jnp.ndarray:
         if self.theta is not None:
@@ -51,13 +51,13 @@ class DiscreteCallable(SingleDiscreteProperty):
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
     #: If a list is provided, the parameters are first stacked.
-    theta: prx.Parameter | list[prx.Parameter] = None
+    theta: prx.Param | list[prx.Param] = None
     
     #: The underlying callable model which predicts the response.
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
     #: Must either accept no parameters or an array of shape `(nparams,)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
-    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = prx.param(default=None, transparent=True)
+    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = prx.constrained(default=None, transparent=True)
     
     def output_discrete(self) -> jnp.ndarray:
         if self.theta is not None:

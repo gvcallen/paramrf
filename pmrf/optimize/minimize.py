@@ -62,7 +62,7 @@ def minimize(
     parax_results = prxo.minimize(
         lambda p, _args: p(),
         solver=solver,
-        y0=problem,
+        model=problem,
         max_steps=max_steps,
         **kwargs,
     )
@@ -72,7 +72,7 @@ def minimize(
     results = OptimizeResult(
         model=opt_problem.model,
         objective=opt_problem.evaluator,
-        objective_value=parax_results.final_value,
+        objective_value=parax_results.objective,
         solver_results=parax_results,
     )
     return results

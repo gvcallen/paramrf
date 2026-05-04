@@ -116,7 +116,7 @@ class TargetLoss(Evaluator):
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
     #: See :mod:`pmrf.losses` for common losses.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.param(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.constrained(transparent=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
@@ -162,7 +162,7 @@ class MarginalLogLikelihood(Evaluator):
     event_transform: bij.AbstractBijector = None
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.param(default=1, static=True)
+    event_ndims: int = prx.constrained(default=1, static=True)
     
     def __post_init__(self):
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
@@ -275,7 +275,7 @@ class GibbsMarginalLogLikelihood(Evaluator):
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.param(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.constrained(transparent=True)
     
     #: The inverse-weight (temperature) of the Gibbs measure. 
     #: Higher temperatures create wider, less confident posteriors.
@@ -292,7 +292,7 @@ class GibbsMarginalLogLikelihood(Evaluator):
     event_transform: bij.AbstractBijector = None
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.param(default=1, static=True)
+    event_ndims: int = prx.constrained(default=1, static=True)
     
     def __post_init__(self):
         # Default mapping logic (matches standard MarginalLogLikelihood)
@@ -362,7 +362,7 @@ class NegativeLogLikelihood(Evaluator):
     that is useful for performing Maximum Likelihood Estimation.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.param(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.constrained(transparent=True)
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.mll(model, frequency, **kwargs)
@@ -383,7 +383,7 @@ class NegativeLogPosterior(Evaluator):
     `log_prob` method.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.param(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.constrained(transparent=True)
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)

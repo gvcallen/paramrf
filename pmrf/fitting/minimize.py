@@ -32,7 +32,7 @@ def fit_minimize(
     inference: str = 'frequentist',
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
-    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: prx.Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,

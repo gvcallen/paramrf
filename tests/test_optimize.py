@@ -15,7 +15,7 @@ from pmrf.optimize.scipy import ScipyMinimize
 
 class DummyOptModel(Model):
     """A simple 1-port model with one free parameter for optimization."""
-    val: prx.Parameter = 1.0
+    val: prx.Param = 1.0
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         # Returns an S-parameter matrix where the element is just `self.val`
@@ -52,7 +52,7 @@ def test_minimize_scipy_unbounded(model, basic_freq):
 def test_minimize_scipy_bounded(basic_freq):
     """Test that parameter boundaries are successfully intercepted and enforced."""
     # Initialize parameter at 1.0, trying to reach 5.0, but capped at 3.0
-    bounded_param = prx.Parameter(1.0, bounds=jnp.array([0.0, 3.0]))
+    bounded_param = prx.Param(1.0, bounds=jnp.array([0.0, 3.0]))
     bounded_model = DummyOptModel(val=bounded_param)
     
     def obj_fn(m, f):

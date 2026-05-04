@@ -53,7 +53,7 @@ def starting_model():
         tand=prx.Fixed(0.001),
         mur=prx.Fixed(1.0),
         # Start at 9.5 cm to stay within a fraction of a wavelength of 10 cm!
-        length=prx.Parameter(0.095, bounds=jnp.array([0.05, 0.15])) 
+        length=prx.Param(0.095, bounds=jnp.array([0.05, 0.15])) 
     )
 
 # ---------------------------------------------------------

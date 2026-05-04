@@ -22,7 +22,7 @@ class DummyInferModel(Model):
     Crucially, parameters MUST have assigned distributions for the 
     Nested Sampler's `prior_transform_fn` (ICDF) to work.
     """
-    val: prx.Parameter = prx.Uniform(0.0, 10.0, value=5.0)
+    val: prx.Param = prx.Uniform(0.0, 10.0, value=5.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints

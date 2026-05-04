@@ -4,7 +4,7 @@ Composite models that physically connect ports of other models.
 
 import warnings
 import jax.numpy as jnp
-from parax import param
+from parax import constrained
 from dataclasses import InitVar
 
 from pmrf.core import Model, Frequency
@@ -23,9 +23,9 @@ class Circuit(Model):
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
     # Computed properties (init=False, they are generated, not passed in)
-    models: list[Model] = param(init=False, transparent=True)
-    indexed_connections: list[list[tuple[int, int]]] = param(init=False, static=True)
-    port_idxs: list[int] = param(init=False, static=True)
+    models: list[Model] = constrained(init=False, transparent=True)
+    indexed_connections: list[list[tuple[int, int]]] = constrained(init=False, static=True)
+    port_idxs: list[int] = constrained(init=False, static=True)
 
     def __post_init__(self, connections):
         if not isinstance(connections, list):
@@ -134,7 +134,7 @@ class Cascade(Model):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-    models: tuple[Model] = param(transparent=True)
+    models: tuple[Model] = constrained(transparent=True)
     
     def __post_init__(self):
         model_reduced = []

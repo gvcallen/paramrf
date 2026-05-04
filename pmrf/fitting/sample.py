@@ -31,7 +31,7 @@ def fit_sample(
     *,
     features: str | list[str] | Callable = 's',
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
-    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: prx.Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     temperature: float = None,

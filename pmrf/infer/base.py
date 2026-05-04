@@ -62,7 +62,7 @@ class InferResult(prx.Module):
     #: The underlying results object returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
     #: Note saved to file.
-    solver_results: Any = prx.param(default=None, save=False)
+    solver_results: Any = prx.constrained(default=None, save=False)
        
     def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
         """Helper method to extract, format, and check parameter data for export."""
@@ -275,3 +275,4 @@ def is_inferer(x):
     """    
     return is_sampler(x)
     
+
