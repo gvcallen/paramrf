@@ -3,10 +3,11 @@ Rational approximation surrogate models.
 """
 
 import jax.numpy as jnp
-from parax import Tagged
 
 from pmrf.core import Frequency
 from pmrf.models.adapters.base import SingleProperty
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
 
 class PolynomialRatio(SingleProperty):
     """
@@ -16,12 +17,12 @@ class PolynomialRatio(SingleProperty):
     #: Numerator coefficients. The first dimension is the polynomial degree.
     #: Shape can be (degree,), (degree, N, N), etc. 
     #: Coefficients are in increasing order of degree (index 0 is constant term).
-    a: Tagged = None
+    a: Param = None
     
     #: Denominator coefficients. The first dimension is the polynomial degree.
     #: Shape can be (degree,), (degree, N, N), etc.
     #: Coefficients are in increasing order of degree.
-    b: Tagged = None
+    b: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -61,15 +62,15 @@ class PoleResidue(SingleProperty):
     H(s) = D + sum( R_i / (s - p_i) )
     """
     #: The poles of the system. Shape: (num_poles,)
-    poles: Tagged = None
+    poles: Param = None
     
     #: The residues of the system. 
     #: Shape: (num_poles,) for scalars, or (num_poles, N, N) for port matrices.
-    residues: Tagged = None
+    residues: Param = None
     
     #: Optional direct feedthrough matrix (constant term D). 
     #: Shape: () or (N, N).
-    d: Tagged = None
+    d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -108,16 +109,16 @@ class StateSpace(SingleProperty):
     H(s) = C * (sI - A)^-1 * B + D
     """
     #: State matrix (A). Shape: (state_dim, state_dim)
-    a: Tagged = None
+    a: Param = None
     
     #: Input matrix (B). Shape: (state_dim, N)
-    b: Tagged = None
+    b: Param = None
     
     #: Output matrix (C). Shape: (N, state_dim)
-    c: Tagged = None
+    c: Param = None
     
     #: Feedthrough matrix (D). Shape: (N, N)
-    d: Tagged = None
+    d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -169,14 +170,14 @@ class BarycentricRational(SingleProperty):
     H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]
     """
     #: The complex support points (s_i). Shape: (num_points,)
-    support_points: Tagged = None
+    support_points: Param = None
     
     #: The barycentric weights (w_i). Shape: (num_points,)
-    weights: Tagged = None
+    weights: Param = None
     
     #: The function values at the support points (f_i). 
     #: Shape: (num_points,) for scalars, or (num_points, N, N) for port matrices.
-    values: Tagged = None
+    values: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w

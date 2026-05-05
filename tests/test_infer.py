@@ -1,11 +1,12 @@
 # tests/test_infer/test_infer.py
 import pytest
 import jax.numpy as jnp
-import parax as prx
 
 from pmrf.core import Frequency, Model
 from pmrf.infer.sample import sample
 from pmrf.fitting import fit_sample
+from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded, Uniform
+from pmrf.field import field, frozen
 
 # ---------------------------------------------------------
 # Fixtures
@@ -22,7 +23,7 @@ class DummyInferModel(Model):
     Crucially, parameters MUST have assigned distributions for the 
     Nested Sampler's `prior_transform_fn` (ICDF) to work.
     """
-    val: prx.Tagged = prx.Uniform(0.0, 10.0, value=5.0)
+    val: Param = Uniform(0.0, 10.0, value=5.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints

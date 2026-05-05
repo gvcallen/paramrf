@@ -6,16 +6,7 @@ import os
 from pathlib import Path
 from typing import BinaryIO, Any
 
-# Assuming parax is installed and exposes save/load at the top level
-# Adjust this import if parax hides them inside parax.io
 import parax
-
-import jsonpickle.ext.numpy as jsonpickle_numpy
-import jsonpickle.ext.pandas as jsonpickle_pandas
-
-# Tell jsonpickle how to handle numpy arrays and pandas dataframes safely
-jsonpickle_numpy.register_handlers()
-jsonpickle_pandas.register_handlers()
 
 def save(target: str | os.PathLike | BinaryIO, tree: Any):
     """
@@ -45,7 +36,7 @@ def save(target: str | os.PathLike | BinaryIO, tree: Any):
         target = target_path
 
     # Delegate to the underlying Parax save function
-    parax.save(target, tree)
+    parax.experimental.save(target, tree)
 
 
 def load(source: str | os.PathLike | BinaryIO) -> Any:
@@ -80,7 +71,7 @@ def load(source: str | os.PathLike | BinaryIO) -> Any:
             source = source_path
 
     # Delegate to the underlying Parax load function
-    return parax.load(source)
+    return parax.experimental.load(source)
 
 
 __all__ = ['save', 'load']

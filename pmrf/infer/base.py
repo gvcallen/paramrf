@@ -18,6 +18,81 @@ from pmrf.core import Model, Frequency
 
 D = TypeVar('D')
 
+from typing import Any, Callable, Optional
+import abc
+
+from jaxtyping import PyTree, Array, Scalar
+import equinox as eqx
+
+class SamplerPayload(eqx.Module):
+    """The core mathematical payload of a sampling run."""
+    #: Stacked latent/unscaled arrays (the samples)
+    samples: PyTree[Array]
+    
+    #: Stacked log-likelihoods or log-posteriors
+    fn_values: Array
+    
+    #: Statistical weights (mostly for Nested/Importance sampling)
+    weights: Array | None = None
+    
+    #: Stacked auxiliary data
+    auxes: PyTree[Array] | None = None
+
+
+class AbstractJointSampler(eqx.Module):
+    """Interface for samplers exploring the joint log-posterior (e.g. MCMC-based NUTS or HMC)."""
+    @abc.abstractmethod
+    def sample(
+        self,
+        logposterior_fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        key: Array,
+        args: PyTree[Any] = None,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        has_aux: bool = False,
+        **kwargs,
+    ) -> tuple[SamplerPayload, PyTree]:
+        raise NotImplementedError
+
+
+class AbstractSplitSampler(eqx.Module):
+    """Interface for samplers needing separate likelihood and prior densities (e.g., modern Nested Sampling)."""
+    @abc.abstractmethod
+    def sample(
+        self,
+        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        logprior_fn: Callable[[PyTree], Scalar],
+        y0: PyTree,
+        key: Array,
+        args: PyTree[Any] = None,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        has_aux: bool = False,
+        **kwargs,
+    ) -> tuple[SamplerPayload, PyTree]:
+        raise NotImplementedError
+
+
+class AbstractHypercubeSampler(eqx.Module):
+    """Interface for samplers operating in a unit hypercube (e.g., classical Nested Sampling)."""
+    @abc.abstractmethod
+    def sample(
+        self,
+        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        prior_transform_fn: Callable[[PyTree], PyTree],
+        y0: PyTree,
+        key: Array,
+        args: PyTree[Any] = None,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        has_aux: bool = False,
+        **kwargs,
+    ) -> tuple[SamplerPayload, PyTree]:
+        raise NotImplementedError
+    
+AbstractSampler = AbstractJointSampler | AbstractSplitSampler | AbstractHypercubeSampler
+
 class InferResult(prx.Module):
     """
     The result of an inference run.
@@ -204,67 +279,13 @@ class SamplingResult(eqx.Module):
     #: Static or summary statistics about the run (e.g., number of likelihood evaluations).
     
 
-class AbstractCallableSampler(eqx.Module):
-    """
-    An interface for JAX-wrapped MCMC and Nested sampling algorithms that require a single `__call__`.
-    """
-    #: Signifies whether the sampler operates in the unit hypercube.
-    #: If True, `prior_fn` must be a transform from a unit hypercube PyTree to a physical space PyTree.
-    #: If False, `prior_fn` must return the log-prior probability directly as a scalar.
-    requires_hypercube: eqx.AbstractClassVar[bool]
-
-    @abc.abstractmethod
-    def __call__(
-        self,
-        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
-        prior_fn: Callable[[PyTree, Any], PyTree] | Callable[[PyTree, Any], Scalar],
-        y0: PyTree,
-        init_samples: Optional[PyTree],
-        key: Array,
-        args: PyTree[Any],
-        options: dict[str, Any],
-        max_steps: int | None,
-    ) -> SamplingResult:
-        """
-        Execute the Nested sampling algorithm.
-
-        Parameters
-        ----------
-        loglikelihood_fn : callable
-            A function taking `(params, args)` and returning the scalar log-likelihood.
-        prior_fn : callable
-            Depending on `requires_hypercube`, either a prior transform function mapping 
-            the unit hypercube to physical space, or a function returning the log-prior scalar.
-        y0 : PyTree or None
-            A prototype PyTree to infer parameter shapes.
-        init_samples : PyTree or None
-            A batch of PyTrees of the same non-batched shape as `y0` representing initial live points.
-            Required for non-hypercube nested samplers.
-            For hypercube samplers, these samples should be in the hypercube.
-        key : Array
-            A JAX PRNGKey for stochastic point generation.
-        args : PyTree
-            Additional static arguments passed to the likelihood and prior functions.
-        options : dict
-            Runtime configuration for the sampler.
-        max_steps: int | None
-            The maximum number of steps the sampler can take, or None for no limit.
-        
-        Returns
-        -------
-        SamplingResult
-            The structured results containing the samples, log likelihood values, and potentially weights/evidence estimates.
-        """
-        raise NotImplementedError
-    
-
 def is_sampler(x):
     """
     Returns if a solver is suitable for Bayesian sampling in :mod:`pmrf.infer.sample`.
 
     Returns `True` for :class:`pmrf.infer.AbstractSampler`.
     """    
-    return isinstance(x, AbstractCallableSampler)
+    return isinstance(x, AbstractSampler)
     
 
 def is_inferer(x):

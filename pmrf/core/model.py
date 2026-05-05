@@ -96,18 +96,17 @@ class Model(eqx.Module):
 
     Examples
     --------
-    A ``PiCLC`` network ("foundational" model with fixed parameters and equations):
+    A ``PiCLC`` network with some free parameter defaults:
 
     .. code-block:: python
 
         import jax.numpy as jnp
-        from parax import Parameter, param
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: Parameter = param(1.0e-12)
-            L:  Parameter = param(1.0e-9)
-            C2: Parameter = param(1.0e-12)
+            C1: prf.Param = prf.free(1.0e-12)
+            L:  prf.Param = prf.free(1.0e-9)
+            C2: prf.Param = prf.free(1.0e-12)
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -117,18 +116,17 @@ class Model(eqx.Module):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` network ("circuit" model with free parameters built using cascading)
+    An ``RLC`` network built in `__call__` using cascading:
 
     .. code-block:: python
 
         import pmrf as prf
         from pmrf.models import Resistor, Capacitor, Inductor, Cascade
-        from parax.constraints import Interval
 
         class RLC(prf.Model):
-            res: Resistor = Resistor(constraint=Interval(9.0, 11.0))
-            ind: Inductor = Inductor(constraint=Interval(0.0, 10.0), scale=1e-9)
-            cap: Capacitor = Capacitor(Uniform(0.0, 10.0, scale=1e-12))
+            res: Resistor = prf.model(Resistor, R=prf.Bounded(9.0, 11.0))
+            ind: Inductor = prf.model(Inductor, L=prf.Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = prf.model(Capacitor, C=prf.Bounded(0.0, 10.0, scale=1e-12))
 
             def __call__(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()

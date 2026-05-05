@@ -19,8 +19,10 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.scipy import ScipyMinimize
+from pmrf.optimize.backends.scipy import ScipyMinimize
 from pmrf.fitting.base import FitResult
+from pmrf.parameters import Param, free
+from pmrf.field import field
 
 def fit_minimize(
     model: Model,
@@ -32,7 +34,7 @@ def fit_minimize(
     inference: str = 'frequentist',
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
-    noise: prx.Tagged | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,
@@ -84,7 +86,7 @@ def fit_minimize(
         :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
-    noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
+    noise : prx.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood`.

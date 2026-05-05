@@ -7,10 +7,9 @@ from typing import Callable, Sequence
 import jax.numpy as jnp
 
 from pmrf.core import Frequency
-from pmrf.parameters import Param
 from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
-from pmrf.field import frozen
-import parax as prx
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
     
 class ContinuousCallable(SingleProperty):
     """
@@ -53,7 +52,7 @@ class DiscreteCallable(SingleDiscreteProperty):
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
     #: If a list is provided, the parameters are first stacked.
-    theta: prx.Tagged | list[prx.Tagged]
+    theta: Param | list[Param]
     
     #: The underlying callable model which predicts the response.
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.

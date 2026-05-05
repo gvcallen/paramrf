@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import jax.flatten_util
 import numpy as np
-from jaxtyping import PyTree, Scalar, Array
+from jaxtyping import PyTree, Array
 
 MPI_AVAILABLE = False
 try:
@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.wrappers.base import AbstractHypercubeSampler, SamplerPayload
+from pmrf.infer.base import AbstractHypercubeSampler, SamplerPayload
 
 class PolyChord(AbstractHypercubeSampler):
     """

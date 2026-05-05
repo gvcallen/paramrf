@@ -95,8 +95,10 @@ __all__ = [
     "Problem",
 
     "Param",
-    "Tagged",
-    "param",
+    "Free",
+    "free",
+    "Fixed",
+    "fixed",
     "Positive",
     "positive",
     "Bounded",

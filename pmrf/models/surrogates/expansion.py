@@ -3,9 +3,10 @@ An expansion of a set of basis functions.
 """
 
 import jax.numpy as jnp
-from parax import Tagged
 
 from pmrf.models.adapters.base import SingleDiscreteProperty
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
 
 class VectorExpansion(SingleDiscreteProperty):
     """
@@ -14,10 +15,10 @@ class VectorExpansion(SingleDiscreteProperty):
     The S-parameters are returned as offset + coefficients @ basis, where the coefficients are the model parameters.
     """
     #: The real coefficients parameters
-    coefficients_real: Tagged = None
+    coefficients_real: Param = None
     
     #: The imaginary coefficients parameters
-    coefficients_imag: Tagged = None
+    coefficients_imag: Param = None
     
     #: The fixed basis functions
     basis: jnp.ndarray = None

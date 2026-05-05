@@ -2,12 +2,13 @@
 import pytest
 import jax.numpy as jnp
 import numpy as np
-import parax as prx
 
 from pmrf.core import Frequency
 from pmrf.models import CoaxialLine
 from pmrf.optimize import ScipyMinimize
 from pmrf.fitting import fit_minimize
+from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded
+from pmrf.field import field, frozen
 
 # ---------------------------------------------------------
 # Fixtures
@@ -46,14 +47,14 @@ def starting_model():
     The model we will actually optimize. 
     """
     return CoaxialLine(
-        din=prx.Fixed(1.12e-3),
-        dout=prx.Fixed(3.2e-3),
-        epr=prx.Fixed(1.384),
-        rho=prx.Fixed(1.6e-8),
-        tand=prx.Fixed(0.001),
-        mur=prx.Fixed(1.0),
+        din=Fixed(1.12e-3),
+        dout=Fixed(3.2e-3),
+        epr=Fixed(1.384),
+        rho=Fixed(1.6e-8),
+        tand=Fixed(0.001),
+        mur=Fixed(1.0),
         # Start at 9.5 cm to stay within a fraction of a wavelength of 10 cm!
-        length=prx.Tagged(0.095, bounds=jnp.array([0.05, 0.15])) 
+        length=Bounded(0.05, 0.15, value=0.095)
     )
 
 # ---------------------------------------------------------

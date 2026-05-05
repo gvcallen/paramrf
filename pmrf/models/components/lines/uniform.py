@@ -5,11 +5,11 @@ from abc import abstractmethod
 
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
-import parax as prx
-from parax import Tagged
 
 from pmrf.core import Frequency, Model
 from pmrf.rf import renormalize_s
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
 
 class TransmissionLine(Model):
     r"""
@@ -69,7 +69,7 @@ class FloatingLine(Model):
     into a 4-port floating line with an explicit return path.
     """
     #: The inner transmission line model to be wrapped.
-    line: TransmissionLine = prx.constrained(transparent=True)
+    line: TransmissionLine
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         # 1. Extract the physical wave parameters from the inner line
@@ -111,10 +111,10 @@ class RLGCLine(TransmissionLine):
 
     Attributes
     ----------
-    length : Parameter, default=1.0
+    length : Parameter
         Physical length of the line in meters.
     """
-    length: Tagged = 1.0
+    length: Param
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -177,13 +177,13 @@ class PhaseLine(TransmissionLine):
         Characteristic impedance in Ohms.
     theta : Parameter, default=90.0
         Electrical length (phase shift) in degrees at reference frequency `f0`.
-    f0 : Parameter, default=1e9
-        Reference frequency in Hz for `theta`.
+    f0 : Parameter
+        Reference frequency in Hz for `theta`. Key-word only argument.
     """
-    theta: Tagged = 90.0
-    zc: Tagged = 50.0    
+    theta: Param = free(90.0)
+    zc: Param = free(50.0)
     
-    f0: float = 1e9
+    f0: float = field(kw_only=True)
 
     def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         zc = self.zc * jnp.ones(frequency.npoints, dtype=complex)
@@ -233,10 +233,10 @@ class ConstantRLGCLine(RLGCLine):
     C : Parameter, default=90e-12
         Capacitance in Farads/m.
     """
-    R: Tagged = 0.0
-    L: Tagged = 280e-9
-    G: Tagged = 0.0
-    C: Tagged = 90e-12
+    R: Param = free(0.0)
+    L: Param = free(280e-9)
+    G: Param = free(0.0)
+    C: Param = free(90e-12)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         ones = jnp.ones(freq.npoints)
@@ -292,11 +292,11 @@ class PhysicalLine(RLGCLine):
     tand : Parameter, default=0.0
         Dielectric loss tangent.
     """
-    zn: Tagged = 50.0
-    epr: Tagged = 1.0
-    A: Tagged = 0.0    
-    fA: Tagged = 1.0  
-    tand: Tagged = 0.0 
+    zn: Param = free(50.0)
+    epr: Param = free(1.0)
+    A: Param = free(0.0)
+    fA: Param = free(1.0)
+    tand: Param = free(0.0)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
@@ -372,10 +372,10 @@ class DatasheetLine(RLGCLine):
     freq_bounds : tuple | None, default=None
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
-    zn: Tagged = 50.0
-    vf: Tagged = 1.0
-    k1: Tagged = 0.0
-    k2: Tagged = 0.0
+    zn: Param = free(50.0)
+    vf: Param = free(1.0)
+    k1: Param = free(0.0)
+    k2: Param = free(0.0)
     
     loss_coeffs_normalized: bool = False
 
@@ -459,12 +459,12 @@ class CoaxialLine(RLGCLine):
     rho : Parameter, default=1.68e-8
         Resistivity of the conductors in Ohm-meters.
     """
-    din: Tagged = 1.12e-3
-    dout: Tagged = 3.2e-3
-    epr: Tagged = 1.0
-    mur: Tagged = 1.0
-    tand: Tagged = 0.0
-    rho: Tagged = 1.68e-8
+    din: Param = free(1.12e-3)
+    dout: Param = free(3.2e-3)
+    epr: Param = free(1.0)
+    mur: Param = free(1.0)
+    tand: Param = free(0.0)
+    rho: Param = free(1.68e-8)
     
     @property
     def eps(self) -> jnp.ndarray:
@@ -571,11 +571,11 @@ class MicrostripLine(RLGCLine):
     rho : Parameter, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
-    w: Tagged = 3e-3
-    h: Tagged = 1.6e-3
-    epr: Tagged = 4.3
-    tand: Tagged = 0.0
-    rho: Tagged = 0.0
+    w: Param = free(3e-3)
+    h: Param = free(1.6e-3)
+    epr: Param = free(4.3)
+    tand: Param = free(0.0)
+    rho: Param = free(0.0)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         W, H = self.w, self.h

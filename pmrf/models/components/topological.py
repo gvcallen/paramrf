@@ -3,10 +3,11 @@ Specific topology layouts such as Pi-CLC or Box-CLCC networks.
 """
 import jax
 import jax.numpy as jnp
-from parax import Tagged
 
 from pmrf.core import Model, Frequency
 from pmrf.rf import y2s
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
 
 class PiCLC(Model):
     """
@@ -19,18 +20,18 @@ class PiCLC(Model):
 
     Attributes
     ----------
-    C1 : Parameter, default=1.0e-12
+    C1 : Param
         The value of the first shunt capacitor in Farads.
-    L : Parameter, default=1.0e-9
+    L : Param
         The value of the series inductor in Henrys.
-    C2 : Parameter, default=1.0e-12
+    C2 : Param
         The value of the second shunt capacitor in Farads.
         If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
         If False, treats it as a standard 2-port network.
     """
-    C1: Tagged = 1.0e-12
-    L: Tagged = 1.0e-9
-    C2: Tagged = 1.0e-12
+    C1: Param
+    L: Param
+    C2: Param
 
     # def y(self, freq: Frequency) -> jnp.ndarray:
     #     if not self.three_port:
@@ -57,7 +58,7 @@ class PiCLC(Model):
         """
         Internal calculation for the general case (L != 0).
 
-        Parameters
+        Params
         ----------
         freq : Frequency
             The frequency points.
@@ -85,7 +86,7 @@ class PiCLC(Model):
 
         The network simplifies to a single shunt capacitor C = C1 + C2.
 
-        Parameters
+        Params
         ----------
         freq : Frequency
             The frequency points.
@@ -128,21 +129,19 @@ class BoxCLCC(Model):
 
     Attributes
     ----------
-    C1 : Parameter, default=1.0e-12
+    C1 : Param
         First shunt capacitor.
-    L : Parameter, default=1.0e-9
+    L : Param
         Series inductor.
-    C2 : Parameter, default=1.0e-12
+    C2 : Param
         Second shunt capacitor.
-    C3 : Parameter, default=1.0e-12
+    C3 : Param
         Bridging capacitor.
-    four_port : bool, default=False
-        If True, exposes the network as a 4-port model.
     """    
-    C1: Tagged = 1.0e-12
-    L: Tagged = 1.0e-9
-    C2: Tagged = 1.0e-12
-    C3: Tagged = 1.0e-12
+    C1: Param
+    L: Param
+    C2: Param
+    C3: Param
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -155,7 +154,7 @@ class BoxCLCC(Model):
         """
         Internal calculation for the general case (L > 1e-18).
 
-        Parameters
+        Params
         ----------
         freq : Frequency
             The frequency points.
@@ -186,7 +185,7 @@ class BoxCLCC(Model):
         Uses a small epsilon for L to avoid division by zero while approximating
         the behavior.
 
-        Parameters
+        Params
         ----------
         freq : Frequency
             The frequency points.
@@ -227,16 +226,16 @@ class TeeLCL(Model):
 
     Attributes
     ----------
-    L1 : Parameter, default=1.0e-9
+    L1 : Param
         The value of the first series inductor in Henrys.
-    C : Parameter, default=1.0e-12
+    C : Param
         The value of the shunt capacitor in Farads.
-    L2 : Parameter, default=1.0e-9
+    L2 : Param
         The value of the second series inductor in Henrys.
     """
-    L1: Tagged = 1.0e-9
-    C: Tagged = 1.0e-12
-    L2: Tagged = 1.0e-9
+    L1: Param
+    C: Param
+    L2: Param
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -292,13 +291,13 @@ class LSectionLC(Model):
 
     Attributes
     ----------
-    L : Parameter, default=1.0e-9
+    L : Param
         The value of the series inductor in Henrys.
-    C : Parameter, default=1.0e-12
+    C : Param
         The value of the shunt capacitor in Farads.
     """
-    L: Tagged = 1.0e-9
-    C: Tagged = 1.0e-12
+    L: Param
+    C: Param
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(

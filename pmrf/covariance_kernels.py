@@ -3,8 +3,9 @@ Covariance kernels for Gaussian process discrepancy models.
 """
 import jax.numpy as jnp
 
+from pmrf.field import field
 from pmrf.core import CovarianceKernel
-import parax as prx
+from pmrf.parameters import Param, free
 
 
 class SumKernel(CovarianceKernel):
@@ -52,7 +53,7 @@ class ConstantKernel(CovarianceKernel):
     variance : prx.Parameter
         Constant variance value (default 1.0).
     """
-    variance: prx.Tagged = 1.0
+    variance: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         return self.variance
@@ -67,7 +68,7 @@ class RBFKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Tagged = 1.0
+    lengthscale: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -88,8 +89,8 @@ class PeriodicKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    period: prx.Tagged = 1.0
-    lengthscale: prx.Tagged = 1.0
+    period: Param = free(1.0)
+    lengthscale: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -113,7 +114,7 @@ class WhiteNoiseKernel(CovarianceKernel):
     variance : prx.Parameter
         Noise variance level (default 1.0).
     """
-    variance: prx.Tagged = 1.0
+    variance: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
@@ -133,7 +134,7 @@ class Matern32Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Tagged = 1.0
+    lengthscale: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -160,7 +161,7 @@ class Matern52Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Tagged = 1.0
+    lengthscale: Param = free(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -190,7 +191,7 @@ class AutoCrossKernel(CovarianceKernel):
     """
     auto: CovarianceKernel
     cross: CovarianceKernel
-    num_outputs: int = prx.constrained(static=True)
+    num_outputs: int = field(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate both underlying kernels
@@ -223,8 +224,8 @@ class SharedIndependentKernel(CovarianceKernel):
     output_shape : tuple
         The shape of the independent outputs to broadcast to.
     """
-    base_kernel: CovarianceKernel = prx.constrained(transparent=True)
-    output_shape: tuple = prx.constrained(static=True)
+    base_kernel: CovarianceKernel
+    output_shape: tuple = field(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate the underlying shared kernel

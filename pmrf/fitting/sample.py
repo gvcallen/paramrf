@@ -23,6 +23,9 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample
 from pmrf.fitting.base import FitResult
 
+from pmrf.parameters import Param, free
+from pmrf.field import field
+
 def fit_sample(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
@@ -31,7 +34,7 @@ def fit_sample(
     *,
     features: str | list[str] | Callable = 's',
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
-    noise: prx.Tagged | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     temperature: float = None,

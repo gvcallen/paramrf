@@ -6,6 +6,7 @@ that minimize a given objective/cost function.
 """
 
 # Base functions
+from pmrf.optimize.backends import jaxopt, optimistix, scipy
 from pmrf.optimize.base import (
     AbstractBoundedMinimizer as AbstractBoundedMinimizer,
     AbstractUnconstrainedMinimizer as AbstractUnconstrainedMinimizer,
@@ -18,15 +19,22 @@ from pmrf.optimize.base import (
 # Main minimize
 from pmrf.optimize.minimize import minimize
 
-# Backend wrappers
-from pmrf.optimize.scipy import ScipyMinimize
-from pmrf.optimize.optimistix import OptimistixMinimise
+# Backends
+from pmrf.optimize.backends import (
+    scipy,
+    optimistix,
+    jaxopt
+)
+
+# Specific backend wrappers
+from pmrf.optimize.backends.scipy import ScipyMinimize
+from pmrf.optimize.backends.optimistix import OptimistixMinimise
 
 # Specific algorithm re-exports
-from pmrf.optimize.jaxopt import (
+from pmrf.optimize.backends.jaxopt import (
     LBFGSB,
 )
-from pmrf.optimize.optimistix import (
+from pmrf.optimize.backends.optimistix import (
     NelderMead,
     LBFGS,
     BFGS,
@@ -36,9 +44,6 @@ from pmrf.optimize.optimistix import (
 # General module re-exports
 from pmrf.optimize import (
     base,
-    scipy,
-    optimistix,
-    jaxopt,
 )
 
 __all__ = [

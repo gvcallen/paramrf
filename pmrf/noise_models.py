@@ -3,9 +3,9 @@ Models that represent the noise of a measurement, used within in a likelihood.
 """
 import jax.numpy as jnp
 
-import parax as prx
 from pmrf.core import NoiseModel
-
+from pmrf.parameters import Param, free
+from pmrf.field import field
 
 class AutoCrossNoise(NoiseModel):
     """
@@ -21,10 +21,10 @@ class AutoCrossNoise(NoiseModel):
     N-port S-parameter feature, the input `y_event` will be
     of shape (nports, nports, nfreq) or (nports, nports, 2, nfreq).
     """    
-    auto: prx.Tagged
-    cross: prx.Tagged
+    auto: Param
+    cross: Param
     
-    port_axes: tuple[int, int] = prx.constrained(static=True, default=(0, 1))
+    port_axes: tuple[int, int] = field(static=True, default=(0, 1))
     
     def __call__(self, y_event: jnp.ndarray):
         val_gamma, val_tau = self.auto, self.cross

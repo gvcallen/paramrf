@@ -137,3 +137,51 @@ class OptimizeResult(prx.Module):
     #: May be a stripped-down version of the original results object.
     #: Not saved to file.
     solver_results: Any = prx.constrained(default=None, save=False)
+
+
+@eqx.filter_jit
+def minimize(
+    fn: Callable[[PyTree, Any], Scalar], 
+    model: PyTree, 
+    solver: AbstractMinimizer,
+    args: Any = None,
+    max_iter: int = 1024, 
+    **kwargs
+) -> tuple[PyTree, MinimizerPayload, PyTree]:
+    """
+    Optimizes a general PyTree potentially containing Parax parameters using either a bounded or unconstrained solver.
+    """
+    is_bounded = isinstance(solver, AbstractBoundedMinimizer)
+    filter_spec = eqx.is_inexact_array
+    
+    # Extract base values and partition based on solver type
+    if is_bounded:
+        base_tree = prx.bounded.tree_base(model)
+        lower_bounds, upper_bounds = prx.bounded.tree_bounds(model)
+        
+        params, static = eqx.partition(base_tree, filter_spec, is_leaf=prx.is_constant)
+        lower, _ = eqx.partition(lower_bounds, filter_spec, is_leaf=prx.is_constant)
+        upper, _ = eqx.partition(upper_bounds, filter_spec, is_leaf=prx.is_constant)
+        bounds = (lower, upper)
+    else:
+        params, static = eqx.partition(model, filter_spec, is_leaf=prx.is_constant)
+
+    # Define the unified objective wrapper for the solver
+    def objective(p: PyTree, args: Any) -> Scalar:
+        unwrapped_model = prx.unwrap(eqx.combine(p, static))
+        return fn(unwrapped_model, args)
+
+    # Run the correct solver execution and reconstruct the final model
+    if is_bounded:
+        payload, metrics = solver.run(
+            fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
+        )
+        opt_base = eqx.combine(payload.y, static)
+        final_model = prx.bounded.tree_update(model, opt_base)
+    else:
+        payload, metrics = solver.run(
+            fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
+        )
+        final_model = prx.unwrap(eqx.combine(payload.y, static))
+
+    return final_model, payload, metrics

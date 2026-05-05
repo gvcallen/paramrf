@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pmrf as prf
 from pmrf.core import Model, Frequency
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.scipy import ScipyMinimize
+from pmrf.optimize.backends.scipy import ScipyMinimize
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

@@ -6,11 +6,12 @@ from typing import Callable, Any, Dict
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from parax import Tagged, constrained
 
 from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf import cascade_s
+from pmrf.parameters import Param, free
+from pmrf.field import field, frozen
 
 class ProfiledLine(Model):
     r"""
@@ -55,16 +56,16 @@ class ProfiledLine(Model):
         s_taper = tapered_line.s(freq)
     """
     # Config
-    line_fn: Callable[[Any], RLGCLine] = constrained(static=True)
+    line_fn: Callable[[Any], RLGCLine] = field(static=True)
     floating: bool = False
-    profile_fns: Dict[str, Callable] = constrained(static=True)
-    method: str = constrained(static=True)
-    options: dict = constrained(static=True)
+    profile_fns: Dict[str, Callable] = field(static=True)
+    method: str = field(static=True)
+    options: dict = field(static=True)
 
     # Parameters and sub-models
-    length: Tagged
-    profile_params: Dict[str, Dict[str, Tagged]] = constrained(transparent=True)
-    uniform_params: Dict[str, Tagged] = constrained(transparent=True)
+    length: Param
+    profile_params: Dict[str, Dict[str, Param]] = field(transparent=True)
+    uniform_params: Dict[str, Param] = field(transparent=True)
 
     def __init__(
         self, 

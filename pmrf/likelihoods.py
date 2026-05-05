@@ -5,9 +5,10 @@ Built-in likelihood models.
 from typing import Callable
 import jax.numpy as jnp
 import distreqx.distributions as dist
-import parax as prx
 import equinox as eqx
+
 from pmrf.core import Likelihood
+from pmrf.parameters import Param
 
 
 class GaussianLikelihood(Likelihood):
@@ -21,7 +22,7 @@ class GaussianLikelihood(Likelihood):
     must accept accept the prediction `y` and return an array that is either
     broadcastable to `(*batch_shape)` or to the full (*batch_shape, event_dims).
     """
-    noise: prx.Tagged | Callable[[jnp.ndarray], jnp.ndarray]
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
 
     def __call__(self, y_event: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
         is_dist = isinstance(y_event, dist.AbstractDistribution)
