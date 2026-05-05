@@ -3,7 +3,7 @@ Non-ideal models (e.g. resistors with parasitics)
 """
 import jax.numpy as jnp
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.models.components.lumped import Resistor
 from pmrf.models.components.topological import PiCLC
 

@@ -4,8 +4,11 @@ import jax.numpy as jnp
 import equinox as eqx
 import eqxpress as ex
 
-from pmrf.core import Model, Frequency, Problem
-from pmrf.optimize.base import OptimizeResult, AbstractMinimizer, minimize as minimize_base
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.problem import Problem
+from pmrf.optimize.base import AbstractMinimizer, minimize as minimize_base
+from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.backends.jaxopt import LBFGSB
 
 

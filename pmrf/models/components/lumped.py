@@ -4,7 +4,7 @@ Lumped elements (resistors, capacitors, inductors).
 
 import jax.numpy as jnp
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.parameters import Param, param
 
 class Load(Model):

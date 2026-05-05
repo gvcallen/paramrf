@@ -1,9 +1,10 @@
 """
-Extractors that evaluate a model across frequency and output an array.
+callables that evaluate a model over frequency.
 """
 from __future__ import annotations
 import re
 from typing import Sequence, Literal, Any, Callable
+from abc import abstractmethod
 
 import numpy as np
 import equinox as eqx
@@ -14,11 +15,39 @@ import distreqx.distributions as dist
 import distreqx.bijectors as bij
 from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Index
 
-from pmrf.core import Model, Frequency, Evaluator
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils.module import log_prob
 
-class Feature(Evaluator):
+class AbstractEvaluator(eqx.Module):
+    """
+    Abstract base class for callables that evaluate a model over frequency.
+    """
+    @abstractmethod
+    def __call__(self, model: Model, freq: Frequency, **kwargs) -> jnp.ndarray:
+        """
+        Evaluate the model response over the specified frequency range.
+
+        Parameters
+        ----------
+        model : Model
+            The model instance to evaluate.
+        freq : Frequency
+            The frequency object defining the evaluation points.
+        **kwargs : dict
+            Additional keyword arguments for the evaluation process.
+
+        Returns
+        -------
+        jnp.ndarray
+            The evaluated model response.
+        """
+        raise NotImplementedError
+    
+EvaluatorFn = Callable[[Model, Frequency], jnp.ndarray]
+EvaluatorLike = str | list[str] | EvaluatorFn | list[EvaluatorFn]
+
+class Feature(AbstractEvaluator):
     """
     Extracts an RF feature using a string-based alias.
     
@@ -28,7 +57,7 @@ class Feature(Evaluator):
     #: The underlying expression created that does the final feature extraction.
     expression: AbstractExpression
 
-    def __init__(self, alias: str | Sequence[str] | list[Evaluator]):
+    def __init__(self, alias: str | Sequence[str] | list[AbstractEvaluator]):
         """Initialize the feature evalutor.
 
         Parameters
@@ -39,7 +68,7 @@ class Feature(Evaluator):
         super().__init__()
         
         # 1. Handle pre-instantiated expression lists (Summation)
-        if isinstance(alias, list) and all(isinstance(a, Evaluator) for a in alias):
+        if isinstance(alias, list) and all(isinstance(a, AbstractEvaluator) for a in alias):
             self.expression = Sum(alias)
             return
 
@@ -102,7 +131,7 @@ class Feature(Evaluator):
         return self.expression(model, frequency, **kwargs)
   
     
-class TargetLoss(Evaluator):
+class TargetLoss(AbstractEvaluator):
     """
     Computes a loss between a model prediction and some target.
     """
@@ -123,7 +152,7 @@ class TargetLoss(Evaluator):
         return self.loss(self.target, y_pred)
     
     
-class MarginalLogLikelihood(Evaluator):
+class MarginalLogLikelihood(AbstractEvaluator):
     """
     Computes the log of the probability of observed data
     by conditioning a likelihood function on a model prediction
@@ -165,6 +194,8 @@ class MarginalLogLikelihood(Evaluator):
     event_ndims: int = prx.constrained(default=1, static=True)
     
     def __post_init__(self):
+        raise NotImplementedError("MarginalLogLikelihood is temporarily unimplemented")
+
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
         # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
         if self.event_ndims != 1:
@@ -180,6 +211,7 @@ class MarginalLogLikelihood(Evaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(self.observed)
@@ -256,7 +288,7 @@ class MarginalLogLikelihood(Evaluator):
         return data_sample
     
     
-class GibbsMarginalLogLikelihood(Evaluator):
+class GibbsMarginalLogLikelihood(AbstractEvaluator):
     """
     Computes a generalized log-posterior (the Gibbs measure) using a loss function 
     instead of a strict generative likelihood.
@@ -354,7 +386,7 @@ class GibbsMarginalLogLikelihood(Evaluator):
         # 5. Return the generalized log-posterior (Gibbs measure)
         return -(expected_loss / self.temperature)
         
-class NegativeLogLikelihood(Evaluator):
+class NegativeLogLikelihood(AbstractEvaluator):
     """
     Computes the negative of the log of the probability of observed data.
     
@@ -368,7 +400,7 @@ class NegativeLogLikelihood(Evaluator):
         return -self.mll(model, frequency, **kwargs)
 
 
-class NegativeLogPosterior(Evaluator):
+class NegativeLogPosterior(AbstractEvaluator):
     """
     Computes the negative of the log of the probability of observed data,
     plus the negative of the log of the prior on the parameters.

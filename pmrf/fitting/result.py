@@ -1,12 +1,13 @@
 from typing import Any
 
-import parax as prx
+import equinox as eqx
 
-from pmrf.core import Frequency, Evaluator
+from pmrf.frequency import Frequency
+from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 
-class FitResult(prx.Module):
+class FitResult(eqx.Module):
     """
     Standardized return object for a fitting routines.
 
@@ -26,7 +27,7 @@ class FitResult(prx.Module):
     def model(self):
         return self.solution.model
 
-    def plot(self, features: str | list[str] | Evaluator = 's', ax=None, **kwargs):
+    def plot(self, features: str | list[str] | AbstractEvaluator = 's', ax=None, **kwargs):
         """
         Plots the best fit.
         

@@ -14,17 +14,6 @@ except PackageNotFoundError:
     pass
 
 # 3. Main API Hoisting
-from pmrf.core import (
-    DiscrepancyModel as DiscrepancyModel,
-    Evaluator as Evaluator,
-    Frequency as Frequency,
-    Likelihood as Likelihood,
-    Loss as Loss,
-    Model as Model,
-    NoiseModel as NoiseModel,
-    CovarianceKernel as CovarianceKernel,
-    Problem as Problem,
-)
 from pmrf.parameters import (
     Param as Param,
     Free as Free,
@@ -48,7 +37,7 @@ from pmrf.serialization import (
     load as load,
     save as save,
 )
-from pmrf.field import (
+from pmrf.fields import (
     field as field,
     frozen as frozen,
     model as model,
@@ -79,6 +68,18 @@ from pmrf import (
     serialization as serialization,
     viz as viz,
 )
+
+# from pmrf.core import (
+#     AbstractDiscrepancyModel as AbstractDiscrepancyModel,
+#     AbstractEvaluator as AbstractEvaluator,
+#     AbstractLikelihood as AbstractLikelihood,
+#     AbstractLoss as AbstractLoss,
+#     AbstractNoiseModel as AbstractNoiseModel,
+#     AbstractCovarianceKernel as AbstractCovarianceKernel,
+#     Model as Model,
+#     Frequency as Frequency,
+#     Problem as Problem,
+# )
 
 
 __all__ = [

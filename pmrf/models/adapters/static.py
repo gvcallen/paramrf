@@ -6,7 +6,7 @@ import skrf
 import jax.numpy as jnp
 import parax as prx
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.network_collection import NetworkCollection
 
 class Measured(Model):

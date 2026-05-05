@@ -6,7 +6,8 @@ distributions of model parameters.
 """
 
 # from pmrf.infer.sample import sample
-from pmrf.infer.base import is_sampler, is_inferer, InferResult
+from pmrf.infer.base import is_sampler, is_inferer
+from pmrf.infer.result import InferResult
 
 from pmrf.infer.backends import (
     polychord,

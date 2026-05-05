@@ -13,8 +13,8 @@ from pmrf.optimize.base import (
     AbstractMinimizer as AbstractMinimizer,
     is_optimizer as is_optimizer,
     is_minimizer as is_minimizer,
-    OptimizeResult as OptimizeResult,
 )
+from pmrf.optimize.result import OptimizeResult as OptimizeResult
 
 # Main minimize
 from pmrf.optimize.minimize import minimize

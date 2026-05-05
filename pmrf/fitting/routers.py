@@ -4,7 +4,9 @@ from dataclasses import replace
 import jax.numpy as jnp
 import skrf
 
-from pmrf.core import Model, Frequency, EvaluatorLike
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.evaluators import EvaluatorLike
 from pmrf.optimize import is_optimizer, OptimizeResult, ScipyMinimize
 from pmrf.infer import is_inferer, InferResult
 from pmrf.evaluators import Feature
@@ -12,7 +14,7 @@ from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
-from pmrf.fitting.base import FitResult
+from pmrf.fitting.result import FitResult
 from pmrf.constants import Solver
 
 def fit(

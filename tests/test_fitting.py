@@ -8,7 +8,7 @@ from pmrf.models import CoaxialLine
 from pmrf.optimize import ScipyMinimize
 from pmrf.fitting import fit_minimize
 from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 # ---------------------------------------------------------
 # Fixtures

@@ -6,7 +6,7 @@ from pmrf.core import Frequency, Model
 from pmrf.infer.sample import sample
 from pmrf.fitting import fit_sample
 from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded, Uniform
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 # ---------------------------------------------------------
 # Fixtures

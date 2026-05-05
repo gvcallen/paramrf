@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from pmrf.models.adapters.base import SingleDiscreteProperty
 from pmrf.parameters import Param, free
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 class VectorExpansion(SingleDiscreteProperty):
     """

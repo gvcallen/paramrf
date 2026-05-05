@@ -14,17 +14,18 @@ try:
 except ImportError:
     pass
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.constants import Solver
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample
-from pmrf.fitting.base import FitResult
+from pmrf.fitting.result import FitResult
 
 from pmrf.parameters import Param, free
-from pmrf.field import field
+from pmrf.fields import field
 
 def fit_sample(
     model: Model,

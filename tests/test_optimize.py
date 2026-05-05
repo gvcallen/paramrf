@@ -3,7 +3,7 @@ import pytest
 import jax.numpy as jnp
 
 import pmrf as prf
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.backends.scipy import ScipyMinimize
 

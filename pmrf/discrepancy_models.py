@@ -1,16 +1,50 @@
 """
-Built-in discrepancy models.
+Interface for discrepancy models.
 """
 from collections.abc import Callable
+from abc import abstractmethod
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
 
-from pmrf.core import DiscrepancyModel
+from pmrf.fields import field
 
-class GaussianProcess(DiscrepancyModel, transparent=True):
+class AbstractDiscrepancyModel(eqx.Module):
+    """
+    Abstract base class for discrepancy models.
+    
+    A discrepancy model maps a model prediction to an updated model prediction.
+    This updated prediction can either be deterministic (e.g. a polynomial)
+    or probabilistic (e.g. a Gaussian process) by either returning a `JAX` array
+    or a `distreqx` probability distribution. Note that probabilistic discrepancy
+    models operate in "event space". Here, probability events are moved
+    to the **last axis**, such as frequency.
+    
+    These models are commonly used in conjuction with a likelihood function
+    via :class:`pmrf.evaluators.MarginalLogLikelihood`.
+    
+    See :mod:`pmrf.discrepancy_models` for built-in discrepancy models.
+    """
+    @abstractmethod
+    def __call__(self, y_event: jnp.ndarray) -> jnp.ndarray | dist.AbstractDistribution:
+        """
+        Apply discrepancy correction to a model prediction.
+
+        Parameters
+        ----------
+        y_event : jnp.ndarray
+            The initial model prediction in event space.
+
+        Returns
+        -------
+        jnp.ndarray | dist.AbstractDistribution
+            The updated deterministic or probabilistic prediction.
+        """        
+        raise NotImplementedError
+
+class GaussianProcess(AbstractDiscrepancyModel, transparent=True):
     """
     Gaussian process discrepancy model with a covariance kernel.
     
@@ -33,7 +67,7 @@ class GaussianProcess(DiscrepancyModel, transparent=True):
     kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
     #: A small scalar added to the diagonal of the covariance matrix for numerical stability.
-    jitter: float = eqx.field(default=1e-10, static=True)
+    jitter: float = field(default=1e-10, static=True)
 
     def __call__(self, y_event: jnp.ndarray, x: jnp.ndarray, orthogonal_projection: jnp.ndarray | None = None) -> dist.AbstractDistribution:
         """

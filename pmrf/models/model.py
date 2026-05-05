@@ -10,11 +10,12 @@ import equinox as eqx
 import parax as prx
 import skrf
 
-from pmrf.core.frequency import Frequency
+from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
+from pmrf.fields import field
 
 Z0_WARNING = \
 r"""

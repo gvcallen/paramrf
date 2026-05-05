@@ -1,13 +1,42 @@
 """
 Models that represent the noise of a measurement, used within in a likelihood.
 """
+from abc import abstractmethod
+
 import jax.numpy as jnp
 
-from pmrf.core import NoiseModel
-from pmrf.parameters import Param, free
-from pmrf.field import field
+import equinox as eqx
+from pmrf.parameters import Param
+from pmrf.fields import field
 
-class AutoCrossNoise(NoiseModel):
+class AbstractNoiseModel(eqx.Module):
+    """
+    Abstract base class for likelihood noise models.
+    
+    A noise model maps a model prediction to a noise parameter, such as variance.
+    For example, for a Gaussian likelihood, a noise model can be used to model
+    the variance with non-standard broadcasting rules.
+    
+    See :mod:`pmrf.noise_models` for built-in noise models.
+    """
+    @abstractmethod
+    def __call__(self, y_event: jnp.ndarray) -> jnp.ndarray | tuple[jnp.ndarray | jnp.ndarray]:
+        """
+        Map model predictions to noise parameters.
+
+        Parameters
+        ----------
+        y_event : jnp.ndarray
+            The mean model prediction in event space.
+
+        Returns
+        -------
+        jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray]
+            The noise parameter or a tuple of noise parameters.
+        """        
+        raise NotImplementedError
+
+class AutoCrossNoise(AbstractNoiseModel):
     """
     Auto and cross term noise model.
     

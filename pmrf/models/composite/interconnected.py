@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from parax import constrained
 from dataclasses import InitVar
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.models.components.ideal import Port
 from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 

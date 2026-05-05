@@ -8,7 +8,7 @@
 # import equinox as eqx
 # import parax as prx
 
-# from pmrf.core import Model, Frequency, Problem
+# from pmrf.models import Model, Frequency, Problem
 # from pmrf.infer.base import is_inferer, InferResult, SamplingResult, AbstractCallableSampler
 # from pmrf.infer.polychord import PolyChord
 # from pmrf.utils.random import generate_key

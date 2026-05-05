@@ -6,7 +6,7 @@ currently either frequentist optimization (`pmrf.optimize`) or Bayesian
 inference (`pmrf.infer`).
 """
 
-from pmrf.fitting.base import FitResult
+from pmrf.fitting.result import FitResult
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.routers import fit, fit_sequential, fit_joint

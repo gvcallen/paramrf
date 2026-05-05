@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from pmrf.core import Frequency
 from pmrf.models.adapters.base import SingleProperty
 from pmrf.parameters import Param, free
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 class PolynomialRatio(SingleProperty):
     """

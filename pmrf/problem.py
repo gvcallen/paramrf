@@ -5,9 +5,9 @@ A callable to be "solved" (i.e. minimized or sampled).
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core.model import Model
-from pmrf.core.frequency import Frequency
-from pmrf.core.evaluator import Evaluator
+from pmrf.models.model import Model
+from pmrf.frequency import Frequency
+from pmrf.evaluators import AbstractEvaluator
 
 class Problem(eqx.Module):
     """
@@ -25,7 +25,7 @@ class Problem(eqx.Module):
     
     #: The operator (e.g., a Likelihood or Loss) that maps the model 
     #: and frequency to a scalar or array result.
-    evaluator: Evaluator
+    evaluator: AbstractEvaluator
     
     def __call__(self, *args, **kwargs) -> jnp.ndarray:
         """

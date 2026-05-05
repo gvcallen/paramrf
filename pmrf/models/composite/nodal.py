@@ -7,7 +7,7 @@ This includes adding/removing ground, introducing coupling, etc.
 import jax.numpy as jnp
 
 import jax.numpy as jnp
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.rf.conversions import s2y, y2s, s2z, z2s
 
 class GroundLifted(Model, transparent=True):

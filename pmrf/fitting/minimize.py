@@ -6,23 +6,24 @@ try:
 except ImportError:
     pass
 
-import parax as prx
 import numpy as np
 import distreqx.distributions as dist
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.constants import Solver
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
+from pmrf.parameters import Normal
 
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.backends.scipy import ScipyMinimize
-from pmrf.fitting.base import FitResult
+from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param, free
-from pmrf.field import field
+from pmrf.fields import field
 
 def fit_minimize(
     model: Model,
@@ -86,7 +87,7 @@ def fit_minimize(
         :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
-    noise : prx.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
+    noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood`.
@@ -142,7 +143,7 @@ def fit_minimize(
             loss = RMSELoss()
         else:
             if noise is None:
-                noise = prx.Uniform(0.0, 0.01)
+                noise = Normal(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
         kwargs.setdefault('search_space', 'latent')

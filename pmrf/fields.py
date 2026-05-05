@@ -6,15 +6,13 @@ from typing import Callable, Any
 import equinox as eqx
 import parax as prx
 
-from pmrf.core import Model
-
 def field(*args, **kwargs):
     return eqx.field(*args, **kwargs)
 
 def frozen(*args, **kwargs):
     return prx.frozen(*args, **kwargs)
 
-def model(factory: Callable[..., Model], *args, **kwargs) -> Any:
+def model(factory: Callable[..., Any], *args, **kwargs) -> Any:
     """
     A field wrapper for initializing pmrf Models.
 

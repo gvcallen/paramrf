@@ -4,10 +4,10 @@ Specific topology layouts such as Pi-CLC or Box-CLCC networks.
 import jax
 import jax.numpy as jnp
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model, Frequency
 from pmrf.rf import y2s
 from pmrf.parameters import Param, free
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 class PiCLC(Model):
     """

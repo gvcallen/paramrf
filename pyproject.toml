@@ -1,7 +1,7 @@
 [project]
 name = "paramrf"
 version = "0.17.0"
-description = "Parametric radio frequency modelling, optimization and sampling"
+description = "Parametric radio frequency modeling, optimization and sampling"
 readme = "README.rst"
 authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }

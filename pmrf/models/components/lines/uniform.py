@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from pmrf.core import Frequency, Model
 from pmrf.rf import renormalize_s
 from pmrf.parameters import Param, free
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 class TransmissionLine(Model):
     r"""

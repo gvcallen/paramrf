@@ -11,7 +11,7 @@ from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf import cascade_s
 from pmrf.parameters import Param, free
-from pmrf.field import field, frozen
+from pmrf.fields import field, frozen
 
 class ProfiledLine(Model):
     r"""
