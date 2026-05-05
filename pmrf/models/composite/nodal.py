@@ -5,12 +5,12 @@ This includes adding/removing ground, introducing coupling, etc.
 """
 
 import jax.numpy as jnp
+from dataclasses import replace
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.rf.conversions import s2y, y2s
 
-import jax.numpy as jnp
-from pmrf.models import Model, Frequency
-from pmrf.rf.conversions import s2y, y2s, s2z, z2s
-
-class GroundLifted(Model, transparent=True):
+class GroundLifted(Model):
     """
     A wrapper that converts an N-port grounded model into a 2N-port ungrounded model.
 
@@ -24,7 +24,8 @@ class GroundLifted(Model, transparent=True):
     def s(self, freq: Frequency) -> jnp.ndarray:
         # 1. Tentatively evaluate the inner model to dynamically determine N.
         # Using a scalar 50.0 ensures it evaluates safely without shape mismatch.
-        s_inner_test = self.model.with_fields(z0=50.0).s(freq)
+
+        s_inner_test = replace(self.model, z0=50.0).s(freq)
         n = s_inner_test.shape[-1]
 
         # 2. Parse reference impedances dynamically for N signal and N return ports
@@ -45,7 +46,7 @@ class GroundLifted(Model, transparent=True):
                 )
 
         # 3. Evaluate the exact Signal Path S-matrix (N x N)
-        s_inner = self.model.with_fields(z0=inner_z0).s(freq)
+        s_inner = replace(self.model, z0=inner_z0).s(freq)
 
         # 4. Compute the exact Return Path S-matrix (N x N parallel star node)
         y_ret = 1.0 / z_ret
@@ -76,7 +77,7 @@ class GroundLifted(Model, transparent=True):
         return s_out
     
 
-class GroundExposed(Model, transparent=True):
+class GroundExposed(Model):
     """
     A wrapper that converts an N-port grounded model into an (N+1)-port model
     by exposing the global ground as a single, accessible terminal.
@@ -97,7 +98,7 @@ class GroundExposed(Model, transparent=True):
             z0_new_port = self.z0[..., -1:]
 
         # 2. Get inner S-parameters and convert to Y-parameters
-        s_inner = self.model.with_fields(z0=z0_inner).s(freq)
+        s_inner = replace(self.model, z0=z0_inner).s(freq)
         y_inner = s2y(s_inner, z0=z0_inner)
 
         # 3. Apply the Indefinite Admittance Matrix (IAM) transformation
@@ -120,7 +121,7 @@ class GroundExposed(Model, transparent=True):
         return y2s(y_exposed, z0=self.z0)
     
 
-class Shunt(Model, transparent=True):
+class Shunt(Model):
     r"""
     Represents a 1-port network connected in parallel (shunt) across a 2-port line.
 
@@ -162,7 +163,7 @@ class Shunt(Model, transparent=True):
         return S_shunt
     
     
-class CoupledOnePorts(Model, transparent=True):
+class CoupledOnePorts(Model):
     """
     Wraps N 1-port models (e.g. inductors) and couples them via a given K-matrix.
     
@@ -192,7 +193,7 @@ class CoupledOnePorts(Model, transparent=True):
         y_diags = []
         for m in self.models:
             # Evaluate the 1-port model
-            s_i = m.with_fields(z0=self.z0).s(freq)
+            s_i = replace(m, z0=self.z0).s(freq)
             
             # Convert to Y-parameters (Shape will be ..., 1, 1)
             y_i = s2y(s_i, z0=self.z0)
@@ -219,7 +220,7 @@ class CoupledOnePorts(Model, transparent=True):
         # 4. Convert the full NxN coupled Y-matrix directly back to S-parameters
         return y2s(y_coupled, z0=self.z0)
     
-class CoupledTwoPorts(Model, transparent=True):
+class CoupledTwoPorts(Model):
     """
     Wraps N 2-port models (e.g., Inductors) and couples them via a given K-matrix.
     
@@ -248,7 +249,7 @@ class CoupledTwoPorts(Model, transparent=True):
         z_branch_list = []
         for m in self.models:
             # Evaluate using a safe fixed z0 to extract the Y-parameters cleanly
-            s_i = m.with_fields(z0=50.0).s(freq)
+            s_i = replace(m, z0=self.z0).s(freq)
             y_i = s2y(s_i, z0=50.0)
             
             # For a series element between port 0 and 1, Y_series = -Y_12

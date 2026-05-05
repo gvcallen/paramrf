@@ -20,16 +20,14 @@ from pmrf.losses import RMSELoss
 from pmrf.parameters import Normal
 
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.backends.scipy import ScipyMinimize
 from pmrf.fitting.result import FitResult
-from pmrf.parameters import Param, free
-from pmrf.fields import field
+from pmrf.parameters import Param
 
 def fit_minimize(
     model: Model,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Solver = ScipyMinimize(),
+    solver: Solver | None = None,
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',
@@ -56,7 +54,7 @@ def fit_minimize(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    solver : Solver, default=ScipyMinimize()
+    solver : Solver, optional
         The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimize`
         or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
         (such as :class:`optimistix.LBFGS`).
@@ -146,7 +144,7 @@ def fit_minimize(
                 noise = Normal(0.0, 0.01)
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
-        kwargs.setdefault('search_space', 'latent')
+        kwargs.setdefault('search_space', 'base')
     else:
         kwargs.setdefault('search_space', 'hypercube')
 
@@ -164,7 +162,9 @@ def fit_minimize(
             objective = NegativeLogPosterior(mll)
 
     # Run the optimizer
-    optimize_result = minimize(objective, model, frequency, solver, **kwargs)
+    if solver is not None:
+        kwargs['solver'] = solver
+    optimize_result = minimize(objective, model, frequency, **kwargs)
 
     return FitResult(
         data=data,

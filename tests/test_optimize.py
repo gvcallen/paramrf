@@ -3,7 +3,8 @@ import pytest
 import jax.numpy as jnp
 
 import pmrf as prf
-from pmrf.models import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.backends.scipy import ScipyMinimize
 
@@ -61,8 +62,8 @@ def test_minimize_scipy_bounded(basic_freq):
     # The optimizer should hit the upper bound and stop
     assert jnp.allclose(result.model.val, 3.0, atol=1e-3)
 
-def test_minimize_optimistix(model, basic_freq):
-    """Test optimization using a JAX-native Optimistix solver."""
+def test_minimize_nelder(model, basic_freq):
+    """Test the Nelder-Mead solver"""
     optx = pytest.importorskip("optimistix")
     
     def obj_fn(m, f):
@@ -71,7 +72,41 @@ def test_minimize_optimistix(model, basic_freq):
     # Use a gradient-free JAX solver
     solver = prf.optimize.NelderMead(rtol=1e-5, atol=1e-5)
     
-    result = minimize(obj_fn, model, basic_freq, solver=solver, max_steps=500)
+    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
+    assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
+
+def test_minimize_bfgs(model, basic_freq):
+    """Test the BFGS solver"""
+    optx = pytest.importorskip("optimistix")
+    
+    def obj_fn(m, f):
+        return jnp.sum(jnp.abs(m.val - 5.0)**2)
+    
+    solver = prf.optimize.BFGS(rtol=1e-5, atol=1e-5)
+    
+    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
+    assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
+
+def test_minimize_lbfgsb(model, basic_freq):
+    """Test the LBFGS-B solver"""
+    def obj_fn(m, f):
+        return jnp.sum(jnp.abs(m.val - 5.0)**2)
+    
+    solver = prf.optimize.LBFGSB()
+    
+    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
+    assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
+
+def test_minimize_optimistix(model, basic_freq):
+    """Test the optimistix wrapper"""
+    optx = pytest.importorskip("optimistix")
+    
+    def obj_fn(m, f):
+        return jnp.sum(jnp.abs(m.val - 5.0)**2)
+    
+    solver = prf.optimize.OptimistixMinimise(solver=optx.BFGS(rtol=1e-5, atol=1e-5))
+    
+    result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
     assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
 
 def test_minimize_list_of_objectives(model, basic_freq):

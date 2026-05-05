@@ -3,12 +3,10 @@ import pytest
 import jax.numpy as jnp
 import numpy as np
 
-from pmrf.core import Frequency
+from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine
-from pmrf.optimize import ScipyMinimize
 from pmrf.fitting import fit_minimize
-from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded
-from pmrf.fields import field, frozen
+from pmrf.parameters import Fixed, Bounded
 
 # ---------------------------------------------------------
 # Fixtures
@@ -67,7 +65,7 @@ def test_fit_skrf_synthetic_data(starting_model, target_network):
     Fits a perturbed model to an in-memory scikit-rf Network.
     """
     # Notice we don't pass frequency; `fit` should extract it from the Network
-    results = fit_minimize(starting_model, target_network, solver=ScipyMinimize())
+    results = fit_minimize(starting_model, target_network)
     fitted_model = results.model
 
     # 1. Did it find the correct physical length?
@@ -88,7 +86,7 @@ def test_fit_raw_ndarray(truth_model, starting_model, fit_freq):
     Ensure the fit wrapper handles raw JAX arrays correctly.
     """
     # Extract raw S-parameter array
-    target_s = truth_model.s(fit_freq)
+    target_s = np.array(truth_model.s(fit_freq))
 
     # Must pass frequency explicitly when using raw arrays
     results = fit_minimize(starting_model, target_s, frequency=fit_freq)

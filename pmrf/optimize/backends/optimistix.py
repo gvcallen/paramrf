@@ -89,7 +89,7 @@ class GradientDescent(AbstractUnconstrainedMinimizer):
     learning_rate: float
     rtol: float = DEFAULT_RTOL
     atol: float = DEFAULT_ATOL
-    norm: Callable[[PyTree], Scalar] = optx.max_norm,
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
 
     def run(
         self, 
@@ -124,9 +124,9 @@ class LBFGS(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's LBFGS.
     """
-    rtol: float
-    atol: float
-    norm: Callable[[PyTree], Scalar] = optx.max_norm,
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
     use_inverse: bool = True,
 
     def run(
@@ -142,7 +142,6 @@ class LBFGS(AbstractUnconstrainedMinimizer):
             atol=self.atol,
             norm=self.norm,
             use_inverse=self.use_inverse,
-            history_length=self.history_length,
         )
         
         result = optx.minimise(
@@ -162,9 +161,9 @@ class BFGS(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's BFGS.
     """
-    rtol: float
-    atol: float
-    norm: Callable[[PyTree], Scalar] = optx.max_norm,
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
     use_inverse: bool = True,
 
     def run(
@@ -193,3 +192,4 @@ class BFGS(AbstractUnconstrainedMinimizer):
 
         payload = MinimizerPayload(y=result.value)
         return payload, result
+    

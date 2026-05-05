@@ -1,7 +1,7 @@
 Core Classes
 ============
 
-All of the classes introduced below can be found in :mod:`pmrf.core`, but are exported at the root. These include :class:`pmrf.Model`, :class:`pmrf.Frequency`, :class:`pmrf.Evaluator`, and other helper classes for optimization and inference.
+The two main classes in ParamRF are :class:`pmrf.Model` and :class:`pmrf.Frequency`, while the classes in :class:`pmrf.evaluators` glue these together.
 
 The Model
 ~~~~~~~~~

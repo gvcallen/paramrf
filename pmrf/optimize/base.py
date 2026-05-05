@@ -4,12 +4,9 @@ Base optimization functions and classes.
 from typing import Any, Callable
 import abc
 
-import jax.numpy as jnp
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
 import parax as prx
-
-from pmrf.models import Model, Frequency
 
 
 class MinimizerPayload(eqx.Module):
@@ -121,7 +118,7 @@ def is_optimizer(x):
 @eqx.filter_jit
 def minimize(
     fn: Callable[[PyTree, Any], Scalar], 
-    model: PyTree, 
+    y0: PyTree, 
     solver: AbstractMinimizer,
     args: Any = None,
     max_iter: int = 1024, 
@@ -135,15 +132,15 @@ def minimize(
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        base_tree = prx.bounded.tree_base(model)
-        lower_bounds, upper_bounds = prx.bounded.tree_bounds(model)
+        base_tree = prx.bounded.tree_base(y0)
+        lower_bounds, upper_bounds = prx.bounded.tree_bounds(y0)
         
         params, static = eqx.partition(base_tree, filter_spec, is_leaf=prx.is_constant)
         lower, _ = eqx.partition(lower_bounds, filter_spec, is_leaf=prx.is_constant)
         upper, _ = eqx.partition(upper_bounds, filter_spec, is_leaf=prx.is_constant)
         bounds = (lower, upper)
     else:
-        params, static = eqx.partition(model, filter_spec, is_leaf=prx.is_constant)
+        params, static = eqx.partition(y0, filter_spec, is_leaf=prx.is_constant)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:
@@ -156,7 +153,7 @@ def minimize(
             fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
         opt_base = eqx.combine(payload.y, static)
-        final_model = prx.bounded.tree_update(model, opt_base)
+        final_model = prx.bounded.tree_update(y0, opt_base)
     else:
         payload, metrics = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs

@@ -7,11 +7,12 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core import Frequency, Model
+from pmrf.frequency import Frequency
+from pmrf.models.base import Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf import cascade_s
 from pmrf.parameters import Param, free
-from pmrf.fields import field, frozen
+from pmrf.jax_utils import field
 
 class ProfiledLine(Model):
     r"""
@@ -37,7 +38,7 @@ class ProfiledLine(Model):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import PhysicalLine, ProfiledLine
+        from pmrf.models import PhysicalLine, ProfiledLine
 
         def linear_taper(t, start_val, end_val):
             return start_val + (end_val - start_val) * t
@@ -64,8 +65,8 @@ class ProfiledLine(Model):
 
     # Parameters and sub-models
     length: Param
-    profile_params: Dict[str, Dict[str, Param]] = field(transparent=True)
-    uniform_params: Dict[str, Param] = field(transparent=True)
+    profile_params: Dict[str, Dict[str, Param]]
+    uniform_params: Dict[str, Param]
 
     def __init__(
         self, 

@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.math import losses as F
-from pmrf.fields import field
+from pmrf.jax_utils import field
 
 
 class AbstractLoss(eqx.Module):

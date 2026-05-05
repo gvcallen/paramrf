@@ -2,8 +2,8 @@
 import pytest
 import jax.numpy as jnp
 
-from pmrf.core import Frequency, Model
-from pmrf.models import Resistor, Capacitor, Short, Port, Circuit, Cascade, Terminated
+from pmrf.frequency import Frequency
+from pmrf.models import Resistor, Short, Port, Circuit, Cascade, Terminated
 
 @pytest.fixture
 def basic_freq():

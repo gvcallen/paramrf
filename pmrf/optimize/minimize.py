@@ -19,6 +19,7 @@ def minimize(
     frequency: Frequency,
     solver: AbstractMinimizer = LBFGSB(),
     max_iter: int | None = 1024,
+    search_space: str = 'base',
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -62,8 +63,8 @@ def minimize(
     # Run the optimization
     opt_problem, payload, metrics = minimize_base(
         lambda p, _args: p(),
+        y0=problem,
         solver=solver,
-        model=problem,
         max_iter=max_iter,
         **kwargs,
     )

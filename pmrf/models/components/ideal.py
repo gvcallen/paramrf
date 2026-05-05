@@ -2,7 +2,9 @@
 Ideal models, such as ports, grounds and transformers.
 """
 import jax.numpy as jnp
-from pmrf.models import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+
 from pmrf.models.components.lumped import Match, Short
 
 class Port(Model):

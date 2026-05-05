@@ -2,7 +2,7 @@
 import pytest
 import jax.numpy as jnp
 
-from pmrf.core import Frequency
+from pmrf.frequency import Frequency
 # Adjust the import path below based on your module structure
 from pmrf.models import PiCLC, BoxCLCC, TeeLCL, LSectionLC
 
@@ -56,7 +56,7 @@ def test_boxclcc_general(basic_freq):
 def test_boxclcc_zero_inductance(basic_freq):
     """Test the jax.lax.cond edge case where L <= 1e-18."""
     # This triggers the specific hack in BoxCLCC for L=0
-    model = BoxCLCC(L=0.0)
+    model = BoxCLCC(L=0.0, C1=1e-12, C2=1e-12, C3=1e-12)
     s = model.s(basic_freq)
     
     assert s.shape == (5, 4, 4)

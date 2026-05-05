@@ -25,7 +25,7 @@ from pmrf.infer import sample
 from pmrf.fitting.result import FitResult
 
 from pmrf.parameters import Param, free
-from pmrf.fields import field
+from pmrf.jax_utils import field
 
 def fit_sample(
     model: Model,

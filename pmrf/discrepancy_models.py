@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
 
-from pmrf.fields import field
+from pmrf.jax_utils import field
 
 class AbstractDiscrepancyModel(eqx.Module):
     """
@@ -44,7 +44,7 @@ class AbstractDiscrepancyModel(eqx.Module):
         """        
         raise NotImplementedError
 
-class GaussianProcess(AbstractDiscrepancyModel, transparent=True):
+class GaussianProcess(AbstractDiscrepancyModel):
     """
     Gaussian process discrepancy model with a covariance kernel.
     

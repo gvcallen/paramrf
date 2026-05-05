@@ -37,10 +37,9 @@ from pmrf.serialization import (
     load as load,
     save as save,
 )
-from pmrf.fields import (
+from pmrf.jax_utils import (
     field as field,
-    frozen as frozen,
-    model as model,
+    unwrap as unwrap,
 )
 
 try:
@@ -63,37 +62,26 @@ from pmrf import (
     models as models,
     math as math,
     noise_models as noise_models,
+    problem as problem,
     optimize as optimize,
     rf as rf,
     serialization as serialization,
     viz as viz,
 )
 
-# from pmrf.core import (
-#     AbstractDiscrepancyModel as AbstractDiscrepancyModel,
-#     AbstractEvaluator as AbstractEvaluator,
-#     AbstractLikelihood as AbstractLikelihood,
-#     AbstractLoss as AbstractLoss,
-#     AbstractNoiseModel as AbstractNoiseModel,
-#     AbstractCovarianceKernel as AbstractCovarianceKernel,
-#     Model as Model,
-#     Frequency as Frequency,
-#     Problem as Problem,
-# )
+from pmrf.discrepancy_models import AbstractDiscrepancyModel as AbstractDiscrepancyModel 
 
+from pmrf.frequency import Frequency as Frequency
+from pmrf.models import (
+    Model as Model,
+    model as model,
+)
 
 __all__ = [
     # Core
-    "CovarianceKernel",
-    "DiscrepancyModel",
-    "Evaluator",
     "Frequency",
-    "Likelihood",
-    "Loss",
     "Model",
     "model",
-    "NoiseModel",
-    "Problem",
 
     "Param",
     "Free",
@@ -116,7 +104,8 @@ __all__ = [
     # Utilities & Functions
     "load",
     "save",
-    "field",
+    "frozen",
+    "unwrap",
     
     # Sub-modules
     "covariance_kernels",

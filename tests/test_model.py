@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.models.model import Model
+from pmrf.models.base import Model
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

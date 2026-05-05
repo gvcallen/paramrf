@@ -1,5 +1,5 @@
 """
-Abstract base class for RF models.
+Base class for RF models.
 """
 
 from typing import Callable, Any
@@ -7,7 +7,6 @@ from typing import Callable, Any
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import parax as prx
 import skrf
 
 from pmrf.frequency import Frequency
@@ -15,7 +14,7 @@ from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
-from pmrf.fields import field
+from pmrf.jax_utils import field
 
 Z0_WARNING = \
 r"""
@@ -135,7 +134,7 @@ class Model(eqx.Module):
     """
     #: The characteristic impedance of the model.
     #: NB: Mixing impedances across models is not fully supported.
-    z0: complex = prx.constrained(default=50.0+0j, kw_only=True, static=True)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
@@ -548,7 +547,7 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        frequency : pmrf.core.frequency | skrf.Frequency
+        frequency : pmrf.frequency.Frequency | skrf.Frequency
             Frequency grid.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
@@ -574,7 +573,6 @@ class Model(eqx.Module):
         kwargs.update({
             fname: np.array(fval),
             'frequency': measured_freq,
-            'name': kwargs.get('name', self.name),
             'z0': self.z0,
         })
         ntwk = skrf.Network(**kwargs)
@@ -606,3 +604,22 @@ class Model(eqx.Module):
         
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
+    
+
+def model(factory: Callable[..., Model], *args, **kwargs) -> Any:
+    """
+    A field wrapper for initializing pmrf Models.
+
+    This ensures that default models are instantiated freshly for every 
+    parent object.
+
+    Examples
+    --------
+    # Default initialization
+    res: Resistor = pmrf.model(Resistor)
+
+    # Initialization with custom default parameters
+    clc: PiCLC = pmrf.model(PiCLC, C1=0.05e-12, L=0.1e-9)
+    """
+    # Create a deferred lambda that calls the factory with the provided args
+    return field(default_factory=lambda: factory(*args, **kwargs))

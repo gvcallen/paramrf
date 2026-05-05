@@ -8,7 +8,7 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.fields import field
+from pmrf.jax_utils import field
 
 class InferResult(eqx.Module):
     """

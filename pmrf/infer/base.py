@@ -14,7 +14,8 @@ import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 
-from pmrf.models import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 
 D = TypeVar('D')
 

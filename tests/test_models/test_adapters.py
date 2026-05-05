@@ -3,11 +3,10 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-import parax as prx
 
-from pmrf.core import Frequency
+from pmrf import Frequency, Param, free, Free
 from pmrf.models import (
-    Discrete, SingleProperty, SingleDiscreteProperty,
+    AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
     Host, ContinuousCallable, DiscreteCallable, Measured
 )
 from pmrf.network_collection import NetworkCollection
@@ -30,7 +29,7 @@ def fine_freq():
 # Abstract Adapter Dummies & Tests
 # ---------------------------------------------------------
 
-class DummyDiscrete(Discrete):
+class DummyDiscrete(AbstractDiscrete):
     """A 1-port discrete model with tabulated S-parameters."""
     # Define as a class attribute so Equinox handles __init__ automatically
     frequency: Frequency
@@ -50,7 +49,7 @@ def test_abstract_discrete_interpolation(coarse_freq, fine_freq):
     # The middle point (1.5 GHz) should interpolate perfectly to 1.5
     assert jnp.allclose(s_interp[1, 0, 0], 1.5 + 0.0j)
     
-class DummySinglePropertyY(SingleProperty):
+class DummySinglePropertyY(AbstractSingleProperty):
     """A model that only natively knows its Y-parameters."""
     kind: str = 'y'
     def output(self, freq: Frequency) -> jnp.ndarray:
@@ -75,7 +74,7 @@ def test_single_property_routing(fine_freq):
 
 class DummyHostModel(Host):
     """A dummy host model representing an external simulator."""
-    val: prx.Tagged = 10.0
+    val: Param = free(10.0)
     
     @property
     def primary_property(self): 
@@ -102,7 +101,7 @@ def test_host_model_single_execution(fine_freq):
 def test_host_model_vmap_multithreading(fine_freq):
     """Test that Host models successfully map batched parameters using the ThreadPool."""
     # Create a batch of 3 parameter values
-    batched_val = prx.Tagged(jnp.array([1.0, 2.0, 3.0]))
+    batched_val = Free(jnp.array([1.0, 2.0, 3.0]))
     model = DummyHostModel(val=batched_val)
     
     # VMAP across the parameter dimension!
@@ -123,14 +122,14 @@ def test_host_model_vmap_multithreading(fine_freq):
 
 def test_continuous_callable(fine_freq):
     """Test wrapping a standard mathematical python function."""
-    def dummy_fn(theta, f_scaled):
+    def dummy_fn(f_scaled, theta):
         # theta is a (1,) array, f_scaled is (5,)
         # Create a dummy S11 matching the frequency
         return (theta[0] * f_scaled).reshape(-1, 1, 1)
         
     model = ContinuousCallable(
-        theta=[prx.Tagged(2.0)], 
-        fn=dummy_fn
+        fn=dummy_fn,
+        theta=[Free(2.0)], 
     )
     
     s = model.s(fine_freq)

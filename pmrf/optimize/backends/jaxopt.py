@@ -39,7 +39,7 @@ class LBFGSB(AbstractBoundedMinimizer):
         )
         
         # JAXopt expects bounds as a kwarg in the run method
-        y_opt, state = solver.run(y0, args, bounds=bounds, **kwargs)
+        y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
         payload = MinimizerPayload(y=y_opt)
         return payload, state

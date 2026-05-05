@@ -5,12 +5,15 @@ This module contains various components, surrogate models, composite building mo
 
 Note that all models are re-exported under `pmrf.models`.
 """
-from pmrf.models.model import Model as Model
+from pmrf.models.base import (
+    Model as Model,
+    model as model
+)
 
 from pmrf.models.adapters.base import (
-    Discrete as Discrete,
-    SingleProperty as SingleProperty,
-    SingleDiscreteProperty as SingleDiscreteProperty,
+    AbstractDiscrete as AbstractDiscrete,
+    AbstractSingleProperty as AbstractSingleProperty,
+    AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
 )
 from pmrf.models.adapters.bridge import Host as Host
 from pmrf.models.composite.collection import (

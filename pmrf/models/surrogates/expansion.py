@@ -4,11 +4,10 @@ An expansion of a set of basis functions.
 
 import jax.numpy as jnp
 
-from pmrf.models.adapters.base import SingleDiscreteProperty
-from pmrf.parameters import Param, free
-from pmrf.fields import field, frozen
+from pmrf.models.adapters.base import AbstractSingleDiscreteProperty
+from pmrf.parameters import Param
 
-class VectorExpansion(SingleDiscreteProperty):
+class VectorExpansion(AbstractSingleDiscreteProperty):
     """
     A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
     

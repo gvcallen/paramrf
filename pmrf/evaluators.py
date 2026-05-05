@@ -10,7 +10,6 @@ import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import parax as prx
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
 from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Index
@@ -18,6 +17,7 @@ from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.jax_utils import field
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -75,7 +75,7 @@ class Feature(AbstractEvaluator):
         # 2. Handle Sequences (Recursive Stacking)
         if not isinstance(alias, str) and isinstance(alias, Sequence):
             evaluators = tuple(Feature(a) for a in alias)
-            self.expression = Stack(expressions=evaluators, axis=-1)
+            self.expression = Stack(evaluators, axis=-1)
             return
 
         # 3. Parse submodel paths (e.g., "submodel.s11_db")
@@ -96,8 +96,8 @@ class Feature(AbstractEvaluator):
                 # We assume OffDiagonal is defined as in our previous discussion
                 # If n_ports isn't known here, we use a dynamic vmapped approach
                 self.expression = Map(
-                    expression=base_evaluator, 
-                    fn=lambda mat: jax.vmap(lambda m: m[~jnp.eye(m.shape[-1], dtype=bool)])(mat)
+                    lambda mat: jax.vmap(lambda m: m[~jnp.eye(m.shape[-1], dtype=bool)])(mat),
+                    base_evaluator, 
                 )
             return
 
@@ -114,7 +114,7 @@ class Feature(AbstractEvaluator):
             
             # Apply Port Indexing (slices lead freq dim + 0-indexed ports)
             indices = (slice(None), int(p1) - 1, int(p2) - 1)
-            expression = Index(expression=expression, indices=indices)
+            expression = Index(expression, indices)
             
         else:
             # 6. Standard Attribute Fallback (e.g., 's_mag', 'my_custom_prop2')
@@ -145,7 +145,7 @@ class TargetLoss(AbstractEvaluator):
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
     #: See :mod:`pmrf.losses` for common losses.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.constrained(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
@@ -191,7 +191,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     event_transform: bij.AbstractBijector = None
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.constrained(default=1, static=True)
+    event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
         raise NotImplementedError("MarginalLogLikelihood is temporarily unimplemented")
@@ -307,7 +307,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.constrained(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
     #: The inverse-weight (temperature) of the Gibbs measure. 
     #: Higher temperatures create wider, less confident posteriors.
@@ -324,7 +324,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     event_transform: bij.AbstractBijector = None
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.constrained(default=1, static=True)
+    event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
         # Default mapping logic (matches standard MarginalLogLikelihood)
@@ -394,7 +394,7 @@ class NegativeLogLikelihood(AbstractEvaluator):
     that is useful for performing Maximum Likelihood Estimation.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.constrained(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.mll(model, frequency, **kwargs)
@@ -415,7 +415,7 @@ class NegativeLogPosterior(AbstractEvaluator):
     `log_prob` method.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.constrained(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
@@ -430,7 +430,7 @@ class Goal(TargetLoss):
     def __init__(
         self,
         feature: str | AbstractExpression,
-        expression: Literal['<', '<=', '>', '>=', '==', '='] = '==',
+        operator: Literal['<', '<=', '>', '>=', '==', '='] = '==',
         target: float | jnp.ndarray = 0.0,
         weight: float | jnp.ndarray = 1.0,
         mask: jnp.ndarray | None = None,
@@ -445,8 +445,8 @@ class Goal(TargetLoss):
         feature : str or AbstractExpression
             The feature to be evaluated. If a string is provided, it is 
             automatically wrapped in a :class:`Feature` expression.
-        expression : {'<', '<=', '>', '>=', '==', '='}, optional
-            The relational expression defining the goal condition. 
+        operator : {'<', '<=', '>', '>=', '==', '='}, optional
+            The relational operator defining the goal condition. 
             '==' and '=' are treated as equivalent (equality). 
             Default is '=='.
         target : float or jnp.ndarray, optional
@@ -480,7 +480,7 @@ class Goal(TargetLoss):
         predictor = Feature(feature) if isinstance(feature, str) else feature
         target = jnp.asarray(target)
         loss = HingeLoss(
-            expression=expression,
+            operator=operator,
             weight=weight,
             mask=mask,
             base_loss=loss,

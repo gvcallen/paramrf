@@ -5,7 +5,7 @@ A callable to be "solved" (i.e. minimized or sampled).
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.models.model import Model
+from pmrf.models.base import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
 

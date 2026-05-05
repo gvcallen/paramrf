@@ -6,7 +6,7 @@ from abc import abstractmethod
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.fields import field
+from pmrf.jax_utils import field
 from pmrf.parameters import Param, free
 
 

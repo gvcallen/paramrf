@@ -2,12 +2,13 @@
 Models that transform the ports or layout of another model.
 """
 import jax.numpy as jnp
-from parax import constrained
 
 import jax.numpy as jnp
-from pmrf.models import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.jax_utils import field
 
-class Renumbered(Model, transparent=True):
+class Renumbered(Model):
     """
     A container that re-numbers the ports of a given `Model`.
 
@@ -81,8 +82,8 @@ class Flipped(Renumbered):
     For a 4-port network, ports (1,2) are swapped with (3,4), and so on.
     This is a convenient specialization of the `Renumbered` model.
     """
-    to_ports: tuple[int] = constrained(init=False)
-    from_ports: tuple[int] = constrained(init=False)
+    to_ports: tuple[int] = field(init=False)
+    from_ports: tuple[int] = field(init=False)
 
     def __post_init__(self):
         if self.model.nports % 2 != 0:
@@ -93,11 +94,9 @@ class Flipped(Renumbered):
         self.from_ports = tuple(range(n, 2 * n)) + tuple(range(0, n))
 
         super().__post_init__()
-
-        self.name = 'flipped'
         
         
-class Stacked(Model, transparent=True):
+class Stacked(Model):
     """
     A container that stacks multiple models in a block-diagonal fashion.
 

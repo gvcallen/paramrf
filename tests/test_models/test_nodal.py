@@ -2,7 +2,7 @@
 import pytest
 import jax.numpy as jnp
 
-from pmrf.core import Frequency
+from pmrf.frequency import Frequency
 from pmrf.rf import s2y
 
 # Adjust imports based on your actual module structures

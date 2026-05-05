@@ -6,10 +6,11 @@ from abc import abstractmethod
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 
-from pmrf.core import Frequency, Model
+from pmrf.frequency import Frequency
+from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
 from pmrf.parameters import Param, free
-from pmrf.fields import field, frozen
+from pmrf.jax_utils import field
 
 class TransmissionLine(Model):
     r"""
@@ -159,7 +160,7 @@ class PhaseLine(TransmissionLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import PhaseLine
+        from pmrf.models import PhaseLine
 
         # Create an ideal 90-degree (quarter-wave) 50-ohm line at 1 GHz
         quarter_wave = PhaseLine(
@@ -211,7 +212,7 @@ class ConstantRLGCLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import ConstantRLGCLine
+        from pmrf.models import ConstantRLGCLine
 
         lossless_line = ConstantRLGCLine(
             L=368.8e-9,  # nH/m
@@ -265,7 +266,7 @@ class PhysicalLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import PhysicalLine
+        from pmrf.models import PhysicalLine
 
         line = PhysicalLine(
             zn=50.0,
@@ -344,7 +345,7 @@ class DatasheetLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import DatasheetLine
+        from pmrf.models import DatasheetLine
 
         cable = DatasheetLine(
             zn=50.0,
@@ -430,7 +431,7 @@ class CoaxialLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import CoaxialLine
+        from pmrf.models import CoaxialLine
 
         phys_cable = CoaxialLine(
             din=0.9e-3,
@@ -544,7 +545,7 @@ class MicrostripLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import MicrostripLine
+        from pmrf.models import MicrostripLine
 
         phys_microstrip = MicrostripLine(
             w=4e-3,

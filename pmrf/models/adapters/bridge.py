@@ -9,7 +9,8 @@ import equinox as eqx
 from functools import partial
 import concurrent.futures
 
-from pmrf.models import Model, Frequency
+from pmrf.frequency import Frequency
+from pmrf.models import Model
             
 def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     all_leaves = jax.tree.leaves((dynamic_vals, freq))

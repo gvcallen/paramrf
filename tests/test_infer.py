@@ -2,11 +2,11 @@
 import pytest
 import jax.numpy as jnp
 
-from pmrf.core import Frequency, Model
+from pmrf.frequency import Frequency
+from pmrf.models import Model
 from pmrf.infer.sample import sample
 from pmrf.fitting import fit_sample
-from pmrf.parameters import Param, Fixed, Free, free, bounded, Bounded, Uniform
-from pmrf.fields import field, frozen
+from pmrf.parameters import Param, Uniform
 
 # ---------------------------------------------------------
 # Fixtures

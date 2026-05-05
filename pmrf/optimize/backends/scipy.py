@@ -30,16 +30,17 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         **kwargs
     ) -> tuple[MinimizerPayload, PyTree]:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
+
+        options = self.options.update({'maxiter': max_iter})
         
         solver = JaxOptScipyBoundedMinimize(
             method=self.method,
             tol=self.tol,
-            options=self.options,
-            maxiter=max_iter,
+            options=options,
             fun=fn,
         )
         
-        y_opt, state = solver.run(y0, args, bounds=bounds, **kwargs)
+        y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
         payload = MinimizerPayload(y=y_opt)
         return payload, state
