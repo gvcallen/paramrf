@@ -7,7 +7,7 @@ from abc import abstractmethod
 import distreqx.distributions as dist
 import jax.numpy as jnp
 import equinox as eqx
-from parax import Param
+from parax import Tagged
 
 class DiscrepancyModel(eqx.Module):
     """
@@ -74,7 +74,7 @@ class CovarianceKernel(eqx.Module):
         from pmrf.covariance_kernels import SumKernel
         return SumKernel(self, other)
 
-    def __mul__(self, other: 'CovarianceKernel | Param | float') -> 'CovarianceKernel':
+    def __mul__(self, other: 'CovarianceKernel | Tagged | float') -> 'CovarianceKernel':
         from pmrf.covariance_kernels import ProductKernel, ConstantKernel
         
         if isinstance(other, CovarianceKernel):

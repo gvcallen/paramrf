@@ -21,15 +21,16 @@ from pmrf.core import (
     Likelihood as Likelihood,
     Loss as Loss,
     Model as Model,
-    model as model,
     NoiseModel as NoiseModel,
     CovarianceKernel as CovarianceKernel,
     Problem as Problem,
 )
 from pmrf.parameters import (
-    Parameter as Parameter,
     Param as Param,
-    param as param,
+    Free as Free,
+    free as free,
+    Fixed as Fixed,
+    fixed as fixed,
     Positive as Positive,
     positive as positive,
     Bounded as Bounded,
@@ -47,7 +48,11 @@ from pmrf.serialization import (
     load as load,
     save as save,
 )
-from pmrf.field import field as field
+from pmrf.field import (
+    field as field,
+    frozen as frozen,
+    model as model,
+)
 
 try:
     import skrf as rf
@@ -89,8 +94,8 @@ __all__ = [
     "NoiseModel",
     "Problem",
 
-    "Parameter",
     "Param",
+    "Tagged",
     "param",
     "Positive",
     "positive",

@@ -21,7 +21,7 @@ class GaussianLikelihood(Likelihood):
     must accept accept the prediction `y` and return an array that is either
     broadcastable to `(*batch_shape)` or to the full (*batch_shape, event_dims).
     """
-    noise: prx.Param | Callable[[jnp.ndarray], jnp.ndarray]
+    noise: prx.Tagged | Callable[[jnp.ndarray], jnp.ndarray]
 
     def __call__(self, y_event: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
         is_dist = isinstance(y_event, dist.AbstractDistribution)

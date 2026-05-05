@@ -52,7 +52,7 @@ class ConstantKernel(CovarianceKernel):
     variance : prx.Parameter
         Constant variance value (default 1.0).
     """
-    variance: prx.Param = 1.0
+    variance: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         return self.variance
@@ -67,7 +67,7 @@ class RBFKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Param = 1.0
+    lengthscale: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -88,8 +88,8 @@ class PeriodicKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    period: prx.Param = 1.0
-    lengthscale: prx.Param = 1.0
+    period: prx.Tagged = 1.0
+    lengthscale: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -113,7 +113,7 @@ class WhiteNoiseKernel(CovarianceKernel):
     variance : prx.Parameter
         Noise variance level (default 1.0).
     """
-    variance: prx.Param = 1.0
+    variance: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
@@ -133,7 +133,7 @@ class Matern32Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Param = 1.0
+    lengthscale: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -160,7 +160,7 @@ class Matern52Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Param = 1.0
+    lengthscale: prx.Tagged = 1.0
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale

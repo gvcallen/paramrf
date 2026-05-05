@@ -3,7 +3,7 @@ Specific topology layouts such as Pi-CLC or Box-CLCC networks.
 """
 import jax
 import jax.numpy as jnp
-from parax import Param
+from parax import Tagged
 
 from pmrf.core import Model, Frequency
 from pmrf.rf import y2s
@@ -28,9 +28,9 @@ class PiCLC(Model):
         If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
         If False, treats it as a standard 2-port network.
     """
-    C1: Param = 1.0e-12
-    L: Param = 1.0e-9
-    C2: Param = 1.0e-12
+    C1: Tagged = 1.0e-12
+    L: Tagged = 1.0e-9
+    C2: Tagged = 1.0e-12
 
     # def y(self, freq: Frequency) -> jnp.ndarray:
     #     if not self.three_port:
@@ -139,10 +139,10 @@ class BoxCLCC(Model):
     four_port : bool, default=False
         If True, exposes the network as a 4-port model.
     """    
-    C1: Param = 1.0e-12
-    L: Param = 1.0e-9
-    C2: Param = 1.0e-12
-    C3: Param = 1.0e-12
+    C1: Tagged = 1.0e-12
+    L: Tagged = 1.0e-9
+    C2: Tagged = 1.0e-12
+    C3: Tagged = 1.0e-12
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -234,9 +234,9 @@ class TeeLCL(Model):
     L2 : Parameter, default=1.0e-9
         The value of the second series inductor in Henrys.
     """
-    L1: Param = 1.0e-9
-    C: Param = 1.0e-12
-    L2: Param = 1.0e-9
+    L1: Tagged = 1.0e-9
+    C: Tagged = 1.0e-12
+    L2: Tagged = 1.0e-9
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -297,8 +297,8 @@ class LSectionLC(Model):
     C : Parameter, default=1.0e-12
         The value of the shunt capacitor in Farads.
     """
-    L: Param = 1.0e-9
-    C: Param = 1.0e-12
+    L: Tagged = 1.0e-9
+    C: Tagged = 1.0e-12
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(

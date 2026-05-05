@@ -6,7 +6,7 @@ from typing import Callable, Any, Dict
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from parax import Param, constrained
+from parax import Tagged, constrained
 
 from pmrf.core import Frequency, Model
 from pmrf.models.components.lines.uniform import RLGCLine
@@ -62,9 +62,9 @@ class ProfiledLine(Model):
     options: dict = constrained(static=True)
 
     # Parameters and sub-models
-    length: Param
-    profile_params: Dict[str, Dict[str, Param]] = constrained(transparent=True)
-    uniform_params: Dict[str, Param] = constrained(transparent=True)
+    length: Tagged
+    profile_params: Dict[str, Dict[str, Tagged]] = constrained(transparent=True)
+    uniform_params: Dict[str, Tagged] = constrained(transparent=True)
 
     def __init__(
         self, 

@@ -75,7 +75,7 @@ def test_single_property_routing(fine_freq):
 
 class DummyHostModel(Host):
     """A dummy host model representing an external simulator."""
-    val: prx.Param = 10.0
+    val: prx.Tagged = 10.0
     
     @property
     def primary_property(self): 
@@ -102,7 +102,7 @@ def test_host_model_single_execution(fine_freq):
 def test_host_model_vmap_multithreading(fine_freq):
     """Test that Host models successfully map batched parameters using the ThreadPool."""
     # Create a batch of 3 parameter values
-    batched_val = prx.Param(jnp.array([1.0, 2.0, 3.0]))
+    batched_val = prx.Tagged(jnp.array([1.0, 2.0, 3.0]))
     model = DummyHostModel(val=batched_val)
     
     # VMAP across the parameter dimension!
@@ -129,7 +129,7 @@ def test_continuous_callable(fine_freq):
         return (theta[0] * f_scaled).reshape(-1, 1, 1)
         
     model = ContinuousCallable(
-        theta=[prx.Param(2.0)], 
+        theta=[prx.Tagged(2.0)], 
         fn=dummy_fn
     )
     

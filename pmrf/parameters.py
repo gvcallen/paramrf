@@ -7,50 +7,95 @@ Builds on top of `parax`.
 import dataclasses
 from typing import Any
 
+import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 from parax.constraints import Interval, Positive as PositiveConstraint
+from parax.transforms import Scale
 from distreqx.distributions import Normal as DistNormal, Uniform as DistUniform
 
-Parameter = prx.ParamLike
-
-from parax import Param as Param
-
-def param(
-    default: Parameter = dataclasses.MISSING,
-    metadata: dict | None = None,
-) -> Any:
-    return prx.param(default=default, metadata=metadata)
-
 def _apply_wrappers(
-    var: prx.ParamLike, 
-    scale: float | str = 1.0, 
+    var: prx.Param, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if scale != 1.0:
-        var = prx.Physical(raw_value=var, scale=scale)
+        var = prx.Derived(Scale(scale), raw_value=var/scale)
     if fixed:
-        var = prx.Fixed(raw_value=var)
+        var = prx.Fixed(var)
     return var
+
+Param = prx.Param
+
+# ---------------------------------------------------------
+# Free
+# ---------------------------------------------------------
+
+def Free(
+    value: prx.Param,
+    scale: float = 1.0,
+) -> prx.Param:
+    """Create a free parameter."""
+    if scale != 1:
+        value = _apply_wrappers(value, scale=scale)
+    if not prx.is_param(value):
+        value = prx.as_param(value)
+    return value
+
+
+def free(
+    default: Any = dataclasses.MISSING,
+    scale: float = 1.0,
+) -> Any:
+    """Create a parameter field specifier that is free by default."""
+    if default is dataclasses.MISSING:
+        default = 1.0
+    def converter(x):
+        return x if isinstance(x, prx.AbstractVariable) else Free(x, scale)
+    return eqx.field(default=default, converter=converter)
+
+# ---------------------------------------------------------
+# Fixed
+# ---------------------------------------------------------
+
+def Fixed(
+    value: prx.Param,
+    scale: float = 1.0,
+) -> prx.Param:
+    """Create a fixed parameter."""
+    value = _apply_wrappers(value, scale=scale, fixed=True)
+    if not prx.is_param(value):
+        value = prx.as_param(value)
+    return value
+
+
+def fixed(
+    default: Any = dataclasses.MISSING,
+    scale: float = 1.0,
+) -> Any:
+    """Create a parameter field specifier that is fixed by default."""
+    if default is dataclasses.MISSING:
+        default = 1.0
+    def converter(x):
+        return x if isinstance(x, prx.AbstractVariable) else Fixed(x, scale)
+    return eqx.field(default=default, converter=converter)
 
 # ---------------------------------------------------------
 # Positive
 # ---------------------------------------------------------
 
 def Positive(
-    value: prx.ParamLike | None = None,
-    scale: float | str = 1.0,
+    value: prx.Param,
+    scale: float = 1.0,
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     """Create a parameter constrained to be positive."""
-    if value is None:
-        value = 1.0
-    var = prx.Constrained(value=value, constraint=PositiveConstraint())
+    var = prx.Constrained(constraint=PositiveConstraint(), value=value)
     return _apply_wrappers(var, scale, fixed)
 
 def positive(
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     """Field specifier for a positive-constrained parameter."""
@@ -67,20 +112,20 @@ def positive(
 def Bounded(
     lower: float, 
     upper: float, 
-    value: prx.ParamLike | None = None, 
-    scale: float | str = 1.0, 
+    value: prx.Param | None = None, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if value is None:
         value = (lower + upper) / 2.0
-    var = prx.Constrained(value=value, constraint=Interval(lower, upper))
+    var = prx.Constrained(constraint=Interval(lower, upper), value=value)
     return _apply_wrappers(var, scale, fixed)
 
 def bounded(
     lower: float,
     upper: float,
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     if default is dataclasses.MISSING:
@@ -96,10 +141,10 @@ def bounded(
 def Uniform(
     lower: float, 
     upper: float, 
-    value: prx.ParamLike | None = None, 
-    scale: float | str = 1.0, 
+    value: prx.Param | None = None, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if value is None:
         value = (lower + upper) / 2.0
     constrained_var = prx.Constrained(value=value, constraint=Interval(lower, upper))
@@ -110,7 +155,7 @@ def uniform(
     lower: float,
     upper: float,
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     if default is dataclasses.MISSING:
@@ -126,10 +171,10 @@ def uniform(
 def Normal(
     mean: float, 
     std: float, 
-    value: prx.ParamLike | None = None, 
-    scale: float | str = 1.0, 
+    value: prx.Param | None = None, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if value is None:
         value = mean
     lower = mean - 2.0 * std
@@ -142,7 +187,7 @@ def normal(
     mean: float,
     std: float,
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     if default is dataclasses.MISSING:
@@ -158,10 +203,10 @@ def normal(
 def CenteredUniform(
     center: float, 
     half_width: float, 
-    value: prx.ParamLike | None = None, 
-    scale: float | str = 1.0, 
+    value: prx.Param | None = None, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if value is None:
         value = center
     lower = center - half_width
@@ -172,7 +217,7 @@ def centered_uniform(
     center: float,
     half_width: float,
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     if default is dataclasses.MISSING:
@@ -188,10 +233,10 @@ def centered_uniform(
 def RelativeNormal(
     mean: float, 
     pct_std: float, 
-    value: prx.ParamLike | None = None, 
-    scale: float | str = 1.0, 
+    value: prx.Param | None = None, 
+    scale: float = 1.0, 
     fixed: bool = False
-) -> prx.ParamLike:
+) -> prx.Param:
     if value is None:
         value = mean
     std = mean * pct_std
@@ -201,7 +246,7 @@ def relative_normal(
     mean: float,
     pct_std: float,
     default: Any = dataclasses.MISSING,
-    scale: float | str = 1.0,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     if default is dataclasses.MISSING:

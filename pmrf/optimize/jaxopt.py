@@ -30,7 +30,6 @@ class LBFGSB(AbstractBoundedMinimizer):
         max_iter: int = 1024,
         **kwargs
     ) -> tuple[MinimizerPayload, PyTree]:
-        
         solver = jaxopt.LBFGSB(
             fun=fn,
             tol=self.tol,

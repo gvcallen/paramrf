@@ -26,6 +26,12 @@ from pmrf.optimize.optimistix import OptimistixMinimise
 from pmrf.optimize.jaxopt import (
     LBFGSB,
 )
+from pmrf.optimize.optimistix import (
+    NelderMead,
+    LBFGS,
+    BFGS,
+    GradientDescent,
+)
 
 # General module re-exports
 from pmrf.optimize import (
@@ -46,6 +52,10 @@ __all__ = [
     "ScipyMinimize",
     "OptimistixMinimise",
     "LBFGSB",
+    "LBFGS",
+    "BFGS",
+    "GradientDescent",
+    "NelderMead",
     "base",
     "scipy",
     "optimistix",
