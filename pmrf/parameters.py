@@ -1,3 +1,9 @@
+"""
+Parameters and parameter field specifiers.
+
+Builds on top of `parax`.
+"""
+
 import dataclasses
 from typing import Any
 
