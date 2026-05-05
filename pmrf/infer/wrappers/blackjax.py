@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import blackjax
 
-from pmrf.infer.backend.base import AbstractJointSampler, AbstractSplitSampler, SamplerPayload
+from pmrf.infer.wrappers.base import AbstractJointSampler, AbstractSplitSampler, SamplerPayload
 
 class NUTS(AbstractJointSampler):
     """

@@ -607,3 +607,22 @@ class Model(eqx.Module):
         
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
+    
+
+def model(factory: Callable[..., Model], *args, **kwargs) -> Any:
+    """
+    A field wrapper for initializing pmrf Models.
+
+    This ensures that default models are instantiated freshly for every 
+    parent object.
+
+    Examples
+    --------
+    # Default initialization
+    res: Resistor = pmrf.model(Resistor)
+
+    # Initialization with custom default parameters
+    clc: PiCLC = pmrf.model(PiCLC, C1=0.05e-12, L=0.1e-9)
+    """
+    # Create a deferred lambda that calls the factory with the provided args
+    return eqx.field(default_factory=lambda: factory(*args, **kwargs))

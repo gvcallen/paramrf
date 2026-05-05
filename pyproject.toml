@@ -13,6 +13,7 @@ dependencies = [
     "parax",
     "distreqx",
     "optimistix",
+    "jaxopt",
     "blackjax",
     "numpy",
     "scipy",

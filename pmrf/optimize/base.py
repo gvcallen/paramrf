@@ -5,12 +5,117 @@ from typing import Any, Callable
 import abc
 
 import jax.numpy as jnp
-from jaxtyping import PyTree
-import optimistix as optx
+from jaxtyping import PyTree, Scalar
 import equinox as eqx
 import parax as prx
 
 from pmrf.core import Model, Frequency
+
+
+class MinimizerPayload(eqx.Module):
+    """The core mathematical payload of a minimization run."""
+    #: The optimal arrays (y_opt)
+    y: PyTree
+
+
+class AbstractUnconstrainedMinimizer(eqx.Module):
+    """
+    An interface for JAX-wrapped minimization algorithms that require a single call.
+
+    The interface should accept pure PyTrees and return a standardized tuple.
+    """
+
+    @abc.abstractmethod
+    def run(
+        self,
+        fn: Callable[[PyTree, Any], Scalar],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizerPayload, PyTree]:
+        """
+        Execute the minimization algorithm.
+
+        Parameters
+        ----------
+        fn : callable
+            The objective function to minimize.
+        y0 : PyTree
+            The initial parameter guess.
+        args : Any
+            Args to pass to `fn`.            
+        max_iter: int = 1024
+            The maximum number of iterations to take.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        tuple
+            A tuple of `(MinimizerPayload, metrics)`.
+        """
+        raise NotImplementedError
+    
+
+class AbstractBoundedMinimizer(eqx.Module):
+    """
+    An interface for JAX-wrapped minimization algorithms
+    that cater for bounds.
+
+    The interface should accept pure PyTrees and return a standardized tuple.
+    """
+
+    @abc.abstractmethod
+    def run(
+        self,
+        fn: Callable[[PyTree, Any], Scalar],
+        y0: PyTree,
+        args: Any = None,
+        bounds: tuple[PyTree, PyTree] | None = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizerPayload, PyTree]:
+        """
+        Execute the minimization algorithm.
+
+        Parameters
+        ----------
+        fn : callable
+            The objective function to minimize.
+        y0 : PyTree
+            The initial parameter guess.
+        args : Any
+            Args to pass to `fn`.
+        bounds : PyTree
+            Bounds for `y0`, if any.
+        max_iter: int = 1024
+            The maximum number of iterations to take.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        tuple
+            A tuple of `(MinimizerPayload, metrics)`.
+        """
+        raise NotImplementedError
+    
+
+AbstractMinimizer = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer
+    
+
+def is_minimizer(x):
+    """
+    Returns True if x is an instance of `pmrf.optimize.AbstractUnconstrainedMinimizer`
+    or `pmrf.optimize.AbstractBoundedMinimizer`.
+    """
+    return isinstance(x, AbstractMinimizer)
+
+
+def is_optimizer(x):
+    """Returns True if `pmrf.optimize.is_minimizer` returns True."""
+    return is_minimizer(x)
 
 
 class OptimizeResult(prx.Module):
@@ -32,67 +137,3 @@ class OptimizeResult(prx.Module):
     #: May be a stripped-down version of the original results object.
     #: Not saved to file.
     solver_results: Any = prx.constrained(default=None, save=False)
-
-
-class AbstractCallableMinimizer(eqx.Module):
-    """
-    An interface for JAX-wrapped minimization algorithms that require a single `__call__`.
-
-    Provided to cater for algorithms that `Optimistix` does not support.
-
-    The interface should accept pure PyTrees and return a standardized `optx.Solution`.
-    """
-    #: Signifies whether the minimizer supports bounds or not.
-    #: If True, PyTree bounds will be passed in options['lower'] and options['upper'].
-    supports_bounds: eqx.AbstractClassVar[bool]
-
-    @abc.abstractmethod
-    def __call__(
-        self,
-        fn: Callable[[PyTree], PyTree],
-        y0: PyTree,
-        args: PyTree[Any],
-        options: dict[str, Any],
-        max_steps: int = 1024,
-        **kwargs
-    ) -> optx.Solution:
-        """
-        Execute the minimization algorithm.
-
-        Parameters
-        ----------
-        fn : callable
-            The objective function to minimize.
-        y0 : PyTree
-            The initial parameter guess.
-        args : PyTree
-            Additional static arguments passed to the objective function.
-        options : dict
-            Runtime configuration for the solver. If `supports_bounds` is True,
-            boundary constraints are provided here via 'lower' and 'upper' keys.
-        **kwargs
-            Runtime arguments forward to the solver backend.
-
-        Returns
-        -------
-        optx.Solution
-            A standard optimistix solution object containing the optimized parameters,
-            convergence status, and solver statistics.
-        """
-        raise NotImplementedError
-    
-def is_minimizer(x):
-    """
-    Returns if a solver is suitable for minimization in :mod:`pmrf.optimize.minimize`.
-
-    Returns `True` for :class:`pmrf.optimize.ScipyMinimize` and :class:`optimistix.AbstractMinimiser`.
-    """
-    return isinstance(x, AbstractCallableMinimizer | optx.AbstractMinimiser)
-
-def is_optimizer(x):
-    """
-    Returns if a solver is suitable for frequentist optimization in :mod:`pmrf.optimize`.
-
-    Returns `True` for :class:`pmrf.optimize.ScipyMinimize` and :class:`optimistix.AbstractMinimiser`.
-    """
-    return is_minimizer(x)

@@ -4,7 +4,10 @@ The core module, containing the core classes in ParamRF.
 Re-exported at root.
 """
 
-from pmrf.core.model import Model as Model
+from pmrf.core.model import (
+    Model as Model,
+    model as model,
+)
 from pmrf.core.frequency import Frequency as Frequency
 from pmrf.core.loss import (
     Loss as Loss,
@@ -36,6 +39,7 @@ __all__ = [
     "Likelihood",
     "Loss",
     "Model",
+    "model",
     "NoiseModel",
     "CovarianceKernel",
     "Problem",

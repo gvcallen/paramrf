@@ -5,9 +5,9 @@ Adapters that wrap callables representing external models.
 from typing import Callable, Sequence
 
 import jax.numpy as jnp
-import parax as prx
 
 from pmrf.core import Frequency
+from pmrf.parameters import Parameter
 from pmrf.models.adapters.base import SingleProperty, SingleDiscreteProperty
     
 class ContinuousCallable(SingleProperty):
@@ -20,7 +20,7 @@ class ContinuousCallable(SingleProperty):
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
     #: If a list is provided, the parameters are first stacked.
-    theta: prx.Param | list[prx.Param] = None
+    theta: Parameter | list[Parameter] = None
     
     #: The underlying callable model which predicts the response as a function of scaled frequency.
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.

@@ -21,14 +21,33 @@ from pmrf.core import (
     Likelihood as Likelihood,
     Loss as Loss,
     Model as Model,
+    model as model,
     NoiseModel as NoiseModel,
     CovarianceKernel as CovarianceKernel,
     Problem as Problem,
+)
+from pmrf.parameters import (
+    Parameter as Parameter,
+    Param as Param,
+    param as param,
+    Positive as Positive,
+    positive as positive,
+    Bounded as Bounded,
+    bounded as bounded,
+    Uniform as Uniform,
+    uniform as uniform,
+    Normal as Normal,
+    normal as normal,
+    CenteredUniform as CenteredUniform,
+    centered_uniform as centered_uniform,
+    RelativeNormal as RelativeNormal,
+    relative_normal as relative_normal,
 )
 from pmrf.serialization import (
     load as load,
     save as save,
 )
+from pmrf.field import field as field
 
 try:
     import skrf as rf
@@ -66,12 +85,30 @@ __all__ = [
     "Likelihood",
     "Loss",
     "Model",
+    "model",
     "NoiseModel",
     "Problem",
+
+    "Parameter",
+    "Param",
+    "param",
+    "Positive",
+    "positive",
+    "Bounded",
+    "bounded",
+    "Uniform",
+    "uniform",
+    "Normal",
+    "normal",
+    "CenteredUniform",
+    "centered_uniform",
+    "RelativeNormal",
+    "relative_normal",
     
     # Utilities & Functions
     "load",
     "save",
+    "field",
     
     # Sub-modules
     "covariance_kernels",

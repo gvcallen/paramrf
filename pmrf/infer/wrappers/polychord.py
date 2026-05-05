@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 import logging
 
 import equinox as eqx
@@ -17,9 +17,9 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import SamplingResult, AbstractCallableSampler
+from pmrf.infer.wrappers.base import AbstractHypercubeSampler, SamplerPayload
 
-class PolyChord(AbstractCallableSampler):
+class PolyChord(AbstractHypercubeSampler):
     """
     A JAX-wrapped Nested Sampler using PolyChord.
 
@@ -120,17 +120,18 @@ class PolyChord(AbstractCallableSampler):
     def requires_hypercube(self):
         return True 
     
-    def __call__(
+    def sample(
         self,
-        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
-        prior_fn: Callable[[PyTree, Any], PyTree],
+        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        prior_transform_fn: Callable[[PyTree], PyTree],
         y0: PyTree,
-        init_samples: PyTree | None,
         key: Array,
-        args: PyTree[Any],
-        options: dict[str, Any],
-        max_steps: int | None,
-    ) -> SamplingResult:
+        args: PyTree[Any] = None,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        has_aux: bool = False,
+        **kwargs,
+    ) -> tuple[SamplerPayload, PyTree]:
         if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
@@ -141,10 +142,9 @@ class PolyChord(AbstractCallableSampler):
         max_ndead = max_steps if max_steps is not None else -1
         
         # Combine options
-        options = options or {}
         base_kwargs = {
             'nlive': self.nlive,
-            'num_repeats': self.num_repeats if self.num_repeats is not None else ndims*5,
+            'num_repeats': self.num_repeats if self.num_repeats is not None else ndims * 5,
             'nprior': self.nprior,
             'nfail': self.nfail,
             'do_clustering': self.do_clustering,
@@ -174,7 +174,7 @@ class PolyChord(AbstractCallableSampler):
             'paramnames': self.paramnames,
         }
         
-        unknown_options = options.keys() - base_kwargs.keys() - {'nlive'}
+        unknown_options = kwargs.keys() - base_kwargs.keys() - {'nlive'}
         if unknown_options:
             raise ValueError(f"PolyChord sample got unknown options: {unknown_options}")
         
@@ -183,18 +183,19 @@ class PolyChord(AbstractCallableSampler):
             cube_samples = jax.vmap(flatten_single)(init_samples)
             base_kwargs['cube_samples'] = np.array(cube_samples)
         
-        base_kwargs.update(options)
+        base_kwargs.update(kwargs)
 
         # 2. JIT-COMPILED BRIDGES
         @jax.jit
         def jitted_likelihood(flat_theta_jax):
             struct_theta = reconstruct_fn(flat_theta_jax)
-            return loglikelihood_fn(struct_theta, args)
+            res = loglikelihood_fn(struct_theta, args)
+            return res[0] if has_aux else res
 
         @jax.jit
         def jitted_prior(flat_u_jax):
             struct_u = reconstruct_fn(flat_u_jax)
-            struct_theta = prior_fn(struct_u, args)
+            struct_theta = prior_transform_fn(struct_u)
             flat_theta, _ = jax.flatten_util.ravel_pytree(struct_theta)
             return flat_theta
 
@@ -206,7 +207,7 @@ class PolyChord(AbstractCallableSampler):
             return np.array(jitted_prior(jnp.asarray(u_np)))
         
         # Warmup / Test evaluation
-        _dummy_prior = polychord_prior(0.5*np.ones(ndims))
+        _dummy_prior = polychord_prior(0.5 * np.ones(ndims))
         _dummy_logL = polychord_likelihood(_dummy_prior)
 
         # 3. EXECUTE POLYCHORD
@@ -230,13 +231,29 @@ class PolyChord(AbstractCallableSampler):
             except Exception as e:
                 logging.debug(f"Could not extract logZ from anesthetic NestedSamples: {e}")
         
-        # 4. RESTRUCTURE RESULTS
+        # 4. RESTRUCTURE RESULTS & RECOVER AUX
         structured_samples = jax.vmap(reconstruct_fn)(jnp.array(samples))
+        
+        if has_aux:
+            def eval_aux(y):
+                _, aux = loglikelihood_fn(y, args)
+                return aux
+            auxes = jax.vmap(eval_aux)(structured_samples)
+        else:
+            auxes = None
 
-        return SamplingResult(
+        # 5. ASSEMBLE PAYLOAD AND METRICS
+        payload = SamplerPayload(
             samples=structured_samples,
-            loglikelihoods=loglikes,
+            fn_values=loglikes,
             weights=weights,
-            logevidence=logevidence,
-            stats={'nested_samples': nested_samples, 'max_steps': max_steps}            
+            auxes=auxes
         )
+
+        metrics = {
+            'nested_samples': nested_samples,
+            'logZ': logevidence,
+            'max_steps': max_steps
+        }
+
+        return payload, metrics

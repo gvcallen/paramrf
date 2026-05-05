@@ -19,7 +19,7 @@ class Discrete(Model, ABC):
     The base Model conversions (s2a, s2z, etc.) will be applied automatically
     to the interpolated values.
     """
-    frequency: Frequency = None
+    frequency: Frequency = eqx.field(default=None)
 
     # Tabulated data entry points
     def s_discrete(self) -> jnp.ndarray: raise NotImplementedError
@@ -84,7 +84,7 @@ class SingleProperty(Model, ABC):
     A model that acts as a wrapper around a single known property type 
     (e.g., a data file that only contains S-parameters).
     """
-    kind: str = 's'
+    kind: str = eqx.field(default='s', static=True)
 
     @property
     def primary_property(self) -> str:
