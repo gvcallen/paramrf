@@ -8,6 +8,7 @@ import equinox as eqx
 from pmrf.models.base import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
+from pmrf.jax_utils import field, as_frozen, unwrap
 
 class Problem(eqx.Module):
     """
@@ -21,7 +22,7 @@ class Problem(eqx.Module):
     model: Model
     
     #: The frequency range or points over which the model is evaluated.
-    frequency: Frequency
+    frequency: Frequency = field(converter=as_frozen)
     
     #: The operator (e.g., a Likelihood or Loss) that maps the model 
     #: and frequency to a scalar or array result.
@@ -36,4 +37,4 @@ class Problem(eqx.Module):
         jnp.ndarray
             The result of evaluating the model with the stored evaluator and frequency.
         """        
-        return self.evaluator(self.model, self.frequency, *args, **kwargs)
+        return self.evaluator(self.model, unwrap(self.frequency), *args, **kwargs)

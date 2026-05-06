@@ -7,6 +7,7 @@ from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine
 from pmrf.fitting import fit_minimize
 from pmrf.parameters import Fixed, Bounded
+from pmrf.problem import Problem
 
 # ---------------------------------------------------------
 # Fixtures

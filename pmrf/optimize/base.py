@@ -115,7 +115,6 @@ def is_optimizer(x):
     return is_minimizer(x)
 
 
-@eqx.filter_jit
 def minimize(
     fn: Callable[[PyTree, Any], Scalar], 
     y0: PyTree, 
@@ -158,6 +157,6 @@ def minimize(
         payload, metrics = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
-        final_model = prx.unwrap(eqx.combine(payload.y, static))
+        final_model = eqx.combine(payload.y, static)
 
     return final_model, payload, metrics

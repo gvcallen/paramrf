@@ -17,7 +17,7 @@ from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.jax_utils import field
+from pmrf.jax_utils import field, as_frozen, unwrap
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -140,7 +140,7 @@ class TargetLoss(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
     #: The fixed or 'true' target that the loss function should compare the prediction to.
-    target: jnp.ndarray
+    target: jnp.ndarray = field(converter=as_frozen)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
@@ -149,7 +149,7 @@ class TargetLoss(AbstractEvaluator):
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
-        return self.loss(self.target, y_pred)
+        return self.loss(unwrap(self.target), y_pred)
     
     
 class MarginalLogLikelihood(AbstractEvaluator):
@@ -170,7 +170,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     
     #: The observed data that the log probability will be computed of.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray
+    observed: jnp.ndarray = field(converter=as_frozen)
     
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
     #: Can be a function or a PyTree with optional parameters.
@@ -201,9 +201,10 @@ class MarginalLogLikelihood(AbstractEvaluator):
         if self.event_ndims != 1:
             raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
         
+        observed = unwrap(self.observed)
         if self.event_transform is None:
-            ndims = self.observed.ndim
-            if jnp.iscomplexobj(self.observed):
+            ndims = observed.ndim
+            if jnp.iscomplexobj(observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
             else:
@@ -211,10 +212,10 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        
+        observed = unwrap(self.observed)
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(self.observed)
+        obs_event = self.event_transform.forward(observed)
         batch_ndims = obs_event.ndim - self.event_ndims
         def eval_log_prob(d, x):
             return d.log_prob(x)
@@ -303,7 +304,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     
     #: The observed data that the loss will be computed against.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray
+    observed: jnp.ndarray = field(converter=as_frozen)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
@@ -331,9 +332,10 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         if self.event_ndims != 1:
             raise Exception("GibbsMarginalLogLikelihood currently only supports a single dependent event dimension")
         
+        observed = unwrap(self.observed)
         if self.event_transform is None:
-            ndims = self.observed.ndim
-            if jnp.iscomplexobj(self.observed):
+            ndims = observed.ndim
+            if jnp.iscomplexobj(observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
             else:

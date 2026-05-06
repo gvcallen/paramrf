@@ -7,17 +7,16 @@ import eqxpress as ex
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
-from pmrf.optimize.base import AbstractMinimizer, minimize as minimize_base
+from pmrf.optimize.base import AbstractMinimizer, minimize as base_minimize
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.backends.jaxopt import LBFGSB
+from pmrf.optimize.backends.scipy import ScipyMinimize
 
 
-@eqx.filter_jit
 def minimize(
     objective: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
     model: Model,
     frequency: Frequency,
-    solver: AbstractMinimizer = LBFGSB(),
+    solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
     search_space: str = 'base',
     **kwargs,
@@ -52,6 +51,9 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
+    if search_space != 'base':
+        raise Exception('Only base search space is currently supported')
+    
     if isinstance(objective, list):
         objective = ex.Sum([c if isinstance(c, eqx.Module) else ex.Lambda(c) for c in objective])
     else:
@@ -61,7 +63,7 @@ def minimize(
     problem = Problem(model=model, frequency=frequency, evaluator=objective)
     
     # Run the optimization
-    opt_problem, payload, metrics = minimize_base(
+    opt_problem, payload, metrics = base_minimize(
         lambda p, _args: p(),
         y0=problem,
         solver=solver,
