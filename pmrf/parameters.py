@@ -7,7 +7,6 @@ Builds on top of `parax`.
 import dataclasses
 from typing import Any
 
-import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 from parax.constraints import Interval, Positive as PositiveConstraint
@@ -33,6 +32,7 @@ Param = prx.Param
 
 def Free(
     value: prx.Param,
+    *,
     scale: float = 1.0,
 ) -> prx.Param:
     """Create a free parameter."""
@@ -44,15 +44,16 @@ def Free(
 
 
 def free(
-    default: Any = dataclasses.MISSING,
+    value: Any = dataclasses.MISSING,
+    *,
     scale: float = 1.0,
 ) -> Any:
     """Create a parameter field specifier that is free by default."""
-    if default is dataclasses.MISSING:
-        default = 1.0
+    if value is dataclasses.MISSING:
+        value = 1.0
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Free(x, scale)
-    return eqx.field(default=default, converter=converter)
+        return Free(x, scale=scale)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # Fixed
@@ -60,6 +61,7 @@ def free(
 
 def Fixed(
     value: prx.Param,
+    *,
     scale: float = 1.0,
 ) -> prx.Param:
     """Create a fixed parameter."""
@@ -70,15 +72,16 @@ def Fixed(
 
 
 def fixed(
-    default: Any = dataclasses.MISSING,
+    value: Any = dataclasses.MISSING,
+    *,
     scale: float = 1.0,
 ) -> Any:
     """Create a parameter field specifier that is fixed by default."""
-    if default is dataclasses.MISSING:
-        default = 1.0
+    if value is dataclasses.MISSING:
+        value = 1.0
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Fixed(x, scale)
-    return eqx.field(default=default, converter=converter)
+        return Fixed(x, scale=scale)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # Positive
@@ -86,6 +89,7 @@ def fixed(
 
 def Positive(
     value: prx.Param,
+    *,
     scale: float = 1.0,
     fixed: bool = False
 ) -> prx.Param:
@@ -94,16 +98,17 @@ def Positive(
     return _apply_wrappers(var, scale, fixed)
 
 def positive(
-    default: Any = dataclasses.MISSING,
+    value: Any = dataclasses.MISSING,
+    *,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
     """Field specifier for a positive-constrained parameter."""
-    if default is dataclasses.MISSING:
-        default = 1.0
+    if value is dataclasses.MISSING:
+        value = 1.0
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Positive(x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        return Positive(x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # Bounded
@@ -112,6 +117,7 @@ def positive(
 def Bounded(
     lower: float, 
     upper: float, 
+    *,
     value: prx.Param | None = None, 
     scale: float = 1.0, 
     fixed: bool = False
@@ -124,15 +130,16 @@ def Bounded(
 def bounded(
     lower: float,
     upper: float,
-    default: Any = dataclasses.MISSING,
+    *,
+    value: Any = dataclasses.MISSING,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
-    if default is dataclasses.MISSING:
-        default = (lower + upper) / 2.0
+    if value is dataclasses.MISSING:
+        value = (lower + upper) / 2.0
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Bounded(lower, upper, x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        return Bounded(lower, upper, value=x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # Uniform
@@ -141,6 +148,7 @@ def bounded(
 def Uniform(
     lower: float, 
     upper: float, 
+    *,
     value: prx.Param | None = None, 
     scale: float = 1.0, 
     fixed: bool = False
@@ -154,15 +162,16 @@ def Uniform(
 def uniform(
     lower: float,
     upper: float,
-    default: Any = dataclasses.MISSING,
+    *,
+    value: Any = dataclasses.MISSING,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
-    if default is dataclasses.MISSING:
-        default = (lower + upper) / 2.0
+    if value is dataclasses.MISSING:
+        value = (lower + upper) / 2.0
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Uniform(lower, upper, x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        return Uniform(lower, upper, value=x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # Normal
@@ -171,6 +180,7 @@ def uniform(
 def Normal(
     mean: float, 
     std: float, 
+    *,
     value: prx.Param | None = None, 
     scale: float = 1.0, 
     fixed: bool = False
@@ -186,15 +196,16 @@ def Normal(
 def normal(
     mean: float,
     std: float,
-    default: Any = dataclasses.MISSING,
+    *,
+    value: Any = dataclasses.MISSING,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
-    if default is dataclasses.MISSING:
-        default = mean
+    if value is dataclasses.MISSING:
+        value = mean
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else Normal(mean, std, x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        return Normal(mean, std, value=x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # CenteredUniform
@@ -203,6 +214,7 @@ def normal(
 def CenteredUniform(
     center: float, 
     half_width: float, 
+    *,
     value: prx.Param | None = None, 
     scale: float = 1.0, 
     fixed: bool = False
@@ -216,15 +228,16 @@ def CenteredUniform(
 def centered_uniform(
     center: float,
     half_width: float,
-    default: Any = dataclasses.MISSING,
+    *,
+    value: Any = dataclasses.MISSING,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
-    if default is dataclasses.MISSING:
-        default = center
+    if value is dataclasses.MISSING:
+        value = center
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else CenteredUniform(center, half_width, x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        return CenteredUniform(center, half_width, value=x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)
 
 # ---------------------------------------------------------
 # RelativeNormal
@@ -233,6 +246,7 @@ def centered_uniform(
 def RelativeNormal(
     mean: float, 
     pct_std: float, 
+    *,
     value: prx.Param | None = None, 
     scale: float = 1.0, 
     fixed: bool = False
@@ -245,12 +259,13 @@ def RelativeNormal(
 def relative_normal(
     mean: float,
     pct_std: float,
-    default: Any = dataclasses.MISSING,
+    *,
+    value: Any = dataclasses.MISSING,
     scale: float = 1.0,
     fixed: bool = False
 ) -> Any:
-    if default is dataclasses.MISSING:
-        default = mean
+    if value is dataclasses.MISSING:
+        value = mean
     def converter(x):
-        return x if isinstance(x, prx.AbstractVariable) else RelativeNormal(mean, pct_std, x, scale, fixed)
-    return eqx.field(default=default, converter=converter)
+        RelativeNormal(mean, pct_std, value=x, scale=scale, fixed=fixed)
+    return eqx.field(default=value, converter=converter)

@@ -37,4 +37,4 @@ class Problem(eqx.Module):
         jnp.ndarray
             The result of evaluating the model with the stored evaluator and frequency.
         """        
-        return self.evaluator(self.model, unwrap(self.frequency), *args, **kwargs)
+        return unwrap(self.evaluator)(unwrap(self.model), unwrap(self.frequency), *args, **kwargs)

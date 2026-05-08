@@ -3,6 +3,7 @@ from typing import Callable
 import jax.numpy as jnp
 import equinox as eqx
 import eqxpress as ex
+import parax as prx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
@@ -55,9 +56,9 @@ def minimize(
         raise Exception('Only base search space is currently supported')
     
     if isinstance(objective, list):
-        objective = ex.Sum([c if isinstance(c, eqx.Module) else ex.Lambda(c) for c in objective])
+        objective = ex.Sum([c if isinstance(c, eqx.Module) else prx.Static(ex.Lambda(c)) for c in objective])
     else:
-        objective = objective if isinstance(objective, eqx.Module) else ex.Lambda(objective)
+        objective = objective if isinstance(objective, eqx.Module) else prx.Static(ex.Lambda(objective))
     
     # Create the combined problem
     problem = Problem(model=model, frequency=frequency, evaluator=objective)

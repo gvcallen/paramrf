@@ -7,6 +7,7 @@ import abc
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
 import parax as prx
+from pmrf.jax_utils import partition
 
 
 class MinimizerPayload(eqx.Module):
@@ -127,19 +128,18 @@ def minimize(
     Optimizes a general PyTree potentially containing Parax parameters using either a bounded or unconstrained solver.
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
-    filter_spec = eqx.is_inexact_array
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        base_tree = prx.bounded.tree_base(y0)
+        base_tree = prx.unwrap(y0, only_if=prx.is_bounded)
         lower_bounds, upper_bounds = prx.bounded.tree_bounds(y0)
         
-        params, static = eqx.partition(base_tree, filter_spec, is_leaf=prx.is_constant)
-        lower, _ = eqx.partition(lower_bounds, filter_spec, is_leaf=prx.is_constant)
-        upper, _ = eqx.partition(upper_bounds, filter_spec, is_leaf=prx.is_constant)
+        params, static = partition(base_tree)
+        lower, _ = partition(lower_bounds)
+        upper, _ = partition(upper_bounds)
         bounds = (lower, upper)
     else:
-        params, static = eqx.partition(y0, filter_spec, is_leaf=prx.is_constant)
+        params, static = partition(y0)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:
@@ -152,7 +152,7 @@ def minimize(
             fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
         opt_base = eqx.combine(payload.y, static)
-        final_model = prx.bounded.tree_update(y0, opt_base)
+        final_model = prx.wrap(y0, opt_base, only_if=prx.is_bounded)
     else:
         payload, metrics = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
