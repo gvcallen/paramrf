@@ -11,7 +11,7 @@ import equinox as eqx
 import parax as prx
 from parax.constraints import Interval, Positive as PositiveConstraint
 from parax.transforms import Scale
-from distreqx.distributions import Normal as DistNormal, Uniform as DistUniform
+import distreqx.distributions as dist
 
 def _apply_wrappers(
     var: prx.Param, 
@@ -155,8 +155,7 @@ def Uniform(
 ) -> prx.Param:
     if value is None:
         value = (lower + upper) / 2.0
-    constrained_var = prx.Constrained(value=value, constraint=Interval(lower, upper))
-    var = prx.Random(distribution=DistUniform(lower, upper), raw_value=constrained_var)
+    var = prx.Random(dist.Uniform(lower, upper), value=value)
     return _apply_wrappers(var, scale, fixed)
 
 def uniform(
@@ -190,7 +189,7 @@ def Normal(
     lower = mean - 2.0 * std
     upper = mean + 2.0 * std
     constrained_var = prx.Constrained(value=value, constraint=Interval(lower, upper))
-    var = prx.Random(distribution=DistNormal(mean, std), raw_value=constrained_var)
+    var = prx.Random(distribution=dist.Normal(mean, std), raw_value=constrained_var)
     return _apply_wrappers(var, scale, fixed)
 
 def normal(

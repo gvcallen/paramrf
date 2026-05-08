@@ -70,10 +70,10 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
         ),
     )
     
-    assert isinstance(result.model, DummyInferModel)
-    assert result.model.val.physical_value > 0.0 
+    assert isinstance(result.best_model, DummyInferModel)
+    assert result.best_model.val.physical_value > 0.0 
     
-    groups = result.model.param_groups()
+    groups = result.best_model.param_groups()
     assert len(groups) > 0
     posterior_dist = groups[0].distribution
     assert isinstance(posterior_dist, distreqx.distributions.WeightedEmpirical)
@@ -82,9 +82,9 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     assert mean_val.shape == (1,)
     assert not jnp.isnan(mean_val)
     
-    batched_model = result.sampled_models
+    batched_model = result.sampled_model
     assert isinstance(batched_model, DummyInferModel)
-    n_samples = result.loglikelihood_values.shape[0]
+    n_samples = result.fn_values.shape[0]
     assert batched_model.val.physical_value.shape == (n_samples,)
 
 
@@ -123,5 +123,5 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
     )
     
     assert isinstance(result.model, DummyInferModel)
-    n_samples = result.solution.loglikelihood_values.shape[0]
-    assert result.solution.sampled_models.val.value.shape == (n_samples,)
+    n_samples = result.metrics.fn_values.shape[0]
+    assert result.metrics.sampled_model.val.value.shape == (n_samples,)

@@ -14,47 +14,41 @@ class InferResult(eqx.Module):
     """
     The result of an inference run.
 
-    Contains the resultant maximum likelihood estimates, as well as the samples as batched models
-    and weights for nested sampling runs.
-
-    Note that all batched objects only contain the relevant free parameters.
-    To retrieve a full model, combine it using `eqx.combine` with its dynamic part.
-    For example, to retrieve `sampled_models_full`, call `eqx.combine(result.sampled_models, result.model)`.
+    Contains the resultant maximum likelihood/maximum a posterior estimates,
+    as well as the samples, function values and weights for nested sampling runs.
     """
-    #: The RF model containing the maximum likelihood parameters and the posterior over parameters.
-    #: Contains the optimized variational posterior distributions for variational inference.
-    model: Model
+    #: The model containing the maximum likelihood or maximum a posterior parameters.
+    best_model: Model
 
     #: The log likelihood function/model used to calculate the log likelihood during inference.
     #: If the log likelihood was a module with parameters, then this contains
-    #: the maximum likelihood log likelihood model.
+    #: the maximum likelihood or maximum a posteriori model.
     loglikelihood: Callable[[Model, Frequency], jnp.ndarray]
     
-    #: A batched model containing the sampled models.
+    #: A batched model containing the sampled model parameters.
     #: Only populated for Bayesian sampling algorithms.
-    sampled_models: Model | None = None
+    sampled_model: Model = None
     
-    #: A batched model containing the sampled log likelihoods if an evaluator was used.
+    #: A batched model containing the sampled log likelihood parameters, if any.
     #: Only populated for Bayesian sampling algorithms.
-    sampled_loglikelihoods: jnp.ndarray | None = None
+    sampled_loglikelihood: Callable | eqx.Module = None
         
     #: The log-likelihood values related to each sample for Bayesian sampling.
     #: Only populated for Bayesian sampling algorithms.
-    loglikelihood_values: jnp.ndarray | None = None
+    fn_values: jnp.ndarray = None
     
     #: The weights related to each sample for Bayesian sampling, if any.
-    weights: jnp.ndarray | None = None
+    weights: jnp.ndarray = None
 
     #: The estimated log evidence, if any.
-    logevidence: jnp.ndarray | None = None
+    logevidence: jnp.ndarray = None
     
     #: The estimated error in the log evidence, if any.
-    logevidence_err: jnp.ndarray | None = None
+    logevidence_err: jnp.ndarray = None
     
-    #: The underlying results object returned by the solver, if any.
+    #: The underlying metrics returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
-    #: Note saved to file.
-    solver_results: Any = field(default=None)
+    metrics: Any = field(default=None)
        
     def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
         """Helper method to extract, format, and check parameter data for export."""
@@ -62,7 +56,7 @@ class InferResult(eqx.Module):
         m_prefix = f"{model_prefix}_" if model_prefix else ""
         l_prefix = f"{likelihood_prefix}_" if likelihood_prefix else ""
         
-        model_param_names = [f"{m_prefix}{name}" for name in self.model.flat_param_names()]
+        model_param_names = [f"{m_prefix}{name}" for name in self.best_model.flat_param_names()]
         
         likelihood_param_names = []
         
@@ -77,8 +71,8 @@ class InferResult(eqx.Module):
             
         # 3. Flatten and vmap
         flatten_fn = lambda m: jax.flatten_util.ravel_pytree(m)[0]
-        sampled_model_params = jax.vmap(flatten_fn)(self.sampled_models)
-        sampled_loglikelihood_params = jax.vmap(flatten_fn)(self.sampled_loglikelihoods)          
+        sampled_model_params = jax.vmap(flatten_fn)(self.sampled_model)
+        sampled_loglikelihood_params = jax.vmap(flatten_fn)(self.sampled_loglikelihood)          
         
         # 4. Concatenate and cast to standard numpy
         sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_loglikelihood_params)))
@@ -111,7 +105,7 @@ class InferResult(eqx.Module):
             
         # 3. Extract sample statistics
         sample_stats = {
-            "loglikelihood": np.expand_dims(np.asarray(self.loglikelihood_values), axis=0)
+            "loglikelihood": np.expand_dims(np.asarray(self.fn_values), axis=0)
         }
         if self.weights is not None:
             sample_stats["weights"] = np.expand_dims(np.asarray(self.weights), axis=0)
@@ -142,7 +136,7 @@ class InferResult(eqx.Module):
         df = pd.DataFrame(sampled_params, columns=param_names)
         
         # 3. Extract sample statistics
-        logL = np.asarray(self.loglikelihood_values)
+        logL = np.asarray(self.fn_values)
         weights = np.asarray(self.weights) if self.weights is not None else None
         
         # 4. Determine which Anesthetic object to build

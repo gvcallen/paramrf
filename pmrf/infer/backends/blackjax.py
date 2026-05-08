@@ -32,7 +32,7 @@ class NUTS(AbstractJointSampler):
     ) -> tuple[SamplerPayload, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
-        if init_samples is None:
+        if init_samples is not None:
             raise ValueError("BlackJAX `NUTS` does not yet support initial samples.")
 
         # 1. Create a pure scalar logprob function for the MCMC integrator
@@ -112,7 +112,7 @@ class HMC(AbstractJointSampler):
     ) -> tuple[SamplerPayload, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
-        if init_samples is None:
+        if init_samples is not None:
             raise ValueError("BlackJAX `NUTS` does not yet support initial samples.")        
 
         # 1. Create a pure scalar logprob function

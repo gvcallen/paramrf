@@ -24,4 +24,4 @@ class OptimizeResult(eqx.Module):
     #: The underlying results object returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
     #: Not saved to file.
-    solver_results: Any = None
+    metrics: Any = None

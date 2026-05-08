@@ -194,8 +194,6 @@ class MarginalLogLikelihood(AbstractEvaluator):
     event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
-        raise NotImplementedError("MarginalLogLikelihood is temporarily unimplemented")
-
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
         # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
         if self.event_ndims != 1:
@@ -217,6 +215,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(observed)
         batch_ndims = obs_event.ndim - self.event_ndims
+        
         def eval_log_prob(d, x):
             return d.log_prob(x)
         mapped_log_prob = eval_log_prob
@@ -420,6 +419,8 @@ class NegativeLogPosterior(AbstractEvaluator):
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        raise Exception("NegativeLogPosterior is currently unavailable")
+
         nll = -self.mll(model, frequency, **kwargs)
         nlps = [-log_prob(mod) for mod in [model, self.mll]]
         return nll + jnp.sum(jnp.array(nlps))

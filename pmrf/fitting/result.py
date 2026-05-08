@@ -20,12 +20,15 @@ class FitResult(eqx.Module):
     #: The frequeny used for the fit.
     frequency: Frequency | None = None
 
-    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` solution.
-    solution: OptimizeResult | InferResult | None = None
+    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
+    metrics: OptimizeResult | InferResult | None = None
     
     @property
     def model(self):
-        return self.solution.model
+        """
+        The fitted model.
+        """
+        return self.metrics.best_model
 
     def plot(self, features: str | list[str] | AbstractEvaluator = 's', ax=None, **kwargs):
         """

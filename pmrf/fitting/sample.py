@@ -150,5 +150,5 @@ def fit_sample(
     return FitResult(
         data=data,
         frequency=frequency,
-        solution=infer_result,
+        metrics=infer_result,
     )

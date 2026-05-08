@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import jax.flatten_util
 import numpy as np
-from jaxtyping import PyTree, Array
+from jaxtyping import PyTree, Array, Scalar
 
 MPI_AVAILABLE = False
 try:
@@ -122,14 +122,13 @@ class PolyChord(AbstractHypercubeSampler):
     
     def sample(
         self,
-        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
         prior_transform_fn: Callable[[PyTree], PyTree],
         y0: PyTree,
         key: Array,
         args: PyTree[Any] = None,
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
-        has_aux: bool = False,
         **kwargs,
     ) -> tuple[SamplerPayload, PyTree]:
         if not MPI_AVAILABLE:
@@ -189,8 +188,7 @@ class PolyChord(AbstractHypercubeSampler):
         @jax.jit
         def jitted_likelihood(flat_theta_jax):
             struct_theta = reconstruct_fn(flat_theta_jax)
-            res = loglikelihood_fn(struct_theta, args)
-            return res[0] if has_aux else res
+            return loglikelihood_fn(struct_theta, args)
 
         @jax.jit
         def jitted_prior(flat_u_jax):
@@ -231,23 +229,15 @@ class PolyChord(AbstractHypercubeSampler):
             except Exception as e:
                 logging.debug(f"Could not extract logZ from anesthetic NestedSamples: {e}")
         
-        # 4. RESTRUCTURE RESULTS & RECOVER AUX
+        # 4. RESTRUCTURE RESULTS
         structured_samples = jax.vmap(reconstruct_fn)(jnp.array(samples))
-        
-        if has_aux:
-            def eval_aux(y):
-                _, aux = loglikelihood_fn(y, args)
-                return aux
-            auxes = jax.vmap(eval_aux)(structured_samples)
-        else:
-            auxes = None
 
         # 5. ASSEMBLE PAYLOAD AND METRICS
         payload = SamplerPayload(
             samples=structured_samples,
             fn_values=loglikes,
             weights=weights,
-            auxes=auxes
+            auxes=None
         )
 
         metrics = {

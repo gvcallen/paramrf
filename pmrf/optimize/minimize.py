@@ -77,6 +77,6 @@ def minimize(
         model=opt_problem.model,
         objective=opt_problem.evaluator,
         objective_value=opt_problem(),
-        solver_results=metrics,
+        metrics=metrics,
     )
     return results
