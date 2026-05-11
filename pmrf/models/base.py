@@ -37,8 +37,8 @@ class Model(eqx.Module):
 
     The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
     (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
-    field syntax by annotating class with type `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_
-    and using `parax.field <https://gvcallen.github.io/parax/api/#parax.field>`_ for default values.
+    field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`. 
+    See :mod:`pmrf.parameters` for more details.
 
     Usage
     -----

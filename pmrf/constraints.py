@@ -1,7 +1,9 @@
 """
 Constraints for parameters.
 
-Re-exports of `parax.constraints`.
+Can be used for parameter factories in :mod:`pmrf.parameters`.
+
+Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
 """
 import jax.numpy as jnp
 
@@ -52,3 +54,15 @@ def intersect_constraints(a: AbstractConstraint, b: AbstractConstraint) -> Abstr
         return LessThan(upper)
     else:
         return Interval(lower, upper)
+    
+    
+__all__ = [
+    'AbstractConstraint',
+    'RealLine',
+    'Positive',
+    'Negative',
+    'Interval',
+    'GreaterThan',
+    'LessThan',
+    'intersect_constraints',
+]

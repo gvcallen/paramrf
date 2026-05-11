@@ -1,12 +1,15 @@
 """
-Distributions for parameters.
+Probability distributions.
 
-Re-exports of `distreqx.distributions`.
+Can be used for random parameters in :mod:`pmrf.parameters`.
+
+Builds on top of the library `distreqx <https://github.com/lockwo/distreqx>`_.
 """
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from distreqx.distributions import (
+    AbstractDistribution as AbstractDistribution,
     Normal as Normal,
     LogNormal as LogNormal,
     Uniform as Uniform,
@@ -40,6 +43,7 @@ def RelativeNormal(
 
 
 __all__ = [
+    "AbstractDistribution",
     "Normal",
     "LogNormal",
     "Uniform",

@@ -1,7 +1,7 @@
 """
-Parameters and parameter field specifiers.
+Parameter factories and parameter field specifiers.
 
-Builds on top of `parax`.
+Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
 """
 
 import dataclasses
@@ -18,6 +18,7 @@ from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.jax_utils import unwrap
 
 Param = prx.Param
+
 
 def _apply_wrappers(
     var: Param, 
@@ -50,6 +51,7 @@ def _apply_wrappers(
         var = prx.Fixed(var)
     return var
 
+
 # ---------------------------------------------------------
 # Parameter Factories
 # ---------------------------------------------------------
@@ -62,6 +64,20 @@ def Scaled(
 ) -> Param:
     """
     Create a free parameter with optional scaling.
+
+    Parameters
+    ----------
+    value : Param
+        The base parameter value.
+    scale : float
+        The scaling factor to apply.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Param
+        The parameter wrapped with scaling (and optionally fixed).
     """
     value = prx.as_param(value)
     return _apply_wrappers(value, scale=scale, fixed=fixed)
@@ -74,6 +90,18 @@ def Fixed(
 ) -> Param:
     """
     Create a fixed parameter that will not be optimized.
+
+    Parameters
+    ----------
+    value : Param
+        The parameter value to fix.
+    scale : ArrayLike, optional
+        The scaling factor to apply, by default 1.0.
+
+    Returns
+    -------
+    Param
+        The fixed parameter.
     """
     value = prx.as_param(value)
     return _apply_wrappers(value, scale=scale, fixed=True)
@@ -87,7 +115,23 @@ def Constrained(
     fixed: bool = False
 ) -> Param:
     """
-    Create a parameter constrained within a specific interval.
+    Create a parameter constrained to a specific domain.
+
+    Parameters
+    ----------
+    constraint : AbstractConstraint
+        The constraint to apply to the parameter.
+    value : ArrayLike
+        The initial value of the parameter.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Param
+        The constrained parameter.
     """
     value = jnp.asarray(value)
     var = prx.Constrained(constraint, value=value)
@@ -104,6 +148,24 @@ def Bounded(
 ) -> Param:
     """
     Create a parameter constrained within a specific interval.
+
+    Parameters
+    ----------
+    lower : Any
+        The lower bound of the interval.
+    upper : Any
+        The upper bound of the interval.
+    value : Optional[ArrayLike], optional
+        The initial value. If None, the midpoint of the bounds is used.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Param
+        The bounded parameter.
     """
     lower, upper = jnp.asarray(lower, dtype=float), jnp.asarray(upper, dtype=float)
     if value is None:
@@ -120,7 +182,30 @@ def Random(
     fixed: bool = False
 ) -> Param:
     """
-    Create a parameter constrained within a specific interval.
+    Create a parameter initialized from a random distribution.
+
+    Parameters
+    ----------
+    distribution : AbstractDistribution
+        The probability distribution for the parameter.
+    constraint : Optional[AbstractConstraint], optional
+        An optional constraint to apply.
+    value : Optional[ArrayLike], optional
+        The initial value. If None, the distribution's mean is used.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Param
+        The random parameter.
+
+    Raises
+    ------
+    Exception
+        If `value` is None and the distribution does not implement `mean`.
     """
     if value is None:
         try:
@@ -147,6 +232,22 @@ def param(
 ) -> Any:
     """
     A field specifier for defining the physical rules of model parameters.
+
+    Parameters
+    ----------
+    value : Any, optional
+        The default value of the field.
+    constraint : Optional[AbstractConstraint], optional
+        The constraint to apply to the parameter.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Any
+        An equinox field with a built-in converter for parameter rules.
     """
     def converter(x):
         # Respect fully formed variables and inject constraints if needed

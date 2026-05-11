@@ -34,7 +34,7 @@ Core
    pmrf.Model
    pmrf.Frequency
    pmrf.Problem
-   pmrf.AbstractEvaluator
+   pmrf.evaluators.AbstractEvaluator
    pmrf.param
 
 
