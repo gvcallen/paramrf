@@ -175,7 +175,7 @@ class NSS(AbstractSplitSampler):
         if init_samples is None:
             raise ValueError("NSS requires `init_samples` (a batch of particles) to initialize.")
         if not hasattr(blackjax, 'nss'):
-            raise ImportError("`nss` not found in `blackjax`. Make sure the relevant handley-lab fork is installed.")
+            raise ImportError("`nss` not found in `blackjax`. Make sure the relevant handley-lab fork is installed via e.g. `pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta`.")
 
         # 1. Standardize functions for BlackJAX
         def logprior(y):

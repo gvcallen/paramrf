@@ -24,13 +24,14 @@ Models can easily be built using composition with the built in :mod:`pmrf.models
 .. code-block:: python
 
   import pmrf as prf
+  from pmrf.parameters import Scaled
   from pmrf.models import Resistor, Inductor, Capacitor
   
   # Define the frequency band
   freq = prf.Frequency(1, 10, 101, 'GHz')
   
   # Cascade elements using the ** operator
-  rlc_model = Resistor(50) ** Inductor(1e-9) ** Capacitor(1e-12)
+  rlc_model = Resistor(50) ** Inductor(Scaled(1.0, 1e-9)) ** Capacitor(Scaled(1.0, 1e-12))
   
   # Plot the model's S11 parameter
   rlc_model.plot_s_db(freq, m=0, n=0)
@@ -45,8 +46,8 @@ ParamRF provides several optimization and inference wrappers around backends lik
   opt_freq = prf.Frequency(4.0, 6.0, 101, 'GHz')
   goal = prf.evaluators.Goal('s11_db', '<', -20)
   
-  # Optimize the previous RLC model. For this problem, Nelder-Mead works well.
-  result = prf.optimize.minimize(goal, rlc_model, opt_freq, method='Nelder-Mead')
+  # Optimize the previous RLC model
+  result = prf.optimize.minimize(goal, rlc_model, opt_freq, solver=prf.optimize.ScipyMinimize())
   
   # Plot the optimized model
   result.model.plot_s_db(freq, m=0, n=0)

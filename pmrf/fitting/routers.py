@@ -7,8 +7,8 @@ import skrf
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import EvaluatorLike
-from pmrf.optimize import is_optimizer, OptimizeResult, ScipyMinimize
-from pmrf.infer import is_inferer, InferResult
+from pmrf.optimize import is_minimizer, OptimizeResult, ScipyMinimize
+from pmrf.infer import is_sampler, InferResult
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
@@ -63,9 +63,9 @@ def fit(
         Frequentist optimizers return a single best model, whereas Bayesian inferers also
         return full posterior distributions on the model.
     """
-    if is_optimizer(solver):
+    if is_minimizer(solver):
         return fit_minimize(model=model, data=data, frequency=frequency, solver=solver, features=features, **kwargs)
-    elif is_inferer(solver):
+    elif is_sampler(solver):
         return fit_sample(model=model, data=data, frequency=frequency, solver=solver, features=features, **kwargs)
     else:
         raise TypeError(

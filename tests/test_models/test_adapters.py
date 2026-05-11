@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from pmrf import Frequency, Param, param
-from pmrf.parameters import Free
+from pmrf.parameters import Scaled
 from pmrf.models import (
     AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
     Host, ContinuousCallable, DiscreteCallable, Measured
@@ -102,7 +102,7 @@ def test_host_model_single_execution(fine_freq):
 def test_host_model_vmap_multithreading(fine_freq):
     """Test that Host models successfully map batched parameters using the ThreadPool."""
     # Create a batch of 3 parameter values
-    batched_val = Free(jnp.array([1.0, 2.0, 3.0]))
+    batched_val = Scaled(jnp.array([1.0, 2.0, 3.0]))
     model = DummyHostModel(val=batched_val)
     
     # VMAP across the parameter dimension!
@@ -130,7 +130,7 @@ def test_continuous_callable(fine_freq):
         
     model = ContinuousCallable(
         fn=dummy_fn,
-        theta=[Free(2.0)], 
+        theta=[Scaled(2.0)], 
     )
     
     s = model.s(fine_freq)

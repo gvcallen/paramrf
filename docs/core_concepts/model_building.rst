@@ -1,6 +1,6 @@
 Model Building
 --------------
-**ParamRF** provides a :class:`~pmrf.models` library with common components such as lumped and distributed elements. Models can be built directly using these in a compositional approach without needing to inherit from :class:`~pmrf.Model`. For more complex modeling, however, an inheritance-based approach is likely prefered. This page provides an introduction into both approaches.
+**ParamRF** provides a :class:`~pmrf.models` library with common components such as lumped and distributed elements. Models can be built directly using these in a compositional approach without needing to inherit from :class:`~pmrf.Model`. For more complex modeling, however, an inheritance-based approach is likely preferred. This page provides an introduction into both approaches.
 
 Compositional Modeling
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -72,55 +72,42 @@ If the above sounded confusing, don't worry - the method is easy to understand u
 
 Parameter Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~
-Although more detailed parameter manipulation is described in the `Parax <https://gvcallen.github.io/parax/api/#parax.Module>`_ documentation, we provide a basic example here for the case of compositional model building using the previous cascade example. Note that :class:`~pmrf.models.components.lumped.ShuntResistor`, :class:`~pmrf.models.components.lumped.ShuntInductor`, and :class:`~pmrf.models.components.lumped.ShuntCapacitor` are marked as "transparent" Parax models, allowing their internal parameters to be directly accessed using the model name. However, for models without this flag set, the model name acts as a prefix, with the parameter variables as the suffix.
+Parameter manipulation can be done using :method:`pmrf.Model.at`. In immutable programming, this is known as the *lens* pattern.
 
 .. code-block:: python
 
-  from pmrf.models import ShuntResistor, ShuntInductor, ShuntCapacitor
+  from pmrf.models import Resistor, Inductor, Capacitor
   
-  # Create the RLC model from before, but provide the models with names
-  R = ShuntResistor(100.0, name='res')
-  L = ShuntInductor(2.0e-9, name='ind')
-  C = ShuntCapacitor(1.0e-12, name='cap')
-  rlc = R ** L ** C
-  
-  # Print the named parameters
-  print(rlc.named_params())
-  
-  # We can now manipulate the model appropriately
-  rlc_with_fixedC = rlc.with_fixed_params('ind_L')
-  rlc_with_R200 = rlc.with_params(res_R=200)
+  # Create two-port RLC model using operator overloading
+  rlc = Resistor(100.0) ** Inductor(2.0e-9) ** Capacitor(1.0e-12)
+  rlc_updated = rlc.at.models[0].R.set(110.0)
   
 
 Hierachical Modeling
 ~~~~~~~~~~~~~~~~~~~~
 As mentioned, for more complex models (such as equation-based ones), users can inherit directly from the :class:`~pmrf.Model` class and override one of the network properties (such as :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.z`, or :class:`~pmrf.Model.y`) or the :class:`~pmrf.Model.__call__` method.
 
-Any parameters in the model should be marked with the type `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_ (or collections thereof), as shown below. Any other attributes, such as other regular :class:`jnp.ndarray` objects, floats, strings, bools, are not registered as part of the parameter hierachy, and will not be seen by parameter inspection methods, optimizers, or samplers.
+Any parameters in the model should be marked with the type `pmrf.Param` (which stands for either a JAX array, or a `Parax <https://gvcallen.github.io/parax>`_ variable). Any other attribute types are not viewed as part of the parameter hierarchy and will not be seen by optimizers or samplers. Since models are immutable, parameters can be initialized directly with factories in :mod:`pmrf.parameters`, or can be set to the special :func:`pmrf.param` field specifier. This specifier provides two very useful features:
 
-Note that although parameters must be annotated using :class:`parax.Parameter`, parameter initialization is flexible:
-
-  * Parameters may be populated with a simple float value, and are automatically converted as long as only ``__post_init__`` (and not ```__init__``) is overriden.
-  * Factory methods such as :class:`parax.Uniform`, :class:`parax.Normal` or :class:`parax.Fixed` can be used directly inline without Python mutable object reference issues.
-  * Parameters can be instantiated using the :class:`parax.Parameter` class constructor directly.
+  * Allows callers to initialize that parameter with a simple float value when constructing the model.
+  * Provides the ability to add constraints and scaling to the model *itself* (e.g. setting a model parameter as always positive).
 
 Equation-based Models
 ^^^^^^^^^^^^^^^^^^^^^
-The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as if it were a JAX array during the computation.
+The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as a JAX array during the computation.
 
 .. code-block:: python
 
   import jax.numpy as jnp
-  import parax as prx
   import pmrf as prf
   
   # Define the capacitor
   class Capacitor(prf.Model):
-      C: prx.Parameter = 1.0e-12
+      C: prf.Param = prf.param()
   
       def s(self, freq: prf.Frequency) -> jnp.ndarray:
           w, C = freq.w, self.C
-          assert isinstance(self.C, prx.Parameter)
+          assert not isinstance(self.C, float)
           z0_0 = z0_1 = self.z0
   
           # Compute the S-parameters
@@ -145,25 +132,26 @@ For complicated models, it can be convenient to inherit from :class:`pmrf.Model`
 
 The following example creates a PI-CLC model once again, but using this approach.
 
-Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is often still desirable to have temporary init parameters separate to your model parameters. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach. This is demonstrated below.
+Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is often still desirable to have temporary initialization parameters separate to your model parameters. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach. This is demonstrated below.
 
-As a last resort, overriding ``__init__`` is still possible, but parameters must be manually converter using the :class:`parax.Parameter` constructor, and ``super().__init__`` **must** explicitly be called.
+As a last resort, overriding ``__init__`` is still possible, but ``super().__init__`` **must** explicitly be called.
 
 .. code-block:: python
 
-  from dataclasses import InitVar
-  from parax.parameters import Uniform
   import pmrf as prf
+  from pmrf.parameters import Bounded
   from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
-  import parax as prx
+  
+  from dataclasses import InitVar
+  import jax.numpy as jnp
   
   class PiCLC(prf.Model):
       C1_divided_by_5: InitVar[float]
   
       # To be instantiated in post init
-      cap1: Capacitor = prx.field(init=False)
-      cap2: Capacitor = Capacitor(C=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
-      ind: Inductor = Inductor(L=Uniform(0.0, 10.0, value=2.0, scale=1e-12))
+      cap1: Capacitor = prf.field(init=False)
+      cap2: Capacitor = Capacitor(C=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
+      ind: Inductor = Inductor(L=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
   
       def __post_init__(self, C1_divided_by_5: float):
           self.cap1 = Capacitor(C1_divided_by_5 * 5.0)
@@ -183,4 +171,4 @@ As a last resort, overriding ``__init__`` is still possible, but parameters must
           return Circuit(connections)
       
   model = PiCLC(C1_divided_by_5=1e-12, cap2=Capacitor(1e-12), ind=Inductor(1e-9))
-  assert model.cap1.C.value == 1e-12 * 5.0
+  assert jnp.allclose(model.cap1.C.value, 1e-12 * 5.0)

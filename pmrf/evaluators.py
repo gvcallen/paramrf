@@ -311,7 +311,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     
     #: The inverse-weight (temperature) of the Gibbs measure. 
     #: Higher temperatures create wider, less confident posteriors.
-    temperature: float = 1.0
+    temperature: float = field(default=1.0, static=True)
 
     #: An optional discrepancy model to cater for model misspecification.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
@@ -481,7 +481,7 @@ class Goal(TargetLoss):
             metric calculation.
         """        
         predictor = Feature(feature) if isinstance(feature, str) else feature
-        target = jnp.asarray(target)
+        target = jnp.asarray(target, dtype=float)
         loss = HingeLoss(
             operator=operator,
             weight=weight,

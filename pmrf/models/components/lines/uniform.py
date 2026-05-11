@@ -379,7 +379,7 @@ class DatasheetLine(RLGCLine):
     k1: Param = param(0.0, constraint=Positive())
     k2: Param = param(0.0, constraint=Positive())
     
-    loss_coeffs_normalized: bool = False
+    loss_coeffs_normalized: bool = field(default=False, static=True)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         w = freq.w

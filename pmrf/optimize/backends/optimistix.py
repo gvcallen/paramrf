@@ -11,7 +11,7 @@ import optimistix as optx
 from pmrf.optimize.base import AbstractUnconstrainedMinimizer, MinimizeResults
 
 DEFAULT_RTOL = 1e-6
-DEFAULT_ATOL = 1e-6
+DEFAULT_ATOL = 1e-3
 
 class OptimistixMinimise(AbstractUnconstrainedMinimizer):
     """

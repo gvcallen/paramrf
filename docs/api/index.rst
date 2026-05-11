@@ -25,7 +25,7 @@ Quick Reference
 * :func:`pmrf.save`
 
 
-Core Classes
+Core
 ------------
 
 .. autosummary::
@@ -33,13 +33,9 @@ Core Classes
 
    pmrf.Model
    pmrf.Frequency
-   pmrf.Evaluator
    pmrf.Problem
-   pmrf.Loss
-   pmrf.Likelihood
-   pmrf.NoiseModel
-   pmrf.DiscrepancyModel
-   pmrf.CovarianceKernel
+   pmrf.AbstractEvaluator
+   pmrf.param
 
 
 Modules
@@ -49,10 +45,11 @@ Modules
    :toctree: generated/
    :recursive:
 
+   pmrf.constraints
    pmrf.covariance_kernels
    pmrf.discrepancy_models
+   pmrf.distributions
    pmrf.evaluators
-   pmrf.explore
    pmrf.fitting
    pmrf.infer
    pmrf.likelihoods
@@ -62,6 +59,7 @@ Modules
    pmrf.noise_models
    pmrf.network_collection
    pmrf.optimize
+   pmrf.parameters
    pmrf.viz
    pmrf.rf
    pmrf.serialization

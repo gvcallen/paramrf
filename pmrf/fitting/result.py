@@ -2,6 +2,7 @@ from typing import Any
 
 import equinox as eqx
 
+from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
@@ -24,11 +25,16 @@ class FitResult(eqx.Module):
     solution: OptimizeResult | InferResult | None = None
     
     @property
-    def model(self):
+    def model(self) -> Model | None:
         """
         The fitted model.
         """
-        return self.solution.best_model
+        if isinstance(self.solution, InferResult):
+            return self.solution.best_model
+        elif isinstance(self.solution, OptimizeResult):
+            return self.solution.model
+        else:
+            return None
 
     def plot(self, features: str | list[str] | AbstractEvaluator = 's', ax=None, **kwargs):
         """

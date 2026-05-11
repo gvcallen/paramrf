@@ -15,6 +15,7 @@ from parax.transforms import Scale
 from distreqx.distributions import AbstractDistribution
 
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
+from pmrf.jax_utils import unwrap
 
 Param = prx.Param
 
@@ -44,7 +45,7 @@ def _apply_wrappers(
 
     if scale != 1.0:
         scale = jnp.asarray(scale, dtype=float)
-        var = prx.Derived(Scale(scale), raw_value=var/scale)
+        var = prx.Derived(Scale(scale), raw_value=var)
     if fixed:
         var = prx.Fixed(var)
     return var
@@ -53,16 +54,17 @@ def _apply_wrappers(
 # Parameter Factories
 # ---------------------------------------------------------
 
-def Free(
+def Scaled(
     value: Param,
+    scale: float,
     *,
-    scale: float = 1.0,
+    fixed: bool = False,
 ) -> Param:
     """
     Create a free parameter with optional scaling.
     """
     value = prx.as_param(value)
-    return _apply_wrappers(value, scale=scale, fixed=False)
+    return _apply_wrappers(value, scale=scale, fixed=fixed)
 
 
 def Fixed(
@@ -139,43 +141,40 @@ def Random(
 def param(
     value: Any = dataclasses.MISSING,
     *,
-    distribution: Optional[AbstractDistribution] = None,
     constraint: Optional[AbstractConstraint] = None,
     scale: float = 1.0,
     fixed: bool = False,
 ) -> Any:
     """
-    A field specifier for parameters in models.
+    A field specifier for defining the physical rules of model parameters.
     """
     def converter(x):
+        # Respect fully formed variables and inject constraints if needed
         if prx.is_variable(x):
             if constraint is not None and prx.is_constrainable(x):
-                combined_constraint = intersect_constraints(constraint, x.constraint)
+                combined_constraint = intersect_constraints(unwrap(constraint), unwrap(x.constraint))
                 x = x.constrain(combined_constraint)
             return x
 
-        if distribution is not None:
-            return Random(distribution, constraint=constraint, value=x, scale=scale, fixed=fixed)
-        elif constraint is not None:
+        # Build the default physical variable
+        if constraint is not None:
             return Constrained(constraint=constraint, value=x, scale=scale, fixed=fixed)
         elif fixed:
             return Fixed(value=x, scale=scale)
+        elif scale != 1.0:
+            return Scaled(value=x, scale=scale)
         else:
-            return Free(value=x, scale=scale)
+            return jnp.asarray(x)
         
     return eqx.field(default=value, converter=converter)
 
 
 __all__ = [
-    "param",
-    "Free",
+    "Scaled",
     "Fixed",
     "Positive",
     "Bounded",
     "Constrained",
     "Random",
-    "Uniform",
-    "Normal",
-    "CenteredUniform",
-    "RelativeNormal",
+    "param",
 ]

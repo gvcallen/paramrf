@@ -10,9 +10,10 @@ from typing import Callable, Literal
 
 import jax.numpy as jnp
 import equinox as eqx
+import parax as prx
 
 from pmrf.math import losses as F
-from pmrf.jax_utils import field
+from pmrf.jax_utils import field, unwrap
 
 
 class AbstractLoss(eqx.Module):
@@ -160,10 +161,10 @@ class HingeLoss(AbstractLoss):
     operator: Literal['<', '<=', '>', '>=', '==', '='] = field(default='==', static=True)
 
     #: A scalar or array multiplier to scale the importance of the penalty.
-    weight: float | jnp.ndarray = 1.0
+    weight: float = field(default=1.0, static=True)
     
     #: A boolean array filtering which data points apply to this loss.
-    mask: jnp.ndarray | None = field(default=None)
+    mask: jnp.ndarray | None = field(default=None, converter=prx.as_frozen)
     
     #: The underlying loss function.
     base_loss: str | Callable | AbstractLoss = field(default=RMSELoss())
@@ -177,6 +178,8 @@ class HingeLoss(AbstractLoss):
         y_pred: jnp.ndarray, 
         **kwargs,
     ) -> jnp.ndarray:
+        self = unwrap(self)
+        
         kwargs.setdefault('multioutput', self.multioutput)
 
         return F.hinge_loss(

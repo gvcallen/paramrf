@@ -6,7 +6,8 @@ from pmrf.frequency import Frequency
 from pmrf.models import Model
 from pmrf.infer.sample import sample
 from pmrf.fitting import fit_sample
-from pmrf.parameters import Param, Uniform
+from pmrf.parameters import Param, Random
+from pmrf.distributions import Uniform
 
 # ---------------------------------------------------------
 # Fixtures
@@ -23,7 +24,7 @@ class DummyInferModel(Model):
     Crucially, parameters MUST have assigned distributions for the 
     Nested Sampler's `prior_transform_fn` (ICDF) to work.
     """
-    val: Param = Uniform(0.0, 10.0, value=5.0)
+    val: Param = Random(Uniform(0.0, 10.0), value=5.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints
