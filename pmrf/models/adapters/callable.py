@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleProperty, AbstractSingleDiscreteProperty
-from pmrf.parameters import Param
+from pmrf.parameters import Param, param
 from pmrf.jax_utils import field, unwrap, as_frozen
     
 class ContinuousCallable(AbstractSingleProperty):
@@ -26,17 +26,11 @@ class ContinuousCallable(AbstractSingleProperty):
     #: Parameters to pass to `fn` of length `nparams`.
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
-    #: If a list is provided, the parameters are first stacked.
-    theta: Param | list[Param]
-    
+    theta: Param = param()
     
     def output(self, freq: Frequency) -> jnp.ndarray:
         if self.theta is not None:
-            if isinstance(self.theta, Sequence):
-                flat_theta = jnp.stack([jnp.array(ti) for ti in self.theta])
-            else:
-                flat_theta = jnp.array(self.theta)
-
+            flat_theta = jnp.array(self.theta)
             return unwrap(self.fn)(freq.f_scaled, flat_theta)
         else:
             return unwrap(self.fn)(freq.f_scaled)
@@ -57,16 +51,11 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     #: Parameters to pass to `fn` of length `nparams`.
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
     #: All parameters, including fixed parameters, are passed.
-    #: If a list is provided, the parameters are first stacked.
-    theta: Param | list[Param]
+    theta: Param = param()
     
     def output_discrete(self) -> jnp.ndarray:
         if self.theta is not None:
-            if isinstance(self.theta, Sequence):
-                flat_theta = jnp.stack([jnp.array(ti) for ti in self.theta])
-            else:
-                flat_theta = jnp.array(self.theta)
-
+            flat_theta = jnp.array(self.theta)
             return unwrap(self.fn)(flat_theta)
         else:
             return unwrap(self.fn)()

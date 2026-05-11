@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pmrf as prf
 from pmrf.models import Model
 from pmrf.frequency import Frequency
+from pmrf.parameters import Bounded
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.backends.scipy import ScipyMinimize
 
@@ -51,7 +52,7 @@ def test_minimize_scipy_unbounded(model, basic_freq):
 def test_minimize_scipy_bounded(basic_freq):
     """Test that parameter boundaries are successfully intercepted and enforced."""
     # Initialize parameter at 1.0, trying to reach 5.0, but capped at 3.0
-    bounded_param = prf.Bounded(0.0, 3.0, value=1.0)
+    bounded_param = Bounded(0.0, 3.0, value=1.0)
     bounded_model = DummyOptModel(val=bounded_param)
     
     def obj_fn(m, f):

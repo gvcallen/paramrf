@@ -71,7 +71,7 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     )
     
     assert isinstance(result.best_model, DummyInferModel)
-    assert result.best_model.val.physical_value > 0.0 
+    assert result.best_model.val.value > 0.0 
     
     groups = result.best_model.param_groups()
     assert len(groups) > 0
@@ -85,10 +85,10 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     batched_model = result.sampled_model
     assert isinstance(batched_model, DummyInferModel)
     n_samples = result.fn_values.shape[0]
-    assert batched_model.val.physical_value.shape == (n_samples,)
+    assert batched_model.val.value.shape == (n_samples,)
 
 
-def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path here
+def test_fit_polychord(infer_model, basic_freq, tmp_path):
     """
     Test the high-level fit_sample() wrapper using PolyChord.
     Ensures Feature extractors, Likelihoods, and Data coercion work.

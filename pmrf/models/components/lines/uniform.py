@@ -10,6 +10,7 @@ from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
 from pmrf.parameters import Param, param
+from pmrf.constraints import Positive, GreaterThan
 from pmrf.jax_utils import field
 
 class TransmissionLine(Model):
@@ -115,7 +116,7 @@ class RLGCLine(TransmissionLine):
     length : Parameter
         Physical length of the line in meters.
     """
-    length: Param
+    length: Param = param(constraint=Positive())
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -181,8 +182,8 @@ class PhaseLine(TransmissionLine):
     f0 : Parameter
         Reference frequency in Hz for `theta`. Key-word only argument.
     """
-    theta: Param = param(90.0)
-    zc: Param = param(50.0)
+    theta: Param = param(90.0, constraint=Positive())
+    zc: Param = param(50.0, constraint=Positive())
     
     f0: float = field(kw_only=True)
 
@@ -234,10 +235,10 @@ class ConstantRLGCLine(RLGCLine):
     C : Parameter, default=90e-12
         Capacitance in Farads/m.
     """
-    R: Param = param(0.0)
-    L: Param = param(280e-9)
-    G: Param = param(0.0)
-    C: Param = param(90e-12)
+    R: Param = param(0.0, constraint=Positive())
+    L: Param = param(280e-9, constraint=Positive())
+    G: Param = param(0.0, constraint=Positive())
+    C: Param = param(90e-12, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         ones = jnp.ones(freq.npoints)
@@ -293,11 +294,11 @@ class PhysicalLine(RLGCLine):
     tand : Parameter, default=0.0
         Dielectric loss tangent.
     """
-    zn: Param = param(50.0)
-    epr: Param = param(1.0)
-    A: Param = param(0.0)
-    fA: Param = param(1.0)
-    tand: Param = param(0.0)
+    zn: Param = param(50.0, constraint=Positive())
+    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    A: Param = param(0.0, constraint=Positive())
+    fA: Param = param(1.0, constraint=Positive())
+    tand: Param = param(0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
@@ -373,10 +374,10 @@ class DatasheetLine(RLGCLine):
     freq_bounds : tuple | None, default=None
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
-    zn: Param = param(50.0)
-    vf: Param = param(1.0)
-    k1: Param = param(0.0)
-    k2: Param = param(0.0)
+    zn: Param = param(50.0, constraint=Positive())
+    vf: Param = param(1.0, constraint=Positive())
+    k1: Param = param(0.0, constraint=Positive())
+    k2: Param = param(0.0, constraint=Positive())
     
     loss_coeffs_normalized: bool = False
 
@@ -460,12 +461,12 @@ class CoaxialLine(RLGCLine):
     rho : Parameter, default=1.68e-8
         Resistivity of the conductors in Ohm-meters.
     """
-    din: Param = param(1.12e-3)
-    dout: Param = param(3.2e-3)
-    epr: Param = param(1.0)
-    mur: Param = param(1.0)
-    tand: Param = param(0.0)
-    rho: Param = param(1.68e-8)
+    din: Param = param(1.12e-3, constraint=Positive())
+    dout: Param = param(3.2e-3, constraint=Positive())
+    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    mur: Param = param(1.0, constraint=Positive())
+    tand: Param = param(0.0, constraint=Positive())
+    rho: Param = param(1.68e-8, constraint=Positive())
     
     @property
     def eps(self) -> jnp.ndarray:
@@ -572,11 +573,11 @@ class MicrostripLine(RLGCLine):
     rho : Parameter, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
-    w: Param = param(3e-3)
-    h: Param = param(1.6e-3)
-    epr: Param = param(4.3)
-    tand: Param = param(0.0)
-    rho: Param = param(0.0)
+    w: Param = param(3e-3, constraint=Positive())
+    h: Param = param(1.6e-3, constraint=Positive())
+    epr: Param = param(4.3, constraint=GreaterThan(1.0))
+    tand: Param = param(0.0, constraint=Positive())
+    rho: Param = param(0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         W, H = self.w, self.h

@@ -17,7 +17,8 @@ from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
-from pmrf.parameters import Normal
+from pmrf.parameters import Random
+from pmrf.distributions import Normal
 
 from pmrf.optimize.minimize import minimize
 from pmrf.fitting.result import FitResult
@@ -141,7 +142,7 @@ def fit_minimize(
             loss = RMSELoss()
         else:
             if noise is None:
-                noise = Normal(0.0, 0.01)
+                noise = Random(Normal(0.0, 0.01))
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
         kwargs.setdefault('search_space', 'base')

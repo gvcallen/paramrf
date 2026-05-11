@@ -33,7 +33,7 @@ def test_circuit_valid_structure(basic_freq):
 
 def test_circuit_invalid_collection_type():
     """Ensure passing a non-list as the root connections fails."""
-    R = Resistor()
+    R = Resistor(50.0)
     p0 = Port()
     
     # Passing a tuple instead of a list of lists
@@ -43,7 +43,7 @@ def test_circuit_invalid_collection_type():
 
 def test_circuit_invalid_node_type():
     """Ensure passing a non-list as a node fails."""
-    R = Resistor()
+    R = Resistor(50.0)
     p0 = Port()
     
     # Passing a tuple for the inner node
@@ -53,7 +53,7 @@ def test_circuit_invalid_node_type():
 
 def test_circuit_invalid_item_type():
     """Ensure passing malformed item tuples fails."""
-    R = Resistor()
+    R = Resistor(50.0)
     p0 = Port()
     
     # Passing a 3-element tuple instead of 2
@@ -63,7 +63,7 @@ def test_circuit_invalid_item_type():
 
 def test_circuit_port_out_of_bounds():
     """Ensure connecting to an invalid port index fails."""
-    R = Resistor() # 2-port model (indices 0, 1)
+    R = Resistor(50.0)
     p0 = Port()
     
     connections = [ [(p0, 0), (R, 2)] ] # Index 2 is out of bounds
@@ -72,7 +72,7 @@ def test_circuit_port_out_of_bounds():
 
 def test_circuit_duplicate_port():
     """Ensure a specific model's port cannot be connected to multiple nodes."""
-    R = Resistor()
+    R = Resistor(50.0)
     p0 = Port()
     p1 = Port()
     

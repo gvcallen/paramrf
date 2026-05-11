@@ -7,7 +7,8 @@ import jax.numpy as jnp
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.rf import y2s
-from pmrf.parameters import Param
+from pmrf.parameters import Param, param
+from pmrf.constraints import Positive
 
 class PiCLC(Model):
     """
@@ -29,9 +30,9 @@ class PiCLC(Model):
         If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
         If False, treats it as a standard 2-port network.
     """
-    C1: Param
-    L: Param
-    C2: Param
+    C1: Param = param(constraint=Positive())
+    L: Param = param(constraint=Positive())
+    C2: Param = param(constraint=Positive())
 
     # def y(self, freq: Frequency) -> jnp.ndarray:
     #     if not self.three_port:
@@ -138,10 +139,10 @@ class BoxCLCC(Model):
     C3 : Param
         Bridging capacitor.
     """    
-    C1: Param
-    L: Param
-    C2: Param
-    C3: Param
+    C1: Param = param(constraint=Positive())
+    L: Param = param(constraint=Positive())
+    C2: Param = param(constraint=Positive())
+    C3: Param = param(constraint=Positive())
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -233,9 +234,9 @@ class TeeLCL(Model):
     L2 : Param
         The value of the second series inductor in Henrys.
     """
-    L1: Param
-    C: Param
-    L2: Param
+    L1: Param = param(constraint=Positive())
+    C: Param = param(constraint=Positive())
+    L2: Param = param(constraint=Positive())
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
@@ -296,8 +297,8 @@ class LSectionLC(Model):
     C : Param
         The value of the shunt capacitor in Farads.
     """
-    L: Param
-    C: Param
+    L: Param = param(constraint=Positive())
+    C: Param = param(constraint=Positive())
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return jax.lax.cond(
