@@ -184,7 +184,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     
     #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
     #: which defines the model's orthogonal sub-space. Used for gaussian processes.
-    use_orthogonal_discrepancy: bool = False
+    use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
     #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
@@ -318,7 +318,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     
     #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
     #: which defines the model's orthogonal sub-space. Used for gaussian processes.
-    use_orthogonal_discrepancy: bool = False
+    use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space".
     event_transform: bij.AbstractBijector = None

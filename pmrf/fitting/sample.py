@@ -23,9 +23,8 @@ from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLike
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample
 from pmrf.fitting.result import FitResult
-
-from pmrf.parameters import Param, param
-from pmrf.jax_utils import field
+from pmrf.parameters import Param, Random
+from pmrf.distributions import Normal
 
 def fit_sample(
     model: Model,
@@ -125,7 +124,7 @@ def fit_sample(
     # Resolve the likelihood or loss model
     if loss is None and likelihood is None:
         if noise is None:
-            noise = prx.Uniform(0.0, 0.01)
+            noise = Random(Normal(0.0, 0.01))
         likelihood = GaussianLikelihood(noise=noise)
     
     if likelihood is not None:

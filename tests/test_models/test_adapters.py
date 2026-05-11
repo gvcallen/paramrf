@@ -102,7 +102,7 @@ def test_host_model_single_execution(fine_freq):
 def test_host_model_vmap_multithreading(fine_freq):
     """Test that Host models successfully map batched parameters using the ThreadPool."""
     # Create a batch of 3 parameter values
-    batched_val = Scaled(jnp.array([1.0, 2.0, 3.0]))
+    batched_val = jnp.array([1.0, 2.0, 3.0])
     model = DummyHostModel(val=batched_val)
     
     # VMAP across the parameter dimension!
@@ -130,7 +130,7 @@ def test_continuous_callable(fine_freq):
         
     model = ContinuousCallable(
         fn=dummy_fn,
-        theta=[Scaled(2.0)], 
+        theta=[jnp.array(2.0)], 
     )
     
     s = model.s(fine_freq)

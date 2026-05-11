@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import distreqx.distributions as dist
 import equinox as eqx
 
-from pmrf.parameters import Param
+from pmrf.parameters import Param, param
 
 from abc import abstractmethod
 
@@ -60,7 +60,7 @@ class GaussianLikelihood(AbstractLikelihood):
     must accept accept the prediction `y` and return an array that is either
     broadcastable to `(*batch_shape)` or to the full (*batch_shape, event_dims).
     """
-    noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = param()
 
     def __call__(self, y_event: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
         is_dist = isinstance(y_event, dist.AbstractDistribution)

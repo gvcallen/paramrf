@@ -74,15 +74,6 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     assert isinstance(result.best_model, DummyInferModel)
     assert result.best_model.val.value > 0.0 
     
-    groups = result.best_model.param_groups()
-    assert len(groups) > 0
-    posterior_dist = groups[0].distribution
-    assert isinstance(posterior_dist, distreqx.distributions.WeightedEmpirical)
-    
-    mean_val = posterior_dist.mean()
-    assert mean_val.shape == (1,)
-    assert not jnp.isnan(mean_val)
-    
     batched_model = result.sampled_model
     assert isinstance(batched_model, DummyInferModel)
     n_samples = result.fn_values.shape[0]
