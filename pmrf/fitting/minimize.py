@@ -169,5 +169,5 @@ def fit_minimize(
     return FitResult(
         data=data,
         frequency=frequency,
-        metrics=optimize_result,
+        solution=optimize_result,
     )

@@ -9,12 +9,13 @@ import jax.numpy as jnp
 import equinox as eqx
 import skrf
 
+from pmrf.utils.lens import Lens
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
-from pmrf.jax_utils import field
+from pmrf.jax_utils import field, unwrap
 
 Z0_WARNING = \
 r"""
@@ -26,15 +27,13 @@ recommended to keep the default z0 and convert your results at the end.
 
 class Model(eqx.Module):
     """
-    Abstract base class for RF models.
+    Base class for RF models.
 
-    This base class is used to represent any computable RF network, referred to in
-    **ParamRF** as a "Model". This class can be overridden for defining complex models,
-    or can be utilized indirectly by combining models already provided in :mod:`pmrf.models`.
+    Derived from this class to define your own, custom model.
 
-    This class is abstract and should not be instantiated directly. Derive from :class:`Model`
-    and override one of the primary property functions (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`,
-    :meth:`pmrf.Model.a`).
+    This class should not be instantiated directly. It is created internally in ParamRF when models are
+    built compositionally, or can be inheriting from, in which case at least one of the primary property functions
+    (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`) should be overidden.
 
     The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
     (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
@@ -80,6 +79,7 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
+    :meth:`at`                        Modify a parameter at some path in the model.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
@@ -104,9 +104,9 @@ class Model(eqx.Module):
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prf.Param = prf.free(1.0e-12)
-            L:  prf.Param = prf.free(1.0e-9)
-            C2: prf.Param = prf.free(1.0e-12)
+            C1: prf.Param = prf.param(1.0e-12)
+            L:  prf.Param = prf.param(1.0e-9)
+            C2: prf.Param = prf.param(1.0e-12)
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -124,9 +124,9 @@ class Model(eqx.Module):
         from pmrf.models import Resistor, Capacitor, Inductor, Cascade
 
         class RLC(prf.Model):
-            res: Resistor = prf.model(Resistor, R=prf.Bounded(9.0, 11.0))
-            ind: Inductor = prf.model(Inductor, L=prf.Bounded(0.0, 10.0, scale=1e-12))
-            cap: Capacitor = prf.model(Capacitor, C=prf.Bounded(0.0, 10.0, scale=1e-12))
+            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
+            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
 
             def __call__(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
@@ -432,6 +432,16 @@ class Model(eqx.Module):
     
     # ---- Magic methods and copying --------------------------------------------------
 
+    def __repr__(self) -> str:
+        """String representation of the Model."""
+        # Unwrap the model to resolve variables
+        unwrapped = unwrap(self)
+        # Use Equinox's formatter, displaying full internal arrays instead of generic shape labels
+        return eqx.tree_pformat(unwrapped, short_arrays=False)
+
+    def __str__(self) -> str:
+        return repr(self)    
+
     def __getattr__(self, name: str):
         """
         Dynamic dispatch for scikit-rf plotting methods.
@@ -465,6 +475,19 @@ class Model(eqx.Module):
     def __matmul__(self, other: 'Model') -> 'Model':
         """Termination operator `@`."""        
         return self.terminated(other)
+    
+
+    @property
+    def at(self) -> Lens:
+        """
+        Provides a fluent, lens-based interface for immutable updates.
+        
+        Examples:
+            new_model = model.at.R.set(20.0)
+            new_model = model.at.amplifier.lna.gain.multiply(2.0)
+            new_model = model.at.array_params[0].apply(jnp.abs)
+        """
+        return Lens(self)
         
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -604,22 +627,3 @@ class Model(eqx.Module):
         
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
-    
-
-def model(factory: Callable[..., Model], *args, **kwargs) -> Any:
-    """
-    A field wrapper for initializing pmrf Models.
-
-    This ensures that default models are instantiated freshly for every 
-    parent object.
-
-    Examples
-    --------
-    # Default initialization
-    res: Resistor = pmrf.model(Resistor)
-
-    # Initialization with custom default parameters
-    clc: PiCLC = pmrf.model(PiCLC, C1=0.05e-12, L=0.1e-9)
-    """
-    # Create a deferred lambda that calls the factory with the provided args
-    return field(default_factory=lambda: factory(*args, **kwargs))

@@ -1,5 +1,5 @@
 """
-callables that evaluate a model over frequency.
+Callables that evaluate a model over frequency.
 """
 from __future__ import annotations
 import re

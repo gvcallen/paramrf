@@ -123,5 +123,5 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path): # <-- Add tmp_path he
     )
     
     assert isinstance(result.model, DummyInferModel)
-    n_samples = result.metrics.fn_values.shape[0]
-    assert result.metrics.sampled_model.val.value.shape == (n_samples,)
+    n_samples = result.solution.fn_values.shape[0]
+    assert result.solution.sampled_model.val.value.shape == (n_samples,)

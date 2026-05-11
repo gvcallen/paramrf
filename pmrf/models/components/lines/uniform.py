@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
-from pmrf.parameters import Param, free
+from pmrf.parameters import Param, param
 from pmrf.jax_utils import field
 
 class TransmissionLine(Model):
@@ -181,8 +181,8 @@ class PhaseLine(TransmissionLine):
     f0 : Parameter
         Reference frequency in Hz for `theta`. Key-word only argument.
     """
-    theta: Param = free(90.0)
-    zc: Param = free(50.0)
+    theta: Param = param(90.0)
+    zc: Param = param(50.0)
     
     f0: float = field(kw_only=True)
 
@@ -234,10 +234,10 @@ class ConstantRLGCLine(RLGCLine):
     C : Parameter, default=90e-12
         Capacitance in Farads/m.
     """
-    R: Param = free(0.0)
-    L: Param = free(280e-9)
-    G: Param = free(0.0)
-    C: Param = free(90e-12)
+    R: Param = param(0.0)
+    L: Param = param(280e-9)
+    G: Param = param(0.0)
+    C: Param = param(90e-12)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         ones = jnp.ones(freq.npoints)
@@ -293,11 +293,11 @@ class PhysicalLine(RLGCLine):
     tand : Parameter, default=0.0
         Dielectric loss tangent.
     """
-    zn: Param = free(50.0)
-    epr: Param = free(1.0)
-    A: Param = free(0.0)
-    fA: Param = free(1.0)
-    tand: Param = free(0.0)
+    zn: Param = param(50.0)
+    epr: Param = param(1.0)
+    A: Param = param(0.0)
+    fA: Param = param(1.0)
+    tand: Param = param(0.0)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
@@ -373,10 +373,10 @@ class DatasheetLine(RLGCLine):
     freq_bounds : tuple | None, default=None
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
-    zn: Param = free(50.0)
-    vf: Param = free(1.0)
-    k1: Param = free(0.0)
-    k2: Param = free(0.0)
+    zn: Param = param(50.0)
+    vf: Param = param(1.0)
+    k1: Param = param(0.0)
+    k2: Param = param(0.0)
     
     loss_coeffs_normalized: bool = False
 
@@ -460,12 +460,12 @@ class CoaxialLine(RLGCLine):
     rho : Parameter, default=1.68e-8
         Resistivity of the conductors in Ohm-meters.
     """
-    din: Param = free(1.12e-3)
-    dout: Param = free(3.2e-3)
-    epr: Param = free(1.0)
-    mur: Param = free(1.0)
-    tand: Param = free(0.0)
-    rho: Param = free(1.68e-8)
+    din: Param = param(1.12e-3)
+    dout: Param = param(3.2e-3)
+    epr: Param = param(1.0)
+    mur: Param = param(1.0)
+    tand: Param = param(0.0)
+    rho: Param = param(1.68e-8)
     
     @property
     def eps(self) -> jnp.ndarray:
@@ -572,11 +572,11 @@ class MicrostripLine(RLGCLine):
     rho : Parameter, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
-    w: Param = free(3e-3)
-    h: Param = free(1.6e-3)
-    epr: Param = free(4.3)
-    tand: Param = free(0.0)
-    rho: Param = free(0.0)
+    w: Param = param(3e-3)
+    h: Param = param(1.6e-3)
+    epr: Param = param(4.3)
+    tand: Param = param(0.0)
+    rho: Param = param(0.0)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         W, H = self.w, self.h

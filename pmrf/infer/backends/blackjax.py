@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import blackjax
 
-from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SamplerPayload
+from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SampleResults
 
 class NUTS(AbstractJointSampler):
     """
@@ -19,17 +19,16 @@ class NUTS(AbstractJointSampler):
     num_warmup: int = eqx.field(static=True, default=1000)
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
 
-    def sample(
+    def run(
         self,
         logposterior_fn: Callable[[PyTree, Any], Any],
         y0: PyTree,
+        args: PyTree[Any],
         key: Array,
-        args: PyTree[Any] = None,
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
-        has_aux: bool = False,
         **kwargs,
-    ) -> tuple[SamplerPayload, PyTree]:
+    ) -> tuple[SampleResults, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
@@ -37,8 +36,7 @@ class NUTS(AbstractJointSampler):
 
         # 1. Create a pure scalar logprob function for the MCMC integrator
         def logprob_fn(x):
-            res = logposterior_fn(x, args)
-            return res[0] if has_aux else res
+            return logposterior_fn(x, args)
 
         warmup_key, sample_key = jax.random.split(key)
 
@@ -71,18 +69,12 @@ class NUTS(AbstractJointSampler):
             
         eval_vmap = jax.vmap(eval_fn)
         
-        if has_aux:
-            fn_values, auxes = eval_vmap(trace_state.position)
-        else:
-            fn_values = eval_vmap(trace_state.position)
-            auxes = None
+        fn_values = eval_vmap(trace_state.position)
 
         # 6. Construct the standard payload
-        payload = SamplerPayload(
+        payload = SampleResults(
             samples=trace_state.position,
             fn_values=fn_values,
-            weights=None,
-            auxes=auxes
         )
 
         return payload, trace_info
@@ -99,17 +91,16 @@ class HMC(AbstractJointSampler):
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
     num_integration_steps: int = eqx.field(static=True, default=30)
 
-    def sample(
+    def run(
         self,
         logposterior_fn: Callable[[PyTree, Any], Any],
         y0: PyTree,
+        args: PyTree[Any],
         key: Array,
-        args: PyTree[Any] = None,
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
-        has_aux: bool = False,
         **kwargs,
-    ) -> tuple[SamplerPayload, PyTree]:
+    ) -> tuple[SampleResults, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
@@ -117,8 +108,7 @@ class HMC(AbstractJointSampler):
 
         # 1. Create a pure scalar logprob function
         def logprob_fn(x):
-            res = logposterior_fn(x, args)
-            return res[0] if has_aux else res
+            return logposterior_fn(x, args)
 
         warmup_key, sample_key = jax.random.split(key)
 
@@ -151,17 +141,11 @@ class HMC(AbstractJointSampler):
             
         eval_vmap = jax.vmap(eval_fn)
         
-        if has_aux:
-            fn_values, auxes = eval_vmap(trace_state.position)
-        else:
-            fn_values = eval_vmap(trace_state.position)
-            auxes = None
+        fn_values = eval_vmap(trace_state.position)
 
-        payload = SamplerPayload(
+        payload = SampleResults(
             samples=trace_state.position,
             fn_values=fn_values,
-            weights=None,
-            auxes=auxes
         )
 
         return payload, trace_info
@@ -175,31 +159,30 @@ class NSS(AbstractSplitSampler):
     num_inner_steps: int = eqx.field(static=True)
     logZ_convergence: float = eqx.field(static=True, default=1e-3)
 
-    def sample(
+    def run(
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Any],
         logprior_fn: Callable[[PyTree], Scalar],
         y0: PyTree,
+        args: PyTree[Any],
         key: Array,
-        args: PyTree[Any] = None,
         init_samples: PyTree = None,
         max_steps: int | None = None,
-        has_aux: bool = False,
         **kwargs,
-    ) -> tuple[SamplerPayload, PyTree]:
+    ) -> tuple[SampleResults, PyTree]:
+        logging.warning("BlackJAX NSS posterior may be truncated")
+
         if init_samples is None:
             raise ValueError("NSS requires `init_samples` (a batch of particles) to initialize.")
         if not hasattr(blackjax, 'nss'):
-            raise ImportError("`nss` not found in `blackjax`. Make sure the relevant contrib package is installed.")
+            raise ImportError("`nss` not found in `blackjax`. Make sure the relevant handley-lab fork is installed.")
 
         # 1. Standardize functions for BlackJAX
-        # Blackjax NSS kernel expects logprior_fn(pos) and loglikelihood_fn(pos)
         def logprior(y):
             return logprior_fn(y)
             
         def loglikelihood(y):
-            res = loglikelihood_fn(y, args)
-            return res[0] if has_aux else res
+            return loglikelihood_fn(y, args)
 
         kernel = blackjax.nss(
             logprior_fn=logprior,
@@ -213,10 +196,6 @@ class NSS(AbstractSplitSampler):
         state = jax.jit(kernel.init)(init_samples)
 
         # 3. Step execution
-        # Nested sampling often runs until convergence (logZ_live - logZ < tol).
-        # If max_steps is provided, we use lax.scan for performance. 
-        # If None, we use a Python loop (on the host) to check convergence.
-        
         @jax.jit
         def step_fn(current_state, rng_key):
             return kernel.step(rng_key, current_state)
@@ -239,12 +218,12 @@ class NSS(AbstractSplitSampler):
             while True:
                 curr_key, subkey = jax.random.split(curr_key)
                 curr_state, info = step_fn(curr_state, subkey)
-                
+
                 trajectory_list.append(curr_state)
                 infos_list.append(info)
                 
                 # Dynamic convergence check (host-side)
-                delta_logZ = curr_state.logZ_live - curr_state.logZ
+                delta_logZ = curr_state.integrator.logZ_live - curr_state.integrator.logZ
                 if delta_logZ < self.logZ_convergence:
                     break
             
@@ -253,43 +232,60 @@ class NSS(AbstractSplitSampler):
             infos = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *infos_list)
             actual_steps = len(trajectory_list)
 
-        # 4. Weight Calculation
-        # Nested sampling computes weights based on the 'dead' particles
+        # 4. Weight Calculation (Dead Points)
         num_live = jax.tree_util.tree_leaves(init_samples)[0].shape[0]
         iters = jnp.arange(actual_steps)
         
-        # Standard Skilling evidence accumulation math
+        # Shrinking prior volume for dead points
         log_X = - (iters * self.num_delete) / num_live
         log_dX = log_X + jnp.log1p(-jnp.exp(-self.num_delete / num_live))
         
-        # Handle shape alignment for batched likelihoods
-        ll = infos.loglikelihood
-        log_weights = ll + (log_dX - jnp.log(self.num_delete))[:, None]
-        weights = jnp.exp(log_weights - jax.scipy.special.logsumexp(log_weights))
+        dead_ll = infos.particles.loglikelihood
+        dead_unnorm_log_weights = dead_ll + (log_dX - jnp.log(self.num_delete))[:, None]
 
-        # 5. Recovery of Aux Data (Post-process via vmap)
-        if has_aux:
-            def eval_aux(y):
-                _, aux = loglikelihood_fn(y, args)
-                return aux
-            auxes = jax.vmap(eval_aux)(infos.particles)
-        else:
-            auxes = None
+        # 5. Weight Calculation (Live Points)
+        # The remaining prior volume is distributed equally among the remaining live points
+        log_X_final = - (actual_steps * self.num_delete) / num_live
+        live_ll = final_state.particles.loglikelihood
+        live_unnorm_log_weights = live_ll + log_X_final - jnp.log(num_live)
 
-        # 6. Final Payload
-        payload = SamplerPayload(
-            samples=infos.particles,
-            fn_values=infos.loglikelihood,
+        # 6. Flatten Arrays to 1D Streams
+        def flatten_batch(x):
+            return x.reshape(-1, *x.shape[2:])
+
+        flat_dead_samples = jax.tree_util.tree_map(flatten_batch, infos.particles.position)
+        flat_dead_ll = flatten_batch(dead_ll)
+        flat_dead_unnorm_weights = flatten_batch(dead_unnorm_log_weights)
+
+        # Extract live samples
+        live_samples = final_state.particles.position
+
+        # Concatenate dead and live into the full posterior history
+        def concat_dead_live(dead, live):
+            return jnp.concatenate([dead, live], axis=0)
+
+        all_samples = jax.tree_util.tree_map(concat_dead_live, flat_dead_samples, live_samples)
+        all_ll = concat_dead_live(flat_dead_ll, live_ll)
+        all_unnorm_log_weights = concat_dead_live(flat_dead_unnorm_weights, live_unnorm_log_weights)
+
+        # 7. Log-Evidence and Error Calculation
+        # Use BlackJAX's internal integrator state for exact matching
+        logevidence = jnp.logaddexp(final_state.integrator.logZ, final_state.integrator.logZ_live)
+        
+        # Normalize the combined weights against the total evidence
+        weights = jnp.exp(all_unnorm_log_weights - logevidence)
+
+        # Calculate Skilling's Information H ≈ \sum(W_i * log(L_i)) - logZ 
+        H = jnp.sum(weights * all_ll) - logevidence
+        logevidence_error = jnp.sqrt(jnp.maximum(H, 0.0) / num_live)
+
+        # 8. Final Payload
+        payload = SampleResults(
+            samples=all_samples,
+            fn_values=all_ll,
             weights=weights,
-            auxes=auxes
+            logevidence=logevidence,
+            logevidence_error=logevidence_error
         )
 
-        # Add NSS-specific evidence diagnostics to metrics
-        metrics = {
-            "logZ": final_state.logZ,
-            "logZ_live": final_state.logZ_live,
-            "actual_steps": actual_steps,
-            "info": infos
-        }
-
-        return payload, metrics
+        return payload, infos

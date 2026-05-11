@@ -7,10 +7,9 @@ import abc
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
 import parax as prx
-from pmrf.jax_utils import partition
 
 
-class MinimizerPayload(eqx.Module):
+class MinimizeResults(eqx.Module):
     """The core mathematical payload of a minimization run."""
     #: The optimal arrays (y_opt)
     y: PyTree
@@ -31,7 +30,7 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizerPayload, PyTree]:
+    ) -> tuple[MinimizeResults, PyTree]:
         """
         Execute the minimization algorithm.
 
@@ -51,7 +50,7 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         Returns
         -------
         tuple
-            A tuple of `(MinimizerPayload, metrics)`.
+            A tuple of `(MinimizeResults, metrics)`.
         """
         raise NotImplementedError
     
@@ -73,7 +72,7 @@ class AbstractBoundedMinimizer(eqx.Module):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizerPayload, PyTree]:
+    ) -> tuple[MinimizeResults, PyTree]:
         """
         Execute the minimization algorithm.
 
@@ -95,7 +94,7 @@ class AbstractBoundedMinimizer(eqx.Module):
         Returns
         -------
         tuple
-            A tuple of `(MinimizerPayload, metrics)`.
+            A tuple of `(MinimizeResults, metrics)`.
         """
         raise NotImplementedError
     
@@ -121,25 +120,32 @@ def minimize(
     y0: PyTree, 
     solver: AbstractMinimizer,
     args: Any = None,
+    bounds: tuple[PyTree, PyTree] | None = None,
     max_iter: int = 1024, 
     **kwargs
-) -> tuple[PyTree, MinimizerPayload, PyTree]:
+) -> tuple[PyTree, MinimizeResults, PyTree]:
     """
     Optimizes a general PyTree potentially containing Parax parameters using either a bounded or unconstrained solver.
+
+    `bounds` can be passed (instead of using internal `parax.bounded.AbstractBounded` bounds.)
+    If the PyTree does not contain Parax variables, `bounds[0]` and `bounds[1]` must each
+    match the shape of `y0`. Otherwise, they must match the shape of the PyTree where
+    all bounded nodes have been unwrapped using `parax.unwrap(y0, only_if=prx.is_bounded)`,
+    either with or without fixed variables replaced with None (using e.g. `parax.remove`).
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        base_tree = prx.unwrap(y0, only_if=prx.is_bounded)
-        lower_bounds, upper_bounds = prx.bounded.tree_bounds(y0)
-        
-        params, static = partition(base_tree)
-        lower, _ = partition(lower_bounds)
-        upper, _ = partition(upper_bounds)
-        bounds = (lower, upper)
+        bounded_tree = prx.unwrap(y0, only_if=prx.is_bounded)
+        params, static = eqx.partition(bounded_tree, eqx.is_inexact_array, is_leaf=prx.is_constant)
+        bounds_all = bounds if bounds is not None else prx.bounded.tree_bounds(y0)
+        bounds = prx.remove(bounds_all, prx.is_constant)
     else:
-        params, static = partition(y0)
+        if bounds:
+            raise Exception(f"Cannot use bounds for non-bounded minimizer of type {type(solver)}")
+
+        params, static = eqx.partition(y0, eqx.is_inexact_array, is_leaf=prx.is_constant)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:

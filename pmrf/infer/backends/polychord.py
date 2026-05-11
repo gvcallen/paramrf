@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import AbstractHypercubeSampler, SamplerPayload
+from pmrf.infer.base import AbstractHypercubeSampler, SampleResults
 
 class PolyChord(AbstractHypercubeSampler):
     """
@@ -120,23 +120,23 @@ class PolyChord(AbstractHypercubeSampler):
     def requires_hypercube(self):
         return True 
     
-    def sample(
+    def run(
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Scalar],
         prior_transform_fn: Callable[[PyTree], PyTree],
-        y0: PyTree,
+        u0: PyTree,
+        args: PyTree[Any],
         key: Array,
-        args: PyTree[Any] = None,
-        init_samples: Optional[PyTree] = None,
+        init_cube_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SamplerPayload, PyTree]:
+    ) -> tuple[SampleResults, PyTree]:
         if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
         # 1. DERIVE GEOMETRY FROM y0
-        flat_y0, reconstruct_fn = jax.flatten_util.ravel_pytree(y0)
-        ndims = flat_y0.size
+        flat_y0_cube, cube_reconstruct_fn = jax.flatten_util.ravel_pytree(u0)
+        ndims = flat_y0_cube.size
 
         max_ndead = max_steps if max_steps is not None else -1
         
@@ -177,22 +177,21 @@ class PolyChord(AbstractHypercubeSampler):
         if unknown_options:
             raise ValueError(f"PolyChord sample got unknown options: {unknown_options}")
         
-        if init_samples is not None:
+        if init_cube_samples is not None:
             flatten_single = lambda x: jax.flatten_util.ravel_pytree(x)[0]
-            cube_samples = jax.vmap(flatten_single)(init_samples)
+            cube_samples = jax.vmap(flatten_single)(init_cube_samples)
             base_kwargs['cube_samples'] = np.array(cube_samples)
         
         base_kwargs.update(kwargs)
 
-        # 2. JIT-COMPILED BRIDGES
         @jax.jit
         def jitted_likelihood(flat_theta_jax):
-            struct_theta = reconstruct_fn(flat_theta_jax)
+            struct_theta = cube_reconstruct_fn(flat_theta_jax)
             return loglikelihood_fn(struct_theta, args)
 
         @jax.jit
         def jitted_prior(flat_u_jax):
-            struct_u = reconstruct_fn(flat_u_jax)
+            struct_u = cube_reconstruct_fn(flat_u_jax)
             struct_theta = prior_transform_fn(struct_u)
             flat_theta, _ = jax.flatten_util.ravel_pytree(struct_theta)
             return flat_theta
@@ -204,11 +203,9 @@ class PolyChord(AbstractHypercubeSampler):
         def polychord_prior(u_np):
             return np.array(jitted_prior(jnp.asarray(u_np)))
         
-        # Warmup / Test evaluation
         _dummy_prior = polychord_prior(0.5 * np.ones(ndims))
         _dummy_logL = polychord_likelihood(_dummy_prior)
 
-        # 3. EXECUTE POLYCHORD
         nested_samples = pypolychord.run(
             loglikelihood=polychord_likelihood,
             nDims=ndims,
@@ -221,29 +218,20 @@ class PolyChord(AbstractHypercubeSampler):
         samples = jnp.array(np.array(nested_samples.iloc[:, :ndims]))
         weights = jnp.array(nested_samples.get_weights())
         
-        # Attempt to extract log evidence safely
-        logevidence = None
-        if hasattr(nested_samples, 'logZ'):
-            try:
-                logevidence = float(nested_samples.logZ())
-            except Exception as e:
-                logging.debug(f"Could not extract logZ from anesthetic NestedSamples: {e}")
+        logevidence = jnp.array(nested_samples.logZ())
+        norm_weights = weights / jnp.sum(weights)
         
-        # 4. RESTRUCTURE RESULTS
-        structured_samples = jax.vmap(reconstruct_fn)(jnp.array(samples))
-
-        # 5. ASSEMBLE PAYLOAD AND METRICS
-        payload = SamplerPayload(
+        H = jnp.sum(norm_weights * loglikes) - logevidence
+        actual_nlive = base_kwargs['nlive'] if base_kwargs['nlive'] > 0 else ndims * 25
+        logevidence_error = jnp.array((np.sqrt(max(H, 0.0) / actual_nlive)))
+        
+        structured_samples = jax.vmap(cube_reconstruct_fn)(jnp.array(samples))
+        results = SampleResults(
             samples=structured_samples,
             fn_values=loglikes,
             weights=weights,
-            auxes=None
+            logevidence=logevidence,
+            logevidence_error=logevidence_error,
         )
 
-        metrics = {
-            'nested_samples': nested_samples,
-            'logZ': logevidence,
-            'max_steps': max_steps
-        }
-
-        return payload, metrics
+        return results, nested_samples

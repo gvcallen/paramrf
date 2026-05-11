@@ -17,23 +17,30 @@ class InferResult(eqx.Module):
     Contains the resultant maximum likelihood/maximum a posterior estimates,
     as well as the samples, function values and weights for nested sampling runs.
     """
-    #: The model containing the maximum likelihood or maximum a posterior parameters.
+    #: The maximum likelihood or maximum a posterior of the RF model.
     best_model: Model
 
-    #: The log likelihood function/model used to calculate the log likelihood during inference.
-    #: If the log likelihood was a module with parameters, then this contains
-    #: the maximum likelihood or maximum a posteriori model.
-    loglikelihood: Callable[[Model, Frequency], jnp.ndarray]
+    #: The maximum likelihood or maximum a posterior of the log-likelihood model.
+    best_loglikelihood: Callable[[Model, Frequency], jnp.ndarray]
     
-    #: A batched model containing the sampled model parameters.
+    #: A batched model containing the dynamic half of the sampled RF model.
+    #: To get the full model, use `equinox.combine(dynamic, static)` with `static_model`.
     #: Only populated for Bayesian sampling algorithms.
     sampled_model: Model = None
+
+    #: The static half of `sampled_model`.
+    static_model: Model = None
     
-    #: A batched model containing the sampled log likelihood parameters, if any.
+    #: A batched model containing the dynamic half othe sampled log-likelihood model.
+    #: To get the full model, use `equinox.combine(dynamic, static)` with `static_loglikelihood`.
     #: Only populated for Bayesian sampling algorithms.
     sampled_loglikelihood: Callable | eqx.Module = None
-        
-    #: The log-likelihood values related to each sample for Bayesian sampling.
+
+    #: The static half of `sampled_loglikelihood`.
+    static_loglikelihood: Callable | eqx.Module = None
+
+    #: The function values related to each sample for Bayesian sampling.
+    #: Typically, this contains the log likelihood or log posterior values.
     #: Only populated for Bayesian sampling algorithms.
     fn_values: jnp.ndarray = None
     

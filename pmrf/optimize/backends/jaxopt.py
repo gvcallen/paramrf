@@ -8,7 +8,7 @@ import equinox as eqx
 from jaxtyping import PyTree
 import jaxopt
 
-from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizerPayload
+from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResults
 
 class LBFGSB(AbstractBoundedMinimizer):
     """
@@ -29,7 +29,7 @@ class LBFGSB(AbstractBoundedMinimizer):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizerPayload, PyTree]:
+    ) -> tuple[MinimizeResults, PyTree]:
         solver = jaxopt.LBFGSB(
             fun=fn,
             tol=self.tol,
@@ -41,5 +41,5 @@ class LBFGSB(AbstractBoundedMinimizer):
         # JAXopt expects bounds as a kwarg in the run method
         y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
-        payload = MinimizerPayload(y=y_opt)
+        payload = MinimizeResults(y=y_opt)
         return payload, state

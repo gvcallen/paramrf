@@ -14,7 +14,7 @@ from pmrf.optimize.backends.scipy import ScipyMinimize
 
 class DummyOptModel(Model):
     """A simple 1-port model with one free parameter for optimization."""
-    val: prf.Param = prf.free(1.0)
+    val: prf.Param = prf.param(1.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         # Returns an S-parameter matrix where the element is just `self.val`

@@ -6,14 +6,14 @@ import jax.numpy as jnp
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.parameters import Param, free
+from pmrf.parameters import Param, param
 
 class Load(Model):
     """
     An class for N-port loads defined by their reflection coefficient.
     """
-    #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-    gamma: Param = free()
+    #: The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
+    gamma: Param = param()
     #: The number of ports this load presents. Default is 1.
     nports: int = 1
     
@@ -44,7 +44,7 @@ class Resistor(Model):
     A 2-port model of a series resistor.
     """
     #: The resistance in Ohms.
-    R: Param = free()
+    R: Param = param(positive=True)
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -77,7 +77,7 @@ class Capacitor(Model):
     A 2-port model of a series capacitor.
     """
     #: The capacitance in Farads.
-    C: Param = free()
+    C: Param = param(positive=True)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -108,7 +108,7 @@ class Inductor(Model):
     A 2-port model of a series inductor.
     """
     #: The inductance in Henrys.
-    L: Param = free()
+    L: Param = param(positive=True)
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         L = self.L
@@ -139,7 +139,7 @@ class ShuntResistor(Model):
     A 2-port model of a shunt resistor shunting to ground.
     """
     #: The resistance in Ohms.
-    R: Param = free()
+    R: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -172,7 +172,7 @@ class ShuntCapacitor(Model):
     A 2-port model of a shunt capacitor shunting to ground.
     """
     #: The capacitance in Farads
-    C: Param = free()
+    C: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -205,7 +205,7 @@ class ShuntInductor(Model):
     Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
     """
     #: The inductance in Henrys
-    L: Param = free()
+    L: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -239,9 +239,9 @@ class InductorQ(Model):
     A 2-port model of a series inductor with a finite Quality Factor (Q).
     """
     #: The inductance in Henrys
-    L: Param = free()
+    L: Param = param()
     #: The quality factor representing non-ideal losses
-    Q: Param = free()
+    Q: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -272,9 +272,9 @@ class CapacitorQ(Model):
     A 2-port model of a series capacitor with a finite Quality Factor (Q).
     """
     #: The capacitance in Farads
-    C: Param = free()
+    C: Param = param()
     #: The quality factor representing non-ideal losses. Default is 50.0.
-    Q: Param = free()
+    Q: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w

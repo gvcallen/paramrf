@@ -7,7 +7,7 @@ from typing import Callable, Any
 from jaxtyping import PyTree
 import equinox as eqx
 
-from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizerPayload
+from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResults
 
 class ScipyMinimize(AbstractBoundedMinimizer):
     """
@@ -28,7 +28,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizerPayload, PyTree]:
+    ) -> tuple[MinimizeResults, PyTree]:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
 
         options = self.options.update({'maxiter': max_iter})
@@ -42,5 +42,5 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         
         y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
-        payload = MinimizerPayload(y=y_opt)
+        payload = MinimizeResults(y=y_opt)
         return payload, state

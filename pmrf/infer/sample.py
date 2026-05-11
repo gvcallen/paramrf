@@ -10,7 +10,7 @@ import parax as prx
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
-from pmrf.infer.base import AbstractSampler, sample as base_sample, is_sampler
+from pmrf.infer.base import AbstractSampler, sample as base_sample
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
 
@@ -21,7 +21,6 @@ def sample(
     solver: AbstractSampler,
     *,
     key: jnp.ndarray | None = None,
-    options: dict[str, Any] = None,
     max_steps: int | None = None,
     **kwargs,
 ) -> InferResult:
@@ -66,7 +65,7 @@ def sample(
     if key is None:
         key = generate_key()
         
-    sampled_problem, payload, metrics = base_sample(
+    sampled_problem, static_problem, payload, metrics = base_sample(
         loglikelihood_fn=lambda p, _args: p(),
         y0=problem,
         solver=solver,
@@ -76,20 +75,22 @@ def sample(
     )
 
     # 4. Extract batched components
-    sampled_model = sampled_problem.model
-    sampled_loglikelihood = sampled_problem.evaluator
+    sampled_model, static_model = sampled_problem.model, static_problem.model
+    sampled_loglikelihood, static_loglikelihood = sampled_problem.evaluator, static_problem.evaluator
 
     # 5. Extract MAP/MLE parameters using the best evaluated function value
     best_idx = jnp.argmax(payload.fn_values)
-    best_problem = jax.tree.map(lambda x: x[best_idx], sampled_problem)
+    best_problem = jax.tree.map(lambda x: x[best_idx], eqx.combine(sampled_problem, static_problem))
     best_model = best_problem.model
     best_loglikelihood = best_problem.evaluator    
 
     return InferResult(
         best_model=best_model,
-        loglikelihood=best_loglikelihood,
+        best_loglikelihood=best_loglikelihood,
         sampled_model=sampled_model,
+        static_model=static_model,
         sampled_loglikelihood=sampled_loglikelihood,
+        static_loglikelihood=static_loglikelihood,
         fn_values=payload.fn_values,
         weights=payload.weights,
         metrics=metrics,

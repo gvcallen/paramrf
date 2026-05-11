@@ -24,7 +24,7 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample
 from pmrf.fitting.result import FitResult
 
-from pmrf.parameters import Param, free
+from pmrf.parameters import Param, param
 from pmrf.jax_utils import field
 
 def fit_sample(
@@ -150,5 +150,5 @@ def fit_sample(
     return FitResult(
         data=data,
         frequency=frequency,
-        metrics=infer_result,
+        solution=infer_result,
     )

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.jax_utils import field
-from pmrf.parameters import Param, free
+from pmrf.parameters import Param, param
 
 
 class AbstractCovarianceKernel(eqx.Module):
@@ -94,7 +94,7 @@ class ConstantKernel(AbstractCovarianceKernel):
     variance : prx.Parameter
         Constant variance value (default 1.0).
     """
-    variance: Param = free(1.0)
+    variance: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         return self.variance
@@ -109,7 +109,7 @@ class RBFKernel(AbstractCovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: Param = free(1.0)
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -130,8 +130,8 @@ class PeriodicKernel(AbstractCovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    period: Param = free(1.0)
-    lengthscale: Param = free(1.0)
+    period: Param = param(1.0)
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -155,7 +155,7 @@ class WhiteNoiseKernel(AbstractCovarianceKernel):
     variance : prx.Parameter
         Noise variance level (default 1.0).
     """
-    variance: Param = free(1.0)
+    variance: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
@@ -175,7 +175,7 @@ class Matern32Kernel(AbstractCovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: Param = free(1.0)
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -202,7 +202,7 @@ class Matern52Kernel(AbstractCovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: Param = free(1.0)
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale

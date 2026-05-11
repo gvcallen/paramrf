@@ -4,7 +4,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from pmrf import Frequency, Param, free, Free
+from pmrf import Frequency, Param, param
+from pmrf.parameters import Free
 from pmrf.models import (
     AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
     Host, ContinuousCallable, DiscreteCallable, Measured
@@ -74,7 +75,7 @@ def test_single_property_routing(fine_freq):
 
 class DummyHostModel(Host):
     """A dummy host model representing an external simulator."""
-    val: Param = free(10.0)
+    val: Param = param(10.0)
     
     @property
     def primary_property(self): 

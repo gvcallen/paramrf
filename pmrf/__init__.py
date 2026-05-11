@@ -2,114 +2,74 @@ import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
 
-# 1. Environment Setup
+# Environment Setup
 jax_logger = logging.getLogger("jax._src.xla_bridge")
 jax_logger.setLevel(logging.ERROR)
 jax.config.update("jax_enable_x64", True)
 
-# 2. Versioning
+# Versioning
 try:
     __version__ = _version(__name__)
 except PackageNotFoundError:
     pass
 
-# 3. Main API Hoisting
-from pmrf.parameters import (
-    Param as Param,
-    Free as Free,
-    free as free,
-    Fixed as Fixed,
-    fixed as fixed,
-    Positive as Positive,
-    positive as positive,
-    Bounded as Bounded,
-    bounded as bounded,
-    Uniform as Uniform,
-    uniform as uniform,
-    Normal as Normal,
-    normal as normal,
-    CenteredUniform as CenteredUniform,
-    centered_uniform as centered_uniform,
-    RelativeNormal as RelativeNormal,
-    relative_normal as relative_normal,
-)
+# Re-exports
+from pmrf.problem import Problem as Problem
+from pmrf.models import Model as Model
+from pmrf.frequency import Frequency as Frequency
+from pmrf.parameters import Param as Param, param as param
 from pmrf.serialization import (
     load as load,
     save as save,
 )
 from pmrf.jax_utils import (
+    combine as combine,
     field as field,
     unwrap as unwrap,
+    Partial as Partial,
 )
+from pmrf.network_collection import NetworkCollection as NetworkCollection
 
-try:
-    import skrf as rf
-    skrf_available = True
-    from pmrf.network_collection import NetworkCollection as NetworkCollection
-except ImportError:
-    skrf_available = False
-    pass
-
-# 4. Sub-Modules
+# Modules
 from pmrf import (
+    constraints as constraints,
     covariance_kernels as covariance_kernels,
     discrepancy_models as discrepancy_models,
+    distributions as distributions,
     evaluators as evaluators,
     fitting as fitting,
+    infer as infer,
     likelihoods as likelihoods,
     losses as losses,
-    infer as infer,
-    models as models,
     math as math,
+    models as models,
     noise_models as noise_models,
-    problem as problem,
     optimize as optimize,
+    parameters as parameters,
     rf as rf,
     serialization as serialization,
     viz as viz,
 )
 
-from pmrf.discrepancy_models import AbstractDiscrepancyModel as AbstractDiscrepancyModel 
-
-from pmrf.frequency import Frequency as Frequency
-from pmrf.models import (
-    Model as Model,
-    model as model,
-)
 
 __all__ = [
-    # Core
-    "Frequency",
     "Model",
-    "model",
-
+    "Frequency",
     "Param",
-    "Free",
-    "free",
-    "Fixed",
-    "fixed",
-    "Positive",
-    "positive",
-    "Bounded",
-    "bounded",
-    "Uniform",
-    "uniform",
-    "Normal",
-    "normal",
-    "CenteredUniform",
-    "centered_uniform",
-    "RelativeNormal",
-    "relative_normal",
-    
-    # Utilities & Functions
+    "param",
     "load",
     "save",
-    "frozen",
+    "combine",
+    "field",
     "unwrap",
+    "Partial",
+    "NetworkCollection",
     
     # Sub-modules
+    "constraints",
     "covariance_kernels",
     "discrepancy_models",
+    "distributions",
     "evaluators",
     "fitting",
     "infer",
@@ -119,10 +79,8 @@ __all__ = [
     "models",
     "noise_models",
     "optimize",
+    "parameters",
     "rf",
     "serialization",
     "viz",
 ]
-
-if skrf_available:
-    __all__.append('NetworkCollection')
