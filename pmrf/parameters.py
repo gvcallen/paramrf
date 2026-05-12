@@ -17,8 +17,8 @@ from distreqx.distributions import AbstractDistribution
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.jax_utils import unwrap
 
-Param = prx.AbstractVariable
-"""The abstract Parameter class for parameters in models."""
+Param = prx.Param
+"""The abstract Parameter type hint for parameters in models."""
 
 
 def _apply_wrappers(
