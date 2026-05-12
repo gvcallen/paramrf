@@ -39,8 +39,9 @@ def sample(
         The RF model containing the parameters to be sample.
     frequency : Frequency
         The frequency sweep over which the log likelihood should be evaluated.
-    solver : pmrf.infer.base.AbstractSampler
+    solver : pmrf.infer.AbstractSampler
         The sampler to use (e.g., MCMC, Nested Sampling, etc.).
+        See :mod:`pmrf.infer` for available solvers.
     key : jnp.ndarray, optional
         The random JAX key.
         Automatically generated if not passed.

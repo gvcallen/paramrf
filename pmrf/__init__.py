@@ -27,6 +27,9 @@ from pmrf.jax_utils import (
     field as field,
     unwrap as unwrap,
     Partial as Partial,
+    as_fixed as as_fixed,
+    as_free as as_free,
+    as_frozen as as_frozen,
 )
 from pmrf.network_collection import NetworkCollection as NetworkCollection
 
@@ -63,6 +66,9 @@ __all__ = [
     "field",
     "unwrap",
     "Partial",
+    "as_fixed",
+    "as_free",
+    "as_frozen",
     "NetworkCollection",
     
     # Sub-modules

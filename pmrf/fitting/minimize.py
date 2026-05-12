@@ -11,7 +11,6 @@ import distreqx.distributions as dist
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.constants import Solver
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
@@ -20,7 +19,7 @@ from pmrf.losses import RMSELoss
 from pmrf.parameters import Random
 from pmrf.distributions import Normal
 
-from pmrf.optimize.minimize import minimize
+from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param
 
@@ -28,7 +27,7 @@ def fit_minimize(
     model: Model,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Solver | None = None,
+    solver: AbstractMinimizer | None = None,
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',
@@ -55,10 +54,9 @@ def fit_minimize(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    solver : Solver, optional
-        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimize`
-        or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
-        (such as :class:`optimistix.LBFGS`).
+    solver : AbstractMinimizer, optional
+        The optimizer to use.
+        See :mod:`pmrf.optimize` for available solvers.
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,

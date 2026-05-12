@@ -40,8 +40,9 @@ def minimize(
         If the parameters do not contain bounds, their limits are set to infinity.
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
-    solver : pmrf.optimize.AbstractMinimizer, default=LBFGSB()
-        The optimizer to use. See :type:`pmrf.optimize.AbstractMinimizer`.
+    solver : pmrf.optimize.AbstractMinimizer, default=ScipyMinimize()
+        The optimizer to use.
+        See :mod:`pmrf.optimize` for available solvers.
     max_iter : int
         The maximum number of iterations to take. 
     **kwargs

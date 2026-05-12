@@ -99,6 +99,9 @@ class AbstractBoundedMinimizer(eqx.Module):
         raise NotImplementedError
     
 
+"""
+A type-hint for a minimizer in :mod:`pmrf.optimize`. Either :class:`pmrf.optimize.AbstractUnconstrainedMinimizer` or :class:`pmrf.optimize.AbstractBoundedMinimizer`.
+"""
 AbstractMinimizer = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer
     
 

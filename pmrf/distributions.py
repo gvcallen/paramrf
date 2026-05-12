@@ -1,5 +1,5 @@
 """
-Probability distributions.
+Probability distributions and factories.
 
 Can be used for random parameters in :mod:`pmrf.parameters`.
 
@@ -13,6 +13,7 @@ from distreqx.distributions import (
     Normal as Normal,
     LogNormal as LogNormal,
     Uniform as Uniform,
+    Gamma as Gamma,
 )
 
 def CenteredUniform(
@@ -47,6 +48,7 @@ __all__ = [
     "Normal",
     "LogNormal",
     "Uniform",
+    "Gamma",
     "CenteredUniform",
     "RelativeNormal",
 ]

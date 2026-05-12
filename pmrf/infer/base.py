@@ -84,6 +84,10 @@ class AbstractHypercubeSampler(eqx.Module):
     ) -> tuple[SampleResults, Any]:
         raise NotImplementedError
     
+
+"""
+A type-hint for a sampler in :mod:`pmrf.infer`. Either :class:`pmrf.infer.AbstractJointSampler`, :class:`pmrf.infer.AbstractSplitSampler` or :class:`pmrf.infer.AbstractHypercubeSampler`.
+"""
 AbstractSampler = AbstractJointSampler | AbstractSplitSampler | AbstractHypercubeSampler
 
 

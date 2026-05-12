@@ -504,16 +504,41 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-
     @property
     def at(self) -> Lens:
-        """
-        Provides a fluent, lens-based interface for immutable updates.
+        """Provides a fluent, lens-based interface for immutable PyTree updates.
+
+        This property exposes a chainable API for safely mutating deeply nested
+        models. It guarantees that `__init__`  and `__post_init__` are triggered
+        during the bottom-up rebuild.
         
-        Examples:
-            new_model = model.at.R.set(20.0)
-            new_model = model.at.amplifier.lna.gain.multiply(2.0)
-            new_model = model.at.array_params[0].apply(jnp.abs)
+        For more advanced, surgical manipulations (no dataclass retriggeriig),
+        use Equinox's `tree_at` method.
+
+        Returns
+        -------
+        Lens
+            A lens object focused on the root of the current instance.
+
+        Examples
+        --------
+        Update a single attribute using `.set()` or `.apply()`:
+
+        >>> new_model = model.at.R.set(20.0)
+        >>> new_model = model.at.length.apply(lambda x: x * 2)
+
+        Target multiple attributes simultaneously using `.select()`:
+
+        >>> new_model = model.at.select('L', 'C').set(2.0)
+
+        Apply a function over every item in a collection using `.each()`:
+
+        >>> new_model = model.at.array_params.each().apply(jnp.abs)
+
+        Filter attributes dynamically based on a condition using `.filter()`:
+
+        >>> is_model = lambda x: isinstance(x, Model)
+        >>> new_model = model.at.filter(is_model).apply(prf.as_frozen)
         """
         return Lens(self)
         
