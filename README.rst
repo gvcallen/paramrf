@@ -7,7 +7,9 @@
    :alt: ParamRF Logo
 
 
-**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
+**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_.
+
+The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen
@@ -29,8 +31,8 @@
 Features
 --------
 
-* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or circuit node definitions. Since models can also contain other models, this makes it easy to build deeply nested, hierarchical models.
-* **Differentiable**: Since the framework is built on top of ``jax`` (as opposed to ``numpy``), all models can be differentiated with respect to both frequency and parameters. This allows for more efficient and flexible optimization and sensitivity analysis.
+* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or nodal circuit building. Also, since models can contain other models, this provides a natural means of building deeply nested, hierarchical models.
+* **Differentiable**: Since the framework is built on top of ``jax`` (as opposed to ``numpy``), all models can be differentiated with respect to both frequency and parameters using *auto-differentiation*. This allows for both more efficient and flexible optimization, as well as unique design and analysis opportunities.
 * **High performance and hardware flexible**: Since models are compiled using ``jax`` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
 * **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for fitting models to data in ``pmrf.fitting``.
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
