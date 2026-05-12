@@ -50,7 +50,7 @@ class AbstractLikelihood(eqx.Module):
 
 
 class GaussianLikelihood(AbstractLikelihood):
-    """
+    r"""
     Gaussian likelihood with independent noise.
     
     Maps measurement noise to a normal distribution over frequency.

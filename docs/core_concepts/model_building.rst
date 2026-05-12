@@ -72,7 +72,7 @@ If the above sounded confusing, don't worry - the method is easy to understand u
 
 Parameter Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~
-Parameter manipulation can be done using :method:`pmrf.Model.at`. In immutable programming, this is known as the *lens* pattern.
+Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable programming, this is known as the *lens* pattern.
 
 .. code-block:: python
 
@@ -80,7 +80,12 @@ Parameter manipulation can be done using :method:`pmrf.Model.at`. In immutable p
   
   # Create two-port RLC model using operator overloading
   rlc = Resistor(100.0) ** Inductor(2.0e-9) ** Capacitor(1.0e-12)
-  rlc_updated = rlc.at.models[0].R.set(110.0)
+
+  # Update R by indexing into `models` directly
+  rlc_direct = rlc.at.models[0].R.set(110.0)
+
+  # Update R by type
+  rlc_typed = rlc.at.filter(lambda x: isinstance(x, Resistor)).R.set(110.0)
   
 
 Hierachical Modeling

@@ -15,6 +15,7 @@ dependencies = [
     "optimistix",
     "jaxopt",
     "blackjax",
+    "eqxpress",
     "numpy",
     "scipy",
     "scikit-rf",

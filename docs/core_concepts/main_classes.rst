@@ -7,7 +7,7 @@ The Model
 ~~~~~~~~~
 :class:`~pmrf.Model` represents the base class for any RF model. All built-in models and components, such as :class:`~pmrf.models.components.lumped.Resistor`, :class:`~pmrf.models.components.lines.uniform.PhaseLine`, :class:`~pmrf.models.components.lines.uniform.CoaxialLine` etc. inherit from this class.
 
-Under-the-hood, ParamRF uses the `Equinox <https://docs.kidger.site/equinox/api/module/module/>`_ library to interoperate with JAX. This means that :class:`~pmrf.Model` is an `equinox.Module`_, a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_ and a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_. If these concepts are completely foreign to you, do not worry. The practical consequences of this are:
+Under-the-hood, ParamRF uses the `Equinox <https://docs.kidger.site/equinox/api/module/module/>`_ library to interoperate with JAX. This means that :class:`~pmrf.Model` is an `equinox.Module`, a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_ and a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_. If these concepts are completely foreign to you, do not worry. The practical consequences of this are:
 
   * Models are "immutable", and represent pure functions with attached data/parameters. This allows for high-performance optimization and differentiation, but means that you cannot edit a model's parameters directly.
   * To edit a model's parameters, methods like :meth:`pmrf.Model.at` can be used, which return a new model with the specified changes.
