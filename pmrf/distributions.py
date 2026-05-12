@@ -15,11 +15,6 @@ from distreqx.distributions import (
     Gamma as Gamma,
 )
 
-try:
-    from distreqx.distributions import LogNormal as LogNormal
-except:
-    pass
-    
 
 def CenteredUniform(
     center: ArrayLike, 
@@ -51,9 +46,14 @@ def RelativeNormal(
 __all__ = [
     "AbstractDistribution",
     "Normal",
-    "LogNormal",
     "Uniform",
     "Gamma",
     "CenteredUniform",
     "RelativeNormal",
 ]
+
+try:
+    from distreqx.distributions import LogNormal as LogNormal
+    __all__.extend('LogNormal')
+except:
+    pass
