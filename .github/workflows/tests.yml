@@ -31,6 +31,7 @@ jobs:
         pip uninstall -y distreqx
         pip install "git+https://github.com/gvcallen/distreqx.git"
         pip install "git+https://github.com/PolyChord/PolyChordLite.git"
+        pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta
 
     - name: Run Pytest
       run: |

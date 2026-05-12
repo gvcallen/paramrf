@@ -5,7 +5,11 @@ import jax
 from jaxtyping import PyTree, Array, Scalar
 import jax.numpy as jnp
 import equinox as eqx
-import blackjax
+
+try:
+    import blackjax
+except ImportError:
+    pass
 
 from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SampleResults
 

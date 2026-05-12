@@ -8,8 +8,6 @@ import equinox as eqx
 from pmrf.parameters import Random, Fixed
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
-from pmrf.infer.backends.blackjax import NUTS, HMC, NSS
-from pmrf.infer.backends.polychord import PolyChord, MPI_AVAILABLE
 
 
 # ==========================================
@@ -39,9 +37,12 @@ def simple_loglikelihood(model, args=None):
 # 2. Joint Sampler (MCMC) Tests
 # ==========================================
 
-@pytest.mark.parametrize("solver_cls", [NUTS, HMC])
-def test_joint_samplers(solver_cls):
+@pytest.mark.parametrize("solver_name", ["NUTS", "HMC"])
+def test_joint_samplers(solver_name):
     """Test unconstrained joint sampling using BlackJAX NUTS and HMC."""
+    blackjax_backend = pytest.importorskip("pmrf.infer.backends.blackjax")
+    solver_cls = getattr(blackjax_backend, solver_name)
+
     y0 = get_dummy_dict_model()
     key = jax.random.key(42)
     
@@ -75,6 +76,9 @@ def test_split_sampler_nss():
     """Test constrained split sampling using BlackJAX NSS."""
     print("runnin")
     
+    blackjax_backend = pytest.importorskip("pmrf.infer.backends.blackjax")
+    NSS = blackjax_backend.NSS
+
     y0 = get_dummy_dict_model()
     key = jax.random.key(42)
     
@@ -107,9 +111,15 @@ def test_split_sampler_nss():
 # 4. Hypercube Sampler Tests
 # ==========================================
 
-@pytest.mark.skipif(not MPI_AVAILABLE, reason="PolyChord, anesthetic, or mpi4py not installed.")
 def test_hypercube_polychord(tmp_path):
     """Test unit hypercube sampling using PolyChord."""
+    polychord_backend = pytest.importorskip("pmrf.infer.backends.polychord")
+    
+    if not getattr(polychord_backend, "MPI_AVAILABLE", False):
+        pytest.skip("PolyChord, anesthetic, or mpi4py not installed.")
+        
+    PolyChord = polychord_backend.PolyChord
+
     y0 = get_dummy_dict_model()
     key = jax.random.key(42)
     

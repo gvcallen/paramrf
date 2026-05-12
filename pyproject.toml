@@ -14,7 +14,6 @@ dependencies = [
     "distreqx",
     "optimistix",
     "jaxopt",
-    "blackjax",
     "eqxpress",
     "numpy",
     "scipy",
@@ -39,6 +38,7 @@ tests = [
     "scikit-rf",
     "anesthetic",
     "mpi4py",
+    "blackjax",
 ]
 
 [project.urls]
