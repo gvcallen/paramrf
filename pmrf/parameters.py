@@ -239,7 +239,7 @@ def param(
     value : Any, optional
         The default value of the field.
     constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter.
+        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional

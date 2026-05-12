@@ -79,7 +79,7 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`at`                        Modify a parameter at some path in the model.
+    :attr:`at`                        Modify a parameter at some path in the model.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
@@ -121,12 +121,13 @@ class Model(eqx.Module):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import Resistor, Capacitor, Inductor, Cascade
+        from pmrf.models import Resistor, Capacitor, Inductor
+        from pmrf.parameters import Bounded
 
         class RLC(prf.Model):
-            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
-            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
-            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
+            res: Resistor = Resistor(Bounded(9.0, 11.0))
+            ind: Inductor = Inductor(Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = Capacitor(Bounded(0.0, 10.0, scale=1e-12))
 
             def __call__(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
@@ -545,7 +546,7 @@ class Model(eqx.Module):
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
         
-        See :class:`pmrf.models.composite.transformed.Flipped`.
+        See :class:`pmrf.models.composite.interconnected.Cascade`.
 
         Returns
         -------
