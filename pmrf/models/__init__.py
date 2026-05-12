@@ -92,7 +92,6 @@ from pmrf.models.surrogates.rational import (
 from pmrf.models import adapters, components, composite, surrogates
 
 __all__ = [
-    "Model",
     "adapters",
     "components",
     "composite",
