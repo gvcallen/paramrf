@@ -40,7 +40,6 @@ from pmrf.models.components.lines import (
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
-    ProfiledLine as ProfiledLine,
 )
 from pmrf.models.components.lumped import (
     Load as Load,

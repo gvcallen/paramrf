@@ -13,7 +13,7 @@ from pmrf.models.components.lines.uniform import (
     MicrostripLine as MicrostripLine,
 )
 
-from pmrf.models.components.lines.nonuniform import ProfiledLine as ProfiledLine
+# from pmrf.models.components.lines.nonuniform import ProfiledLine as ProfiledLine
 
 __all__ = [
     "TransmissionLine",
@@ -25,5 +25,4 @@ __all__ = [
     "DatasheetLine",
     "CoaxialLine",
     "MicrostripLine",
-    "ProfiledLine",
 ]
