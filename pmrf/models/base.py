@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import skrf
 
-from pmrf.utils.lens import Lens
+from pmrf.utils.optics import Lens
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
