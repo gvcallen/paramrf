@@ -45,12 +45,6 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
    $ pip install paramrf
 
-Note that, for Bayesian inference or advanced statistical modeling, you may need this fork of ``distreqx``:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/gvcallen/distreqx.git
-
 Example
 -------
 The example below shows how to define and optimize a simple RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples, or have a look at the `tutorials <https://github.com/gvcallen/paramrf/tree/main/docs/tutorials>`_ folder on GitHub.
@@ -74,13 +68,19 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Bayesian inference, you may need this fork of distreqx:
+For Bayesian inference, you may need this fork of *distreqx*:
 
 .. code-block:: bash
 
    $ pip install git+https://github.com/gvcallen/distreqx
 
-For PolyChord Bayesian inference:
+For *BlackJAX*'s Bayesian solvers:
+
+.. code-block:: bash
+
+   $ pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta
+
+For the *PolyChord* solver:
 
 .. code-block:: bash
 
