@@ -7,7 +7,7 @@
    :alt: ParamRF Logo
 
 
-**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_ and `Equinox <https://github.com/patrick-kidger/equinox>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
+**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative, object-orientated syntax for creating complex RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_. The library also provides tools for model optimization, fitting, statistical analysis and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen
@@ -29,10 +29,10 @@
 Features
 --------
 
-* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or node composition. Since models can consist of a mix of `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_ and other ``pmrf.Model`` objects, this allows for a natural means of building complex, hierarchial models.
-* **Differentiable**: Since the framework is built using ``jax``, all models can be differentiated with respect to frequency and parameters. This allows for complex optimization and sensitivity analysis.
-* **High performance and hardware flexibile**: Since models are compiled using ``jax`` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
-* **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for data-fitting such as ``pmrf.fitting.fit``.
+* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or circuit node definitions. Since models can also contain other models, this makes it easy to build deeply nested, hierarchical models.
+* **Differentiable**: Since the framework is built on top of ``jax`` (as opposed to ``numpy``), all models can be differentiated with respect to both frequency and parameters. This allows for more efficient and flexible optimization and sensitivity analysis.
+* **High performance and hardware flexible**: Since models are compiled using ``jax`` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
+* **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for fitting models to data in ``pmrf.fitting``.
 * **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
 
 Installation
@@ -43,7 +43,7 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
    $ pip install paramrf
 
-Note that For Bayesian inference or complex statistical modeling, you may need this fork of distreqx:
+Note that, for Bayesian inference or advanced statistical modeling, you may need this fork of distreqx:
 
 .. code-block:: bash
 
@@ -56,42 +56,33 @@ The example below shows how to define and optimize a simple RLC model to satisfy
 .. code-block:: python
 
   import pmrf as prf
+  from pmrf.parameters import Scaled
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  # Define the model and frequency
   freq = prf.Frequency(1, 10, 101, 'GHz')
-  rlc_model = Resistor(50) ** Inductor(1e-9) ** Capacitor(1e-12)
+  rlc_model = Resistor(50) ** Inductor(Scaled(1.0, 1e-9)) ** Capacitor(Scaled(1.0, 1e-12))
   
-  # Define the optimization frequency and goal
   opt_freq = prf.Frequency(4, 6, 101, 'GHz')
   goal = prf.evaluators.Goal('s11_db', '<', -20)
   
-  # Optimize the model with Nelder-Mead and output results
-  result = prf.optimize.minimize(goal, rlc_model, opt_freq, method='Nelder-Mead')
+  result = prf.optimize.minimize(goal, rlc_model, opt_freq, solver=prf.optimize.ScipyMinimize())
   result.model.plot_s_db(freq, m=0, n=0)
-  print(result.model.param_values())
 
 Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For PolyChord inference:
+For Bayesian inference, you may need this fork of distreqx:
+
+.. code-block:: bash
+
+   $ pip install git+https://github.com/gvcallen/distreqx
+
+For PolyChord Bayesian inference:
 
 .. code-block:: bash
 
    $ pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
-
-For BlackJAX inference:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/handley-lab/blackjax@nested_sampling anesthetic
-
-For eqx-learn surrogate modeling:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/eqx-learn/eqx-learn
 
 Citation
 ---------------------

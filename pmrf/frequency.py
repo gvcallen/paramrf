@@ -7,8 +7,8 @@ import re
 
 import equinox as eqx
 import jax.numpy as jnp
-from parax import field
 
+from pmrf.jax_utils import field
 from pmrf.utils.array import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
 
@@ -134,7 +134,7 @@ class Frequency(eqx.Module):
     @staticmethod
     def from_skrf(skrf_frequency, *, unit=None) -> 'Frequency':
         """
-        Create a `from pmrf.core.frequency` from a `skrf.Frequency` object.
+        Create a `from pmrf.frequency.Frequency` from a `skrf.Frequency` object.
 
         Parameters
         ----------
@@ -159,7 +159,7 @@ class Frequency(eqx.Module):
     
     def to_skrf(self):
         """
-        Convert this `from pmrf.core.frequency` object to a `skrf.Frequency` object.
+        Convert this `from pmrf.frequency.Frequency` object to a `skrf.Frequency` object.
 
         Returns
         -------

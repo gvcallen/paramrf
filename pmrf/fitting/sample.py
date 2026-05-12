@@ -6,32 +6,33 @@ from typing import Callable
 
 import jax.numpy as jnp
 import distreqx.distributions as dist
-import parax as prx
-from pmrf.infer import PolyChord
+from pmrf.infer import NUTS
 
 try:
     import skrf
 except ImportError:
     pass
 
-from pmrf.core import Model, Frequency
-from pmrf.constants import Solver
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.infer import sample
-from pmrf.fitting.base import FitResult
+from pmrf.infer import sample, AbstractSampler
+from pmrf.fitting.result import FitResult
+from pmrf.parameters import Param, Random
+from pmrf.distributions import Normal
 
 def fit_sample(
     model: Model,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Solver = PolyChord(),
+    solver: AbstractSampler | None = None,
     *,
     features: str | list[str] | Callable = 's',
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
-    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
     temperature: float = None,
@@ -53,9 +54,9 @@ def fit_sample(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    solver : Solver, default=PolyChord()
+    solver : AbstractSampler, optional
         The sampler to use.
-        Can be any sampler from :mod:`pmrf.infer` (such as :mod:`pmrf.infer.PolyChord).
+        See :mod:`pmrf.infer` for available solvers.
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
         The RF features to condition on.
         Can either be function, a callable PyTree with optional parameters, or a string,
@@ -121,7 +122,7 @@ def fit_sample(
     # Resolve the likelihood or loss model
     if loss is None and likelihood is None:
         if noise is None:
-            noise = prx.Uniform(0.0, 0.01)
+            noise = Random(Normal(0.0, 0.01))
         likelihood = GaussianLikelihood(noise=noise)
     
     if likelihood is not None:
@@ -141,7 +142,9 @@ def fit_sample(
             temperature=temperature
         )
 
-    infer_result = sample(loglikelihood, model, frequency, solver=solver, **kwargs)
+    if solver is not None:
+        kwargs['solver'] = solver
+    infer_result = sample(loglikelihood, model, frequency, **kwargs)
 
     return FitResult(
         data=data,

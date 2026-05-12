@@ -2,10 +2,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Float, Array
 
-import jax
-import jax.numpy as jnp
-from jaxtyping import PyTree, Float, Array
-
 def batched_tree_flatten(batched_tree: PyTree) -> Float[Array, "N D"]:
     """
     Flattens a batched PyTree into a 2D matrix of shape (N, D).

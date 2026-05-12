@@ -1,31 +1,23 @@
 """
 Composite models that physically connect ports of other models.
 """
-
-import warnings
 import jax.numpy as jnp
-from parax import field
 from dataclasses import InitVar
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.jax_utils import field
 from pmrf.models.components.ideal import Port
 from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
-
-# Silence Equinox's false-positive warning for structural PyTree routing
-warnings.filterwarnings(
-    "ignore",
-    message="Using `field\\(init=False\\)` on `equinox.Module` can lead to surprising behaviour",
-    category=UserWarning
-)
 
 class Circuit(Model):
     # Inputs (init=True, but we don't need to keep them around in the PyTree)
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
     # Computed properties (init=False, they are generated, not passed in)
-    models: list[Model] = field(init=False, transparent=True)
-    indexed_connections: list[list[tuple[int, int]]] = field(init=False, static=True)
-    port_idxs: list[int] = field(init=False, static=True)
+    models: list[Model] = field(default=None, kw_only=True)
+    indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
+    port_idxs: list[int] = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self, connections):
         if not isinstance(connections, list):
@@ -114,7 +106,7 @@ class Cascade(Model):
     an alias for creating a `Cascade` model.
 
     >>> import pmrf as prf
-    >>> from pmrf.core import Resistor, Capacitor, Inductor
+    >>> from pmrf.models import Resistor, Capacitor, Inductor
 
     # Create individual component models
     >>> res = Resistor(50)
@@ -134,7 +126,7 @@ class Cascade(Model):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
-    models: tuple[Model] = field(transparent=True)
+    models: tuple[Model]
     
     def __post_init__(self):
         model_reduced = []

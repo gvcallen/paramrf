@@ -6,33 +6,34 @@ try:
 except ImportError:
     pass
 
-import parax as prx
 import numpy as np
 import distreqx.distributions as dist
 
-from pmrf.core import Model, Frequency
-from pmrf.constants import Solver
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Measured
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
+from pmrf.parameters import Random
+from pmrf.distributions import Normal
 
-from pmrf.optimize.minimize import minimize
-from pmrf.optimize.scipy import ScipyMinimize
-from pmrf.fitting.base import FitResult
+from pmrf.optimize.minimize import minimize, AbstractMinimizer
+from pmrf.fitting.result import FitResult
+from pmrf.parameters import Param
 
 def fit_minimize(
     model: Model,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
-    solver: Solver = ScipyMinimize(),
+    solver: AbstractMinimizer | None = None,
     *,
     features: str | list[str] | Callable = 's',
     inference: str = 'frequentist',
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
     likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] = None,
-    noise: prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray] = None,
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,
@@ -53,10 +54,9 @@ def fit_minimize(
     frequency : Frequency | None, default=None
         The frequency sweep. Required if `data` is a raw array; otherwise automatically 
         extracted from the Network object.
-    solver : Solver, default=ScipyMinimize()
-        The optimizer to use. Can be either in instance of :class:`pmrf.optimize.ScipyMinimize`
-        or a minimizer from `Optimistix <https://docs.kidger.site/optimistix/api/minimise>`_
-        (such as :class:`optimistix.LBFGS`).
+    solver : AbstractMinimizer, optional
+        The optimizer to use.
+        See :mod:`pmrf.optimize` for available solvers.
     features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,
@@ -84,7 +84,7 @@ def fit_minimize(
         :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
-    noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
+    noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood`.
@@ -140,10 +140,10 @@ def fit_minimize(
             loss = RMSELoss()
         else:
             if noise is None:
-                noise = prx.Uniform(0.0, 0.01)
+                noise = Random(Normal(0.0, 0.01))
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
-        kwargs.setdefault('search_space', 'physical')
+        kwargs.setdefault('search_space', 'base')
     else:
         kwargs.setdefault('search_space', 'hypercube')
 
@@ -161,7 +161,9 @@ def fit_minimize(
             objective = NegativeLogPosterior(mll)
 
     # Run the optimizer
-    optimize_result = minimize(objective, model, frequency, solver, **kwargs)
+    if solver is not None:
+        kwargs['solver'] = solver
+    optimize_result = minimize(objective, model, frequency, **kwargs)
 
     return FitResult(
         data=data,

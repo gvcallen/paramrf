@@ -1,6 +1,6 @@
 import pytest
 import jax.numpy as jnp
-from pmrf.core import Frequency
+from pmrf.frequency import Frequency
 
 from scipy.constants import c, mu_0, epsilon_0
 

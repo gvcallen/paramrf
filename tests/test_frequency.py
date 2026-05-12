@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.core.frequency import Frequency
+from pmrf.frequency import Frequency
 
 # ---------------------------------------------------------
 # Fixtures

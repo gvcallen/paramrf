@@ -1,17 +1,19 @@
 """
 Uniform transmission lines (RLGC, coaxial, microstrip)
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
-import parax as prx
-from parax import Parameter
 
-from pmrf.core import Frequency, Model
+from pmrf.frequency import Frequency
+from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
+from pmrf.parameters import Param, param
+from pmrf.constraints import Positive, GreaterThan
+from pmrf.jax_utils import field
 
-class TransmissionLine(Model, ABC):
+class TransmissionLine(Model):
     r"""
     Abstract base class for all uniform transmission line models.
 
@@ -69,7 +71,7 @@ class FloatingLine(Model):
     into a 4-port floating line with an explicit return path.
     """
     #: The inner transmission line model to be wrapped.
-    line: TransmissionLine = prx.field(transparent=True)
+    line: TransmissionLine
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         # 1. Extract the physical wave parameters from the inner line
@@ -93,7 +95,7 @@ class FloatingLine(Model):
         return renormalize_s(s, zc, self.z0, 'traveling', 'power')
     
 
-class RLGCLine(TransmissionLine, ABC):
+class RLGCLine(TransmissionLine):
     r"""
     Abstract base class for a transmission line defined by its per-unit-length
     RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.
@@ -111,10 +113,10 @@ class RLGCLine(TransmissionLine, ABC):
 
     Attributes
     ----------
-    length : Parameter, default=1.0
+    length : Parameter
         Physical length of the line in meters.
     """
-    length: Parameter = 1.0
+    length: Param = param(constraint=Positive())
 
     @abstractmethod
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -159,7 +161,7 @@ class PhaseLine(TransmissionLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import PhaseLine
+        from pmrf.models import PhaseLine
 
         # Create an ideal 90-degree (quarter-wave) 50-ohm line at 1 GHz
         quarter_wave = PhaseLine(
@@ -177,13 +179,13 @@ class PhaseLine(TransmissionLine):
         Characteristic impedance in Ohms.
     theta : Parameter, default=90.0
         Electrical length (phase shift) in degrees at reference frequency `f0`.
-    f0 : Parameter, default=1e9
-        Reference frequency in Hz for `theta`.
+    f0 : Parameter
+        Reference frequency in Hz for `theta`. Key-word only argument.
     """
-    theta: Parameter = 90.0
-    zc: Parameter = 50.0    
+    theta: Param = param(90.0, constraint=Positive())
+    zc: Param = param(50.0, constraint=Positive())
     
-    f0: float = 1e9
+    f0: float = field(kw_only=True)
 
     def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         zc = self.zc * jnp.ones(frequency.npoints, dtype=complex)
@@ -211,7 +213,7 @@ class ConstantRLGCLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import ConstantRLGCLine
+        from pmrf.models import ConstantRLGCLine
 
         lossless_line = ConstantRLGCLine(
             L=368.8e-9,  # nH/m
@@ -233,10 +235,10 @@ class ConstantRLGCLine(RLGCLine):
     C : Parameter, default=90e-12
         Capacitance in Farads/m.
     """
-    R: Parameter = 0.0
-    L: Parameter = 280e-9
-    G: Parameter = 0.0
-    C: Parameter = 90e-12
+    R: Param = param(0.0, constraint=Positive())
+    L: Param = param(280e-9, constraint=Positive())
+    G: Param = param(0.0, constraint=Positive())
+    C: Param = param(90e-12, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         ones = jnp.ones(freq.npoints)
@@ -265,7 +267,7 @@ class PhysicalLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import PhysicalLine
+        from pmrf.models import PhysicalLine
 
         line = PhysicalLine(
             zn=50.0,
@@ -292,11 +294,11 @@ class PhysicalLine(RLGCLine):
     tand : Parameter, default=0.0
         Dielectric loss tangent.
     """
-    zn: Parameter = 50.0
-    epr: Parameter = 1.0
-    A: Parameter = 0.0    
-    fA: Parameter = 1.0  
-    tand: Parameter = 0.0 
+    zn: Param = param(50.0, constraint=Positive())
+    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    A: Param = param(0.0, constraint=Positive())
+    fA: Param = param(1.0, constraint=Positive())
+    tand: Param = param(0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
@@ -344,7 +346,7 @@ class DatasheetLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import DatasheetLine
+        from pmrf.models import DatasheetLine
 
         cable = DatasheetLine(
             zn=50.0,
@@ -372,12 +374,12 @@ class DatasheetLine(RLGCLine):
     freq_bounds : tuple | None, default=None
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
-    zn: Parameter = 50.0
-    vf: Parameter = 1.0
-    k1: Parameter = 0.0
-    k2: Parameter = 0.0
+    zn: Param = param(50.0, constraint=Positive())
+    vf: Param = param(1.0, constraint=Positive())
+    k1: Param = param(0.0, constraint=Positive())
+    k2: Param = param(0.0, constraint=Positive())
     
-    loss_coeffs_normalized: bool = False
+    loss_coeffs_normalized: bool = field(default=False, static=True)
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         w = freq.w
@@ -430,7 +432,7 @@ class CoaxialLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import CoaxialLine
+        from pmrf.models import CoaxialLine
 
         phys_cable = CoaxialLine(
             din=0.9e-3,
@@ -459,12 +461,12 @@ class CoaxialLine(RLGCLine):
     rho : Parameter, default=1.68e-8
         Resistivity of the conductors in Ohm-meters.
     """
-    din: Parameter = 1.12e-3
-    dout: Parameter = 3.2e-3
-    epr: Parameter = 1.0
-    mur: Parameter = 1.0
-    tand: Parameter = 0.0
-    rho: Parameter = 1.68e-8
+    din: Param = param(1.12e-3, constraint=Positive())
+    dout: Param = param(3.2e-3, constraint=Positive())
+    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    mur: Param = param(1.0, constraint=Positive())
+    tand: Param = param(0.0, constraint=Positive())
+    rho: Param = param(1.68e-8, constraint=Positive())
     
     @property
     def eps(self) -> jnp.ndarray:
@@ -544,7 +546,7 @@ class MicrostripLine(RLGCLine):
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import MicrostripLine
+        from pmrf.models import MicrostripLine
 
         phys_microstrip = MicrostripLine(
             w=4e-3,
@@ -571,11 +573,11 @@ class MicrostripLine(RLGCLine):
     rho : Parameter, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
-    w: Parameter = 3e-3
-    h: Parameter = 1.6e-3
-    epr: Parameter = 4.3
-    tand: Parameter = 0.0
-    rho: Parameter = 0.0
+    w: Param = param(3e-3, constraint=Positive())
+    h: Param = param(1.6e-3, constraint=Positive())
+    epr: Param = param(4.3, constraint=GreaterThan(1.0))
+    tand: Param = param(0.0, constraint=Positive())
+    rho: Param = param(0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         W, H = self.w, self.h

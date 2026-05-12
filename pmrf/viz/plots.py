@@ -3,10 +3,9 @@ import logging
 
 import skrf
 
-from pmrf.fitting.base import FitResult
-from pmrf.core import Model, Evaluator
-from pmrf.models import Measured
-from pmrf.evaluators import Feature
+from pmrf.fitting.result import FitResult
+from pmrf.models import Model, Measured
+from pmrf.evaluators import AbstractEvaluator, Feature
 from pmrf.network_collection import NetworkCollection
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ def _setup_figure(frequency, feature, **kwargs):
 
 def plot_fit_result(
     result: FitResult,
-    features: str | list[str] | Evaluator = 's',
+    features: str | list[str] | AbstractEvaluator = 's',
     ax=None,
     subplots: bool = False,
     use_data_prefix: bool | None = None,
@@ -85,7 +84,7 @@ def plot_fit_result(
         
     # --- Safe Data Prefixing ---
     if use_data_prefix:
-        if isinstance(features, Evaluator):
+        if isinstance(features, AbstractEvaluator):
             raise ValueError("Can only use a data prefix when features are string(s)")
         
         # Safely attempt to extract the network name
@@ -104,8 +103,8 @@ def plot_fit_result(
         model_feature_list = feature_list
     
     # Standardize evaluator
-    model_evaluator = features if isinstance(features, Evaluator) else Feature(model_feature_list)
-    data_evaluator = features if isinstance(features, Evaluator) else Feature(feature_list)
+    model_evaluator = features if isinstance(features, AbstractEvaluator) else Feature(model_feature_list)
+    data_evaluator = features if isinstance(features, AbstractEvaluator) else Feature(feature_list)
     
     # Define measured frequency axes
     x_meas = result.frequency.f_scaled

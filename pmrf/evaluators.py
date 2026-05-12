@@ -1,52 +1,81 @@
 """
-Extractors that evaluate a model across frequency and output an array.
+Callables that evaluate a model over frequency.
 """
 from __future__ import annotations
 import re
 from typing import Sequence, Literal, Any, Callable
+from abc import abstractmethod
 
 import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import parax as prx
-from parax.op import Map, Stack, Method, Sum, Diagonal, Index
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
+from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Index
 
-from pmrf.core import Model, Frequency, Evaluator
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils.module import log_prob
+from pmrf.jax_utils import field, as_frozen, unwrap
 
-class Feature(Evaluator):
+class AbstractEvaluator(eqx.Module):
+    """
+    Abstract base class for callables that evaluate a model over frequency.
+    """
+    @abstractmethod
+    def __call__(self, model: Model, freq: Frequency, **kwargs) -> jnp.ndarray:
+        """
+        Evaluate the model response over the specified frequency range.
+
+        Parameters
+        ----------
+        model : Model
+            The model instance to evaluate.
+        freq : Frequency
+            The frequency object defining the evaluation points.
+        **kwargs : dict
+            Additional keyword arguments for the evaluation process.
+
+        Returns
+        -------
+        jnp.ndarray
+            The evaluated model response.
+        """
+        raise NotImplementedError
+    
+EvaluatorFn = Callable[[Model, Frequency], jnp.ndarray]
+EvaluatorLike = str | list[str] | EvaluatorFn | list[EvaluatorFn]
+
+class Feature(AbstractEvaluator):
     """
     Extracts an RF feature using a string-based alias.
     
     Parses regex patterns to automatically route strings like 's11_db' or 
     'amplifier.y21_deg' to the appropriate Method and Indexing chain.
     """
-    #: The underlying operator created that does the final feature extraction.
-    op: prx.Operator
+    #: The underlying expression created that does the final feature extraction.
+    expression: AbstractExpression
 
-    def __init__(self, alias: str | Sequence[str] | list[prx.Operator]):
+    def __init__(self, alias: str | Sequence[str] | list[AbstractEvaluator]):
         """Initialize the feature evalutor.
 
         Parameters
         ----------
-        alias : str | Sequence[str] | list[prx.Operator]
+        alias : str | Sequence[str] | list[Evaluator]
             A string alias, list of string aliases, or list of other evaluators for the feature.
         """
         super().__init__()
         
-        # 1. Handle pre-instantiated Operator lists (Summation)
-        if isinstance(alias, list) and all(isinstance(a, prx.Operator) for a in alias):
-            self.op = Sum(alias)
+        # 1. Handle pre-instantiated expression lists (Summation)
+        if isinstance(alias, list) and all(isinstance(a, AbstractEvaluator) for a in alias):
+            self.expression = Sum(alias)
             return
 
         # 2. Handle Sequences (Recursive Stacking)
         if not isinstance(alias, str) and isinstance(alias, Sequence):
             evaluators = tuple(Feature(a) for a in alias)
-            self.op = Stack(operators=evaluators, axis=-1)
+            self.expression = Stack(evaluators, axis=-1)
             return
 
         # 3. Parse submodel paths (e.g., "submodel.s11_db")
@@ -62,13 +91,13 @@ class Feature(Evaluator):
             base_evaluator = Method(path=path)
             
             if is_gamma:
-                self.op = Diagonal(base_evaluator)
+                self.expression = Diagonal(base_evaluator)
             else:
                 # We assume OffDiagonal is defined as in our previous discussion
                 # If n_ports isn't known here, we use a dynamic vmapped approach
-                self.op = Map(
-                    operator=base_evaluator, 
-                    fn=lambda mat: jax.vmap(lambda m: m[~jnp.eye(m.shape[-1], dtype=bool)])(mat)
+                self.expression = Map(
+                    lambda mat: jax.vmap(lambda m: m[~jnp.eye(m.shape[-1], dtype=bool)])(mat),
+                    base_evaluator, 
                 )
             return
 
@@ -81,11 +110,11 @@ class Feature(Evaluator):
             prop_suffix = prop_suffix or ""  # Convert None to empty string
             
             path = f"{subattrs}.{prop_prefix}{prop_suffix}" if subattrs else f"{prop_prefix}{prop_suffix}"
-            node = Method(path=path)
+            expression = Method(path=path)
             
             # Apply Port Indexing (slices lead freq dim + 0-indexed ports)
             indices = (slice(None), int(p1) - 1, int(p2) - 1)
-            node = Index(operator=node, indices=indices)
+            expression = Index(expression, indices)
             
         else:
             # 6. Standard Attribute Fallback (e.g., 's_mag', 'my_custom_prop2')
@@ -94,15 +123,15 @@ class Feature(Evaluator):
                 raise ValueError(f"Invalid feature alias format: '{alias}'")
                 
             path = f"{subattrs}.{local_alias}" if subattrs else local_alias
-            node = Method(path=path)
+            expression = Method(path=path)
 
-        self.op = node
+        self.expression = expression
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        return self.op(model, frequency, **kwargs)
+        return self.expression(model, frequency, **kwargs)
   
     
-class TargetLoss(Evaluator):
+class TargetLoss(AbstractEvaluator):
     """
     Computes a loss between a model prediction and some target.
     """
@@ -111,19 +140,21 @@ class TargetLoss(Evaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
     #: The fixed or 'true' target that the loss function should compare the prediction to.
-    target: jnp.ndarray
+    target: jnp.ndarray = field(converter=as_frozen)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
     #: See :mod:`pmrf.losses` for common losses.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        self = unwrap(self)
+        
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
     
     
-class MarginalLogLikelihood(Evaluator):
+class MarginalLogLikelihood(AbstractEvaluator):
     """
     Computes the log of the probability of observed data
     by conditioning a likelihood function on a model prediction
@@ -141,7 +172,7 @@ class MarginalLogLikelihood(Evaluator):
     
     #: The observed data that the log probability will be computed of.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray
+    observed: jnp.ndarray = field(converter=as_frozen)
     
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
     #: Can be a function or a PyTree with optional parameters.
@@ -155,14 +186,14 @@ class MarginalLogLikelihood(Evaluator):
     
     #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
     #: which defines the model's orthogonal sub-space. Used for gaussian processes.
-    use_orthogonal_discrepancy: bool = False
+    use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
     #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
-    event_transform: bij.AbstractBijector = None
+    event_transform: bij.AbstractBijector = field(default=None, static=True)
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.field(default=1, static=True)
+    event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
@@ -170,9 +201,10 @@ class MarginalLogLikelihood(Evaluator):
         if self.event_ndims != 1:
             raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
         
+        observed = unwrap(self.observed)
         if self.event_transform is None:
-            ndims = self.observed.ndim
-            if jnp.iscomplexobj(self.observed):
+            ndims = observed.ndim
+            if jnp.iscomplexobj(observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
             else:
@@ -180,10 +212,14 @@ class MarginalLogLikelihood(Evaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        self = unwrap(self)
+        
+        observed = self.observed
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(self.observed)
+        obs_event = self.event_transform.forward(observed)
         batch_ndims = obs_event.ndim - self.event_ndims
+        
         def eval_log_prob(d, x):
             return d.log_prob(x)
         mapped_log_prob = eval_log_prob
@@ -199,6 +235,8 @@ class MarginalLogLikelihood(Evaluator):
         The returned distribution is in event space. To draw a sample from this distribution in
         observation space, see :meth:`MarginalLogLikelihood.sample_observation`.
         """
+        self = unwrap(self)
+        
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
@@ -233,6 +271,8 @@ class MarginalLogLikelihood(Evaluator):
         """
         Returns a sample from the predictive distribution in observation space.
         """
+        self = unwrap(self)
+        
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(self.observed)        
         
@@ -256,7 +296,7 @@ class MarginalLogLikelihood(Evaluator):
         return data_sample
     
     
-class GibbsMarginalLogLikelihood(Evaluator):
+class GibbsMarginalLogLikelihood(AbstractEvaluator):
     """
     Computes a generalized log-posterior (the Gibbs measure) using a loss function 
     instead of a strict generative likelihood.
@@ -271,37 +311,38 @@ class GibbsMarginalLogLikelihood(Evaluator):
     
     #: The observed data that the loss will be computed against.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray
+    observed: jnp.ndarray = field(converter=as_frozen)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
-    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = prx.field(transparent=True)
+    loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
     #: The inverse-weight (temperature) of the Gibbs measure. 
     #: Higher temperatures create wider, less confident posteriors.
-    temperature: float = 1.0
+    temperature: float = field(default=1.0, static=True)
 
     #: An optional discrepancy model to cater for model misspecification.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
     
     #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
     #: which defines the model's orthogonal sub-space. Used for gaussian processes.
-    use_orthogonal_discrepancy: bool = False
+    use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space".
-    event_transform: bij.AbstractBijector = None
+    event_transform: bij.AbstractBijector = field(default=None, static=True)
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
-    event_ndims: int = prx.field(default=1, static=True)
+    event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
         # Default mapping logic (matches standard MarginalLogLikelihood)
         if self.event_ndims != 1:
             raise Exception("GibbsMarginalLogLikelihood currently only supports a single dependent event dimension")
         
+        observed = unwrap(self.observed)
         if self.event_transform is None:
-            ndims = self.observed.ndim
-            if jnp.iscomplexobj(self.observed):
+            ndims = observed.ndim
+            if jnp.iscomplexobj(observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
             else:
@@ -309,6 +350,8 @@ class GibbsMarginalLogLikelihood(Evaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
                 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        self = unwrap(self)
+        
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
@@ -354,7 +397,7 @@ class GibbsMarginalLogLikelihood(Evaluator):
         # 5. Return the generalized log-posterior (Gibbs measure)
         return -(expected_loss / self.temperature)
         
-class NegativeLogLikelihood(Evaluator):
+class NegativeLogLikelihood(AbstractEvaluator):
     """
     Computes the negative of the log of the probability of observed data.
     
@@ -362,13 +405,13 @@ class NegativeLogLikelihood(Evaluator):
     that is useful for performing Maximum Likelihood Estimation.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.field(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.mll(model, frequency, **kwargs)
 
 
-class NegativeLogPosterior(Evaluator):
+class NegativeLogPosterior(AbstractEvaluator):
     """
     Computes the negative of the log of the probability of observed data,
     plus the negative of the log of the prior on the parameters.
@@ -383,9 +426,11 @@ class NegativeLogPosterior(Evaluator):
     `log_prob` method.
     """
     #: The underlying marginal log likelihood
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood = prx.field(transparent=True)
+    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        raise Exception("NegativeLogPosterior is currently unavailable")
+
         nll = -self.mll(model, frequency, **kwargs)
         nlps = [-log_prob(mod) for mod in [model, self.mll]]
         return nll + jnp.sum(jnp.array(nlps))
@@ -397,7 +442,7 @@ class Goal(TargetLoss):
     """
     def __init__(
         self,
-        feature: str | prx.Operator,
+        feature: str | AbstractExpression,
         operator: Literal['<', '<=', '>', '>=', '==', '='] = '==',
         target: float | jnp.ndarray = 0.0,
         weight: float | jnp.ndarray = 1.0,
@@ -410,9 +455,9 @@ class Goal(TargetLoss):
 
         Parameters
         ----------
-        feature : str or prx.Operator
+        feature : str or AbstractExpression
             The feature to be evaluated. If a string is provided, it is 
-            automatically wrapped in a :class:`Feature` operator.
+            automatically wrapped in a :class:`Feature` expression.
         operator : {'<', '<=', '>', '>=', '==', '='}, optional
             The relational operator defining the goal condition. 
             '==' and '=' are treated as equivalent (equality). 
@@ -437,8 +482,8 @@ class Goal(TargetLoss):
 
         Attributes
         ----------
-        predictor : prx.Operator
-            The operator used to extract the feature from the model response.
+        predictor : AbstractExpression
+            The expression used to extract the feature from the model response.
         target : jnp.ndarray
             The processed target value(s) stored as a JAX array.
         loss : HingeLoss
@@ -446,7 +491,7 @@ class Goal(TargetLoss):
             metric calculation.
         """        
         predictor = Feature(feature) if isinstance(feature, str) else feature
-        target = jnp.asarray(target)
+        target = jnp.asarray(target, dtype=float)
         loss = HingeLoss(
             operator=operator,
             weight=weight,

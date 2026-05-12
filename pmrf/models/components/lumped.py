@@ -3,16 +3,19 @@ Lumped elements (resistors, capacitors, inductors).
 """
 
 import jax.numpy as jnp
-from parax import Parameter
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.constraints import Positive
+from pmrf.parameters import Param, param
+from pmrf.jax_utils import field
 
 class Load(Model):
     """
     An class for N-port loads defined by their reflection coefficient.
     """
-    #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-    gamma: Parameter
+    #: The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
+    gamma: Param = param()
     #: The number of ports this load presents. Default is 1.
     nports: int = 1
     
@@ -25,12 +28,12 @@ class Load(Model):
         return s
     
 
-class StaticLoad(Model):
+class FixedLoad(Model):
     """
-    An class for N-port loads defined by static (non-parametric) reflection coefficient.
+    An class for N-port loads defined by fixed (non-tunable) reflection coefficient.
     """
     #: The complex reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-    gamma: float
+    gamma: float = field(static=True)
     #: The number of ports this load presents. Default is 1.
     nports: int = 1
     
@@ -42,8 +45,8 @@ class Resistor(Model):
     """
     A 2-port model of a series resistor.
     """
-    #: The resistance in Ohms. Default is 50.0.
-    R: Parameter = 50.0
+    #: The resistance in Ohms.
+    R: Param = param(constraint=Positive())
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -75,8 +78,8 @@ class Capacitor(Model):
     """
     A 2-port model of a series capacitor.
     """
-    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    C: Parameter = 1.0e-12
+    #: The capacitance in Farads.
+    C: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -106,8 +109,8 @@ class Inductor(Model):
     """
     A 2-port model of a series inductor.
     """
-    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    L: Parameter = 1.0e-9
+    #: The inductance in Henrys.
+    L: Param = param(constraint=Positive())
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         L = self.L
@@ -137,8 +140,8 @@ class ShuntResistor(Model):
     """
     A 2-port model of a shunt resistor shunting to ground.
     """
-    #: The resistance in Ohms. Default is 50.0.
-    R: Parameter = 50.0
+    #: The resistance in Ohms.
+    R: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -170,8 +173,8 @@ class ShuntCapacitor(Model):
     """
     A 2-port model of a shunt capacitor shunting to ground.
     """
-    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    C: Parameter = 1.0e-12
+    #: The capacitance in Farads
+    C: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -203,8 +206,8 @@ class ShuntInductor(Model):
     A 2-port model of a shunt inductor shunting to ground. 
     Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
     """
-    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    L: Parameter = 1e-9
+    #: The inductance in Henrys
+    L: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -237,10 +240,10 @@ class InductorQ(Model):
     """
     A 2-port model of a series inductor with a finite Quality Factor (Q).
     """
-    #: The inductance in Henrys. Default is 1.0e-9 (1 nH).
-    L: Parameter = 1e-9
-    #: The quality factor representing non-ideal losses. Default is 50.0.
-    Q: Parameter = 50.0
+    #: The inductance in Henrys
+    L: Param = param(constraint=Positive())
+    #: The quality factor representing non-ideal losses
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -270,10 +273,10 @@ class CapacitorQ(Model):
     """
     A 2-port model of a series capacitor with a finite Quality Factor (Q).
     """
-    #: The capacitance in Farads. Default is 1.0e-12 (1 pF).
-    C: Parameter = 1e-12
+    #: The capacitance in Farads
+    C: Param = param(constraint=Positive())
     #: The quality factor representing non-ideal losses. Default is 50.0.
-    Q: Parameter = 50.0
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -299,12 +302,12 @@ class CapacitorQ(Model):
     
 def Short(nports=1):
     """A standard ideal short circuit load (gamma = -1.0)."""
-    return StaticLoad(-1.0, nports=nports)
+    return FixedLoad(-1.0, nports=nports)
 
 def Open(nports=1):
     """A standard ideal open circuit load (gamma = 1.0)."""
-    return StaticLoad(1.0, nports=nports)
+    return FixedLoad(1.0, nports=nports)
 
 def Match(nports=1):
     """A standard ideal open circuit load (gamma = 1.0)."""
-    return StaticLoad(0.0, nports=nports)
+    return FixedLoad(0.0, nports=nports)

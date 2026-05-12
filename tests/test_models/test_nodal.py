@@ -2,7 +2,7 @@
 import pytest
 import jax.numpy as jnp
 
-from pmrf.core import Frequency
+from pmrf.frequency import Frequency
 from pmrf.rf import s2y
 
 # Adjust imports based on your actual module structures
@@ -116,7 +116,7 @@ def test_shunt_short_circuit(basic_freq):
 
 def test_shunt_invalid_port_count():
     """Ensure Shunt raises an error if passed a multi-port network."""
-    res_model = Resistor() # 2-port
+    res_model = Resistor(50.0) # 2-port
     
     with pytest.raises(ValueError, match="Shunt requires a 1-port model"):
         Shunt(model=res_model)

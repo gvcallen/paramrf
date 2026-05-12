@@ -2,261 +2,94 @@
 Base inference functions and classes.
 """
 
-from typing import Callable, Any, TypeVar, Optional
-import collections
+from typing import Callable, Any, Optional, TypeVar
 import abc
 
-
-import numpy as np
+import jax.numpy as jnp
 import jax
 from jaxtyping import Array, PyTree, Scalar
-import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 
-from pmrf.core import Model, Frequency
 
-D = TypeVar('D')
-
-class InferResult(prx.Module):
-    """
-    The result of an inference run.
-
-    Contains the resultant maximum likelihood estimates, as well as the samples as batched models
-    and weights for nested sampling runs.
-
-    Note that all batched objects only contain the relevant free parameters.
-    To retrieve a full model, combine it using `eqx.combine` with its dynamic part.
-    For example, to retrieve `sampled_models_full`, call `eqx.combine(result.sampled_models, result.model)`.
-    """
-    #: The RF model containing the maximum likelihood parameters and the posterior over parameters.
-    #: Contains the optimized variational posterior distributions for variational inference.
-    model: Model
-
-    #: The log likelihood function/model used to calculate the log likelihood during inference.
-    #: If the log likelihood was a module with parameters, then this contains
-    #: the maximum likelihood log likelihood model.
-    loglikelihood: Callable[[Model, Frequency], jnp.ndarray]
-    
-    #: A batched model containing the sampled models.
-    #: Only populated for Bayesian sampling algorithms.
-    sampled_models: Model | None = None
-    
-    #: A batched model containing the sampled log likelihoods if an evaluator was used.
-    #: Only populated for Bayesian sampling algorithms.
-    sampled_loglikelihoods: Array | None = None
-        
-    #: The log-likelihood values related to each sample for Bayesian sampling.
-    #: Only populated for Bayesian sampling algorithms.
-    loglikelihood_values: jnp.ndarray | None = None
-    
-    #: The weights related to each sample for Bayesian sampling, if any.
-    weights: jnp.ndarray | None = None
-
-    #: The estimated log evidence, if any.
-    logevidence: Scalar | None = None
-    
-    #: The estimated error in the log evidence, if any.
-    logevidence_err: Scalar | None = None
-    
-    #: The underlying results object returned by the solver, if any.
-    #: May be a stripped-down version of the original results object.
-    #: Note saved to file.
-    solver_results: Any = prx.field(default=None, save=False)
-       
-    def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
-        """Helper method to extract, format, and check parameter data for export."""
-        # 1. Cleanly format prefixes
-        m_prefix = f"{model_prefix}_" if model_prefix else ""
-        l_prefix = f"{likelihood_prefix}_" if likelihood_prefix else ""
-        
-        model_param_names = [f"{m_prefix}{name}" for name in self.model.flat_param_names()]
-        
-        if isinstance(self.loglikelihood, prx.Module):
-            likelihood_param_names = [f"{l_prefix}{name}" for name in self.loglikelihood.flat_param_names()]
-        else:
-            likelihood_param_names = []
-        
-        # 2. Perform Collision Check
-        param_names = model_param_names + likelihood_param_names
-        if len(param_names) != len(set(param_names)):
-            duplicates = [item for item, count in collections.Counter(param_names).items() if count > 1]
-            raise ValueError(
-                f"Parameter name collision detected for: {duplicates}. "
-                "Please provide a unique `model_prefix` and/or `likelihood_prefix` to resolve this."
-            )
-            
-        # 3. Flatten and vmap
-        flatten_fn = lambda m: jax.flatten_util.ravel_pytree(m)[0]
-        sampled_model_params = jax.vmap(flatten_fn)(self.sampled_models)
-        sampled_loglikelihood_params = jax.vmap(flatten_fn)(self.sampled_loglikelihoods)          
-        
-        # 4. Concatenate and cast to standard numpy
-        sampled_params = np.asarray(jnp.hstack((sampled_model_params, sampled_loglikelihood_params)))
-        
-        return param_names, sampled_params
-    
-    def combined_flat_param_values(self) -> jnp.ndarray:
-        return self._prepare_export_data(model_prefix='model', likelihood_prefix='likelihood')[1]
-
-    def to_arviz(self, model_prefix='', likelihood_prefix=''):
-        """Converts the model to Arviz results.
-
-        Parameters
-        ----------
-        model_prefix : str, optional
-            A string prefix for the model parameters, by default ''
-        likelihood_prefix : str, optional
-            A string prefix for the likelihood parameters, by default ''
-        """
-        import arviz as az
-        
-        # 1. Get standardized names and numpy arrays
-        param_names, sampled_params = self._prepare_export_data(model_prefix, likelihood_prefix)
-        
-        # 2. Construct the ArviZ posterior dictionary
-        # ArviZ requires shape (n_chains, n_draws). We expand dimensions to add a dummy chain.
-        posterior_dict = {}
-        for i, name in enumerate(param_names):
-            posterior_dict[name] = np.expand_dims(sampled_params[:, i], axis=0)
-            
-        # 3. Extract sample statistics
-        sample_stats = {
-            "loglikelihood": np.expand_dims(np.asarray(self.loglikelihood_values), axis=0)
-        }
-        if self.weights is not None:
-            sample_stats["weights"] = np.expand_dims(np.asarray(self.weights), axis=0)
-            
-        # 4. Build and return the InferenceData object
-        return az.from_dict(
-            posterior=posterior_dict,
-            sample_stats=sample_stats
-        )
-        
-    def to_anesthetic(self, model_prefix='', likelihood_prefix='', logL_birth=None):
-        """Converts the model to Anesthetic samples.
-
-        Parameters
-        ----------
-        model_prefix : str, optional
-            A string prefix for the model parameters, by default ''
-        likelihood_prefix : str, optional
-            A string prefix for the likelihood parameters, by default ''
-        """        
-        import pandas as pd
-        import anesthetic as an
-        
-        # 1. Get standardized names and numpy arrays
-        param_names, sampled_params = self._prepare_export_data(model_prefix, likelihood_prefix)
-        
-        # 2. Build the core pandas DataFrame
-        df = pd.DataFrame(sampled_params, columns=param_names)
-        
-        # 3. Extract sample statistics
-        logL = np.asarray(self.loglikelihood_values)
-        weights = np.asarray(self.weights) if self.weights is not None else None
-        
-        # 4. Determine which Anesthetic object to build
-        if logL_birth is not None:
-            return an.NestedSamples(
-                data=df, 
-                logL=logL, 
-                logL_birth=np.asarray(logL_birth), 
-                weights=weights
-            )
-        else:
-            return an.Samples(
-                data=df, 
-                logL=logL, 
-                weights=weights
-            )
-        
-
-class SamplingResult(eqx.Module):
-    """
-    A standardized result structure for MCMC and Nested sampling algorithms.
-    """
+class SampleResults(eqx.Module):
+    """The core mathematical payload of a sampling run."""
+    #: Stacked array samples
     samples: PyTree[Array]
-    #: The stacked trajectory of posterior samples (dead points).
     
-    loglikelihoods: Array
-    #: A 1D array of log-likelihood values corresponding to each sample.
+    #: Stacked log-likelihood or log-posterior function values
+    fn_values: Array
     
+    #: Weights associated with the samples (mostly for Nested/Importance sampling)
     weights: Array | None = None
-    #: The statistical weights associated with each sample.
-    #: Only provided by algorithms that require it (e.g. nested sampling).
     
-    logevidence: Scalar | None = None
-    #: The final estimate of the log-evidence (log Z) of the model.
-    #: Only provided by algorithms that support it (e.g. nested sampling).
+    #: Log of the evidence
+    logevidence: Array | None = None
     
-    logevidence_err: Scalar | None = None
-    #: The estimated statistical error on the log-evidence.
-    #: Only provided by algorithms that support it (e.g. nested sampling).
-    
-    final_state: Any | None = None
-    #: The final internal state of the algorithm.
-    
-    aux: PyTree[Array] | None = None
-    #: Stacked auxiliary data generated during the run.
-    
-    stats: dict[str, Any] | None = eqx.field(default_factory=dict, static=True)
-    #: Static or summary statistics about the run (e.g., number of likelihood evaluations).
+    #: Error of the log of the evidence
+    logevidence_error: Array | None = None
     
 
-class AbstractCallableSampler(eqx.Module):
-    """
-    An interface for JAX-wrapped MCMC and Nested sampling algorithms that require a single `__call__`.
-    """
-    #: Signifies whether the sampler operates in the unit hypercube.
-    #: If True, `prior_fn` must be a transform from a unit hypercube PyTree to a physical space PyTree.
-    #: If False, `prior_fn` must return the log-prior probability directly as a scalar.
-    requires_hypercube: eqx.AbstractClassVar[bool]
-
+class AbstractJointSampler(eqx.Module):
+    """Interface for samplers exploring the joint log-posterior (e.g. MCMC-based NUTS or HMC)."""
     @abc.abstractmethod
-    def __call__(
+    def run(
         self,
-        loglikelihood_fn: Callable[[PyTree, Any], Scalar],
-        prior_fn: Callable[[PyTree, Any], PyTree] | Callable[[PyTree, Any], Scalar],
+        logposterior_fn: Callable[[PyTree, Any], Any],
         y0: PyTree,
-        init_samples: Optional[PyTree],
-        key: Array,
         args: PyTree[Any],
-        options: dict[str, Any],
-        max_steps: int | None,
-    ) -> SamplingResult:
-        """
-        Execute the Nested sampling algorithm.
+        key: Array,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        **kwargs,
+    ) -> tuple[SampleResults, Any]:
+        raise NotImplementedError
 
-        Parameters
-        ----------
-        loglikelihood_fn : callable
-            A function taking `(params, args)` and returning the scalar log-likelihood.
-        prior_fn : callable
-            Depending on `requires_hypercube`, either a prior transform function mapping 
-            the unit hypercube to physical space, or a function returning the log-prior scalar.
-        y0 : PyTree or None
-            A prototype PyTree to infer parameter shapes.
-        init_samples : PyTree or None
-            A batch of PyTrees of the same non-batched shape as `y0` representing initial live points.
-            Required for non-hypercube nested samplers.
-            For hypercube samplers, these samples should be in the hypercube.
-        key : Array
-            A JAX PRNGKey for stochastic point generation.
-        args : PyTree
-            Additional static arguments passed to the likelihood and prior functions.
-        options : dict
-            Runtime configuration for the sampler.
-        max_steps: int | None
-            The maximum number of steps the sampler can take, or None for no limit.
-        
-        Returns
-        -------
-        SamplingResult
-            The structured results containing the samples, log likelihood values, and potentially weights/evidence estimates.
-        """
+
+class AbstractSplitSampler(eqx.Module):
+    """Interface for samplers needing separate likelihood and prior densities (e.g., modern Nested Sampling)."""
+    @abc.abstractmethod
+    def run(
+        self,
+        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        logprior_fn: Callable[[PyTree], Scalar],
+        y0: PyTree,
+        args: PyTree[Any],
+        key: Array,
+        init_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        **kwargs,
+    ) -> tuple[SampleResults, Any]:
+        raise NotImplementedError
+
+
+class AbstractHypercubeSampler(eqx.Module):
+    """
+    Interface for samplers operating in a unit hypercube (e.g., classical Nested Sampling).
+    
+    All inputs (`u0`, `init_cube_samples` etc.) must be in the unit hypercube,
+    whereas any outputs (e.g. `samples` in `SampleResults`) must be in physical space.
+    """
+    @abc.abstractmethod
+    def run(
+        self,
+        loglikelihood_fn: Callable[[PyTree, Any], Any],
+        prior_transform_fn: Callable[[PyTree], PyTree],
+        u0: PyTree,
+        args: PyTree[Any],
+        key: Array,
+        init_cube_samples: Optional[PyTree] = None,
+        max_steps: int | None = None,
+        **kwargs,
+    ) -> tuple[SampleResults, Any]:
         raise NotImplementedError
     
+
+"""
+A type-hint for a sampler in :mod:`pmrf.infer`. Either :class:`pmrf.infer.AbstractJointSampler`, :class:`pmrf.infer.AbstractSplitSampler` or :class:`pmrf.infer.AbstractHypercubeSampler`.
+"""
+AbstractSampler = AbstractJointSampler | AbstractSplitSampler | AbstractHypercubeSampler
+
 
 def is_sampler(x):
     """
@@ -264,7 +97,7 @@ def is_sampler(x):
 
     Returns `True` for :class:`pmrf.infer.AbstractSampler`.
     """    
-    return isinstance(x, AbstractCallableSampler)
+    return isinstance(x, AbstractSampler)
     
 
 def is_inferer(x):
@@ -275,3 +108,138 @@ def is_inferer(x):
     """    
     return is_sampler(x)
     
+T = TypeVar('T')
+
+def sample(
+    loglikelihood_fn: Callable[[T, Any], Scalar],
+    y0: T,
+    solver: AbstractSampler,
+    key: Array,
+    args: Optional[Any] = None,
+    init_samples: Optional[T] = None,
+    max_steps: Optional[int] = None,
+    **kwargs
+) -> tuple[T, T, SampleResults, Any]:
+    """
+    Samples a general PyTree potentially containing Parax probabilistic parameters
+    using a joint, split, or hypercube Bayesian sampler.
+
+    Parameters
+    ----------
+    loglikelihood_fn : callable
+        The log-likelihood function taking `(unwrapped_y0, args)`.
+        Prior calculations are handled automatically via Parax.
+    y0 : PyTree
+        The initial parameter guess / model state.
+    args : Any
+        Args to pass to `loglikelihood_fn`.
+    solver : AbstractSampler
+        The instantiated sampler to run.
+    key : Array
+        JAX PRNG key.
+    init_samples : PyTree, optional
+        Optional batched PyTree of initial states. 
+    max_steps: int, optional
+        Maximum sampling steps.
+    **kwargs
+        Runtime arguments forwarded to the solver backend.
+
+    Returns
+    -------
+    tuple
+        A tuple of `(samples, static, payload, metrics)`.
+    """
+
+    if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
+        # Extraction
+        init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
+        unconstrained_prior_all = prx.probabilistic.tree_unconstrained_distribution(y0)
+        bijector_all = prx.probabilistic.tree_leafwise_bijector(y0)
+
+        # Partitioning/filtering
+        init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
+        unconstrained_prior = prx.remove(unconstrained_prior_all, prx.is_constant)
+        bijector = prx.remove(bijector_all, prx.is_constant)
+
+        # Space transformation
+        def logprior_wrapper(unconstrained_params: PyTree) -> Scalar:
+            return unconstrained_prior.log_prob(unconstrained_params)
+
+        def loglikelihood_wrapper(unconstrained_params: PyTree, args: Any) -> Scalar:
+            constrained_params = bijector.forward(unconstrained_params)
+            y_unwrapped = prx.unwrap(eqx.combine(constrained_params, static))
+            return loglikelihood_fn(y_unwrapped, args)
+
+        def logposterior_wrapper(params_unconstrained: PyTree, args: Any) -> Scalar:
+            log_prior = logprior_wrapper(params_unconstrained)
+            log_likelihood = loglikelihood_wrapper(params_unconstrained, args)
+            return log_prior + log_likelihood
+
+        init_unconstrained_params = bijector.inverse(init_params)
+        
+        init_unconstrained_samples = None
+        if init_samples is not None:
+            init_sampled_constrained = prx.unwrap(init_samples, only_if=prx.is_probabilistic)
+            init_samples_filtered = eqx.filter(init_sampled_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
+            init_unconstrained_samples = eqx.filter_vmap(bijector.inverse)(init_samples_filtered)
+
+        if isinstance(solver, AbstractJointSampler):
+            results, metrics = solver.run(
+                logposterior_fn=logposterior_wrapper,
+                y0=init_unconstrained_params, args=args, key=key,
+                init_samples=init_unconstrained_samples, max_steps=max_steps, **kwargs
+            )
+        else:
+            results, metrics = solver.run(
+                loglikelihood_fn=loglikelihood_wrapper,
+                logprior_fn=logprior_wrapper,
+                y0=init_unconstrained_params, args=args, key=key,
+                init_samples=init_unconstrained_samples, max_steps=max_steps, **kwargs
+            )
+        
+        # Post-process back to original parameter space
+        sampled_params = eqx.filter_vmap(bijector.forward)(results.samples)
+        return sampled_params, static, results, metrics
+
+    elif isinstance(solver, AbstractHypercubeSampler):
+        # Extraction
+        init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
+        distributions_all = prx.probabilistic.tree_distributions(y0)
+
+        # Partitioning/filtering
+        init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
+        distributions = prx.remove(distributions_all, prx.is_constant, stop_if=prx.is_distribution)
+
+        # Space transformations
+        def params_to_cube(params):
+            return jax.tree.map(lambda d, b: d.cdf(b), distributions, params, is_leaf=prx.is_distribution)
+
+        def cube_to_params(cube_params):
+            eps = jnp.finfo(jnp.float32).eps
+            safe_cube = jax.tree.map(lambda x: jnp.clip(x, eps, 1.0 - eps), cube_params)
+            return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
+        
+        init_cube_params = params_to_cube(init_params)
+        
+        init_cube_samples = None
+        if init_samples is not None:
+            init_samples_constrained = prx.unwrap(init_samples, only_if=prx.is_probabilistic)
+            init_samples_filtered = eqx.filter(init_samples_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
+            init_cube_samples = eqx.filter_vmap(params_to_cube)(init_samples_filtered)
+
+        # Likelihood wrapper and sampler running
+        def loglikelihood_wrapper(params, args):
+            unwrapped = prx.unwrap(eqx.combine(params, static))
+            return loglikelihood_fn(unwrapped, args)
+        
+        results, metrics = solver.run(
+            loglikelihood_fn=loglikelihood_wrapper,
+            prior_transform_fn=cube_to_params,
+            u0=init_cube_params, args=args, key=key,
+            init_cube_samples=init_cube_samples, max_steps=max_steps, **kwargs
+        )
+
+        return results.samples, static, results, metrics
+
+    else:
+        raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

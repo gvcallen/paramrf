@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 
-from pmrf.core.frequency import Frequency
-from pmrf.core.model import Model
+from pmrf.frequency import Frequency
+from pmrf.models.base import Model
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Goal
 
 # We use importorskip because distreqx and pmrf.losses are required for these tests

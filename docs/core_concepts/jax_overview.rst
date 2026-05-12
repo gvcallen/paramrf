@@ -11,7 +11,7 @@ Standard Python is interpreted, which introduces significant overhead for heavy 
 
 When a JIT-compiled function is called, it is not immediately executed. Instead, JAX "traces" the function's execution using abstract values to map out its sequence of mathematical operations. This trace builds a static computation graph in an intermediate representation called **XLA** (Accelerated Linear Algebra). The XLA compiler then optimizes this graph by fusing operations, reducing memory allocation, and compiling it to a specific hardware architecture (CPU, GPU, or TPU).
 
-In ParamRF, all model evaluations and optimization loops are designed to be JIT-compatible. Because JAX relies on this static tracing mechanism, functions passed to the JIT compiler must be *pure* (stateless and lacking side-effects). This functional paradigm is the underlying reason why ParamRF models are immutable; rather than modifying a model's attributes in-place, you use functional methods like :meth:`pmrf.Model.with_params()` to generate a new model state.
+In ParamRF, all model evaluations and optimization loops are designed to be JIT-compatible. Because JAX relies on this static tracing mechanism, functions passed to the JIT compiler must be *pure* (stateless and lacking side-effects). This functional paradigm is the underlying reason why ParamRF models are immutable; rather than modifying a model's attributes in-place, you use functional methods like :meth:`pmrf.Model.at` to generate a new model state.
 
 Differentiability and Autodifferentiation
 -----------------------------------------
@@ -75,3 +75,7 @@ This allows you to easily create and evaluate entire batches of models simultane
   
   # Returns batched S-parameters with shape (10, nfreq, 2, 2)
   s_params = evaluate_batch(batched_capacitors)
+
+Unwrapping and Frozen/Static Modules
+------------------------------------
+ParamRF builds on top of a JAX library known as `Parax <https://github.com/gvcallen/parax>`_ to allow for parameter constraints, fixing, and other tools to make model optimization and inference easier. To accomplish this, Parax makes use of a concept known as `unwrapping`, which allows applying a "computation" to a JAX PyTree (e.g. constraints, scaling etc.) at a known time. For more information, visit the Parax documentation.

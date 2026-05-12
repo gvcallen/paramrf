@@ -1,21 +1,21 @@
 """
-Abstract base class for RF models.
+Base class for RF models.
 """
 
-from abc import ABC, abstractmethod
-from typing import Callable, TYPE_CHECKING, Any
+from typing import Callable, Any
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import parax as prx
 import skrf
 
-from pmrf.core.frequency import Frequency
+from pmrf.utils.lens import Lens
+from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
+from pmrf.jax_utils import field, unwrap
 
 Z0_WARNING = \
 r"""
@@ -25,38 +25,31 @@ is not yet officially supported and you may encounter subtle bugs. For now, it i
 recommended to keep the default z0 and convert your results at the end.
 """
 
-class Model(prx.Module, ABC):
+class Model(eqx.Module):
     """
-    Abstract base class for RF models.
+    Base class for RF models.
 
-    This base class is used to represent any computable RF network, referred to in
-    **ParamRF** as a "Model". This class can be overridden for defining complex models,
-    or can be utilized indirectly by combining models already provided in :mod:`pmrf.models`.
+    Derived from this class to define your own, custom model.
 
-    Note that, since this inherits from `parax.Module <https://gvcallen.github.io/parax/api/#parax.Module>`_,
-    models can easily be manipulated using e.g. ``mymodel.with_params(xxx)``. See the
-    `Parax <https://gvcallen.github.io/parax>`_ documentation for more details.
-    
-    This class is abstract and should not be instantiated directly. Derive from :class:`Model`
-    and override one of the primary property functions (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`,
-    :meth:`pmrf.Model.a`).
+    This class should not be instantiated directly. It is created internally in ParamRF when models are
+    built compositionally, or can be inheriting from, in which case at least one of the primary property functions
+    (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`) should be overidden.
 
-    The model is a Parax/Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
+    The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
     (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
-    field syntax using `parax.Parameter <https://gvcallen.github.io/parax/api/#parax.Parameter>`_.
+    field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`. 
+    See :mod:`pmrf.parameters` for more details.
 
     Usage
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
     - Use "past tense" functions to modify the model in conjunction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
-    - Retrieve parameter information via Parax methods such as :meth:`.named_params`, :meth:`.param_names`, :meth:`.flat_params`, etc.
-    - Use Parax ``with_xxx`` functions to modify fields, models and parameters within the model e.g. :meth:`.with_params`, :meth:`.with_fields`.    
 
     Methods & Properties Summary
     ----------------------------
 
-    **Core API**
+    **Core Methods**
 
     ================================= ====================================================================
     Method                            Description
@@ -66,6 +59,13 @@ class Model(prx.Module, ABC):
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
+    ================================= ====================================================================
+
+    **Helper Methods**
+
+    ================================= ====================================================================
+    Method                            Description
+    ================================= ====================================================================
     :meth:`primary`                   Dispatch to the primary function for the given frequency.
     :attr:`primary_function`          The primary function (``s`` or ``a``) as a callable.
     :attr:`primary_property`          The primary property (e.g. ``"s"``, ``"a"``) as a string.
@@ -74,41 +74,39 @@ class Model(prx.Module, ABC):
     :attr:`port_tuples`               All (m, n) port index pairs.
     ================================= ====================================================================
 
-    **Model Manipulation**
+    **Model Transformation**
 
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
+    :meth:`at`                        Modify a parameter at some path in the model.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
     ================================= ====================================================================
 
-    **Plotting, File, & Conversion Utilities**
+    **File & Conversion Utilities**
 
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`plot_func`                 Evaluate and plot an arbitrary function of the model.
-    :meth:`plot_func_samples`         Evaluate and plot a function over parameter samples.
     :meth:`to_skrf`                   Convert the model at frequencies to an :class:`skrf.Network`.
     :meth:`export_touchstone`         Export the model response to a Touchstone file.
     ================================= ====================================================================    
 
     Examples
     --------
-    A ``PiCLC`` network ("foundational" model with fixed parameters and equations):
+    A ``PiCLC`` network with some free parameter defaults:
 
     .. code-block:: python
 
         import jax.numpy as jnp
-        import parax as prx
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prx.Parameter = 1.0e-12
-            L:  prx.Parameter = 1.0e-9
-            C2: prx.Parameter = 1.0e-12
+            C1: prf.Param = prf.param(1.0e-12)
+            L:  prf.Param = prf.param(1.0e-9)
+            C2: prf.Param = prf.param(1.0e-12)
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -118,18 +116,17 @@ class Model(prx.Module, ABC):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` network ("circuit" model with free parameters built using cascading)
+    An ``RLC`` network built in `__call__` using cascading:
 
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.core import Resistor, Capacitor, Inductor, Cascade
-        from parax.parameters import Uniform
+        from pmrf.models import Resistor, Capacitor, Inductor, Cascade
 
         class RLC(prf.Model):
-            res: Resistor = Resistor(Uniform(9.0, 11.0))
-            ind: Inductor = Inductor(Uniform(0.0, 10.0, scale=1e-9))
-            cap: Capacitor = Capacitor(Uniform(0.0, 10.0, scale=1e-12))
+            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
+            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
 
             def __call__(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
@@ -137,7 +134,7 @@ class Model(prx.Module, ABC):
     """
     #: The characteristic impedance of the model.
     #: NB: Mixing impedances across models is not fully supported.
-    z0: complex = prx.field(default=50.0+0j, kw_only=True, static=True)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)        
@@ -435,6 +432,44 @@ class Model(prx.Module, ABC):
     
     # ---- Magic methods and copying --------------------------------------------------
 
+    def __repr__(self) -> str:
+        """String representation of the Model."""
+        import numpy as np
+        import jax
+
+        class _RawFormatter:
+            """Wrapper to print arrays cleanly with rounded float values."""
+            def __init__(self, val):
+                self.val = np.asarray(val)
+                
+            def __repr__(self):
+                # precision=4 limits decimal places
+                # suppress_small=True formats numbers very close to zero as 0
+                return np.array2string(
+                    self.val, 
+                    separator=', ', 
+                    precision=4, 
+                )
+
+        # Unwrap the model to resolve variables
+        unwrapped = unwrap(self)
+        
+        # Identify JAX arrays
+        is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
+        
+        # Replace JAX arrays with our custom formatter
+        unwrapped_clean = jax.tree_util.tree_map(
+            lambda x: _RawFormatter(x) if is_array(x) else x,
+            unwrapped,
+            is_leaf=is_array
+        )
+
+        # Use Equinox's formatter, displaying full internal arrays instead of generic shape labels
+        return eqx.tree_pformat(unwrapped_clean, short_arrays=False)
+
+    def __str__(self) -> str:
+        return repr(self)    
+
     def __getattr__(self, name: str):
         """
         Dynamic dispatch for scikit-rf plotting methods.
@@ -468,6 +503,44 @@ class Model(prx.Module, ABC):
     def __matmul__(self, other: 'Model') -> 'Model':
         """Termination operator `@`."""        
         return self.terminated(other)
+    
+    @property
+    def at(self) -> Lens:
+        """Provides a fluent, lens-based interface for immutable PyTree updates.
+
+        This property exposes a chainable API for safely mutating deeply nested
+        models. It guarantees that `__init__`  and `__post_init__` are triggered
+        during the bottom-up rebuild.
+        
+        For more advanced, surgical manipulations (no dataclass retriggeriig),
+        use Equinox's `tree_at` method.
+
+        Returns
+        -------
+        Lens
+            A lens object focused on the root of the current instance.
+
+        Examples
+        --------
+        Update a single attribute using `.set()` or `.apply()`:
+
+        >>> new_model = model.at.R.set(20.0)
+        >>> new_model = model.at.length.apply(lambda x: x * 2)
+
+        Target multiple attributes simultaneously using `.select()`:
+
+        >>> new_model = model.at.select('L', 'C').set(2.0)
+
+        Apply a function over every item in a collection using `.each()`:
+
+        >>> new_model = model.at.array_params.each().apply(jnp.abs)
+
+        Filter attributes dynamically based on a condition using `.filter()`:
+
+        >>> is_model = lambda x: isinstance(x, Model)
+        >>> new_model = model.at.filter(is_model).apply(prf.as_frozen)
+        """
+        return Lens(self)
         
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -541,70 +614,6 @@ class Model(prx.Module, ABC):
         other = other or Short()
         return Terminated(self, other, **kwargs)
     
-    # ---- Plotting --------------------------------------------------    
-
-    def plot_func(
-        self,
-        func: Callable[['Model', Frequency], jnp.ndarray],
-        freq: Frequency,
-        *,
-        ax = None,
-        label: str | None = None,
-        color: str | None = None,
-        **kwargs
-    ):
-        """Evaluate and plot an arbitrary function of the current model.
-
-        This method evaluates the provided function using the model's current 
-        parameter values and plots the resulting response over frequency.
-
-        Parameters
-        ----------
-        func : Callable[[Model, Frequency], jnp.ndarray]
-            Function to evaluate. Must take a Model and a Frequency object and 
-            return a jnp.ndarray of shape (n_freqs,).
-        freq : Frequency
-            Frequency grid to evaluate over.
-        ax : matplotlib.axes.Axes, optional
-            Axes to plot on. If None, the current axes (`plt.gca()`) are used.
-        label : str, optional
-            Label for the plotted line (used in legends).
-        color : str, optional
-            Color for the line. If None, uses the matplotlib color cycle.
-        **kwargs : dict
-            Additional keyword arguments forwarded to `matplotlib.pyplot.plot` 
-            (e.g., `linestyle`, `linewidth`, `alpha`).
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes containing the plot.
-        """
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        if ax is None:
-            ax = plt.gca()
-
-        # 1. Evaluate the function on the current model
-        y_val = func(self, freq)
-        y_val = np.asarray(y_val)
-        
-        # Extract the x-axis automatically from the frequency object
-        x_axis = np.asarray(freq.f_scaled) 
-
-        # 2. Plotting logic
-        # Assemble kwargs safely to avoid passing multiple 'color' or 'label' arguments
-        plot_kwargs = kwargs.copy()
-        if label is not None:
-            plot_kwargs['label'] = label
-        if color is not None:
-            plot_kwargs['color'] = color
-
-        ax.plot(x_axis, y_val, **plot_kwargs)
-        
-        return ax            
-    
     # ---- File and conversion utilities  --------------------------------------------------            
     
     def to_skrf(self, frequency: Frequency | Any, sigma=0.0, **kwargs) -> skrf.Network:
@@ -614,7 +623,7 @@ class Model(prx.Module, ABC):
 
         Parameters
         ----------
-        frequency : pmrf.core.frequency | skrf.Frequency
+        frequency : pmrf.frequency.Frequency | skrf.Frequency
             Frequency grid.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
@@ -640,7 +649,6 @@ class Model(prx.Module, ABC):
         kwargs.update({
             fname: np.array(fval),
             'frequency': measured_freq,
-            'name': kwargs.get('name', self.name),
             'z0': self.z0,
         })
         ntwk = skrf.Network(**kwargs)

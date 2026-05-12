@@ -1,18 +1,19 @@
 [project]
 name = "paramrf"
-version = "0.16.4"
-description = "Parametric radio frequency modelling, optimization and sampling"
+version = "0.17.0"
+description = "Parametric radio frequency modeling, optimization and sampling"
 readme = "README.rst"
 authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }
 ]
 dependencies = [
+    "parax",
     "jax",
     "jaxtyping",
     "equinox",
-    "parax=0.4.13",
     "distreqx",
     "optimistix",
+    "jaxopt",
     "blackjax",
     "numpy",
     "scipy",

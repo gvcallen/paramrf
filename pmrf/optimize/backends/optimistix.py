@@ -1,0 +1,195 @@
+"""
+Optimistix optimization wrappers.
+"""
+
+from typing import Callable, Any
+
+import equinox as eqx
+from jaxtyping import PyTree, Scalar
+import optimistix as optx
+
+from pmrf.optimize.base import AbstractUnconstrainedMinimizer, MinimizeResults
+
+DEFAULT_RTOL = 1e-6
+DEFAULT_ATOL = 1e-3
+
+class OptimistixMinimise(AbstractUnconstrainedMinimizer):
+    """
+    An optimizer that wraps :func:`optimistix.minimise`.
+    """
+    # Changed from AbstractLBFGS to the concrete BFGS solver
+    solver: optx.AbstractMinimiser = eqx.field(default_factory=lambda: optx.BFGS(rtol=1e-6, atol=1e-6))
+
+    def run(
+        self, 
+        fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizeResults, PyTree]:
+        
+        result = optx.minimise(
+            fn=fn, 
+            solver=self.solver, 
+            y0=y0, 
+            args=args,
+            max_steps=max_iter, 
+            **kwargs
+        )
+
+        payload = MinimizeResults(y=result.value)
+        return payload, result
+    
+
+class NelderMead(AbstractUnconstrainedMinimizer):
+    """
+    An optimizer that wraps optimistix's Nelder-Mead.
+    """
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
+    rdelta: float = 5e-2
+    adelta: float = 2.5e-4
+
+    def run(
+        self, 
+        fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizeResults, PyTree]:
+        
+        solver = optx.NelderMead(
+            rtol=self.rtol,
+            atol=self.atol,
+            norm=self.norm,
+            rdelta=self.rdelta,
+            adelta=self.adelta,
+        )
+        
+        result = optx.minimise(
+            fn=fn, 
+            solver=solver,
+            y0=y0, 
+            args=args,
+            max_steps=max_iter, 
+            **kwargs
+        )
+
+        payload = MinimizeResults(y=result.value)
+        return payload, result
+    
+
+class GradientDescent(AbstractUnconstrainedMinimizer):
+    """
+    An optimizer that wraps optimistix's Gradient Descent.
+    """
+    learning_rate: float
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
+
+    def run(
+        self, 
+        fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizeResults, PyTree]:
+        
+        solver = optx.GradientDescent(
+            learning_rate=self.learning_rate,
+            rtol=self.rtol,
+            atol=self.atol,
+            norm=self.norm,
+        )
+        
+        result = optx.minimise(
+            fn=fn, 
+            solver=solver,
+            y0=y0, 
+            args=args,
+            max_steps=max_iter, 
+            **kwargs
+        )
+
+        payload = MinimizeResults(y=result.value)
+        return payload, result
+    
+
+class LBFGS(AbstractUnconstrainedMinimizer):
+    """
+    An optimizer that wraps optimistix's LBFGS.
+    """
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
+    use_inverse: bool = True,
+
+    def run(
+        self, 
+        fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizeResults, PyTree]:
+        solver = optx.LBFGS(
+            rtol=self.rtol,
+            atol=self.atol,
+            norm=self.norm,
+            use_inverse=self.use_inverse,
+        )
+        
+        result = optx.minimise(
+            fn=fn, 
+            solver=solver,
+            y0=y0, 
+            args=args,
+            max_steps=max_iter, 
+            **kwargs
+        )
+
+        payload = MinimizeResults(y=result.value)
+        return payload, result
+    
+
+class BFGS(AbstractUnconstrainedMinimizer):
+    """
+    An optimizer that wraps optimistix's BFGS.
+    """
+    rtol: float = DEFAULT_RTOL
+    atol: float = DEFAULT_ATOL
+    norm: Callable[[PyTree], Scalar] = optx.max_norm
+    use_inverse: bool = True,
+
+    def run(
+        self, 
+        fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> tuple[MinimizeResults, PyTree]:
+        solver = optx.BFGS(
+            rtol=self.rtol,
+            atol=self.atol,
+            norm=self.norm,
+            use_inverse=self.use_inverse,
+        )
+
+        result = optx.minimise(
+            fn=fn, 
+            solver=solver,
+            y0=y0, 
+            args=args,
+            max_steps=max_iter, 
+            **kwargs
+        )
+
+        payload = MinimizeResults(y=result.value)
+        return payload, result
+    

@@ -5,15 +5,49 @@ These classes wrap pure mathematical loss functions into a :class:`pmrf.Loss`.
 All losses take the true and predict arrays as inputs, and return the loss
 value when called.
 """
-
+from abc import abstractmethod
 from typing import Callable, Literal
+
 import jax.numpy as jnp
+import equinox as eqx
 import parax as prx
 
 from pmrf.math import losses as F
-from pmrf.core import Loss
+from pmrf.jax_utils import field, unwrap
 
-class MSELoss(Loss):
+
+class AbstractLoss(eqx.Module):
+    """
+    Abstract base class for frequentist loss functions.
+    
+    A loss function accepts (y_true, y_pred) and returns a loss value
+    representing the discrepancy between the true data and the model prediction.
+    """
+    @abstractmethod
+    def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
+        """
+        Compute the loss between true data and model predictions.
+
+        Parameters
+        ----------
+        y_true : jnp.ndarray
+            The observed ground-truth data.
+        y_pred : jnp.ndarray
+            The model's predicted data.
+        **kwargs : dict
+            Additional keyword arguments for loss computation.
+
+        Returns
+        -------
+        jnp.ndarray
+            The calculated loss value.
+        """        
+        raise NotImplementedError
+
+LossFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+LossLike = str | LossFn | list[LossFn]
+
+class MSELoss(AbstractLoss):
     """
     Mean Squared Error (MSE) metric.
 
@@ -21,7 +55,7 @@ class MSELoss(Loss):
     """
 
     #: Defines the aggregation strategy across multiple output dimensions.
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
         kwargs.setdefault('multioutput', self.multioutput)
@@ -33,7 +67,7 @@ class MSELoss(Loss):
         )
 
 
-class RMSELoss(Loss):
+class RMSELoss(AbstractLoss):
     """
     Root Mean Squared Error (RMSE) metric.
 
@@ -41,7 +75,7 @@ class RMSELoss(Loss):
     """
 
     #: Defines the aggregation strategy across multiple output dimensions.
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
         kwargs.setdefault('multioutput', self.multioutput)
@@ -53,14 +87,14 @@ class RMSELoss(Loss):
         )
 
 
-class LogMSELoss(Loss):
+class LogMSELoss(AbstractLoss):
     """
     Log of Mean Squared Error (RMSE) metric.
 
     Forwards to :func:`pmrf.math.losses.log_mean_squared_error`.
     """
     #: Defines the aggregation strategy across multiple output dimensions.
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
         kwargs.setdefault('multioutput', self.multioutput)
@@ -72,14 +106,14 @@ class LogMSELoss(Loss):
         )
 
 
-class MAPELoss(Loss):
+class MAPELoss(AbstractLoss):
     """
     Mean Absolute Percentage Error (MAPE) metric.
 
     Forwards to :func:`pmrf.math.losses.mean_absolute_percentage_error`.
     """
     #: Defines the aggregation strategy across multiple output dimensions.
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
         kwargs.setdefault('multioutput', self.multioutput)
@@ -91,7 +125,7 @@ class MAPELoss(Loss):
         )
 
 
-class HuberLoss(Loss):
+class HuberLoss(AbstractLoss):
     """
     Huber loss metric.
     
@@ -101,10 +135,10 @@ class HuberLoss(Loss):
     Forwards to :func:`pmrf.math.losses.huber_loss`.
     """
     #: The threshold at which to change between squared error and absolute error.
-    delta: float = prx.field(default=1.0, static=True)
+    delta: float = field(default=1.0, static=True)
     
     #: Defines the aggregation strategy across multiple output dimensions.
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(self, y_true: jnp.ndarray, y_pred: jnp.ndarray, **kwargs) -> jnp.ndarray:
         kwargs.setdefault('multioutput', self.multioutput)
@@ -117,26 +151,26 @@ class HuberLoss(Loss):
         )
         
         
-class HingeLoss(Loss):
+class HingeLoss(AbstractLoss):
     """
     Applies a one-sided constraint (hinge) before evaluating a base metric.
 
     Forwards to :func:`pmrf.math.losses.hinge_loss`.
     """
     #: The logical constraint operator ('<', '>', '==', etc.).
-    operator: Literal['<', '<=', '>', '>=', '==', '='] = prx.field(default='==', static=True)
+    operator: Literal['<', '<=', '>', '>=', '==', '='] = field(default='==', static=True)
 
     #: A scalar or array multiplier to scale the importance of the penalty.
-    weight: float | jnp.ndarray = 1.0
+    weight: float = field(default=1.0, static=True)
     
     #: A boolean array filtering which data points apply to this loss.
-    mask: jnp.ndarray | None = prx.field(default=None)
+    mask: jnp.ndarray | None = field(default=None, converter=prx.as_frozen)
     
     #: The underlying loss function.
-    base_loss: str | Callable | Loss = prx.field(default=RMSELoss())
+    base_loss: str | Callable | AbstractLoss = field(default=RMSELoss())
     
     #: Defines the aggregation strategy across multiple output dimensions.    
-    multioutput: str | jnp.ndarray | Callable = prx.field(default='uniform_average', static=True)
+    multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
 
     def __call__(
         self, 
@@ -144,6 +178,8 @@ class HingeLoss(Loss):
         y_pred: jnp.ndarray, 
         **kwargs,
     ) -> jnp.ndarray:
+        self = unwrap(self)
+        
         kwargs.setdefault('multioutput', self.multioutput)
 
         return F.hinge_loss(

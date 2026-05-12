@@ -1,12 +1,16 @@
-from typing import Any
+from typing import Any, Generic, TypeVar
 
-import parax as prx
+import equinox as eqx
 
-from pmrf.core import Frequency, Evaluator
+from pmrf.models import Model
+from pmrf.frequency import Frequency
+from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 
-class FitResult(prx.Module):
+ModelT = TypeVar('ModelT', bound=Model)
+
+class FitResult(eqx.Module, Generic[ModelT]):
     """
     Standardized return object for a fitting routines.
 
@@ -19,14 +23,22 @@ class FitResult(prx.Module):
     #: The frequeny used for the fit.
     frequency: Frequency | None = None
 
-    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` solution.
-    solution: OptimizeResult | InferResult | None = None
+    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
+    solution: OptimizeResult[ModelT] | InferResult[ModelT] | None = None
     
     @property
-    def model(self):
-        return self.solution.model
+    def model(self) -> ModelT | None:
+        """
+        The fitted model.
+        """
+        if isinstance(self.solution, InferResult):
+            return self.solution.best_model
+        elif isinstance(self.solution, OptimizeResult):
+            return self.solution.model
+        else:
+            return None
 
-    def plot(self, features: str | list[str] | Evaluator = 's', ax=None, **kwargs):
+    def plot(self, features: str | list[str] | AbstractEvaluator = 's', ax=None, **kwargs):
         """
         Plots the best fit.
         

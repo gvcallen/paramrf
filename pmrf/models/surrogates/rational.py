@@ -3,12 +3,12 @@ Rational approximation surrogate models.
 """
 
 import jax.numpy as jnp
-from parax import Parameter
 
-from pmrf.core import Frequency
-from pmrf.models.adapters.base import SingleProperty
+from pmrf.frequency import Frequency
+from pmrf.models.adapters.base import AbstractSingleProperty
+from pmrf.parameters import Param
 
-class PolynomialRatio(SingleProperty):
+class PolynomialRatio(AbstractSingleProperty):
     """
     A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) 
     where s = j*w.
@@ -16,12 +16,12 @@ class PolynomialRatio(SingleProperty):
     #: Numerator coefficients. The first dimension is the polynomial degree.
     #: Shape can be (degree,), (degree, N, N), etc. 
     #: Coefficients are in increasing order of degree (index 0 is constant term).
-    a: Parameter = None
+    a: Param = None
     
     #: Denominator coefficients. The first dimension is the polynomial degree.
     #: Shape can be (degree,), (degree, N, N), etc.
     #: Coefficients are in increasing order of degree.
-    b: Parameter = None
+    b: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -55,21 +55,21 @@ class PolynomialRatio(SingleProperty):
         return H
     
     
-class PoleResidue(SingleProperty):
+class PoleResidue(AbstractSingleProperty):
     """
     A general N-port model defined by a pole-residue expansion:
     H(s) = D + sum( R_i / (s - p_i) )
     """
     #: The poles of the system. Shape: (num_poles,)
-    poles: Parameter = None
+    poles: Param = None
     
     #: The residues of the system. 
     #: Shape: (num_poles,) for scalars, or (num_poles, N, N) for port matrices.
-    residues: Parameter = None
+    residues: Param = None
     
     #: Optional direct feedthrough matrix (constant term D). 
     #: Shape: () or (N, N).
-    d: Parameter = None
+    d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -102,22 +102,22 @@ class PoleResidue(SingleProperty):
         return H
     
     
-class StateSpace(SingleProperty):
+class StateSpace(AbstractSingleProperty):
     """
     A general N-port model defined by continuous-time state-space matrices:
     H(s) = C * (sI - A)^-1 * B + D
     """
     #: State matrix (A). Shape: (state_dim, state_dim)
-    a: Parameter = None
+    a: Param = None
     
     #: Input matrix (B). Shape: (state_dim, N)
-    b: Parameter = None
+    b: Param = None
     
     #: Output matrix (C). Shape: (N, state_dim)
-    c: Parameter = None
+    c: Param = None
     
     #: Feedthrough matrix (D). Shape: (N, N)
-    d: Parameter = None
+    d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -163,20 +163,20 @@ class StateSpace(SingleProperty):
         return H
     
     
-class BarycentricRational(SingleProperty):
+class BarycentricRational(AbstractSingleProperty):
     """
     A highly numerically stable rational model defined by a barycentric expansion:
     H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]
     """
     #: The complex support points (s_i). Shape: (num_points,)
-    support_points: Parameter = None
+    support_points: Param = None
     
     #: The barycentric weights (w_i). Shape: (num_points,)
-    weights: Parameter = None
+    weights: Param = None
     
     #: The function values at the support points (f_i). 
     #: Shape: (num_points,) for scalars, or (num_points, N, N) for port matrices.
-    values: Parameter = None
+    values: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w

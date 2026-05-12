@@ -3,13 +3,14 @@ A callable to be "solved" (i.e. minimized or sampled).
 """
 
 import jax.numpy as jnp
-import parax as prx
+import equinox as eqx
 
-from pmrf.core.model import Model
-from pmrf.core.frequency import Frequency
-from pmrf.core.evaluator import Evaluator
+from pmrf.models.base import Model
+from pmrf.frequency import Frequency
+from pmrf.evaluators import AbstractEvaluator
+from pmrf.jax_utils import field, as_frozen, unwrap
 
-class Problem(prx.Module):
+class Problem(eqx.Module):
     """
     A callable to be "solved" (i.e. minimized or sampled).
     
@@ -21,11 +22,11 @@ class Problem(prx.Module):
     model: Model
     
     #: The frequency range or points over which the model is evaluated.
-    frequency: Frequency
+    frequency: Frequency = field(converter=as_frozen)
     
     #: The operator (e.g., a Likelihood or Loss) that maps the model 
     #: and frequency to a scalar or array result.
-    evaluator: Evaluator
+    evaluator: AbstractEvaluator
     
     def __call__(self, *args, **kwargs) -> jnp.ndarray:
         """
@@ -36,4 +37,4 @@ class Problem(prx.Module):
         jnp.ndarray
             The result of evaluating the model with the stored evaluator and frequency.
         """        
-        return self.evaluator(self.model, self.frequency, *args, **kwargs)
+        return unwrap(self.evaluator)(unwrap(self.model), unwrap(self.frequency), *args, **kwargs)

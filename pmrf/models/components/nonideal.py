@@ -3,7 +3,8 @@ Non-ideal models (e.g. resistors with parasitics)
 """
 import jax.numpy as jnp
 
-from pmrf.core import Model, Frequency
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 from pmrf.models.components.lumped import Resistor
 from pmrf.models.components.topological import PiCLC
 
@@ -44,8 +45,8 @@ class CLCResistor(Model):
 
         print(f"S11 at 10 GHz: {s[freq.center_idx, 0, 0]:.2f}")
     """
-    res: Resistor = Resistor()
-    clc: PiCLC = PiCLC()
+    res: Resistor
+    clc: PiCLC
 
     @property
     def ideal(self) -> Model:

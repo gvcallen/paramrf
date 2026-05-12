@@ -1,13 +1,55 @@
 """
 Covariance kernels for Gaussian process discrepancy models.
 """
+from abc import abstractmethod
+
 import jax.numpy as jnp
+import equinox as eqx
 
-from pmrf.core import CovarianceKernel
-import parax as prx
+from pmrf.jax_utils import field
+from pmrf.parameters import Param, param
 
 
-class SumKernel(CovarianceKernel):
+class AbstractCovarianceKernel(eqx.Module):
+    """
+    Abstract base class for covariance kernel functions.
+    
+    These kernels are used in a Gaussian Process for discrepancy modeling.
+    """
+    @abstractmethod
+    def __call__(self, x1: jnp.ndarray, x2: jnp.ndarray, key=None) -> jnp.ndarray:
+        """
+        Evaluate the kernel between two points.
+
+        Parameters
+        ----------
+        x1 : jnp.ndarray
+            First input point.
+        x2 : jnp.ndarray
+            Second input point.
+        key : jax.random.PRNGKey, optional
+            Random key for stochastic kernels.
+
+        Returns
+        -------
+        jnp.ndarray
+            Kernel covariance scalar.
+        """
+        raise NotImplementedError
+
+    def __add__(self, other: 'AbstractCovarianceKernel') -> 'AbstractCovarianceKernel':
+        from pmrf.covariance_kernels import SumKernel
+        return SumKernel(self, other)
+
+    def __mul__(self, other: 'AbstractCovarianceKernel | Param | float') -> 'AbstractCovarianceKernel':
+        from pmrf.covariance_kernels import ProductKernel, ConstantKernel
+        
+        if isinstance(other, AbstractCovarianceKernel):
+            return ProductKernel(self, other)    
+        else:
+            return ProductKernel(self, ConstantKernel(other))
+
+class SumKernel(AbstractCovarianceKernel):
     """
     Kernel representing the sum of two kernels.
 
@@ -18,14 +60,14 @@ class SumKernel(CovarianceKernel):
     k2 : Kernel
         Second kernel operand.
     """
-    k1: CovarianceKernel
-    k2: CovarianceKernel
+    k1: AbstractCovarianceKernel
+    k2: AbstractCovarianceKernel
 
     def __call__(self, x1, x2, key=None):
         return self.k1(x1, x2) + self.k2(x1, x2)
 
 
-class ProductKernel(CovarianceKernel):
+class ProductKernel(AbstractCovarianceKernel):
     """
     Kernel representing the product of two kernels.
 
@@ -36,14 +78,14 @@ class ProductKernel(CovarianceKernel):
     k2 : Kernel
         Second kernel operand.
     """
-    k1: CovarianceKernel
-    k2: CovarianceKernel
+    k1: AbstractCovarianceKernel
+    k2: AbstractCovarianceKernel
 
     def __call__(self, x1, x2, key=None):
         return self.k1(x1, x2) * self.k2(x1, x2)
 
 
-class ConstantKernel(CovarianceKernel):
+class ConstantKernel(AbstractCovarianceKernel):
     """
     Kernel that returns a constant variance.
 
@@ -52,13 +94,13 @@ class ConstantKernel(CovarianceKernel):
     variance : prx.Parameter
         Constant variance value (default 1.0).
     """
-    variance: prx.Parameter = 1.0
+    variance: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         return self.variance
 
 
-class RBFKernel(CovarianceKernel):
+class RBFKernel(AbstractCovarianceKernel):
     """
     Radial Basis Function (Squared Exponential) kernel.
 
@@ -67,7 +109,7 @@ class RBFKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Parameter = 1.0
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -75,7 +117,7 @@ class RBFKernel(CovarianceKernel):
         return jnp.exp(-0.5 * sq_dist)
     
     
-class PeriodicKernel(CovarianceKernel):
+class PeriodicKernel(AbstractCovarianceKernel):
     """
     Periodic (Exp-Sine-Squared) kernel.
     
@@ -88,8 +130,8 @@ class PeriodicKernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    period: prx.Parameter = 1.0
-    lengthscale: prx.Parameter = 1.0
+    period: Param = param(1.0)
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -104,7 +146,7 @@ class PeriodicKernel(CovarianceKernel):
         return jnp.exp(-2.0 * (sin_term / self.lengthscale)**2)
 
 
-class WhiteNoiseKernel(CovarianceKernel):
+class WhiteNoiseKernel(AbstractCovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
 
@@ -113,14 +155,14 @@ class WhiteNoiseKernel(CovarianceKernel):
     variance : prx.Parameter
         Noise variance level (default 1.0).
     """
-    variance: prx.Parameter = 1.0
+    variance: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
         return jnp.where(is_equal, self.variance, 0.0)
     
     
-class Matern32Kernel(CovarianceKernel):
+class Matern32Kernel(AbstractCovarianceKernel):
     """
     Matérn kernel with nu=3/2.
     
@@ -133,7 +175,7 @@ class Matern32Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Parameter = 1.0
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -147,7 +189,7 @@ class Matern32Kernel(CovarianceKernel):
         return (1.0 + sqrt3_dist) * jnp.exp(-sqrt3_dist)
 
 
-class Matern52Kernel(CovarianceKernel):
+class Matern52Kernel(AbstractCovarianceKernel):
     """
     Matérn kernel with nu=5/2.
     
@@ -160,7 +202,7 @@ class Matern52Kernel(CovarianceKernel):
     lengthscale : prx.Parameter
         Characteristic length scale of the correlation (default 1.0).
     """
-    lengthscale: prx.Parameter = 1.0
+    lengthscale: Param = param(1.0)
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -178,7 +220,7 @@ class Matern52Kernel(CovarianceKernel):
         return (1.0 + sqrt5_dist + sq_term) * jnp.exp(-sqrt5_dist)
     
     
-class AutoCrossKernel(CovarianceKernel):
+class AutoCrossKernel(AbstractCovarianceKernel):
     """
     Kernel that routes between a auto-correlation and cross-correlation kernels.
     
@@ -188,9 +230,9 @@ class AutoCrossKernel(CovarianceKernel):
     This can be used to model reflection (auto) and transmission (cross) discrepancy separately.
     In this case, set `num_outputs` to the number of ports.
     """
-    auto: CovarianceKernel
-    cross: CovarianceKernel
-    num_outputs: int = prx.field(static=True)
+    auto: AbstractCovarianceKernel
+    cross: AbstractCovarianceKernel
+    num_outputs: int = field(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate both underlying kernels
@@ -210,7 +252,7 @@ class AutoCrossKernel(CovarianceKernel):
         return jnp.where(eye_broadcastable, val_gamma, val_tau)
     
 
-class SharedIndependentKernel(CovarianceKernel):
+class SharedIndependentKernel(AbstractCovarianceKernel):
     """
     Evaluates a base kernel and broadcasts its output to represent 
     multiple independent dimensions (e.g., real and imaginary parts) 
@@ -223,8 +265,8 @@ class SharedIndependentKernel(CovarianceKernel):
     output_shape : tuple
         The shape of the independent outputs to broadcast to.
     """
-    base_kernel: CovarianceKernel = prx.field(transparent=True)
-    output_shape: tuple = prx.field(static=True)
+    base_kernel: AbstractCovarianceKernel
+    output_shape: tuple = field(static=True)
 
     def __call__(self, x1, x2, key=None):
         # Evaluate the underlying shared kernel
@@ -238,7 +280,7 @@ class SharedIndependentKernel(CovarianceKernel):
         return jnp.broadcast_to(val, target_shape)
     
 
-class ZeroKernel(CovarianceKernel):
+class ZeroKernel(AbstractCovarianceKernel):
     """
     Kernel that always evaluates to zero.
 
