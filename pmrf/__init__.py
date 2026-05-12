@@ -56,10 +56,13 @@ from pmrf import (
 
 
 __all__ = [
+    # Core
     "Model",
     "Frequency",
     "Param",
     "param",
+    
+    # Utilities
     "load",
     "save",
     "combine",

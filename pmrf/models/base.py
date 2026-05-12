@@ -512,8 +512,8 @@ class Model(eqx.Module):
         models. It guarantees that `__init__`  and `__post_init__` are triggered
         during the bottom-up rebuild.
         
-        For more advanced, surgical manipulations (no dataclass retriggeriig),
-        use Equinox's `tree_at` method.
+        For more advanced, surgical manipulations (no dataclass retriggering),
+        use `equinox.tree_at` method.
 
         Returns
         -------

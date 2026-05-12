@@ -194,6 +194,7 @@ class HingeLoss(AbstractLoss):
 
 
 __all__ = [
+    'AbstractLoss',
     'LogMSELoss',
     'RMSELoss',
     'MAPELoss',

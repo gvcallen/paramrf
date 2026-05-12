@@ -106,3 +106,9 @@ class GaussianLikelihood(AbstractLikelihood):
                 init_fn = eqx.filter_vmap(init_fn)
                 
             return init_fn(y_mean, new_cov)
+        
+        
+__all__ = [
+    'AbstractLikelihood',
+    'GaussianLikelihood',
+]

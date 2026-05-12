@@ -503,6 +503,7 @@ class Goal(TargetLoss):
         super().__init__(predictor=predictor, target=target, loss=loss)
         
 __all__ = [
+    'AbstractEvaluator',
     'Feature',
     'TargetLoss',
     'MarginalLogLikelihood',

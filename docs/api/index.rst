@@ -13,18 +13,6 @@ Quick Reference
 * :mod:`~pmrf.models.composite` (:mod:`~pmrf.models.composite.interconnected.Cascade`, :mod:`~pmrf.models.composite.interconnected.Circuit`, ...)
 * :mod:`~pmrf.models.surrogates` (:mod:`~pmrf.models.surrogates.rational.PoleResidue`, :mod:`~pmrf.models.surrogates.expansion.VectorExpansion`)
 
-.. rubric:: Fitting, optimization and sampling
- 
-* :mod:`pmrf.fitting` (:func:`~pmrf.fitting.fit`, :func:`~pmrf.fitting.fit_sequential`)
-* :func:`pmrf.optimize.minimize`
-* :func:`pmrf.infer.sample`
-
-.. rubric:: Serialization
-
-* :func:`pmrf.load`
-* :func:`pmrf.save`
-
-
 Core
 ------------
 
@@ -33,8 +21,8 @@ Core
 
    pmrf.Model
    pmrf.Frequency
+   pmrf.Param
    pmrf.param
-
 
 Modules
 -------------
@@ -61,3 +49,21 @@ Modules
    pmrf.viz
    pmrf.rf
    pmrf.serialization
+
+
+Utilities
+-----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   pmrf.Partial
+   pmrf.NetworkCollection
+   pmrf.load
+   pmrf.save
+   pmrf.combine
+   pmrf.field
+   pmrf.unwrap
+   pmrf.as_fixed
+   pmrf.as_frozen
+   pmrf.as_free

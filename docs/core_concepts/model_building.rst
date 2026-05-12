@@ -72,7 +72,7 @@ If the above sounded confusing, don't worry - the method is easy to understand u
 
 Parameter Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~
-Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable programming, this is known as the *lens* pattern.
+Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable programming, this is known as the *optics* or *lens* pattern.
 
 .. code-block:: python
 
@@ -90,9 +90,11 @@ Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable pro
 
 Hierachical Modeling
 ~~~~~~~~~~~~~~~~~~~~
-As mentioned, for more complex models (such as equation-based ones), users can inherit directly from the :class:`~pmrf.Model` class and override one of the network properties (such as :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.z`, or :class:`~pmrf.Model.y`) or the :class:`~pmrf.Model.__call__` method.
+For more complex models (such as equation-based ones), users can inherit directly from the :class:`~pmrf.Model` class and override one of the network properties (such as :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.z`, or :class:`~pmrf.Model.y`) or the :class:`~pmrf.Model.__call__` method.
 
-Any parameters in the model should be marked with the type `pmrf.Param` (which stands for either a JAX array, or a `Parax <https://gvcallen.github.io/parax>`_ variable). Any other attribute types are not viewed as part of the parameter hierarchy and will not be seen by optimizers or samplers. Since models are immutable, parameters can be initialized directly with factories in :mod:`pmrf.parameters`, or can be set to the special :func:`pmrf.param` field specifier. This specifier provides two very useful features:
+Any parameters in the model should be marked with the type `pmrf.Param` (which stands for either a JAX array, or a `Parax <https://gvcallen.github.io/parax>`_ variable). Any other attribute types are not viewed as part of the parameter hierarchy and will not be seen by optimizers or samplers.
+
+Since models are immutable, parameters can be initialized directly with factories in :mod:`pmrf.parameters`, or can be set to the special :func:`pmrf.param` field specifier. This specifier provides two very useful features:
 
   * Allows callers to initialize that parameter with a simple float value when constructing the model.
   * Provides the ability to add constraints and scaling to the model *itself* (e.g. setting a model parameter as always positive).
@@ -127,8 +129,8 @@ The following example demonstrates custom model definition by defining a capacit
               [s21, s22]
           ]).transpose(2, 0, 1)   
 
-   # Instantiate the capacitor and plot s21
-   Capacitor(2.0e-12).plot_s_db(prf.Frequency(10, 100, 101, 'MHz'), m=1, n=0)
+  # Instantiate the capacitor and plot s21
+  Capacitor(2.0e-12).plot_s_db(prf.Frequency(10, 100, 101, 'MHz'), m=1, n=0)
           
 
 Circuit Models
@@ -154,7 +156,7 @@ As a last resort, overriding ``__init__`` is still possible, but ``super().__ini
       C1_divided_by_5: InitVar[float]
   
       # To be instantiated in post init
-      cap1: Capacitor = prf.field(init=False)
+      cap1: Capacitor = prf.field(default=None)
       cap2: Capacitor = Capacitor(C=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
       ind: Inductor = Inductor(L=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
   

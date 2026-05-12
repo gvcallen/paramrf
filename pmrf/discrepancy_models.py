@@ -109,3 +109,8 @@ class GaussianProcess(AbstractDiscrepancyModel):
             init_fn = eqx.filter_vmap(init_fn)
             
         return init_fn(y_event, K)
+    
+__all__ = [
+    'AbstractDiscrepancyModel',
+    'GaussianProcess',
+]
