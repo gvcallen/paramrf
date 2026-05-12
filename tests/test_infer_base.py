@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.parameters import Random
+from pmrf.parameters import Random, Fixed
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
 from pmrf.infer.backends.blackjax import NUTS, HMC, NSS
@@ -20,7 +20,8 @@ def get_dummy_dict_model():
     """A standard dictionary model with random Parax variables."""
     return {
         "x": Random(Normal(0.0, 5.0), value=jnp.array(0.0)), 
-        "y": Random(Uniform(0.0, 5.0), value=jnp.array(2.5)) 
+        "y": Random(Uniform(0.0, 5.0), value=jnp.array(2.5)) ,
+        "z": Fixed(1.0),
     }
 
 def simple_loglikelihood(model, args=None):
@@ -80,7 +81,8 @@ def test_split_sampler_nss():
     # NSS Requires a batch of initial points (live points)
     init_samples = {
         "x": Random(Normal(0.0, 5.0), value=jax.random.normal(jax.random.key(1), (10,))),
-        "y": Random(Uniform(0.0, 5.0), value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1)
+        "y": Random(Uniform(0.0, 5.0), value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1),
+        "z": Fixed(1.0),
     }
     
     solver = NSS(num_delete=5, num_inner_steps=2, logZ_convergence=0.5)

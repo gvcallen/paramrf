@@ -87,7 +87,7 @@ def fit_sequential(
     **kwargs,
 ) -> tuple[ModelT, dict[str, FitResult]]:
     """
-    Sequentially fits sub-models or model attributes using either optimization or sampling.
+    Sequentially fits sub-models using either optimization or sampling.
     
     For each network in the network collection, the network's name is used as a prefix
     for the features to fit, and :meth:`pmrf.fitting.fit` is called.
@@ -119,7 +119,7 @@ def fit_sequential(
         
         # Fix all sub-models except this one
         sub_model = model.at.filter(lambda x: isinstance(x, Model)).apply(as_frozen)
-        sub_model = model.at.select(name).apply(as_free)
+        sub_model = sub_model.at.select(name).apply(as_free)
         
         sub_data = data.filter(lambda n: n.name == name)
 
@@ -167,8 +167,8 @@ def fit_sequential(
 
         except Exception as e:
             raise Exception(f"Error fitting {name}: {e}")
-
-        model = combine(model, result_sub.model, is_priority=lambda x: not prx.is_constant(x), is_leaf=prx.is_constant)
+        
+        model = getattr(model.at, name).set(getattr(result_sub.model, name))
         all_results[name] = result_sub
     
     return model, all_results

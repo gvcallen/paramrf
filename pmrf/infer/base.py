@@ -158,8 +158,8 @@ def sample(
 
         # Partitioning/filtering
         init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        unconstrained_prior = prx.remove(unconstrained_prior_all, prx.is_constant, stop_if=prx.is_distribution)
-        bijector = prx.remove(bijector_all, prx.is_constant, stop_if=prx.is_bijector)
+        unconstrained_prior = prx.remove(unconstrained_prior_all, prx.is_constant)
+        bijector = prx.remove(bijector_all, prx.is_constant)
 
         # Space transformation
         def logprior_wrapper(unconstrained_params: PyTree) -> Scalar:

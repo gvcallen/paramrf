@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 import parax as prx
+from pmrf.parameters import Param, Fixed
 from pmrf.optimize import base
 from pmrf.optimize.backends.optimistix import BFGS, NelderMead
 from pmrf.optimize.backends.jaxopt import LBFGSB
@@ -23,8 +24,8 @@ def simple_quadratic_dict(model, args=None):
 
 class QuadraticModel(eqx.Module):
     """An Equinox model containing Parax variables."""
-    w: prx.AbstractVariable | jax.Array
-    b: prx.AbstractVariable | jax.Array
+    w: Param
+    b: Param
     
     def __init__(self, w, b):
         self.w = w
@@ -46,6 +47,7 @@ def test_unconstrained_dict_model(solver_cls):
     y0 = {
         "x": jnp.array(0.1), 
         "y": jnp.array(0.1), 
+        "z": Fixed(1.0),
     }
     
     solver = solver_cls()

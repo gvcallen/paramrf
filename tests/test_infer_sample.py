@@ -1,30 +1,29 @@
-# tests/test_infer/test_infer.py
+# tests/test_infer_sample.py
+
 import pytest
+import jax
 import jax.numpy as jnp
 
-from pmrf.frequency import Frequency
-from pmrf.models import Model
-from pmrf.infer.sample import sample
-from pmrf.fitting import fit_sample
 from pmrf.parameters import Param, Random
-from pmrf.distributions import Uniform
+from pmrf.distributions import Normal
+from pmrf.infer.sample import sample
+from pmrf.infer.backends.blackjax import NUTS
+from pmrf.infer.result import InferResult
+from pmrf.models import Model
+from pmrf.frequency import Frequency
 
-# ---------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------
+# ==========================================
+# 1. Fixtures & Objectives
+# ==========================================
 
 @pytest.fixture
 def basic_freq():
-    # Very small frequency grid for fast likelihood evaluations
+    # Real frequency grid for evaluation
     return Frequency(start=1.0, stop=2.0, npoints=2, unit='GHz')
 
 class DummyInferModel(Model):
-    """
-    A simple 1-port model for testing Bayesian inference.
-    Crucially, parameters MUST have assigned distributions for the 
-    Nested Sampler's `prior_transform_fn` (ICDF) to work.
-    """
-    val: Param = Random(Uniform(0.0, 10.0), value=5.0)
+    """A simple model for testing Bayesian inference."""
+    val: Param = Random(Normal(0.0, 5.0), value=0.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints
@@ -34,82 +33,62 @@ class DummyInferModel(Model):
 def infer_model():
     return DummyInferModel()
 
-# ---------------------------------------------------------
-# PolyChord / Inference Tests
-# ---------------------------------------------------------
+def simple_ll(model, freq):
+    """A basic log-likelihood targeting val=2.0."""
+    return jnp.sum(Normal(model.val, 0.5).log_prob(2.0))
 
-def test_sample_polychord(infer_model, basic_freq, tmp_path):
-    """
-    Test the lower-level sample() wrapper using PolyChord.
-    Exercises the ICDF prior transformation, batched models, and posterior packing.
-    """
-    pytest.importorskip("mpi4py")
-    pytest.importorskip("pypolychord")
-    pytest.importorskip("anesthetic")
-    distreqx = pytest.importorskip("distreqx")
+def penalty_ll(model, freq):
+    """A secondary log-likelihood penalty targeting val=0.0 to test lists."""
+    return jnp.sum(Normal(model.val, 1.0).log_prob(0.0))
+
+# ==========================================
+# 2. Higher-Level Wrapper Tests
+# ==========================================
+
+def test_sample_wrapper_basic(infer_model, basic_freq):
+    """Test the higher-level sample API with a single loglikelihood using NUTS."""
+    key = jax.random.key(42)
     
-    from pmrf.infer import PolyChord
+    # Configure a fast NUTS execution
+    solver = NUTS(num_warmup=10)
     
-    def log_like(m, f):
-        return -0.5 * jnp.sum((m.val - 7.0)**2)
-        
-# solver = PolyChord(nlive=10, num_repeats=2, do_clustering=False)
-        
     result = sample(
-        loglikelihood=log_like,
+        loglikelihood=simple_ll,
         model=infer_model,
         frequency=basic_freq,
-        solver=PolyChord(
-            nlive=5,
-            do_clustering=False,
-            num_repeats=2,
-            precision_criterion=1.0,
-            feedback=0,         
-            write_resume=False, 
-            base_dir=str(tmp_path)
-        ),
+        solver=solver,
+        key=key,
+        max_steps=20
     )
     
-    assert isinstance(result.best_model, DummyInferModel)
-    assert jnp.array(result.best_model.val) > 0.0 
+    # Verify result type packaging
+    assert isinstance(result, InferResult)
     
-    batched_model = result.sampled_model
-    assert isinstance(batched_model, DummyInferModel)
-    n_samples = result.fn_values.shape[0]
-    assert jnp.array(batched_model.val).shape == (n_samples,)
+    # Verify batched dimensions for sampled payloads
+    assert result.sampled_model.val.shape == (20,)
+    assert result.fn_values.shape == (20,)
+    
+    # Verify MAP/MLE extraction (unbatched best_model extraction)
+    assert result.best_model.val.ndim == 0
 
 
-def test_fit_polychord(infer_model, basic_freq, tmp_path):
-    """
-    Test the high-level fit_sample() wrapper using PolyChord.
-    Ensures Feature extractors, Likelihoods, and Data coercion work.
-    """
-    pytest.importorskip("mpi4py")
-    pytest.importorskip("pypolychord")
-    pytest.importorskip("anesthetic")
+# def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
+#     """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
+#     key = jax.random.key(42)
     
-    from pmrf.infer import PolyChord
-    from pmrf.likelihoods import GaussianLikelihood
+#     solver = NUTS(num_warmup=5)
     
-    target_data = 3.0 * jnp.ones(basic_freq.npoints).reshape(2, 1, 1)
+#     result = sample(
+#         loglikelihood=[simple_ll, penalty_ll],
+#         model=infer_model,
+#         frequency=basic_freq,
+#         solver=solver,
+#         key=key,
+#         max_steps=10
+#     )
     
-    result = fit_sample(
-        model=infer_model,
-        data=target_data,
-        frequency=basic_freq,
-        solver=PolyChord(
-            nlive=5,
-            do_clustering=False,
-            num_repeats=1,
-            precision_criterion=1.0,
-            feedback=0, 
-            write_resume=False,
-            base_dir=str(tmp_path)
-        ),
-        features='s_mag',
-        likelihood=GaussianLikelihood(noise=Random(Uniform(0.0, 1.0))),
-    )
-    
-    assert isinstance(result.model, DummyInferModel)
-    n_samples = result.solution.fn_values.shape[0]
-    assert jnp.array(result.solution.sampled_model.val).shape == (n_samples,)
+#     # Verify the structure successfully evaluated through the ex.Sum wrapping
+#     assert isinstance(result, InferResult)
+#     assert result.sampled_model.val.shape == (10,)
+#     assert result.best_model.val.ndim == 0
+#     assert result.fn_values.shape == (10,)

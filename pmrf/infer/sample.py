@@ -75,15 +75,17 @@ def sample(
         **kwargs
     )
 
-    # 4. Extract batched components
+    # Extract batched components
     sampled_model, static_model = sampled_problem.model, static_problem.model
     sampled_loglikelihood, static_loglikelihood = sampled_problem.evaluator, static_problem.evaluator
 
-    # 5. Extract MAP/MLE parameters using the best evaluated function value
+    # Extract MAP/MLE parameters using the best evaluated function value
     best_idx = jnp.argmax(payload.fn_values)
-    best_problem = jax.tree.map(lambda x: x[best_idx], eqx.combine(sampled_problem, static_problem))
+    best_sampled_problem = jax.tree.map(lambda x: x[best_idx], sampled_problem)
+    best_problem = eqx.combine(best_sampled_problem, static_problem)
+    
     best_model = best_problem.model
-    best_loglikelihood = best_problem.evaluator    
+    best_loglikelihood = best_problem.evaluator
 
     return InferResult(
         best_model=best_model,
