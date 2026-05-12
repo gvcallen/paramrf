@@ -20,7 +20,7 @@ from parax.constraints import (
 
 def intersect_constraints(a: AbstractConstraint, b: AbstractConstraint) -> AbstractConstraint:
     """
-    Safely calculates the intersection of two constraints.
+    Calculates the intersection of two constraints.
     Returns the most specific constraint class possible.
     """
     a_lower, a_upper = a.bounds
