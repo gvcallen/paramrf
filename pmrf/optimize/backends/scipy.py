@@ -2,6 +2,7 @@
 SciPy optimization wrappers.
 """
 
+from copy import copy
 from typing import Callable, Any
 
 from jaxtyping import PyTree
@@ -31,12 +32,10 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     ) -> tuple[MinimizeResults, PyTree]:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
 
-        options = self.options
-        
         solver = JaxOptScipyBoundedMinimize(
             method=self.method,
             tol=self.tol,
-            options=options,
+            options=copy(self.options), # NB must copy otherwise JAXopt modifies our options
             maxiter=max_iter,
             fun=fn,
         )
