@@ -45,7 +45,7 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
    $ pip install paramrf
 
-Note that, for Bayesian inference or advanced statistical modeling, you may need this fork of distreqx:
+Note that, for Bayesian inference or advanced statistical modeling, you may need this fork of ``distreqx``:
 
 .. code-block:: bash
 
