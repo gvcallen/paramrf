@@ -3,6 +3,7 @@ Base class for RF models.
 """
 
 from typing import Callable, Any
+import dataclasses
 
 import jax
 import jax.numpy as jnp
@@ -674,10 +675,45 @@ class Model(eqx.Module):
         Any
             Return value of ``Network.write_touchstone``.
         """
-        import skrf
-
         if not isinstance(filename, str):
             raise Exception('Filename must be a string')
         
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
+    
+    
+def validate(tree):
+    """
+    Recursively walks a PyTree and ensures no pmrf.Model instances contain 
+    unprotected raw inexact arrays that optimizers might corrupt.
+    """
+    import numpy as np
+    
+    # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays
+    nodes, _ = jax.tree_util.tree_flatten(
+        tree, is_leaf=lambda x: isinstance(x, Model)
+    )
+    
+    for node in nodes:
+        if isinstance(node, Model):
+            # Inspect the dataclass fields of our custom RF models
+            for f in dataclasses.fields(node):
+                val = getattr(node, f.name)
+                
+                # Check for the silent corruption hazard
+                is_array = isinstance(val, (jnp.ndarray, np.ndarray))
+                is_static = f.metadata.get("static", False)
+                
+                if is_array and not is_static and jnp.issubdtype(val.dtype, jnp.inexact):
+                    raise TypeError(
+                        f"Field '{f.name}' in '{node.__class__.__name__}' is a raw JAX/NumPy array, "
+                        f"which can be updated during optimization/inference.\n\n"
+                        f"To make your intention clear, you must either:\n"
+                        f"  1. Use the `pmrf.param` specifier (or a factory in `pmrf.parameters`) to indicate the value is a parameter\n"
+                        f"  2. Explicitly mark the field as 'frozen' using `{f.name}: jnp.ndarray = prf.field(converter=prf.as_frozen)` "
+                        f"and then unwrap the frozen field when you need it using `prf.unwrap`."
+                    )
+                
+                # Manually recurse into the field's value to catch nested Models, 
+                # lists of Models, dicts of Models, etc.
+                validate(val)

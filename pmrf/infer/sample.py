@@ -7,7 +7,7 @@ import equinox as eqx
 import eqxpress as ex
 import parax as prx
 
-from pmrf.models import Model
+from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
 from pmrf.infer.base import AbstractSampler, sample as base_sample
@@ -65,6 +65,8 @@ def sample(
     
     if key is None:
         key = generate_key()
+        
+    validate(problem)
         
     sampled_problem, static_problem, payload, metrics = base_sample(
         loglikelihood_fn=lambda p, _args: p(),

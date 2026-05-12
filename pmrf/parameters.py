@@ -17,8 +17,8 @@ from distreqx.distributions import AbstractDistribution
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.jax_utils import unwrap
 
-Param = prx.Param
-"""The main type hint for parameters in models."""
+Param = prx.AbstractVariable
+"""The abstract Parameter class for parameters in models."""
 
 
 def _apply_wrappers(
@@ -43,7 +43,7 @@ def _apply_wrappers(
     Param
         The modified parameter wrapped with `Scale` or `Fixed` if necessary.
     """
-    var = prx.as_param(var)
+    var = prx.as_variable(var)
 
     if scale != 1.0:
         scale = jnp.asarray(scale, dtype=float)
@@ -57,8 +57,28 @@ def _apply_wrappers(
 # Parameter Factories
 # ---------------------------------------------------------
 
+
+def Free(
+    value: ArrayLike,
+) -> Param:
+    """
+    Create a simple free parameter.
+
+    Parameters
+    ----------
+    value : Param
+        The base parameter value.
+
+    Returns
+    -------
+    Param
+        The parameter wrapped with scaling (and optionally fixed).
+    """
+    value = prx.as_variable(value)
+
+
 def Scaled(
-    value: Param,
+    value: ArrayLike,
     scale: float,
     *,
     fixed: bool = False,
@@ -80,12 +100,12 @@ def Scaled(
     Param
         The parameter wrapped with scaling (and optionally fixed).
     """
-    value = prx.as_param(value)
+    value = prx.as_variable(value)
     return _apply_wrappers(value, scale=scale, fixed=fixed)
 
 
 def Fixed(
-    value: Param,
+    value: ArrayLike,
     *,
     scale: ArrayLike = 1.0,
 ) -> Param:
@@ -94,7 +114,7 @@ def Fixed(
 
     Parameters
     ----------
-    value : Param
+    value : ArrayLike
         The parameter value to fix.
     scale : ArrayLike, optional
         The scaling factor to apply, by default 1.0.
@@ -104,7 +124,7 @@ def Fixed(
     Param
         The fixed parameter.
     """
-    value = prx.as_param(value)
+    value = prx.as_variable(value)
     return _apply_wrappers(value, scale=scale, fixed=True)
 
 
@@ -266,7 +286,7 @@ def param(
         elif scale != 1.0:
             return Scaled(value=x, scale=scale)
         else:
-            return jnp.asarray(x)
+            return prx.as_variable(x)
         
     return eqx.field(default=value, converter=converter)
 

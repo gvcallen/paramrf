@@ -5,7 +5,7 @@ import equinox as eqx
 import eqxpress as ex
 import parax as prx
 
-from pmrf.models import Model
+from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
 from pmrf.optimize.base import AbstractMinimizer, minimize as base_minimize
@@ -63,6 +63,8 @@ def minimize(
     
     # Create the combined problem
     problem = Problem(model=model, frequency=frequency, evaluator=objective)
+    
+    validate(problem)
     
     # Run the optimization
     opt_problem, payload, metrics = base_minimize(
