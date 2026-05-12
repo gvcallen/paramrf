@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 from dataclasses import replace
 
 import jax.numpy as jnp
@@ -23,8 +23,10 @@ A type-hint for a solver capable of fitting in general fitting function. Either 
 """
 AbstractFitter = AbstractMinimizer | AbstractSampler
 
+ModelT = TypeVar('ModelT', bound=Model)
+
 def fit(
-    model: Model,
+    model: ModelT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractFitter = ScipyMinimize(),
@@ -78,12 +80,12 @@ def fit(
         )
         
 def fit_sequential(
-    model: Model, 
+    model: ModelT, 
     data: NetworkCollection,
     *,
     dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
     **kwargs,
-) -> tuple[Model, dict[str, FitResult]]:
+) -> tuple[ModelT, dict[str, FitResult]]:
     """
     Sequentially fits sub-models or model attributes using either optimization or sampling.
     

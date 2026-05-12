@@ -1,8 +1,6 @@
 """
 Composite models that physically connect ports of other models.
 """
-
-import warnings
 import jax.numpy as jnp
 from dataclasses import InitVar
 
@@ -12,21 +10,14 @@ from pmrf.jax_utils import field
 from pmrf.models.components.ideal import Port
 from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 
-# Silence Equinox's false-positive warning for structural PyTree routing
-warnings.filterwarnings(
-    "ignore",
-    message="Using `field\\(init=False\\)` on `equinox.Module` can lead to surprising behaviour",
-    category=UserWarning
-)
-
 class Circuit(Model):
     # Inputs (init=True, but we don't need to keep them around in the PyTree)
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
     # Computed properties (init=False, they are generated, not passed in)
-    models: list[Model] = field(init=False)
-    indexed_connections: list[list[tuple[int, int]]] = field(init=False, static=True)
-    port_idxs: list[int] = field(init=False, static=True)
+    models: list[Model] = field(default=None, kw_only=True)
+    indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
+    port_idxs: list[int] = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self, connections):
         if not isinstance(connections, list):

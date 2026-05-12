@@ -148,8 +148,10 @@ class TargetLoss(AbstractEvaluator):
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        self = unwrap(self)
+        
         y_pred = self.predictor(model, frequency, **kwargs)
-        return self.loss(unwrap(self.target), y_pred)
+        return self.loss(self.target, y_pred)
     
     
 class MarginalLogLikelihood(AbstractEvaluator):
@@ -188,7 +190,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
     #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
-    event_transform: bij.AbstractBijector = None
+    event_transform: bij.AbstractBijector = field(default=None, static=True)
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     event_ndims: int = field(default=1, static=True)
@@ -210,7 +212,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        observed = unwrap(self.observed)
+        self = unwrap(self)
+        
+        observed = self.observed
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(observed)
@@ -231,6 +235,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         The returned distribution is in event space. To draw a sample from this distribution in
         observation space, see :meth:`MarginalLogLikelihood.sample_observation`.
         """
+        self = unwrap(self)
+        
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
@@ -265,6 +271,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         """
         Returns a sample from the predictive distribution in observation space.
         """
+        self = unwrap(self)
+        
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(self.observed)        
         
@@ -321,7 +329,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
     #: A bijective transform that maps from "observation space" (predicted features) to "event space".
-    event_transform: bij.AbstractBijector = None
+    event_transform: bij.AbstractBijector = field(default=None, static=True)
 
     #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     event_ndims: int = field(default=1, static=True)
@@ -342,6 +350,8 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
                 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        self = unwrap(self)
+        
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)

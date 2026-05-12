@@ -1,5 +1,5 @@
 import collections
-from typing import Callable, Any
+from typing import Callable, Any, TypeVar, Generic
 
 import jax.numpy as jnp
 import jax
@@ -10,7 +10,11 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.jax_utils import field
 
-class InferResult(eqx.Module):
+
+ModelT = TypeVar('ModelT', bound=Model)
+
+
+class InferResult(eqx.Module, Generic[ModelT]):
     """
     The result of an inference run.
 
@@ -18,18 +22,18 @@ class InferResult(eqx.Module):
     as well as the samples, function values and weights for nested sampling runs.
     """
     #: The maximum likelihood or maximum a posterior of the RF model.
-    best_model: Model
+    best_model: ModelT
 
     #: The maximum likelihood or maximum a posterior of the log-likelihood model.
-    best_loglikelihood: Callable[[Model, Frequency], jnp.ndarray]
+    best_loglikelihood: Callable[[ModelT, Frequency], jnp.ndarray]
     
     #: A batched model containing the dynamic half of the sampled RF model.
     #: To get the full model, use `equinox.combine(dynamic, static)` with `static_model`.
     #: Only populated for Bayesian sampling algorithms.
-    sampled_model: Model = None
+    sampled_model: ModelT = None
 
     #: The static half of `sampled_model`.
-    static_model: Model = None
+    static_model: ModelT = None
     
     #: A batched model containing the dynamic half othe sampled log-likelihood model.
     #: To get the full model, use `equinox.combine(dynamic, static)` with `static_loglikelihood`.

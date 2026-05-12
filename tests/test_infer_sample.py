@@ -53,6 +53,8 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
     def log_like(m, f):
         return -0.5 * jnp.sum((m.val - 7.0)**2)
         
+# solver = PolyChord(nlive=10, num_repeats=2, do_clustering=False)
+        
     result = sample(
         loglikelihood=log_like,
         model=infer_model,
@@ -60,24 +62,21 @@ def test_sample_polychord(infer_model, basic_freq, tmp_path):
         solver=PolyChord(
             nlive=5,
             do_clustering=False,
-            num_repeats=1,
+            num_repeats=2,
             precision_criterion=1.0,
             feedback=0,         
             write_resume=False, 
-            write_live=False,
-            write_dead=False,
-            write_stats=False,
             base_dir=str(tmp_path)
         ),
     )
     
     assert isinstance(result.best_model, DummyInferModel)
-    assert result.best_model.val.value > 0.0 
+    assert jnp.array(result.best_model.val) > 0.0 
     
     batched_model = result.sampled_model
     assert isinstance(batched_model, DummyInferModel)
     n_samples = result.fn_values.shape[0]
-    assert batched_model.val.value.shape == (n_samples,)
+    assert jnp.array(batched_model.val).shape == (n_samples,)
 
 
 def test_fit_polychord(infer_model, basic_freq, tmp_path):
@@ -105,15 +104,12 @@ def test_fit_polychord(infer_model, basic_freq, tmp_path):
             precision_criterion=1.0,
             feedback=0, 
             write_resume=False,
-            write_live=False,
-            write_dead=False,
-            write_stats=False,
             base_dir=str(tmp_path)
         ),
         features='s_mag',
-        likelihood=GaussianLikelihood(noise=1.0),
+        likelihood=GaussianLikelihood(noise=Random(Uniform(0.0, 1.0))),
     )
     
     assert isinstance(result.model, DummyInferModel)
     n_samples = result.solution.fn_values.shape[0]
-    assert result.solution.sampled_model.val.value.shape == (n_samples,)
+    assert jnp.array(result.solution.sampled_model.val).shape == (n_samples,)

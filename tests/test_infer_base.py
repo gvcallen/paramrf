@@ -5,9 +5,8 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-import parax as prx
-from distreqx.distributions import Normal, Uniform
-
+from pmrf.parameters import Random
+from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
 from pmrf.infer.backends.blackjax import NUTS, HMC, NSS
 from pmrf.infer.backends.polychord import PolyChord, MPI_AVAILABLE
@@ -20,8 +19,8 @@ from pmrf.infer.backends.polychord import PolyChord, MPI_AVAILABLE
 def get_dummy_dict_model():
     """A standard dictionary model with random Parax variables."""
     return {
-        "x": prx.Random(Normal(0.0, 5.0), raw_value=jnp.array(0.0)), 
-        "y": prx.Random(Uniform(0.0, 5.0), raw_value=jnp.array(2.5)) 
+        "x": Random(Normal(0.0, 5.0), value=jnp.array(0.0)), 
+        "y": Random(Uniform(0.0, 5.0), value=jnp.array(2.5)) 
     }
 
 def simple_loglikelihood(model, args=None):
@@ -73,13 +72,15 @@ def test_joint_samplers(solver_cls):
 
 def test_split_sampler_nss():
     """Test constrained split sampling using BlackJAX NSS."""
+    print("runnin")
+    
     y0 = get_dummy_dict_model()
     key = jax.random.key(42)
     
     # NSS Requires a batch of initial points (live points)
     init_samples = {
-        "x": prx.Random(Normal(0.0, 5.0), raw_value=jax.random.normal(jax.random.key(1), (10,))),
-        "y": prx.Random(Uniform(0.0, 5.0), raw_value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1)
+        "x": Random(Normal(0.0, 5.0), value=jax.random.normal(jax.random.key(1), (10,))),
+        "y": Random(Uniform(0.0, 5.0), value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1)
     }
     
     solver = NSS(num_delete=5, num_inner_steps=2, logZ_convergence=0.5)

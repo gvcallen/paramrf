@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import equinox as eqx
 
@@ -8,7 +8,9 @@ from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 
-class FitResult(eqx.Module):
+ModelT = TypeVar('ModelT', bound=Model)
+
+class FitResult(eqx.Module, Generic[ModelT]):
     """
     Standardized return object for a fitting routines.
 
@@ -22,10 +24,10 @@ class FitResult(eqx.Module):
     frequency: Frequency | None = None
 
     #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
-    solution: OptimizeResult | InferResult | None = None
+    solution: OptimizeResult[ModelT] | InferResult[ModelT] | None = None
     
     @property
-    def model(self) -> Model | None:
+    def model(self) -> ModelT | None:
         """
         The fitted model.
         """

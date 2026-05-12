@@ -223,7 +223,7 @@ class NSS(AbstractSplitSampler):
                 infos_list.append(info)
                 
                 # Dynamic convergence check (host-side)
-                delta_logZ = curr_state.integrator.logZ_live - curr_state.integrator.logZ
+                delta_logZ = curr_state.logZ_live - curr_state.logZ
                 if delta_logZ < self.logZ_convergence:
                     break
             
@@ -240,25 +240,25 @@ class NSS(AbstractSplitSampler):
         log_X = - (iters * self.num_delete) / num_live
         log_dX = log_X + jnp.log1p(-jnp.exp(-self.num_delete / num_live))
         
-        dead_ll = infos.particles.loglikelihood
+        dead_ll = infos.loglikelihood
         dead_unnorm_log_weights = dead_ll + (log_dX - jnp.log(self.num_delete))[:, None]
 
         # 5. Weight Calculation (Live Points)
         # The remaining prior volume is distributed equally among the remaining live points
         log_X_final = - (actual_steps * self.num_delete) / num_live
-        live_ll = final_state.particles.loglikelihood
+        live_ll = final_state.loglikelihood
         live_unnorm_log_weights = live_ll + log_X_final - jnp.log(num_live)
 
         # 6. Flatten Arrays to 1D Streams
         def flatten_batch(x):
             return x.reshape(-1, *x.shape[2:])
 
-        flat_dead_samples = jax.tree_util.tree_map(flatten_batch, infos.particles.position)
+        flat_dead_samples = jax.tree_util.tree_map(flatten_batch, infos.particles)
         flat_dead_ll = flatten_batch(dead_ll)
         flat_dead_unnorm_weights = flatten_batch(dead_unnorm_log_weights)
 
         # Extract live samples
-        live_samples = final_state.particles.position
+        live_samples = final_state.particles
 
         # Concatenate dead and live into the full posterior history
         def concat_dead_live(dead, live):
@@ -270,7 +270,7 @@ class NSS(AbstractSplitSampler):
 
         # 7. Log-Evidence and Error Calculation
         # Use BlackJAX's internal integrator state for exact matching
-        logevidence = jnp.logaddexp(final_state.integrator.logZ, final_state.integrator.logZ_live)
+        logevidence = jnp.logaddexp(final_state.logZ, final_state.logZ_live)
         
         # Normalize the combined weights against the total evidence
         weights = jnp.exp(all_unnorm_log_weights - logevidence)

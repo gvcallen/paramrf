@@ -9,7 +9,7 @@ inference (`pmrf.infer`).
 from pmrf.fitting.result import FitResult
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
-from pmrf.fitting.routers import fit, fit_sequential, fit_joint, AbstractSolver
+from pmrf.fitting.routers import fit, fit_sequential, fit_joint, AbstractFitter
 
 __all__ = [
     "fit",
@@ -17,7 +17,7 @@ __all__ = [
     "fit_joint",
     "fit_minimize",
     "fit_sample",
-    "AbstractSolver",
+    "AbstractFitter",
     "FitResult",
     "Solver",
 ]

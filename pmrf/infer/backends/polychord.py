@@ -205,7 +205,7 @@ class PolyChord(AbstractHypercubeSampler):
         
         _dummy_prior = polychord_prior(0.5 * np.ones(ndims))
         _dummy_logL = polychord_likelihood(_dummy_prior)
-
+        
         nested_samples = pypolychord.run(
             loglikelihood=polychord_likelihood,
             nDims=ndims,
@@ -218,12 +218,16 @@ class PolyChord(AbstractHypercubeSampler):
         samples = jnp.array(np.array(nested_samples.iloc[:, :ndims]))
         weights = jnp.array(nested_samples.get_weights())
         
-        logevidence = jnp.array(nested_samples.logZ())
-        norm_weights = weights / jnp.sum(weights)
+        try:
+            logevidence = jnp.array(nested_samples.logZ())
+            norm_weights = weights / jnp.sum(weights)
         
-        H = jnp.sum(norm_weights * loglikes) - logevidence
-        actual_nlive = base_kwargs['nlive'] if base_kwargs['nlive'] > 0 else ndims * 25
-        logevidence_error = jnp.array((np.sqrt(max(H, 0.0) / actual_nlive)))
+            H = jnp.sum(norm_weights * loglikes) - logevidence
+            actual_nlive = base_kwargs['nlive'] if base_kwargs['nlive'] > 0 else ndims * 25
+            logevidence_error = jnp.array((np.sqrt(max(H, 0.0) / actual_nlive)))
+        except:
+            logevidence = None
+            logevidence_error = None
         
         structured_samples = jax.vmap(cube_reconstruct_fn)(jnp.array(samples))
         results = SampleResults(
