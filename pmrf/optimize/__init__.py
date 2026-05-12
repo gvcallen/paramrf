@@ -1,5 +1,5 @@
 """
-Optimization using Optimistix, JAXopt, or SciPy.
+Non-linear optimization of RF models.
 
 Provides solvers and routines to find the optimal point-estimates 
 that minimize a given objective/cost function.

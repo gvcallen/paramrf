@@ -1,5 +1,5 @@
 """
-Core RF functions and algorithms, such as network parameter conversions and circuit composition.
+Core RF functions, algorithms and conversions.
 """
 from pmrf.rf.conversions import s2s, a2s, s2a, s2y, y2s, s2z, z2s, renormalize_s
 from pmrf.rf.cascades import cascade_s, cascade_a

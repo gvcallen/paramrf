@@ -1,5 +1,5 @@
 """
-Probability distributions and factories.
+Probability distributions classes and factories.
 
 Can be used for random parameters in :mod:`pmrf.parameters`.
 

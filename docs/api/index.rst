@@ -43,7 +43,6 @@ Modules
    pmrf.math
    pmrf.models
    pmrf.noise_models
-   pmrf.network_collection
    pmrf.optimize
    pmrf.parameters
    pmrf.viz

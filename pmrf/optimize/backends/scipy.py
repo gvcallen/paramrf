@@ -3,7 +3,6 @@ SciPy optimization wrappers.
 """
 
 from typing import Callable, Any
-import warnings
 
 from jaxtyping import PyTree
 import equinox as eqx
@@ -32,24 +31,17 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     ) -> tuple[MinimizeResults, PyTree]:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
 
-        # FIX: Create a new dict instead of using .update() which returns None
-        combined_options = {**self.options, 'maxiter': max_iter}
+        options = self.options
         
         solver = JaxOptScipyBoundedMinimize(
             method=self.method,
             tol=self.tol,
-            options=combined_options,
+            options=options,
+            maxiter=max_iter,
             fun=fn,
         )
         
-        # Suppress the SciPy warning about unused gradients for non-gradient methods
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore", 
-                message="Method .* does not use gradient information", 
-                category=RuntimeWarning
-            )
-            y_opt, state = solver.run(y0, bounds, args, **kwargs)
+        y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
         payload = MinimizeResults(y=y_opt)
         return payload, state

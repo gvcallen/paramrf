@@ -1,5 +1,5 @@
 """
-Built-in likelihood models.
+Likelihood models for statistical fitting.
 """
 
 from typing import Callable

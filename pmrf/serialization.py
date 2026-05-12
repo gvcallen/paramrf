@@ -1,5 +1,5 @@
 """
-Functions for model loading and saving.
+Model loading and saving.
 """
 
 import os

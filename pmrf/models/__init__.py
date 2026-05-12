@@ -1,5 +1,5 @@
 """
-RF models, such as lumped components and surrogates.
+RF models, components, surrogates, and utilities.
 
 This module contains various components, surrogate models, composite building models, and model adapters.
 

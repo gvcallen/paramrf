@@ -1,5 +1,5 @@
 """
-Models that represent the noise of a measurement, used within in a likelihood.
+Measurement noise models for likelihood function.
 """
 from abc import abstractmethod
 

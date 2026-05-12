@@ -1,5 +1,5 @@
 """
-Bayesian inference using BlackJAX or PolyChord.
+Bayesian inference of RF models.
 
 Provides samplers and routines to compute the posterior joint 
 distributions of model parameters.

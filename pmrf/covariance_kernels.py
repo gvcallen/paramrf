@@ -1,5 +1,5 @@
 """
-Covariance kernels for Gaussian process discrepancy models.
+Covariance kernels for Gaussian processes.
 """
 from abc import abstractmethod
 

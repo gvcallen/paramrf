@@ -1,5 +1,5 @@
 """
-Parameter factories and parameter field specifiers.
+Parameter factory functions and the main field specifier.
 
 Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
 """

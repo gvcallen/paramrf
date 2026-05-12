@@ -1,5 +1,5 @@
 """
-Loss models for frequentist optimization or generalized Bayesian inference.
+Loss models for optimizer fitting or generalized Bayesian inference.
 
 These classes wrap pure mathematical loss functions into a :class:`pmrf.Loss`.
 All losses take the true and predict arrays as inputs, and return the loss
