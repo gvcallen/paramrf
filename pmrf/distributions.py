@@ -11,10 +11,15 @@ from jaxtyping import ArrayLike
 from distreqx.distributions import (
     AbstractDistribution as AbstractDistribution,
     Normal as Normal,
-    LogNormal as LogNormal,
     Uniform as Uniform,
     Gamma as Gamma,
 )
+
+try:
+    from distreqx.distributions import LogNormal as LogNormal
+except:
+    pass
+    
 
 def CenteredUniform(
     center: ArrayLike, 
