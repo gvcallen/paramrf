@@ -119,7 +119,7 @@ def fit_sequential(
         
         # Fix all sub-models except this one
         sub_model = model.at.filter(lambda x: isinstance(x, Model)).apply(as_frozen)
-        sub_model = sub_model.at.select(name).apply(as_free)
+        sub_model = sub_model.at.select(name.split('.')[0]).apply(as_free)
         
         sub_data = data.filter(lambda n: n.name == name)
 

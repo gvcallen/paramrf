@@ -136,7 +136,7 @@ class Model(eqx.Module):
     """
     #: The characteristic impedance of the model.
     #: NB: Mixing impedances across models is not fully supported.
-    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True, converter=complex)
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -522,7 +522,10 @@ class Model(eqx.Module):
         """Provides a fluent, lens-based interface for immutable PyTree updates.
 
         This property exposes a chainable API for safely mutating deeply nested
-        models.
+        models and parameters.
+        
+        Note that if your goal is to update static fields (not parameters e.g. strings),
+        you should use :func:`pmrf.replace`.
         
         Returns
         -------
