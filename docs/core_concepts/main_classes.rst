@@ -15,7 +15,7 @@ Under-the-hood, ParamRF uses the `Equinox <https://docs.kidger.site/equinox/api/
 
 To define custom models, you can inherit directly from :class:`~pmrf.Model`. When inherited from, methods such as :meth:`~pmrf.Model.s`, :meth:`~pmrf.Model.a`, :meth:`~pmrf.Model.z` and :meth:`~pmrf.Model.y` can be overridden to define model S-parameters, ABCD-parameters etc. as a function of frequency. This is a crucial distinction compared to other libraries (e.g. :mod:`scikit-rf`): a model **does not store its frequency**, but instead accepts its frequency as a function input. Then, any network properties that have not been manually overridden are automatically made available via RF conversion functions. These can also be found under :mod:`pmrf.rf`.
 
-For more complex models, the :meth:`~pmrf.Model.__call__` method can also be overridden. Compared to the previous approach, :meth:`~pmrf.Model.__call__` does not accept any arguments as input, but instead must return a **fully constructed** :class:`~pmrf.Model` instance. This is very useful for declarative, hierarchical model building. For a deeper look into building and defining custom models, see the :doc:`model_building` section.
+For more complex models, the :meth:`~pmrf.Model.build` method can also be overridden. Compared to the previous approach, :meth:`~pmrf.Model.build` does not accept any arguments as input, but instead must return a **fully constructed** :class:`~pmrf.Model` instance. This is very useful for declarative, hierarchical model building. For a deeper look into building and defining custom models, see the :doc:`model_building` section.
 
 Frequency, parameters, and jax.Array
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

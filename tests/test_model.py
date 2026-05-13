@@ -32,8 +32,8 @@ class DummyModelS2Port(Model):
         return jnp.zeros((nf, 2, 2), dtype=complex)
 
 class DummyCompositionalModel(Model):
-    """A compositional model that delegates to another model via __call__."""
-    def __call__(self) -> Model:
+    """A compositional model that delegates to another model via build."""
+    def build(self) -> Model:
         return DummyModelS()
 
 # ---------------------------------------------------------

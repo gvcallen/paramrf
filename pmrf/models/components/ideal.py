@@ -14,7 +14,7 @@ class Port(Model):
     This class serves as a placeholder or marker for external connections in a circuit definition.
     Calling an instance returns a matched load model.
     """
-    def __call__(self) -> Model:
+    def build(self) -> Model:
         """
         Return the equivalent model for a terminated port.
 
@@ -32,7 +32,7 @@ class Ground(Model):
     This class serves as a placeholder for a ground node in a circuit definition.
     Calling an instance returns a short circuit model.
     """
-    def __call__(self) -> Model:
+    def build(self) -> Model:
         return Short()
 
 class Transformer(Model):

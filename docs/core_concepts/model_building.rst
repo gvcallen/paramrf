@@ -90,7 +90,7 @@ Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable pro
 
 Hierachical Modeling
 ~~~~~~~~~~~~~~~~~~~~
-For more complex models (such as equation-based ones), users can inherit directly from the :class:`~pmrf.Model` class and override one of the network properties (such as :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.z`, or :class:`~pmrf.Model.y`) or the :class:`~pmrf.Model.__call__` method.
+For more complex models (such as equation-based ones), users can inherit directly from the :class:`~pmrf.Model` class and override one of the network properties (such as :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.z`, or :class:`~pmrf.Model.y`) or the :class:`~pmrf.Model.build` method.
 
 Any parameters in the model should be marked with the type `pmrf.Param` (which stands for either a JAX array, or a `Parax <https://gvcallen.github.io/parax>`_ variable). Any other attribute types are not viewed as part of the parameter hierarchy and will not be seen by optimizers or samplers.
 
@@ -169,7 +169,7 @@ As a last resort, overriding ``__init__`` is still possible, but ``super().__ini
       def __post_init__(self, C1_divided_by_5: float):
           self.cap1 = Capacitor(C1_divided_by_5 * 5.0)
   
-      def __call__(self) -> prf.Model:
+      def build(self) -> prf.Model:
           # Instantiate the ports and grounds
           port1, port2, ground = Port(), Port(), Ground()
   

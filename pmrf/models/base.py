@@ -34,7 +34,7 @@ class Model(eqx.Module):
 
     This class should not be instantiated directly. It is created internally in ParamRF when models are
     built compositionally, or can be inheriting from, in which case at least one of the primary property functions
-    (e.g. :meth:`pmrf.Model.__call__`, :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`) should be overidden.
+    (e.g. :meth:`pmrf.Model.build`, :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`) should be overidden.
 
     The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
     (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
@@ -55,7 +55,7 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`__call__`                  Build the model. Should be overridden by sub-classes.
+    :meth:`build`                  Build the model. Should be overridden by sub-classes.
     :meth:`s`                         Scattering (S) parameter matrix.
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
@@ -117,7 +117,7 @@ class Model(eqx.Module):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` network built in `__call__` using cascading:
+    An ``RLC`` network built in `build` using cascading:
 
     .. code-block:: python
 
@@ -130,7 +130,7 @@ class Model(eqx.Module):
             ind: Inductor = Inductor(Bounded(0.0, 10.0, scale=1e-12))
             cap: Capacitor = Capacitor(Bounded(0.0, 10.0, scale=1e-12))
 
-            def __call__(self) -> prf.Model:
+            def build(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
@@ -179,7 +179,7 @@ class Model(eqx.Module):
         """The primary function (``s`` or ``a``) as a callable.
 
         The primary function is the first overridden among
-        :data:`PRIMARY_PROPERTIES`, unless ``__call__`` is overridden,
+        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
         in which case the primary function of the built model is returned.
 
         Returns
@@ -198,7 +198,7 @@ class Model(eqx.Module):
         """The primary property (e.g. ``"s"``, ``"a"``) as a string.
 
         The primary property is the first overridden among
-        :data:`PRIMARY_PROPERTIES`, unless ``__call__`` is overridden,
+        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
         in which case the primary property of the built model is returned.
 
         Returns
@@ -213,8 +213,8 @@ class Model(eqx.Module):
         prioritized = () # for future expansion
         unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
 
-        if is_overridden(type(self), Model, '__call__'):
-            return self().primary_property
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().primary_property
         
         for property in prioritized:
             if is_overridden(type(self), Model, property):
@@ -257,12 +257,14 @@ class Model(eqx.Module):
     
     @eqx.filter_jit
     @unwrap_self
-    def __call__(self) -> 'Model':
+    def build(self) -> 'Model':
         """Build the model.
 
-        This function should be over-ridden by sub-classes.
-        It is useful in defining complex models that are built
-        using several sub-models (as opposed to equation-based models).
+        This function can be over-ridden by sub-classes.
+
+        It is useful to define advanced models that are built
+        using several sub-models or parameters, as opposed to
+        simpler models built using standard equations.
 
         Returns
         -------
@@ -304,8 +306,8 @@ class Model(eqx.Module):
         jnp.ndarray
             S-parameter matrix with shape ``(nf, n, n)``.
         """
-        if is_overridden(type(self), Model, '__call__'):
-            return self().s(freq)
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().s(freq)
 
         # 1. Fetch primary
         primary_prop = self.primary_property
@@ -340,8 +342,8 @@ class Model(eqx.Module):
         jnp.ndarray
             ABCD matrix with shape ``(nf, 2, 2)``.
         """        
-        if is_overridden(type(self), Model, '__call__'):
-            return self().a(freq)
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().a(freq)
         
         # 1. Fetch primary
         primary_prop = self.primary_property
@@ -380,8 +382,8 @@ class Model(eqx.Module):
         jnp.ndarray
             Z matrix with shape ``(nf, n, n)``.
         """
-        if is_overridden(type(self), Model, '__call__'):
-            return self().z(freq)
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().z(freq)
 
         # 1. Fetch primary
         primary_prop = self.primary_property
@@ -420,8 +422,8 @@ class Model(eqx.Module):
         jnp.ndarray
             Y matrix with shape ``(nf, n, n)``.
         """
-        if is_overridden(type(self), Model, '__call__'):
-            return self().y(freq)
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().y(freq)
 
         # 1. Fetch primary
         primary_prop = self.primary_property

@@ -37,7 +37,7 @@ class FixedLoad(Model):
     #: The number of ports this load presents. Default is 1.
     nports: int = 1
     
-    def __call__(self) -> jnp.ndarray:
+    def build(self) -> jnp.ndarray:
         return Load(gamma=self.gamma, nports=self.nports)
 
 
