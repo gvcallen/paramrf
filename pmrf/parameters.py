@@ -97,7 +97,7 @@ def as_param(
                 value = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
             except:
                 value = value.constrain(constraint)
-                dist_name = type(distribution).__name__
+                dist_name = type(prx.unwrap(value.distribution)).__name__
                 warnings.warn(
                     f"A constraint was applied, but the prior distribution ({dist_name}) "
                     f"could not be automatically truncated and will therefore be warped. "
