@@ -136,7 +136,7 @@ class Model(eqx.Module):
     """
     #: The characteristic impedance of the model.
     #: NB: Mixing impedances across models is not fully supported.
-    z0: complex = field(default=50.0+0j, kw_only=True, static=True, converter=complex)
+    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

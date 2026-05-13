@@ -13,20 +13,26 @@ import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 from parax.transforms import Scale
-from distreqx.distributions import AbstractDistribution, Normal, Uniform
 
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
-from pmrf.jax_utils import unwrap
-from pmrf.distributions import truncate_distribution
+from pmrf.distributions import AbstractDistribution, truncate_distribution
 
 Param = prx.Param
 """The abstract Parameter type hint for parameters in models."""
 
-
-
 # ---------------------------------------------------------
 # The Core Engine (Exposed in API)
 # ---------------------------------------------------------
+
+def apply_wrappers(value: Any, scale: float, fixed: bool):
+    value = prx.as_variable(value)
+    if scale != 1.0:
+        scale_val = jnp.asarray(scale, dtype=float)
+        value = prx.Derived(Scale(scale_val), raw_value=value)
+    if fixed:
+        value = prx.Fixed(value)    
+    return value
+    
 
 def as_param(
     value: Any = None,
@@ -57,14 +63,23 @@ def as_param(
             raise ValueError("`value` was none in `as_param`")
     
     if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
-        raise ValueError(f"A constraint was specified, but the existing variable is not constrainable. Value = {value}")
+        # If a variable is provided that is not constrainable but IS wrappable,
+        # we can push a constrained variable INSIDE that value
+        if prx.is_wrappable(value):
+            value = value.wrap(prx.Constrained(constraint, value=jnp.array(value)))
+            return apply_wrappers(value, scale=scale, fixed=fixed)
+        else:
+            raise ValueError(f"A constraint was specified, but the existing variable is not constrainable no wrappable. Value = {value}")
     
     # Unwrap inputs and default-construct random/constrained variables
     distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
-    if distribution is not None:
-        value = prx.Random(distribution, value=value)
-    elif constraint is not None:
-        value = prx.Constrained(constraint, value=value)
+    if not prx.is_variable(value):
+        if distribution is not None:
+            value = prx.Random(distribution, value=value)
+        elif constraint is not None:
+            value = prx.Constrained(constraint, value=value)
+        else:
+            value = prx.Real(value)
     
     # Combine constraints if our input is constrainable and we were passed a new constraint
     if prx.is_constrainable(value) and constraint is not None:
@@ -74,15 +89,14 @@ def as_param(
         has_shrunk = jnp.any(constraint.bounds[0] > orig_lower) or jnp.any(constraint.bounds[1] < orig_upper)
         
         # Truncate an existing random variable's distribution, if necessary
-        was_truncated = False
         if isinstance(value, prx.Random) and has_shrunk:
-            try:            
+            try:
                 new_lower, new_upper = constraint.bounds
-                trunc_dist = truncate_distribution(value.distribution, new_lower, new_upper)
-                trunc_value = jnp.clip(jnp.array(value), a_min=new_lower, a_max=new_upper)
-                x = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
-                was_truncated = True
+                trunc_dist = truncate_distribution(prx.unwrap(value.distribution), new_lower, new_upper)
+                trunc_value = jnp.clip(jnp.array(value), min=new_lower, max=new_upper)
+                value = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
             except:
+                value = value.constrain(constraint)
                 dist_name = type(distribution).__name__
                 warnings.warn(
                     f"A constraint was applied, but the prior distribution ({dist_name}) "
@@ -90,17 +104,10 @@ def as_param(
                     f"It is recommended to choose a distribution that aligns with the physical constraints.",
                     UserWarning, stacklevel=2
                 )
-                
-        if not was_truncated:
+        else:
             value = value.constrain(constraint)
-
-    if scale != 1.0:
-        scale_val = jnp.asarray(scale, dtype=float)
-        value = prx.Derived(Scale(scale_val), raw_value=value)
-        
-    if fixed:
-        value = prx.Fixed(value)
-
+                
+    value = apply_wrappers(value, scale=scale, fixed=fixed)
     return value
 
 
@@ -137,14 +144,10 @@ def param(
     Any
         An equinox field with a built-in converter for parameter rules.
     """
-    converter_fn = partial(
-        as_param,
-        distribution=distribution,
-        constraint=constraint, 
-        scale=scale, 
-        fixed=fixed
-    )
-    return eqx.field(default=value, converter=converter_fn)
+    def converter(x):
+        return as_param(value=x, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed)
+    
+    return eqx.field(default=value, converter=converter)
 
 
 # ---------------------------------------------------------

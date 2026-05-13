@@ -22,10 +22,13 @@ class GroundLifted(Model):
     model: Model
 
     def s(self, freq: Frequency) -> jnp.ndarray:
+        # NB: we actually dont currently support z0 != 50.0
+        
         # 1. Tentatively evaluate the inner model to dynamically determine N.
         # Using a scalar 50.0 ensures it evaluates safely without shape mismatch.
 
-        s_inner_test = replace(self.model, z0=50.0).s(freq)
+        # s_inner_test = replace(self.model, z0=50.0).s(freq)
+        s_inner_test = self.model.s(freq)
         n = s_inner_test.shape[-1]
 
         # 2. Parse reference impedances dynamically for N signal and N return ports
@@ -46,7 +49,8 @@ class GroundLifted(Model):
                 )
 
         # 3. Evaluate the exact Signal Path S-matrix (N x N)
-        s_inner = replace(self.model, z0=inner_z0).s(freq)
+        s_inner = self.model.s(freq)
+        # s_inner = replace(self.model, z0=inner_z0).s(freq)
 
         # 4. Compute the exact Return Path S-matrix (N x N parallel star node)
         y_ret = 1.0 / z_ret
@@ -89,6 +93,8 @@ class GroundExposed(Model):
     model: Model
 
     def s(self, freq: Frequency) -> jnp.ndarray:
+        # NB: we actually dont currently support z0 != 50.0
+        
         # 1. Parse reference impedances
         if jnp.isscalar(self.z0):
             z0_inner = self.z0
@@ -98,7 +104,8 @@ class GroundExposed(Model):
             z0_new_port = self.z0[..., -1:]
 
         # 2. Get inner S-parameters and convert to Y-parameters
-        s_inner = replace(self.model, z0=z0_inner).s(freq)
+        # s_inner = replace(self.model, z0=z0_inner).s(freq)
+        s_inner = self.model.s(freq)
         y_inner = s2y(s_inner, z0=z0_inner)
 
         # 3. Apply the Indefinite Admittance Matrix (IAM) transformation

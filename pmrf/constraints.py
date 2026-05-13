@@ -5,7 +5,9 @@ Can be used for parameter factories in :mod:`pmrf.parameters`.
 
 Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
 """
+import jax
 import jax.numpy as jnp
+import equinox as eqx
 
 from parax.constraints import (
     AbstractConstraint as AbstractConstraint,
@@ -33,13 +35,16 @@ def intersect_constraints(a: AbstractConstraint, b: AbstractConstraint) -> Abstr
     np_lower = jnp.asarray(lower)
     np_upper = jnp.asarray(upper)
 
-    if jnp.any(np_lower >= np_upper):
-        raise ValueError(f"Constraint intersection is empty or invalid: lower bound ({lower}) >= upper bound ({upper}).")
-
+    np_lower, np_upper = eqx.error_if(
+        (np_lower, np_upper),
+        jnp.any(jnp.greater_equal(np_lower, np_upper)),
+        f"Constraint intersection is empty or invalid."
+    )
+    
     is_neginf_lower = jnp.all(jnp.isneginf(np_lower))
     is_posinf_upper = jnp.all(jnp.isposinf(np_upper))
-    is_zero_lower = jnp.all(np_lower == 0.0)
-    is_zero_upper = jnp.all(np_upper == 0.0)
+    is_zero_lower = jnp.all(jnp.equal(np_lower, 0.0))
+    is_zero_upper = jnp.all(jnp.equal(np_upper, 0.0))
 
     # Resolve to the most specific constraint class
     if is_neginf_lower and is_posinf_upper:
