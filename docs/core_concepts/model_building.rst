@@ -99,7 +99,7 @@ Since models are immutable, parameters can be initialized directly with factorie
   * Allows callers to initialize that parameter with a simple float value when constructing the model.
   * Provides the ability to add constraints and scaling to the model *itself* (e.g. setting a model parameter as always positive).
 
-Equation-based Models
+Simple Models
 ^^^^^^^^^^^^^^^^^^^^^
 The following example demonstrates custom model definition by defining a capacitor from first principles. Notice how ``C`` is automatically converted to a parameter and can be used as a JAX array during the computation.
 
@@ -133,13 +133,20 @@ The following example demonstrates custom model definition by defining a capacit
   Capacitor(2.0e-12).plot_s_db(prf.Frequency(10, 100, 101, 'MHz'), m=1, n=0)
           
 
-Circuit Models
+Advanced Models
 ^^^^^^^^^^^^^^
-For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via :class:`~pmrf.models.composite.interconnected.Circuit`.
+For complicated models, it can be convenient to inherit from :class:`pmrf.Model` while still internally building the model using cascading or via e.g. :class:`~pmrf.models.composite.interconnected.Circuit`.
 
 The following example creates a PI-CLC model once again, but using this approach.
 
-Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is often still desirable to have temporary initialization parameters separate to your model parameters. In this case, using :class:`dataclasses.InitVar` in combination with ``__post_init`` is the canonical approach. This is demonstrated below.
+Note that the two golden rules when creating models are:
+
+- Models are immutable. If you want to change the *structure* of a model given an existing one, create a method named something like ``.with_structure`` that returns a new model.
+- You should *never store* state that can be *derived* from other state. Therefore, all member variables should be treated as the core "dumb data" to be passed through mathematical functions.
+
+Following the above rules allows for immutable updates of models using :meth:`pmrf.Model.at` (which "surgically" replaces the parameter without triggering any state updates).
+
+Note that, when inheriting from :class:`~pmrf.Model`, an explicit ``__init__`` method is not required, and one is automatically generated for you. However, it is often still desirable to have temporary initialization parameters separate to your model parameters. In this case, using :class:`pmrf.InitVar` in combination with ``__post_init`` should be used, as opposed to creating a new member variable or explicitly defining ``__init__``. This is demonstrated below.
 
 As a last resort, overriding ``__init__`` is still possible, but ``super().__init__`` **must** explicitly be called.
 
@@ -149,11 +156,10 @@ As a last resort, overriding ``__init__`` is still possible, but ``super().__ini
   from pmrf.parameters import Bounded
   from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
   
-  from dataclasses import InitVar
   import jax.numpy as jnp
   
   class PiCLC(prf.Model):
-      C1_divided_by_5: InitVar[float]
+      C1_divided_by_5: prf.InitVar[float]
   
       # To be instantiated in post init
       cap1: Capacitor = prf.field(default=None)

@@ -522,12 +522,8 @@ class Model(eqx.Module):
         """Provides a fluent, lens-based interface for immutable PyTree updates.
 
         This property exposes a chainable API for safely mutating deeply nested
-        models. It guarantees that `__init__`  and `__post_init__` are triggered
-        during the bottom-up rebuild.
+        models.
         
-        For more advanced, surgical manipulations (no dataclass retriggering),
-        use `equinox.tree_at` method.
-
         Returns
         -------
         Lens

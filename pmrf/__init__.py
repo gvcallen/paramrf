@@ -25,6 +25,8 @@ from pmrf.serialization import (
 from pmrf.jax_utils import (
     Partial as Partial,
     Tied as Tied,
+    InitVar as InitVar,
+    replace as replace,
     combine as combine,
     field as field,
     unwrap as unwrap,
