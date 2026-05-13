@@ -71,9 +71,9 @@ def test_primary_property_resolution(model_s, model_z, model_comp):
     # Compositional models should inherit the primary property of what they build
     assert model_comp.primary_property == 's'
 
-def test_primary_function_execution(model_s, basic_freq):
-    """Test that calling .primary() routes to the correct evaluation method."""
-    out = model_s.primary(basic_freq)
+def test_primary_matrix_execution(model_s, basic_freq):
+    """Test that calling .primary_matrix() routes to the correct evaluation method."""
+    out = model_s.primary_matrix(basic_freq)
     assert out.shape == (10, 1, 1)
 
 # ---------------------------------------------------------

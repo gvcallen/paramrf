@@ -33,19 +33,20 @@ class Model(eqx.Module):
     Derived from this class to define your own, custom model.
 
     This class should not be instantiated directly. It is created internally in ParamRF when models are
-    built compositionally, or can be inheriting from, in which case at least one of the primary property functions
-    (e.g. :meth:`pmrf.Model.build`, :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`) should be overidden.
+    built compositionally, or can be inherited from, in which case at least one of
+    :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`,
+    :meth:`pmrf.Model.build`, or :meth:`pmrf.Model.primary_matrix` should be overridden.
 
     The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
-    (immutable, dataclass-like) and is treated as a JAX PyTree. Parameters are declared using standard dataclass
-    field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`. 
-    See :mod:`pmrf.parameters` for more details.
+    (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
+    field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`.
+    For more details in parameter definitions, see :mod:`pmrf.parameters`.
 
     Usage
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
-    - Use "past tense" functions to modify the model in conjunction with another model or data e.g. :meth:`.terminated`, :meth:`.flipped`.
+    - Use :meth:`pmrf.Model.at` and methods such as :meth:`.terminated` and :meth:`.flipped` to create modified versions of your model.
 
     Methods & Properties Summary
     ----------------------------
@@ -55,11 +56,13 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`build`                  Build the model. Should be overridden by sub-classes.
     :meth:`s`                         Scattering (S) parameter matrix.
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
+    :meth:`build`                     Build the model. Can be overridden for advanced models.
+    :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
+    :attr:`primary_property`          The primary property (e.g. ``"s"``, ``"a"``) as a string.
     ================================= ====================================================================
 
     **Helper Methods**
@@ -67,9 +70,6 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`primary`                   Dispatch to the primary function for the given frequency.
-    :attr:`primary_function`          The primary function (``s`` or ``a``) as a callable.
-    :attr:`primary_property`          The primary property (e.g. ``"s"``, ``"a"``) as a string.
     :attr:`number_of_ports`           Number of ports.
     :attr:`nports`                    Alias of :attr:`number_of_ports`.
     :attr:`port_tuples`               All (m, n) port index pairs.
@@ -172,58 +172,6 @@ class Model(eqx.Module):
                     m_mn._pmrf_auto = True
                     setattr(cls, func_name_mn, m_mn)
 
-    # ---- Defaults / Primary ---------------------------------------------------    
-    
-    @property
-    def primary_function(self) -> Callable[[Frequency], jnp.ndarray]:
-        """The primary function (``s`` or ``a``) as a callable.
-
-        The primary function is the first overridden among
-        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
-        in which case the primary function of the built model is returned.
-
-        Returns
-        -------
-        Callable[[Frequency], jnp.ndarray]
-
-        Raises
-        ------
-        NotImplementedError
-            If no primary property is overridden.
-        """
-        return getattr(self, self.primary_property)
-            
-    @property
-    def primary_property(self) -> str:
-        """The primary property (e.g. ``"s"``, ``"a"``) as a string.
-
-        The primary property is the first overridden among
-        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
-        in which case the primary property of the built model is returned.
-
-        Returns
-        -------
-        str
-
-        Raises
-        ------
-        NotImplementedError
-            If no primary property is overridden.
-        """
-        prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
-
-        if is_overridden(type(self), Model, 'build'):
-            return self.build().primary_property
-        
-        for property in prioritized:
-            if is_overridden(type(self), Model, property):
-                return property
-        for property in unprioritized:
-            if is_overridden(type(self), Model, property):
-                return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overridden, which are the only ones supported currently")    
-
     # ---- Introspection properties --------------------------------------------------------
     
     @property
@@ -278,10 +226,60 @@ class Model(eqx.Module):
         """     
         raise NotImplementedError
     
-    def primary(self, freq: Frequency) -> jnp.ndarray:
-        """Dispatch to the primary function for the given frequency."""        
-        primary_function = self.primary_function
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+        """The primary matrix (e.g. ``s``, ``a`` etc.) as a function of frequency.
+
+        The primary matrix represents the matrix returned by :attr:`pmrf.Model.primary_property`,
+        which is either overridden by sub-classes, or is the first proprerty directly overriden
+        out of :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`
+        (in that order), unless :meth:``pmrf.Model.build`` is overridden, in which case the primary matrix
+        of the built model is returned.
+        
+        This method can also be overriden itself in order to to dynamically
+        implement one of the matrices as opposed to overriding it explicitly. 
+
+        Returns
+        -------
+        jnp.ndarray
+
+        Raises
+        ------
+        NotImplementedError
+            If no primary property is overridden.
+        """      
+        primary_function = getattr(self, self.primary_property)
         return primary_function(freq)
+    
+    @property
+    def primary_property(self) -> str:
+        """The primary property (e.g. ``"s"``, ``"a"``) as a string.
+
+        The primary property is the first overridden among
+        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
+        in which case the primary property of the built model is returned.
+
+        Returns
+        -------
+        str
+
+        Raises
+        ------
+        NotImplementedError
+            If no primary property is overridden.
+        """
+        prioritized = () # for future expansion
+        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().primary_property
+        
+        for property in prioritized:
+            if is_overridden(type(self), Model, property):
+                return property
+        for property in unprioritized:
+            if is_overridden(type(self), Model, property):
+                return property
+        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overridden, which are the only ones supported currently")     
     
     @eqx.filter_jit
     @unwrap_self
@@ -311,7 +309,7 @@ class Model(eqx.Module):
 
         # 1. Fetch primary
         primary_prop = self.primary_property
-        val = self.primary(freq)
+        val = self.primary_matrix(freq)
 
         # 2. Return or Convert
         if primary_prop == 's':
@@ -347,7 +345,7 @@ class Model(eqx.Module):
         
         # 1. Fetch primary
         primary_prop = self.primary_property
-        val = self.primary(freq)
+        val = self.primary_matrix(freq)
 
         # 2. Return or Convert
         if primary_prop == 'a':
@@ -387,7 +385,7 @@ class Model(eqx.Module):
 
         # 1. Fetch primary
         primary_prop = self.primary_property
-        val = self.primary(freq)
+        val = self.primary_matrix(freq)
 
         # 2. Return or Convert
         if primary_prop == 'z':
@@ -427,7 +425,7 @@ class Model(eqx.Module):
 
         # 1. Fetch primary
         primary_prop = self.primary_property
-        val = self.primary(freq)
+        val = self.primary_matrix(freq)
 
         # 2. Return or Convert
         if primary_prop == 'y':
@@ -658,7 +656,7 @@ class Model(eqx.Module):
             model_freq = Frequency.from_skrf(frequency)
             measured_freq = frequency
         
-        fval, fname = self.primary(model_freq), self.primary_property
+        fval, fname = self.primary_matrix(model_freq), self.primary_property
         kwargs = kwargs or {}
         kwargs.update({
             fname: np.array(fval),

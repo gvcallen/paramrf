@@ -75,7 +75,7 @@ class Host(Model):
         """
         raise NotImplementedError("Subclasses of `Host` must implement 'compute'.")
 
-    def primary(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         """
         The JIT-compatible entry point. 
         Automatically handles threading if called inside a vmap.
@@ -96,4 +96,4 @@ class Host(Model):
         # (even those that weren't mapped) get the batch dimension added. 
         return jax.pure_callback(cb, result_shape, dynamic, freq, vmap_method='broadcast_all')
     
-__all__ = ['host']
+__all__ = ['Host']
