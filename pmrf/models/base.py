@@ -720,7 +720,7 @@ def validate(tree):
                         f"which can be updated during optimization/inference.\n\n"
                         f"To make your intention clear, you must either:\n"
                         f"  1. Use the `pmrf.param` specifier (or a factory in `pmrf.parameters`) to indicate the value is a parameter\n"
-                        f"  2. Explicitly mark the field as 'frozen' using `{f.name}: jnp.ndarray = prf.field(converter=prf.Freeze)` "
+                        f"  2. Explicitly mark the field as frozen using `{f.name}: jnp.ndarray = prf.field(converter=prf.Freeze)` "
                         f"and then unwrap the frozen field when you need it using `prf.unwrap`."
                     )
                 
