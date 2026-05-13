@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.17.2"
+version = "0.17.3"
 description = "Parametric radio frequency modeling, optimization and sampling"
 readme = "README.rst"
 authors = [
@@ -8,13 +8,14 @@ authors = [
 ]
 dependencies = [
     "parax",
+    "eqxpress",
+    "refrax",
     "jax",
     "jaxtyping",
     "equinox",
     "distreqx",
     "optimistix",
     "jaxopt",
-    "eqxpress",
     "numpy",
     "scipy",
     "scikit-rf",

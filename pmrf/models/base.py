@@ -9,14 +9,14 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import skrf
+from refrax import Lens
 
-from pmrf.utils.optics import Lens
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
-from pmrf.jax_utils import field, unwrap
+from pmrf.jax_utils import field, unwrap, unwrap_self
 
 Z0_WARNING = \
 r"""
@@ -139,7 +139,13 @@ class Model(eqx.Module):
     z0: complex = field(default=50.0+0j, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)        
+        super().__init_subclass__(**kwargs)
+        
+        for name in PRIMARY_PROPERTIES:
+            if name in cls.__dict__:
+                original_method = cls.__dict__[name]
+                wrapped_method = eqx.filter_jit(unwrap_self(original_method))
+                setattr(cls, name, wrapped_method)        
             
         # --- Implement dynamic functions (s_mag, s_mn_mag, etc.) ---
         def make_dynamic_method(prop_name, func):
@@ -249,6 +255,8 @@ class Model(eqx.Module):
     
     # ---- Core API -------------------------------------------------------------
     
+    @eqx.filter_jit
+    @unwrap_self
     def __call__(self) -> 'Model':
         """Build the model.
 
@@ -268,13 +276,13 @@ class Model(eqx.Module):
         """     
         raise NotImplementedError
     
-    @eqx.filter_jit
     def primary(self, freq: Frequency) -> jnp.ndarray:
         """Dispatch to the primary function for the given frequency."""        
         primary_function = self.primary_function
         return primary_function(freq)
     
     @eqx.filter_jit
+    @unwrap_self
     def s(self, freq: Frequency) -> jnp.ndarray:
         """Scattering parameter matrix.
 
@@ -316,6 +324,7 @@ class Model(eqx.Module):
         raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
     
     @eqx.filter_jit
+    @unwrap_self
     def a(self, freq: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
 
@@ -355,6 +364,7 @@ class Model(eqx.Module):
         return s2a(s, self.z0)
 
     @eqx.filter_jit
+    @unwrap_self
     def z(self, freq: Frequency) -> jnp.ndarray:
         """Impedance (Z) parameter matrix.
 
@@ -394,6 +404,7 @@ class Model(eqx.Module):
         return s2z(s, self.z0)
 
     @eqx.filter_jit
+    @unwrap_self
     def y(self, freq: Frequency) -> jnp.ndarray:
         """Admittance (Y) parameter matrix.
 

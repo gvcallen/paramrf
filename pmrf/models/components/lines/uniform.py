@@ -180,12 +180,12 @@ class PhaseLine(TransmissionLine):
     theta : Parameter, default=90.0
         Electrical length (phase shift) in degrees at reference frequency `f0`.
     f0 : Parameter
-        Reference frequency in Hz for `theta`. Key-word only argument.
+        Reference frequency in Hz for `theta`. Key-word only static argument.
     """
     theta: Param = param(90.0, constraint=Positive())
     zc: Param = param(50.0, constraint=Positive())
     
-    f0: float = field(kw_only=True)
+    f0: float = field(static=True, kw_only=True)
 
     def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
         zc = self.zc * jnp.ones(frequency.npoints, dtype=complex)

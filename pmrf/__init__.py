@@ -23,10 +23,12 @@ from pmrf.serialization import (
     save as save,
 )
 from pmrf.jax_utils import (
+    Partial as Partial,
+    Tied as Tied,
     combine as combine,
     field as field,
     unwrap as unwrap,
-    Partial as Partial,
+    unwrap_self as unwrap_self,
     as_fixed as as_fixed,
     as_free as as_free,
     as_frozen as as_frozen,
