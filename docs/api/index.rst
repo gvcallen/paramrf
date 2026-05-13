@@ -58,7 +58,8 @@ Utilities
 
    pmrf.NetworkCollection
    pmrf.Partial
-   pmrf.Tied
+   pmrf.Freeze
+   pmrf.Tie
    pmrf.InitVar
    pmrf.load
    pmrf.save
@@ -67,6 +68,3 @@ Utilities
    pmrf.field
    pmrf.unwrap
    pmrf.unwrap_self
-   pmrf.as_fixed
-   pmrf.as_frozen
-   pmrf.as_free

@@ -4,12 +4,10 @@ from equinox import (
     combine as combine,
 )
 from parax import (
-    Tied as Tied,
+    Tie as Tie,
+    Freeze as Freeze,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
-    as_free as as_free,
-    as_fixed as as_fixed,
-    as_frozen as as_frozen,
 )
 
 from dataclasses import (

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleProperty, AbstractSingleDiscreteProperty
 from pmrf.parameters import Param, param
-from pmrf.jax_utils import field, unwrap, as_frozen
+from pmrf.jax_utils import Freeze, field, unwrap
     
 class ContinuousCallable(AbstractSingleProperty):
     """
@@ -21,7 +21,7 @@ class ContinuousCallable(AbstractSingleProperty):
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
     #: Must accept an array of shape `(nfreq,)` or `(nfreq, nparams)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
-    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = field(converter=as_frozen)
+    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = field(converter=Freeze)
     
     #: Parameters to pass to `fn` of length `nparams`.
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.
@@ -46,7 +46,7 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
     #: Must either accept no parameters or an array of shape `(nparams,)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
-    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = field(converter=as_frozen)
+    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = field(converter=Freeze)
     
     #: Parameters to pass to `fn` of length `nparams`.
     #: Can be None for models that contain their own :class:`parax.Parameter` objects.

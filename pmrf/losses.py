@@ -164,7 +164,7 @@ class HingeLoss(AbstractLoss):
     weight: float = field(default=1.0, static=True)
     
     #: A boolean array filtering which data points apply to this loss.
-    mask: jnp.ndarray | None = field(default=None, converter=prx.as_frozen)
+    mask: jnp.ndarray | None = field(default=None, converter=prx.Freeze)
     
     #: The underlying loss function.
     base_loss: str | Callable | AbstractLoss = field(default=RMSELoss())

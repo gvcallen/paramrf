@@ -142,7 +142,7 @@ def minimize(
     if is_bounded:
         bounded_tree = prx.unwrap(y0, only_if=prx.is_bounded)
         params, static = eqx.partition(bounded_tree, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        bounds_all = bounds if bounds is not None else prx.bounded.tree_bounds(y0)
+        bounds_all = bounds if bounds is not None else prx.bounds.tree_bounds(y0)
         bounds = prx.remove(bounds_all, prx.is_constant)
     else:
         if bounds:

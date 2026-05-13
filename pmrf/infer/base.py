@@ -153,8 +153,8 @@ def sample(
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
         # Extraction
         init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
-        unconstrained_prior_all = prx.probabilistic.tree_unconstrained_distribution(y0)
-        bijector_all = prx.probabilistic.tree_leafwise_bijector(y0)
+        unconstrained_prior_all = prx.probability.tree_unconstrained_distribution(y0)
+        bijector_all = prx.constraints.tree_leafwise_bijector(y0)
 
         # Partitioning/filtering
         init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
@@ -204,7 +204,7 @@ def sample(
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
         init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
-        distributions_all = prx.probabilistic.tree_distributions(y0)
+        distributions_all = prx.probability.tree_distributions(y0)
 
         # Partitioning/filtering
         init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)

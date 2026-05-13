@@ -1,9 +1,9 @@
+from operator import attrgetter
 from typing import Any, Callable, TypeVar
 from dataclasses import replace
 
 import jax.numpy as jnp
 import skrf
-import parax as prx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
@@ -13,7 +13,7 @@ from pmrf.infer import is_sampler, InferResult, AbstractSampler
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
-from pmrf.jax_utils import as_free, as_frozen, combine
+from pmrf.jax_utils import Freeze, combine
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.result import FitResult
@@ -84,6 +84,7 @@ def fit_sequential(
     data: NetworkCollection,
     *,
     dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
+    callback: Callable[[FitResult], None] | None = None,
     **kwargs,
 ) -> tuple[ModelT, dict[str, FitResult]]:
     """
@@ -102,6 +103,8 @@ def fit_sequential(
         A mapping of keyword arguments that should be resolved dynamically per network. 
         If a value is a dict, it is resolved using the network name as the key.
         If a value is a callable, it is resolved by passing the network to the callable.
+    callback : Callable[[FitResult], None], default=None
+        A callable called after each fit with the results of that fit.
     **kwargs : dict
         Standard kwargs passed to :func:`pmrf.fitting.fit`.
 
@@ -118,8 +121,8 @@ def fit_sequential(
         name = ntwk.name
         
         # Fix all sub-models except this one
-        sub_model = model.at.filter(lambda x: isinstance(x, Model)).apply(as_frozen)
-        sub_model = sub_model.at.select(name.split('.')[0]).apply(as_free)
+        sub_model = model.at.filter(lambda x: isinstance(x, Model)).apply(Freeze)
+        sub_model = sub_model.at.select(name.split('.')[0]).apply(lambda m: m.unwrap())
         
         sub_data = data.filter(lambda n: n.name == name)
 
@@ -153,7 +156,7 @@ def fit_sequential(
             sub_features = [f"{name}.{feature}" for feature in features]        
 
         sub_array = Feature(features)(Measured(sub_ntwk), frequency)
-
+        
         try:
             # Fit the sub-module
             result_sub = fit(
@@ -164,11 +167,15 @@ def fit_sequential(
             )
 
             result_sub = replace(result_sub, data=sub_ntwk)
+            
+            if callback is not None:
+                callback(result_sub)            
 
         except Exception as e:
             raise Exception(f"Error fitting {name}: {e}")
         
-        model = getattr(model.at, name).set(getattr(result_sub.model, name))
+        fitted_submodel = attrgetter(name)(result_sub.model)
+        model = model.at.select(name).set(fitted_submodel)
         all_results[name] = result_sub
     
     return model, all_results
