@@ -56,13 +56,17 @@ Utilities
 .. autosummary::
    :toctree: generated/
 
-   pmrf.Partial
    pmrf.NetworkCollection
+   pmrf.Partial
+   pmrf.Tied
+   pmrf.InitVar
    pmrf.load
    pmrf.save
+   pmrf.replace
    pmrf.combine
    pmrf.field
    pmrf.unwrap
+   pmrf.unwrap_self
    pmrf.as_fixed
    pmrf.as_frozen
    pmrf.as_free
