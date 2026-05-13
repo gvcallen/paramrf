@@ -43,11 +43,25 @@ def as_param(
     fixed: bool = False
 ) -> Param:
     """
-    Coerces a raw value or existing parameter into a fully formed parameter, 
-    safely applying distributions, constraints, scaling, and fixed states.
+    Coerces a value into a parameter.
 
-    This function acts as the core parameter engine, automatically handling 
-    distribution truncation (e.g., Normal to TruncatedNormal) when constraints shrink.
+    Parameters
+    ----------
+    value : Any, optional
+        The value of the parameter.
+    distribution : Optional[AbstractDistribution], optional
+        The probability distribution for the parameter. See :mod:`pmrf.distributions`.
+    constraint : Optional[AbstractConstraint], optional
+        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.
+
+    Returns
+    -------
+    Any
+        An equinox field with a built-in converter for parameter rules.
     """
     # Check invalid cases
     if distribution is not None and prx.is_variable(value):
@@ -131,7 +145,7 @@ def param(
     value : Any, optional
         The default value of the field.
     distribution : Optional[AbstractDistribution], optional
-        The probability distribution for the parameter.
+        The probability distribution for the parameter. See :mod:`pmrf.distributions`.
     constraint : Optional[AbstractConstraint], optional
         The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
     scale : float, optional

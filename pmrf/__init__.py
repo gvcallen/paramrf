@@ -17,7 +17,7 @@ except PackageNotFoundError:
 from pmrf.problem import Problem as Problem
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
-from pmrf.parameters import Param as Param, param as param
+from pmrf.parameters import Param as Param, param as param, as_param as as_param
 from pmrf.serialization import (
     load as load,
     save as save,
@@ -63,6 +63,7 @@ __all__ = [
     "Frequency",
     "Param",
     "param",
+    "as_param",
     
     # Utilities
     "load",
