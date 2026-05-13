@@ -3,7 +3,8 @@ Parameter factory functions and the main field specifier.
 
 Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
 """
-
+from functools import partial
+import warnings
 import dataclasses
 from typing import Any, Optional
 from jaxtyping import ArrayLike
@@ -12,27 +13,120 @@ import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 from parax.transforms import Scale
-from distreqx.distributions import AbstractDistribution
+from distreqx.distributions import AbstractDistribution, Normal, Uniform
 
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.jax_utils import unwrap
+from pmrf.distributions import truncate_distribution
 
 Param = prx.Param
 """The abstract Parameter type hint for parameters in models."""
 
 
-def _apply_wrappers(
-    var: Param, 
-    scale: ArrayLike = 1.0, 
+
+# ---------------------------------------------------------
+# The Core Engine (Exposed in API)
+# ---------------------------------------------------------
+
+def as_param(
+    value: Any = None,
+    *,
+    distribution: Optional[AbstractDistribution] = None,
+    constraint: Optional[AbstractConstraint] = None,
+    scale: float = 1.0,
     fixed: bool = False
 ) -> Param:
     """
-    Apply scale and fixed transformations to a parameter.
+    Coerces a raw value or existing parameter into a fully formed parameter, 
+    safely applying distributions, constraints, scaling, and fixed states.
+
+    This function acts as the core parameter engine, automatically handling 
+    distribution truncation (e.g., Normal to TruncatedNormal) when constraints shrink.
+    """
+    # Check invalid cases
+    if distribution is not None and prx.is_variable(value):
+        raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
+    
+    if value is None:
+        if distribution is not None:
+            try:
+                value = distribution.mean()
+            except Exception as e:
+                raise ValueError("`value` was None but the provided `distribution` does not implement `mean()`") from e
+        else:
+            raise ValueError("`value` was none in `as_param`")
+    
+    if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
+        raise ValueError(f"A constraint was specified, but the existing variable is not constrainable. Value = {value}")
+    
+    # Unwrap inputs and default-construct random/constrained variables
+    distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
+    if distribution is not None:
+        value = prx.Random(distribution, value=value)
+    elif constraint is not None:
+        value = prx.Constrained(constraint, value=value)
+    
+    # Combine constraints if our input is constrainable and we were passed a new constraint
+    if prx.is_constrainable(value) and constraint is not None:
+        orig_constraint = prx.unwrap(value.constraint)
+        constraint = intersect_constraints(constraint, orig_constraint)
+        orig_lower, orig_upper = orig_constraint.bounds
+        has_shrunk = jnp.any(constraint.bounds[0] > orig_lower) or jnp.any(constraint.bounds[1] < orig_upper)
+        
+        # Truncate an existing random variable's distribution, if necessary
+        was_truncated = False
+        if isinstance(value, prx.Random) and has_shrunk:
+            try:            
+                new_lower, new_upper = constraint.bounds
+                trunc_dist = truncate_distribution(value.distribution, new_lower, new_upper)
+                trunc_value = jnp.clip(jnp.array(value), a_min=new_lower, a_max=new_upper)
+                x = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
+                was_truncated = True
+            except:
+                dist_name = type(distribution).__name__
+                warnings.warn(
+                    f"A constraint was applied, but the prior distribution ({dist_name}) "
+                    f"could not be automatically truncated and will therefore be warped. "
+                    f"It is recommended to choose a distribution that aligns with the physical constraints.",
+                    UserWarning, stacklevel=2
+                )
+                
+        if not was_truncated:
+            value = value.constrain(constraint)
+
+    if scale != 1.0:
+        scale_val = jnp.asarray(scale, dtype=float)
+        value = prx.Derived(Scale(scale_val), raw_value=value)
+        
+    if fixed:
+        value = prx.Fixed(value)
+
+    return value
+
+
+# ---------------------------------------------------------
+# Field Specifier
+# ---------------------------------------------------------
+
+def param(
+    value: Any = dataclasses.MISSING,
+    *,
+    distribution: Optional[AbstractDistribution] = None,
+    constraint: Optional[AbstractConstraint] = None,
+    scale: float = 1.0,
+    fixed: bool = False,
+) -> Any:
+    """
+    A field specifier for defining the physical rules of model parameters.
 
     Parameters
     ----------
-    var : Param
-        The base parameter to transform.
+    value : Any, optional
+        The default value of the field.
+    distribution : Optional[AbstractDistribution], optional
+        The probability distribution for the parameter.
+    constraint : Optional[AbstractConstraint], optional
+        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
@@ -40,23 +134,22 @@ def _apply_wrappers(
 
     Returns
     -------
-    Param
-        The modified parameter wrapped with `Scale` or `Fixed` if necessary.
+    Any
+        An equinox field with a built-in converter for parameter rules.
     """
-    var = prx.as_variable(var)
-
-    if scale != 1.0:
-        scale = jnp.asarray(scale, dtype=float)
-        var = prx.Derived(Scale(scale), raw_value=var)
-    if fixed:
-        var = prx.Fixed(var)
-    return var
+    converter_fn = partial(
+        as_param,
+        distribution=distribution,
+        constraint=constraint, 
+        scale=scale, 
+        fixed=fixed
+    )
+    return eqx.field(default=value, converter=converter_fn)
 
 
 # ---------------------------------------------------------
-# Parameter Factories
+# Parameter Factories (Syntactic Sugar)
 # ---------------------------------------------------------
-
 
 def Free(
     value: ArrayLike,
@@ -66,15 +159,15 @@ def Free(
 
     Parameters
     ----------
-    value : Param
+    value : ArrayLike
         The base parameter value.
 
     Returns
     -------
     Param
-        The parameter wrapped with scaling (and optionally fixed).
+        The unconstrained parameter.
     """
-    value = prx.as_variable(value)
+    return as_param(value)
 
 
 def Scaled(
@@ -84,11 +177,11 @@ def Scaled(
     fixed: bool = False,
 ) -> Param:
     """
-    Create a free parameter with optional scaling.
+    Create a free parameter with scaling.
 
     Parameters
     ----------
-    value : Param
+    value : ArrayLike
         The base parameter value.
     scale : float
         The scaling factor to apply.
@@ -100,14 +193,13 @@ def Scaled(
     Param
         The parameter wrapped with scaling (and optionally fixed).
     """
-    value = prx.as_variable(value)
-    return _apply_wrappers(value, scale=scale, fixed=fixed)
+    return as_param(value, scale=scale, fixed=fixed)
 
 
 def Fixed(
     value: ArrayLike,
     *,
-    scale: ArrayLike = 1.0,
+    scale: float = 1.0,
 ) -> Param:
     """
     Create a fixed parameter that will not be optimized.
@@ -116,7 +208,7 @@ def Fixed(
     ----------
     value : ArrayLike
         The parameter value to fix.
-    scale : ArrayLike, optional
+    scale : float, optional
         The scaling factor to apply, by default 1.0.
 
     Returns
@@ -124,8 +216,7 @@ def Fixed(
     Param
         The fixed parameter.
     """
-    value = prx.as_variable(value)
-    return _apply_wrappers(value, scale=scale, fixed=True)
+    return as_param(value, scale=scale, fixed=True)
 
 
 def Constrained(
@@ -154,10 +245,8 @@ def Constrained(
     Param
         The constrained parameter.
     """
-    value = jnp.asarray(value)
-    var = prx.Constrained(constraint, value=value)
-    return _apply_wrappers(var, scale, fixed)
-    
+    return as_param(value, constraint=constraint, scale=scale, fixed=fixed)
+
 
 def Bounded(
     lower: Any, 
@@ -191,7 +280,7 @@ def Bounded(
     lower, upper = jnp.asarray(lower, dtype=float), jnp.asarray(upper, dtype=float)
     if value is None:
         value = (lower + upper) / 2.0
-    return Constrained(Interval(lower, upper), value=value, scale=scale, fixed=fixed)
+    return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed)
 
 
 def Random(
@@ -225,76 +314,17 @@ def Random(
 
     Raises
     ------
-    Exception
-        If `value` is None and the distribution does not implement `mean`.
+    ValueError
+        If `value` is None and the distribution does not implement `mean()`.
     """
-    if value is None:
-        try:
-            value = distribution.mean()
-        except:
-            raise Exception("`value` was none when creating Random variable but `distribution` does not implement `mean`")
-        
-    value = jnp.asarray(value)
-    var = prx.Random(distribution, constraint=constraint, value=value)
-    return _apply_wrappers(var, scale, fixed)
-
-
-# ---------------------------------------------------------
-# Field Specifier
-# ---------------------------------------------------------
-    
-
-def param(
-    value: Any = dataclasses.MISSING,
-    *,
-    constraint: Optional[AbstractConstraint] = None,
-    scale: float = 1.0,
-    fixed: bool = False,
-) -> Any:
-    """
-    A field specifier for defining the physical rules of model parameters.
-
-    Parameters
-    ----------
-    value : Any, optional
-        The default value of the field.
-    constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
-    scale : float, optional
-        The scaling factor to apply, by default 1.0.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
-
-    Returns
-    -------
-    Any
-        An equinox field with a built-in converter for parameter rules.
-    """
-    def converter(x):
-        # Respect fully formed variables and inject constraints if needed
-        if prx.is_variable(x):
-            if constraint is not None and prx.is_constrainable(x):
-                combined_constraint = intersect_constraints(unwrap(constraint), unwrap(x.constraint))
-                x = x.constrain(combined_constraint)
-            return x
-
-        # Build the default physical variable
-        if constraint is not None:
-            return Constrained(constraint=constraint, value=x, scale=scale, fixed=fixed)
-        elif fixed:
-            return Fixed(value=x, scale=scale)
-        elif scale != 1.0:
-            return Scaled(value=x, scale=scale)
-        else:
-            return prx.as_variable(x)
-        
-    return eqx.field(default=value, converter=converter)
+    return as_param(value, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed)
 
 
 __all__ = [
+    "as_param",
+    "Free",
     "Scaled",
     "Fixed",
-    "Positive",
     "Bounded",
     "Constrained",
     "Random",
