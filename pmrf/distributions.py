@@ -97,6 +97,7 @@ __all__ = [
     "Gamma",
     "CenteredUniform",
     "RelativeNormal",
+    "RelativeTruncatedNormal",
 ]
 
 try:
