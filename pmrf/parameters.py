@@ -95,7 +95,7 @@ def as_param(
                 trunc_dist = truncate_distribution(prx.unwrap(value.distribution), new_lower, new_upper)
                 trunc_value = jnp.clip(jnp.array(value), min=new_lower, max=new_upper)
                 value = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
-            except:
+            except Exception:
                 value = value.constrain(constraint)
                 dist_name = type(prx.unwrap(value.distribution)).__name__
                 warnings.warn(
