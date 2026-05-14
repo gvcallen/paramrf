@@ -75,7 +75,7 @@ def as_param(
         raise ValueError("`value` was None in `as_param` but neither a distribution nor a finite Interval constraint was providied")
     if distribution is not None and prx.is_variable(value):
         raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
-    if constraint is not None and constraint.is_outside(jnp.array(value)):
+    if constraint is not None and value is not None and constraint.is_outside(jnp.array(value)):
         raise ValueError(
             f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
             f"\nMake sure the initial values match the parameter and model constraints."
@@ -83,7 +83,7 @@ def as_param(
         
     # Cater for none values
     if value is None:
-        if constraint is not None and not jnp.any(jnp.isinf(constraint.bounds)):
+        if constraint is not None and not jnp.any(jnp.isinf(jnp.asarray(constraint.bounds))):
             value = constraint.midpoint()
         else:
             value = distribution.mean()

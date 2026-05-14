@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import AbstractHypercubeSampler, SampleResults
+from pmrf.infer.base import AbstractHypercubeSampler, SampleResult
 
 class PolyChord(AbstractHypercubeSampler):
     """
@@ -130,7 +130,7 @@ class PolyChord(AbstractHypercubeSampler):
         init_cube_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResults, PyTree]:
+    ) -> tuple[SampleResult, PyTree]:
         if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
@@ -230,7 +230,7 @@ class PolyChord(AbstractHypercubeSampler):
             logevidence_error = None
         
         structured_samples = jax.vmap(cube_reconstruct_fn)(jnp.array(samples))
-        results = SampleResults(
+        results = SampleResult(
             samples=structured_samples,
             fn_values=loglikes,
             weights=weights,

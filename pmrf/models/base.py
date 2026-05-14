@@ -2,7 +2,7 @@
 Base class for RF models.
 """
 
-from typing import Callable, Any
+from typing import Any
 import dataclasses
 
 import jax
@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import skrf
 from refrax import Lens
+import parax as prx
 
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
@@ -203,7 +204,7 @@ class Model(eqx.Module):
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
     
-    def named_params(self, unwrap: bool = True) -> dict[str, Any]:
+    def named_params(self, include_fixed: bool = False, unwrap: bool = True) -> dict[str, Any]:
         """
         Returns a dictionary of all parameters in the model mapped to their paths.
 
@@ -215,6 +216,9 @@ class Model(eqx.Module):
 
         Parameters
         ----------
+        include_fixed : bool
+            Whether to include fixed parameters in the returned dictionary.
+            Defaults to False.
         unwrap : bool
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect internal parameter states (e.g. distributions, fixed etc.)
@@ -227,11 +231,13 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        import parax
-        params = parax.variables.tree_named_params(self)
+        params = prx.variables.tree_named_params(self)
+        
+        if not include_fixed:
+            params = {k: v for k, v in params.items() if not prx.is_constant(v)}
         
         if unwrap:
-            return parax.unwrap(params)
+            return prx.unwrap(params)
         return params
     
     # ---- Core API -------------------------------------------------------------

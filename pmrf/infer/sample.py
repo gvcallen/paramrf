@@ -1,5 +1,4 @@
-import logging
-from typing import Callable, Any, Optional
+from typing import Callable
 
 import jax
 import jax.numpy as jnp

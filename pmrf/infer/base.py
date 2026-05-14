@@ -12,7 +12,7 @@ import equinox as eqx
 import parax as prx
 
 
-class SampleResults(eqx.Module):
+class SampleResult(eqx.Module):
     """The core mathematical payload of a sampling run."""
     #: Stacked array samples
     samples: PyTree[Array]
@@ -42,7 +42,7 @@ class AbstractJointSampler(eqx.Module):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResults, Any]:
+    ) -> tuple[SampleResult, Any]:
         raise NotImplementedError
 
 
@@ -59,7 +59,7 @@ class AbstractSplitSampler(eqx.Module):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResults, Any]:
+    ) -> tuple[SampleResult, Any]:
         raise NotImplementedError
 
 
@@ -81,7 +81,7 @@ class AbstractHypercubeSampler(eqx.Module):
         init_cube_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResults, Any]:
+    ) -> tuple[SampleResult, Any]:
         raise NotImplementedError
     
 
@@ -119,7 +119,7 @@ def sample(
     init_samples: Optional[T] = None,
     max_steps: Optional[int] = None,
     **kwargs
-) -> tuple[T, T, SampleResults, Any]:
+) -> tuple[T, T, SampleResult, Any]:
     """
     Samples a general PyTree potentially containing Parax probabilistic parameters
     using a joint, split, or hypercube Bayesian sampler.

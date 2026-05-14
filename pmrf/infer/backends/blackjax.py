@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SampleResults
+from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SampleResult
 
 class NUTS(AbstractJointSampler):
     """
@@ -32,7 +32,7 @@ class NUTS(AbstractJointSampler):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
         **kwargs,
-    ) -> tuple[SampleResults, PyTree]:
+    ) -> tuple[SampleResult, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
@@ -76,7 +76,7 @@ class NUTS(AbstractJointSampler):
         fn_values = eval_vmap(trace_state.position)
 
         # 6. Construct the standard payload
-        payload = SampleResults(
+        payload = SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
         )
@@ -104,7 +104,7 @@ class HMC(AbstractJointSampler):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
         **kwargs,
-    ) -> tuple[SampleResults, PyTree]:
+    ) -> tuple[SampleResult, PyTree]:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
@@ -147,7 +147,7 @@ class HMC(AbstractJointSampler):
         
         fn_values = eval_vmap(trace_state.position)
 
-        payload = SampleResults(
+        payload = SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
         )
@@ -173,7 +173,7 @@ class NSS(AbstractSplitSampler):
         init_samples: PyTree = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResults, PyTree]:
+    ) -> tuple[SampleResult, PyTree]:
         logging.warning("BlackJAX NSS posterior may be truncated")
 
         if init_samples is None:
@@ -284,7 +284,7 @@ class NSS(AbstractSplitSampler):
         logevidence_error = jnp.sqrt(jnp.maximum(H, 0.0) / num_live)
 
         # 8. Final Payload
-        payload = SampleResults(
+        payload = SampleResult(
             samples=all_samples,
             fn_values=all_ll,
             weights=weights,

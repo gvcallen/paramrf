@@ -28,8 +28,8 @@ ModelT = TypeVar('ModelT', bound=Model)
 def fit(
     model: ModelT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
-    frequency: Frequency | None = None,
     solver: AbstractFitter = ScipyMinimize(),
+    frequency: Frequency | None = None,
     *,
     features: EvaluatorLike | None = 's',
     **kwargs
@@ -48,13 +48,13 @@ def fit(
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The data to fit. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
-    frequency : Frequency | None, default=None
-        The frequency sweep. Required if `data` is a raw array.
     solver : AbstractFitter, default=ScipyMinimize()
         The solver to use.
         If an optimizer is passed, routes to frequentist minimization via :meth:`pmrf.fitting.fit_minimize`.
         If a sampler is passed, routes to Bayesian inference via :meth:`pmrf.fitting.fit_sample`.
         See :mod:`pmrf.optimize` and :mod:`pmrf.sample` for available solvers.
+    frequency : Frequency | None, default=None
+        The frequency sweep. Required if `data` is a raw array.
     features : EvaluatorLike | None, default='s'
         The RF features to fit. Defaults to all S-parameters.
         Can either be an instance of :class:`pmrf.Evaluator` or a string,

@@ -17,17 +17,18 @@ class FitResult(eqx.Module, Generic[ModelT]):
     Wraps an :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult`
     with added information for easy plotting.
     """
-    #: The data used for the fit.
+    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
+    solution: OptimizeResult[ModelT] | InferResult[ModelT]
+    
+    #: The data used for the fit, if available.
     data: Any = None
         
-    #: The frequeny used for the fit.
+    #: The frequeny used for the fit, if available.
     frequency: Frequency | None = None
 
-    #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
-    solution: OptimizeResult[ModelT] | InferResult[ModelT] | None = None
     
     @property
-    def model(self) -> ModelT | None:
+    def model(self) -> ModelT:
         """
         The fitted model.
         """

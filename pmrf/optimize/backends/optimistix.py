@@ -8,7 +8,7 @@ import equinox as eqx
 from jaxtyping import PyTree, Scalar
 import optimistix as optx
 
-from pmrf.optimize.base import AbstractUnconstrainedMinimizer, MinimizeResults
+from pmrf.optimize.base import AbstractUnconstrainedMinimizer, MinimizeResult
 
 DEFAULT_RTOL = 1e-6
 DEFAULT_ATOL = 1e-3
@@ -27,7 +27,7 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         
         result = optx.minimise(
             fn=fn, 
@@ -38,7 +38,7 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
             **kwargs
         )
 
-        payload = MinimizeResults(y=result.value)
+        payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
     
 
@@ -59,7 +59,7 @@ class NelderMead(AbstractUnconstrainedMinimizer):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         
         solver = optx.NelderMead(
             rtol=self.rtol,
@@ -75,10 +75,11 @@ class NelderMead(AbstractUnconstrainedMinimizer):
             y0=y0, 
             args=args,
             max_steps=max_iter, 
+            throw=False,
             **kwargs
         )
 
-        payload = MinimizeResults(y=result.value)
+        payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
     
 
@@ -98,7 +99,7 @@ class GradientDescent(AbstractUnconstrainedMinimizer):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         
         solver = optx.GradientDescent(
             learning_rate=self.learning_rate,
@@ -112,11 +113,12 @@ class GradientDescent(AbstractUnconstrainedMinimizer):
             solver=solver,
             y0=y0, 
             args=args,
-            max_steps=max_iter, 
+            max_steps=max_iter,
+            throw=False,
             **kwargs
         )
-
-        payload = MinimizeResults(y=result.value)
+        
+        payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
     
 
@@ -136,7 +138,7 @@ class LBFGS(AbstractUnconstrainedMinimizer):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         solver = optx.LBFGS(
             rtol=self.rtol,
             atol=self.atol,
@@ -149,11 +151,12 @@ class LBFGS(AbstractUnconstrainedMinimizer):
             solver=solver,
             y0=y0, 
             args=args,
-            max_steps=max_iter, 
+            max_steps=max_iter,
+            throw=False,
             **kwargs
         )
 
-        payload = MinimizeResults(y=result.value)
+        payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
     
 
@@ -173,7 +176,7 @@ class BFGS(AbstractUnconstrainedMinimizer):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         solver = optx.BFGS(
             rtol=self.rtol,
             atol=self.atol,
@@ -186,10 +189,11 @@ class BFGS(AbstractUnconstrainedMinimizer):
             solver=solver,
             y0=y0, 
             args=args,
-            max_steps=max_iter, 
+            max_steps=max_iter,
+            throw=False,
             **kwargs
         )
 
-        payload = MinimizeResults(y=result.value)
+        payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
     

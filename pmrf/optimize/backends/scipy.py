@@ -10,7 +10,7 @@ from jaxtyping import PyTree
 import equinox as eqx
 from tqdm.auto import tqdm
 
-from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResults
+from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
 class ScipyMinimize(AbstractBoundedMinimizer):
     """
@@ -32,26 +32,19 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
         
-        # 1. Initialize tqdm if requested
         pbar = None
         if self.show_progress:
-            # Note: total is approximate as max_iter usually refers to 
-            # iterations, but we track function evaluations.
             pbar = tqdm(total=max_iter, desc=f"SciPy {self.method}")
-
-        # 2. Define the callback to update the bar
         def update_pbar(loss_val):
             pbar.update(1)
             pbar.set_postfix({"loss": f"{loss_val:.4e}"})
 
-        # 3. Wrap the objective function
         def wrapped_fn(params, extra_args):
             loss = fn(params, extra_args)
             if self.show_progress:
-                # debug.callback allows side-effects (tqdm) in JAX-jitted code
                 jax.debug.callback(update_pbar, loss)
             return loss
 
@@ -66,9 +59,8 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         try:
             y_opt, state = solver.run(y0, bounds, args, **kwargs)
         finally:
-            # 4. Ensure the progress bar is closed even if optimization fails
             if pbar is not None:
                 pbar.close()
 
-        payload = MinimizeResults(y=y_opt)
+        payload = MinimizeResult(y=y_opt, success=bool(state.success))
         return payload, state

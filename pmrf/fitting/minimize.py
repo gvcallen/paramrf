@@ -163,6 +163,7 @@ def fit_minimize(
     # Run the optimizer
     if solver is not None:
         kwargs['solver'] = solver
+        
     optimize_result = minimize(objective, model, frequency, **kwargs)
 
     return FitResult(

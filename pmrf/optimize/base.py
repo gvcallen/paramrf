@@ -1,6 +1,7 @@
 """
 Base optimization functions and classes.
 """
+import warnings
 from typing import Any, Callable
 import abc
 
@@ -9,10 +10,13 @@ import equinox as eqx
 import parax as prx
 
 
-class MinimizeResults(eqx.Module):
+class MinimizeResult(eqx.Module):
     """The core mathematical payload of a minimization run."""
     #: The optimal arrays (y_opt)
     y: PyTree
+    
+    #: Whether the algorithm successfully converged
+    success: bool = True
 
 
 class AbstractUnconstrainedMinimizer(eqx.Module):
@@ -30,7 +34,7 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         args: Any = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         """
         Execute the minimization algorithm.
 
@@ -72,7 +76,7 @@ class AbstractBoundedMinimizer(eqx.Module):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResults, PyTree]:
+    ) -> tuple[MinimizeResult, PyTree]:
         """
         Execute the minimization algorithm.
 
@@ -126,7 +130,7 @@ def minimize(
     bounds: tuple[PyTree, PyTree] | None = None,
     max_iter: int = 1024, 
     **kwargs
-) -> tuple[PyTree, MinimizeResults, PyTree]:
+) -> tuple[PyTree, MinimizeResult, PyTree]:
     """
     Optimizes a general PyTree potentially containing Parax parameters using either a bounded or unconstrained solver.
 
@@ -172,5 +176,8 @@ def minimize(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
         final_model = eqx.combine(payload.y, static)
+        
+    if not payload.success:
+        warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
 
     return final_model, payload, metrics
