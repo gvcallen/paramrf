@@ -203,7 +203,7 @@ class Model(eqx.Module):
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
     
-    def named_params(self) -> dict[str, Any]:
+    def named_params(self, unwrap: bool = True) -> dict[str, Any]:
         """
         Returns a dictionary of all parameters in the model mapped to their paths.
 
@@ -211,7 +211,13 @@ class Model(eqx.Module):
         model's internal PyTree structure and returns a flat dictionary where the 
         keys are the Python-style attribute paths to each parameter.
 
-        A
+        Parameters
+        ----------
+        unwrap : bool
+            Unwraps the parameters into raw floats/arrays. Defaults to True.
+            To inspect internal parameter states (e.g. distributions, fixed etc.)
+            pass `unwrap=False`.
+        
         Returns
         -------
         dict[str, Any]
@@ -220,7 +226,11 @@ class Model(eqx.Module):
             
         """
         import parax
-        return parax.variables.tree_named_params(self)
+        params = parax.variables.tree_named_params(self)
+        
+        if unwrap:
+            return parax.unwrap(params)
+        return params
     
     # ---- Core API -------------------------------------------------------------
     
@@ -608,6 +618,8 @@ class Model(eqx.Module):
         
         See :class:`pmrf.models.composite.transformed.Renumbered`.
 
+        Parameters
+        ----------
         from_ports : tuple[int]
             The original port indices that map to `to_ports`.
         to_ports : tuple[int]
