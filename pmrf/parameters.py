@@ -14,8 +14,8 @@ import parax as prx
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 
+#: The abstract Parameter type hint for parameters in models.
 Param = prx.Param
-"""The abstract Parameter type hint for parameters in models."""
 
 # ---------------------------------------------------------
 # The Core Engine (Exposed in API)
