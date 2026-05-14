@@ -85,7 +85,7 @@ Parameter manipulation can be done using :meth:`pmrf.Model.at`. In immutable pro
   rlc_direct = rlc.at.models[0].R.set(110.0)
 
   # Update R by type
-  rlc_typed = rlc.at.filter(lambda x: isinstance(x, Resistor)).R.set(110.0)
+  rlc_typed = rlc.at.where(lambda x: isinstance(x, Resistor)).R.set(110.0)
   
 
 Hierachical Modeling

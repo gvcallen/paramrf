@@ -121,7 +121,7 @@ def fit_sequential(
         name = ntwk.name
         
         # Fix all sub-models except this one
-        sub_model = model.at.filter(lambda x: isinstance(x, Model)).apply(Freeze)
+        sub_model = model.at.where(lambda x: isinstance(x, Model)).apply(Freeze)
         sub_model = sub_model.at.select(name.split('.')[0]).apply(lambda m: m.unwrap())
         
         sub_data = data.filter(lambda n: n.name == name)
