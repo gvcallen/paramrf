@@ -5,8 +5,6 @@ Can be used for random parameters in :mod:`pmrf.parameters`.
 
 Builds on top of the library `distreqx <https://github.com/lockwo/distreqx>`_.
 """
-from typing import Any
-
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
@@ -16,6 +14,8 @@ from distreqx.distributions import (
     Uniform as Uniform,
     Gamma as Gamma,
 )
+
+from parax.probability import truncate_distribution as truncate
 
 
 def CenteredUniform(
@@ -69,27 +69,6 @@ def RelativeTruncatedNormal(
     return TruncatedNormal(loc=mean, scale=std, low=low, high=high)
 
 
-def truncate_distribution(
-    dist: AbstractDistribution, 
-    new_lower: Any, 
-    new_upper: Any
-) -> AbstractDistribution:
-    """
-    Attempts to return a truncated version of the distribution.
-    Raise an exception if unavailable.
-    """
-    if isinstance(dist, Normal):
-        try:
-            from distreqx.distributions import TruncatedNormal
-            return TruncatedNormal(loc=dist.loc, scale=dist.scale, low=new_lower, high=new_upper)
-        except ImportError:
-            return None
-    elif isinstance(dist, Uniform):
-        return Uniform(new_lower, new_upper)
-    else:
-        raise ValueError(f"Distribution of type {type(dist)} cannot be truncated")
-    
-
 __all__ = [
     "AbstractDistribution",
     "Normal",
@@ -98,6 +77,7 @@ __all__ = [
     "CenteredUniform",
     "RelativeNormal",
     "RelativeTruncatedNormal",
+    "truncate",
 ]
 
 try:

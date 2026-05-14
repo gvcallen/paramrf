@@ -3,8 +3,6 @@ Parameter factory functions and the main field specifier.
 
 Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
-from functools import partial
-import warnings
 import dataclasses
 from typing import Any, Optional
 from jaxtyping import ArrayLike
@@ -13,8 +11,8 @@ import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
 
-from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
-from pmrf.distributions import AbstractDistribution, truncate_distribution
+from pmrf.constraints import AbstractConstraint, Interval
+from pmrf.distributions import AbstractDistribution
 
 Param = prx.Param
 """The abstract Parameter type hint for parameters in models."""
@@ -24,7 +22,6 @@ Param = prx.Param
 # ---------------------------------------------------------
 
 def apply_wrappers(value: Any, scale: float, fixed: bool):
-    
     value = prx.as_variable(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
@@ -70,93 +67,43 @@ def as_param(
     Any
         An equinox field with a built-in converter for parameter rules.
     """
-    # Check invalid cases
-    if distribution is not None and prx.is_variable(value):
-        raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
-    if value is None:
-        if distribution is not None:
-            try:
-                value = distribution.mean()
-            except Exception as e:
-                raise ValueError("`value` was None but the provided `distribution` does not implement `mean()`") from e
-        else:
-            raise ValueError("`value` was none in `as_param`")
-    
-    # Unwrap
+    # Unwrapping for safety
     distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
     
-    if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
-        # Cater for variables that are not constrainable but are Transformed/Fixed/Tagged
-        if isinstance(value, prx.Transformed):
-            from distreqx.bijectors import Inverse
-            transformed_constraint = prx.constraints.Transformed(constraint, Inverse(prx.unwrap(value.bijector)))
-            inner_value = as_param(value.raw_value, constraint=transformed_constraint)
-            value = prx.Transformed(value.bijector, inner_value)
-        elif isinstance(value, prx.Real):
-            inner_value = as_param(value.raw_value, constraint=constraint)
-            value = prx.Real(inner_value)
-        elif isinstance(value, prx.Fixed):
-            inner_value = as_param(value.raw_value, constraint=constraint)
-            value = prx.Fixed(inner_value)
-        elif isinstance(value, prx.Tagged):
-            inner_value = as_param(value.raw_value, constraint=constraint)
-            value = prx.Tagged(metadata=value.metadata, raw_value=inner_value)
+    # Error Checking & Value Inference
+    if value is None and distribution is None and constraint is None:
+        raise ValueError("`value` was None in `as_param` but neither a distribution nor a finite Interval constraint was providied")
+    if distribution is not None and prx.is_variable(value):
+        raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
+    if constraint is not None and constraint.is_outside(jnp.array(value)):
+        raise ValueError(
+            f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
+            f"\nMake sure the initial values match the parameter and model constraints."
+        )
+        
+    # Cater for none values
+    if value is None:
+        if constraint is not None and not jnp.any(jnp.isinf(constraint.bounds)):
+            value = constraint.midpoint()
         else:
-            raise ValueError(
-                f"A constraint was specified, but the existing variable is not an instance "
-                f"of parax.Transformed, parax.Real, parax.Fixed or parax.Tagged. Value = {value}"
-            )
-        
-        return apply_wrappers(value, scale=scale, fixed=fixed)
+            value = distribution.mean()
     
-    if constraint is not None:
-        c_min, c_max = constraint.bounds
-        raw_val = jnp.asarray(value)
-        
-        if jnp.any(raw_val < c_min) or jnp.any(raw_val > c_max):
-            raise ValueError(
-                f"\n\nA parameter value falls outside the allowable bounds ({raw_val} is not in [{c_min}, {c_max}]). "
-                f"\nMake sure the initial values you have provided match the parameter and model constraints."
-            )
-
-    # Default-construct random/constrained variables
-    if not prx.is_variable(value):
+    # Base Construction (if it's not a variable yet)
+    if prx.is_variable(value):
+        constraints = [constraint] if constraint is not None else []
+        if prx.is_constrained(value):
+            constraints.append(prx.unwrap(value.constraint))
+        if len(constraints) != 0:
+            value = prx.variables.constrain_param(value, *constraints)
+    else:
         if distribution is not None:
-            value = prx.Random(distribution, value=value)
+            value = prx.Random(distribution, constraint=constraint, value=value)
         elif constraint is not None:
             value = prx.Constrained(constraint, value=value)
         else:
             value = prx.Real(value)
-    
-    # Combine constraints if our input is constrainable and we were passed a new constraint
-    if prx.is_constrainable(value) and constraint is not None:
-        orig_constraint = prx.unwrap(value.constraint)
-        constraint = intersect_constraints(constraint, orig_constraint)
-        orig_lower, orig_upper = orig_constraint.bounds
-        has_shrunk = jnp.any(constraint.bounds[0] > orig_lower) or jnp.any(constraint.bounds[1] < orig_upper)
-        
-        # Truncate an existing random variable's distribution, if necessary
-        if isinstance(value, prx.Random) and has_shrunk:
-            try:
-                new_lower, new_upper = constraint.bounds
-                trunc_dist = truncate_distribution(prx.unwrap(value.distribution), new_lower, new_upper)
-                trunc_value = jnp.clip(jnp.array(value), min=new_lower, max=new_upper)
-                value = prx.Random(trunc_dist, constraint=constraint, value=trunc_value)
-            except Exception:
-                value = value.constrain(constraint)
-                dist_name = type(prx.unwrap(value.distribution)).__name__
-                warnings.warn(
-                    f"A constraint was applied, but the prior distribution ({dist_name}) "
-                    f"could not be automatically truncated and will therefore be warped. "
-                    f"It is recommended to choose a distribution that aligns with the physical constraints.",
-                    UserWarning, stacklevel=2
-                )
-        else:
-            value = value.constrain(constraint)
-                
-    value = apply_wrappers(value, scale=scale, fixed=fixed)
-    return value
 
+    return apply_wrappers(value, scale=scale, fixed=fixed)
 
 # ---------------------------------------------------------
 # Field Specifier
@@ -329,9 +276,6 @@ def Bounded(
     Param
         The bounded parameter.
     """
-    lower, upper = jnp.asarray(lower, dtype=float), jnp.asarray(upper, dtype=float)
-    if value is None:
-        value = (lower + upper) / 2.0
     return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed)
 
 
