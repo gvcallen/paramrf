@@ -140,10 +140,15 @@ def minimize(
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        bounded_tree = prx.unwrap(y0, only_if=prx.is_bounded)
-        params, static = eqx.partition(bounded_tree, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        bounds_all = bounds if bounds is not None else prx.bounds.tree_bounds(y0)
-        bounds = prx.remove(bounds_all, prx.is_constant)
+        def is_optimizable(x):
+            return prx.is_bounded(x) or eqx.is_inexact_array(x)
+        free, constant = eqx.partition(y0, is_optimizable, is_leaf=lambda x: is_optimizable(x) or prx.is_constant(x))
+        if bounds is None:
+            bounds = prx.bounds.tree_bounds(free)
+        
+        free_unwrapped = prx.unwrap(free, only_if=prx.is_bounded)
+        params, static = eqx.partition(free_unwrapped, eqx.is_inexact_array, is_leaf=prx.is_constant)
+        static = eqx.combine(static, constant)
     else:
         if bounds:
             raise Exception(f"Cannot use bounds for non-bounded minimizer of type {type(solver)}")

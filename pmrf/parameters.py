@@ -334,7 +334,7 @@ def Random(
     fixed: bool = False
 ) -> Param:
     """
-    Create a parameter initialized from a random distribution.
+    Create a parameter initialized with a random distribution.
 
     Parameters
     ----------
