@@ -231,7 +231,12 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        params = prx.variables.tree_named_params(self)
+        if not include_fixed:
+            leaves_with_path, _ = jax.tree.flatten_with_path(self, is_leaf=lambda x: prx.is_param(x) or prx.is_constant(x))
+        else:
+            leaves_with_path, _ = jax.tree.flatten_with_path(self, is_leaf=lambda x: prx.is_param(x))
+        
+        params = {jax.tree_util.keystr(path): leaf for path, leaf in leaves_with_path if prx.is_param(leaf)}
         
         if not include_fixed:
             params = {k: v for k, v in params.items() if not prx.is_constant(v)}
@@ -588,10 +593,10 @@ class Model(eqx.Module):
 
         >>> new_model = model.at.array_params.each().apply(jnp.abs)
 
-        Filter attributes dynamically based on a condition using `.filter()`:
+        Select attributes dynamically based on a condition using `.where()`:
 
         >>> is_model = lambda x: isinstance(x, Model)
-        >>> new_model = model.at.filter(is_model).apply(prf.Freeze)
+        >>> new_model = model.at.where(is_model).apply(prf.Freeze)
         """
         return Lens(self)
         
