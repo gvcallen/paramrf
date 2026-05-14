@@ -242,7 +242,9 @@ class Model(eqx.Module):
             params = {k: v for k, v in params.items() if not prx.is_constant(v)}
         
         if unwrap:
-            return prx.unwrap(params)
+            params = prx.unwrap(params)
+            params = {k: float(v) if jnp.isscalar(v) else v for k, v in params.items()}
+            
         return params
     
     # ---- Core API -------------------------------------------------------------
@@ -596,7 +598,10 @@ class Model(eqx.Module):
         Select attributes dynamically based on a condition using `.where()`:
 
         >>> is_model = lambda x: isinstance(x, Model)
-        >>> new_model = model.at.where(is_model).apply(prf.Freeze)
+        >>> new_model = model.at.where(is_model).apply(modify_model)
+
+        Select leaves (like parameters) and modify them (e.g. freeze them):
+        >>> frozen_model = model.at.leaves(prf.is_param).apply(prf.freeze)
         """
         return Lens(self)
         
@@ -768,7 +773,7 @@ def validate(tree):
                         f"which can be updated during optimization/inference.\n\n"
                         f"To make your intention clear, you must either:\n"
                         f"  1. Use the `pmrf.param` specifier (or a factory in `pmrf.parameters`) to indicate the value is a parameter\n"
-                        f"  2. Explicitly mark the field as frozen using `{f.name}: jnp.ndarray = prf.field(converter=prf.Freeze)` "
+                        f"  2. Explicitly mark the field as frozen using `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` "
                         f"and then unwrap the frozen field when you need it using `prf.unwrap`."
                     )
                 

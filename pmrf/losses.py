@@ -13,7 +13,7 @@ import equinox as eqx
 import parax as prx
 
 from pmrf.math import losses as F
-from pmrf.jax_utils import field, unwrap
+from pmrf.jax_utils import field, unwrap, freeze
 
 
 class AbstractLoss(eqx.Module):
@@ -164,7 +164,7 @@ class HingeLoss(AbstractLoss):
     weight: float = field(default=1.0, static=True)
     
     #: A boolean array filtering which data points apply to this loss.
-    mask: jnp.ndarray | None = field(default=None, converter=prx.Freeze)
+    mask: jnp.ndarray | None = field(default=None, converter=freeze)
     
     #: The underlying loss function.
     base_loss: str | Callable | AbstractLoss = field(default=RMSELoss())

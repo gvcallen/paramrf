@@ -1,3 +1,8 @@
+from typing import Callable
+from jaxtyping import PyTree
+
+import equinox as eqx
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Float, Array

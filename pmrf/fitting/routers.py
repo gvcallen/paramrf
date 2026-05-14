@@ -13,7 +13,7 @@ from pmrf.infer import is_sampler, InferResult, AbstractSampler
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
-from pmrf.jax_utils import Freeze, combine
+from pmrf.jax_utils import freeze, combine
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.result import FitResult
@@ -120,10 +120,7 @@ def fit_sequential(
     for ntwk in data:
         name = ntwk.name
         
-        # Fix all sub-models except this one
-        sub_model = model.at.where(lambda x: isinstance(x, Model)).apply(Freeze)
-        sub_model = sub_model.at.select(name.split('.')[0]).apply(lambda m: m.unwrap())
-        
+        sub_model = model.at.path(name).get()
         sub_data = data.filter(lambda n: n.name == name)
 
         if len(sub_data.networks) > 1:
@@ -150,11 +147,6 @@ def fit_sequential(
         final_kwargs = {**kwargs, **resolved_dynamics}
         frequency = final_kwargs.setdefault('frequency', Frequency.from_skrf(sub_ntwk.frequency))
         features = final_kwargs.pop('features', 's')
-        if isinstance(features, str):
-            sub_features = f"{name}.{features}"
-        else:
-            sub_features = [f"{name}.{feature}" for feature in features]        
-
         sub_array = Feature(features)(Measured(sub_ntwk), frequency)
         
         try:
@@ -162,7 +154,7 @@ def fit_sequential(
             result_sub = fit(
                 sub_model,
                 sub_array,
-                features=sub_features,
+                features=features,
                 **final_kwargs,
             )
 
@@ -174,8 +166,7 @@ def fit_sequential(
         except Exception as e:
             raise Exception(f"Error fitting {name}: {e}")
         
-        fitted_submodel = attrgetter(name)(result_sub.model)
-        model = model.at.select(name).set(fitted_submodel)
+        model = model.at.path(name).set(result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results

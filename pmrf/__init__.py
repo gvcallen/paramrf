@@ -34,15 +34,18 @@ from pmrf.serialization import (
 )
 from pmrf.jax_utils import (
     Partial as Partial,
-    Freeze as Freeze,
-    Tie as Tie,
     InitVar as InitVar,
+    freeze as freeze,
+    unfreeze as unfreeze,
+    tie as tie,
     replace as replace,
     combine as combine,
     field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
     is_constant as is_constant,
+    is_param as is_param,
+    is_model as is_model,
 )
 from pmrf.network_collection import NetworkCollection as NetworkCollection
 
@@ -91,9 +94,10 @@ __all__ = [
     "unwrap_self",
     "is_constant",
     "Partial",
-    "Freeze",
+    "freeze",
+    "unfreeze",
     "InitVar",
-    "Tie",
+    "tie",
     "NetworkCollection",
     
     # Sub-modules

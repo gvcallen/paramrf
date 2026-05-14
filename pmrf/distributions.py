@@ -54,7 +54,7 @@ def RelativeTruncatedNormal(
     Create a symmetric Truncated Normal distribution defined by relative standard deviation
     and truncated at a specified number of standard deviations from the mean.
     """
-    from distreqx.distributions import TruncatedNormal 
+    from distreqx.distributions import TruncatedNormal
     
     mean, pct_std, trunc_std = (
         jnp.asarray(mean), 

@@ -65,11 +65,11 @@ Utilities
 
    pmrf.NetworkCollection
    pmrf.Partial
-   pmrf.Freeze
-   pmrf.Tie
    pmrf.InitVar
    pmrf.load
    pmrf.save
+   pmrf.freeze
+   pmrf.tie
    pmrf.replace
    pmrf.combine
    pmrf.field

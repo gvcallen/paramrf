@@ -17,7 +17,7 @@ from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.jax_utils import Freeze, field, unwrap
+from pmrf.jax_utils import freeze, field, unwrap
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -140,7 +140,7 @@ class TargetLoss(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
     #: The fixed or 'true' target that the loss function should compare the prediction to.
-    target: jnp.ndarray = field(converter=Freeze)
+    target: jnp.ndarray = field(converter=freeze)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
@@ -172,7 +172,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     
     #: The observed data that the log probability will be computed of.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray = field(converter=Freeze)
+    observed: jnp.ndarray = field(converter=freeze)
     
     #: The likelihood function that takes the model prediction and returns the probability of observing some data.
     #: Can be a function or a PyTree with optional parameters.
@@ -311,7 +311,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     
     #: The observed data that the loss will be computed against.
     #: Must have a shape that matches the shape of the predictor output.
-    observed: jnp.ndarray = field(converter=Freeze)
+    observed: jnp.ndarray = field(converter=freeze)
     
     #: The loss function that takes (y_true, y_pred) and returns a loss metric.
     #: Can be a function or a PyTree with optional parameters.
