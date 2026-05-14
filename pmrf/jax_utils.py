@@ -28,7 +28,7 @@ def tie(
 
 def freeze(model: Any):
     """
-    Freezes a model (or any JAX PyTree), returning the frozen model.
+    Freezes a model (or any JAX PyTree) and returns the frozen model.
 
     This can be used to freeze models to make them non-optimizable,
     but should also be used as a field converter (using `prf.field(converter=prf.freeze)`)
@@ -38,7 +38,7 @@ def freeze(model: Any):
 
 def unfreeze(model: Any):
     """
-    Unfreezes a potentially frozen model, returning the unfrozen model.
+    Unfreezes a potentially frozen model and returns the unfrozen model.
     """
     return prx.as_free(model)
 
