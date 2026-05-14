@@ -1,5 +1,5 @@
 """
-Represents the discrepancy between an RF model and actual data.
+Discrepancy modeling between an RF model and actual data.
 """
 from collections.abc import Callable
 from abc import abstractmethod
