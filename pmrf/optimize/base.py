@@ -144,12 +144,9 @@ def minimize(
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        def is_dynamic(x):
-            return (prx.is_bounded(x) and not prx.is_constant(x)) or eqx.is_inexact_array(x)
-        def is_leaf(x):
-            return is_dynamic(x) or prx.is_constant(x)
+        is_leaf = prx.bounds.is_leaf
+        dynamic, static = eqx.partition(y0, prx.bounds.is_dynamic, is_leaf=is_leaf)
         
-        dynamic, static = eqx.partition(y0, is_dynamic, is_leaf=is_leaf)
         params = prx.unwrap(dynamic, only_if=prx.is_bounded)
         if bounds is None:
             bounds = prx.bounds.tree_bounds(dynamic)
