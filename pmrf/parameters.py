@@ -12,7 +12,7 @@ from jaxtyping import ArrayLike
 import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
-from parax.transforms import Scale
+from distreqx.bijectors import Scale, Inverse
 
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.distributions import AbstractDistribution, truncate_distribution
@@ -28,7 +28,7 @@ def apply_wrappers(value: Any, scale: float, fixed: bool):
     value = prx.as_variable(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
-        value = prx.Derived(Scale(scale_val), raw_value=value)
+        value = prx.Transformed(Scale(scale_val), raw_value=value)
     if fixed:
         value = prx.Fixed(value)    
     return value
@@ -66,7 +66,6 @@ def as_param(
     # Check invalid cases
     if distribution is not None and prx.is_variable(value):
         raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
-    
     if value is None:
         if distribution is not None:
             try:
@@ -76,17 +75,43 @@ def as_param(
         else:
             raise ValueError("`value` was none in `as_param`")
     
-    if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
-        # If a variable is provided that is not constrainable but IS wrappable,
-        # we can push a constrained variable INSIDE that value
-        if prx.is_wrappable(value):
-            value = value.wrap(prx.Constrained(constraint, value=jnp.array(value)))
-            return apply_wrappers(value, scale=scale, fixed=fixed)
-        else:
-            raise ValueError(f"A constraint was specified, but the existing variable is not constrainable no wrappable. Value = {value}")
-    
-    # Unwrap inputs and default-construct random/constrained variables
+    # Unwrap
     distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
+    
+    if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
+        # Cater for variables that are not constrainable but are Transformed/Fixed/Tagged
+        if isinstance(value, prx.Transformed):
+            transformed_constraint = prx.constraints.Transformed(constraint, Inverse(prx.unwrap(value.bijector)))
+            inner_value = as_param(value.raw_value, constraint=transformed_constraint)
+            value = prx.Transformed(value.bijector, inner_value)
+        elif isinstance(value, prx.Real):
+            inner_value = as_param(value.raw_value, constraint=constraint)
+            value = prx.Real(inner_value)
+        elif isinstance(value, prx.Fixed):
+            inner_value = as_param(value.raw_value, constraint=constraint)
+            value = prx.Fixed(inner_value)
+        elif isinstance(value, prx.Tagged):
+            inner_value = as_param(value.raw_value, constraint=constraint)
+            value = prx.Tagged(metadata=value.metadata, raw_value=inner_value)
+        else:
+            raise ValueError(
+                f"A constraint was specified, but the existing variable is not an instance "
+                f"of parax.Transformed, parax.Real, parax.Fixed or parax.Tagged. Value = {value}"
+            )
+        
+        return apply_wrappers(value, scale=scale, fixed=fixed)
+    
+    if constraint is not None:
+        c_min, c_max = constraint.bounds
+        raw_val = jnp.asarray(value)
+        
+        if jnp.any(raw_val < c_min) or jnp.any(raw_val > c_max):
+            raise ValueError(
+                f"\n\nA parameter value falls outside the allowable bounds ({raw_val} is not in [{c_min}, {c_max}]). "
+                f"\nMake sure the initial values you have provided match the parameter and model constraints."
+            )
+
+    # Default-construct random/constrained variables
     if not prx.is_variable(value):
         if distribution is not None:
             value = prx.Random(distribution, value=value)
