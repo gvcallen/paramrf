@@ -1,7 +1,7 @@
 """
 Parameter factory functions and the main field specifier.
 
-Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
+Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
 from functools import partial
 import warnings
