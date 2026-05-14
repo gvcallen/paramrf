@@ -144,24 +144,24 @@ def minimize(
     
     # Extract base values and partition based on solver type
     if is_bounded:
-        def is_optimizable(x):
-            return prx.is_bounded(x) or eqx.is_inexact_array(x)
-        free, constant = eqx.partition(y0, is_optimizable, is_leaf=lambda x: is_optimizable(x) or prx.is_constant(x))
-        if bounds is None:
-            bounds = prx.bounds.tree_bounds(free)
+        def is_dynamic(x):
+            return (prx.is_bounded(x) and not prx.is_constant(x)) or eqx.is_inexact_array(x)
+        def is_leaf(x):
+            return is_dynamic(x) or prx.is_constant(x)
         
-        free_unwrapped = prx.unwrap(free, only_if=prx.is_bounded)
-        params, static = eqx.partition(free_unwrapped, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        static = eqx.combine(static, constant)
+        dynamic, static = eqx.partition(y0, is_dynamic, is_leaf=is_leaf)
+        params = prx.unwrap(dynamic, only_if=prx.is_bounded)
+        if bounds is None:
+            bounds = prx.bounds.tree_bounds(dynamic)
     else:
         if bounds:
             raise Exception(f"Cannot use bounds for non-bounded minimizer of type {type(solver)}")
-
-        params, static = eqx.partition(y0, eqx.is_inexact_array, is_leaf=prx.is_constant)
+        is_leaf = prx.is_constant
+        params, static = eqx.partition(y0, eqx.is_inexact_array, is_leaf=is_leaf)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:
-        unwrapped_model = prx.unwrap(eqx.combine(p, static))
+        unwrapped_model = prx.unwrap(eqx.combine(p, static, is_leaf=is_leaf))
         return fn(unwrapped_model, args)
 
     # Run the correct solver execution and reconstruct the final model
@@ -169,15 +169,15 @@ def minimize(
         payload, metrics = solver.run(
             fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
-        opt_base = eqx.combine(payload.y, static)
-        final_model = prx.wrap(y0, opt_base, only_if=prx.is_bounded)
+        opt_dynamic = prx.wrap(dynamic, payload.y, only_if=prx.is_bounded)
+        opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
     else:
         payload, metrics = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
-        final_model = eqx.combine(payload.y, static)
+        opt_model = eqx.combine(payload.y, static)
         
     if not payload.success:
         warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
 
-    return final_model, payload, metrics
+    return opt_model, payload, metrics
