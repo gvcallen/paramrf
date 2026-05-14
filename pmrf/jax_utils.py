@@ -8,6 +8,7 @@ from parax import (
     Freeze as Freeze,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
+    is_constant as is_constant,
 )
 
 from dataclasses import (

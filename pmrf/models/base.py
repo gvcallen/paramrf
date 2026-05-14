@@ -73,6 +73,7 @@ class Model(eqx.Module):
     :attr:`number_of_ports`           Number of ports.
     :attr:`nports`                    Alias of :attr:`number_of_ports`.
     :attr:`port_tuples`               All (m, n) port index pairs.
+    :meth:`named_params`              Extracts all named parameters in the model.
     ================================= ====================================================================
 
     **Model Transformation**
@@ -200,6 +201,26 @@ class Model(eqx.Module):
         list[tuple[int, int]]
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
+    
+    
+    def named_params(self) -> dict[str, Any]:
+        """
+        Returns a dictionary of all parameters in the model mapped to their paths.
+
+        This is a convenience method for inspection and debugging. It traverses the
+        model's internal PyTree structure and returns a flat dictionary where the 
+        keys are the Python-style attribute paths to each parameter.
+
+        A
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary mapping string paths (e.g., '.ind.value') to their 
+            corresponding JAX arrays or parameter objects.
+            
+        """
+        import parax
+        return parax.variables.tree_named_params(self)
     
     # ---- Core API -------------------------------------------------------------
     
@@ -526,6 +547,8 @@ class Model(eqx.Module):
         
         Note that if your goal is to update static fields (not parameters e.g. strings),
         you should use :func:`pmrf.replace`.
+        
+        For more advanced manipulation, refer to the :mod:`refrax` documentation.
         
         Returns
         -------

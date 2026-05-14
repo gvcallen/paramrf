@@ -153,7 +153,6 @@ As a last resort, overriding ``__init__`` is still possible, but ``super().__ini
 .. code-block:: python
 
   import pmrf as prf
-  from pmrf.parameters import Bounded
   from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
   
   import jax.numpy as jnp
@@ -163,8 +162,8 @@ As a last resort, overriding ``__init__`` is still possible, but ``super().__ini
   
       # To be instantiated in post init
       cap1: Capacitor = prf.field(default=None)
-      cap2: Capacitor = Capacitor(C=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
-      ind: Inductor = Inductor(L=Bounded(0.0, 10.0, value=2.0, scale=1e-12))
+      cap2: Capacitor = Capacitor(C=prf.Bounded(0.0, 10.0, value=2.0, scale=1e-12))
+      ind: Inductor = Inductor(L=prf.Bounded(0.0, 10.0, value=2.0, scale=1e-12))
   
       def __post_init__(self, C1_divided_by_5: float):
           self.cap1 = Capacitor(C1_divided_by_5 * 5.0)

@@ -20,14 +20,13 @@ Models can easily be built using composition with the built in :mod:`pmrf.models
 .. code-block:: python
 
   import pmrf as prf
-  from pmrf.parameters import Scaled
   from pmrf.models import Resistor, Inductor, Capacitor
   
   # Define the frequency band
   freq = prf.Frequency(1, 10, 101, 'GHz')
   
   # Cascade elements using the ** operator
-  rlc_model = Resistor(50) ** Inductor(Scaled(1.0, 1e-9)) ** Capacitor(Scaled(1.0, 1e-12))
+  rlc_model = Resistor(50) ** Inductor(prf.Scaled(1.0, 1e-9)) ** Capacitor(prf.Scaled(1.0, 1e-12))
   
   # Plot the model's S11 parameter
   rlc_model.plot_s_db(freq, m=0, n=0)

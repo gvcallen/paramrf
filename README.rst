@@ -52,11 +52,10 @@ The example below shows how to define and optimize a simple RLC model to satisfy
 .. code-block:: python
 
   import pmrf as prf
-  from pmrf.parameters import Scaled
   from pmrf.models import Resistor, Inductor, Capacitor
   
   freq = prf.Frequency(1, 10, 101, 'GHz')
-  rlc_model = Resistor(50) ** Inductor(Scaled(1.0, 1e-9)) ** Capacitor(Scaled(1.0, 1e-12))
+  rlc_model = Resistor(50) ** Inductor(prf.Scaled(1.0, 1e-9)) ** Capacitor(prf.Scaled(1.0, 1e-12))
   
   opt_freq = prf.Frequency(4, 6, 101, 'GHz')
   goal = prf.evaluators.Goal('s11_db', '<', -20)

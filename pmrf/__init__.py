@@ -17,7 +17,17 @@ except PackageNotFoundError:
 from pmrf.problem import Problem as Problem
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
-from pmrf.parameters import Param as Param, param as param, as_param as as_param
+from pmrf.parameters import (
+    Param as Param,
+    param as param,
+    as_param as as_param,
+    Free as Free,
+    Fixed as Fixed,
+    Scaled as Scaled,
+    Bounded as Bounded,
+    Constrained as Constrained,
+    Random as Random,
+)
 from pmrf.serialization import (
     load as load,
     save as save,
@@ -32,6 +42,7 @@ from pmrf.jax_utils import (
     field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
+    is_constant as is_constant,
 )
 from pmrf.network_collection import NetworkCollection as NetworkCollection
 
@@ -64,6 +75,12 @@ __all__ = [
     "Param",
     "param",
     "as_param",
+    "Free",
+    "Fixed",
+    "Scaled",
+    "Bounded",
+    "Constrained",
+    "Random",
     
     # Utilities
     "load",
@@ -71,6 +88,8 @@ __all__ = [
     "combine",
     "field",
     "unwrap",
+    "unwrap_self",
+    "is_constant",
     "Partial",
     "Freeze",
     "InitVar",

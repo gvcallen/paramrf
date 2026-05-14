@@ -23,6 +23,13 @@ Core
    pmrf.Frequency
    pmrf.Param
    pmrf.param
+   pmrf.as_param
+   pmrf.Free
+   pmrf.Fixed
+   pmrf.Scaled
+   pmrf.Bounded
+   pmrf.Constrained
+   pmrf.Random
 
 Modules
 -------------

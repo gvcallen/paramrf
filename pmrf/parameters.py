@@ -203,6 +203,8 @@ def param(
 
 def Free(
     value: ArrayLike,
+    *,
+    scale: float = 1.0,
 ) -> Param:
     """
     Create a simple free parameter.
@@ -217,7 +219,7 @@ def Free(
     Param
         The unconstrained parameter.
     """
-    return as_param(value)
+    return as_param(value, scale=scale, fixed=False)
 
 
 def Scaled(
