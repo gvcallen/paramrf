@@ -12,7 +12,6 @@ from jaxtyping import ArrayLike
 import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
-from distreqx.bijectors import Scale, Inverse
 
 from pmrf.constraints import AbstractConstraint, Interval, intersect_constraints
 from pmrf.distributions import AbstractDistribution, truncate_distribution
@@ -25,10 +24,18 @@ Param = prx.Param
 # ---------------------------------------------------------
 
 def apply_wrappers(value: Any, scale: float, fixed: bool):
+    
     value = prx.as_variable(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
-        value = prx.Transformed(Scale(scale_val), raw_value=value)
+        try:
+            from distreqx.bijectors import Scale
+            bij = Scale(scale_val)
+        except:
+            from distreqx.bijectors import ScalarAffine
+            bij = ScalarAffine(shift=jnp.zeros_like(scale_val), scale=scale_val)
+            
+        value = prx.Transformed(bij, raw_value=value)
     if fixed:
         value = prx.Fixed(value)    
     return value
@@ -81,6 +88,7 @@ def as_param(
     if prx.is_variable(value) and constraint is not None and not prx.is_constrainable(value):
         # Cater for variables that are not constrainable but are Transformed/Fixed/Tagged
         if isinstance(value, prx.Transformed):
+            from distreqx.bijectors import Inverse
             transformed_constraint = prx.constraints.Transformed(constraint, Inverse(prx.unwrap(value.bijector)))
             inner_value = as_param(value.raw_value, constraint=transformed_constraint)
             value = prx.Transformed(value.bijector, inner_value)
