@@ -211,8 +211,7 @@ class Model(eqx.Module):
         model's internal PyTree structure and returns a flat dictionary where the 
         keys are the Python-style attribute paths to each parameter.
         
-        Each path can be passed to :attr:`pmrf.Model.at.path`
-        or :attr:`pmrf.Model.at.select`.
+        Each path can be passed to :attr:`pmrf.Model.at` via `.path` or `.select`.
 
         Parameters
         ----------
