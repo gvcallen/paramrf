@@ -71,5 +71,4 @@ Utilities
    pmrf.replace
    pmrf.unwrap
    pmrf.unwrap_self
-   pmrf.tie
    pmrf.as_param
