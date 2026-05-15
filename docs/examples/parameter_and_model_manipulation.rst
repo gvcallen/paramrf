@@ -40,6 +40,8 @@ Sub-models and parameters can be *tied together* using :meth:`pmrf.Model.tied`, 
       lambda c: c*100e12
   )
 
+Note that the underlying model can be accessed in ``rlc_tied.model``.
+
 
 Modifying Specific Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

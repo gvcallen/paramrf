@@ -87,3 +87,10 @@ class Tied(Model):
             The unwrapped `parax.Tie` wrapper containing the resolved relationships.
         """
         return self.wrapped
+
+    @property
+    def model(self) -> Model:
+        """
+        Returns the underlying model that has tied placeholders.
+        """
+        return self.wrapped.tree
