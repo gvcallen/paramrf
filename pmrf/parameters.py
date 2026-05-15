@@ -4,7 +4,7 @@ Parameter factories, converters, and field specifiers.
 Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
 import dataclasses
-from typing import Any, Optional
+from typing import Any, Optional, TypeAlias
 from jaxtyping import ArrayLike
 
 import jax.numpy as jnp
@@ -15,7 +15,7 @@ from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 
 #: The abstract Parameter type hint for parameters in models.
-Param = prx.Param
+Param: TypeAlias = prx.Param
 
 # ---------------------------------------------------------
 # The Core Engine (Exposed in API)
