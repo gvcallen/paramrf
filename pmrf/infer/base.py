@@ -12,6 +12,9 @@ import equinox as eqx
 import parax as prx
 
 
+T = TypeVar('T')
+
+
 class SampleResult(eqx.Module):
     """The core mathematical payload of a sampling run."""
     #: Stacked array samples
@@ -108,7 +111,6 @@ def is_inferer(x):
     """    
     return is_sampler(x)
     
-T = TypeVar('T')
 
 def sample(
     loglikelihood_fn: Callable[[T, Any], Scalar],
@@ -149,94 +151,95 @@ def sample(
     tuple
         A tuple of `(samples, static, payload, metrics)`.
     """
+    # Filtering/unwrapping
+    is_dynamic, is_leaf = prx.probability.is_dynamic, prx.probability.is_leaf
+    dynamic, static = eqx.partition(y0, is_dynamic, is_leaf=is_leaf)
+    params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
+
+    try:
+        eqx.combine(params, static)
+    except Exception as e:
+        raise Exception(f"Error re-combining params and static. Error: {e}")
+    
+    batched_params = None
+    if init_samples is not None:
+        batched_dynamic = eqx.filter(init_samples, is_dynamic, is_leaf=is_leaf)
+        # TODO in general we shouldn't assume the user's unwrap is natively broadcastable,
+        # though in practice all built-in variables in Parax are
+        batched_params = prx.unwrap(batched_dynamic, only_if=prx.is_probabilistic)
 
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
         # Extraction
-        init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
-        unconstrained_prior_all = prx.probability.tree_unconstrained_distribution(y0)
-        bijector_all = prx.constraints.tree_leafwise_bijector(y0)
+        unconstrained_prior = prx.probability.tree_unconstrained_distribution(dynamic)
+        bijector_to_constrained = prx.constraints.tree_leafwise_bijector(dynamic)
 
-        # Partitioning/filtering
-        init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        unconstrained_prior = prx.remove(unconstrained_prior_all, prx.is_constant)
-        bijector = prx.remove(bijector_all, prx.is_constant)
-
-        # Space transformation
-        def logprior_wrapper(unconstrained_params: PyTree) -> Scalar:
+        # Internal functions
+        def _logprior_fn(unconstrained_params: PyTree) -> Scalar:
             return unconstrained_prior.log_prob(unconstrained_params)
 
-        def loglikelihood_wrapper(unconstrained_params: PyTree, args: Any) -> Scalar:
-            constrained_params = bijector.forward(unconstrained_params)
-            y_unwrapped = prx.unwrap(eqx.combine(constrained_params, static))
+        def _loglikelihood_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
+            params = bijector_to_constrained.forward(unconstrained_params)
+            y_unwrapped = prx.unwrap(eqx.combine(params, static, is_leaf=is_leaf))
             return loglikelihood_fn(y_unwrapped, args)
 
-        def logposterior_wrapper(params_unconstrained: PyTree, args: Any) -> Scalar:
-            log_prior = logprior_wrapper(params_unconstrained)
-            log_likelihood = loglikelihood_wrapper(params_unconstrained, args)
+        def _logposterior_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
+            log_prior = _logprior_fn(unconstrained_params)
+            log_likelihood = _loglikelihood_fn(unconstrained_params, args)
             return log_prior + log_likelihood
 
-        init_unconstrained_params = bijector.inverse(init_params)
-        
-        init_unconstrained_samples = None
-        if init_samples is not None:
-            init_sampled_constrained = prx.unwrap(init_samples, only_if=prx.is_probabilistic)
-            init_samples_filtered = eqx.filter(init_sampled_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
-            init_unconstrained_samples = eqx.filter_vmap(bijector.inverse)(init_samples_filtered)
+        # Space conversions
+        unconstrained_params = bijector_to_constrained.inverse(params)
+        batched_unconstrained_params = None
+        if batched_params is not None:
+            batched_unconstrained_params = eqx.filter_vmap(bijector_to_constrained.inverse)(batched_params)
 
+        # Run the sampler
         if isinstance(solver, AbstractJointSampler):
             results, metrics = solver.run(
-                logposterior_fn=logposterior_wrapper,
-                y0=init_unconstrained_params, args=args, key=key,
-                init_samples=init_unconstrained_samples, max_steps=max_steps, **kwargs
+                logposterior_fn=_logposterior_fn,
+                y0=unconstrained_params, args=args, key=key,
+                init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
             )
         else:
             results, metrics = solver.run(
-                loglikelihood_fn=loglikelihood_wrapper,
-                logprior_fn=logprior_wrapper,
-                y0=init_unconstrained_params, args=args, key=key,
-                init_samples=init_unconstrained_samples, max_steps=max_steps, **kwargs
+                loglikelihood_fn=_loglikelihood_fn,
+                logprior_fn=_logprior_fn,
+                y0=unconstrained_params, args=args, key=key,
+                init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
             )
         
         # Post-process back to original parameter space
-        sampled_params = eqx.filter_vmap(bijector.forward)(results.samples)
-        return sampled_params, static, results, metrics
+        batched_params = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
+        return batched_params, static, results, metrics
 
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
-        init_constrained = prx.unwrap(y0, only_if=prx.is_probabilistic)
-        distributions_all = prx.probability.tree_distributions(y0)
+        distributions = prx.probability.tree_distributions(dynamic)
 
-        # Partitioning/filtering
-        init_params, static = eqx.partition(init_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
-        distributions = prx.remove(distributions_all, prx.is_constant, stop_if=prx.is_distribution)
-
-        # Space transformations
-        def params_to_cube(params):
+        # Internal functions
+        def _params_to_cube(params):
             return jax.tree.map(lambda d, b: d.cdf(b), distributions, params, is_leaf=prx.is_distribution)
 
-        def cube_to_params(cube_params):
+        def _cube_to_params(cube_params):
             eps = jnp.finfo(jnp.float32).eps
             safe_cube = jax.tree.map(lambda x: jnp.clip(x, eps, 1.0 - eps), cube_params)
             return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
         
-        init_cube_params = params_to_cube(init_params)
-        
-        init_cube_samples = None
-        if init_samples is not None:
-            init_samples_constrained = prx.unwrap(init_samples, only_if=prx.is_probabilistic)
-            init_samples_filtered = eqx.filter(init_samples_constrained, eqx.is_inexact_array, is_leaf=prx.is_constant)
-            init_cube_samples = eqx.filter_vmap(params_to_cube)(init_samples_filtered)
-
-        # Likelihood wrapper and sampler running
-        def loglikelihood_wrapper(params, args):
-            unwrapped = prx.unwrap(eqx.combine(params, static))
+        def _loglikelihood_fn(params, args):
+            unwrapped = prx.unwrap(eqx.combine(params, static, is_leaf=is_leaf))
             return loglikelihood_fn(unwrapped, args)
         
+        # Space conversions
+        cube_params = _params_to_cube(params)
+        batched_cube_params = None
+        if batched_params is not None:
+            batched_cube_params = eqx.filter_vmap(_params_to_cube)(batched_dynamic)
+        
         results, metrics = solver.run(
-            loglikelihood_fn=loglikelihood_wrapper,
-            prior_transform_fn=cube_to_params,
-            u0=init_cube_params, args=args, key=key,
-            init_cube_samples=init_cube_samples, max_steps=max_steps, **kwargs
+            loglikelihood_fn=_loglikelihood_fn,
+            prior_transform_fn=_cube_to_params,
+            u0=cube_params, args=args, key=key,
+            init_cube_samples=batched_cube_params, max_steps=max_steps, **kwargs
         )
 
         return results.samples, static, results, metrics

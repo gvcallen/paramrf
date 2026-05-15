@@ -74,8 +74,6 @@ def test_joint_samplers(solver_name):
 
 def test_split_sampler_nss():
     """Test constrained split sampling using BlackJAX NSS."""
-    print("runnin")
-    
     blackjax_backend = pytest.importorskip("pmrf.infer.backends.blackjax")
     NSS = blackjax_backend.NSS
 
