@@ -20,7 +20,7 @@ Note that, in the above example, *no computation* was done. Models are *lazy*, a
 
 .. code-block:: python
 
-  freq = prf.Frequency(10, 1000, 'MHz')
+  freq = prf.Frequency(10, 1000, 101, 'MHz')
   smatrix = rlc.s(freq) # shape (nports, nports, nfreq)
   s11 = smatrix[:,0,0]
 

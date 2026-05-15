@@ -23,14 +23,14 @@ Let's define a capacitor from first principles using its ABCD parameters:
   class Capacitor(prf.Model):
       C: prf.Param
   
-    def a(self, freq: prf.Frequency) -> jnp.ndarray:
-        w, C = freq.w, self.C
-        ones, zeros = jnp.ones_like(w), jnp.zeros_like(w)
-        
-        return jnp.array([
-            [ones,  1.0 / (1j * w * C)], 
-            [zeros, ones]
-        ]).transpose(2, 0, 1)
+      def a(self, freq: prf.Frequency) -> jnp.ndarray:
+          w, C = freq.w, self.C
+          ones, zeros = jnp.ones_like(w), jnp.zeros_like(w)
+  
+          return jnp.array([
+              [ones,  1.0 / (1j * w * C)],
+              [zeros, ones]
+          ]).transpose(2, 0, 1)
 
 By inheriting from :class:`~pmrf.Model`, ``Capacitor`` becomes a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_ and a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_! For those familiar with dataclasses, this means that any standard dataclass syntax applies. However, note that :class:`~pmrf.Param` is simply a *type-hint*, and does *not enforce* that the caller actually passes a valid parameter. To guarantee that ``C`` becomes a parameter for optimization even if the caller passes a float, we can use a *field specifier*.
 
@@ -47,6 +47,7 @@ The code below demonstrates this, constraining ``C`` to be only positive and def
 
 .. code-block:: python
 
+  # <previous imports>
   from pmrf.constraints import Positive
   
   class Capacitor(prf.Model):
