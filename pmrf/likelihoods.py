@@ -2,20 +2,14 @@
 Likelihood models for statistical fitting.
 """
 
+from abc import abstractmethod
 from typing import Callable
+
 import jax.numpy as jnp
-import distreqx.distributions as dist
 import equinox as eqx
+from distreqx.distributions import AbstractDistribution, Normal, MultivariateNormalFullCovariance
 
 from pmrf.parameters import Param, param
-
-from abc import abstractmethod
-
-from distreqx.distributions import AbstractDistribution
-
-import jax.numpy as jnp
-import equinox as eqx
-
 
 class AbstractLikelihood(eqx.Module):
     r"""
@@ -59,11 +53,18 @@ class GaussianLikelihood(AbstractLikelihood):
     Given an input `y` of shape `(*batch_shape, event_dims)`, the noise model
     must accept accept the prediction `y` and return an array that is either
     broadcastable to `(*batch_shape)` or to the full (*batch_shape, event_dims).
-    """
-    noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = param()
 
-    def __call__(self, y_event: jnp.ndarray | dist.AbstractDistribution) -> dist.AbstractDistribution:
-        is_dist = isinstance(y_event, dist.AbstractDistribution)
+    Parameters
+    ----------
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
+        A parameter or callable that evaluates to the measurement variance. 
+        It can accept the mean prediction as an argument.
+    """
+    #: The noise parameter or a callable returning the measurement variance.
+    noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
+
+    def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:
+        is_dist = isinstance(y_event, AbstractDistribution)
         y_mean = y_event.mean() if is_dist else y_event
         
         # Evaluate noise
@@ -78,7 +79,7 @@ class GaussianLikelihood(AbstractLikelihood):
         num_batch_dims = y_mean.ndim - 1
 
         if not is_dist:
-            mapped_normal = dist.Normal
+            mapped_normal = Normal
             for _ in range(num_batch_dims):
                 mapped_normal = eqx.filter_vmap(mapped_normal)
                 
@@ -101,7 +102,7 @@ class GaussianLikelihood(AbstractLikelihood):
                 mapped_add = eqx.filter_vmap(mapped_add)
             new_cov = mapped_add(pred_cov, mapped_var)
             
-            init_fn = dist.MultivariateNormalFullCovariance
+            init_fn = MultivariateNormalFullCovariance
             for _ in range(num_batch_dims):
                 init_fn = eqx.filter_vmap(init_fn)
                 

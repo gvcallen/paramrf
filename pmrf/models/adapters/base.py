@@ -11,7 +11,7 @@ import equinox as eqx
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils.type import is_overridden
-from pmrf.jax_utils import field, freeze
+from pmrf.utils import field, freeze
 
 class AbstractDiscrete(Model, ABC):
     """

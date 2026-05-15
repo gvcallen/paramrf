@@ -12,7 +12,7 @@ from pmrf.models.base import Model
 from pmrf.models.components.lines.uniform import RLGCLine
 from pmrf.rf import cascade_s
 from pmrf.parameters import Param, param
-from pmrf.jax_utils import field
+from pmrf.utils import field
 
 # class ProfiledLine(Model):
 #     r"""

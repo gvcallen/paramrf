@@ -17,7 +17,7 @@ from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
-from pmrf.jax_utils import field, unwrap, unwrap_self
+from pmrf.utils import field, unwrap, unwrap_self
 
 Z0_WARNING = \
 r"""

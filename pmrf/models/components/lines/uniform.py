@@ -11,7 +11,7 @@ from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
 from pmrf.parameters import Param, param
 from pmrf.constraints import Positive, GreaterThan
-from pmrf.jax_utils import field
+from pmrf.utils import field
 
 class TransmissionLine(Model):
     r"""

@@ -8,7 +8,7 @@ import re
 import equinox as eqx
 import jax.numpy as jnp
 
-from pmrf.jax_utils import field
+from pmrf.utils import field
 from pmrf.utils.array import slice_domain, find_nearest_index
 from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
 

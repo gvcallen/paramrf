@@ -3,7 +3,7 @@ Callables that evaluate a model over frequency.
 """
 from __future__ import annotations
 import re
-from typing import Sequence, Literal, Any, Callable
+from typing import Sequence, Literal, Any, Callable, TypeAlias
 from abc import abstractmethod
 
 import numpy as np
@@ -17,7 +17,7 @@ from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.jax_utils import freeze, field, unwrap
+from pmrf.utils import freeze, field, unwrap
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -44,8 +44,11 @@ class AbstractEvaluator(eqx.Module):
         """
         raise NotImplementedError
     
-EvaluatorFn = Callable[[Model, Frequency], jnp.ndarray]
-EvaluatorLike = str | list[str] | EvaluatorFn | list[EvaluatorFn]
+#: A type alias for the function signature of an evaluator.
+EvaluatorFn: TypeAlias = Callable[[Model, Frequency], jnp.ndarray]
+
+#: A type alias for "evaluator-like" objects, used as inputs to functions.
+EvaluatorLike: TypeAlias = str | list[str] | EvaluatorFn | list[EvaluatorFn]
 
 class Feature(AbstractEvaluator):
     """
@@ -134,17 +137,26 @@ class Feature(AbstractEvaluator):
 class TargetLoss(AbstractEvaluator):
     """
     Computes a loss between a model prediction and some target.
+
+    Parameters
+    ----------
+    predictor
+        The predictor (e.g. another Evaluator) that extracts model features.
+        Can be a function or a PyTree with optional parameters.
+    target
+        The fixed or 'true' target that the loss function should compare the prediction to.
+    loss
+        The loss function that takes (y_true, y_pred) and returns a loss metric.
+        Can be a function or a PyTree with optional parameters.
+        See :mod:`pmrf.losses` for common losses.
     """
-    #: The predictor (e.g. another Evaluator) that extracts model features.
-    #: Can be a function or a PyTree with optional parameters.
+    #: The active predictor instance.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
-    #: The fixed or 'true' target that the loss function should compare the prediction to.
+    #: The fixed target data.
     target: jnp.ndarray = field(converter=freeze)
     
-    #: The loss function that takes (y_true, y_pred) and returns a loss metric.
-    #: Can be a function or a PyTree with optional parameters.
-    #: See :mod:`pmrf.losses` for common losses.
+    #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -165,34 +177,51 @@ class MarginalLogLikelihood(AbstractEvaluator):
     by moving it to the last axis before passing it to the likelihood/discrepancy.
     However, an bijective transform can be applied to model probability
     in an arbitrary latent space.
+
+    Parameters
+    ----------
+    predictor
+        The predictor (e.g. another Evaluator) that extracts model features.
+        Can be a function or a PyTree with optional parameters.
+    observed
+        The observed data that the log probability will be computed of.
+        Must have a shape that matches the shape of the predictor output.
+    likelihood
+        The likelihood function that takes the model prediction and returns the probability of observing some data.
+        Can be a function or a PyTree with optional parameters.
+        See :mod:`pmrf.likelihoods` for common likelihoods.
+    discrepancy
+        An optional discrepancy model to cater for model misspecification.
+        Can be a function or a PyTree with optional parameters.
+        See :class:`pmrf.discrepancy_models` for common discrepancy models.
+    use_orthogonal_discrepancy
+        Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
+        which defines the model's orthogonal sub-space. Used for gaussian processes.
+    event_transform
+        A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
+        Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
+    event_ndims
+        The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     """
-    #: The predictor (e.g. another Evaluator) that extracts model features.
-    #: Can be a function or a PyTree with optional parameters.
+    #: The active predictor instance.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
-    #: The observed data that the log probability will be computed of.
-    #: Must have a shape that matches the shape of the predictor output.
+    #: The observed data.
     observed: jnp.ndarray = field(converter=freeze)
     
-    #: The likelihood function that takes the model prediction and returns the probability of observing some data.
-    #: Can be a function or a PyTree with optional parameters.
-    #: See :mod:`pmrf.likelihoods` for common likelihoods.
+    #: The active likelihood function.
     likelihood: Callable[[jnp.ndarray | dist.AbstractDistribution], dist.AbstractDistribution]
 
-    #: An optional discrepancy model to cater for model misspecification.
-    #: Can be a function or a PyTree with optional parameters.
-    #: See :class:`pmrf.discrepancy_models` for common discrepancy models.
+    #: The optional discrepancy model.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
     
-    #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
-    #: which defines the model's orthogonal sub-space. Used for gaussian processes.
+    #: Flag for orthogonal discrepancy.
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
-    #: A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
-    #: Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
+    #: The bijective event transform.
     event_transform: bij.AbstractBijector = field(default=None, static=True)
 
-    #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
+    #: The number of trailing event dimensions.
     event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
@@ -304,34 +333,53 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     This is used for Generalized Bayesian Inference (GBI). It supports conditioning 
     a physical model prediction while marginalizing out a potential discrepancy model 
     using an Expected Loss framework.
+
+    Parameters
+    ----------
+    predictor
+        The predictor (e.g. another Evaluator) that extracts model features.
+        Can be a function or a PyTree with optional parameters.
+    observed
+        The observed data that the loss will be computed against.
+        Must have a shape that matches the shape of the predictor output.
+    loss
+        The loss function that takes (y_true, y_pred) and returns a loss metric.
+        Can be a function or a PyTree with optional parameters.
+    temperature
+        The inverse-weight (temperature) of the Gibbs measure. 
+        Higher temperatures create wider, less confident posteriors.
+    discrepancy
+        An optional discrepancy model to cater for model misspecification.
+    use_orthogonal_discrepancy
+        Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
+        which defines the model's orthogonal sub-space. Used for gaussian processes.
+    event_transform
+        A bijective transform that maps from "observation space" (predicted features) to "event space".
+    event_ndims
+        The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     """
-    #: The predictor (e.g. another Evaluator) that extracts model features.
-    #: Can be a function or a PyTree with optional parameters.
+    #: The active predictor instance.
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
-    #: The observed data that the loss will be computed against.
-    #: Must have a shape that matches the shape of the predictor output.
+    #: The observed data.
     observed: jnp.ndarray = field(converter=freeze)
     
-    #: The loss function that takes (y_true, y_pred) and returns a loss metric.
-    #: Can be a function or a PyTree with optional parameters.
+    #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
-    #: The inverse-weight (temperature) of the Gibbs measure. 
-    #: Higher temperatures create wider, less confident posteriors.
+    #: The Gibbs measure temperature.
     temperature: float = field(default=1.0, static=True)
 
-    #: An optional discrepancy model to cater for model misspecification.
+    #: The active discrepancy model.
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None
     
-    #: Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
-    #: which defines the model's orthogonal sub-space. Used for gaussian processes.
+    #: Flag for orthogonal discrepancy.
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
-    #: A bijective transform that maps from "observation space" (predicted features) to "event space".
+    #: The bijective event transform.
     event_transform: bij.AbstractBijector = field(default=None, static=True)
 
-    #: The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
+    #: The number of event dimensions.
     event_ndims: int = field(default=1, static=True)
     
     def __post_init__(self):
@@ -403,8 +451,13 @@ class NegativeLogLikelihood(AbstractEvaluator):
     
     Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
     that is useful for performing Maximum Likelihood Estimation.
+
+    Parameters
+    ----------
+    mll
+        The underlying marginal log likelihood.
     """
-    #: The underlying marginal log likelihood
+    #: The underlying MLL instance.
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -424,8 +477,13 @@ class NegativeLogPosterior(AbstractEvaluator):
     are all calculated individually and the summed. Each prior is calculated
     by passing the module's grouped parameters into their grouped distribution's
     `log_prob` method.
+
+    Parameters
+    ----------
+    mll
+        The underlying marginal log likelihood.
     """
-    #: The underlying marginal log likelihood
+    #: The underlying MLL instance.
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
@@ -479,16 +537,6 @@ class Goal(TargetLoss):
         multioutput : str or Any, optional
             Defines how to aggregate losses across multiple outputs. 
             Default is 'uniform_average'.
-
-        Attributes
-        ----------
-        predictor : AbstractExpression
-            The expression used to extract the feature from the model response.
-        target : jnp.ndarray
-            The processed target value(s) stored as a JAX array.
-        loss : HingeLoss
-            The internal evaluator that implements the hinge logic and 
-            metric calculation.
         """        
         predictor = Feature(feature) if isinstance(feature, str) else feature
         target = jnp.asarray(target, dtype=float)
@@ -509,4 +557,6 @@ __all__ = [
     'MarginalLogLikelihood',
     'GibbsMarginalLogLikelihood',
     'Goal',
+    'EvaluatorFn',
+    'EvaluatorLike',
 ]

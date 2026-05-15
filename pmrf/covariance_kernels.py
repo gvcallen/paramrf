@@ -1,12 +1,15 @@
 """
 Covariance kernels for Gaussian processes.
+
+Useful for discrepancy modeling. See :mod:`pmrf.discrepancy_models`
+for more details.
 """
 from abc import abstractmethod
 
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.jax_utils import field
+from pmrf.utils import field
 from pmrf.parameters import Param, param
 
 
@@ -53,14 +56,17 @@ class SumKernel(AbstractCovarianceKernel):
     """
     Kernel representing the sum of two kernels.
 
-    Attributes
+    Parameters
     ----------
     k1 : Kernel
         First kernel operand.
     k2 : Kernel
         Second kernel operand.
     """
+    #: First kernel.
     k1: AbstractCovarianceKernel
+    
+    #: Second kernel.
     k2: AbstractCovarianceKernel
 
     def __call__(self, x1, x2, key=None):
@@ -71,14 +77,17 @@ class ProductKernel(AbstractCovarianceKernel):
     """
     Kernel representing the product of two kernels.
 
-    Attributes
+    Parameters
     ----------
     k1 : Kernel
         First kernel operand.
     k2 : Kernel
         Second kernel operand.
     """
+    #: First kernel.
     k1: AbstractCovarianceKernel
+    
+    #: Second kernel.
     k2: AbstractCovarianceKernel
 
     def __call__(self, x1, x2, key=None):
@@ -89,12 +98,13 @@ class ConstantKernel(AbstractCovarianceKernel):
     """
     Kernel that returns a constant variance.
 
-    Attributes
+    Parameters
     ----------
-    variance : prx.Parameter
-        Constant variance value (default 1.0).
+    variance : prf.Param
+        Constant variance value.
     """
-    variance: Param = param(1.0)
+    #: The variance.
+    variance: Param = param()
 
     def __call__(self, x1, x2, key=None):
         return self.variance
@@ -104,12 +114,12 @@ class RBFKernel(AbstractCovarianceKernel):
     """
     Radial Basis Function (Squared Exponential) kernel.
 
-    Attributes
+    Parameters
     ----------
-    lengthscale : prx.Parameter
-        Characteristic length scale of the correlation (default 1.0).
+    lengthscale : prf.Param
+        Characteristic length scale of the correlation.
     """
-    lengthscale: Param = param(1.0)
+    lengthscale: Param = param()
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -123,15 +133,18 @@ class PeriodicKernel(AbstractCovarianceKernel):
     
     Models functions that repeat over a specific period.
 
-    Attributes
+    Parameters
     ----------
-    period : prx.Parameter
-        The period of the kernel, dictating the distance between repetitions (default 1.0).
-    lengthscale : prx.Parameter
-        Characteristic length scale of the correlation (default 1.0).
+    period : prf.Param
+        The period of the kernel, dictating the distance between repetitions.
+    lengthscale : prf.Param
+        Characteristic length scale of the correlation.
     """
-    period: Param = param(1.0)
-    lengthscale: Param = param(1.0)
+    #: The period.
+    period: Param = param()
+
+    #: The lengthscale,
+    lengthscale: Param = param()
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -150,12 +163,13 @@ class WhiteNoiseKernel(AbstractCovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
 
-    Attributes
+    Parameters
     ----------
-    variance : prx.Parameter
-        Noise variance level (default 1.0).
+    variance : prf.Param
+        Noise variance level.
     """
-    variance: Param = param(1.0)
+    #: The variance.
+    variance: Param = param()
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
@@ -170,12 +184,13 @@ class Matern32Kernel(AbstractCovarianceKernel):
     making it less smooth than the RBF kernel and better suited 
     for realistic physical signals.
 
-    Attributes
+    Parameters
     ----------
-    lengthscale : prx.Parameter
-        Characteristic length scale of the correlation (default 1.0).
+    lengthscale : prf.Param
+        Characteristic length scale of the correlation.
     """
-    lengthscale: Param = param(1.0)
+    # The lengthscale
+    lengthscale: Param = param()
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -197,12 +212,13 @@ class Matern52Kernel(AbstractCovarianceKernel):
     It strikes a balance between the rougher Matérn 3/2 and the 
     infinitely smooth RBF kernel.
 
-    Attributes
+    Parameters
     ----------
-    lengthscale : prx.Parameter
-        Characteristic length scale of the correlation (default 1.0).
+    lengthscale : prf.Param
+        Characteristic length scale of the correlation.
     """
-    lengthscale: Param = param(1.0)
+    # The lengthscale.
+    lengthscale: Param = param()
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -229,9 +245,20 @@ class AutoCrossKernel(AbstractCovarianceKernel):
 
     This can be used to model reflection (auto) and transmission (cross) discrepancy separately.
     In this case, set `num_outputs` to the number of ports.
+
+    Parameters
+    ----------
+    auto : AbstractCovarianceKernel
+        The covariance kernel describing the auto terms (e.g. S11, S22).
+    cross : AbstractCovarianceKernel
+        The covariance kernel describing the cross terms (e.g. S21, S43).
     """
+    # The auto terms.
     auto: AbstractCovarianceKernel
+    
+    # The cross terms.
     cross: AbstractCovarianceKernel
+
     num_outputs: int = field(static=True)
 
     def __call__(self, x1, x2, key=None):
@@ -258,14 +285,17 @@ class SharedIndependentKernel(AbstractCovarianceKernel):
     multiple independent dimensions (e.g., real and imaginary parts) 
     withed share hyperparameters.
 
-    Attributes
+    Parameters
     ----------
     base_kernel : CovarianceKernel
         The underlying kernel whose parameters are shared.
     output_shape : tuple
         The shape of the independent outputs to broadcast to.
     """
+    #: The base kernel.
     base_kernel: AbstractCovarianceKernel
+
+    #: The output shape.
     output_shape: tuple = field(static=True)
 
     def __call__(self, x1, x2, key=None):
@@ -276,7 +306,6 @@ class SharedIndependentKernel(AbstractCovarianceKernel):
         # By appending the output_shape to the end of val.shape, 
         # this safely handles both scalar evaluations and already-batched evaluations.
         target_shape = val.shape + self.output_shape
-        
         return jnp.broadcast_to(val, target_shape)
     
 

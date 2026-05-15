@@ -27,6 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -e ".[docs]"
+        pip install "git+https://github.com/gvcallen/distreqx.git"
 
     - name: Build docs
       run: |

@@ -13,7 +13,7 @@ import equinox as eqx
 import parax as prx
 
 from pmrf.math import losses as F
-from pmrf.jax_utils import field, unwrap, freeze
+from pmrf.utils import field, unwrap, freeze
 
 
 class AbstractLoss(eqx.Module):
@@ -52,6 +52,11 @@ class MSELoss(AbstractLoss):
     Mean Squared Error (MSE) metric.
 
     Forwards to :func:`pmrf.math.losses.mean_squared_error`.
+
+    Parameters
+    ----------
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
 
     #: Defines the aggregation strategy across multiple output dimensions.
@@ -72,6 +77,11 @@ class RMSELoss(AbstractLoss):
     Root Mean Squared Error (RMSE) metric.
 
     Forwards to :func:`pmrf.math.losses.root_mean_squared_error`.
+
+    Parameters
+    ----------
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
 
     #: Defines the aggregation strategy across multiple output dimensions.
@@ -92,6 +102,11 @@ class LogMSELoss(AbstractLoss):
     Log of Mean Squared Error (RMSE) metric.
 
     Forwards to :func:`pmrf.math.losses.log_mean_squared_error`.
+
+    Parameters
+    ----------
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
     #: Defines the aggregation strategy across multiple output dimensions.
     multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
@@ -111,6 +126,11 @@ class MAPELoss(AbstractLoss):
     Mean Absolute Percentage Error (MAPE) metric.
 
     Forwards to :func:`pmrf.math.losses.mean_absolute_percentage_error`.
+
+    Parameters
+    ----------
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
     #: Defines the aggregation strategy across multiple output dimensions.
     multioutput: str | jnp.ndarray | Callable = field(default='uniform_average', static=True)
@@ -133,6 +153,13 @@ class HuberLoss(AbstractLoss):
     depending on the delta threshold.
 
     Forwards to :func:`pmrf.math.losses.huber_loss`.
+
+    Parameters
+    ----------
+    delta
+        The threshold at which to change between squared error and absolute error.
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
     #: The threshold at which to change between squared error and absolute error.
     delta: float = field(default=1.0, static=True)
@@ -156,6 +183,19 @@ class HingeLoss(AbstractLoss):
     Applies a one-sided constraint (hinge) before evaluating a base metric.
 
     Forwards to :func:`pmrf.math.losses.hinge_loss`.
+
+    Parameters
+    ----------
+    operator
+        The logical constraint operator ('<', '<=', '>', '>=', '==', '=').
+    weight
+        A scalar or array multiplier to scale the importance of the penalty.
+    mask
+        A boolean array filtering which data points apply to this loss.
+    base_loss
+        The underlying loss function.
+    multioutput
+        Defines the aggregation strategy across multiple output dimensions.
     """
     #: The logical constraint operator ('<', '>', '==', etc.).
     operator: Literal['<', '<=', '>', '>=', '==', '='] = field(default='==', static=True)

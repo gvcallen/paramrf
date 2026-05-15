@@ -31,7 +31,7 @@ from pmrf.serialization import (
     load as load,
     save as save,
 )
-from pmrf.jax_utils import (
+from pmrf.utils import (
     Partial as Partial,
     InitVar as InitVar,
     freeze as freeze,

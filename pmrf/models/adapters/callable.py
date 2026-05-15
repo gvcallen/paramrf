@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleProperty, AbstractSingleDiscreteProperty
 from pmrf.parameters import Param, param
-from pmrf.jax_utils import freeze, field, unwrap
+from pmrf.utils import freeze, field, unwrap
     
 class ContinuousCallable(AbstractSingleProperty):
     """

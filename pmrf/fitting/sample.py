@@ -68,7 +68,7 @@ def fit_sample(
         Can be a function or a callable PyTree with optional parameters.
         See :mod:`pmrf.likelihoods` for common likelihoods.
         Mutually exclusive with `loss`.
-    noise : prx.Parameter | Callable[[jnp.ndarray], jnp.ndarray], optional
+    noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise, either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood` and `loss`.

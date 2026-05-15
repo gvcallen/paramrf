@@ -6,7 +6,7 @@ from dataclasses import InitVar
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.jax_utils import field
+from pmrf.utils import field
 from pmrf.models.components.ideal import Port
 from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 

@@ -17,7 +17,6 @@ from distreqx.distributions import (
 
 from parax.probability import truncate_distribution as truncate
 
-
 def CenteredUniform(
     center: ArrayLike, 
     half_width: ArrayLike, 

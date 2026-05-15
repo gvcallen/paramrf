@@ -1,5 +1,7 @@
 """
 Discrepancy modeling between an RF model and actual data.
+
+Useful for modeling discrepancy of RF models during fitting.
 """
 from collections.abc import Callable
 from abc import abstractmethod
@@ -9,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
 
-from pmrf.jax_utils import field
+from pmrf.utils import field
 
 class AbstractDiscrepancyModel(eqx.Module):
     """
@@ -18,9 +20,10 @@ class AbstractDiscrepancyModel(eqx.Module):
     A discrepancy model maps a model prediction to an updated model prediction.
     This updated prediction can either be deterministic (e.g. a polynomial)
     or probabilistic (e.g. a Gaussian process) by either returning a `JAX` array
-    or a `distreqx` probability distribution. Note that probabilistic discrepancy
-    models operate in "event space". Here, probability events are moved
-    to the **last axis**, such as frequency.
+    or a `distreqx` probability distribution.
+    
+    Note that probabilistic discrepancy models operate in "event space".
+    Here, probability events (e.g. frequency) are moved to the **last axis**.
     
     These models are commonly used in conjuction with a likelihood function
     via :class:`pmrf.evaluators.MarginalLogLikelihood`.
@@ -61,12 +64,20 @@ class GaussianProcess(AbstractDiscrepancyModel):
     
     See :class:`pmrf.DiscrepancyModel` for more information on general discrepancy models.
     See :mod:`pmrf.covariance_kernels` for built-in covariance kernels.
+
+    Parameters
+    ----------
+    kernel : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+        The covariance kernel function that computes the correlation between two input arrays.
+        Can be a function or a callable PyTree. See :mod:`pmrf.covariance_kernels`
+        for built-in covariance kernels.
+    jitter : float, default=1e-10
+        A small scalar added to the diagonal of the covariance matrix for numerical stability.
     """
-    
-    #: The covariance kernel function that computes the correlation between two input arrays.
+    #: The covariance kernel.
     kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     
-    #: A small scalar added to the diagonal of the covariance matrix for numerical stability.
+    #: The added jitter.
     jitter: float = field(default=1e-10, static=True)
 
     def __call__(self, y_event: jnp.ndarray, x: jnp.ndarray, orthogonal_projection: jnp.ndarray | None = None) -> dist.AbstractDistribution:

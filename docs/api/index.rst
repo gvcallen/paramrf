@@ -3,7 +3,7 @@ API
 
 This page contains the main API reference.
 
-Core
+Core Primitives
 ------------
 
 .. autosummary::

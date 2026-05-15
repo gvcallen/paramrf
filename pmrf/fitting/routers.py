@@ -13,7 +13,7 @@ from pmrf.infer import is_sampler, InferResult, AbstractSampler
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
-from pmrf.jax_utils import freeze, combine
+from pmrf.utils import freeze, combine
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.result import FitResult

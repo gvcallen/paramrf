@@ -6,8 +6,8 @@ from abc import abstractmethod
 import jax.numpy as jnp
 
 import equinox as eqx
-from pmrf.parameters import Param
-from pmrf.jax_utils import field
+from pmrf.parameters import Param, param
+from pmrf.utils import field
 
 class AbstractNoiseModel(eqx.Module):
     """
@@ -49,14 +49,24 @@ class AutoCrossNoise(AbstractNoiseModel):
     Operates in "event space". For example, for a standard
     N-port S-parameter feature, the input `y_event` will be
     of shape (nports, nports, nfreq) or (nports, nports, 2, nfreq).
+
+    Parameters
+    ----------
+    auto : Param
+        The "auto" term, e.g. S11, S22 etc.
+    cross : Param
+        The "cross" term, e.g. S21, S43 etc.
+    port_axes : Param
+        The axes defining the ports. Defaults to (0, 1).
     """    
 
-    #: The "auto" term, e.g. S11, S22 etc.
-    auto: Param
+    #: The "auto" term.
+    auto: Param = param()
 
-    #: The "cross" term, e.g. S21, S43 etc.
-    cross: Param
+    #: The "cross" term.
+    cross: Param = param()
     
+    #: The port axes in the array.
     port_axes: tuple[int, int] = field(static=True, default=(0, 1))
     
     def __call__(self, y_event: jnp.ndarray):

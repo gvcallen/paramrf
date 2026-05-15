@@ -8,7 +8,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.constraints import Positive
 from pmrf.parameters import Param, param
-from pmrf.jax_utils import field
+from pmrf.utils import field
 
 class Load(Model):
     """
