@@ -148,13 +148,13 @@ def param(
 # Parameter Factories (Syntactic Sugar)
 # ---------------------------------------------------------
 
-def Free(
+def Value(
     value: ArrayLike,
     *,
     scale: float = 1.0,
 ) -> Param:
     """
-    Create a simple free parameter.
+    Create a simple free parameter with an optional scale.
 
     Parameters
     ----------
@@ -164,7 +164,7 @@ def Free(
     Returns
     -------
     Param
-        The unconstrained parameter.
+        An unconstrained parameter.
     """
     return as_param(value, scale=scale, fixed=False)
 
@@ -292,7 +292,7 @@ def Random(
 
 __all__ = [
     "as_param",
-    "Free",
+    "Value",
     "Fixed",
     "Bounded",
     "Constrained",
