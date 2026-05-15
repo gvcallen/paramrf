@@ -99,7 +99,7 @@ class Model(eqx.Module):
 
     Examples
     --------
-    A ``PiCLC`` network with some free parameter defaults:
+    A general ``PiCLC`` network model:
 
     .. code-block:: python
 
@@ -107,9 +107,9 @@ class Model(eqx.Module):
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prf.Param = prf.param(1.0e-12)
-            L:  prf.Param = prf.param(1.0e-9)
-            C2: prf.Param = prf.param(1.0e-12)
+            C1: prf.Param = prf.param()
+            L:  prf.Param = prf.param()
+            C2: prf.Param = prf.param()
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w

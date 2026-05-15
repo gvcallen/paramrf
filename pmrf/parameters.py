@@ -49,6 +49,9 @@ def as_param(
     """
     Coerces a value into a parameter.
 
+    The incoming value can be an existing parameter or any
+    parameter-like object (float, array etc.).
+
     Parameters
     ----------
     value : Any, optional
@@ -118,7 +121,35 @@ def param(
     fixed: bool = False,
 ) -> Any:
     """
-    A field specifier for defining the physical rules of model parameters.
+    A field specifier for defining the rules of parameters in custom model.
+
+    This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
+    For example, it can be used to enforce constraints/scaling/bounds that are required
+    by the model itself.
+
+    Example
+    --------
+
+    Declaring a parameter with a positive constraint and built-in scale:
+
+    .. code-block:: python
+
+        import pmrf as prf
+        from pmrf.models import Resistor, Capacitor
+        from pmrf.constraints import Positive
+
+        class RC(prf.Model):
+            R: prf.Param = prf.param(constraint=Positive())
+            C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
+
+            def build(self) -> prf.Model:
+                return Resistor(self.R) ** Capacitor(self.C)
+
+        RC(1.0, 2.0)
+        # RC(R=1., C=2.e-12)
+
+        RC(-1.0, 2.0)
+        # ValueError: out of bounds
 
     Parameters
     ----------
@@ -207,6 +238,8 @@ def Constrained(
     """
     Create a parameter constrained to a specific domain.
 
+    See :mod:`pmrf.constraints` for built-in constraints.
+
     Parameters
     ----------
     constraint : AbstractConstraint
@@ -236,6 +269,8 @@ def Bounded(
 ) -> Param:
     """
     Create a parameter constrained within a specific interval.
+
+    Used as the main factory to define parameters for bounded optimization.
 
     Parameters
     ----------
@@ -268,6 +303,13 @@ def Random(
 ) -> Param:
     """
     Create a parameter initialized with a random distribution.
+
+    Used as the main factory to define parameters for Bayesian inference.
+    Can also be used for bounded optimization, in which case the random
+    variable's domain (constraint) is used as the bounds.
+
+    For built-in distributions, see :mod:`pmrf.distribution`.
+    For built-in constraints, see :mod:`pmrf.constraints`.
 
     Parameters
     ----------
