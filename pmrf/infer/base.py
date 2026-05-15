@@ -2,7 +2,7 @@
 Base inference functions and classes.
 """
 
-from typing import Callable, Any, Optional, TypeVar
+from typing import Callable, Any, Optional, TypeVar, TypeAlias
 import abc
 
 import jax.numpy as jnp
@@ -16,7 +16,7 @@ T = TypeVar('T')
 
 
 class SampleResult(eqx.Module):
-    """The core mathematical payload of a sampling run."""
+    """Lower-level solver result returning from a sampling run."""
     #: Stacked array samples
     samples: PyTree[Array]
     
@@ -46,6 +46,31 @@ class AbstractJointSampler(eqx.Module):
         max_steps: int | None = None,
         **kwargs,
     ) -> tuple[SampleResult, Any]:
+        """
+        Execute the sampling algorithm.
+
+        Parameters
+        ----------
+        logposterior_fn : callable
+            A function taking the parameters and args as input and returning the log-posterior probability.
+        y0 : PyTree
+            The initial parameters, either for shape reference or as a starting point.
+        args : Any
+            Args to pass to `fn`.
+        key : Array
+            A random JAX key.
+        init_samples : PyTree, optional
+            An optional batched PyTree the same structure as `y0` with initial samples to warm-start the algorithm.
+        max_steps: int, optional
+            The maximum number of sampling steps to take. If None, implies there should be no limit.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        tuple
+            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        """        
         raise NotImplementedError
 
 
@@ -55,7 +80,7 @@ class AbstractSplitSampler(eqx.Module):
     def run(
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Any],
-        logprior_fn: Callable[[PyTree], Scalar],
+        logprior_fn: Callable[[PyTree, Any], Scalar],
         y0: PyTree,
         args: PyTree[Any],
         key: Array,
@@ -63,6 +88,33 @@ class AbstractSplitSampler(eqx.Module):
         max_steps: int | None = None,
         **kwargs,
     ) -> tuple[SampleResult, Any]:
+        """
+        Execute the sampling algorithm.
+
+        Parameters
+        ----------
+        loglikelihood_fn : callable
+            A function taking the parameters and args as input and returning the log-likelihood.
+        logprior_fn : callable
+            A function taking the parameters and args as input and returning the log prior probability.
+        y0 : PyTree
+            The initial parameters, either for shape reference or as a starting point.
+        args : Any
+            Args to pass to `fn`.
+        key : Array
+            A random JAX key.
+        init_samples : PyTree, optional
+            An optional batched PyTree the same structure as `y0` with initial samples to warm-start the algorithm.
+        max_steps: int, optional
+            The maximum number of sampling steps to take. If None, implies there should be no limit.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        tuple
+            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        """              
         raise NotImplementedError
 
 
@@ -77,7 +129,7 @@ class AbstractHypercubeSampler(eqx.Module):
     def run(
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Any],
-        prior_transform_fn: Callable[[PyTree], PyTree],
+        prior_transform_fn: Callable[[PyTree, Any], PyTree],
         u0: PyTree,
         args: PyTree[Any],
         key: Array,
@@ -85,13 +137,38 @@ class AbstractHypercubeSampler(eqx.Module):
         max_steps: int | None = None,
         **kwargs,
     ) -> tuple[SampleResult, Any]:
+        """
+        Execute the sampling algorithm.
+
+        Parameters
+        ----------
+        loglikelihood_fn : callable
+            A function taking the physical parameters and args as input and returning the log-likelihood.
+        prior_transform_fn : callable
+            A function taking the hypercube parameters and args as input and returning the physical parameters.
+        u0 : PyTree
+            The initial parameters in the unit hypercube, either for shape reference or as a starting point.
+        args : Any
+            Args to pass to `fn`.
+        key : Array
+            A random JAX key.
+        init_cube_samples : PyTree, optional
+            An optional batched PyTree the same structure as `u0` with initial hypercube samples to warm-start the algorithm.
+        max_steps: int, optional
+            The maximum number of sampling steps to take. If None, implies there should be no limit.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        tuple
+            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        """               
         raise NotImplementedError
     
 
-"""
-A type-hint for a sampler in :mod:`pmrf.infer`. Either :class:`pmrf.infer.AbstractJointSampler`, :class:`pmrf.infer.AbstractSplitSampler` or :class:`pmrf.infer.AbstractHypercubeSampler`.
-"""
-AbstractSampler = AbstractJointSampler | AbstractSplitSampler | AbstractHypercubeSampler
+#: A type-hint for a sampler in :mod:`pmrf.infer`. Either :class:`pmrf.infer.AbstractJointSampler`, :class:`pmrf.infer.AbstractSplitSampler` or :class:`pmrf.infer.AbstractHypercubeSampler`.
+AbstractSampler: TypeAlias = AbstractJointSampler | AbstractSplitSampler | AbstractHypercubeSampler
 
 
 def is_sampler(x):
@@ -174,7 +251,7 @@ def sample(
         bijector_to_constrained = prx.constraints.tree_leafwise_bijector(dynamic)
 
         # Internal functions
-        def _logprior_fn(unconstrained_params: PyTree) -> Scalar:
+        def _logprior_fn(unconstrained_params: PyTree, _args: Any) -> Scalar:
             return unconstrained_prior.log_prob(unconstrained_params)
 
         def _loglikelihood_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
@@ -183,7 +260,7 @@ def sample(
             return loglikelihood_fn(y_unwrapped, args)
 
         def _logposterior_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
-            log_prior = _logprior_fn(unconstrained_params)
+            log_prior = _logprior_fn(unconstrained_params, args)
             log_likelihood = _loglikelihood_fn(unconstrained_params, args)
             return log_prior + log_likelihood
 
@@ -220,12 +297,12 @@ def sample(
         def _params_to_cube(params):
             return jax.tree.map(lambda d, b: d.cdf(b), distributions, params, is_leaf=prx.is_distribution)
 
-        def _cube_to_params(cube_params):
+        def _cube_to_params(cube_params: PyTree, _args: Any):
             eps = jnp.finfo(jnp.float32).eps
             safe_cube = jax.tree.map(lambda x: jnp.clip(x, eps, 1.0 - eps), cube_params)
             return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
         
-        def _loglikelihood_fn(params, args):
+        def _loglikelihood_fn(params: PyTree, args: Any):
             unwrapped = prx.unwrap(eqx.combine(params, static, is_leaf=is_leaf))
             return loglikelihood_fn(unwrapped, args)
         

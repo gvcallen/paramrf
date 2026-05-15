@@ -13,6 +13,7 @@ from pmrf.infer.base import (
     AbstractSampler as AbstractSampler,
     is_sampler,
     is_inferer,
+    SampleResult,
 )
 from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
@@ -30,6 +31,7 @@ __all__ = [
     "is_sampler",
     "is_inferer",
     "InferResult",
+    "SampleResult",
     "sample",
     "polychord",
     "blackjax",

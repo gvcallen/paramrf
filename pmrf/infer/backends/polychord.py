@@ -1,5 +1,8 @@
+"""
+PolyChord inference wrappers.
+"""
+
 from typing import Any, Callable, Dict, Optional
-import logging
 
 import equinox as eqx
 import jax
@@ -123,7 +126,7 @@ class PolyChord(AbstractHypercubeSampler):
     def run(
         self,
         loglikelihood_fn: Callable[[PyTree, Any], Scalar],
-        prior_transform_fn: Callable[[PyTree], PyTree],
+        prior_transform_fn: Callable[[PyTree, Any], PyTree],
         u0: PyTree,
         args: PyTree[Any],
         key: Array,
@@ -192,7 +195,7 @@ class PolyChord(AbstractHypercubeSampler):
         @jax.jit
         def jitted_prior(flat_u_jax):
             struct_u = cube_reconstruct_fn(flat_u_jax)
-            struct_theta = prior_transform_fn(struct_u)
+            struct_theta = prior_transform_fn(struct_u, args)
             flat_theta, _ = jax.flatten_util.ravel_pytree(struct_theta)
             return flat_theta
 

@@ -1,3 +1,7 @@
+"""
+BlackJAX inference wrappers.
+"""
+
 import logging
 from typing import Any, Callable, Optional
 
@@ -183,7 +187,7 @@ class NSS(AbstractSplitSampler):
 
         # 1. Standardize functions for BlackJAX
         def logprior(y):
-            return logprior_fn(y)
+            return logprior_fn(y, args)
             
         def loglikelihood(y):
             return loglikelihood_fn(y, args)

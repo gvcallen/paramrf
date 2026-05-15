@@ -54,7 +54,7 @@ def test_unconstrained_dict_model(solver_cls):
     
     final_model, payload, metrics = base.minimize(
         fn=simple_quadratic_dict, 
-        y0=y0, 
+        model=y0, 
         solver=solver, 
         max_iter=2000
     )
@@ -77,7 +77,7 @@ def test_unconstrained_equinox_model():
     
     opt_model, payload, metrics = base.minimize(
         fn=quadratic_objective, 
-        y0=model, 
+        model=model, 
         solver=solver
     )
     
@@ -106,7 +106,7 @@ def test_bounded_minimization_jaxopt():
     
     opt_model, payload, metrics = base.minimize(
         fn=simple_quadratic_dict,  # Switched to gentler objective 
-        y0=y0, 
+        model=y0, 
         solver=solver,
         max_iter=1000
     )
@@ -129,7 +129,7 @@ def test_bounded_minimization_scipy():
     
     opt_model, payload, metrics = base.minimize(
         fn=simple_quadratic_dict, # Switched to gentler objective
-        y0=y0, 
+        model=y0, 
         solver=solver,
         max_iter=1000
     )
@@ -159,7 +159,7 @@ def test_fixed_variable_partitioning():
     
     opt_model, payload, metrics = base.minimize(
         fn=simple_quadratic_dict, 
-        y0=y0, 
+        model=y0, 
         solver=solver
     )
     

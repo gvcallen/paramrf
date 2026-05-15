@@ -2,7 +2,7 @@
 Base optimization functions and classes.
 """
 import warnings
-from typing import Any, Callable
+from typing import Any, Callable, TypeAlias
 import abc
 
 from jaxtyping import PyTree, Scalar
@@ -21,9 +21,7 @@ class MinimizeResult(eqx.Module):
 
 class AbstractUnconstrainedMinimizer(eqx.Module):
     """
-    Abstract interface for unconstrained minimization.
-
-    The interface should accept pure PyTrees and return a standardized tuple.
+    Abstract interface for unconstrained minimization algorithms.
     """
 
     @abc.abstractmethod
@@ -31,7 +29,7 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         self,
         fn: Callable[[PyTree, Any], Scalar],
         y0: PyTree,
-        args: Any = None,
+        args: Any,
         max_iter: int = 1024,
         **kwargs
     ) -> tuple[MinimizeResult, PyTree]:
@@ -54,17 +52,14 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         Returns
         -------
         tuple
-            A tuple of `(MinimizeResults, metrics)`.
+            A tuple of (:class:`pmrf.optimize.MinimizeResult`, metrics)`.
         """
         raise NotImplementedError
     
 
 class AbstractBoundedMinimizer(eqx.Module):
     """
-    Abstract interface for bounded minimization.
-
-
-    The interface should accept pure PyTrees and return a standardized tuple.
+    Abstract interface for bounded minimization algorithms.
     """
 
     @abc.abstractmethod
@@ -72,7 +67,7 @@ class AbstractBoundedMinimizer(eqx.Module):
         self,
         fn: Callable[[PyTree, Any], Scalar],
         y0: PyTree,
-        args: Any = None,
+        args: Any,
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
@@ -98,15 +93,13 @@ class AbstractBoundedMinimizer(eqx.Module):
         Returns
         -------
         tuple
-            A tuple of `(MinimizeResults, metrics)`.
+            A tuple of (:class:`pmrf.optimize.MinimizeResult`, metrics)`.
         """
         raise NotImplementedError
     
 
-"""
-A type-hint for a minimizer in :mod:`pmrf.optimize`. Either :class:`pmrf.optimize.AbstractUnconstrainedMinimizer` or :class:`pmrf.optimize.AbstractBoundedMinimizer`.
-"""
-AbstractMinimizer = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer
+#: A type-hint for a minimizer in :mod:`pmrf.optimize`. Either :class:`pmrf.optimize.AbstractUnconstrainedMinimizer` or :class:`pmrf.optimize.AbstractBoundedMinimizer`.
+AbstractMinimizer: TypeAlias = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer
     
 
 def is_minimizer(x):
@@ -124,37 +117,32 @@ def is_optimizer(x):
 
 def minimize(
     fn: Callable[[PyTree, Any], Scalar], 
-    y0: PyTree, 
+    model: PyTree, 
     solver: AbstractMinimizer,
     args: Any = None,
-    bounds: tuple[PyTree, PyTree] | None = None,
     max_iter: int = 1024, 
     **kwargs
 ) -> tuple[PyTree, MinimizeResult, PyTree]:
     """
-    Optimizes a general PyTree potentially containing Parax parameters using either a bounded or unconstrained solver.
+    Optimizes a general PyTree potentially containing Parax parameters.
 
-    `bounds` can be passed (instead of using internal `parax.bounded.AbstractBounded` bounds.)
-    If the PyTree does not contain Parax variables, `bounds[0]` and `bounds[1]` must each
-    match the shape of `y0`. Otherwise, they must match the shape of the PyTree where
-    all bounded nodes have been unwrapped using `parax.unwrap(y0, only_if=prx.is_bounded)`,
-    either with or without fixed variables replaced with None (using e.g. `parax.remove`).
+    The solver can be any solver of type :type:`pmrf.optimize.AbstractMinimizer`.
+
+    Performs Equinox partitioning and Parax parameter bound extraction,
+    as well as delegation to the relevant solver interface.
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
     
     # Extract base values and partition based on solver type
     if is_bounded:
         is_leaf = prx.bounds.is_leaf
-        dynamic, static = eqx.partition(y0, prx.bounds.is_dynamic, is_leaf=is_leaf)
+        dynamic, static = eqx.partition(model, prx.bounds.is_dynamic, is_leaf=is_leaf)
         
         params = prx.unwrap(dynamic, only_if=prx.is_bounded)
-        if bounds is None:
-            bounds = prx.bounds.tree_bounds(dynamic)
+        bounds = prx.bounds.tree_bounds(dynamic)
     else:
-        if bounds:
-            raise Exception(f"Cannot use bounds for non-bounded minimizer of type {type(solver)}")
         is_leaf = prx.is_constant
-        params, static = eqx.partition(y0, eqx.is_inexact_array, is_leaf=is_leaf)
+        params, static = eqx.partition(model, eqx.is_inexact_array, is_leaf=is_leaf)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:

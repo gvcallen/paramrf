@@ -36,8 +36,10 @@ def minimize(
         for an easy way to define goal-based objectives.
     model : Model
         The RF model containing the parameters to be optimized.
-        If the parameters contain bounds, they are used in a bounded optimization unless `use_bounds` is False.
-        If the parameters do not contain bounds, their limits are set to infinity.
+        If the parameters contain bounds and the optimizer is bounds, these bounds
+        are used in a bounded optimization. Otherwise, the bounds are enforced
+        via space transformations (bijectors). If the parameters do not contain bounds,
+        their limits are set to infinity.
     frequency : Frequency
         The frequency sweep over which the objective should be evaluated.
     solver : pmrf.optimize.AbstractMinimizer, default=ScipyMinimize()
@@ -69,7 +71,7 @@ def minimize(
     # Run the optimization
     opt_problem, payload, metrics = base_minimize(
         lambda p, _args: p(),
-        y0=problem,
+        model=problem,
         solver=solver,
         max_iter=max_iter,
         **kwargs,
