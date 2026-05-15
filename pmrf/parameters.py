@@ -152,21 +152,26 @@ def Value(
     value: ArrayLike,
     *,
     scale: float = 1.0,
+    fixed: bool = False,
 ) -> Param:
     """
-    Create a simple free parameter with an optional scale.
+    Create a simple parameter with an optional scale.
 
     Parameters
     ----------
     value : ArrayLike
         The base parameter value.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Whether to freeze the parameter, by default False.        
 
     Returns
     -------
     Param
         An unconstrained parameter.
     """
-    return as_param(value, scale=scale, fixed=False)
+    return as_param(value, scale=scale, fixed=fixed)
 
 
 def Fixed(
