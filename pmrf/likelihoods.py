@@ -58,7 +58,9 @@ class GaussianLikelihood(AbstractLikelihood):
     ----------
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
         A parameter or callable that evaluates to the measurement variance. 
-        It can accept the mean prediction as an argument.
+        The callable accepts the mean prediction as an argument and
+        outputs the variance, and can be a function or a callable PyTree
+        with additional parameters.
     """
     #: The noise parameter or a callable returning the measurement variance.
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray]

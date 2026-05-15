@@ -19,10 +19,6 @@ from pmrf.distributions import AbstractDistribution
 #: The abstract Parameter type hint for parameters in models.
 Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
 
-# ---------------------------------------------------------
-# The Core Engine (Exposed in API)
-# ---------------------------------------------------------
-
 def apply_wrappers(value: Any, scale: float, fixed: bool):
     value = prx.as_variable(value)
     if scale != 1.0:
@@ -110,9 +106,6 @@ def as_param(
 
     return apply_wrappers(value, scale=scale, fixed=fixed)
 
-# ---------------------------------------------------------
-# Field Specifier
-# ---------------------------------------------------------
 
 def param(
     value: Any = dataclasses.MISSING,
@@ -176,10 +169,6 @@ def param(
     
     return eqx.field(default=value, converter=converter)
 
-
-# ---------------------------------------------------------
-# Parameter Factories (Syntactic Sugar)
-# ---------------------------------------------------------
 
 def Value(
     value: ArrayLike,
