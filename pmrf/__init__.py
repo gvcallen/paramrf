@@ -21,6 +21,8 @@ from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
 
 #: The canonical type hint for a parameter in a model.
+#: Parameters should be created using factories in :mod:`pmrf.parameters`,
+#: most of which are re-exported at root (e.g. :func:`pmrf.Value`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
 Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
 from pmrf.parameters import (
     param as param,

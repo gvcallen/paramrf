@@ -118,7 +118,7 @@ class RLGCLine(TransmissionLine):
 
     Parameters
     ----------
-    length : Parameter
+    length : Param
         Physical length of the line in meters.
     """
     #: Physical length of the line
@@ -181,11 +181,11 @@ class PhaseLine(TransmissionLine):
 
     Parameters
     ----------
-    zc : Parameter, default=50.0
+    zc : Param, default=50.0
         Characteristic impedance in Ohms.
-    theta : Parameter, default=90.0
+    theta : Param, default=90.0
         Electrical length (phase shift) in degrees at reference frequency `f0`.
-    f0 : Parameter
+    f0 : float
         Reference frequency in Hz for `theta`. Key-word only static argument.
     """
     #: Electrical length (phase shift)
@@ -236,13 +236,13 @@ class ConstantRLGCLine(RLGCLine):
 
     Parameters
     ----------
-    R : Parameter, default=0.0
+    R : Param, default=0.0
         Resistance in Ohms/m.
-    L : Parameter, default=280e-9
+    L : Param, default=280e-9
         Inductance in Henries/m.
-    G : Parameter, default=0.0
+    G : Param, default=0.0
         Conductance in Siemens/m.
-    C : Parameter, default=90e-12
+    C : Param, default=90e-12
         Capacitance in Farads/m.
     """
     #: Resistance in Ohms/m
@@ -300,15 +300,15 @@ class PhysicalLine(RLGCLine):
 
     Parameters
     ----------
-    zn : Parameter, default=50.0
+    zn : Param, default=50.0
         Nominal characteristic impedance defining the L/C ratio.
-    epr : Parameter, default=1.0
+    epr : Param, default=1.0
         Relative permittivity.
-    A : Parameter, default=0.0
+    A : Param, default=0.0
         Conductor loss in dB/m/sqrt(Hz).
-    fA : Parameter, default=1.0
+    fA : Param, default=1.0
         Frequency scaling reference for attenuation in Hz.
-    tand : Parameter, default=0.0
+    tand : Param, default=0.0
         Dielectric loss tangent.
     """
     #: Nominal characteristic impedance
@@ -387,13 +387,13 @@ class DatasheetLine(RLGCLine):
 
     Parameters
     ----------
-    zn : Parameter, default=50.0
+    zn : Param, default=50.0
         Nominal characteristic impedance.
-    vf : Parameter, default=1.0
+    vf : Param, default=1.0
         Velocity factor (ratio of propagation speed to the speed of light).
-    k1 : Parameter, default=0.0
+    k1 : Param, default=0.0
         Skin effect loss factor.
-    k2 : Parameter, default=0.0
+    k2 : Param, default=0.0
         Dielectric loss factor.
     loss_coeffs_normalized : bool, default=False
         If True, k1 and k2 are evaluated directly without normalizing to 100MHz references.
@@ -482,17 +482,17 @@ class CoaxialLine(RLGCLine):
 
     Parameters
     ----------
-    din : Parameter, default=1.12e-3
+    din : Param, default=1.12e-3
         Inner conductor diameter in meters.
-    dout : Parameter, default=3.2e-3
+    dout : Param, default=3.2e-3
         Outer conductor inner diameter in meters.
-    epr : Parameter, default=1.0
+    epr : Param, default=1.0
         Relative permittivity of the dielectric.
-    mur : Parameter, default=1.0
+    mur : Param, default=1.0
         Relative permeability.
-    tand : Parameter, default=0.0
+    tand : Param, default=0.0
         Loss tangent of the dielectric.
-    rho : Parameter, default=1.68e-8
+    rho : Param, default=1.68e-8
         Resistivity of the conductors in Ohm-meters.
     """
     #: Inner conductor diameter
@@ -607,15 +607,15 @@ class MicrostripLine(RLGCLine):
 
     Parameters
     ----------
-    w : Parameter, default=3e-3
+    w : Param, default=3e-3
         Width of the microstrip trace in meters.
-    h : Parameter, default=1.6e-3
+    h : Param, default=1.6e-3
         Height of the dielectric substrate in meters.
-    epr : Parameter, default=4.3
+    epr : Param, default=4.3
         Relative permittivity of the dielectric substrate.
-    tand : Parameter, default=0.0
+    tand : Param, default=0.0
         Dielectric loss tangent.
-    rho : Parameter, default=0.0
+    rho : Param, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
     #: Width of the microstrip trace
