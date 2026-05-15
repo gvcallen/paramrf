@@ -31,7 +31,7 @@ The library provides tools for model simulation, optimization, fitting, statisti
 Features
 --------
 
-* **Declarative syntax**: Models can be composed and defined using an self-documenting, object-oriented syntax.
+* **Declarative syntax**: Models can be composed and defined using a self-documenting, object-oriented syntax.
 * **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical circuits.
 * **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available using *auto-differentiation*, enabling faster performance and new design opportunities.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
