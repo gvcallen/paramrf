@@ -31,11 +31,11 @@ The library provides tools for model evaluation, optimization, fitting, statisti
 Features
 --------
 
-* **Declarative syntax**: Allows for the definition of models using either a self-documenting, declarative syntax, or via compositional techniques such as cascading or nodal circuit building. Also, since models can contain other models, this provides a natural means of building deeply nested, hierarchical models.
-* **Differentiable**: Since the framework is built on top of ``jax`` (as opposed to ``numpy``), all models can be differentiated with respect to both frequency and parameters using *auto-differentiation*. This allows for both more efficient and flexible optimization, as well as unique design and analysis opportunities.
-* **High performance and hardware flexible**: Since models are compiled using ``jax`` with Just-In-Time (JIT) compilation, model performance is improved, and models can also be computed on high-performance hardware (CPU, GPU, TPU).
-* **Built-in optimization and inference wrappers**: Provides built-in wrappers for frequentist optimization and Bayesian inference in ``pmrf.optimize`` and ``pmrf.infer``, as well as high-level wrappers for fitting models to data in ``pmrf.fitting``.
-* **Extensibility**: Designed to be extendable, such that additional models, fitting algorithms, cost functions, sampling routines etc. can easily be implemented.
+* **Declarative syntax**: Models can either be composed directly, or declared using an easy-to-read, class-based syntax.
+* **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical circuits.
+* **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available using *auto-differentiation*, enabling faster performance and new design opportunities.
+* **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
+* **Extensibile**: Designed such that additional models and algorithms can easily be added.
 
 Installation
 ------------
@@ -47,7 +47,7 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
 Example
 -------
-The example below shows how to define and optimize a simple RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more complex examples, or have a look at the `tutorials <https://github.com/gvcallen/paramrf/tree/main/docs/tutorials>`_ folder on GitHub.
+The example below shows how to define and optimize a simple RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more examples.
 
 .. code-block:: python
 
