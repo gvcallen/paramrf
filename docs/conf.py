@@ -31,6 +31,7 @@ extensions = [
     'sphinx_math_dollar',      # Parses $math$ in .rst files
     'sphinx.ext.mathjax',      # Renders the math via MathJax
     'myst_parser',             # Parses markdown files
+    'sphinx_toolbox.more_autodoc.dataclasses',
 ]
 
 # --- 4. Sphinx Options -------------------------------------------------------

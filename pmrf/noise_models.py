@@ -50,7 +50,11 @@ class AutoCrossNoise(AbstractNoiseModel):
     N-port S-parameter feature, the input `y_event` will be
     of shape (nports, nports, nfreq) or (nports, nports, 2, nfreq).
     """    
+
+    #: The "auto" term, e.g. S11, S22 etc.
     auto: Param
+
+    #: The "cross" term, e.g. S21, S43 etc.
     cross: Param
     
     port_axes: tuple[int, int] = field(static=True, default=(0, 1))

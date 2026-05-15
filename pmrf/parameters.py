@@ -1,6 +1,8 @@
 """
 Parameter factories, converters, and field specifiers.
 
+Note: Many of these utilities are re-exported at root.
+
 Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
 import dataclasses

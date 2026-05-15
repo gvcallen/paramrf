@@ -1,7 +1,10 @@
+"""
+Aggregations of arrays (vectors, tensors) into lower dimensions.
+"""
+
 from typing import Callable
 import jax
 import jax.numpy as jnp
-
 
 def weighted_sum(x: jnp.ndarray, weights: jnp.ndarray | None = None) -> jnp.ndarray:
     """
