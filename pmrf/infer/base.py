@@ -191,14 +191,14 @@ def is_inferer(x):
 
 def sample(
     loglikelihood_fn: Callable[[T, Any], Scalar],
-    y0: T,
+    model: T,
     solver: AbstractSampler,
     key: Array,
     args: Optional[Any] = None,
     init_samples: Optional[T] = None,
     max_steps: Optional[int] = None,
     **kwargs
-) -> tuple[T, T, SampleResult, Any]:
+) -> tuple[T, SampleResult, Any]:
     """
     Samples a general PyTree potentially containing Parax probabilistic parameters
     using a joint, split, or hypercube Bayesian sampler.
@@ -208,7 +208,7 @@ def sample(
     loglikelihood_fn : callable
         The log-likelihood function taking `(unwrapped_y0, args)`.
         Prior calculations are handled automatically via Parax.
-    y0 : PyTree
+    model : PyTree
         The initial parameter guess / model state.
     args : Any
         Args to pass to `loglikelihood_fn`.
@@ -226,11 +226,11 @@ def sample(
     Returns
     -------
     tuple
-        A tuple of `(samples, static, payload, metrics)`.
+        A tuple of `(batched_model, payload, metrics)`.
     """
     # Filtering/unwrapping
     is_dynamic, is_leaf = prx.probability.is_dynamic, prx.probability.is_leaf
-    dynamic, static = eqx.partition(y0, is_dynamic, is_leaf=is_leaf)
+    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
     params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
 
     try:
@@ -287,7 +287,7 @@ def sample(
         
         # Post-process back to original parameter space
         batched_params = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
-        return batched_params, static, results, metrics
+        return eqx.combine(batched_params, static), results, metrics
 
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
@@ -319,7 +319,7 @@ def sample(
             init_cube_samples=batched_cube_params, max_steps=max_steps, **kwargs
         )
 
-        return results.samples, static, results, metrics
+        return eqx.combine(results.samples, static), results, metrics
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

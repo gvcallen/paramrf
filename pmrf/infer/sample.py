@@ -12,6 +12,7 @@ from pmrf.problem import Problem
 from pmrf.infer.base import AbstractSampler, sample as base_sample
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
+from pmrf.utils.tree import infer_batch_axes
 
 def sample(
     loglikelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
@@ -71,23 +72,24 @@ def sample(
         
     validate(problem)
         
-    sampled_problem, static_problem, payload, metrics = base_sample(
+    batched_problem, payload, metrics = base_sample(
         loglikelihood_fn=lambda p, _args: p(),
-        y0=problem,
+        model=problem,
         solver=solver,
         key=key,
         max_steps=max_steps,
         **kwargs
     )
 
-    # Extract batched components
-    sampled_model, static_model = sampled_problem.model, static_problem.model
-    sampled_loglikelihood, static_loglikelihood = sampled_problem.evaluator, static_problem.evaluator
-
     # Extract MAP/MLE parameters using the best evaluated function value
+    problem_batch_axes = infer_batch_axes(batched_problem, problem)
     best_idx = jnp.argmax(payload.fn_values)
-    best_sampled_problem = jax.tree.map(lambda x: x[best_idx], sampled_problem)
-    best_problem = eqx.combine(best_sampled_problem, static_problem)
+
+    def extract_best(leaf, axis):
+        if axis is None:
+            return leaf
+        return jnp.take(leaf, best_idx, axis=axis)
+    best_problem = jax.tree.map(extract_best, batched_problem, problem_batch_axes)
     
     best_model = best_problem.model
     best_loglikelihood = best_problem.evaluator
@@ -95,10 +97,8 @@ def sample(
     return InferResult(
         best_model=best_model,
         best_loglikelihood=best_loglikelihood,
-        sampled_model=sampled_model,
-        static_model=static_model,
-        sampled_loglikelihood=sampled_loglikelihood,
-        static_loglikelihood=static_loglikelihood,
+        sampled_model=batched_problem.model,
+        sampled_loglikelihood=batched_problem.evaluator,
         fn_values=payload.fn_values,
         weights=payload.weights,
         metrics=metrics,

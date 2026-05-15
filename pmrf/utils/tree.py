@@ -1,5 +1,6 @@
 from typing import Any, Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Float, Array
@@ -77,6 +78,18 @@ def is_model(x: Any):
     from pmrf.models import Model
     return isinstance(x, Model)
 
+
+def infer_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None):
+    """Generates an in_axes PyTree by comparing a batched model to a template."""
+    
+    def _compare(batched_leaf, template_leaf):
+        # Check if the batched leaf has an 'ndim' attribute (is an array) 
+        # and if its dimensions are greater than the template leaf (which could be a scalar)
+        if hasattr(batched_leaf, "ndim") and batched_leaf.ndim > jnp.ndim(template_leaf):
+            return 0
+        return None
+        
+    return jax.tree.map(_compare, batched_tree, template_tree, is_leaf=is_leaf)
 
 def batched_tree_flatten(batched_tree: PyTree) -> Float[Array, "N D"]:
     """

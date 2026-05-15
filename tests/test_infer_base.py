@@ -49,19 +49,16 @@ def test_joint_samplers(solver_name):
     # Configure for a very fast execution
     solver = solver_cls(num_warmup=10)
     
-    sampled_params, static, payload, metrics = base.sample(
+    batched_model, payload, metrics = base.sample(
         loglikelihood_fn=simple_loglikelihood,
-        y0=y0,
+        model=y0,
         solver=solver,
         key=key,
         max_steps=20
     )
     
-    # Reconstruct the full model PyTree
-    final_model = eqx.combine(sampled_params, static)
-    
     # Verify the structure/wrappers are preserved across the batch
-    assert isinstance(final_model, dict)
+    assert isinstance(batched_model, dict)
     
     # Verify we got the requested number of samples
     assert payload.samples["x"].shape == (20,)
@@ -90,17 +87,14 @@ def test_split_sampler_nss():
     solver = NSS(num_delete=5, num_inner_steps=2, logZ_convergence=0.5)
     max_steps = 10
     
-    sampled_params, static, payload, metrics = base.sample(
+    batched_model, payload, metrics = base.sample(
         loglikelihood_fn=simple_loglikelihood,
-        y0=y0,
+        model=y0,
         solver=solver,
         key=key,
         init_samples=init_samples,
         max_steps=max_steps
     )
-    
-    # Reconstruct the full model PyTree
-    final_model = eqx.combine(sampled_params, static)
     
     assert payload.weights is not None
 
@@ -124,15 +118,12 @@ def test_hypercube_polychord(tmp_path):
     # Run a tiny nested sampling instance
     solver = PolyChord(nlive=10, num_repeats=2, do_clustering=False, base_dir=str(tmp_path))
     
-    sampled_params, static, payload, metrics = base.sample(
+    batched_model, payload, metrics = base.sample(
         loglikelihood_fn=simple_loglikelihood,
-        y0=y0,
+        model=y0,
         solver=solver,
         key=key
     )
-    
-    # Reconstruct the full model PyTree
-    final_model = eqx.combine(sampled_params, static)
     
     assert payload.samples["x"].ndim == 1
     assert payload.weights is not None

@@ -27,21 +27,13 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #: The maximum likelihood or maximum a posterior of the log-likelihood model.
     best_loglikelihood: Callable[[ModelT, Frequency], jnp.ndarray]
     
-    #: A batched model containing the dynamic half of the sampled RF model.
-    #: To get the full model, use `equinox.combine(dynamic, static)` with `static_model`.
+    #: A batched model containing the sampled RF model.
     #: Only populated for Bayesian sampling algorithms.
     sampled_model: ModelT = None
 
-    #: The static half of `sampled_model`.
-    static_model: ModelT = None
-    
-    #: A batched model containing the dynamic half othe sampled log-likelihood model.
-    #: To get the full model, use `equinox.combine(dynamic, static)` with `static_loglikelihood`.
+    #: A batched model containing the sampled log-likelihood model.
     #: Only populated for Bayesian sampling algorithms.
     sampled_loglikelihood: Callable | eqx.Module = None
-
-    #: The static half of `sampled_loglikelihood`.
-    static_loglikelihood: Callable | eqx.Module = None
 
     #: The function values related to each sample for Bayesian sampling.
     #: Typically, this contains the log likelihood or log posterior values.
