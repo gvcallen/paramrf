@@ -26,7 +26,7 @@ Models can easily be built using composition with the built in :mod:`pmrf.models
   freq = prf.Frequency(1, 10, 101, 'GHz')
   
   # Cascade elements using the ** operator
-  rlc_model = Resistor(50) ** Inductor(prf.Scaled(1.0, 1e-9)) ** Capacitor(prf.Scaled(1.0, 1e-12))
+  rlc_model = Resistor(50) ** Inductor(prf.Free(1.0, scale=1e-9)) ** Capacitor(prf.Free(1.0, scale=1e-12))
   
   # Plot the model's S11 parameter
   rlc_model.plot_s_db(freq, m=0, n=0)

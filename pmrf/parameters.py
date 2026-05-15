@@ -169,32 +169,6 @@ def Free(
     return as_param(value, scale=scale, fixed=False)
 
 
-def Scaled(
-    value: ArrayLike,
-    scale: float,
-    *,
-    fixed: bool = False,
-) -> Param:
-    """
-    Create a free parameter with scaling.
-
-    Parameters
-    ----------
-    value : ArrayLike
-        The base parameter value.
-    scale : float
-        The scaling factor to apply.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
-
-    Returns
-    -------
-    Param
-        The parameter wrapped with scaling (and optionally fixed).
-    """
-    return as_param(value, scale=scale, fixed=fixed)
-
-
 def Fixed(
     value: ArrayLike,
     *,
@@ -319,7 +293,6 @@ def Random(
 __all__ = [
     "as_param",
     "Free",
-    "Scaled",
     "Fixed",
     "Bounded",
     "Constrained",

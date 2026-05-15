@@ -26,7 +26,6 @@ Core
    pmrf.as_param
    pmrf.Free
    pmrf.Fixed
-   pmrf.Scaled
    pmrf.Bounded
    pmrf.Constrained
    pmrf.Random

@@ -5,7 +5,6 @@ import jax.numpy as jnp
 import numpy as np
 
 from pmrf import Frequency, Param, param
-from pmrf.parameters import Scaled
 from pmrf.models import (
     AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
     Host, ContinuousCallable, DiscreteCallable, Measured
