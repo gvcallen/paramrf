@@ -50,7 +50,7 @@ Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on a s
 
   rlc_R200 = rlc.at.res.R.set(200.0)
 
-We can also use this to change the type of the parameter and filter based on condition:
+We can also use this to change the type of the parameter and filter based on a condition:
 
 .. code-block:: python
 
