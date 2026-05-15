@@ -1,17 +1,7 @@
 API
 =============
 
-This page contains the main API reference, providing a quick access section, as well as a detailed list of core classes and Python modules.
-
-Quick Reference
----------------
-
-.. rubric:: Models
-
-* :mod:`~pmrf.models.adapters` (:mod:`~pmrf.models.adapters.static.Measured`, :mod:`~pmrf.models.adapters.callable.DiscreteCallable`, :mod:`~pmrf.models.adapters.callable.ContinuousCallable`, ...)
-* :mod:`~pmrf.models.components` (:mod:`~pmrf.models.components.ideal`, :mod:`~pmrf.models.components.lines`, :mod:`~pmrf.models.components.lumped`, :mod:`~pmrf.models.components.nonideal`, :mod:`~pmrf.models.components.topological`, ...)
-* :mod:`~pmrf.models.composite` (:mod:`~pmrf.models.composite.interconnected.Cascade`, :mod:`~pmrf.models.composite.interconnected.Circuit`, ...)
-* :mod:`~pmrf.models.surrogates` (:mod:`~pmrf.models.surrogates.rational.PoleResidue`, :mod:`~pmrf.models.surrogates.expansion.VectorExpansion`)
+This page contains the main API reference.
 
 Core
 ------------
@@ -21,16 +11,30 @@ Core
 
    pmrf.Model
    pmrf.Frequency
+   pmrf.Value
    pmrf.Param
-   pmrf.param
-   pmrf.as_param
-   pmrf.Free
    pmrf.Fixed
    pmrf.Bounded
    pmrf.Constrained
    pmrf.Random
+   pmrf.param
+   pmrf.field
 
-Modules
+
+Main Modules
+-------------
+
+.. autosummary::
+   :toctree: generated/
+   :recursive:
+
+   pmrf.models
+   pmrf.optimize
+   pmrf.infer
+   pmrf.fitting
+
+
+Other Modules
 -------------
 
 .. autosummary::
@@ -42,18 +46,14 @@ Modules
    pmrf.discrepancy_models
    pmrf.distributions
    pmrf.evaluators
-   pmrf.fitting
-   pmrf.infer
    pmrf.likelihoods
    pmrf.losses
    pmrf.math
-   pmrf.models
    pmrf.noise_models
-   pmrf.optimize
    pmrf.parameters
-   pmrf.viz
    pmrf.rf
    pmrf.serialization
+   pmrf.viz
 
 
 Utilities
@@ -71,6 +71,6 @@ Utilities
    pmrf.tie
    pmrf.replace
    pmrf.combine
-   pmrf.field
+   pmrf.as_param
    pmrf.unwrap
    pmrf.unwrap_self
