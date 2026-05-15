@@ -31,7 +31,6 @@ docs = [
     "ghp-import",
     "sphinx-rtd-theme",
     "sphinx-math-dollar",
-    "sphinx-toolbox",
     "ipython",
 ]
 tests = [
