@@ -34,13 +34,16 @@ def freeze(model: Any):
     but should also be used as a field converter (using `prf.field(converter=prf.freeze)`)
     when storing raw arrays within in a model.
     """
-    return prx.Freeze(model)
+    return prx.as_opaque(model)
 
 def unfreeze(model: Any):
     """
     Unfreezes a potentially frozen model and returns the unfrozen model.
     """
-    return prx.as_free(model)
+    model = prx.as_free(model)
+    if isinstance(model, prx.Static):
+        model = model.unwrap()
+    return model
 
 def is_model(x: Any):
     """

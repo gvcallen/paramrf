@@ -5,7 +5,7 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
 import dataclasses
 from typing import Any, Optional, TypeAlias
-from jaxtyping import ArrayLike
+from jaxtyping import ArrayLike, Inexact, Array
 
 import jax.numpy as jnp
 import equinox as eqx
@@ -15,7 +15,7 @@ from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 
 #: The abstract Parameter type hint for parameters in models.
-Param: TypeAlias = prx.Param
+Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
 
 # ---------------------------------------------------------
 # The Core Engine (Exposed in API)

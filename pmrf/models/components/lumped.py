@@ -242,6 +242,7 @@ class InductorQ(Model):
     """
     #: The inductance in Henrys
     L: Param = param(constraint=Positive())
+
     #: The quality factor representing non-ideal losses
     Q: Param = param(constraint=Positive())
 
@@ -275,6 +276,7 @@ class CapacitorQ(Model):
     """
     #: The capacitance in Farads
     C: Param = param(constraint=Positive())
+    
     #: The quality factor representing non-ideal losses. Default is 50.0.
     Q: Param = param(constraint=Positive())
 

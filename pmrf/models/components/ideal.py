@@ -15,14 +15,6 @@ class Port(Model):
     Calling an instance returns a matched load model.
     """
     def build(self) -> Model:
-        """
-        Return the equivalent model for a terminated port.
-
-        Returns
-        -------
-        Model
-            A matched load (`MATCH`).
-        """
         return Match()
     
 class Ground(Model):

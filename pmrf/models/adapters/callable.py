@@ -2,7 +2,7 @@
 Adapters that wrap callables representing external models.
 """
 
-from typing import Callable, Sequence
+from typing import Callable
 
 import jax.numpy as jnp
 
@@ -18,7 +18,7 @@ class ContinuousCallable(AbstractSingleProperty):
     This class can be used to wrap external machine learning architectures (Equinox/Parax/other).
     """
     #: The underlying callable model which predicts the response as a function of scaled frequency.
-    #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
+    #: May either be a function or a callable PyTree (e.g. :class:`equinox.Module`) which will be frozen.
     #: Must accept an array of shape `(nfreq,)` or `(nfreq, nparams)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
     fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = field(converter=freeze)
@@ -43,7 +43,7 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     This class can be used to wrap external machine learning architectures (Equinox/Parax/other).
     """
     #: The underlying callable model which predicts the response.
-    #: May either be a function or a callable PyTree (e.g. :class:`parax.Module`) with optional internal parameters.
+    #: May either be a function or a callable PyTree (e.g. :class:`equinox.Module`) which will be frozen.
     #: Must either accept no parameters or an array of shape `(nparams,)` depending on if `theta` is None,
     #: and return an array of shape `(nfreq, nports, nports)`.
     fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = field(converter=freeze)

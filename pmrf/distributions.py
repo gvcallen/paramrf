@@ -3,7 +3,7 @@ Probability distribution classes and factories.
 
 Can be used for random parameters in :mod:`pmrf.parameters`.
 
-Builds on top of the library `distreqx <https://github.com/lockwo/distreqx>`_.
+Builds on top of the library `distreqx <https://lockwo.github.io/distreqx>`_.
 """
 import jax.numpy as jnp
 from jaxtyping import ArrayLike

@@ -38,7 +38,7 @@ class Model(eqx.Module):
     :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`,
     :meth:`pmrf.Model.build`, or :meth:`pmrf.Model.primary_matrix` should be overridden.
 
-    The model is a Equinox `Module <https://gvcallen.github.io/parax/api/#parax.Module>`_
+    The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
     field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`.
     For more details in parameter definitions, see :mod:`pmrf.parameters`.

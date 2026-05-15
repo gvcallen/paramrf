@@ -110,7 +110,9 @@ def skip_member(app, what, name, obj, skip, options):
     if obj_module is None and isinstance(obj, property):
         obj_module = getattr(obj.fget, '__module__', '')
 
-    if obj_module and obj_module.startswith('parax'):
+    # 4. Skip specific single-letter methods/properties globally
+    methods_to_hide = {"s", "y", "z", "a", "build"}
+    if name in methods_to_hide:
         return True
 
     return skip

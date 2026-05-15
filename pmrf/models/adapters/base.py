@@ -11,6 +11,7 @@ import equinox as eqx
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils.type import is_overridden
+from pmrf.jax_utils import field, freeze
 
 class AbstractDiscrete(Model, ABC):
     """
@@ -20,7 +21,9 @@ class AbstractDiscrete(Model, ABC):
     The base Model conversions (s2a, s2z, etc.) will be applied automatically
     to the interpolated values.
     """
-    frequency: Frequency
+
+    #: The constant frequency over which the discrete model is defined.
+    frequency: Frequency = field(converter=freeze)
 
     # Tabulated data entry points
     def s_discrete(self) -> jnp.ndarray: raise NotImplementedError
