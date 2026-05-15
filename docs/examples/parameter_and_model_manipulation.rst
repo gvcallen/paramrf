@@ -34,43 +34,30 @@ Sub-models and parameters can be *tied together* using :meth:`pmrf.Model.tied`, 
 
 .. code-block:: python
 
-  rlc_tied = composite_model.tied(
+  rlc_tied = rlc.tied(
       lambda m: m.res.R,
       lambda m: m.cap.C,
       lambda c: c*100e12
   )
 
-Note that the underlying model can be accessed in ``rlc_tied.model``.
 
-
-Modifying Specific Parameters
+Modifying Specific Fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on a specific parameter and update its value using ``.set()``. This returns a new model with the specified change applied:
+Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on a specific parameters and sub-models. For example, we can update values using ``.set()``. This returns a new model with the specified change applied:
 
 .. code-block:: python
 
   rlc_R200 = rlc.at.res.R.set(200.0)
 
-We can also use this to change the type of the parameter. For example, we might want to freeze the capacitor before optimization:
+We can also use this to change the type of the parameter and filter based on condition:
 
 .. code-block:: python
 
   rlc_fixed = rlc.at.cap.C.set(prf.Fixed(rlc.cap.C))
-
-Targeting Multiple Components
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Complex models can be dynamically traversed using conditions. The ``where`` method searches the immediate children in focus, allowing you to mutate multiple parameters simultaneously:
-
-.. code-block:: python
-
   rlc_updated = rlc.at.where(lambda x: isinstance(x, Inductor)).L.set(5.0e-9)
 
-Swapping Sub-Models
-~~~~~~~~~~~~~~~~~~~
-
-A model's structure is not tied to instantiation. You can, for example, completely swap out sub-models after the fact:
+Lastly, since a model's structure is not rigid, we can completely swap out components:
 
 .. code-block:: python
 
