@@ -8,11 +8,12 @@ class ListModel(Model):
     """
     A container model that holds a list of sub-models.
 
-    Attributes
+    Parameters
     ----------
     models : list[Model]
         The list of child models.
     """
+    #: The models.
     models: list[Model]
 
 
@@ -20,11 +21,12 @@ class DictModel(Model):
     """
     A container model that holds a dictionary of sub-models.
 
-    Attributes
+    Parameters
     ----------
     models : dict[str, Model]
         A dictionary mapping names to child models.
     """
+    #: The models.
     models: dict[str, Model]
 
     def __post_init__(self):

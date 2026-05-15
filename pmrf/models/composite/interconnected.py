@@ -11,12 +11,54 @@ from pmrf.models.components.ideal import Port
 from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
 
 class Circuit(Model):
-    # Inputs (init=True, but we don't need to keep them around in the PyTree)
+    """
+    Represents an arbitrary interconnection of multiple `Model` objects.
+
+    This container connects multiple models together based on a specified list
+    of nodes. Each node connects one or more ports of the constituent models 
+    to form a composite network.
+
+    Parameters
+    ----------
+    connections : list[list[tuple[Model, int]]]
+        A list representing the nodes of the circuit. Each node is a list of
+        tuples, where each tuple contains a `Model` instance and the integer
+        index of the port to connect to that node.
+
+    Examples
+    --------
+    Create a two-port PI-CLC network. External nodes are defined using `Port`, 
+    and common nodes using `Ground`.
+
+    >>> import pmrf as prf
+    >>> from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+    >>> 
+    >>> # Instantiate the elements, ports, and ground
+    >>> C1, C2 = Capacitor(C=2e-12), Capacitor(C=1.5e-12)
+    >>> L = Inductor(L=3e-9)
+    >>> p0, p1, ground = Port(), Port(), Ground()
+    >>> 
+    >>> # Create the connections list
+    >>> connections = [
+    ...     [(p0, 0), (C1, 1), (L, 1)],         # Node 0 -> Port 1
+    ...     [(p1, 0), (C2, 1), (L, 0)],         # Node 1 -> Port 2
+    ...     [(ground, 0), (C1, 0), (C2, 0)],    # Node 2 -> Ground
+    ... ]
+    >>> 
+    >>> # Create the circuit model
+    >>> pi_clc = Circuit(connections)
+    """
+    
+    #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
-    # Computed properties (init=False, they are generated, not passed in)
+    #: The models.
     models: list[Model] = field(default=None, kw_only=True)
+
+    #: The indices of the connections.
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
+
+    #: The indices of the ports.
     port_idxs: list[int] = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self, connections):
@@ -95,7 +137,7 @@ class Cascade(Model):
     resulting `Cascade` network depends on the port count of the final model
     in the chain.
 
-    Attributes
+    Parameters
     ----------
     models : tuple[Model]
         The sequence of models in the cascade.
@@ -126,6 +168,7 @@ class Cascade(Model):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
+    #: The models.
     models: tuple[Model]
     
     def __post_init__(self):
@@ -154,8 +197,19 @@ class Cascade(Model):
 class Terminated(Model):
     """
     Represents one network terminated in another.
+
+    Parameters
+    ----------
+
+    from_model : Model
+        The model being terminated.
+    into_model : Model
+        The model that `from_model` is terminated into.        
     """
+    #: The "from" model.
     from_model: Model
+
+    #: The "into" model.
     into_model: Model
     
     def __post_init__(self):

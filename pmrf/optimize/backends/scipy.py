@@ -18,6 +18,17 @@ class ScipyMinimize(AbstractBoundedMinimizer):
 
     Acts as an adapter layer between PyTrees and SciPy's required flat 1D NumPy arrays.
     Handles automatic differentiation implicitly via JAXopt.
+
+    Parameters
+    ----------
+    method : str, default="L-BFGS-B"
+        Type of solver.
+    tol : float, optional
+        Tolerance for termination.
+    options : dict, optional
+        A dictionary of solver options.
+    show_progress : bool, default=True
+        Whether to show a progress bar during optimization.
     """
     method: str = eqx.field(static=True, default="L-BFGS-B")
     tol: float | None = eqx.field(static=True, default=None)

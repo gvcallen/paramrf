@@ -1,5 +1,4 @@
-from operator import attrgetter
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, TypeAlias
 from dataclasses import replace
 
 import jax.numpy as jnp
@@ -13,15 +12,14 @@ from pmrf.infer import is_sampler, InferResult, AbstractSampler
 from pmrf.evaluators import Feature
 from pmrf.models import Measured
 from pmrf.network_collection import NetworkCollection
-from pmrf.utils import freeze, combine
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.result import FitResult
 
 """
-A type-hint for a solver capable of fitting in general fitting function. Either :class:`pmrf.optimize.AbstractMinimizer` or :class:`pmrf.infer.AbstractSampler`.
+A type-hint for a solver capable of be used for fitting. Currently either :class:`pmrf.optimize.AbstractMinimizer` or :class:`pmrf.infer.AbstractSampler`.
 """
-AbstractFitter = AbstractMinimizer | AbstractSampler
+AbstractFitter: TypeAlias = AbstractMinimizer | AbstractSampler
 
 ModelT = TypeVar('ModelT', bound=Model)
 

@@ -26,6 +26,10 @@ def sample(
     """
     Samples a given log likelihood function for a model over a frequency range.
     
+    This function uses Bayesian sampling algorithms to represent the full posterior
+    distribution of a model as a collection of parameter samples. This is in contrast
+    to classical minimization techniques in :mod:`pmrf.optimize`.
+    
     The log likelihood function can have its own hyper-parameters, and is returned in `result.loglikelihood`.
 
     Parameters

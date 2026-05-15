@@ -5,25 +5,36 @@ An expansion of a set of basis functions.
 import jax.numpy as jnp
 
 from pmrf.models.adapters.base import AbstractSingleDiscreteProperty
-from pmrf.parameters import Param
+from pmrf.parameters import Param, param
 
 class VectorExpansion(AbstractSingleDiscreteProperty):
     """
     A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
     
     The S-parameters are returned as offset + coefficients @ basis, where the coefficients are the model parameters.
+    
+    Parameters
+    ----------
+    coefficients_real : Param
+        The real coefficients parameters
+    coefficients_imag : Param
+        The imaginary coefficients parameters
+    basis : jnp.ndarray
+        The fixed basis functions
+    offset : jnp.ndarray
+        An optional fixed offset
     """
     #: The real coefficients parameters
-    coefficients_real: Param = None
+    coefficients_real: Param = param()
     
     #: The imaginary coefficients parameters
-    coefficients_imag: Param = None
+    coefficients_imag: Param = param()
     
     #: The fixed basis functions
-    basis: jnp.ndarray = None
+    basis: jnp.ndarray = param()
     
     #: An optional fixed offset
-    offset: jnp.ndarray = None
+    offset: jnp.ndarray = param()
     
     def output_discrete(self) -> jnp.ndarray:
         coeff = self.coefficients_real
@@ -55,4 +66,4 @@ class VectorExpansion(AbstractSingleDiscreteProperty):
             coefficients = jnp.concat([coefficients.real, coefficients.imag])
         else:
             coefficients = coefficients.real
-        return coefficients        
+        return coefficients

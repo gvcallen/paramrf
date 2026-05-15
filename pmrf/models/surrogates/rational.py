@@ -6,21 +6,28 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleProperty
-from pmrf.parameters import Param
+from pmrf.parameters import Param, param
 
 class PolynomialRatio(AbstractSingleProperty):
     """
     A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) 
     where s = j*w.
+
+    Parameters
+    ----------
+    a : Param
+        Numerator coefficients. The first dimension is the polynomial degree.
+        Shape can be (degree,), (degree, N, N), etc. 
+        Coefficients are in increasing order of degree (index 0 is constant term).
+    b : Param
+        Denominator coefficients. The first dimension is the polynomial degree.
+        Shape can be (degree,), (degree, N, N), etc.
+        Coefficients are in increasing order of degree.
     """
-    #: Numerator coefficients. The first dimension is the polynomial degree.
-    #: Shape can be (degree,), (degree, N, N), etc. 
-    #: Coefficients are in increasing order of degree (index 0 is constant term).
+    #: Numerator coefficients
     a: Param = None
     
-    #: Denominator coefficients. The first dimension is the polynomial degree.
-    #: Shape can be (degree,), (degree, N, N), etc.
-    #: Coefficients are in increasing order of degree.
+    #: Denominator coefficients
     b: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
@@ -59,16 +66,25 @@ class PoleResidue(AbstractSingleProperty):
     """
     A general N-port model defined by a pole-residue expansion:
     H(s) = D + sum( R_i / (s - p_i) )
+
+    Parameters
+    ----------
+    poles : Param
+        The poles of the system. Shape: (num_poles,)
+    residues : Param
+        The residues of the system. 
+        Shape: (num_poles,) for scalars, or (num_poles, N, N) for port matrices.
+    d : Param
+        Optional direct feedthrough matrix (constant term D). 
+        Shape: () or (N, N).
     """
-    #: The poles of the system. Shape: (num_poles,)
+    #: The poles of the system
     poles: Param = None
     
-    #: The residues of the system. 
-    #: Shape: (num_poles,) for scalars, or (num_poles, N, N) for port matrices.
+    #: The residues of the system
     residues: Param = None
     
-    #: Optional direct feedthrough matrix (constant term D). 
-    #: Shape: () or (N, N).
+    #: Optional direct feedthrough matrix
     d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
@@ -106,17 +122,28 @@ class StateSpace(AbstractSingleProperty):
     """
     A general N-port model defined by continuous-time state-space matrices:
     H(s) = C * (sI - A)^-1 * B + D
+
+    Parameters
+    ----------
+    a : Param
+        State matrix (A). Shape: (state_dim, state_dim)
+    b : Param
+        Input matrix (B). Shape: (state_dim, N)
+    c : Param
+        Output matrix (C). Shape: (N, state_dim)
+    d : Param
+        Feedthrough matrix (D). Shape: (N, N)
     """
-    #: State matrix (A). Shape: (state_dim, state_dim)
+    #: State matrix (A)
     a: Param = None
     
-    #: Input matrix (B). Shape: (state_dim, N)
+    #: Input matrix (B)
     b: Param = None
     
-    #: Output matrix (C). Shape: (N, state_dim)
+    #: Output matrix (C)
     c: Param = None
     
-    #: Feedthrough matrix (D). Shape: (N, N)
+    #: Feedthrough matrix (D)
     d: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:
@@ -167,15 +194,24 @@ class BarycentricRational(AbstractSingleProperty):
     """
     A highly numerically stable rational model defined by a barycentric expansion:
     H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]
+
+    Parameters
+    ----------
+    support_points : Param
+        The complex support points (s_i). Shape: (num_points,)
+    weights : Param
+        The barycentric weights (w_i). Shape: (num_points,)
+    values : Param
+        The function values at the support points (f_i). 
+        Shape: (num_points,) for scalars, or (num_points, N, N) for port matrices.
     """
-    #: The complex support points (s_i). Shape: (num_points,)
+    #: Complex support points
     support_points: Param = None
     
-    #: The barycentric weights (w_i). Shape: (num_points,)
+    #: Barycentric weights
     weights: Param = None
     
-    #: The function values at the support points (f_i). 
-    #: Shape: (num_points,) for scalars, or (num_points, N, N) for port matrices.
+    #: Function values at support points
     values: Param = None
 
     def output(self, freq: Frequency) -> jnp.ndarray:

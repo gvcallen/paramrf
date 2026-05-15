@@ -31,7 +31,7 @@ class PolyChord(AbstractHypercubeSampler):
     JIT-compiles the likelihood and prior transforms for performance, and bridges JAX operations 
     with PolyChord's host-based MPI sampling routines.
 
-    Attributes
+    Parameters
     ----------
     num_repeats : int | None
         The length of the slice sampling chain to generate a new live point. 

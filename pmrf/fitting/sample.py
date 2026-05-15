@@ -5,8 +5,7 @@ Conditioning a model on data using Bayesian inference.
 from typing import Callable
 
 import jax.numpy as jnp
-import distreqx.distributions as dist
-from pmrf.infer import NUTS
+from distreqx.distributions import AbstractDistribution
 
 try:
     import skrf
@@ -22,7 +21,7 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample, AbstractSampler
 from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param, Random
-from pmrf.distributions import Normal
+from pmrf.distributions import Uniform
 
 def fit_sample(
     model: Model,
@@ -31,10 +30,10 @@ def fit_sample(
     solver: AbstractSampler | None = None,
     *,
     features: str | list[str] | Callable = 's',
-    likelihood: Callable[[jnp.ndarray], dist.AbstractDistribution] | list[Callable[[jnp.ndarray], dist.AbstractDistribution]] = None,
+    likelihood: Callable[[jnp.ndarray], AbstractDistribution] | list[Callable[[jnp.ndarray], AbstractDistribution]] = None,
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = None,
-    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,
+    discrepancy: Callable[[jnp.ndarray, jnp.ndarray], AbstractDistribution] | None = None,
     temperature: float = None,
     **kwargs,
 ) -> FitResult:
@@ -62,14 +61,14 @@ def fit_sample(
         Can either be function, a callable PyTree with optional parameters, or a string,
         in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
         Defaults to all S-parameters.
-    likelihood : Callable[[jnp.ndarray], dist.AbstractDistribution], optional
+    likelihood : Callable[[jnp.ndarray], AbstractDistribution], optional
         The likelihood model, which accepts a model prediction (in event space)
         and returns a distribution representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
         See :mod:`pmrf.likelihoods` for common likelihoods.
         Mutually exclusive with `loss`.
     noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
-        Likelihood noise, either a fixed parameter, or a callable that accepts
+        Likelihood noise (variance), either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood` and `loss`.
         For the function case, can be a callable PyTree with optional parameters.
@@ -80,7 +79,7 @@ def fit_sample(
         Can be a function or a callable PyTree with optional parameters.
         Mutually exclusive with `likelihood` and `noise`. If neither `loss` nor `likelihood` 
         is passed, a :class:`pmrf.likelihoods.GaussianLikelihood` is constructed.
-    discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
+    discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
@@ -122,7 +121,7 @@ def fit_sample(
     # Resolve the likelihood or loss model
     if loss is None and likelihood is None:
         if noise is None:
-            noise = Random(Normal(0.0, 0.01))
+            noise = Random(Uniform(0.0, 0.1))
         likelihood = GaussianLikelihood(noise=noise)
     
     if likelihood is not None:

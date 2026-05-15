@@ -17,12 +17,13 @@ class Measured(Model):
     This model takes a `skrf.Network` and interpolates its S-parameters to the
     frequency grid requested during simulation.
 
-    Attributes
+    Parameters
     ----------
-    network : skrf.Network
+    data : skrf.Network
         The static network data containing S-parameters and frequency information.
         Marked as static to avoid tracing overhead in JAX.
     """
+    #: The underlying network data.
     data: skrf.Network | NetworkCollection = field(static=True)
     
     def __getattr__(self, name: str) -> 'Measured':

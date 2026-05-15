@@ -17,7 +17,7 @@ from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMar
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 from pmrf.parameters import Random
-from pmrf.distributions import Normal
+from pmrf.distributions import Uniform
 
 from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
@@ -65,8 +65,6 @@ def fit_minimize(
     inference : str
         The type of inference to use, either 'frequentist' or 'bayesian'.
         See `loss` and `likelihood` for more information.
-        For frequentist inference, the default search space is set to 'physical',
-        whereas for bayesian inference it is set to 'hypercube'.
     loss : str | Callable, optional
         A loss function between the model prediction and the data.
         Can be a function or a callable PyTree with optional parameters.
@@ -85,7 +83,7 @@ def fit_minimize(
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
     noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
-        Likelihood noise, either a fixed parameter, or a callable that accepts
+        Likelihood noise (variance), either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood`.
         For the function case, can be a callable PyTree with optional parameters.
@@ -140,7 +138,7 @@ def fit_minimize(
             loss = RMSELoss()
         else:
             if noise is None:
-                noise = Random(Normal(0.0, 0.01))
+                noise = Random(Uniform(0.0, 0.1))
             likelihood = GaussianLikelihood(noise)
     if inference == 'frequentist':
         kwargs.setdefault('search_space', 'base')

@@ -19,7 +19,7 @@ class PiCLC(Model):
     for various filters and matching networks, and is also commonly used to
     model the parasitic effects of physical components like SMD resistors.
 
-    Attributes
+    Parameters
     ----------
     C1 : Param
         The value of the first shunt capacitor in Farads.
@@ -30,8 +30,13 @@ class PiCLC(Model):
         If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
         If False, treats it as a standard 2-port network.
     """
+    #: The value of the first shunt capacitor in Farads.
     C1: Param = param(constraint=Positive())
+    
+    #: The value of the series inductor in Henrys.
     L: Param = param(constraint=Positive())
+    
+    #: The value of the second shunt capacitor in Farads.
     C2: Param = param(constraint=Positive())
 
     # def y(self, freq: Frequency) -> jnp.ndarray:
@@ -59,7 +64,7 @@ class PiCLC(Model):
         """
         Internal calculation for the general case (L != 0).
 
-        Params
+        Parameters
         ----------
         freq : Frequency
             The frequency points.
@@ -87,7 +92,7 @@ class PiCLC(Model):
 
         The network simplifies to a single shunt capacitor C = C1 + C2.
 
-        Params
+        Parameters
         ----------
         freq : Frequency
             The frequency points.
@@ -128,7 +133,7 @@ class BoxCLCC(Model):
 
     The parameter `four_port` determines whether all four ports are exposed or not.
 
-    Attributes
+    Parameters
     ----------
     C1 : Param
         First shunt capacitor.
@@ -139,9 +144,16 @@ class BoxCLCC(Model):
     C3 : Param
         Bridging capacitor.
     """    
+    #: First shunt capacitor.
     C1: Param = param(constraint=Positive())
+    
+    #: Series inductor.
     L: Param = param(constraint=Positive())
+    
+    #: Second shunt capacitor.
     C2: Param = param(constraint=Positive())
+    
+    #: Bridging capacitor.
     C3: Param = param(constraint=Positive())
 
     def y(self, freq: Frequency) -> jnp.ndarray:
@@ -155,7 +167,7 @@ class BoxCLCC(Model):
         """
         Internal calculation for the general case (L > 1e-18).
 
-        Params
+        Parameters
         ----------
         freq : Frequency
             The frequency points.
@@ -186,7 +198,7 @@ class BoxCLCC(Model):
         Uses a small epsilon for L to avoid division by zero while approximating
         the behavior.
 
-        Params
+        Parameters
         ----------
         freq : Frequency
             The frequency points.
@@ -225,7 +237,7 @@ class TeeLCL(Model):
     a shunt capacitor (`C`), and a second series inductor (`L2`). It is often 
     used for low-pass filtering and impedance matching.
 
-    Attributes
+    Parameters
     ----------
     L1 : Param
         The value of the first series inductor in Henrys.
@@ -234,8 +246,13 @@ class TeeLCL(Model):
     L2 : Param
         The value of the second series inductor in Henrys.
     """
+    #: The value of the first series inductor in Henrys.
     L1: Param = param(constraint=Positive())
+    
+    #: The value of the shunt capacitor in Farads.
     C: Param = param(constraint=Positive())
+    
+    #: The value of the second series inductor in Henrys.
     L2: Param = param(constraint=Positive())
 
     def a(self, freq: Frequency) -> jnp.ndarray:
@@ -290,14 +307,17 @@ class LSectionLC(Model):
     This specific topology uses a series inductor (`L`) followed by a shunt 
     capacitor (`C`), acting as a standard low-pass impedance transformer.
 
-    Attributes
+    Parameters
     ----------
     L : Param
         The value of the series inductor in Henrys.
     C : Param
         The value of the shunt capacitor in Farads.
     """
+    #: The value of the series inductor in Henrys.
     L: Param = param(constraint=Positive())
+    
+    #: The value of the shunt capacitor in Farads.
     C: Param = param(constraint=Positive())
 
     def a(self, freq: Frequency) -> jnp.ndarray:

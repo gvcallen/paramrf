@@ -23,6 +23,13 @@ class NUTS(AbstractJointSampler):
     
     Automatically handles Stan-style window adaptation for the diagonal 
     inverse mass matrix and step size.
+
+    Parameters
+    ----------
+    num_warmup : int, default=1000
+        Number of warmup steps for window adaptation.
+    target_acceptance_rate : float, default=0.8
+        Target acceptance rate for step size adaptation.
     """
     num_warmup: int = eqx.field(static=True, default=1000)
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
@@ -94,6 +101,15 @@ class HMC(AbstractJointSampler):
     
     Requires a static number of integration steps. Automatically adapts 
     the step size and mass matrix.
+
+    Parameters
+    ----------
+    num_warmup : int, default=1000
+        Number of warmup steps for window adaptation.
+    target_acceptance_rate : float, default=0.8
+        Target acceptance rate for step size adaptation.
+    num_integration_steps : int, default=30
+        Number of integration steps per transition.
     """
     num_warmup: int = eqx.field(static=True, default=1000)
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
@@ -162,6 +178,15 @@ class HMC(AbstractJointSampler):
 class NSS(AbstractSplitSampler):
     """
     (experimental) Nested Slice Sampler (NSS) using the BlackJAX backend.
+
+    Parameters
+    ----------
+    num_delete : int
+        Number of particles to delete per step.
+    num_inner_steps : int
+        Number of inner slice sampling steps.
+    logZ_convergence : float, default=1e-3
+        Threshold for log-evidence convergence.
     """
     num_delete: int = eqx.field(static=True)
     num_inner_steps: int = eqx.field(static=True)

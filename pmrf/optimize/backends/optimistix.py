@@ -16,9 +16,14 @@ DEFAULT_ATOL = 1e-3
 class OptimistixMinimise(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps :func:`optimistix.minimise`.
+
+    Parameters
+    ----------
+    solver : optx.AbstractMinimiser
+        The specific optimistix solver instance to use.
     """
     # Changed from AbstractLBFGS to the concrete BFGS solver
-    solver: optx.AbstractMinimiser = eqx.field(default_factory=lambda: optx.BFGS(rtol=1e-6, atol=1e-6))
+    solver: optx.AbstractMinimiser
 
     def run(
         self, 
@@ -45,6 +50,19 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
 class NelderMead(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's Nelder-Mead.
+
+    Parameters
+    ----------
+    rtol : float, default=1e-6
+        Relative tolerance for termination.
+    atol : float, default=1e-1
+        Absolute tolerance for termination.
+    norm : Callable[[PyTree], Scalar], default=optx.max_norm
+        Norm function used to evaluate the error.
+    rdelta : float, default=5e-2
+        Relative delta for the initial simplex.
+    adelta : float, default=2.5e-4
+        Absolute delta for the initial simplex.
     """
     rtol: float = DEFAULT_RTOL
     atol: float = DEFAULT_ATOL
@@ -86,6 +104,17 @@ class NelderMead(AbstractUnconstrainedMinimizer):
 class GradientDescent(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's Gradient Descent.
+
+    Parameters
+    ----------
+    learning_rate : float
+        Step size for the gradient descent updates.
+    rtol : float, default=1e-6
+        Relative tolerance for termination.
+    atol : float, default=1e-1
+        Absolute tolerance for termination.
+    norm : Callable[[PyTree], Scalar], default=optx.max_norm
+        Norm function used to evaluate the error.
     """
     learning_rate: float
     rtol: float = DEFAULT_RTOL
@@ -125,6 +154,17 @@ class GradientDescent(AbstractUnconstrainedMinimizer):
 class LBFGS(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's LBFGS.
+
+    Parameters
+    ----------
+    rtol : float, default=1e-6
+        Relative tolerance for termination.
+    atol : float, default=1e-1
+        Absolute tolerance for termination.
+    norm : Callable[[PyTree], Scalar], default=optx.max_norm
+        Norm function used to evaluate the error.
+    use_inverse : bool, default=True
+        Whether to use the inverse Hessian approximation.
     """
     rtol: float = DEFAULT_RTOL
     atol: float = DEFAULT_ATOL
@@ -163,6 +203,17 @@ class LBFGS(AbstractUnconstrainedMinimizer):
 class BFGS(AbstractUnconstrainedMinimizer):
     """
     An optimizer that wraps optimistix's BFGS.
+
+    Parameters
+    ----------
+    rtol : float, default=1e-6
+        Relative tolerance for termination.
+    atol : float, default=1e-1
+        Absolute tolerance for termination.
+    norm : Callable[[PyTree], Scalar], default=optx.max_norm
+        Norm function used to evaluate the error.
+    use_inverse : bool, default=True
+        Whether to use the inverse Hessian approximation.
     """
     rtol: float = DEFAULT_RTOL
     atol: float = DEFAULT_ATOL
@@ -196,4 +247,3 @@ class BFGS(AbstractUnconstrainedMinimizer):
 
         payload = MinimizeResult(y=result.value, success=(result.state == optx.RESULTS.successful))
         return payload, result
-    

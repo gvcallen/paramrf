@@ -12,12 +12,11 @@ from pmrf.fitting.sample import fit_sample
 from pmrf.fitting.routers import fit, fit_sequential, fit_joint, AbstractFitter
 
 __all__ = [
+    "FitResult",
+    "fit_minimize",
+    "fit_sample",
     "fit",
     "fit_sequential",
     "fit_joint",
-    "fit_minimize",
-    "fit_sample",
     "AbstractFitter",
-    "FitResult",
-    "Solver",
 ]

@@ -20,9 +20,13 @@ class AbstractDiscrete(Model, ABC):
     To use, set self.frequency and override one or more of the `xxx_discrete` methods.
     The base Model conversions (s2a, s2z, etc.) will be applied automatically
     to the interpolated values.
-    """
 
-    #: The constant frequency over which the discrete model is defined.
+    Parameters
+    ----------
+    frequency : Frequency
+        The constant frequency over which the discrete model is defined.
+    """
+    #: The constant frequency.
     frequency: Frequency = field(converter=freeze)
 
     # Tabulated data entry points

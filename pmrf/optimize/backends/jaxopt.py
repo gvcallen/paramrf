@@ -16,6 +16,15 @@ class LBFGSB(AbstractBoundedMinimizer):
     
     Unlike `ScipyMinimize`, this implementation is written entirely in JAX 
     and can be fully JIT-compiled (e.g., via `eqx.filter_jit`).
+
+    Parameters
+    ----------
+    tol : float, default=1e-3
+        Tolerance for termination.
+    stepsize : float, default=1.0
+        Initial step size for the line search.
+    linesearch : str, default="zoom"
+        Type of line search to use.
     """
     tol: float = eqx.field(static=True, default=1e-3)
     stepsize: float = eqx.field(static=True, default=1.0)

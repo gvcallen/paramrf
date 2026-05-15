@@ -17,7 +17,7 @@ class CLCResistor(Model):
     (Capacitor-Inductor-Capacitor) cascaded with an ideal resistive element. 
     This topology is common for modeling SMD resistors at high frequencies.
 
-    Attributes
+    Parameters
     ----------
     res : Resistor
         The ideal resistor model.
@@ -45,7 +45,10 @@ class CLCResistor(Model):
 
         print(f"S11 at 10 GHz: {s[freq.center_idx, 0, 0]:.2f}")
     """
+    #: The ideal resistor
     res: Resistor
+
+    #: The non-ideal CLC parasitics.
     clc: PiCLC
 
     @property
