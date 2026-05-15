@@ -35,7 +35,7 @@ Features
 * **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical circuits.
 * **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available using *auto-differentiation*, enabling faster performance and new design opportunities.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
-* **Extensibile**: Power users can easily add additional models and algorithms by extending the library's built-in classes and interfaces.
+* **Extensible**: Power users can easily add additional models and algorithms by extending the library's built-in classes and interfaces.
 
 Installation
 ------------
