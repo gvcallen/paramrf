@@ -5,7 +5,7 @@ All models store their parameters internally. Although it is usually easiest to 
 
 However, since models are *immutable* and cannot reference each other (to align with JAX's requirements), parameters and sub-models cannot be edited directly (e.g., ``model.R = 50`` will fail) and cannot point to the same objects in memory.
 
-Instead, ParamRF exposes two perform methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied` and :meth:`pmrf.Model.at`.
+Instead, ParamRF exposes two perform methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied` and :attr:`pmrf.Model.at`.
 
 Defining the Base Model
 ~~~~~~~~~~~~~~~~~~~~~~~
