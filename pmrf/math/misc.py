@@ -1,19 +1,13 @@
 """
 Core math functions.
 """
-import types
-
-from typing import Callable
-from functools import partial
-
 import jax
 import jax.numpy as jnp
-from jax.numpy import imag, pi, real, unwrap
-from jax import lax
 from jax.scipy.special import gammaln
 from jax._src.numpy.ufuncs import _constant_like
+from jaxtyping import ArrayLike
 
-from pmrf.constants import NumberLike, INF, LOG_OF_NEG
+NEAR_INF = 1e99
 
 def rsolve(A: jnp.ndarray, B: jnp.ndarray) -> jnp.ndarray:
     r"""
@@ -189,15 +183,15 @@ def comb(N: jnp.ndarray, k: jnp.ndarray, exact: bool = False, repetition: bool =
         return comb(N + k - 1, k, exact=exact, repetition=False)
   
     if exact:
-        max_divisor = lax.max(k, N - k)
-        min_divisor = lax.min(k, N - k)
+        max_divisor = jax.lax.max(k, N - k)
+        min_divisor = jax.lax.min(k, N - k)
         N_factorial_over_max_factorial = jnp.prod(jnp.arange(N, max_divisor, -1))
-        return lax.div(N_factorial_over_max_factorial, jnp.prod(jnp.arange(1, min_divisor + 1)))
+        return jax.lax.div(N_factorial_over_max_factorial, jnp.prod(jnp.arange(1, min_divisor + 1)))
 
     one = _constant_like(N, 1)
-    N_plus_1 = lax.add(N,one)
-    k_plus_1 = lax.add(k,one)
-    return lax.exp(lax.sub(gammaln(N_plus_1),lax.add(gammaln(k_plus_1), gammaln(lax.sub(N_plus_1,k)))))
+    N_plus_1 = jax.lax.add(N,one)
+    k_plus_1 = jax.lax.add(k,one)
+    return jax.lax.exp(jax.lax.sub(gammaln(N_plus_1),jax.lax.add(gammaln(k_plus_1), gammaln(jax.lax.sub(N_plus_1,k)))))
 
 def evaluate_power_basis(x, coeffs, lower_bound, upper_bound):
     """
@@ -290,7 +284,7 @@ def broaden(key, x, percentage=0.1):
     return x + scaled_noise
 
 
-def unwrap_rad(phi: NumberLike):
+def unwrap_rad(phi: ArrayLike):
     """
     Unwrap a phase given in radians.
 
@@ -304,10 +298,10 @@ def unwrap_rad(phi: NumberLike):
     phi : number of array_like
         Unwrapped phase in radians.
     """
-    return unwrap(phi, axis=0)
+    return jnp.unwrap(phi, axis=0)
 
 
-def sqrt_known_sign(z_squared: NumberLike, z_approx: NumberLike):
+def sqrt_known_sign(z_squared: ArrayLike, z_approx: ArrayLike):
     """
     Return the square root of a complex number, with sign chosen to match `z_approx`.
 
@@ -330,7 +324,7 @@ def sqrt_known_sign(z_squared: NumberLike, z_approx: NumberLike):
         z, z.conj())
 
 
-def find_correct_sign(z1: NumberLike, z2: NumberLike, z_approx: NumberLike):
+def find_correct_sign(z1: ArrayLike, z2: ArrayLike, z_approx: ArrayLike):
     r"""
     Create new vector from z1, z2 choosing elements with sign matching z_approx.
 
@@ -361,7 +355,7 @@ def find_correct_sign(z1: NumberLike, z2: NumberLike, z_approx: NumberLike):
     jnp.sign(jnp.angle(z1)) == jnp.sign(jnp.angle(z_approx)),z1, z2)
 
 
-def find_closest(z1: NumberLike, z2: NumberLike, z_approx: NumberLike):
+def find_closest(z1: ArrayLike, z2: ArrayLike, z_approx: ArrayLike):
     """
     Return z1 or z2 depending on which is closer to z_approx.
 
@@ -386,7 +380,7 @@ def find_closest(z1: NumberLike, z2: NumberLike, z_approx: NumberLike):
 
 
 # mathematical functions
-def dirac_delta(x: NumberLike):
+def dirac_delta(x: ArrayLike):
     r"""
     Calculate Dirac function.
 
@@ -410,7 +404,7 @@ def dirac_delta(x: NumberLike):
     return (x==0)*1. + (x!=0)*0.
 
 
-def neuman(x: NumberLike):
+def neuman(x: ArrayLike):
     r"""
     Calculate Neumans number.
 
@@ -465,7 +459,7 @@ def null(A: jnp.ndarray, eps: float = 1e-15):
     return null_space.T
 
 
-def inf_to_num(x: NumberLike):
+def inf_to_num(x: ArrayLike):
     """
     Convert inf and -inf's to large numbers.
 
@@ -479,11 +473,11 @@ def inf_to_num(x: NumberLike):
     x : Number of array_like
         Input without with +/- inf replaced by large numbers.
     """
-    x = jnp.nan_to_num(x, nan=jnp.nan, posinf=INF, neginf=-1*INF)
+    x = jnp.nan_to_num(x, nan=jnp.nan, posinf=NEAR_INF, neginf=-1*NEAR_INF)
     return x
 
 
-def cross_ratio(a: NumberLike, b: NumberLike, c: NumberLike, d:NumberLike):
+def cross_ratio(a: ArrayLike, b: ArrayLike, c: ArrayLike, d:ArrayLike):
     r"""
     Calculate the cross ratio of a quadruple of distinct points on the real line.
 

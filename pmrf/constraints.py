@@ -3,7 +3,7 @@ Constraints for parameters.
 
 Can be used for parameter factories in :mod:`pmrf.parameters`.
 
-Builds on top of the library `Parax <https://gvcallen.github.io/parax>`_.
+Re-exports from the `Parax <https://gvcallen.github.io/parax>`_ library.
 """
 from parax.constraints import (
     AbstractConstraint as AbstractConstraint,
@@ -15,7 +15,6 @@ from parax.constraints import (
     LessThan as LessThan,
     intersect as intersect,
 )
-    
     
 __all__ = [
     'AbstractConstraint',

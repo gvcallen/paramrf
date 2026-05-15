@@ -1,12 +1,14 @@
 """
 Parameter factories, converters, and field specifiers.
 
-Note: Many of these utilities are re-exported at root.
+Most of these are re-exported at root.
 
 Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 """
+from __future__ import annotations
+
 import dataclasses
-from typing import Any, Optional, TypeAlias
+from typing import Any, Optional, TypeAlias, TypeVar
 from jaxtyping import ArrayLike, Inexact, Array
 
 import jax.numpy as jnp
@@ -16,7 +18,7 @@ import parax as prx
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 
-#: The abstract Parameter type hint for parameters in models.
+#: The canonical type hint for a parameter in a model.
 Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
 
 def apply_wrappers(value: Any, scale: float, fixed: bool):
@@ -335,5 +337,6 @@ __all__ = [
     "Bounded",
     "Constrained",
     "Random",
+    "Param",
     "param",
 ]

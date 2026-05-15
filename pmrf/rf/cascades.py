@@ -7,15 +7,15 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+from jaxtyping import ArrayLike
 
-from pmrf.constants import NumberLike
 from pmrf.utils.rf import fix_z0_shape
 from pmrf.math import nudge_diag
 
 @eqx.filter_jit
 def cascade_s(
-    Smats: NumberLike,
-    z0s: NumberLike,
+    Smats: ArrayLike,
+    z0s: ArrayLike,
     method = 'redheffer',
     eps=1e-12,
 ) -> jnp.ndarray:
@@ -29,11 +29,11 @@ def cascade_s(
 
     Parameters
     ----------
-    Smats : NumberLike
+    Smats : ArrayLike
         A sequence of S-parameter matrices for the component networks.
         The array must have shape (N x F x m x m) representing N networks to be
         cascaded sequential at F frequencies, each with ports (m, m).
-    z0s : NumberLike
+    z0s : ArrayLike
         A sequence of characteristic impedances (z0) for the component networks.
         Must be a float, or N arrays each broadcastable to (N x F x m).
 

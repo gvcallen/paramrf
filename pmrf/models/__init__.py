@@ -16,10 +16,6 @@ from pmrf.models.adapters.base import (
     AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
 )
 from pmrf.models.adapters.bridge import Host as Host
-from pmrf.models.composite.collection import (
-    ListModel as ListModel,
-    DictModel as DictModel,
-)
 from pmrf.models.adapters.static import Measured as Measured
 from pmrf.models.adapters.callable import (
     ContinuousCallable as ContinuousCallable,
@@ -81,6 +77,7 @@ from pmrf.models.composite.nodal import (
     GroundExposed as GroundExposed,
     Shunt as Shunt,
 )
+from pmrf.models.composite.wrapped import Tied as Tied
 
 from pmrf.models.surrogates.expansion import VectorExpansion as VectorExpansion
 from pmrf.models.surrogates.rational import (

@@ -3,14 +3,21 @@ A frequency axis used to evaluate models over.
 """
 from __future__ import annotations
 
+from typing import Literal
 import re
 
 import equinox as eqx
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
 
 from pmrf.utils import field
 from pmrf.utils.array import slice_domain, find_nearest_index
-from pmrf.constants import NumberLike, FrequencyUnitT, UNIT_LOWER_TO_FORMATED, UNIT_TO_MULTIPLER
+
+FrequencyUnitT = Literal["Hz", "kHz", "MHz", "GHz", "THz"]
+
+UNIT_TO_MULTIPLER: dict[FrequencyUnitT, float] = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "GHz": 1e9, "THz": 1e12}
+UNIT_LOWER_TO_FORMATED: dict[str] = {k.lower(): k for k in UNIT_TO_MULTIPLER}
+UNIT_LOWER_TO_MULTIPLER = {k.lower(): v for k,v in UNIT_TO_MULTIPLER.items()}
 
 class Frequency(eqx.Module):
     """
@@ -99,7 +106,7 @@ class Frequency(eqx.Module):
         self.f = jnp.linspace(start, stop, npoints)
 
     @classmethod
-    def from_f(cls, f_scaled: NumberLike, unit: FrequencyUnitT | None = None) -> Frequency:
+    def from_f(cls, f_scaled: ArrayLike, unit: FrequencyUnitT | None = None) -> Frequency:
         """
         Construct Frequency object from a frequency vector.
 
@@ -243,13 +250,13 @@ class Frequency(eqx.Module):
         """
         return self.npoints
 
-    def __add__(self, other: Frequency | NumberLike) -> Frequency:
+    def __add__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise addition on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The addend. If a :class:`Frequency`, frequencies are added elementwise;
             otherwise ``other`` is broadcast as needed.
 
@@ -261,13 +268,13 @@ class Frequency(eqx.Module):
         new_f = self.f + (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __sub__(self, other: Frequency | NumberLike) -> Frequency:
+    def __sub__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise subtraction on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The subtrahend. If a :class:`Frequency`, frequencies are subtracted
             elementwise; otherwise ``other`` is broadcast.
 
@@ -279,13 +286,13 @@ class Frequency(eqx.Module):
         new_f = self.f - (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __mul__(self, other: Frequency | NumberLike) -> Frequency:
+    def __mul__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise multiplication on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The multiplier. If a :class:`Frequency`, multiply elementwise;
             otherwise ``other`` is broadcast.
 
@@ -297,13 +304,13 @@ class Frequency(eqx.Module):
         new_f = self.f * (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __rmul__(self, other: Frequency | NumberLike) -> Frequency:
+    def __rmul__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Reflected elementwise multiplication on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The multiplier.
 
         Returns
@@ -314,13 +321,13 @@ class Frequency(eqx.Module):
         new_f = self.f * (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __div__(self, other: Frequency | NumberLike) -> Frequency:
+    def __div__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise division on frequency values (Python 2 style alias).
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The divisor. If a :class:`Frequency`, divide elementwise;
             otherwise ``other`` is broadcast.
 
@@ -332,13 +339,13 @@ class Frequency(eqx.Module):
         new_f = self.f / (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __truediv__(self, other: Frequency | NumberLike) -> Frequency:
+    def __truediv__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise true division on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The divisor. If a :class:`Frequency`, divide elementwise;
             otherwise ``other`` is broadcast.
 
@@ -350,13 +357,13 @@ class Frequency(eqx.Module):
         new_f = self.f / (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __floordiv__(self, other: Frequency | NumberLike) -> Frequency:
+    def __floordiv__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise floor division on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The divisor.
 
         Returns
@@ -367,13 +374,13 @@ class Frequency(eqx.Module):
         new_f = self.f // (other.f if isinstance(other, Frequency) else other)
         return eqx.tree_at(lambda freq: freq.f, self, new_f)
 
-    def __mod__(self, other: Frequency | NumberLike) -> Frequency:
+    def __mod__(self, other: Frequency | ArrayLike) -> Frequency:
         """
         Elementwise modulo on frequency values.
 
         Parameters
         ----------
-        other : Frequency or NumberLike
+        other : Frequency or ArrayLike
             The modulus.
 
         Returns

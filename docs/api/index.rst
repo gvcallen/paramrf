@@ -68,9 +68,8 @@ Utilities
    pmrf.load
    pmrf.save
    pmrf.freeze
-   pmrf.tie
    pmrf.replace
-   pmrf.combine
-   pmrf.as_param
    pmrf.unwrap
    pmrf.unwrap_self
+   pmrf.tie
+   pmrf.as_param

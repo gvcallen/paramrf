@@ -3,16 +3,16 @@ RF utilities.
 """
 
 import jax.numpy as jnp
-from typing import Any # Replace with NumberLike if imported locally
+from jaxtyping import ArrayLike
 
-def fix_z0_shape(z0: Any, nfreqs: int, nports: int, nnetworks: int = 1) -> jnp.ndarray:
+def fix_z0_shape(z0: ArrayLike, nfreqs: int, nports: int, nnetworks: int = 1) -> jnp.ndarray:
     """
     Broadcast the characteristic impedance `z0` to shape `(nfreqs, nports)` 
     if `nnetworks == 1`, or `(nnetworks, nfreqs, nports)` if `nnetworks > 1`.
 
     Parameters
     ----------
-    z0 : NumberLike
+    z0 : ArrayLike
         Input impedance. Can be a scalar, a 1D array of length `nports`,
         `nfreqs`, or `nnetworks`, a 2D array of shape `(nfreqs, nports)`,
         `(nnetworks, nports)`, or `(nnetworks, nfreqs)`, or a 3D array of

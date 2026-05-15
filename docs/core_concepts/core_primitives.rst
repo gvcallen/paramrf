@@ -1,4 +1,4 @@
-Core Classes
+Core Primitives
 ============
 
 The two main classes in ParamRF are :class:`pmrf.Model` and :class:`pmrf.Frequency`, while the factories and classes in :mod:`pmrf.parameters` and :mod:`pmrf.evaluators` bring the library together.
@@ -9,15 +9,15 @@ The Model
 
 Under-the-hood, ParamRF uses the `Equinox <https://docs.kidger.site/equinox/api/module/module/>`_ library to interoperate with JAX. This means that :class:`~pmrf.Model` is an `Equinox Module <https://docs.kidger.site/equinox/api/module/module/>`_, a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_ and a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_. If these concepts are completely foreign to you, do not worry. The practical consequences of this are:
 
-  * Models are **immutable** and do not contain any state. Rather, they represent "pure functions" that simply have data and parameters attached. Although this takes some getting used to, the end result is better optimization performance, as well as differentiation capabilities.
-  * To edit a model's parameters, ParamRF provides :meth:`pmrf.Model.at`. This provides an intuitive means of creating a new model with specific attributes changes, and is known at the **optics** or *lens* pattern in functional programming.
-  * Since models are JAX PyTrees, any model methods are **JAX-native** and accept *JAX arrays*. This means that they can be compiled *Just-In-Time* for platforms enhanced performance, as well as platform such as GPUs, TPUs etc. Further, this opens the doors to many other advanced JAX/Equinox features, such as vectorization via :func:`jax.vmap` and differentiation via :func:`jax.jacfwd`. See the :doc:`jax_overview` section for more details.
+  * *Models are immutable* and do not contain any state. Rather, they represent "pure functions" that simply have data and parameters attached. Although this takes some getting used to, the end result is better optimization performance, as well as differentiation capabilities.
+  * To edit a model's parameters, ParamRF provides :meth:`pmrf.Model.at`. This provides an intuitive means of creating a new model with specific attributes changes, and is known at the *optics* or *lens* pattern in functional programming.
+  * Since models are JAX PyTrees, any model methods are **JAX-native** and accept *JAX arrays*. This means that they can be compiled *Just-In-Time* for enhanced performance, as well as simulation on platforms such as GPUs, TPUs etc. Further, this opens the doors to many other advanced JAX features, such as vectorization via :func:`jax.vmap` and differentiation via :func:`jax.jacfwd`. See the :doc:`jax_overview` section for more details.
 
-To define custom models, you can inherit directly from :class:`~pmrf.Model`. When inherited from, methods such as :meth:`~pmrf.Model.s`, :meth:`~pmrf.Model.a`, :meth:`~pmrf.Model.z` and :meth:`~pmrf.Model.y` can be overridden to define model S-parameters, ABCD-parameters etc. as a function of frequency. This is a crucial distinction compared to other libraries (e.g. :mod:`scikit-rf`): a model **does not store its frequency**, but instead accepts its frequency as a function input. Then, any network properties that have not been manually overridden are automatically made available via RF conversion functions. These can also be found under :mod:`pmrf.rf`.
+To define custom models, you can inherit directly from :class:`~pmrf.Model`. When inherited from, methods such as :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.z` and :meth:`pmrf.Model.y` can be overridden to define model S-parameters, ABCD-parameters etc. as a function of frequency. This is a crucial distinction compared to other libraries (e.g. :mod:`scikit-rf`): a model **does not store its frequency**, but instead accepts its frequency as a function input. Then, any network properties that have not been manually overridden are automatically made available via RF conversion functions. These can also be found under :mod:`pmrf.rf`.
 
-For more complex models, the :meth:`~pmrf.Model.build` method can also be overridden. Compared to the previous approach, :meth:`~pmrf.Model.build` does not accept any arguments as input, but instead must return a **fully constructed** :class:`~pmrf.Model` instance. This is very useful for declarative, hierarchical model building. For a deeper look into building and defining custom models, see the :doc:`model_building` section.
+For more complex models, the :meth:`pmrf.Model.build` method can also be overridden. Compared to the previous approach, :meth:`~pmrf.Model.build` does not accept any arguments as input, but instead must return a *fully constructed* :class:`~pmrf.Model` instance. This is very useful for declarative, hierarchical model building. For a deeper look into building and defining custom models, see the examples chapter.
 
-Frequency, parameters, and jax.Array
+Frequency, Parameters, and jax.Array
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The :class:`~pmrf.Frequency` class defines the axis over which models are evaluated. Ultimately, it is a lightweight wrapper around a JAX array (commonly imported as :class:`jnp.ndarray`). As mentioned, those unfamiliar with JAX can see either the :doc:`jax_overview` section in this documentation, or have a look at JAX's own `quickstart <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ guide for a more thorough overview. However, for those seeking a TLDR, the API is very similar to numpy's :class:`np.ndarray`, with some few "rough edges".
 

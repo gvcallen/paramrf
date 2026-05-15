@@ -5,11 +5,13 @@ from typing import Callable
 
 import jax.numpy as jnp
 from jax.numpy import pi
+from jaxtyping import ArrayLike
 
-from pmrf.constants import NumberLike, INF, LOG_OF_NEG
-from pmrf.math.misc import unwrap, unwrap_rad
+from pmrf.math.misc import unwrap_rad
 
-def complex_2_magnitude(z: NumberLike):
+LOG_OF_NEG = -100
+
+def complex_2_magnitude(z: ArrayLike):
     """
     Return the magnitude of the complex argument.
 
@@ -26,7 +28,7 @@ def complex_2_magnitude(z: NumberLike):
     return jnp.abs(z)
 
 
-def complex_2_db(z: NumberLike):
+def complex_2_db(z: ArrayLike):
     r"""
     Return the magnitude in dB of a complex number (as :math:`20\log_{10}(|z|)`).
 
@@ -46,7 +48,7 @@ def complex_2_db(z: NumberLike):
     return magnitude_2_db(jnp.abs(z))
 
 
-def complex_2_db10(z: NumberLike):
+def complex_2_db10(z: ArrayLike):
     r"""
     Return the magnitude in dB of a complex number (as :math:`10\log_{10}(|z|)`).
 
@@ -66,7 +68,7 @@ def complex_2_db10(z: NumberLike):
     return mag_2_db10(jnp.abs(z))
 
 
-def complex_2_radian(z: NumberLike):
+def complex_2_radian(z: ArrayLike):
     """
     Return the angle complex argument in radian.
     
@@ -86,7 +88,7 @@ def complex_2_radian(z: NumberLike):
     return jnp.angle(z)
 
 
-def complex_2_degree(z: NumberLike):
+def complex_2_degree(z: ArrayLike):
     """
     Returns the angle complex argument in degrees.
 
@@ -103,7 +105,7 @@ def complex_2_degree(z: NumberLike):
     return jnp.angle(z, deg=True)
 
 
-def complex_2_quadrature(z: NumberLike):
+def complex_2_quadrature(z: ArrayLike):
     r"""
     Take a complex number and returns quadrature, which is (length, arc-length from real axis).
 
@@ -126,7 +128,7 @@ def complex_2_quadrature(z: NumberLike):
     return (jnp.abs(z), jnp.angle(z)*jnp.abs(z))
 
 
-def complex_2_reim(z: NumberLike):
+def complex_2_reim(z: ArrayLike):
     """
     Return real and imaginary parts of a complex number.
 
@@ -145,7 +147,7 @@ def complex_2_reim(z: NumberLike):
     return jnp.stack([jnp.real(z), jnp.imag(z)])
 
 
-def complex_components(z: NumberLike):
+def complex_components(z: ArrayLike):
     """
     Break up a complex array into all possible scalar components.
 
@@ -170,7 +172,7 @@ def complex_components(z: NumberLike):
     return (*complex_2_reim(z), jnp.angle(z,deg=True), *complex_2_quadrature(z))
 
 
-def magnitude_2_db(z: NumberLike, zero_nan: bool = True):
+def magnitude_2_db(z: ArrayLike, zero_nan: bool = True):
     """
     Convert linear magnitude to dB.
 
@@ -194,7 +196,7 @@ def magnitude_2_db(z: NumberLike, zero_nan: bool = True):
 mag_2_db = magnitude_2_db
 
 
-def mag_2_db10(z: NumberLike, zero_nan:bool = True):
+def mag_2_db10(z: ArrayLike, zero_nan:bool = True):
     """
     Convert linear magnitude to dB (factor 10).
 
@@ -216,7 +218,7 @@ def mag_2_db10(z: NumberLike, zero_nan:bool = True):
     return out
 
 
-def db_2_magnitude(z: NumberLike):
+def db_2_magnitude(z: ArrayLike):
     """
     Convert dB to linear magnitude.
 
@@ -235,7 +237,7 @@ def db_2_magnitude(z: NumberLike):
 db_2_mag = db_2_magnitude
 
 
-def db10_2_mag(z: NumberLike):
+def db10_2_mag(z: ArrayLike):
     """
     Convert dB (factor 10) to linear magnitude.
 
@@ -252,7 +254,7 @@ def db10_2_mag(z: NumberLike):
     return 10**((z)/10.)
 
 
-def magdeg_2_reim(mag: NumberLike, deg: NumberLike):
+def magdeg_2_reim(mag: ArrayLike, deg: ArrayLike):
     """
     Convert linear magnitude and phase (in deg) arrays into a complex array.
 
@@ -270,7 +272,7 @@ def magdeg_2_reim(mag: NumberLike, deg: NumberLike):
     """
     return mag*jnp.exp(1j*deg*pi/180.)
 
-def dbdeg_2_reim(db: NumberLike, deg: NumberLike):
+def dbdeg_2_reim(db: ArrayLike, deg: ArrayLike):
     """
     Convert dB magnitude and phase (in deg) arrays into a complex array.
 
@@ -289,7 +291,7 @@ def dbdeg_2_reim(db: NumberLike, deg: NumberLike):
     return magdeg_2_reim(db_2_magnitude(db), deg)
 
 
-def db_2_np(db: NumberLike):
+def db_2_np(db: ArrayLike):
     """
     Convert a value in decibel (dB) to neper (Np).
 
@@ -306,7 +308,7 @@ def db_2_np(db: NumberLike):
     return (jnp.log(10)/20) * db
 
 
-def np_2_db(x: NumberLike):
+def np_2_db(x: ArrayLike):
     """
     Convert a value in Nepers (Np) to decibel (dB).
 
@@ -323,7 +325,7 @@ def np_2_db(x: NumberLike):
     return 20/jnp.log(10) * x
 
 
-def radian_2_degree(rad: NumberLike):
+def radian_2_degree(rad: ArrayLike):
     """
     Convert angles from radians to degrees.
 
@@ -340,7 +342,7 @@ def radian_2_degree(rad: NumberLike):
     return (rad)*180/pi
 
 
-def degree_2_radian(deg: NumberLike):
+def degree_2_radian(deg: ArrayLike):
     """
     Convert angles from degrees to radians.
 
@@ -357,7 +359,7 @@ def degree_2_radian(deg: NumberLike):
     return (deg)*pi/180.
 
 
-def feet_2_meter(feet: NumberLike = 1):
+def feet_2_meter(feet: ArrayLike = 1):
     """
     Convert length in feet to meter.
 
@@ -379,7 +381,7 @@ def feet_2_meter(feet: NumberLike = 1):
     """
     return 0.3048*feet
 
-def meter_2_feet(meter: NumberLike = 1):
+def meter_2_feet(meter: ArrayLike = 1):
     """
     Convert length in meter to feet.
 
@@ -402,7 +404,7 @@ def meter_2_feet(meter: NumberLike = 1):
     return 3.28084*meter
 
 
-def db_per_100feet_2_db_per_100meter(db_per_100feet: NumberLike = 1):
+def db_per_100feet_2_db_per_100meter(db_per_100feet: ArrayLike = 1):
     """
     Convert attenuation values given in dB/100ft to dB/100m.
 
@@ -470,7 +472,7 @@ def rect_2_polar(x, deg=False):
     return abs(x), jnp.angle(x, deg=deg)
 
 
-def sqrt_phase_unwrap(z: NumberLike):
+def sqrt_phase_unwrap(z: ArrayLike):
     r"""
     Take the square root of a complex number with unwrapped phase.
 
@@ -525,13 +527,13 @@ def complexify(f: Callable, name: str = None):
     """
     def f_c(z, *args, **kw):
         if name is not None:
-            kw_re = {name: real(z)}
-            kw_im = {name: imag(z)}
+            kw_re = {name: jnp.real(z)}
+            kw_im = {name: jnp.imag(z)}
             kw_re.update(kw)
             kw_im.update(kw)
             return f(*args, **kw_re) + 1j*f(*args, **kw_im)
         else:
-            return f(real(z), *args,**kw) + 1j*f(imag(z), *args, **kw)
+            return f(jnp.real(z), *args,**kw) + 1j*f(jnp.imag(z), *args, **kw)
     return f_c
 
 

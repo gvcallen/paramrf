@@ -1,12 +1,11 @@
 Core Concepts
 =============
 
-This section describes the most important concepts in ParamRF, including the core classes, different approaches to defining models, the built-in optimization and inference API, and the JAX and Equinox backend.
+This chapter provides an in-depth description of the most important concepts in ParamRF for those wanting a better unstanding. This includes an overview of the library's core primitives, the built-in optimization and inference API, and the JAX backend.
 
 .. toctree::
    :maxdepth: 2
 
-   main_classes
-   model_building
+   core_primitives
    optimization_and_inference
    jax_overview

@@ -5,9 +5,9 @@
    :caption: Documentation
    :hidden:
 
-   Home <self>
-   quickstart
+   Quickstart <self>
    core_concepts/index
+   examples/index
    tutorials/index
    api/index
    skrf_comparison

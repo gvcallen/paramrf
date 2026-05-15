@@ -27,29 +27,6 @@ from dataclasses import (
 )
 
 
-def tie(
-    tree: Any, 
-    target: Callable[[Any], Any], 
-    source: Callable[[Any], Any], 
-    tie_fn: Callable[[Any], Any] = lambda x: x
-):
-    """(experimental) Allows tieing different nodes in a PyTree together.
-
-    To evaluate the tie, use :func:`prf.unwrap`.
-
-    Args:
-        tree: The root PyTree or Equinox module to wrap.
-        target: A callable (lens) that extracts the parameter to be replaced 
-            (e.g., `lambda m: m.layer.weight`).
-        source: A callable (lens) that extracts the parameter to draw values 
-            from (e.g., `lambda m: m.layer.bias`).
-        tie_fn: An optional transformation function applied to the source 
-            parameter before injecting it into the target. Defaults to the 
-            identity function.
-    """
-    return prx.Tie(tree, target=target, source=source, tie_fn=tie_fn)
-
-
 def freeze(model: Any):
     """
     Freezes a model (or any JAX PyTree) and returns the frozen model.

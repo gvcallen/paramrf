@@ -4,14 +4,14 @@ RF parameter conversion algorithms.
 
 import jax.numpy as jnp
 import jax
+from jaxtyping import ArrayLike
 
-from pmrf.constants import NumberLike
 from pmrf.math import rsolve, nudge_diag
 from pmrf.utils.rf import fix_z0_shape
 
 ZERO = 1e-4
 
-def s2s(s: NumberLike, z0: NumberLike, s_def_new, s_def_old):
+def s2s(s: ArrayLike, z0: ArrayLike, s_def_new, s_def_old):
     """
     Convert S-parameters between different definitions (e.g., Power waves vs Traveling waves).
 
@@ -22,7 +22,7 @@ def s2s(s: NumberLike, z0: NumberLike, s_def_new, s_def_old):
     ----------
     s : jnp.ndarray
         The S-parameter matrix with shape `(nfreqs, nports, nports)`.
-    z0 : NumberLike
+    z0 : ArrayLike
         The characteristic impedance. Can be a scalar, or an array broadcastable
         to `(nfreqs, nports)`.
     s_def_new : str
@@ -90,7 +90,7 @@ def s2s(s: NumberLike, z0: NumberLike, s_def_new, s_def_old):
 
     return jax.lax.cond(all_real, real_branch, imag_branch)
 
-def a2s(a: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
+def a2s(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     """
     Convert ABCD parameters to S-parameters.
 
@@ -98,7 +98,7 @@ def a2s(a: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ----------
     a : jnp.ndarray
         The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
 
     Returns
@@ -138,7 +138,7 @@ def a2s(a: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ]).transpose()
     return s
 
-def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
+def s2a(s: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     """
     Convert S-parameters to ABCD parameters.
 
@@ -146,7 +146,7 @@ def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ----------
     s : jnp.ndarray
         The S-parameter matrix with shape `(nfreqs, 2, 2)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
 
     Returns
@@ -181,7 +181,7 @@ def s2a(s: jnp.ndarray, z0: NumberLike = 50) -> jnp.ndarray:
     ]).transpose()
     return a
 
-def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarray:
+def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray:
     """
     Convert S-parameters to Admittance (Y) parameters.
 
@@ -189,7 +189,7 @@ def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarra
     ----------
     s : jnp.ndarray
         The S-parameter matrix with shape `(nfreqs, nports, nports)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
         The S-parameter definition ('power' or 'traveling').
@@ -242,7 +242,7 @@ def s2y(s: jnp.ndarray, z0: NumberLike = 50, s_def: str = 'power') -> jnp.ndarra
 
     return y
 
-def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
     Convert Admittance (Y) parameters to S-parameters.
 
@@ -250,7 +250,7 @@ def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     ----------
     y : jnp.ndarray
         The Admittance matrix with shape `(nfreqs, nports, nports)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
         The S-parameter definition ('power' or 'traveling').
@@ -290,7 +290,7 @@ def y2s(y: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
     Convert S-parameters to Impedance (Z) parameters.
 
@@ -298,7 +298,7 @@ def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     ----------
     s : jnp.ndarray
         The S-parameter matrix with shape `(nfreqs, nports, nports)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
         The S-parameter definition ('power' or 'traveling').
@@ -342,7 +342,7 @@ def s2z(s: jnp.ndarray, z0: NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return z
 
-def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
+def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
     Convert Impedance (Z) parameters to S-parameters.
 
@@ -350,7 +350,7 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
     ----------
     z : jnp.ndarray
         The Impedance matrix with shape `(nfreqs, nports, nports)`.
-    z0 : NumberLike, optional, default=50
+    z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
         The S-parameter definition ('power' or 'traveling').
@@ -387,7 +387,7 @@ def z2s(z: NumberLike, z0:NumberLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
+def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.
 
@@ -395,9 +395,9 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
     ----------
     s : jnp.ndarray
         The input S-parameter matrix.
-    z_old : NumberLike
+    z_old : ArrayLike
         The original characteristic impedance.
-    z_new : NumberLike
+    z_new : ArrayLike
         The new characteristic impedance.
     s_def_old : str, optional, default='power'
         The original S-parameter definition.
@@ -422,8 +422,8 @@ def renormalize_s(s: jnp.ndarray, z_old: NumberLike, z_new: NumberLike, s_def_ol
 
 def renormalize_s_mobius(
     s: jnp.ndarray,
-    z_old: NumberLike,
-    z_new: NumberLike,
+    z_old: ArrayLike,
+    z_new: ArrayLike,
     s_def: str = 'power',
 ) -> jnp.ndarray:
     if s_def != 'traveling':

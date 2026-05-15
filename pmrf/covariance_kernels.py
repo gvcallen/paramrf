@@ -100,7 +100,7 @@ class ConstantKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    variance : prf.Param
+    variance : pmrf.Param
         Constant variance value.
     """
     #: The variance.
@@ -116,7 +116,7 @@ class RBFKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : prf.Param
+    lengthscale : pmrf.Param
         Characteristic length scale of the correlation.
     """
     lengthscale: Param = param()
@@ -135,9 +135,9 @@ class PeriodicKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    period : prf.Param
+    period : pmrf.Param
         The period of the kernel, dictating the distance between repetitions.
-    lengthscale : prf.Param
+    lengthscale : pmrf.Param
         Characteristic length scale of the correlation.
     """
     #: The period.
@@ -165,7 +165,7 @@ class WhiteNoiseKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    variance : prf.Param
+    variance : pmrf.Param
         Noise variance level.
     """
     #: The variance.
@@ -186,7 +186,7 @@ class Matern32Kernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : prf.Param
+    lengthscale : pmrf.Param
         Characteristic length scale of the correlation.
     """
     # The lengthscale
@@ -214,7 +214,7 @@ class Matern52Kernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : prf.Param
+    lengthscale : pmrf.Param
         Characteristic length scale of the correlation.
     """
     # The lengthscale.

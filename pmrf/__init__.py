@@ -1,6 +1,9 @@
 import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
+import parax 
+from jaxtyping import Inexact, Array
+from typing import TypeAlias
 
 # Environment Setup
 jax_logger = logging.getLogger("jax._src.xla_bridge")
@@ -14,11 +17,12 @@ except PackageNotFoundError:
     pass
 
 # Re-exports
-from pmrf.problem import Problem as Problem
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
+
+#: The canonical type hint for a parameter in a model.
+Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
 from pmrf.parameters import (
-    Param as Param,
     param as param,
     as_param as as_param,
     Value as Value,
@@ -27,26 +31,27 @@ from pmrf.parameters import (
     Constrained as Constrained,
     Random as Random,
 )
+
 from pmrf.serialization import (
     load as load,
     save as save,
 )
+
+from pmrf.network_collection import NetworkCollection as NetworkCollection
+
 from pmrf.utils import (
     Partial as Partial,
     InitVar as InitVar,
+    field as field,
     freeze as freeze,
     unfreeze as unfreeze,
-    tie as tie,
     replace as replace,
-    combine as combine,
-    field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
     is_constant as is_constant,
     is_param as is_param,
     is_model as is_model,
 )
-from pmrf.network_collection import NetworkCollection as NetworkCollection
 
 # Modules
 from pmrf import (
@@ -69,11 +74,11 @@ from pmrf import (
     viz as viz,
 )
 
-
 __all__ = [
     # Core
     "Model",
     "Frequency",
+
     "Param",
     "param",
     "as_param",
@@ -83,20 +88,23 @@ __all__ = [
     "Constrained",
     "Random",
     
-    # Utilities
+    # Serialization
     "load",
     "save",
-    "combine",
+
+    # Utilities
+    "Partial",
+    "Initvar",
+    "NetworkCollection",
     "field",
+    "freeze",
+    "unfreeze",
+    "replace",
     "unwrap",
     "unwrap_self",
     "is_constant",
-    "Partial",
-    "freeze",
-    "unfreeze",
-    "InitVar",
-    "tie",
-    "NetworkCollection",
+    "is_param",
+    "is_model",
     
     # Sub-modules
     "constraints",

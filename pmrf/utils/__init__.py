@@ -13,7 +13,6 @@ from pmrf.utils.tree import (
     InitVar as InitVar,
     freeze as freeze,
     unfreeze as unfreeze,
-    tie as tie,
     replace as replace,
     combine as combine,
     field as field,

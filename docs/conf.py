@@ -50,6 +50,10 @@ autodoc_default_options = {
     "special-members": "__call__,__getitem__,__len__,__add__,__sub__,__mul__,__rmul__,__div__,__truediv__,__floordiv__,__mod__", 
 }
 
+autodoc_type_aliases = {
+    'Param': 'Param',
+}
+
 # --- 5. Napoleon Configuration -----------------------------------------------
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False

@@ -2,7 +2,7 @@
 Base class for RF models.
 """
 
-from typing import Any
+from typing import Any, Callable
 import dataclasses
 
 import jax
@@ -15,9 +15,11 @@ import parax as prx
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
-from pmrf.constants import PRIMARY_PROPERTIES
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
+
+PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
+PRIMARY_METHODS = PRIMARY_PROPERTIES + ('build', 'primary_matrix')
 
 Z0_WARNING = \
 r"""
@@ -86,6 +88,7 @@ class Model(eqx.Module):
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
+    :meth:`tied`                      Tie certain parameters/sub-models together.
     ================================= ====================================================================
 
     **File & Conversion Utilities**
@@ -142,8 +145,8 @@ class Model(eqx.Module):
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        
-        for name in PRIMARY_PROPERTIES:
+
+        for name in PRIMARY_METHODS:
             if name in cls.__dict__:
                 original_method = cls.__dict__[name]
                 wrapped_method = eqx.filter_jit(unwrap_self(original_method))
@@ -678,6 +681,49 @@ class Model(eqx.Module):
 
         other = other or Short()
         return Terminated(self, other, **kwargs)
+    
+    def tied(self, target: Callable[[Any], Any], source: Callable[[Any], Any], tie_fn: Callable[[Any], Any] = lambda x: x, **kwargs) -> 'Model':
+        """Tie parameters or sub-models within this model together.
+        
+        See :class:`pmrf.models.composite.wrapped.Tied` for more details.
+
+        Examples
+        --------
+        >>> import pmrf as prf
+        >>> from pmrf.models import Resistor, Capacitor
+        >>> 
+        >>> rc = Resistor(R=50.0) ** Capacitor(C=1.0e-12)
+        >>> 
+        >>> # Tie the resistor's R to always be 50e12 times the capacitor's C
+        >>> tied_rc = rc.tied(
+        ...     target=lambda m: m.models[0].R,
+        ...     source=lambda m: m.models[1].C,
+        ...     tie_fn=lambda c: c * 50e12
+        ... )
+        >>> 
+        >>> # The optimizer will now only see the Capacitor's C parameter.
+        >>> # When evaluated, R will automatically track C.
+
+        Parameters
+        ----------
+        target : callable
+            A callable extracting the parameter to be overwritten 
+            (e.g., `lambda m: m.resistor.R`).
+        source : callable
+            A callable extracting the parameter to draw the value from 
+            (e.g., `lambda m: m.capacitor.C`).
+        tie_fn : callable, optional
+            An optional transformation function applied to the source 
+            before injecting it into the target. Defaults to the identity 
+            function (`lambda x: x`).
+
+        Returns
+        -------
+        Model
+        """
+        from pmrf.models import Tied
+        
+        return Tied(self, target=target, source=source, tie_fn=tie_fn, **kwargs)
     
     # ---- File and conversion utilities  --------------------------------------------------            
     

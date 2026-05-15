@@ -3,8 +3,7 @@ Utils for array manipulation and inspection.
 """
 
 import jax.numpy as jnp
-from jax import vmap
-from pmrf.constants import Number
+from numbers import Number
 
 def find_nearest_index(array: jnp.ndarray, value: Number) -> int:
     """

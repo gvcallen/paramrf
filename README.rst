@@ -31,7 +31,7 @@ The library provides tools for model simulation, optimization, fitting, statisti
 Features
 --------
 
-* **Declarative syntax**: Models can either be composed directly, or declared using an easy-to-read, class-based syntax.
+* **Declarative syntax**: Models can be composed and defined using an self-documenting, object-oriented syntax.
 * **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical circuits.
 * **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available using *auto-differentiation*, enabling faster performance and new design opportunities.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
@@ -47,21 +47,27 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
 Example
 -------
-The example below shows how to define and optimize a simple RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more examples.
+The example below shows how to define and optimize an RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more examples.
 
 .. code-block:: python
 
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  freq = prf.Frequency(1, 10, 101, 'GHz')
-  rlc_model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
-  
-  opt_freq = prf.Frequency(4, 6, 101, 'GHz')
+  model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
   goal = prf.evaluators.Goal('s11_db', '<', -20)
   
-  result = prf.optimize.minimize(goal, rlc_model, opt_freq, solver=prf.optimize.ScipyMinimize())
-  result.model.plot_s_db(freq, m=0, n=0)
+  opt_freq = prf.Frequency(3, 4, 101, 'GHz')
+  result = prf.optimize.minimize(goal, model, opt_freq, solver=prf.optimize.ScipyMinimize())
+  
+  plot_freq = prf.Frequency(1, 6, 101, 'GHz')
+  result.model.plot_s_db(plot_freq, m=0, n=0)
+
+Next steps
+----------
+* For an overview of the library's features, see the `examples <https://gvcallen.github.io/paramrf/examples/index.html>`_ page.
+* For step-by-step guides that you can follow, check out the `tutorials <https://gvcallen.github.io/paramrf/tutorials/index.html>`_ page.
+* To delve a bit deeper into understanding the library's core building blocks and philosophy, see the `core concepts <https://gvcallen.github.io/paramrf/core_concepts/index.html>`_ page.
 
 Optional dependencies
 ---------------------
