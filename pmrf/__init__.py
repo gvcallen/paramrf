@@ -1,4 +1,14 @@
 import logging
+
+# Supress the JAX gpu warning
+class _SuppressJaxGpuWarning(logging.Filter):
+    def filter(self, record):
+        return "An NVIDIA GPU may be present" not in record.getMessage()
+
+jax_logger = logging.getLogger("jax._src.xla_bridge")
+jax_logger.addFilter(_SuppressJaxGpuWarning())
+
+import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
 import parax 
@@ -6,8 +16,6 @@ from jaxtyping import Inexact, Array
 from typing import TypeAlias
 
 # Environment Setup
-jax_logger = logging.getLogger("jax._src.xla_bridge")
-jax_logger.setLevel(logging.ERROR)
 jax.config.update("jax_enable_x64", True)
 
 # Versioning
