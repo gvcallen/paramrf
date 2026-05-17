@@ -61,7 +61,8 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   result = prf.optimize.minimize(goal, model, passband, solver=prf.optimize.NelderMead())
   
   plot_freq = prf.Frequency(1, 6, 101, 'GHz')
-  result.model.plot_s_db(plot_freq, m=0, n=0)
+  model.plot_s_db(plot_freq, m=0, n=0, label='initial')
+  result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
 
 Next steps
 ----------
