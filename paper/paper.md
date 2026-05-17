@@ -65,7 +65,7 @@ result = prf.optimize.minimize(
     objective=goal,
     model=model,
     frequency=passband,
-    solver=prf.optimize.NelderMead(),
+    solver=prf.optimize.ScipyMinimize(),
 )
 
 # Evaluate and plot the initial and optimized model over a wider band
