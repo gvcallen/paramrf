@@ -4,11 +4,11 @@ Custom Models
 Sometimes, it is more convenient or elegant to define a custom model that is not available in ParamRF. For example, you may want to:
 
   * Define a model using a custom S-parameter equation
-  * Define a re-usable component built from sub-models
+  * Define a reusable component built from sub-models
   * Expose another model's parameters under different names/paths
   * Implement a specialized version of an existing model
 
-In ParamRF, this is done by inheriting directly from :class:`~pmrf.Model` and overriding at least one of its core methods, namely :class:`~pmrf.Model.s`, :class:`~pmrf.Model.a`, :class:`~pmrf.Model.y`, :class:`~pmrf.Model.z`, :class:`~pmrf.Model.build`, or :class:`~pmrf.Model.primary_matrix`.
+In ParamRF, this is done by inheriting directly from :class:`~pmrf.Model` and overriding at least one of its core methods, namely :method:`~pmrf.Model.s`, :method:`~pmrf.Model.a`, :method:`~pmrf.Model.y`, :method:`~pmrf.Model.z`, :method:`~pmrf.Model.build`, or :method:`~pmrf.Model.primary_matrix`.
 
 Defining a Capacitor
 ^^^^^^^^^^^^^^^^^^^^
@@ -43,7 +43,7 @@ ParamRF provides two field specifiers: :class:`~pmrf.field` and :class:`~pmrf.pa
   * Constraints can be specified that are inherent to the model and will always be enforced
   * Metadata and scaling can be attached, allowing the model's units to be changed
   
-The code below demonstrates this, constraining ``C`` to be only positive and defining the capacitance in terms of picofarads instead of farads:
+The code below demonstrates this, constraining ``C`` to be only positive and defining the capacitance in terms of picofarads (pF) instead of farads (F):
 
 .. code-block:: python
 
@@ -56,7 +56,7 @@ The code below demonstrates this, constraining ``C`` to be only positive and def
       def s(self, freq: prf.Frequency) -> jnp.ndarray:
           # <same as before>
 
-The constraints will always be enforced (even for unconstrained optimizers!), and ParamRF will also automatically intersect it with any new constraints provided by the caller.
+The constraints will always be enforced (even for unconstrained optimizers!), and ParamRF will also automatically intersect them with any new constraints provided by the caller.
 
 Evaluating the S-parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

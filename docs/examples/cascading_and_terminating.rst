@@ -22,7 +22,7 @@ Note that, in the above example, *no computation* was done. Models are *lazy*, a
 
   freq = prf.Frequency(10, 1000, 101, 'MHz')
   smatrix = rlc.s(freq) # shape (nports, nports, nfreq)
-  s11 = smatrix[:,0,0]
+  s11 = smatrix[0,0,:]
 
 ParamRF compiles :meth:`pmrf.Model.s` just-in-time (JIT), and evaluates the batch of frequencies. We can also use the same ``**`` operator for terminating any 2N port in an N port:
 

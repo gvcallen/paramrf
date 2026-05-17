@@ -10,7 +10,7 @@ Before we do this, it is useful to note the following two rules when creating cu
 Defining a Multi-Stage Filter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When building composite models, you often need to initialize them based on higher-level specification such as the number of stages in a filter. Because this fundamentally changes the model's structure, it must be handled during initialization. To demonstrate this, let's build a multi-stage LC filter:
+When building composite models, you often need to initialize them based on higher-level specifications such as the number of stages in a filter. Because this fundamentally changes the model's structure, it must be handled during initialization. To demonstrate this, let's build a multi-stage LC filter:
 
 .. code-block:: python
 
@@ -33,7 +33,7 @@ When building composite models, you often need to initialize them based on highe
               components.append(self.capacitors[i + 1])
           return Cascade(components)
 
-Note how we override :meth:`pmrf.Model.build` instead of one of the matrix methods to return the model directly. Also note how we used :type:`pmrf.InitVar` and :func:`pmrf.field`. These prevent us from having to manually define an `__init__` method with redundant fields, and also represent good practice for separation of configuration from state. We can now easily instantiate the filter:
+Note how we override :meth:`~pmrf.Model.build` instead of one of the matrix methods to return the model directly. Also note how we used :type:`pmrf.InitVar` and :func:`pmrf.field`. These prevent us from having to manually define an `__init__` method with redundant fields, and also represent good practice for separation of configuration from state. We can now easily instantiate the filter:
 
 .. code-block:: python
 

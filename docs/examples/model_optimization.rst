@@ -19,7 +19,7 @@ Instead of passing unconstrained floats, we can pass :class:`~pmrf.parameters.Bo
   
   lpf = C1 ** L1 ** C2
 
-It is best practice to apply a scaling factor to our values, in order to keep the optimization numerically stable. To create fixed parameters and apply more complicated constraints, see :func:`pmrf.Fixed` and :func:`pmrf.Constrained`.
+It is best practice to apply a scaling factor to our values in order to keep the optimization numerically stable. To create fixed parameters and apply more complicated constraints, see :func:`pmrf.Fixed` and :func:`pmrf.Constrained`.
 
 Running the Optimizer
 ~~~~~~~~~~~~~~~~~~~~~

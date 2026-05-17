@@ -18,7 +18,7 @@ Let's consider a two-port PI-CLC network as illustrated below. "External" nodes 
    :width: 600px
    :align: center
 
-First, let;s create the components and set up the connections list:
+First, let's create the components and set up the connections list:
 
 .. code-block:: python
 

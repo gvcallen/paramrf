@@ -3,9 +3,9 @@ Parameter and Model Manipulation
 
 All models store their parameters internally. Although it is usually easiest to modify these parameters before you construct the model, it is sometimes convenient to manipulate parameters or swap components already inside a model, or place constraints over multiple parameters.
 
-However, since models are *immutable* and cannot reference each other (to align with JAX's requirements), parameters and sub-models cannot be edited directly (e.g., ``model.R = 50`` will fail) and cannot point to the same objects in memory.
+However, since models are *immutable* and cannot reference each other (to align with JAX's requirements), parameters and sub-models cannot be edited directly (e.g., ``model.R = 50`` will fail), and also cannot point to the same objects in memory.
 
-Instead, ParamRF exposes two perform methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied` and :attr:`pmrf.Model.at`.
+Instead, ParamRF exposes two primary methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied` and :attr:`pmrf.Model.at`.
 
 Defining the Base Model
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -44,7 +44,7 @@ Sub-models and parameters can be *tied together* using :meth:`pmrf.Model.tied`, 
 Modifying Specific Fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on a specific parameters and sub-models. For example, we can update values using ``.set()``. This returns a new model with the specified change applied:
+Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on specific parameters and sub-models. For example, we can update values using ``.set()``. This returns a new model with the specified change applied:
 
 .. code-block:: python
 

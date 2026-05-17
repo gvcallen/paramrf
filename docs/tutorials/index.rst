@@ -1,7 +1,7 @@
 Tutorials
 =========
 
-This section includes more detailed tutorials that can be followed step-by-step to test ParamRF's functionality.
+This section includes more detailed tutorials that can be followed step-by-step to explore ParamRF's full functionality.
 
 .. toctree::
    :maxdepth: 2
