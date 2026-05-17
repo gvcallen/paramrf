@@ -47,7 +47,7 @@ def penalty_ll(model, freq):
 
 def test_sample_wrapper_basic(infer_model, basic_freq):
     """Test the higher-level sample API with a single loglikelihood using NUTS."""
-    key = jax.random.key(42)
+    key = jax.random.key(0)
     
     # Configure a fast NUTS execution
     solver = NUTS(num_warmup=10)
@@ -72,23 +72,23 @@ def test_sample_wrapper_basic(infer_model, basic_freq):
     assert result.best_model.val.ndim == 0
 
 
-# def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
-#     """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
-#     key = jax.random.key(42)
+def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
+    """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
+    key = jax.random.key(0)
     
-#     solver = NUTS(num_warmup=5)
+    solver = NUTS(num_warmup=5)
     
-#     result = sample(
-#         loglikelihood=[simple_ll, penalty_ll],
-#         model=infer_model,
-#         frequency=basic_freq,
-#         solver=solver,
-#         key=key,
-#         max_steps=10
-#     )
+    result = sample(
+        loglikelihood=[simple_ll, penalty_ll],
+        model=infer_model,
+        frequency=basic_freq,
+        solver=solver,
+        key=key,
+        max_steps=10
+    )
     
-#     # Verify the structure successfully evaluated through the ex.Sum wrapping
-#     assert isinstance(result, InferResult)
-#     assert result.sampled_model.val.shape == (10,)
-#     assert result.best_model.val.ndim == 0
-#     assert result.fn_values.shape == (10,)
+    # Verify the structure successfully evaluated through the ex.Sum wrapping
+    assert isinstance(result, InferResult)
+    assert result.sampled_model.val.shape == (10,)
+    assert result.best_model.val.ndim == 0
+    assert result.fn_values.shape == (10,)

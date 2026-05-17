@@ -176,7 +176,7 @@ def fit_joint(
     **kwargs,
 ) -> FitResult:
     """
-    Jointly fits all sub-modules of a circuit using the same features with either 
+    (experimental) Jointly fits all sub-modules of a circuit using the same features with either 
     optimization or sampling.
     
     This function processes the entire network collection at once. It uses

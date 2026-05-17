@@ -12,27 +12,21 @@ from pmrf.models.base import Model
 # ---------------------------------------------------------
 
 class DummyModelS(Model):
-    """A simple 1-port model defining only S-parameters."""
     def s(self, freq: Frequency) -> jnp.ndarray:
-        # Return a 1-port reflection of 0 (matched)
         nf = freq.npoints
         return jnp.zeros((nf, 1, 1), dtype=complex)
 
 class DummyModelZ(Model):
-    """A simple 1-port model defining only Z-parameters."""
     def z(self, freq: Frequency) -> jnp.ndarray:
-        # Return a 1-port impedance of 50 ohms
         nf = freq.npoints
         return jnp.ones((nf, 1, 1), dtype=complex) * 50.0
 
 class DummyModelS2Port(Model):
-    """A simple 2-port model defining only S-parameters for cascade testing."""
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints
         return jnp.zeros((nf, 2, 2), dtype=complex)
 
 class DummyCompositionalModel(Model):
-    """A compositional model that delegates to another model via build."""
     def build(self) -> Model:
         return DummyModelS()
 
@@ -145,10 +139,6 @@ def test_compositional_operators(model_s_2port):
     except ImportError:
         pytest.skip("pmrf.models not fully available in test environment.")
 
-# ---------------------------------------------------------
-# scikit-rf Interoperability
-# ---------------------------------------------------------
-
 def test_to_skrf_conversion(model_s, basic_freq):
     """Test generating an explicit skrf.Network object."""
     skrf = pytest.importorskip("skrf")
@@ -160,10 +150,6 @@ def test_to_skrf_conversion(model_s, basic_freq):
     
     # scikit-rf z0 is an array of shape (nfreq, nports), so we must use np.allclose
     assert np.allclose(ntwk.z0.real, 50.0)
-
-# ---------------------------------------------------------
-# JAX & Equinox Compatibility Boundaries
-# ---------------------------------------------------------
 
 def test_jit_compatibility(model_z, basic_freq):
     """

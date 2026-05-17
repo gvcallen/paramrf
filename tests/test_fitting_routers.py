@@ -8,17 +8,12 @@ from pmrf.models import Model
 from pmrf.parameters import Bounded, Fixed
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.fitting.routers import fit_sequential, fit_joint
-
-# ==========================================
-# 1. Dummy Models & Objectives
-# ==========================================
+from pmrf.fitting.routers import fit_sequential
 
 class SubModel(Model):
     val: object
     
     def s(self, freq: Frequency):
-        # A simple scalar S-parameter response to fit against
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * self.val
 
 class CompositeModel(Model):
@@ -48,16 +43,7 @@ def target_collection(freq):
     
     return NetworkCollection([n1, n2])
 
-# ==========================================
-# 2. Router Tests
-# ==========================================
-
 def test_fit_sequential(starting_model, target_collection):
-    """
-    Tests that fit_sequential correctly isolates sub-models, fits them,
-    and sequentially recombines them without affecting earlier parameters
-    or global fixed parameters.
-    """
     from pmrf.optimize import ScipyMinimize
     solver = ScipyMinimize()
     
@@ -77,27 +63,3 @@ def test_fit_sequential(starting_model, target_collection):
     # Verify the localized result dictionaries are successfully populated
     assert 'sub1' in results_dict
     assert 'sub2' in results_dict
-
-
-# def test_fit_joint(starting_model, target_collection):
-#     """
-#     Tests that fit_joint successfully builds a joint target graph across
-#     all networks in the collection and fits them simultaneously.
-#     """
-#     from pmrf.optimize import ScipyMinimize
-#     solver = ScipyMinimize()
-    
-#     result = fit_joint(
-#         model=starting_model,
-#         data=target_collection,
-#         solver=solver
-#     )
-    
-#     final_model = result.model
-    
-#     # Verify both sub-models converged simultaneously
-#     assert jnp.allclose(final_model.sub1.val.value, 3.0, atol=1e-3)
-#     assert jnp.allclose(final_model.sub2.val.value, 7.0, atol=1e-3)
-    
-#     # Verify global parameter preservation
-#     assert final_model.global_fixed.value == 10.0
