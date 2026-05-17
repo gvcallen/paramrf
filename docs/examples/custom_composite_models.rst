@@ -1,5 +1,6 @@
-Composite Models
-================
+Custom Composite Models
+=======================
+
 In ParamRF, models can contain other models, referred to as *composite* models. The following example builds on top of the :doc:`custom_models` example to demonstrate how to build these effectively.
 
 Before we do this, it is useful to note the following two rules when creating custom models:
@@ -13,7 +14,7 @@ Defining a Multi-Stage Filter
 When building composite models, it is often desirable to initialize a model based on higher-level specifications. For example, you may want to specify the number of stages of a filter or its cuttoff frequency. It is best to handle this purely as an initialization step, especially because such variables can fundamentally change the model's structure. To demonstrate this, let's build a multi-stage LC filter:
 
 .. plot::
-   :context:
+   :context: reset
    :include-source:
 
    import math

@@ -1,5 +1,5 @@
-Custom Models
-=============
+Custom Parametric Models
+========================
 
 Sometimes, it is more convenient or elegant to define a custom model that is not available in ParamRF. For example, you may want to:
 
@@ -16,7 +16,7 @@ Defining a Capacitor
 Let's define a capacitor from first principles using its ABCD parameters:
 
 .. plot::
-   :context:
+   :context: reset
    :include-source:
 
    import pmrf as prf
