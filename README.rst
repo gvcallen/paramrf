@@ -47,7 +47,7 @@ ParamRF can be installed directly using pip (requires Python 3.11+):
 
 Example
 -------
-The example below shows how to define and optimize an RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more examples.
+The code below demonstrate how to define and optimize an RLC model to satisfy a given goal function. See the `documentation <https://gvcallen.github.io/paramrf>`_ for more examples.
 
 .. code-block:: python
 
