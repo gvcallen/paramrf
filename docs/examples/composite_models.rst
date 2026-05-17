@@ -33,10 +33,27 @@ When building composite models, you often need to initialize them based on highe
               components.append(self.capacitors[i + 1])
           return Cascade(components)
 
-Note how we override :meth:`~pmrf.Model.build` instead of one of the matrix methods to return the model directly. Also note how we used :type:`pmrf.InitVar` and :func:`pmrf.field`. These prevent us from having to manually define an `__init__` method with redundant fields, and also represent good practice for separation of configuration from state. We can now easily instantiate the filter:
+Note how we override :meth:`~pmrf.Model.build` instead of one of the matrix methods to return the model directly. Also note how we used :type:`pmrf.InitVar` and :func:`pmrf.field`. These prevent us from having to manually define an ``__init__`` method with redundant fields, and also represent good practice for separation of configuration from state. 
 
-.. code-block:: python
+Evaluating the Response
+~~~~~~~~~~~~~~~~~~~~~~~
 
-  filter_3 = NStageFilter(num_stages=3)
-  assert len(filter_3.capacitors) == 4
-  assert len(filter_3.inductors) == 3
+Because our model overrides ``build``, it inherits all standard matrix methods. To round of the example, let's instantiate several filters with different numbers of stages and plot their insertion loss:
+
+.. plot::
+   :context: close-figs
+   :include-source:
+
+   import jax.numpy as jnp
+   import matplotlib.pyplot as plt
+   
+   band = prf.Frequency(0.1, 10, 201, 'GHz')
+   
+   for n in [1, 3, 5]:
+       filter_n = NStageFilter(num_stages=n)
+       filter_n.plot_s_db(band, m=1, n=0, label=f'{n} Stage(s)')
+   
+   plt.title('Composite Multi-Stage LC Filter Response')
+   plt.grid(True)
+
+It is clear how the amount of roll-off increases as more stages are added.

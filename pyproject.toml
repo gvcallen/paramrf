@@ -33,6 +33,7 @@ docs = [
     "sphinx-math-dollar",
     "ipython",
     "matplotlib",
+    "jupyter-sphinx",
 ]
 tests = [
     "pytest",

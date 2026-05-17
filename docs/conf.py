@@ -32,6 +32,8 @@ extensions = [
     'sphinx.ext.mathjax',      # Renders the math via MathJax
     'myst_parser',             # Parses markdown files
     'matplotlib.sphinxext.plot_directive',
+    'jupyter_sphinx',
+    'IPython.sphinxext.ipython_directive',
 ]
 
 plot_html_show_formats = False
