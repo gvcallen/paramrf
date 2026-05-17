@@ -140,10 +140,10 @@ def fit_minimize(
             if noise is None:
                 noise = Random(Uniform(0.0, 0.1))
             likelihood = GaussianLikelihood(noise)
-    if inference == 'frequentist':
-        kwargs.setdefault('search_space', 'base')
-    else:
-        kwargs.setdefault('search_space', 'hypercube')
+    # if inference == 'frequentist':
+    #     kwargs.setdefault('search_space', 'base')
+    # else:
+    #     kwargs.setdefault('search_space', 'hypercube')
 
     if inference == 'frequentist' and loss is not None:
         objective = TargetLoss(predictor=features, target=target, loss=loss)
