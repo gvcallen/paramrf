@@ -13,7 +13,7 @@ The library provides tools for model simulation, optimization, fitting, statisti
 
 :Version: |version_badge_text|
 :Author: Gary Allen
-:Repo: https://github.com/gvcallen/paramrf
+:GitHub: https://github.com/gvcallen/paramrf
 :Docs: https://gvcallen.github.io/paramrf
 :Paper: https://doi.org/10.48550/arXiv.2510.15881
 
