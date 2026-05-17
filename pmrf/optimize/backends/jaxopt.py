@@ -12,21 +12,20 @@ from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
 class LBFGSB(AbstractBoundedMinimizer):
     """
-    A pure-JAX L-BFGS-B bounded optimizer wrapping :class:`jaxopt.LBFGSB`.
+    A L-BFGS-B optimizer in JAX.
     
-    Unlike `ScipyMinimize`, this implementation is written entirely in JAX 
-    and can be fully JIT-compiled (e.g., via `eqx.filter_jit`).
-
+    Wrapper around :class:`jaxopt.LBFGSB`.
+    
     Parameters
     ----------
-    tol : float, default=1e-3
-        Tolerance for termination.
+    gtol : float, default=1e-3
+        The gradient norm tolerance for termination.
     stepsize : float, default=1.0
         Initial step size for the line search.
     linesearch : str, default="zoom"
         Type of line search to use.
     """
-    tol: float = eqx.field(static=True, default=1e-3)
+    gtol: float = eqx.field(static=True, default=1e-3)
     stepsize: float = eqx.field(static=True, default=1.0)
     linesearch: str = eqx.field(static=True, default="zoom")
     
@@ -41,7 +40,7 @@ class LBFGSB(AbstractBoundedMinimizer):
     ) -> tuple[MinimizeResult, PyTree]:
         solver = jaxopt.LBFGSB(
             fun=fn,
-            tol=self.tol,
+            tol=self.gtol,
             stepsize=self.stepsize,
             maxiter=max_iter,
             linesearch=self.linesearch,
@@ -50,6 +49,6 @@ class LBFGSB(AbstractBoundedMinimizer):
         # JAXopt expects bounds as a kwarg in the run method
         y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
-        converged = state.error <= self.tol
+        converged = state.error <= self.gtol
         payload = MinimizeResult(y=y_opt, success=converged)
         return payload, state

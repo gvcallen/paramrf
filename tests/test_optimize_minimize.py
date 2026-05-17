@@ -71,7 +71,7 @@ def test_minimize_nelder(model, basic_freq):
         return jnp.sum(jnp.abs(m.val - 5.0)**2)
     
     # Use a gradient-free JAX solver
-    solver = prf.optimize.NelderMead(rtol=1e-5, atol=1e-5)
+    solver = prf.optimize.NelderMead(xrtol=1e-5, xatol=1e-5)
     
     result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
     assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
@@ -83,7 +83,7 @@ def test_minimize_bfgs(model, basic_freq):
     def obj_fn(m, f):
         return jnp.sum(jnp.abs(m.val - 5.0)**2)
     
-    solver = prf.optimize.BFGS(rtol=1e-5, atol=1e-5)
+    solver = prf.optimize.BFGS(step_rtol=1e-5, step_atol=1e-5)
     
     result = minimize(obj_fn, model, basic_freq, solver=solver, max_iter=500)
     assert jnp.allclose(result.model.val, 5.0, atol=1e-2)

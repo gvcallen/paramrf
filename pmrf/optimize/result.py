@@ -21,8 +21,8 @@ class OptimizeResult(eqx.Module, Generic[ModelT]):
     #: with hyper-parameters, then this contains the optimized objective model.
     objective: Callable[[ModelT, Frequency], jnp.ndarray]
 
-    #: The final objective function value achieved by the optimizer.
-    objective_value: jnp.ndarray
+    #: Whether the optimizer converged.
+    success: bool
     
     #: The underlying results object returned by the solver, if any.
     #: May be a stripped-down version of the original results object.

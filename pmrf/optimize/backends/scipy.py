@@ -14,15 +14,15 @@ from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
 class ScipyMinimize(AbstractBoundedMinimizer):
     """
-    A JAX-wrapped optimizer using :func:`scipy.optimize.minimize`.
-
-    Acts as an adapter layer between PyTrees and SciPy's required flat 1D NumPy arrays.
+    A wrapper around SciPy's :func:`scipy.optimize.minimize`.
+    
+    Acts as an adapter layer between JAX's PyTrees and SciPy's required flat 1D NumPy arrays.
     Handles automatic differentiation implicitly via JAXopt.
-
+    
     Parameters
     ----------
-    method : str, default="L-BFGS-B"
-        Type of solver.
+    method : str, optional
+        Type of solver, pass None to use SciPy defaults.
     tol : float, optional
         Tolerance for termination.
     options : dict, optional
@@ -30,7 +30,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     show_progress : bool, default=True
         Whether to show a progress bar during optimization.
     """
-    method: str = eqx.field(static=True, default="L-BFGS-B")
+    method: str | None = eqx.field(static=True, default=None)
     tol: float | None = eqx.field(static=True, default=None)
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True)
@@ -48,7 +48,8 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         
         pbar = None
         if self.show_progress:
-            pbar = tqdm(total=max_iter, desc=f"SciPy {self.method}")
+            desc = f"SciPy {self.method}" if self.method is not None else "SciPy (default)"
+            pbar = tqdm(total=max_iter, desc=desc)
         def update_pbar(loss_val):
             pbar.update(1)
             pbar.set_postfix({"loss": f"{loss_val:.4e}"})

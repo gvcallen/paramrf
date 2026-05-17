@@ -46,7 +46,7 @@ def minimize(
         The optimizer to use.
         See :mod:`pmrf.optimize` for available solvers.
     max_iter : int
-        The maximum number of iterations to take. 
+        The maximum number of iterations to take.
     **kwargs
         Additional arguments to forward to `parax.optimize.minimize`.
 
@@ -81,7 +81,7 @@ def minimize(
     results = OptimizeResult(
         model=opt_problem.model,
         objective=opt_problem.evaluator,
-        objective_value=opt_problem(),
+        success=payload.success,
         metrics=metrics,
     )
     return results

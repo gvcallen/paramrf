@@ -13,7 +13,7 @@ The library provides tools for model simulation, optimization, fitting, statisti
 
 :Version: |version_badge_text|
 :Author: Gary Allen
-:Homepage: https://github.com/gvcallen/paramrf
+:Repo: https://github.com/gvcallen/paramrf
 :Docs: https://gvcallen.github.io/paramrf
 :Paper: https://doi.org/10.48550/arXiv.2510.15881
 
@@ -32,8 +32,8 @@ Features
 --------
 
 * **Declarative syntax**: Models can be composed and defined using a self-documenting, object-oriented syntax.
-* **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical circuits.
-* **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available using *auto-differentiation*, enabling faster performance and new design opportunities.
+* **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical structures.
+* **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available via *auto-differentiation*, enabling faster performance and new design opportunities.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
 * **Extensible**: Power users can easily add additional models and algorithms by extending the library's built-in classes and interfaces.
 
@@ -54,11 +54,11 @@ The example below shows how to define and optimize an RLC model to satisfy a giv
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
+  model = Resistor(50) ** Inductor(1.0e-9) ** Capacitor(1.0e-12)
   goal = prf.evaluators.Goal('s11_db', '<', -20)
+  passband = prf.Frequency(3, 4, 101, 'GHz')
   
-  opt_freq = prf.Frequency(3, 4, 101, 'GHz')
-  result = prf.optimize.minimize(goal, model, opt_freq, solver=prf.optimize.ScipyMinimize())
+  result = prf.optimize.minimize(goal, model, passband, solver=prf.optimize.NelderMead())
   
   plot_freq = prf.Frequency(1, 6, 101, 'GHz')
   result.model.plot_s_db(plot_freq, m=0, n=0)
@@ -66,8 +66,8 @@ The example below shows how to define and optimize an RLC model to satisfy a giv
 Next steps
 ----------
 * For an overview of the library's features, see the `examples <https://gvcallen.github.io/paramrf/examples/index.html>`_ page.
-* For step-by-step guides that you can follow, check out the `tutorials <https://gvcallen.github.io/paramrf/tutorials/index.html>`_ page.
-* To delve a bit deeper into understanding the library's core building blocks and philosophy, see the `core concepts <https://gvcallen.github.io/paramrf/core_concepts/index.html>`_ page.
+* For step-by-step guides that you can follow, check out the `tutorials <https://gvcallen.github.io/paramrf/tutorials/index.html>`_.
+* To delve a bit deeper into the library's core building blocks and philosophy, head of to `core concepts <https://gvcallen.github.io/paramrf/core_concepts/index.html>`_.
 
 Optional dependencies
 ---------------------

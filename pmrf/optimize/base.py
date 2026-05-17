@@ -121,6 +121,7 @@ def minimize(
     solver: AbstractMinimizer,
     args: Any = None,
     max_iter: int = 1024, 
+    use_bounds: bool | None = None,
     **kwargs
 ) -> tuple[PyTree, MinimizeResult, PyTree]:
     """
@@ -132,6 +133,8 @@ def minimize(
     as well as delegation to the relevant solver interface.
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
+    if use_bounds is not None:
+        is_bounded = is_bounded and use_bounds
     
     # Extract base values and partition based on solver type
     if is_bounded:
