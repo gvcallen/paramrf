@@ -12,3 +12,4 @@ This chapter includes some basic examples to demonstrate ParamRF's core features
    custom_models
    composite_models
    parameter_and_model_manipulation
+   auto_differentation
