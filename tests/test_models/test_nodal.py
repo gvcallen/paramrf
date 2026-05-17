@@ -1,5 +1,6 @@
 # tests/test_models/test_nodal.py
 import pytest
+import numpy as np
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
@@ -7,9 +8,13 @@ from pmrf.rf import s2y
 
 # Adjust imports based on your actual module structures
 from pmrf.models import (
-    GroundLifted, GroundExposed, Shunt, 
-    Resistor, Short, Open
+    Model, GroundLifted, GroundExposed, Shunt, 
+    Resistor, Short, Open, Inductor
 )
+
+# Assuming this is the path to your newly updated coupled models
+from pmrf.models.composite.nodal import CoupledOnePorts, CoupledTwoPorts
+
 
 @pytest.fixture
 def basic_freq():
@@ -120,3 +125,107 @@ def test_shunt_invalid_port_count():
     
     with pytest.raises(ValueError, match="Shunt requires a 1-port model"):
         Shunt(model=res_model)
+
+# ---------------------------------------------------------
+# CoupledOnePorts Tests
+# ---------------------------------------------------------
+
+class DummyOnePort(Model):
+    """A safe, finite 1-port model to isolate matrix math tests."""
+    @property
+    def nports(self):
+        return 1
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        return jnp.full((freq.npoints, 1, 1), 1.0 + 2.0j, dtype=jnp.complex128)
+
+
+def test_coupled_one_ports_validation():
+    """Ensure matrix validation catches physical impossibilities and shape mismatches."""
+    m1, m2 = DummyOnePort(), DummyOnePort()
+    m_2port = Resistor(R=50.0)
+
+    with pytest.raises(ValueError, match="requires 1-port models"):
+        CoupledOnePorts(models=[m1, m_2port], k_matrix=np.eye(2))
+
+    with pytest.raises(ValueError, match="k_matrix must be shape"):
+        CoupledOnePorts(models=[m1, m2], k_matrix=np.eye(3))
+
+    with pytest.raises(ValueError, match="symmetric"):
+        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
+
+    with pytest.raises(ValueError, match="diagonals must be exactly 1.0"):
+        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[0.9, 0.1], [0.1, 0.9]]))
+
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        # k_12 > 1.0 forces a negative eigenvalue
+        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
+
+
+def test_coupled_one_ports_zero_coupling(basic_freq):
+    """
+    Test that with an identity K-matrix (zero off-diagonal coupling), 
+    the admittances map cleanly onto an isolated block-diagonal matrix.
+    """
+    m1, m2 = DummyOnePort(), DummyOnePort()
+    k_zero = np.eye(2)
+    
+    coupled = CoupledOnePorts(models=[m1, m2], k_matrix=k_zero)
+    y_coupled = coupled.y(basic_freq)
+    
+    assert y_coupled.shape == (basic_freq.npoints, 2, 2)
+    
+    # Self-admittances should be unchanged
+    assert jnp.allclose(y_coupled[..., 0, 0], m1.y(basic_freq)[..., 0, 0])
+    assert jnp.allclose(y_coupled[..., 1, 1], m2.y(basic_freq)[..., 0, 0])
+    
+    # Mutual admittances should be strictly zero
+    assert jnp.allclose(y_coupled[..., 0, 1], 0.0 + 0.0j)
+    assert jnp.allclose(y_coupled[..., 1, 0], 0.0 + 0.0j)
+
+# ---------------------------------------------------------
+# CoupledTwoPorts Tests
+# ---------------------------------------------------------
+
+def test_coupled_two_ports_validation():
+    """Ensure bounds checking applies correctly to 2-port arrays."""
+    m1, m2 = Inductor(L=1e-9), Inductor(L=1e-9)
+    m_1port = DummyOnePort()
+
+    with pytest.raises(ValueError, match="requires 2-port models"):
+        CoupledTwoPorts(models=[m1, m_1port], k_matrix=np.eye(2))
+
+    with pytest.raises(ValueError, match="symmetric"):
+        CoupledTwoPorts(models=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
+        
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        CoupledTwoPorts(models=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
+
+
+def test_coupled_two_ports_zero_coupling(basic_freq):
+    """
+    Test that with zero off-diagonal coupling, the resulting 2N-port network 
+    behaves exactly like N completely isolated 2-port networks.
+    """
+    ind1 = Inductor(L=1e-9)
+    ind2 = Inductor(L=2e-9)
+    k_zero = np.eye(2)
+    
+    coupled = CoupledTwoPorts(models=[ind1, ind2], k_matrix=k_zero)
+    y_coupled = coupled.y(basic_freq)
+    
+    # 2 models * 2 ports each = 4-port network matrix
+    assert y_coupled.shape == (basic_freq.npoints, 4, 4)
+    
+    y1 = ind1.y(basic_freq)
+    y2 = ind2.y(basic_freq)
+    
+    # Model 1 occupies ports 0 and 1
+    assert jnp.allclose(y_coupled[..., 0:2, 0:2], y1)
+    
+    # Model 2 occupies ports 2 and 3
+    assert jnp.allclose(y_coupled[..., 2:4, 2:4], y2)
+    
+    # Isolation cross-terms between Model 1 and Model 2 must be strictly zero
+    assert jnp.allclose(y_coupled[..., 0:2, 2:4], 0.0 + 0.0j)
+    assert jnp.allclose(y_coupled[..., 2:4, 0:2], 0.0 + 0.0j)

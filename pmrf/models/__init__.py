@@ -82,6 +82,8 @@ from pmrf.models.composite.nodal import (
     GroundLifted as GroundLifted,
     GroundExposed as GroundExposed,
     Shunt as Shunt,
+    CoupledOnePorts as CoupledOnePorts,
+    CoupledTwoPorts as CoupledTwoPorts,
 )
 from pmrf.models.composite.wrapped import Tied as Tied
 

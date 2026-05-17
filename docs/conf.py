@@ -3,6 +3,83 @@ import os
 import sys
 import types
 from importlib.metadata import version as get_version, PackageNotFoundError
+import pkgutil
+import importlib
+import inspect
+
+def generate_models_tree(app):
+    """Dynamically generates a nested bulleted list of the pmrf.models hierarchy 
+    and a hidden autosummary block to generate the stubs."""
+    import pmrf.models
+    
+    all_classes = []
+    
+    def walk_module(module, depth=0):
+        lines = []
+        indent = "    " * depth
+        
+        # 1. Document classes directly inside this module
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if getattr(obj, '__module__', None) == module.__name__:
+                
+                # Create the visible bullet point (NO DESCRIPTION)
+                lines.append(f"{indent}* :class:`~{module.__name__}.{name}`")
+                
+                # Store for stub generation
+                all_classes.append(f"{module.__name__}.{name}")
+        
+        # 2. Recursively find and document submodules
+        if hasattr(module, '__path__'):
+            for module_info in pkgutil.iter_modules(module.__path__):
+                submodule_name = f"{module.__name__}.{module_info.name}"
+                try:
+                    submodule = importlib.import_module(submodule_name)
+                    # Add the module name as a header/bullet
+                    lines.append(f"{indent}* **{module_info.name}** (:mod:`~{submodule_name}`)")
+                    # Recurse deeper
+                    lines.extend(walk_module(submodule, depth + 1))
+                except ImportError:
+                    pass
+                    
+        return lines
+
+    tree_lines = walk_module(pmrf.models)
+    
+    # Append a HIDDEN autosummary block to force page generation
+    tree_lines.append("")
+    tree_lines.append(".. raw:: html")
+    tree_lines.append("")
+    tree_lines.append("   <div style=\"display: none;\">")
+    tree_lines.append("")
+    tree_lines.append(".. autosummary::")
+    tree_lines.append("   :toctree: generated/")
+    tree_lines.append("")
+    for cls in all_classes:
+        tree_lines.append(f"   {cls}")
+    tree_lines.append("")
+    tree_lines.append(".. raw:: html")
+    tree_lines.append("")
+    tree_lines.append("   </div>")
+    tree_lines.append("")
+    
+    # Save to a temporary file
+    output_path = os.path.join(app.srcdir, 'api', '_models_tree.rst')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'w') as f:
+        f.write("\n".join(tree_lines) + "\n")
+
+def inject_models_tree(app, what, name, obj, options, lines):
+    """Automatically injects the generated tree into the pmrf.models page."""
+    # Only intercept the pmrf.models module
+    if name == "pmrf.models" and what == "module":
+        tree_path = os.path.join(app.srcdir, 'api', '_models_tree.rst')
+        if os.path.exists(tree_path):
+            with open(tree_path, 'r') as f:
+                tree_lines = f.read().splitlines()
+            
+            # Append a header and the tree directly into the docstring
+            lines.extend(["", "Model Hierarchy", "===============", ""])
+            lines.extend(tree_lines)
 
 import sphinx.addnodes
 from sphinx_math_dollar import NODE_BLACKLIST
@@ -128,5 +205,6 @@ def skip_member(app, what, name, obj, skip, options):
     return skip
 
 def setup(app):
-    # Only connect the single unified function
+    app.connect("builder-inited", generate_models_tree)
     app.connect("autodoc-skip-member", skip_member)
+    app.connect("autodoc-process-docstring", inject_models_tree)

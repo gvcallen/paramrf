@@ -21,6 +21,7 @@ Core Primitives
    pmrf.field
 
 
+
 Main Modules
 ------------
 
@@ -32,7 +33,6 @@ Main Modules
    pmrf.optimize
    pmrf.infer
    pmrf.fitting
-
 
 Other Modules
 -------------
