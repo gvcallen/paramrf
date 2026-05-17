@@ -1,6 +1,6 @@
 # Contributing to ParamRF
 
-First off, thanks for considering contributing! Bug fixes, new models and new solvers are always appreciated.
+First off, thanks for considering contributing! Bug fixes, new models and new solvers are always appreciated. Also, if you would just like to open a discussion for a feature request or report a bug, feel free to open an issue on GitHub.
 
 ParamRF builds on top of JAX and Equinox's functional style. If you are coming from standard Python object-oriented programming, there are a few JAX-specific paradigms to keep in mind, which are outlined below.
 
