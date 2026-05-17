@@ -32,10 +32,10 @@ To differentiate a model's parameters, we must define a pure function that retur
    
    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
    
-   def s11_mag_sq(model):
-       return model.s_mag(freq)[0, 1, 0]
+   def s21_mag_sq(model):
+       return model.s_mag(freq)[0,1,0]
 
-   grad_fn = eqx.filter_grad(s11_mag_sq)
+   grad_fn = eqx.filter_grad(s21_mag_sq)
    sensitivities = grad_fn(prf.unwrap(lpf))
    
    print(f"Sensitivity to C1: {sensitivities.models[0].C * 1e-12:.3f} / pF")
@@ -65,14 +65,14 @@ To evaluate sensitivity across a frequency band, JAX's reverse-mode Jacobian fun
    
    band = prf.Frequency(1, 5, 201, 'GHz')
    
-   def s11_mag_array(c1_val, l_val):
+   def s21_mag_array(c1_val, l_val):
        model = ShuntCapacitor(C=c1_val) ** Inductor(L=l_val) ** ShuntCapacitor(C=1.0e-12)
        return model.s_mag(band)[:,1,0]
    
-   jacobian_fn = jax.jacrev(s11_mag_array, argnums=(0, 1))
+   jacobian_fn = jax.jacrev(s21_mag_array, argnums=(0, 1))
    
    c_nom, l_nom = 1.0e-12, 1.0e-9
-   ds11_dc, ds11_dl = jacobian_fn(c_nom, l_nom)
+   ds21_dc, ds21_dl = jacobian_fn(c_nom, l_nom)
    
 We can plot the results as a function of frequency to visualize their behaviour:
 
@@ -82,16 +82,16 @@ We can plot the results as a function of frequency to visualize their behaviour:
       
    fig, ax1 = plt.subplots(figsize=(8, 5))
 
-   ax1.plot(band.f_scaled, ds11_dc * 1e-12, color='tab:blue', label='C1 Sensitivity / pF')
+   ax1.plot(band.f_scaled, ds21_dc * 1e-12, color='tab:blue', label='C1 Sensitivity / pF')
    ax1.set_xlabel('Frequency (GHz)')
-   ax1.set_ylabel(r'$\partial |S_{11}| / \partial C$', color='tab:blue')
+   ax1.set_ylabel(r'$\partial |S_{21}| / \partial C$', color='tab:blue')
    ax1.tick_params(axis='y', labelcolor='tab:blue')
    
    ax2 = ax1.twinx()
-   ax2.plot(band.f_scaled, ds11_dl * 1e-9, color='tab:red', linestyle='--', label='L Sensitivity / nH')
-   ax2.set_ylabel(r'$\partial |S_{11}| / \partial L$', color='tab:red')
+   ax2.plot(band.f_scaled, ds21_dl * 1e-9, color='tab:red', linestyle='--', label='L Sensitivity / nH')
+   ax2.set_ylabel(r'$\partial |S_{21}| / \partial L$', color='tab:red')
    ax2.tick_params(axis='y', labelcolor='tab:red')
    
-   plt.title('Sensitivity of $S_{11}$ Magnitude')
+   plt.title('Sensitivity of $S_{21}$ Magnitude')
    fig.legend()
    fig.tight_layout()
