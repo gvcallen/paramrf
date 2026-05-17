@@ -78,6 +78,6 @@ result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
 
 # Acknowledgements
 
-We acknowledge the developers of JAX, Equinox [@kidger2021equinox], and the broader open-source scientific Python community that made this framework possible. 
+The research was supported by the South African Radio Astronomy Observatory, which is a facility of the National Research Foundation, an agency of the Department of Science and Technology (Grant Number 75322). The authors would also like to thank the developers of JAX, Equinox [@kidger2021equinox], scikit-rf, and the broader open-source scientific Python community that made this framework possible.
 
 # References
