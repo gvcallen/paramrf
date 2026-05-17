@@ -34,7 +34,7 @@ Vectorization with vmap
 -----------------------
 :func:`jax.vmap` provides automatic vectorization (or batching) of functions. If you write a function designed to operate on a single set of inputs, wrapping it in :func:`jax.vmap` automatically transforms it to operate over arrays of inputs without the need for Python ``for`` loops.
 
-Batched Models and Equinox
+Equinox and Batched Models
 --------------------------
 While :func:`jax.vmap` and :func:`jax.jit` are incredibly powerful, they are designed to operate exclusively on JAX arrays. ParamRF models, however, are complex "PyTrees" containing a mix of arrays (parameters) and non-arrays (metadata, strings, or Python booleans). Standard JAX transformations will raise errors when they encounter these non-array elements.
 
@@ -62,7 +62,7 @@ This allows you to easily create and evaluate entire batches of models simultane
   s_params = evaluate_batch(batched_capacitors)
   s_params.shape  # (10, 100, 2, 2)
 
-Unwrapping and Parax
+Parax and Unwrapping
 --------------------
 ParamRF builds on top of the JAX library `Parax <https://github.com/gvcallen/parax>`_ for parameters and constraints. Parax allows parameters (and entire models) to be manipulated in powerful ways, such as being fixed, scaled, constrained, or tied together. To accomplish this, Parax makes use of a concept known as *unwrapping*. To initialize a *wrapper*, the relevant parameter or object is *wrapped* in the desired class (for example, a "scale" wrapper). Then, to apply the wrapper, the object is *unwrapped*. This mechanism is what allows parameters to be tied together (for example, using :meth:`pmrf.models.Tied`), or for parameters to remain bounded, *even* when using an unbounded optimization algorithm.
 
