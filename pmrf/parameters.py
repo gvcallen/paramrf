@@ -21,7 +21,7 @@ from pmrf.distributions import AbstractDistribution
 #: The canonical type hint for a parameter in a model.
 Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
 
-def apply_wrappers(value: Any, scale: float, fixed: bool):
+def apply_wrappers(value: Any, scale: float, fixed: bool) -> Param:
     value = prx.as_variable(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
@@ -67,7 +67,7 @@ def as_param(
 
     Returns
     -------
-    Any
+    pmrf.Param
         An equinox field with a built-in converter for parameter rules.
     """
     # Unwrapping for safety
@@ -75,7 +75,7 @@ def as_param(
     
     # Error Checking & Value Inference
     if value is None and distribution is None and constraint is None:
-        raise ValueError("`value` was None in `as_param` but neither a distribution nor a finite Interval constraint was providied")
+        raise ValueError("`value` was None in `as_param` but neither a distribution nor a finite Interval constraint was provided")
     if distribution is not None and prx.is_variable(value):
         raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
     if constraint is not None and value is not None and constraint.is_outside(jnp.array(value)):
@@ -118,7 +118,7 @@ def param(
     fixed: bool = False,
 ) -> Any:
     """
-    A field specifier for defining the rules of parameters in custom model.
+    A field specifier for defining the rules of parameters in custom models.
 
     This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
     For example, it can be used to enforce constraints/scaling/bounds that are required
@@ -192,7 +192,7 @@ def Value(
 
     Returns
     -------
-    Param
+    pmrf.Param
         An unconstrained parameter.
     """
     return as_param(value, scale=scale, fixed=fixed)
@@ -215,7 +215,7 @@ def Fixed(
 
     Returns
     -------
-    Param
+    pmrf.Param
         The fixed parameter.
     """
     return as_param(value, scale=scale, fixed=True)
@@ -246,7 +246,7 @@ def Constrained(
 
     Returns
     -------
-    Param
+    pmrf.Param
         The constrained parameter.
     """
     return as_param(value, constraint=constraint, scale=scale, fixed=fixed)
@@ -280,7 +280,7 @@ def Bounded(
 
     Returns
     -------
-    Param
+    pmrf.Param
         The bounded parameter.
     """
     return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed)
@@ -301,7 +301,7 @@ def Random(
     Can also be used for bounded optimization, in which case the random
     variable's domain (constraint) is used as the bounds.
 
-    For built-in distributions, see :mod:`pmrf.distribution`.
+    For built-in distributions, see :mod:`pmrf.distributions`.
     For built-in constraints, see :mod:`pmrf.constraints`.
 
     Parameters
@@ -319,7 +319,7 @@ def Random(
 
     Returns
     -------
-    Param
+    pmrf.Param
         The random parameter.
 
     Raises

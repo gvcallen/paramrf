@@ -19,7 +19,7 @@ def minimize(
     frequency: Frequency,
     solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
-    search_space: str = 'base',
+    search_space: str | None = None,
     **kwargs,
 ) -> OptimizeResult:
     """
@@ -36,7 +36,7 @@ def minimize(
         for an easy way to define goal-based objectives.
     model : Model
         The RF model containing the parameters to be optimized.
-        If the parameters contain bounds and the optimizer is bounds, these bounds
+        If the parameters contain bounds and the optimizer supports bounds, these bounds
         are used in a bounded optimization. Otherwise, the bounds are enforced
         via space transformations (bijectors). If the parameters do not contain bounds,
         their limits are set to infinity.
@@ -47,6 +47,8 @@ def minimize(
         See :mod:`pmrf.optimize` for available solvers.
     max_iter : int
         The maximum number of iterations to take.
+    search_space : str, optional
+        The optimization search space. Currently ignored, provided for future compatibility.
     **kwargs
         Additional arguments to forward to `parax.optimize.minimize`.
 
@@ -55,8 +57,8 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if search_space != 'base':
-        raise Exception('Only base search space is currently supported')
+    if search_space != None:
+        raise ValueError('Only the default search space is currently supported')
     
     if isinstance(objective, list):
         objective = ex.Sum([c if isinstance(c, eqx.Module) else prx.Static(ex.Lambda(c)) for c in objective])

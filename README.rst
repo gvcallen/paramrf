@@ -67,7 +67,7 @@ Next steps
 ----------
 * For an overview of the library's features, see the `examples <https://gvcallen.github.io/paramrf/examples/index.html>`_ page.
 * For step-by-step guides that you can follow, check out the `tutorials <https://gvcallen.github.io/paramrf/tutorials/index.html>`_.
-* To delve a bit deeper into the library's core building blocks and philosophy, head of to `core concepts <https://gvcallen.github.io/paramrf/core_concepts/index.html>`_.
+* To delve a bit deeper into the library's core building blocks and philosophy, head off to `core concepts <https://gvcallen.github.io/paramrf/core_concepts/index.html>`_.
 
 Optional dependencies
 ---------------------
