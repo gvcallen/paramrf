@@ -54,7 +54,7 @@ import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 
 # Compose a nested circuit using operator overloading (cascade)
-model = Resistor(50) ** Inductor(1.0e-9) ** Capacitor(1.0e-12)
+model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
 
 # Define optimization goal and passband
 goal = prf.evaluators.Goal('s11_db', '<', -20)
