@@ -49,13 +49,8 @@ class Model(eqx.Module):
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
-    - Use :meth:`pmrf.Model.at` and methods such as :meth:`.terminated` and :meth:`.flipped` to create modified versions of your model.
+    - Use :attr:`pmrf.Model.at` and methods such as :meth:`.terminated` and :meth:`.flipped` to create modified versions of your model.
     
-    Attributes
-    ----------
-    z0 : complex, default=50.0+0j
-        The characteristic impedance of the model. Currently only a single characteristic impedance amongst all models is supported.
-
     Methods & Properties Summary
     ----------------------------
 

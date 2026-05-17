@@ -1,7 +1,7 @@
 JAX Overview
 ============
 
-ParamRF is built on top of `JAX <https://github.com/google/jax>`_, a high-performance numerical computing library. If you are familiar with standard scientific Python, JAX will feel very natural: its core array object, :class:`jnp.ndarray`, shares an almost identical API to :class:`numpy.ndarray`. However, JAX arrays have additional restrictions, but can also be used in powerful transformations.
+ParamRF is built on top of `JAX <https://github.com/google/jax>`_, a high-performance numerical computing library. If you are familiar with standard scientific Python, JAX will feel very natural: its core array object, :class:`jnp.ndarray`, shares an almost identical API to :class:`numpy.ndarray`. However, JAX arrays have additional transformation capabilities and restrictions.
 
 Understanding a few core JAX concepts may be helpful when building or debugging custom models in ParamRF. This section provides a high-level overview of Just-In-Time (JIT) compilation, the XLA graph, autodifferentiation, and vectorization.
 
@@ -28,7 +28,7 @@ One of the benefits of leveraging JAX is its advanced **autodifferentiation** (a
   grad_fn = jax.grad(objective)
   gradient = grad_fn(jnp.array([1.0, 2.0, 3.0]))  # Returns [2.0, 4.0, 6.0]
 
-In ParamRF, this means you can take gradients with respect to any parameter and frequency. This improves optimization efficiency and stability, since the gradient is immediately known at each iteration.
+In ParamRF, this means you can take gradients with respect to any parameter or frequency. This improves optimization efficiency and stability, since the gradient is immediately known at each iteration.
 
 Vectorization with vmap
 -----------------------
@@ -60,11 +60,12 @@ This allows you to easily create and evaluate entire batches of models simultane
       return model.s(freq)
   
   s_params = evaluate_batch(batched_capacitors)
+  s_params.shape  # (10, 100, 2, 2)
 
 Unwrapping and Parax
 --------------------
-ParamRF builds on top of the JAX library `Parax <https://github.com/gvcallen/parax>`_ for parameters and constraints. Parax allows parameters (and entire models) to be manipulated in powerful ways, for example being fixed, scaled, constrained, or tied together. To accomplish this, Parax makes use of a concept known as *unwrapping*. To initialize a *wrapper*, the relevant parameter or object is *wrapped* in the desired class (for example, a "scale" wrapper). Then, to apply the wrapper, the object is *unwrapped*. This mechanism is what allows parameters to be tied together (for example, using :meth:`pmrf.models.Tied`), or for parameters to remain bounded, *even* when using an unbounded optimization algorithm.
+ParamRF builds on top of the JAX library `Parax <https://github.com/gvcallen/parax>`_ for parameters and constraints. Parax allows parameters (and entire models) to be manipulated in powerful ways, such as being fixed, scaled, constrained, or tied together. To accomplish this, Parax makes use of a concept known as *unwrapping*. To initialize a *wrapper*, the relevant parameter or object is *wrapped* in the desired class (for example, a "scale" wrapper). Then, to apply the wrapper, the object is *unwrapped*. This mechanism is what allows parameters to be tied together (for example, using :meth:`pmrf.models.Tied`), or for parameters to remain bounded, *even* when using an unbounded optimization algorithm.
 
-In ParamRF, unwrapping can be done manually using :func:`pmrf.unwrap` (which is an alias to `parax.unwrap`). However, it is also automatically applied in ParamRF for methods such as :meth:`pmrf.Model.s` or :meth:`pmrf.Model.build` via the :func:`pmrf.unwrap_self` annotation, and is also applied internally during optimization before your objective function is called. However, if you are using non-standard methods on your models and simply want to evaluate them (for example in a Jupyter notebook), then you should manually unwrap using :func:`pmrf.unwrap` or annotate your method using :func:`pmrf.unwrap_self` appropriately.
+In ParamRF, unwrapping can be done manually using :func:`pmrf.unwrap` (which is an alias to :func:`parax.unwrap`). However, it is also automatically applied in ParamRF for methods such as :meth:`pmrf.Model.s` or :meth:`pmrf.Model.build` via the :func:`pmrf.unwrap_self` annotation, as well as internally during optimization and inference. However, if you are using non-standard methods on your models and simply want to evaluate them (for example in a Jupyter notebook), then you should manually unwrap using :func:`pmrf.unwrap`, or annotate your method using :func:`pmrf.unwrap_self` where relevant.
 
 For more information, visit the `Parax <https://gvcallen.github.io/parax>`_ documentation.

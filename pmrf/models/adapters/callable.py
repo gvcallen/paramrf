@@ -35,7 +35,7 @@ class ContinuousCallable(AbstractSingleProperty):
     #: Parameters to pass to fn
     theta: Param = param()
     
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
             return unwrap(self.fn)(freq.f_scaled, flat_theta)
@@ -67,7 +67,7 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     #: Parameters to pass to fn
     theta: Param = param()
     
-    def output_discrete(self) -> jnp.ndarray:
+    def discrete_matrix(self) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
             return unwrap(self.fn)(flat_theta)

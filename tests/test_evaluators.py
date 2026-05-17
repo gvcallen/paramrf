@@ -1,15 +1,11 @@
 # tests/test_evaluators/test_goals.py
 import pytest
-import jax
 import jax.numpy as jnp
-import equinox as eqx
-import parax as prx
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Goal
 
-# We use importorskip because distreqx and pmrf.losses are required for these tests
 dist = pytest.importorskip("distreqx.distributions")
 losses = pytest.importorskip("pmrf.losses")
 

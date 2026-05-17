@@ -29,7 +29,6 @@ class Load(Model):
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         gamma, nports = self.gamma, self.nports
-        # Create a frequency-dependent 1x1 matrix from the scalar gamma
         s = jnp.array(gamma).reshape(-1, 1, 1) * \
             jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
             repeat(freq.npoints, 0)
@@ -73,14 +72,12 @@ class Resistor(Model):
         R = self.R
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
-        # Parse reference impedances safely
         if jnp.isscalar(self.z0):
             z_in = z_out = self.z0
         else:
             z_in = self.z0[..., 0]
             z_out = self.z0[..., 1]
 
-        # Component path
         denom_c = R + (z_in + z_out)
         s_c11 = ((R - jnp.conj(z_in) + z_out) / denom_c) * ones
         s_c22 = ((R + z_in - jnp.conj(z_out)) / denom_c) * ones
@@ -117,7 +114,6 @@ class Capacitor(Model):
             z_in = self.z0[..., 0]
             z_out = self.z0[..., 1]
         
-        # Component path
         denom_c = 1.0 + 1j * w * C * (z_in + z_out)
         s_c11 = (1.0 - 1j * w * C * (jnp.conj(z_in) - z_out) ) / denom_c
         s_c22 = (1.0 - 1j * w * C * (jnp.conj(z_out) - z_in) ) / denom_c
@@ -153,7 +149,6 @@ class Inductor(Model):
             z_in = self.z0[..., 0]
             z_out = self.z0[..., 1]
 
-        # Component path
         denom_c = (1j * w * L) + (z_in + z_out)
         s_c11 = (1j * w * L - jnp.conj(z_in) + z_out) / denom_c
         s_c22 = (1j * w * L + z_in - jnp.conj(z_out)) / denom_c

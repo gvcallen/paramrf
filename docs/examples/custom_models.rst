@@ -8,7 +8,7 @@ Sometimes, it is more convenient or elegant to define a custom model that is not
   * Expose another model's parameters under different names/paths
   * Implement a specialized version of an existing model
 
-In ParamRF, this is done by inheriting directly from :class:`~pmrf.Model` and overriding at least one of its core methods, namely :method:`~pmrf.Model.s`, :method:`~pmrf.Model.a`, :method:`~pmrf.Model.y`, :method:`~pmrf.Model.z`, :method:`~pmrf.Model.build`, or :method:`~pmrf.Model.primary_matrix`.
+In ParamRF, this is done by inheriting directly from :class:`~pmrf.Model` and overriding at least one of its core methods, namely :meth:`~pmrf.Model.s`, :meth:`~pmrf.Model.a`, :meth:`~pmrf.Model.y`, :meth:`~pmrf.Model.z`, :meth:`~pmrf.Model.build`, or :meth:`~pmrf.Model.primary_matrix`.
 
 Defining a Capacitor
 ^^^^^^^^^^^^^^^^^^^^
@@ -53,7 +53,7 @@ The code below demonstrates this, constraining ``C`` to be only positive and def
   class Capacitor(prf.Model):
       C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
   
-      def s(self, freq: prf.Frequency) -> jnp.ndarray:
+      # def a(self, freq: prf.Frequency) -> jnp.ndarray:
           # <same as before>
 
 The constraints will always be enforced (even for unconstrained optimizers!), and ParamRF will also automatically intersect them with any new constraints provided by the caller.
@@ -68,4 +68,4 @@ We can now create a capacitor and plot its S-parameters:
   cap = Capacitor(1.0)
   cap.plot_s_db(prf.Frequency(10, 100, 101, 'MHz'), m=1, n=0)
 
-ParamRF automatically performs the conversion between ABCD and S-parameters internally.
+ParamRF will automatically perform the conversion between ABCD and S-parameters internally.

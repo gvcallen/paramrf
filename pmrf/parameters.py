@@ -78,10 +78,13 @@ def as_param(
         raise ValueError("`value` was None in `as_param` but neither a distribution nor a finite Interval constraint was provided")
     if distribution is not None and prx.is_variable(value):
         raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
-    if constraint is not None and value is not None and constraint.is_outside(jnp.array(value)):
-        raise ValueError(
+    if constraint is not None and value is not None:
+        value_array = jnp.array(value)
+        eqx.error_if(
+            value_array,
+            constraint.is_outside(value_array),
             f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
-            f"\nMake sure the initial values match the parameter and model constraints."
+            f"\nMake sure the initial values match the parameter and model constraints.",
         )
         
     # Cater for none values

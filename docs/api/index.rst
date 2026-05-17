@@ -4,7 +4,7 @@ API
 This page contains the main API reference.
 
 Core Primitives
-------------
+---------------
 
 .. autosummary::
    :toctree: generated/
@@ -22,7 +22,7 @@ Core Primitives
 
 
 Main Modules
--------------
+------------
 
 .. autosummary::
    :toctree: generated/

@@ -94,7 +94,7 @@ For the *PolyChord* solver:
 Citation
 ---------------------
 
-If you have used ParamRF for academic work, please cite the original paper (https://doi.org/10.48550/arXiv.2510.15881):
+If you have used ParamRF for academic work, please cite the arXiv paper (https://doi.org/10.48550/arXiv.2510.15881)
 as: ::
 
    G.V.C. Allen, D.I.L. de Villiers, (2025). ParamRF: A JAX-native Framework for Declarative Circuit Modelling. arXiv, https://doi.org/10.48550/arXiv.2510.15881.

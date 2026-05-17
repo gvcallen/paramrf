@@ -27,7 +27,6 @@ class Problem(eqx.Module):
         The operator (e.g., a Likelihood or Loss) that maps the model 
         and frequency to a scalar or array result.
     """
-    
     #: The active RF model.
     model: Model
     

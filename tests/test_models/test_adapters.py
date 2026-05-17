@@ -6,8 +6,8 @@ import numpy as np
 
 from pmrf import Frequency, Param, param
 from pmrf.models import (
-    AbstractDiscrete, AbstractSingleProperty, AbstractSingleDiscreteProperty,
-    Host, ContinuousCallable, DiscreteCallable, Measured
+    AbstractDiscrete, AbstractSingleProperty,
+    Host, ContinuousCallable, Measured
 )
 from pmrf.network_collection import NetworkCollection
 
@@ -31,7 +31,6 @@ def fine_freq():
 
 class DummyDiscrete(AbstractDiscrete):
     """A 1-port discrete model with tabulated S-parameters."""
-    # Define as a class attribute so Equinox handles __init__ automatically
     frequency: Frequency
 
     def s_discrete(self) -> jnp.ndarray:
@@ -52,7 +51,7 @@ def test_abstract_discrete_interpolation(coarse_freq, fine_freq):
 class DummySinglePropertyY(AbstractSingleProperty):
     """A model that only natively knows its Y-parameters."""
     kind: str = 'y'
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * 0.02 # 50 ohm admittance
 
 def test_single_property_routing(fine_freq):

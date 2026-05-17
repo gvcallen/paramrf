@@ -36,7 +36,7 @@ class VectorExpansion(AbstractSingleDiscreteProperty):
     #: An optional fixed offset
     offset: jnp.ndarray = param()
     
-    def output_discrete(self) -> jnp.ndarray:
+    def discrete_matrix(self) -> jnp.ndarray:
         coeff = self.coefficients_real
         if self.coefficients_imag is not None:
             coeff += 1j * self.coefficients_imag

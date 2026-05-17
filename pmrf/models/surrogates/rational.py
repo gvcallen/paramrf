@@ -30,7 +30,7 @@ class PolynomialRatio(AbstractSingleProperty):
     #: Denominator coefficients
     b: Param = None
 
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
         # Ensure parameters are at least 1D so we can extract the degree dimension
@@ -87,7 +87,7 @@ class PoleResidue(AbstractSingleProperty):
     #: Optional direct feedthrough matrix
     d: Param = None
 
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
         # Ensure arrays are at least 1D
@@ -146,7 +146,7 @@ class StateSpace(AbstractSingleProperty):
     #: Feedthrough matrix (D)
     d: Param = None
 
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
         # Ensure matrices are at least 2D
@@ -214,7 +214,7 @@ class BarycentricRational(AbstractSingleProperty):
     #: Function values at support points
     values: Param = None
 
-    def output(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
         s_i = jnp.atleast_1d(self.support_points)

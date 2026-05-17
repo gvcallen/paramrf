@@ -64,17 +64,12 @@ def test_fit_skrf_synthetic_data(starting_model, target_network):
     Replaces the old file-loading test.
     Fits a perturbed model to an in-memory scikit-rf Network.
     """
-    # Notice we don't pass frequency; `fit` should extract it from the Network
     results = fit_minimize(starting_model, target_network)
     fitted_model = results.model
 
-    # 1. Did it find the correct physical length?
     assert jnp.allclose(fitted_model.length.value, 0.1, atol=1e-3)
 
-    # 2. Check the residuals just like the old test
-    import pmrf as prf
-    target_freq = prf.Frequency.from_skrf(target_network.frequency)
-    
+    target_freq = Frequency.from_skrf(target_network.frequency)
     residuals = target_network.s - fitted_model.s(target_freq)
     # Add a tiny epsilon to avoid log10(0) if the fit is mathematically perfect
     max_residual_db = np.max(20 * np.log10(np.abs(residuals) + 1e-15))

@@ -31,7 +31,11 @@ extensions = [
     'sphinx_math_dollar',      # Parses $math$ in .rst files
     'sphinx.ext.mathjax',      # Renders the math via MathJax
     'myst_parser',             # Parses markdown files
+    'matplotlib.sphinxext.plot_directive',
 ]
+
+plot_html_show_formats = False
+plot_html_show_source_link = False
 
 # --- 4. Sphinx Options -------------------------------------------------------
 nbsphinx_execute = 'auto'
