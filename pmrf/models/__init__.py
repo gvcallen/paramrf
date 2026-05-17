@@ -16,7 +16,13 @@ from pmrf.models.adapters.base import (
     AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
 )
 from pmrf.models.adapters.bridge import Host as Host
-from pmrf.models.adapters.static import Measured as Measured
+from pmrf.models.adapters.static import (
+    Measured as Measured,
+    SModel as SModel,
+    AModel as AModel,
+    YModel as YModel,
+    ZModel as ZModel,
+)
 from pmrf.models.adapters.callable import (
     ContinuousCallable as ContinuousCallable,
     DiscreteCallable as DiscreteCallable,
