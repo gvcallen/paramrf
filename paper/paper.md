@@ -76,7 +76,7 @@ model.plot_s_db(plot_freq, m=0, n=0, label='initial')
 result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
 ```
 
-![Optimized vs Initial RLC.](rlc.png){ width=70% }
+![Optimized vs Initial RLC.](rlc.png){ width=40% }
 
 # AI Usage Disclosure
 
