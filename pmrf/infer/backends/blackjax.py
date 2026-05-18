@@ -276,7 +276,7 @@ class NSS(AbstractSplitSampler):
         else:
             dead = []
 
-        rng_key, weight_key = jax.random.split(rng_key, 3)
+        rng_key, weight_key = jax.random.split(rng_key, 2)
         final_state = finalise(state, dead)
         log_w = log_weights(weight_key, final_state, shape=100)
         # unweighted_samples = sample(sample_key, final_state, shape=num_live)  # if we ever need unweighted samples
