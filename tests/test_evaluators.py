@@ -105,9 +105,8 @@ def test_feature_invalid_alias():
 
 def test_target_loss(model, basic_freq):
     """Test the base capability of evaluating predictions against a target."""
-    target_data = jnp.ones((5,)) * 5.0
+    target_data = jnp.ones((5,)) * 6.0
     
-    # Simple MSE loss lambda
     mse_loss = lambda t, p: jnp.mean((t - p) ** 2)
     
     # Predictor extracts 's22_mag' which equals 4.0
@@ -117,9 +116,9 @@ def test_target_loss(model, basic_freq):
         loss=mse_loss
     )
     
-    # Loss should be mean((5.0 - 4.0)^2) = 1.0
+    # Loss should be mean((6.0 - 4.0)^2) = 4.0
     loss_val = evaluator(model, basic_freq)
-    assert jnp.allclose(loss_val, 1.0)
+    assert jnp.allclose(loss_val, 4.0)
 
 # ---------------------------------------------------------
 # Goal Tests

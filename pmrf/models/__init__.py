@@ -58,9 +58,6 @@ from pmrf.models.components.lumped import (
     Open as Open,
     Match as Match,
 )
-from pmrf.models.components.nonideal import (
-    CLCResistor as CLCResistor,
-)
 from pmrf.models.components.topological import (
     PiCLC as PiCLC,
     BoxCLCC as BoxCLCC,
