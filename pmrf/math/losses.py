@@ -258,7 +258,7 @@ def hinge_loss(
     ValueError
         If an unknown constraint operator is provided.
     """
-    # 1. Apply the differentiable hinge
+    # JAX-native hinge
     if operator in ['<', '<=']:
         effective_pred = jnp.maximum(y_pred, y_true)
     elif operator in ['>', '>=']:
@@ -268,21 +268,15 @@ def hinge_loss(
     else:
         raise ValueError(f"Unknown Hinge operator: '{operator}'")
         
-    # 2. Weighting & Masking in Residual Space
     residual = effective_pred - y_true
     weighted_residual = residual * weight
-    
     if mask is not None:
         weighted_residual = jnp.where(mask, weighted_residual, 0.0)
-        
-    # 3. Shift back to target space
     final_pred = y_true + weighted_residual
     
-    # Resolve the base metric if a string alias is provided
+    # Actual loss calculation
     if isinstance(base_loss, str):
         base_loss = LOSS_LOOKUP[base_loss][1]
-    
-    # 4. Defer actual distance calculation to the base metric
     return base_loss(
         y_true,
         final_pred,

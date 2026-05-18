@@ -276,16 +276,17 @@ class NSS(AbstractSplitSampler):
         else:
             dead = []
 
-        rng_key, weight_key, sample_key = jax.random.split(rng_key, 3)
+        rng_key, weight_key = jax.random.split(rng_key, 3)
         final_state = finalise(state, dead)
         log_w = log_weights(weight_key, final_state, shape=100)
-        samples = sample(sample_key, final_state, shape=num_live)
+        # unweighted_samples = sample(sample_key, final_state, shape=num_live)  # if we ever need unweighted samples
         logzs = jax.scipy.special.logsumexp(log_w, axis=0)
 
         logevidence = logzs.mean()
         logevidence_error = logzs.std()
         weights = jnp.exp(log_w).mean(axis=-1)
-        fn_values = jax.vmap(loglikelihood)(samples)
+        samples = final_state.particles
+        fn_values = final_state.loglikelihood
 
         result = SampleResult(
             samples=samples,

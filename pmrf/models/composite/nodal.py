@@ -8,7 +8,6 @@ from typing import Self
 import jax.numpy as jnp
 import numpy as np
 
-from dataclasses import replace
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.rf.conversions import s2y, y2s
@@ -26,7 +25,7 @@ class GroundLifted(Model):
     model : Model
         The inner N-port model to be wrapped and lifted from the global ground.
 
-    Mathematical Reference
+    Reference
     ----------------------
     Constructs a $2N \times 2N$ floating S-matrix by superimposing the signal S-matrix 
     onto the even ports and a parallel star-node (common return) S-matrix onto the odd ports.
@@ -37,6 +36,8 @@ class GroundLifted(Model):
     def s(self, freq: Frequency) -> jnp.ndarray:
         n = self.model.nports
 
+        # TODO currently we do not support mixing internal characteristic impedances.
+        # We therefore could broadcast self.z0, though this code is just left for reference
         if jnp.isscalar(self.z0):
             inner_z0 = self.z0
             z_ret = jnp.full((freq.npoints, n), self.z0, dtype=jnp.complex128)
@@ -86,7 +87,7 @@ class GroundExposed(Model):
     model : Model
         The inner N-port model whose ground is to be exposed.
 
-    Mathematical Reference
+    Reference
     ----------------------
     Uses the Indefinite Admittance Matrix (IAM) transformation. Because the sum of 
     currents entering a subcircuit must be zero, the exposed global node is calculated 
@@ -126,7 +127,7 @@ class Shunt(Model):
     model : Model
         The 1-port model to be connected in shunt.
 
-    Mathematical Reference
+    Reference
     ----------------------
     Maps the reflection coefficient ($\Gamma$ or $S_{11}$) of a 1-port component 
     into a 2-port transmission matrix. Avoids division by zero (e.g., ideal opens/shorts) 
@@ -167,7 +168,7 @@ class CoupledOnePorts(Model):
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
         diagonals, and be positive semi-definite.
 
-    Mathematical Reference
+    Reference
     ----------------------
     Creates an N-port model where the off-diagonal interactions are defined 
     by the mutual admittance relation: 
@@ -255,7 +256,7 @@ class CoupledTwoPorts(Model):
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
         diagonals, and be positive semi-definite.
 
-    Mathematical Reference
+    Reference
     ----------------------
     Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
     component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 

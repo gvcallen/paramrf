@@ -35,9 +35,12 @@ class Load(Model):
         return s
     
 
-class FixedLoad(Model):
+class ConstantLoad(Model):
     """
-    A class for N-port loads defined by fixed (non-tunable) reflection coefficient.
+    A class for N-port loads defined by constant (non-tunable) reflection coefficient.
+
+    This bakes in the "non-tunability" into the load by making it a float
+    instead of a parameter.
     
     Parameters
     ----------
@@ -357,7 +360,7 @@ class CapacitorQ(Model):
 
         return s
     
-def Short(nports=1) -> FixedLoad:
+def Short(nports=1) -> ConstantLoad:
     """
     A standard ideal short circuit load (gamma = -1.0).
     
@@ -366,9 +369,9 @@ def Short(nports=1) -> FixedLoad:
     nports : int, default=1
         The number of ports for the load.    
     """
-    return FixedLoad(-1.0, nports=nports)
+    return ConstantLoad(-1.0, nports=nports)
 
-def Open(nports=1) -> FixedLoad:
+def Open(nports=1) -> ConstantLoad:
     """
     A standard ideal open circuit load (gamma = 1.0).
     
@@ -377,9 +380,9 @@ def Open(nports=1) -> FixedLoad:
     nports : int, default=1
         The number of ports for the load.
     """
-    return FixedLoad(1.0, nports=nports)
+    return ConstantLoad(1.0, nports=nports)
 
-def Match(nports=1) -> FixedLoad:
+def Match(nports=1) -> ConstantLoad:
     """
     A standard ideal matched circuit load (gamma = 0.0).
     
@@ -388,4 +391,4 @@ def Match(nports=1) -> FixedLoad:
     nports : int, default=1
         The number of ports for the load.
     """
-    return FixedLoad(0.0, nports=nports)
+    return ConstantLoad(0.0, nports=nports)

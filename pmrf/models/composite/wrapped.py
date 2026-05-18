@@ -1,6 +1,5 @@
 """Models that wrap other models to manipulate them."""
 
-from refrax import focus, Lens
 from typing import Any, Callable
 import parax
 from pmrf.models.base import Model

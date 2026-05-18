@@ -14,6 +14,8 @@ from pmrf.rf import cascade_s
 from pmrf.parameters import Param, param
 from pmrf.utils import field
 
+
+# Code left from previous Parax architecture. Left for reference to be ported over to new architecture.
 # class ProfiledLine(Model):
 #     r"""
 #     A non-uniform transmission line defined by an arbitrary profile.

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleProperty, AbstractSingleDiscreteProperty
 from pmrf.parameters import Param, param
-from pmrf.utils import freeze, field, unwrap
+from pmrf.utils import freeze, field, unwrap, unfreeze
     
 class ContinuousCallable(AbstractSingleProperty):
     """
@@ -38,9 +38,9 @@ class ContinuousCallable(AbstractSingleProperty):
     def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
-            return unwrap(self.fn)(freq.f_scaled, flat_theta)
+            return unfreeze(self.fn)(freq.f_scaled, flat_theta)
         else:
-            return unwrap(self.fn)(freq.f_scaled)
+            return unfreeze(self.fn)(freq.f_scaled)
     
 
 class DiscreteCallable(AbstractSingleDiscreteProperty):
@@ -70,6 +70,6 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     def discrete_matrix(self) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
-            return unwrap(self.fn)(flat_theta)
+            return unfreeze(self.fn)(flat_theta)
         else:
-            return unwrap(self.fn)()
+            return unfreeze(self.fn)()

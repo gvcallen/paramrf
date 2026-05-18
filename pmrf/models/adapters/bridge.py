@@ -21,12 +21,12 @@ def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
         if all_leaves[0].ndim > len(leaf_shapes[0]):
             is_batched = True
     
-    # 2. Single execution
+    # Single execution
     if not is_batched:
         model = eqx.combine(dynamic_vals, static_model)
         return np.array(model.compute(freq))
 
-    # 3. Batched execution (Multithreading)
+    #  Batched execution (built-in Multithreading)
     batch_size = all_leaves[0].shape[0]
     
     def run_job(i):

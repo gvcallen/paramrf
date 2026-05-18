@@ -1,5 +1,7 @@
 """
 Math conversion functions.
+
+A large portion of these function have been ported from scikit-rf.
 """
 from typing import Callable
 

@@ -211,8 +211,9 @@ class BoxCLCC(Model):
         Y1 = 1j * freq.w * self.C1
         Y2 = 1j * freq.w * self.C2
 
-        # Hack for now
-        L = 1e-18
+        # TODO Currently we re-formulate in terms of a small inductance which will work
+        # for any application, though we should try re-write the maths rigourously.
+        L = 1e-30
         Y3 = 1 / (1j * freq.w * L)
         Y4 = 1j * freq.w * self.C3
         zero = jnp.zeros(freq.npoints)

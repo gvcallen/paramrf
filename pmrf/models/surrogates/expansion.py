@@ -51,6 +51,9 @@ class VectorExpansion(AbstractSingleDiscreteProperty):
         return X
     
     def inverse(self, sample: jnp.ndarray) -> jnp.ndarray:
+        # TODO deprecate this method and introduce
+        # the inverse solution in the "solver module
+
         if len(sample.shape) == 1:
             sample = sample[..., None, None]
         
