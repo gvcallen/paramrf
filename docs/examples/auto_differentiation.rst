@@ -1,7 +1,7 @@
 Automatic Differentiation
 =========================
 
-ParamRF is built on JAX and Equinox, making models natively differentiable. This allows for analytical gradients of circuit responses with respect to component values, avoiding the need for numerical approximations. Currently, this can be done using Equinox's ``filter_xxx`` functions along with :meth:`pmrf.unwrap`.
+ParamRF is built on JAX and Equinox, making models natively differentiable. This allows for analytical gradients of circuit responses with respect to component values, avoiding the need for numerical approximations. These gradients can be interpreted, for example, as the sensitivities of a given response to specific components. In this example, we compute these sensitivities for a CLC low-pass filter across frequency.
 
 Computing Parameter Sensitivities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -32,10 +32,10 @@ To differentiate a model's parameters, we must define a pure function that retur
    
    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
    
-   def s21_mag_sq(model):
+   def s21_mag(model):
        return model.s_mag(freq)[0,1,0]
 
-   grad_fn = eqx.filter_grad(s21_mag_sq)
+   grad_fn = eqx.filter_grad(s21_mag)
    sensitivities = grad_fn(prf.unwrap(lpf))
    
    print(f"Sensitivity to C1: {sensitivities.models[0].C * 1e-12:.3f} / pF")
