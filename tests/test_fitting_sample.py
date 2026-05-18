@@ -48,27 +48,40 @@ def starting_model():
         length=Random(Normal(0.1, 0.05), value=jnp.array(0.095))
     )
 
-def test_fit_sample_skrf_synthetic_data(starting_model, target_network):
-    key = jax.random.key(42)
-    solver = NUTS(num_warmup=10)
+
+def test_fit_sample_skrf_synthetic_data(starting_model, target_network, truth_model):
+    key = jax.random.key(0)
+    solver = NUTS(num_warmup=50)
+
+    num_steps = 100
 
     results = fit_sample(
         model=starting_model, 
         data=target_network,
         solver=solver,
         key=key,
-        max_steps=20
+        max_steps=num_steps
     )
 
+    # Structural checks
     assert results.data is target_network
-    assert results.solution.sampled_model.length.shape == (20,)
-    assert results.solution.fn_values.shape == (20,)
+    assert results.solution.sampled_model.length.shape == (num_steps,)
+    assert results.solution.fn_values.shape == (num_steps,)
     assert results.solution.best_model.length.ndim == 0
+
+    # We validate results just for this run.
+    # Other validation is done in test_infer_base
+    post_samples = jnp.array(results.solution.sampled_model.length)
+    true_length = jnp.array(truth_model.length)
+    mean_length = jnp.mean(post_samples)
+    best_length = jnp.array(results.solution.best_model.length)
+    np.testing.assert_allclose(mean_length, true_length, rtol=0.01)
+    np.testing.assert_allclose(best_length, true_length, rtol=0.01)    
 
 def test_fit_sample_raw_ndarray(truth_model, starting_model, fit_freq):
     # Extract raw S-parameter array
     target_s = np.array(truth_model.s(fit_freq))
-    key = jax.random.key(42)
+    key = jax.random.key(0)
     solver = NUTS(num_warmup=5)
 
     # Must pass frequency explicitly when using raw arrays

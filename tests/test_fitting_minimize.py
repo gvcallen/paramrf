@@ -49,6 +49,8 @@ def starting_model():
     )
 
 def test_fit_skrf_synthetic_data(starting_model, target_network):
+    # Note that this also tests full two-port fitting (all S-params).
+    # We test only one feature (s21) below
     results = fit_minimize(starting_model, target_network)
     fitted_model = results.model
 

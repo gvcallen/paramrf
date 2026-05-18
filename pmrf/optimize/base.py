@@ -129,8 +129,33 @@ def minimize(
 
     The solver can be any solver of type :type:`pmrf.optimize.AbstractMinimizer`.
 
-    Performs Equinox partitioning and Parax parameter bound extraction,
+    Performs Equinox partitioning and Parax unwrrapping/extraction,
     as well as delegation to the relevant solver interface.
+
+    Note that all Parax unwrappables (such a Parax variables)
+    MUST be re-wrappable for this interface.
+
+    Parameters
+    ----------
+    fn : callable
+        The likelihood function taking `(unwrapped_y0, args)`.
+    model : PyTree
+        The initial parameter guess / model state.
+    solver : AbstractMinimizer
+        The instantiated sampler to run.
+    args : Any
+        Args to pass to `fn`.
+    max_iter: int, optional
+        Maximum number of iterations.
+    use_bounds: int, optional
+        Whether bounds should be used. Defaults to True only if the solver is bounded.
+    **kwargs
+        Runtime arguments forwarded to the solver backend.
+
+    Returns
+    -------
+    tuple
+        A tuple of `(best_model, payload, metrics)`.    
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
     if use_bounds is not None:
@@ -154,18 +179,20 @@ def minimize(
 
     # Run the correct solver execution and reconstruct the final model
     if is_bounded:
-        payload, metrics = solver.run(
+        result, metrics = solver.run(
             fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
-        opt_dynamic = prx.wrap(dynamic, payload.y, only_if=prx.is_bounded)
+        # Re-wrap into unbounded domain
+        opt_dynamic = prx.wrap(dynamic, result.y, only_if=prx.is_bounded)
         opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
     else:
-        payload, metrics = solver.run(
+        result, metrics = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
-        opt_model = eqx.combine(payload.y, static)
+        # No need to re-wrap because `params` was never unwrapped
+        opt_model = eqx.combine(result.y, static)
         
-    if not payload.success:
+    if not result.success:
         warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
 
-    return opt_model, payload, metrics
+    return opt_model, result, metrics

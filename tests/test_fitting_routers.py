@@ -5,13 +5,13 @@ import numpy as np
 import jax.numpy as jnp
 
 from pmrf.models import Model
-from pmrf.parameters import Bounded, Fixed
+from pmrf.parameters import Bounded, Fixed, Param
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_sequential
 
 class SubModel(Model):
-    val: object
+    val: Param
     
     def s(self, freq: Frequency):
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * self.val
@@ -19,7 +19,7 @@ class SubModel(Model):
 class CompositeModel(Model):
     sub1: SubModel
     sub2: SubModel
-    global_fixed: object = Fixed(10.0)
+    global_fixed: Param = Fixed(10.0)
 
 @pytest.fixture
 def freq():

@@ -203,6 +203,14 @@ def sample(
     Samples a general PyTree potentially containing Parax probabilistic parameters
     using a joint, split, or hypercube Bayesian sampler.
 
+    The solver can be any solver of type :type:`pmrf.infer.AbstractSampler`.
+
+    Performs Equinox partitioning and Parax unwrrapping/extraction,
+    as well as delegation to the relevant solver interface.
+
+    Note that all Parax unwrappables (such a Parax variables)
+    MUST be re-wrappable for this interface.
+
     Parameters
     ----------
     loglikelihood_fn : callable
@@ -210,12 +218,12 @@ def sample(
         Prior calculations are handled automatically via Parax.
     model : PyTree
         The initial parameter guess / model state.
-    args : Any
-        Args to pass to `loglikelihood_fn`.
     solver : AbstractSampler
         The instantiated sampler to run.
     key : Array
         JAX PRNG key.
+    args : Any
+        Args to pass to `loglikelihood_fn`.
     init_samples : PyTree, optional
         Optional batched PyTree of initial states. 
     max_steps: int, optional
@@ -285,9 +293,10 @@ def sample(
                 init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
             )
         
-        # Post-process back to original parameter space
-        batched_params = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
-        return eqx.combine(batched_params, static), results, metrics
+        # Post-process back to original parameter space and re-wrap
+        batched_params_unwrapped = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
+        batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
+        return eqx.combine(batched_params, static, is_leaf=is_leaf), results, metrics
 
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
@@ -319,7 +328,8 @@ def sample(
             init_cube_samples=batched_cube_params, max_steps=max_steps, **kwargs
         )
 
-        return eqx.combine(results.samples, static), results, metrics
+        batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)
+        return eqx.combine(batched_params, static, is_leaf=is_leaf), results, metrics
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

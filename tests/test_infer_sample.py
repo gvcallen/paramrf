@@ -18,11 +18,9 @@ from pmrf.frequency import Frequency
 
 @pytest.fixture
 def basic_freq():
-    # Real frequency grid for evaluation
     return Frequency(start=1.0, stop=2.0, npoints=2, unit='GHz')
 
 class DummyInferModel(Model):
-    """A simple model for testing Bayesian inference."""
     val: Param = Random(Normal(0.0, 5.0), value=0.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
