@@ -3,8 +3,9 @@ import logging
 
 import skrf
 
+from pmrf.frequency import Frequency
 from pmrf.fitting.result import FitResult
-from pmrf.models import Model, Measured
+from pmrf.models import Measured
 from pmrf.evaluators import AbstractEvaluator, Feature
 from pmrf.network_collection import NetworkCollection
 
@@ -27,11 +28,13 @@ def plot_fit_result(
     ax=None,
     subplots: bool = False,
     use_data_prefix: bool | None = None,
-    model_frequency: skrf.Frequency | None = None,
+    model_frequency: Frequency | skrf.Frequency | None = None,
     **fig_kwargs
 ):
     """
     Plots the fit results comparing measured data and the fitted model.
+
+    Convenience utility called by :class:`pmrf.fitting.FitResult`.
 
     Parameters
     ----------
@@ -48,7 +51,7 @@ def plot_fit_result(
     use_data_prefix : bool | None, optional
         If True, prefixes feature titles with the name of the data network. If None, 
         this is automatically set to True when using a NetworkCollection.
-    model_frequency : skrf.Frequency | None, optional
+    model_frequency : pmrf.Frequency | skrf.Frequency | None, optional
         An optional frequency object to evaluate the model against. If provided, the 
         model will be simulated and plotted at these frequencies, while the measured 
         data will still be plotted at `result.frequency`. Useful for extrapolating 
@@ -68,7 +71,7 @@ def plot_fit_result(
     if result.frequency is None:
         raise ValueError("Cannot plot: frequency is missing from the result.")
     
-    # Safely convert to list for iteration/prefixing
+    # Resolve feature list
     if isinstance(features, str):
         feature_list = [features]
     elif isinstance(features, list):
@@ -82,12 +85,11 @@ def plot_fit_result(
         else:
             use_data_prefix = False
         
-    # --- Safe Data Prefixing ---
+    # Apply prefix
     if use_data_prefix:
         if isinstance(features, AbstractEvaluator):
             raise ValueError("Can only use a data prefix when features are string(s)")
         
-        # Safely attempt to extract the network name
         prefix = ""
         try:
             if isinstance(result.data, NetworkCollection):
@@ -102,28 +104,25 @@ def plot_fit_result(
     else:
         model_feature_list = feature_list
     
-    # Standardize evaluator
     model_evaluator = features if isinstance(features, AbstractEvaluator) else Feature(model_feature_list)
     data_evaluator = features if isinstance(features, AbstractEvaluator) else Feature(feature_list)
     
-    # Define measured frequency axes
+    # Frequency setup
     x_meas = result.frequency.f_scaled
     unit = result.frequency.unit if result.frequency else "Hz"
-
-    # Define model frequency axes (override if model_frequency is provided)
     mod_freq = model_frequency if model_frequency is not None else result.frequency
+    if isinstance(mod_freq, skrf.Frequency):
+        mod_freq = Frequency.from_skrf(mod_freq)
     x_mod = mod_freq.f_scaled
 
-    # --- Evaluate model first to determine shape ---
+    # Evaluate model and extract number of features
     y_mod = model_evaluator(result.model, mod_freq)
     y_mod_real = np.real(y_mod).reshape(len(x_mod), -1)
-
     n_features = y_mod_real.shape[1]
 
-    # --- Setup Dynamic Grid Axes ---
+    # Setup axes
     if ax is None:
         if subplots and n_features > 1:
-            # Calculate grid dimensions
             cols = int(np.ceil(np.sqrt(n_features)))
             rows = int(np.ceil(n_features / cols))
             
@@ -143,7 +142,7 @@ def plot_fit_result(
         axes_flat = np.atleast_1d(ax).flatten()
         cols = len(axes_flat)
 
-    # --- Plot measured data ---
+    # Plot measured
     if result.data is not None:
         try:
             if isinstance(result.data, NetworkCollection | skrf.Network):
@@ -168,7 +167,7 @@ def plot_fit_result(
         except Exception as e:
             logger.warning(f"Failed to evaluate feature on data: {e}")
 
-    # --- Plot model and format axes ---
+    # Plot model and add labels
     for i, axis in enumerate(axes_flat):
         if i < y_mod_real.shape[1]:
             lines = axis.plot(
@@ -178,34 +177,25 @@ def plot_fit_result(
                 lines[0].set_label('Fitted Model')
                 axis.legend(fontsize='small')
             
-            # --- Smart Titling Upgrade ---
             if len(model_feature_list) == n_features:
-                # Exact 1:1 map of strings to features
                 title = model_feature_list[i]
             elif len(model_feature_list) == 1:
-                # A single string expanded into multiple features (e.g., 's' -> 4 features)
                 base_feature = model_feature_list[0]
                 n_ports = int(np.sqrt(n_features))
                 
-                # Check if it forms a perfect square matrix
                 if n_ports**2 == n_features:
                     row = (i // n_ports) + 1
                     col = (i % n_ports) + 1
                     title = f"{base_feature}{row}{col}"
                 else:
-                    # Generic indexed fallback if not a square matrix
                     title = f"{base_feature}_{i}"
             else:
-                # Generic fallback for completely mismatched list lengths
                 title = f"Feature {i}"
                 
             axis.set_title(title, fontsize=10)
-            
-            # Only label the x-axis on the bottom row to keep it clean
             if i >= len(axes_flat) - cols:
                 axis.set_xlabel(f"Frequency ({unit})")
         else:
-            # Hide empty subplots if the grid isn't perfectly filled
             axis.set_visible(False)
 
     fig.tight_layout()

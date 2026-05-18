@@ -1,6 +1,7 @@
 """
 A class for storing an arbitrary list of scikit-rf Networks.
 """
+from io import BytesIO
 import glob
 import os
 import zipfile
@@ -206,11 +207,8 @@ class NetworkCollection:
         with zipfile.ZipFile(zip_file, 'r') as z:
             for filename in sorted(z.namelist()):
                 if filename.lower().endswith(('.s1p', '.s2p', '.s3p', '.s4p', '.snp')):
-                    # skrf can read from file-like objects usually, but sometimes 
-                    # requires a wrapper. Reading into BytesIO is safest.
-                    from io import BytesIO
                     data = BytesIO(z.read(filename))
-                    data.name = filename # Network needs a filename for extension guessing
+                    data.name = filename
                     try:
                         networks.append(rf.Network(data, name=os.path.splitext(filename)[0]))
                     except Exception:
@@ -253,7 +251,6 @@ class NetworkCollection:
         if ntwk.name is None:
             raise ValueError("Network must have a 'name' attribute.")
         
-        # Check uniqueness. (Linear scan is acceptable for typical collection sizes)
         if any(n.name == ntwk.name for n in self.networks):
             raise ValueError(f"Network with name '{ntwk.name}' already exists.")
 
@@ -283,7 +280,6 @@ class NetworkCollection:
             If an int key is out of bounds.
         """
         if isinstance(key, int):
-            # Let the standard list pop handle the IndexError if out of bounds
             return self.networks.pop(key)
         elif isinstance(key, str):
             for i, ntwk in enumerate(self.networks):
@@ -370,7 +366,6 @@ class NetworkCollection:
                     "f_stop": f.f[-1] if len(f) > 0 else np.nan,
                     "npoints": len(f),
                 }
-            # Add network params if they exist
             if hasattr(ntwk, 'params'):
                 row.update(ntwk.params)
             rows.append(row)
@@ -382,7 +377,6 @@ class NetworkCollection:
         lines = [header, "-" * len(header)]
         for ntwk in self.networks:
             f = ntwk.frequency
-            # Format frequency nicely
             if len(f.f) > 0:
                 f_str = f"{f.f[0]/1e9:.2f}-{f.f[-1]/1e9:.2f} GHz"
             else:

@@ -54,7 +54,6 @@ def fix_z0_shape(z0: ArrayLike, nfreqs: int, nports: int, nnetworks: int = 1) ->
         elif shape == (nnetworks, nfreqs):
             res = jnp.broadcast_to(z0_arr[:, :, None], target_shape_3d)
     elif len(shape) == 1:
-        # Original code prioritized nports over nfreqs
         if shape[0] == nports:
             res = jnp.broadcast_to(z0_arr[None, None, :], target_shape_3d)
         elif shape[0] == nfreqs:

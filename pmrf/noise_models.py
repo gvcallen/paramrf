@@ -91,6 +91,7 @@ class AutoCrossNoise(AbstractNoiseModel):
         
         return jnp.where(eye_broadcastable, val_gamma, val_tau)    
 
+# Old class kept for reference
 # class RadialTangentialNoise(NoiseModel):
 #     """
 #     Radial/tangential complex-valued heteroscedastic variance noise model.

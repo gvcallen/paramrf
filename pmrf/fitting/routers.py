@@ -198,7 +198,6 @@ def fit_joint(
         A single result object containing the globally fitted model and backend 
         solution results. (The updated model can be accessed via `result.model`).
     """
-    # 1. Prevent feature collision
     # Ensure all network names are unique so the solver doesn't overwrite features
     names = [ntwk.name for ntwk in data]
     if len(names) != len(set(names)):
@@ -207,13 +206,6 @@ def fit_joint(
             "Names must be unique for joint fitting."
         )
 
-    # 2. Resolve frequency
-    # We assume a shared frequency sweep across the NetworkCollection for joint 
-    # fitting. If one isn't explicitly provided, extract it from the first network.
-    if 'frequency' not in kwargs and hasattr(data, 'networks') and data.networks:
-        kwargs['frequency'] = Frequency.from_skrf(data.networks[0].frequency)
-        
-    # 3. Resolve sub-feature indexing across the entire collection
     features = kwargs.pop('features', 's')
     joint_features = []
     
@@ -222,11 +214,8 @@ def fit_joint(
         if isinstance(features, str):
             joint_features.append(f"{name}.{features}")
         else:
-            # Handle iterable of feature strings (e.g., ['s11', 's21'])
             joint_features.extend([f"{name}.{feature}" for feature in features])
 
-    # 4. Execute the simultaneous fit
-    # We pass the global model and the full data collection to the base fit function
     return fit(
         model=model,
         data=data,

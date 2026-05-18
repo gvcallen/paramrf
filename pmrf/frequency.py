@@ -25,7 +25,7 @@ class Frequency(eqx.Module):
 
     This class provides a container for a frequency band, defining the points
     at which network parameters are evaluated. The source code has been
-    derived from the scikit-rf Frequency class, but with added JAX compatibility.
+    ported from the scikit-rf Frequency class but modified for JAX compatibility.
 
     The primary purpose is to hold a vector of frequency points (`f`) and the
     corresponding frequency unit (`unit`). It provides numerous properties

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from distreqx.distributions import AbstractDistribution, Normal, MultivariateNormalFullCovariance
 
-from pmrf.parameters import Param, param
+from pmrf.parameters import Param
 
 class AbstractLikelihood(eqx.Module):
     r"""
@@ -66,6 +66,11 @@ class GaussianLikelihood(AbstractLikelihood):
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
 
     def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:
+        # If y_event is an array, the prediction is deterministic
+        # and we can simply use a regular gaussian likelihood.
+        # Otherwise, the second else branch performs "marginalization",
+        # effectivelly adding the covariances together.
+
         is_dist = isinstance(y_event, AbstractDistribution)
         y_mean = y_event.mean() if is_dist else y_event
         
@@ -91,10 +96,15 @@ class GaussianLikelihood(AbstractLikelihood):
                 raise TypeError("The predicted distribution must natively implement `covariance()`.")
             
             def get_cov(d): return d.covariance()
+            
             mapped_get_cov = get_cov
             for _ in range(num_batch_dims):
                 mapped_get_cov = eqx.filter_vmap(mapped_get_cov)
-            pred_cov = mapped_get_cov(y_event)
+            
+            try:
+                pred_cov = mapped_get_cov(y_event)
+            except Exception as e:
+                raise ValueError(f"Error encounted when trying to compute the covariance of `GaussianLikelihood`: {e}")
             
             def add_noise(cov, var_diag):
                 return cov + jnp.diag(var_diag)

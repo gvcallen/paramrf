@@ -3,9 +3,11 @@ BlackJAX inference wrappers.
 """
 
 import logging
+import tqdm
 from typing import Any, Callable, Optional
 
 import jax
+from jax.flatten_util import ravel_pytree
 from jaxtyping import PyTree, Array, Scalar
 import jax.numpy as jnp
 import equinox as eqx
@@ -17,9 +19,14 @@ except ImportError:
 
 from pmrf.infer.base import AbstractJointSampler, AbstractSplitSampler, SampleResult
 
+# TODO we could maybe generalize the "basic" samplers like NUTS and HMC
+# into a single MCMC wrapper similar to optimistix?
+
 class NUTS(AbstractJointSampler):
     """
-    No-U-Turn Sampler (NUTS) using the BlackJAX backend.
+    No-U-Turn Sampler (NUTS) in JAX.
+
+    Wrapper around :class:`blackjax.nuts`.
     
     Automatically handles Stan-style window adaptation for the diagonal 
     inverse mass matrix and step size.
@@ -49,13 +56,11 @@ class NUTS(AbstractJointSampler):
         if init_samples is not None:
             raise ValueError("BlackJAX `NUTS` does not yet support initial samples.")
 
-        # 1. Create a pure scalar logprob function for the MCMC integrator
         def logprob_fn(x):
             return logposterior_fn(x, args)
 
+        # MCMC warmup ("window adaptation")
         warmup_key, sample_key = jax.random.split(key)
-
-        # 2. Run Window Adaptation (Warmup)
         logging.info(f"Running BlackJAX NUTS warmup ({self.num_warmup} steps)...")
         adapt = blackjax.window_adaptation(
             blackjax.nuts, 
@@ -65,39 +70,30 @@ class NUTS(AbstractJointSampler):
         )
         (last_state, parameters), _ = adapt.run(warmup_key, y0, num_steps=self.num_warmup)
 
-        # 3. Build the static Kernel
+        # Build the kernel and loop
         kernel = blackjax.nuts(logprob_fn, **parameters).step
-
-        # 4. Define and execute the sampling loop
-        def inference_loop(state, rng_key):
+        def step_fn(state, rng_key):
             state, info = kernel(rng_key, state)
             return state, (state, info)
 
         logging.info(f"Running BlackJAX NUTS sampling ({max_steps} steps)...")
         keys = jax.random.split(sample_key, max_steps)
-        _, (trace_state, trace_info) = jax.lax.scan(inference_loop, last_state, keys)
+        _, (trace_state, trace_info) = jax.lax.scan(step_fn, last_state, keys)
 
-        # 5. Post-process to recover Exact Log-Probs and Aux Data
-        # We vmap over the trajectory of positions to get the final payload
-        def eval_fn(y):
-            return logposterior_fn(y, args)
-            
-        eval_vmap = jax.vmap(eval_fn)
-        
-        fn_values = eval_vmap(trace_state.position)
+        fn_values = jax.vmap(logprob_fn)(trace_state.position)
 
-        # 6. Construct the standard payload
-        payload = SampleResult(
+        result = SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
         )
-
-        return payload, trace_info
+        return result, trace_info
 
 
 class HMC(AbstractJointSampler):
     """
-    Hamiltonian Monte Carlo (HMC) using the BlackJAX backend.
+    Hamiltonian Monte Carlo (HMC) in JAX.
+
+    Wrapper around :class:`blackjax.hmc`.
     
     Requires a static number of integration steps. Automatically adapts 
     the step size and mass matrix.
@@ -130,13 +126,11 @@ class HMC(AbstractJointSampler):
         if init_samples is not None:
             raise ValueError("BlackJAX `NUTS` does not yet support initial samples.")        
 
-        # 1. Create a pure scalar logprob function
         def logprob_fn(x):
             return logposterior_fn(x, args)
 
+        # Rest of code is similar to NUTS above
         warmup_key, sample_key = jax.random.split(key)
-
-        # 2. Run Window Adaptation (Warmup)
         logging.info(f"Running BlackJAX HMC warmup ({self.num_warmup} steps)...")
         adapt = blackjax.window_adaptation(
             blackjax.hmc, 
@@ -147,50 +141,50 @@ class HMC(AbstractJointSampler):
         )
         (last_state, parameters), _ = adapt.run(warmup_key, y0, num_steps=self.num_warmup)
 
-        # 3. Build the static Kernel
         kernel = blackjax.hmc(logprob_fn, **parameters).step
-
-        # 4. Define and execute the sampling loop
-        def inference_loop(state, rng_key):
+        def step_fn(state, rng_key):
             state, info = kernel(rng_key, state)
             return state, (state, info)
 
         logging.info(f"Running BlackJAX HMC sampling ({max_steps} steps)...")
         keys = jax.random.split(sample_key, max_steps)
-        _, (trace_state, trace_info) = jax.lax.scan(inference_loop, last_state, keys)
+        _, (trace_state, trace_info) = jax.lax.scan(step_fn, last_state, keys)
 
-        # 5. Post-process to recover Exact Log-Probs and Aux Data
-        def eval_fn(y):
-            return logposterior_fn(y, args)
-            
-        eval_vmap = jax.vmap(eval_fn)
-        
-        fn_values = eval_vmap(trace_state.position)
+        fn_values = jax.vmap(logprob_fn)(trace_state.position)
 
-        payload = SampleResult(
+        result = SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
         )
-
-        return payload, trace_info
+        return result, trace_info
     
 
 class NSS(AbstractSplitSampler):
     """
-    (experimental) Nested Slice Sampler (NSS) using the BlackJAX backend.
+    (experimental) A Nested Slice Sampler (NSS) in JAX.
+
+    A wrapper around BlackJAX's experimental NSS sampler.
+    This requires a custom fork of BlackJAX, available via
+    `pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta`.
 
     Parameters
     ----------
-    num_delete : int
-        Number of particles to delete per step.
+    num_delete : int, optional
+        Number of live points to delete per step and therefore vectorize over.
+        Defaults to 0.1 x num_live if not provided.
     num_inner_steps : int
-        Number of inner slice sampling steps.
-    logZ_convergence : float, default=1e-3
-        Threshold for log-evidence convergence.
+        The length of the short Markov chains used to update the live points.
+        Defaults to 3 x dim if not provided.
+    evidence_convergence : float, default=1e-3
+        Threshold for evidence convergence when `max_steps` is None.
+    block_size : int, optional
+        The number of steps to execute on-device per block before checking convergence.
+        Defaults to 100.
     """
-    num_delete: int = eqx.field(static=True)
-    num_inner_steps: int = eqx.field(static=True)
-    logZ_convergence: float = eqx.field(static=True, default=1e-3)
+    num_delete: int | None = eqx.field(static=True, default=None)
+    num_inner_steps: int | None = eqx.field(static=True, default=None)
+    evidence_convergence: float = eqx.field(static=True, default=1e-3)
+    block_size: int | None = eqx.field(static=True, default=100)
 
     def run(
         self,
@@ -203,122 +197,102 @@ class NSS(AbstractSplitSampler):
         max_steps: int | None = None,
         **kwargs,
     ) -> tuple[SampleResult, PyTree]:
-        logging.warning("BlackJAX NSS posterior may be truncated")
-
         if init_samples is None:
             raise ValueError("NSS requires `init_samples` (a batch of particles) to initialize.")
         if not hasattr(blackjax, 'nss'):
-            raise ImportError("`nss` not found in `blackjax`. Make sure the relevant handley-lab fork is installed via e.g. `pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta`.")
+            raise ImportError("`nss` not found in `blackjax`...")
+        
+        from blackjax.ns.utils import log_weights, finalise, sample
 
-        # 1. Standardize functions for BlackJAX
+        # Initialize settings
+        num_live = jax.tree.leaves(init_samples)[0].shape[0]
+        dim = ravel_pytree(y0)[0].size
+        num_delete = self.num_delete if self.num_delete is not None else int(0.1 * num_live)
+        num_inner_steps = self.num_inner_steps if self.num_inner_steps is not None else int(3 * dim)
+        block_size = self.block_size
+        if block_size is None:
+            block_size = max_steps if max_steps is not None else 1
+            
+        logZ_convergence = jnp.log10(self.evidence_convergence)
+
         def logprior(y):
             return logprior_fn(y, args)
-            
         def loglikelihood(y):
             return loglikelihood_fn(y, args)
 
         kernel = blackjax.nss(
             logprior_fn=logprior,
             loglikelihood_fn=loglikelihood,
-            num_delete=self.num_delete,
-            num_inner_steps=self.num_inner_steps,
+            num_delete=num_delete,
+            num_inner_steps=num_inner_steps,
             **kwargs,
         )
 
-        # 2. Initialization
         state = jax.jit(kernel.init)(init_samples)
-
-        # 3. Step execution
+        
         @jax.jit
-        def step_fn(current_state, rng_key):
-            return kernel.step(rng_key, current_state)
+        def step_fn(carry, xs):
+            state, k = carry
+            k, subk = jax.random.split(k, 2)
+            state, dead_point = kernel.step(subk, state)
+            return (state, k), dead_point
 
-        if max_steps is not None:
-            logging.info(f"Running NSS for fixed {max_steps} steps...")
-            keys = jax.random.split(key, max_steps)
-            
-            def scan_step(carry, k):
-                s, i = step_fn(carry, k)
-                return s, (s, i)
-            
-            final_state, (trajectory, infos) = jax.lax.scan(scan_step, state, keys)
-            actual_steps = max_steps
-        else:
-            logging.info("Running NSS until logZ convergence...")
-            trajectory_list, infos_list = [], []
-            curr_state, curr_key = state, key
-            
+        steps_taken = 0
+        dead_blocks = []
+        rng_key = key
+        
+        logging.info(f"Running NSS (block_size={block_size}, max_steps={max_steps})...")
+        with tqdm.tqdm(desc="Dead points", unit=" dead points") as pbar:
             while True:
-                curr_key, subkey = jax.random.split(curr_key)
-                curr_state, info = step_fn(curr_state, subkey)
+                converged = (state.logZ_live - state.logZ) < logZ_convergence
+                budget_reached = (max_steps is not None) and (steps_taken >= max_steps)
 
-                trajectory_list.append(curr_state)
-                infos_list.append(info)
-                
-                # Dynamic convergence check (host-side)
-                delta_logZ = curr_state.logZ_live - curr_state.logZ
-                if delta_logZ < self.logZ_convergence:
+                if converged or budget_reached:
+                    if converged:
+                        logging.info("NSS converged via logZ threshold.")
+                    if budget_reached:
+                        logging.info(f"NSS reached max_steps ceiling ({max_steps}).")
                     break
-            
-            final_state = curr_state
-            trajectory = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *trajectory_list)
-            infos = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *infos_list)
-            actual_steps = len(trajectory_list)
 
-        # 4. Weight Calculation (Dead Points)
-        num_live = jax.tree_util.tree_leaves(init_samples)[0].shape[0]
-        iters = jnp.arange(actual_steps)
-        
-        # Shrinking prior volume for dead points
-        log_X = - (iters * self.num_delete) / num_live
-        log_dX = log_X + jnp.log1p(-jnp.exp(-self.num_delete / num_live))
-        
-        dead_ll = infos.loglikelihood
-        dead_unnorm_log_weights = dead_ll + (log_dX - jnp.log(self.num_delete))[:, None]
+                current_block_size = block_size
+                if max_steps is not None:
+                    current_block_size = min(block_size, max_steps - steps_taken)
 
-        # 5. Weight Calculation (Live Points)
-        # The remaining prior volume is distributed equally among the remaining live points
-        log_X_final = - (actual_steps * self.num_delete) / num_live
-        live_ll = final_state.loglikelihood
-        live_unnorm_log_weights = live_ll + log_X_final - jnp.log(num_live)
+                @jax.jit
+                def block_step_fn(carry):
+                    next_carry, block_dead = jax.lax.scan(step_fn, init=carry, xs=None, length=current_block_size)
+                    return next_carry, block_dead
 
-        # 6. Flatten Arrays to 1D Streams
-        def flatten_batch(x):
-            return x.reshape(-1, *x.shape[2:])
+                (state, rng_key), b_dead = block_step_fn((state, rng_key))
+                flat_b_dead = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), b_dead)
+                dead_blocks.append(flat_b_dead)
+                
+                steps_taken += current_block_size
+                pbar.update(current_block_size * num_delete)
 
-        flat_dead_samples = jax.tree_util.tree_map(flatten_batch, infos.particles)
-        flat_dead_ll = flatten_batch(dead_ll)
-        flat_dead_unnorm_weights = flatten_batch(dead_unnorm_log_weights)
+        # Cater for immediate convergence
+        if dead_blocks:
+            dead = [jax.tree.map(lambda *args: jnp.concatenate(args, axis=0), *dead_blocks)]
+        else:
+            dead = []
 
-        # Extract live samples
-        live_samples = final_state.particles
+        rng_key, weight_key, sample_key = jax.random.split(rng_key, 3)
+        final_state = finalise(state, dead)
+        log_w = log_weights(weight_key, final_state, shape=100)
+        samples = sample(sample_key, final_state, shape=num_live)
+        logzs = jax.scipy.special.logsumexp(log_w, axis=0)
 
-        # Concatenate dead and live into the full posterior history
-        def concat_dead_live(dead, live):
-            return jnp.concatenate([dead, live], axis=0)
+        logevidence = logzs.mean()
+        logevidence_error = logzs.std()
+        weights = jnp.exp(log_w).mean(axis=-1)
+        fn_values = jax.vmap(loglikelihood)(samples)
 
-        all_samples = jax.tree_util.tree_map(concat_dead_live, flat_dead_samples, live_samples)
-        all_ll = concat_dead_live(flat_dead_ll, live_ll)
-        all_unnorm_log_weights = concat_dead_live(flat_dead_unnorm_weights, live_unnorm_log_weights)
-
-        # 7. Log-Evidence and Error Calculation
-        # Use BlackJAX's internal integrator state for exact matching
-        logevidence = jnp.logaddexp(final_state.logZ, final_state.logZ_live)
-        
-        # Normalize the combined weights against the total evidence
-        weights = jnp.exp(all_unnorm_log_weights - logevidence)
-
-        # Calculate Skilling's Information H ≈ \sum(W_i * log(L_i)) - logZ 
-        H = jnp.sum(weights * all_ll) - logevidence
-        logevidence_error = jnp.sqrt(jnp.maximum(H, 0.0) / num_live)
-
-        # 8. Final Payload
-        payload = SampleResult(
-            samples=all_samples,
-            fn_values=all_ll,
+        result = SampleResult(
+            samples=samples,
+            fn_values=fn_values,
             weights=weights,
             logevidence=logevidence,
             logevidence_error=logevidence_error
         )
 
-        return payload, infos
+        return result, dead

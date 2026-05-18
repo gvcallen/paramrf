@@ -56,35 +56,24 @@ class FitResult(eqx.Module, Generic[ModelT]):
     def __getattr__(self, name: str):
         """
         Intercepts calls to undefined methods to dynamically route plot requests.
-        Example: `plot_s_db(m=0, n=1)` routes to `plot('s21_db')`.
+        Example: `plot_s_db(m=1, n=0)` routes to `plot('s21_db')`.
         """
         if name.startswith('plot_') and name != 'plot':
-            # Extract the base feature name (e.g., 's_db' from 'plot_s_db')
             feature_base = name[5:] 
             
             def dynamic_plot(m=None, n=None, ax=None, **kwargs):
                 feature_name = feature_base
-                
-                # If m and n are provided, inject them into the feature string
                 if m is not None and n is not None:
                     parts = feature_base.split('_', 1)
-                    
-                    # Convert 0-based to 1-based indexing. 
-                    # The prompt's mapping of (m=0, n=1) to '21' means n comes first.
-                    # Adjust {n+1}{m+1} to {m+1}{n+1} here if that was a typo for '12'.
-                    port_str = f"{n+1}{m+1}" 
+                    port_str = f"{m+1}{n+1}" 
                     
                     if len(parts) == 2:
-                        # e.g. parts[0]='s', parts[1]='db' -> 's21_db'
                         feature_name = f"{parts[0]}{port_str}_{parts[1]}"
                     else:
-                        # Fallback for things like plot_s(m=0, n=1) -> 's21'
                         feature_name = f"{feature_base}{port_str}" 
-                        
                 return self.plot(features=feature_name, ax=ax, **kwargs)
             
             return dynamic_plot
             
-        # Standard fallback if the missing attribute isn't a plot_ hook
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     

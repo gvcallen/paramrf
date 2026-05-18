@@ -140,6 +140,8 @@ def fit_minimize(
             if noise is None:
                 noise = Random(Uniform(0.0, 0.1))
             likelihood = GaussianLikelihood(noise)
+
+    # Once search specification is supported in base minimize
     # if inference == 'frequentist':
     #     kwargs.setdefault('search_space', 'base')
     # else:

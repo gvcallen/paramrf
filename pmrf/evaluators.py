@@ -12,12 +12,12 @@ import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
-from eqxpress import AbstractExpression, Map, Stack, Method, Sum, Diagonal, Index
+from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Index
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils import freeze, field, unwrap
+from pmrf.utils import freeze, field, unwrap, unwrap_self
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -69,59 +69,60 @@ class Feature(AbstractEvaluator):
             A string alias, list of string aliases, or list of other evaluators for the feature.
         """
         super().__init__()
+
+        # TODO should we integrate this class with the newer optics approach?
         
-        # 1. Handle pre-instantiated expression lists (Summation)
+        # Lists of expressions
         if isinstance(alias, list) and all(isinstance(a, AbstractEvaluator) for a in alias):
             self.expression = Sum(alias)
             return
 
-        # 2. Handle Sequences (Recursive Stacking)
+        # Sequences
         if not isinstance(alias, str) and isinstance(alias, Sequence):
             evaluators = tuple(Feature(a) for a in alias)
             self.expression = Stack(evaluators, axis=-1)
             return
 
-        # 3. Parse submodel paths (e.g., "submodel.s11_db")
+        # Parse paths
         fields = alias.split('.')
         subattrs = ".".join(fields[:-1]) if len(fields) > 1 else ""
         local_alias = fields[-1]
 
-        # 4. Handle Special RF Port Groups (Gamma/Tau)
+        # Gamma/Tau special case (gamma = offdiagonal, tau=diagonal)
         if local_alias.startswith(('s_gamma', 's_tau')):
             is_gamma = 'gamma' in local_alias
             base_prop = local_alias.replace('s_gamma', 's', 1) if is_gamma else local_alias.replace('s_tau', 's', 1)
             path = f"{subattrs}.{base_prop}" if subattrs else base_prop
+            
             base_evaluator = Method(path=path)
             
             if is_gamma:
                 self.expression = Diagonal(base_evaluator)
             else:
-                # We assume OffDiagonal is defined as in our previous discussion
-                # If n_ports isn't known here, we use a dynamic vmapped approach
+                # We can't use OffDiagonal from eqxpress because we dont know the number of ports
+                # (though we should really refactor eqxpress to support the buttom dynamically)
                 self.expression = Map(
                     lambda mat: jax.vmap(lambda m: m[~jnp.eye(m.shape[-1], dtype=bool)])(mat),
                     base_evaluator, 
                 )
             return
 
-        # 5. Regex Parsing for Port Indices (e.g., s11_db, y21)
+        # Parses port indices e.g. s11_db, y21
         # Matches a string starting with letters, exactly 2 digits, and an optional suffix
         rf_match = re.match(r'^([a-zA-Z]+)(\d)(\d)(_[a-zA-Z0-9_]+)?$', local_alias)
-        
         if rf_match:
             prop_prefix, p1, p2, prop_suffix = rf_match.groups()
-            prop_suffix = prop_suffix or ""  # Convert None to empty string
+            prop_suffix = prop_suffix or ""
             
             path = f"{subattrs}.{prop_prefix}{prop_suffix}" if subattrs else f"{prop_prefix}{prop_suffix}"
             expression = Method(path=path)
             
-            # Apply Port Indexing (slices lead freq dim + 0-indexed ports)
+            # Port indixing (keep leading dim i.e. frequency)
             indices = (slice(None), int(p1) - 1, int(p2) - 1)
             expression = Index(expression, indices)
             
         else:
-            # 6. Standard Attribute Fallback (e.g., 's_mag', 'my_custom_prop2')
-            # Must strictly be a valid python identifier!
+            # Standard python attributes
             if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', local_alias):
                 raise ValueError(f"Invalid feature alias format: '{alias}'")
                 
@@ -159,9 +160,8 @@ class TargetLoss(AbstractEvaluator):
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
+    @unwrap_self
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        self = unwrap(self)
-        
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
     
@@ -240,20 +240,21 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
+    @unwrap_self
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        self = unwrap(self)
-        
         observed = self.observed
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(observed)
         batch_ndims = obs_event.ndim - self.event_ndims
         
+        # We evaluate the log prob `batch_ndims` many times
         def eval_log_prob(d, x):
             return d.log_prob(x)
         mapped_log_prob = eval_log_prob
         for _ in range(batch_ndims):
             mapped_log_prob = eqx.filter_vmap(mapped_log_prob)
+        
         log_probs = mapped_log_prob(obs_dist, obs_event)
         return jnp.sum(log_probs)
     
@@ -296,12 +297,11 @@ class MarginalLogLikelihood(AbstractEvaluator):
         # 4. Apply measurement noise likelihood (adds noise to the GP covariance)
         return self.likelihood(pred_event)
         
+    @unwrap_self
     def sample_observation(self, key: jax.Array, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         """
         Returns a sample from the predictive distribution in observation space.
         """
-        self = unwrap(self)
-        
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
         obs_event = self.event_transform.forward(self.observed)        
         
@@ -315,7 +315,6 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         def sample_one(d, k):
             return d.sample(jnp.squeeze(k))
-            
         mapped_sample_fn = sample_one
         for _ in range(batch_ndims):
             mapped_sample_fn = eqx.filter_vmap(mapped_sample_fn)
@@ -349,9 +348,9 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         The inverse-weight (temperature) of the Gibbs measure. 
         Higher temperatures create wider, less confident posteriors.
     discrepancy
-        An optional discrepancy model to cater for model misspecification.
+        (experimental) An optional discrepancy model to cater for model misspecification.
     use_orthogonal_discrepancy
-        Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
+        (experimental) Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
         which defines the model's orthogonal sub-space. Used for gaussian processes.
     event_transform
         A bijective transform that maps from "observation space" (predicted features) to "event space".
@@ -409,8 +408,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
             jitter = 1e-12
             jac_dict = model.func_jacobian(event_fn, frequency)
             
-            # J_b : shape (..., N, P)
-            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)
+            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)  # shape (..., N, P)
             N, P = J_b.shape[-2], J_b.shape[-1]
             I = jnp.eye(N)
             
@@ -421,28 +419,21 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
             JT_J_inv = jnp.linalg.inv(JT_J_stable)
             discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
             
-        # 1. Base physical prediction
         pred_event = event_fn(model, frequency)
         variance_penalty = 0.0
         
-        # 2. Discrepancy application (Expected Loss framework)
+        # Follows concept of "Expected Loss", where you penalize the loss
+        # by the discrepancy variance. Not yet tested.
         if self.discrepancy is not None:
             pred_dist = self.discrepancy(pred_event, frequency.f_scaled, **discrepancy_kwargs)
-            # Shift the prediction by the discrepancy mean
-            pred_event = pred_dist.mean 
-            # Penalize the loss by the discrepancy variance (Tr(Sigma))
-            # Note: Assumes pred_dist exposes marginal variances via .variance
-            variance_penalty = jnp.sum(pred_dist.variance)
+            pred_event = pred_dist.mean()
+            variance_penalty = jnp.sum(pred_dist.variance())
             
-        # 3. Target mapping
         obs_event = self.event_transform.forward(self.observed)
-        
-        # 4. Calculate Expected Loss
-        # (Evaluated globally directly on the arrays, no vmap required)
         base_loss = self.loss(obs_event, pred_event)
         expected_loss = base_loss + variance_penalty
         
-        # 5. Return the generalized log-posterior (Gibbs measure)
+        # Generalized log-posterior (Gibbs measure)
         return -(expected_loss / self.temperature)
         
 class NegativeLogLikelihood(AbstractEvaluator):
@@ -466,7 +457,7 @@ class NegativeLogLikelihood(AbstractEvaluator):
 
 class NegativeLogPosterior(AbstractEvaluator):
     """
-    Computes the negative of the log of the probability of observed data,
+    (experimental) Computes the negative of the log of the probability of observed data,
     plus the negative of the log of the prior on the parameters.
     
     Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`

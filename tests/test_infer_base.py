@@ -84,7 +84,7 @@ def test_split_sampler_nss():
         "z": Fixed(1.0),
     }
     
-    solver = NSS(num_delete=5, num_inner_steps=2, logZ_convergence=0.5)
+    solver = NSS(num_delete=5, num_inner_steps=2, evidence_convergence=0.5)
     max_steps = 10
     
     batched_model, payload, metrics = base.sample(

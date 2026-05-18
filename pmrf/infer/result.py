@@ -53,6 +53,11 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #: May be a stripped-down version of the original results object.
     metrics: Any = field(default=None)
        
+    # Old functions that allowed exporting directly to external inference formats
+    # such as arxiv etc. but relied on the old Parax API. Should potentially
+    # be re-implemented with the new architecture.
+
+
     # def _prepare_export_data(self, model_prefix: str, likelihood_prefix: str):
     #     """Helper method to extract, format, and check parameter data for export."""
     #     # 1. Cleanly format prefixes

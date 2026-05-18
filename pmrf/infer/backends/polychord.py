@@ -24,7 +24,7 @@ from pmrf.infer.base import AbstractHypercubeSampler, SampleResult
 
 class PolyChord(AbstractHypercubeSampler):
     """
-    A JAX-wrapped Nested Sampler using PolyChord.
+    The PolyChord Nested Sampler wrapped in a JAX interface.
 
     Acts as an adapter layer between JAX PyTrees and PolyChord's required flat 1D NumPy arrays.
     It automatically handles flattening and unflattening of complex parameter structures, 
@@ -221,6 +221,8 @@ class PolyChord(AbstractHypercubeSampler):
         samples = jnp.array(np.array(nested_samples.iloc[:, :ndims]))
         weights = jnp.array(nested_samples.get_weights())
         
+        # Sometimes nested_samples is an MCMCSamples object (presumably for short runs),
+        # which doesn't have a logZ method
         try:
             logevidence = jnp.array(nested_samples.logZ())
             norm_weights = weights / jnp.sum(weights)
