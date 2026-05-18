@@ -127,25 +127,22 @@ def test_target_loss(model, basic_freq):
 def test_goal_hinge_loss(model, basic_freq):
     """Test Goal constructor wraps Feature and HingeLoss correctly."""
     # We want s11_mag (1.0) to be > 2.0.
-    # The HingeLoss logic should penalize this gap.
     goal = Goal(
         feature='s11_mag',
         operator='>',
-        target=2.0,
+        target=3.0,
         weight=1.0,
-        loss=lambda t, p: (t - p) ** 2  # simple MSE base
+        loss=lambda t, p: (t - p) ** 2,
+        multioutput='uniform_average',
     )
     
-    # Because 1.0 is NOT > 2.0, there is a penalty of (2.0 - 1.0)^2 = 1.0
-    # The sum across 5 frequencies should roughly reflect this based on multioutput setting
+    # Because 1.0 is NOT > 3.0, there is a penalty of (3.0 - 1.0)^2 = 4.0.
+    # Since w are using uniform average the final loss value should be the same
     loss_val = goal(model, basic_freq)
-    
-    # Assuming 'uniform_average' means mean() over the batch
-    assert jnp.allclose(loss_val, 1.0)
+    assert jnp.allclose(loss_val, 4.0)
 
 def test_goal_met_zero_loss(model, basic_freq):
     """Ensure a satisfied goal returns exactly 0.0 penalty."""
-    # s11_mag is 1.0. We want it to be < 2.0 (which is true).
     goal = Goal(
         feature='s11_mag',
         operator='<',
@@ -164,7 +161,6 @@ def test_marginal_loglikelihood(model, basic_freq):
     target_data = jnp.ones(5)
     
     # We define a standard normal distribution likelihood
-    # Note: Using positional args explicitly for distreqx
     def likelihood_fn(pred):
         scale = jnp.ones_like(pred)
         return dist.Normal(pred, scale) 
@@ -179,7 +175,6 @@ def test_marginal_loglikelihood(model, basic_freq):
     # Our data is 1.0. 
     # Normal(loc=1.0, scale=1.0).log_prob(1.0) = -0.91893853
     # Summed over 5 frequency points = -4.5946927
-    
     log_prob = mll(model, basic_freq)
     expected = -0.91893853 * 5
     assert jnp.allclose(log_prob, expected)
