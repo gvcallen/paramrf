@@ -158,12 +158,15 @@ class Probabilistic(Model):
             The base model to wrap.
         distribution : AbstractDistribution
             The probability distribution to associate with the target.
+            Must have the same JAX PyTree structure as `model`.
         target : callable, optional
             A callable (lens) extracting the parameter to make probabilistic 
             (e.g., `lambda m: m.R`). Defaults to the identity function, meaning
             the distribution applies to the entire model.
         constraint : AbstractConstraint, optional
-            An optional parax constraint. If None, it is inferred from the distribution.
+            An optional constraint for the distribution.
+            Must have the same JAX PyTree structure as `model`.
+            If None, it is inferred from the distribution.
         """
         target_val = target(model)
         prob_node = prx.Probabilize(distribution, target_val, constraint=constraint)
