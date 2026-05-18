@@ -3,11 +3,8 @@ import pytest
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.rf import s2y
-
-# Adjust imports based on your actual module structures
 from pmrf.models import (
-    Renumbered, Flipped, Stacked, GroundLifted, GroundExposed,
+    Renumbered, Flipped, Stacked,
     LSectionLC, Resistor, Short
 )
 
@@ -48,7 +45,6 @@ def test_flipped_general(basic_freq):
 
 def test_flipped_odd_ports_error():
     """Ensure Flipped raises an error for models with an odd number of ports."""
-    # Short is a 1-port network
     with pytest.raises(ValueError, match="You can only flip multiple-of-two-port"):
         Flipped(model=Short())
 

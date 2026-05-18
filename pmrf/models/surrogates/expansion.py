@@ -9,7 +9,7 @@ from pmrf.parameters import Param, param
 
 class VectorExpansion(AbstractSingleDiscreteProperty):
     """
-    A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
+    (experimental) A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.
     
     The S-parameters are returned as offset + coefficients @ basis, where the coefficients are the model parameters.
     

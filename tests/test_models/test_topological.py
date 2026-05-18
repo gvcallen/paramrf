@@ -3,7 +3,6 @@ import pytest
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-# Adjust the import path below based on your module structure
 from pmrf.models import PiCLC, BoxCLCC, TeeLCL, LSectionLC
 
 @pytest.fixture
@@ -26,11 +25,9 @@ def test_piclc_general(basic_freq):
     assert jnp.allclose(s[:, 1, 0], s[:, 0, 1], atol=1e-6)
 
 def test_piclc_zero_inductance(basic_freq):
-    """Test the jax.lax.cond edge case where L = 0."""
+    """Test the edge case where L = 0."""
     # When L=0, the network is just C1 and C2 in parallel to ground
     model = PiCLC(C1=1e-12, L=0.0, C2=2e-12)
-    
-    # We test the ABCD matrix directly to verify the simplified branch
     a_mat = model.a(basic_freq)
     
     # ABCD for a shunt admittance Y is [[1, 0], [Y, 1]]
@@ -54,8 +51,7 @@ def test_boxclcc_general(basic_freq):
     assert not jnp.any(jnp.isnan(s))
 
 def test_boxclcc_zero_inductance(basic_freq):
-    """Test the jax.lax.cond edge case where L <= 1e-18."""
-    # This triggers the specific hack in BoxCLCC for L=0
+    """Test the edge case where L is approx 0.0."""
     model = BoxCLCC(L=0.0, C1=1e-12, C2=1e-12, C3=1e-12)
     s = model.s(basic_freq)
     

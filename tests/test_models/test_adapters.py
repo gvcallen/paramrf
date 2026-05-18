@@ -58,7 +58,7 @@ def test_single_property_routing(fine_freq):
     """Test that specifying property='y' correctly routes and triggers conversions."""
     model = DummySinglePropertyY()
     
-    # Querying Y should hit output() directly
+    # Querying Y should hit primary_matrix() directly
     y_mat = model.y(fine_freq)
     assert jnp.allclose(y_mat, 0.02)
     
@@ -103,7 +103,7 @@ def test_host_model_vmap_multithreading(fine_freq):
     batched_val = jnp.array([1.0, 2.0, 3.0])
     model = DummyHostModel(val=batched_val)
     
-    # VMAP across the parameter dimension!
+    # VMAP across parameters
     @jax.vmap
     def run_batch(m):
         return m.s(fine_freq)
@@ -143,15 +143,11 @@ def test_measured_skrf_interpolation(coarse_freq, fine_freq):
     """Test wrapping a scikit-rf Network and interpolating its data."""
     skrf = pytest.importorskip("skrf")
     
-    # Create a dummy scikit-rf network at coarse frequencies
     skrf_freq = coarse_freq.to_skrf()
     s_data = np.array([1.0, 2.0, 3.0]).reshape(-1, 1, 1)
     ntwk = skrf.Network(frequency=skrf_freq, s=s_data, z0=50)
     
-    # Wrap in Measured adapter
     measured_model = Measured(data=ntwk)
-    
-    # Query at the fine frequency
     s_interp = measured_model.s(fine_freq)
     
     assert s_interp.shape == (5, 1, 1)
@@ -163,21 +159,18 @@ def test_measured_network_collection_getattr(coarse_freq):
     skrf_f = coarse_freq.to_skrf()
     
     ntwk1 = skrf.Network(frequency=skrf_f, s=np.ones((3,1,1)), z0=50)
-    ntwk1.name = 'thru'  # Explicitly set the scikit-rf network name
+    ntwk1.name = 'thru'
     
     ntwk2 = skrf.Network(frequency=skrf_f, s=np.ones((3,1,1))*2, z0=50)
-    ntwk2.name = 'line'  # Explicitly set the scikit-rf network name
+    ntwk2.name = 'line'
     
-    # NetworkCollection expects an iterable of Networks, NOT a dictionary!
     nc = NetworkCollection([ntwk1, ntwk2])
     measured_collection = Measured(data=nc)
     
     sub_model = measured_collection.thru
-    assert isinstance(sub_model, Measured)
     
-    # Verify the underlying data is correct
+    assert isinstance(sub_model, Measured)
     assert np.allclose(sub_model.data.s, ntwk1.s)
     
-    # Calling s() directly on the collection wrapper should fail
     with pytest.raises(Exception, match="Cannot call s\\(\\) on a Measured model that contains a NetworkCollection"):
         measured_collection.s(coarse_freq)

@@ -10,7 +10,7 @@ from pmrf.parameters import Param, param
 
 class PolynomialRatio(AbstractSingleProperty):
     """
-    A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) 
+    (experimental) A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) 
     where s = j*w.
 
     Parameters
@@ -54,7 +54,7 @@ class PolynomialRatio(AbstractSingleProperty):
     
 class PoleResidue(AbstractSingleProperty):
     """
-    A general N-port model defined by a pole-residue expansion:
+    (experimental) A general N-port model defined by a pole-residue expansion:
     H(s) = D + sum( R_i / (s - p_i) )
 
     Parameters
@@ -96,7 +96,7 @@ class PoleResidue(AbstractSingleProperty):
     
 class StateSpace(AbstractSingleProperty):
     """
-    A general N-port model defined by continuous-time state-space matrices:
+    (experimental) A general N-port model defined by continuous-time state-space matrices:
     H(s) = C * (sI - A)^-1 * B + D
 
     Parameters
@@ -150,7 +150,7 @@ class StateSpace(AbstractSingleProperty):
     
 class BarycentricRational(AbstractSingleProperty):
     """
-    A highly numerically stable rational model defined by a barycentric expansion:
+    (experimental) A highly numerically stable rational model defined by a barycentric expansion:
     H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]
 
     Parameters

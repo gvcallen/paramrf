@@ -6,13 +6,10 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.rf import s2y
 
-# Adjust imports based on your actual module structures
 from pmrf.models import (
     Model, GroundLifted, GroundExposed, Shunt, 
     Resistor, Short, Open, Inductor
 )
-
-# Assuming this is the path to your newly updated coupled models
 from pmrf.models.composite.nodal import CoupledOnePorts, CoupledTwoPorts
 
 
@@ -62,7 +59,6 @@ def test_ground_exposed_iam_property(basic_freq):
     assert not jnp.any(jnp.isnan(s_exposed))
     
     # Convert back to Y parameters to check the IAM math
-    # Use standard 50-ohm characteristic impedance
     y_exposed = s2y(s_exposed, z0=50.0)
     
     # Sum across the columns (axis=-1) for each row should be effectively zero
@@ -80,8 +76,7 @@ def test_ground_exposed_iam_property(basic_freq):
 def test_shunt_open_circuit(basic_freq):
     """
     Test shunting an Open circuit (Gamma = 1).
-    Placing an open circuit in parallel with a line should have absolutely 
-    no effect, acting as a perfect, lossless thru-line.
+    Placing an open circuit in parallel with a line should have no effect.
     """
     open_model = Open()
     shunt_open = Shunt(model=open_model)

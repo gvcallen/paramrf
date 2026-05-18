@@ -56,7 +56,6 @@ class Host(Model):
     the individual batches in parallel. If this feature is to be used, compute() must be written
     in a thread-safe manner, as it may be called from multiple threads that share the same memory.
     """
-    
     @property
     def primary_property(self):
         raise NotImplementedError("Override 'primary_property' directly when creating a Host model")

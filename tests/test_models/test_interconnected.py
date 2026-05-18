@@ -78,7 +78,7 @@ def test_circuit_duplicate_port():
     
     connections = [
         [(p0, 0), (R, 0)],
-        [(p1, 0), (R, 0)] # Cannot connect R's port 0 to two different nodes!
+        [(p1, 0), (R, 0)] # Cannot connect R's port 0 to two different nodes
     ]
     with pytest.raises(ValueError, match="is connected multiple times"):
         Circuit(connections)

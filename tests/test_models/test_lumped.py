@@ -2,7 +2,6 @@ import pytest
 import jax.numpy as jnp
 from pmrf.frequency import Frequency
 
-# Note: Adjust the import path below to match your exact module structure 
 from pmrf.models import (
     Short, Open, Match,
     Resistor, Capacitor, Inductor,

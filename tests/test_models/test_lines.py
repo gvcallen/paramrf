@@ -4,8 +4,6 @@ from pmrf.frequency import Frequency
 
 from scipy.constants import c, mu_0, epsilon_0
 
-# Note: Adjust the import path below to match your exact module structure 
-# if they are nested inside pmrf.models.components
 from pmrf.models import (
     PhaseLine, 
     ConstantRLGCLine, 
@@ -27,8 +25,10 @@ def test_phase_line(basic_freq):
     s = line.s(basic_freq)
     
     assert s.shape == (10, 2, 2)
+    
     # S11 should be 0 for a line matched to the system z0 (which defaults to 50)
     assert jnp.allclose(s[:, 0, 0], 0.0, atol=1e-5)
+    
     # Magnitude of transmission should be perfectly 1.0 (lossless)
     assert jnp.allclose(jnp.abs(s[:, 1, 0]), 1.0, atol=1e-5)
 
@@ -38,6 +38,7 @@ def test_floating_line(basic_freq):
     float_line = FloatingLine(line=base_line)
     
     s = float_line.s(basic_freq)
+    
     # Should automatically scale up to a 4-port parameter matrix
     assert s.shape == (10, 4, 4)
     assert not jnp.any(jnp.isnan(s))
