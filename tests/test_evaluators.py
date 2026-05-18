@@ -17,7 +17,6 @@ class DummyEvalModel(Model):
     """A 2-port model returning a deterministic S-parameter matrix."""
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints
-        # Matrix: [[1+0j, 2+0j], [3+0j, 4+0j]]
         mat = jnp.array([
             [1.0 + 0.0j, 2.0 + 0.0j],
             [3.0 + 0.0j, 4.0 + 0.0j]

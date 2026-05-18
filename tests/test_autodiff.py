@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.models import Resistor, Capacitor, Inductor, ShuntResistor
+from pmrf.models import Resistor, Capacitor, Inductor, ShuntResistor, ShuntCapacitor, ShuntInductor
 
 @pytest.fixture
 def single_freq():
@@ -64,7 +64,9 @@ def test_equinox_filter_grad_pytree(single_freq):
     (Resistor, 'R', 50.0),
     (Capacitor, 'C', 1.0e-12),
     (Inductor, 'L', 1.0e-9),
-    (ShuntResistor, 'R', 50.0)
+    (ShuntResistor, 'R', 50.0),
+    (ShuntInductor, 'L', 1.0e-9),
+    (ShuntCapacitor, 'C', 1.0e-12),
 ])
 def test_full_jacobian_no_nans(model_class, param_name, param_val, sweep_freq):
     """
@@ -75,18 +77,15 @@ def test_full_jacobian_no_nans(model_class, param_name, param_val, sweep_freq):
         kwargs = {param_name: val}
         model = model_class(**kwargs)
         s = model.s(sweep_freq)
-        # JAX standard autodiff prefers real outputs, so we concatenate 
-        # real and imaginary parts to form a strictly real vector field.
+
+        # Stack complex values to avoid JAX holomorphic issues
         return jnp.concatenate([jnp.real(s), jnp.imag(s)])
 
-    # Use jacrev (Reverse-mode Jacobian) which is highly efficient 
-    # for taking derivatives of large arrays wrt a few parameters
+    # Use jacrev for efficiency (few params -> many freq)
     jac_fn = jax.jacrev(get_s_matrix_components)
     jacobian = jac_fn(param_val)
     
-    # The Jacobian should have evaluated cleanly over all frequencies
     assert not jnp.any(jnp.isnan(jacobian))
-    # Shape check: (2 * npoints, 2, 2) since we concatenated real/imag
     assert jacobian.shape == (2 * sweep_freq.npoints, 2, 2)
 
 def test_autodiff_frequency_parameter():
