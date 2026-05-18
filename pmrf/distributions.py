@@ -91,3 +91,9 @@ try:
     __all__.append('TruncatedNormal')
 except:
     pass
+
+try:
+    from distreqx.distributions import Joint as Joint
+    __all__.append('Joint')
+except:
+    pass

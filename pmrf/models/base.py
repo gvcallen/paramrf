@@ -494,40 +494,40 @@ class Model(eqx.Module):
     
     # ---- Magic methods and copying --------------------------------------------------
 
-    def __repr__(self) -> str:
-        """String representation of the Model."""
-        import numpy as np
-        import jax
+    # def __repr__(self) -> str:
+    #     """String representation of the Model."""
+    #     import numpy as np
+    #     import jax
 
-        class _RawFormatter:
-            """Wrapper to print arrays cleanly with rounded float values."""
-            def __init__(self, val):
-                self.val = np.asarray(val)
+    #     class _RawFormatter:
+    #         """Wrapper to print arrays cleanly with rounded float values."""
+    #         def __init__(self, val):
+    #             self.val = np.asarray(val)
                 
-            def __repr__(self):
-                # precision=4 limits decimal places
-                # suppress_small=True formats numbers very close to zero as 0
-                return np.array2string(
-                    self.val, 
-                    separator=', ', 
-                    precision=4, 
-                )
+    #         def __repr__(self):
+    #             # precision=4 limits decimal places
+    #             # suppress_small=True formats numbers very close to zero as 0
+    #             return np.array2string(
+    #                 self.val, 
+    #                 separator=', ', 
+    #                 precision=4, 
+    #             )
 
-        # Unwrap the model to resolve variables
-        unwrapped = unwrap(self)
+    #     # Unwrap the model to resolve variables
+    #     unwrapped = unwrap(self)
         
-        # Identify JAX arrays
-        is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
+    #     # Identify JAX arrays
+    #     is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
         
-        # Replace JAX arrays with our custom formatter
-        unwrapped_clean = jax.tree_util.tree_map(
-            lambda x: _RawFormatter(x) if is_array(x) else x,
-            unwrapped,
-            is_leaf=is_array
-        )
+    #     # Replace JAX arrays with our custom formatter
+    #     unwrapped_clean = jax.tree_util.tree_map(
+    #         lambda x: _RawFormatter(x) if is_array(x) else x,
+    #         unwrapped,
+    #         is_leaf=is_array
+    #     )
 
-        # Use Equinox's formatter, displaying full internal arrays instead of generic shape labels
-        return eqx.tree_pformat(unwrapped_clean, short_arrays=False)
+    #     # Use Equinox's formatter, displaying full internal arrays instead of generic shape labels
+    #     return eqx.tree_pformat(unwrapped_clean, short_arrays=False)
 
     def __str__(self) -> str:
         return repr(self)    
