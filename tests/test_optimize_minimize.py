@@ -18,7 +18,6 @@ class DummyOptModel(Model):
     val: prf.Param = prf.param(1.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        # Returns an S-parameter matrix where the element is just `self.val`
         nf = freq.npoints
         return jnp.ones((nf, 1, 1), dtype=complex) * self.val
 
@@ -40,7 +39,6 @@ def model():
 
 def test_minimize_scipy_unbounded(model, basic_freq):
     """Test standard unconstrained optimization using the default Scipy backend."""
-    # Objective: minimize the distance from m.val to 5.0
     def obj_fn(m, f):
         return jnp.sum(jnp.abs(m.val - 5.0)**2)
     
@@ -111,7 +109,7 @@ def test_minimize_optimistix(model, basic_freq):
     assert jnp.allclose(result.model.val, 5.0, atol=1e-2)
 
 def test_minimize_list_of_objectives(model, basic_freq):
-    """Ensure that passing a list of callables automatically sums them via parax."""
+    """Ensure that passing a list of callables automatically sums them."""
     # The minimum of (x-2)^2 + (x-4)^2 is exactly x=3
     obj1 = lambda m, f: jnp.sum((m.val - 2.0)**2)
     obj2 = lambda m, f: jnp.sum((m.val - 4.0)**2)

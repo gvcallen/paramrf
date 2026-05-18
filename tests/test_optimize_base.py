@@ -1,7 +1,6 @@
 # tests/test_optimize_base.py
 
 import pytest
-import jax
 import jax.numpy as jnp
 import equinox as eqx
 

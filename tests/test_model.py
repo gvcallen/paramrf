@@ -128,16 +128,13 @@ def test_compositional_operators(model_s_2port):
     """
     Test the syntactic sugar for cascades (**) and terminations (@).
     """
-    try:
-        # Cascade requires 2N-port models: 2-port ** 2-port
-        cascaded_model = model_s_2port ** model_s_2port
-        assert isinstance(cascaded_model, Model)
+    # Cascade requires 2N-port models: 2-port ** 2-port
+    cascaded_model = model_s_2port ** model_s_2port
+    assert isinstance(cascaded_model, Model)
         
-        # Termination requires a 2-port network terminated by a 1-port load
-        terminated_model = model_s_2port @ 'short'
-        assert isinstance(terminated_model, Model)
-    except ImportError:
-        pytest.skip("pmrf.models not fully available in test environment.")
+    # Termination requires a 2-port network terminated by a 1-port load
+    terminated_model = model_s_2port @ 'short'
+    assert isinstance(terminated_model, Model)
 
 def test_to_skrf_conversion(model_s, basic_freq):
     """Test generating an explicit skrf.Network object."""
