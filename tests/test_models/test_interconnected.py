@@ -98,6 +98,15 @@ def test_cascade_valid(basic_freq):
     assert s.shape == (5, 2, 2)
     assert not jnp.any(jnp.isnan(s))
 
+def test_cascade_one(basic_freq):
+    """Test that a cascade of a single model remains the same."""
+    R1 = Resistor(100.0)
+    
+    cascaded = Cascade([R1])
+    s = cascaded.s(basic_freq)
+
+    assert jnp.allclose(s, R1.s(basic_freq))
+
 def test_cascade_invalid_odd_ports():
     """Cascade requires 2N-port networks."""
     R1 = Resistor(50.0) # 2-port
@@ -118,6 +127,7 @@ def test_cascade_flattening():
     assert len(nested.merged_cascade) == 3
     assert nested.merged_cascade[0] is R1
     assert nested.merged_cascade[2] is R3
+    
 
 # ---------------------------------------------------------
 # Terminated Tests

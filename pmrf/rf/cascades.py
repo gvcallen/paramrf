@@ -18,7 +18,7 @@ def cascade_s(
     z0s: ArrayLike,
     method = 'redheffer',
     eps=1e-12,
-) -> jnp.ndarray:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
     """
     Cascades multiple S-parameter networks together.
 
@@ -39,14 +39,18 @@ def cascade_s(
 
     Returns
     -------
-    jnp.ndarray
-        The resulting S-parameter matrix of the cascaded system.
+    tuple[jnp.ndarray, jnp.ndarray]
+        The resulting S-parameter matrix and characteristic impedance of the cascaded system.
     """
     if method != 'redheffer':
         raise ValueError("Currently only method = 'redheffer' is supported for cascade_s")
 
     Smats = jnp.array(Smats)
     z0s = jnp.array(z0s)
+
+    # Fast path for single network
+    if Smats.shape[0] == 1:
+        return Smats[0], z0s[0]
 
     # Check port shapes and impedances
     nnetworks = Smats.shape[0]
