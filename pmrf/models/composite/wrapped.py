@@ -24,7 +24,7 @@ class Tied(Model):
 
     Attributes
     ----------
-    tied_wrapper : parax.Tie
+    tied : parax.Tie
         The wrapped parax Tie object handling the parameter linking.
 
     Examples
@@ -45,7 +45,7 @@ class Tied(Model):
     >>> # The optimizer will now only see the Capacitor's C parameter.
     >>> # When evaluated, R will automatically track C.
     """
-    wrapped: prx.Tie
+    tied: prx.Tie
 
     def __init__(
         self, 
@@ -72,8 +72,8 @@ class Tied(Model):
             before injecting it into the target. Defaults to the identity 
             function (`lambda x: x`).
         """
-        base_tree = model.wrapped if isinstance(model, Tied) else model
-        self.wrapped = prx.Tie(
+        base_tree = model.tied if isinstance(model, Tied) else model
+        self.tied = prx.Tie(
             tree=base_tree,
             target=target,
             source=source,
@@ -90,14 +90,14 @@ class Tied(Model):
         Model
             The unwrapped `parax.Tie` wrapper containing the resolved relationships.
         """
-        return self.wrapped
+        return self.tied
 
     @property
     def model(self) -> Model:
         """
         Returns the underlying model.
         """
-        return self.wrapped.tree
+        return self.tied.tree
     
 
 class Probabilistic(Model):
@@ -115,7 +115,7 @@ class Probabilistic(Model):
 
     Attributes
     ----------
-    wrapped : Model | parax.Probabilize
+    probabilistic : Model | parax.Probabilize
         The updated structure containing the `parax.Probabilize` node.
 
     Examples
@@ -140,7 +140,7 @@ class Probabilistic(Model):
     ...     distribution=dist_tree,
     ... )
     """
-    wrapped: prx.Probabilize | Model
+    probabilistic: prx.Probabilize | Model
 
     def __init__(
         self, 
@@ -170,14 +170,14 @@ class Probabilistic(Model):
         """
         target_val = target(model)
         prob_node = prx.Probabilize(distribution, target_val, constraint=constraint)
-        self.wrapped = eqx.tree_at(target, model, prob_node)
+        self.probabilistic = eqx.tree_at(target, model, prob_node)
 
     @property
     def model(self) -> Model:
         """
         Returns the underlying model (or the probabilistic wrapper if applied to the root).
         """
-        return self.wrapped
+        return self.probabilistic
     
     @unwrap_self
     def build(self) -> Model:
@@ -189,4 +189,4 @@ class Probabilistic(Model):
         Model
             The updated model containing the `parax.Probabilize` node.
         """
-        return self.wrapped
+        return self.probabilistic

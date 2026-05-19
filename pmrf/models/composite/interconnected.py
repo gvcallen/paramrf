@@ -52,8 +52,8 @@ class Circuit(Model):
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
-    #: The models.
-    models: list[Model] = field(default=None, kw_only=True)
+    #: The models in the circuit.
+    circuit: list[Model] = field(default=None, kw_only=True)
 
     #: The indices of the connections.
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
@@ -112,13 +112,13 @@ class Circuit(Model):
                 port_idxs.append(id_to_index[id(model)])
 
         # Assign the computed values
-        self.models = models
+        self.circuit = models
         self.indexed_connections = indexed_connections
         self.port_idxs = port_idxs
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        Smats = [model.s(freq) for model in self.models]
-        z0s = [model.z0 for model in self.models]
+        Smats = [model.s(freq) for model in self.circuit]
+        z0s = [model.z0 for model in self.circuit]
 
         Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
         return Scon
@@ -139,7 +139,7 @@ class Cascade(Model):
 
     Parameters
     ----------
-    models : tuple[Model]
+    cascade : tuple[Model]
         The sequence of models in the cascade.
 
     Examples
@@ -169,27 +169,37 @@ class Cascade(Model):
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
     #: The models.
-    models: tuple[Model]
+    cascade: tuple[Model]
     
     def __post_init__(self):
-        model_reduced = []
-        for model in self.models:
+        for model in self.cascade:
             if model.nports % 2 != 0:
                 raise ValueError('All networks must be 2N-ports for Cascade')
+            
+    @property
+    def merged_cascade(self) -> list[Model]:
+        """
+        Returns the models of the cascade merged such that any cascades are combined.
+
+        This is done only during the forward pass to retain the caller's
+        original nesting for debugging/inspection purposes.
+        """
+        merged = []
+        for model in self.cascade:
             if isinstance(model, Cascade):
-                model_reduced.extend(model.models)
+                merged.extend(model.merged_cascade)
             else:
-                model_reduced.append(model)
-                
-        # Generate numerically sequenced defaults (model_1, model_2, etc.)
-        self.models = model_reduced
+                merged.append(model)
+        return merged
 
     def a(self, freq: Frequency) -> jnp.ndarray:
-        return cascade_a([model.a(freq) for model in self.models])
+        return cascade_a([model.a(freq) for model in self.merged_cascade])
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        Smats = jnp.array([model.s(freq) for model in self.models])
-        z0s = jnp.array([model.z0 for model in self.models])
+        merged_models = self.merged_cascade
+
+        Smats = jnp.array([model.s(freq) for model in merged_models])
+        z0s = jnp.array([model.z0 for model in merged_models])
         Scas, z0cas = cascade_s(Smats, z0s)
         return Scas
     
@@ -201,25 +211,25 @@ class Terminated(Model):
     Parameters
     ----------
 
-    from_model : Model
+    terminated_from : Model
         The model being terminated.
-    into_model : Model
-        The model that `from_model` is terminated into.        
+    terminated_into : Model
+        The model that `terminated_from` is terminated into.        
     """
     #: The "from" model.
-    from_model: Model
+    terminated_from: Model
 
     #: The "into" model.
-    into_model: Model
+    terminated_into: Model
     
     def __post_init__(self):
-        if self.from_model.nports != 2*self.into_model.nports:
+        if self.terminated_from.nports != 2*self.terminated_into.nports:
             raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        Smat_from = self.from_model.s(freq)
-        z0_from = self.from_model.z0
-        Smat_into = self.into_model.s(freq)
-        z0_into = self.into_model.z0
+        Smat_from = self.terminated_from.s(freq)
+        z0_from = self.terminated_from.z0
+        Smat_into = self.terminated_into.s(freq)
+        z0_into = self.terminated_into.z0
         S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
         return S_term

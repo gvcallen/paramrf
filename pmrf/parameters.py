@@ -8,10 +8,11 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Optional, TypeAlias, TypeVar
-from jaxtyping import ArrayLike, Inexact, Array
+from typing import Any, Optional, TypeAlias
 
+import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike, Inexact, Array
 import equinox as eqx
 import parax as prx
 
@@ -21,7 +22,7 @@ from pmrf.distributions import AbstractDistribution
 #: The canonical type hint for a parameter in a model.
 Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
 
-def apply_wrappers(value: Any, scale: float, fixed: bool) -> Param:
+def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
     value = prx.as_variable(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
@@ -34,8 +35,43 @@ def apply_wrappers(value: Any, scale: float, fixed: bool) -> Param:
             
         value = prx.Transformed(bij, raw_value=value)
     if fixed:
-        value = prx.Fixed(value)    
+        value = prx.Fixed(value)
+
+    if name is not None:
+        value = prx.Tagged(metadata={'name': name}, raw_value=value)
+
     return value
+
+
+def extract_name(value: Any) -> str | None:
+    """"
+    Extracts a name from a value that might be a parameter.
+
+    Parameters
+    ----------
+    value : Any, optional
+        The value.
+
+    Returns
+    -------
+    str | None
+        The name if one was found, otherwise None.
+    """
+    if not prx.is_variable(value):
+        return None
+    
+    def has_name(x):
+        return isinstance(x, prx.Tagged) and 'name' in x.metadata
+    
+    named_variable = jax.tree.leaves(value, is_leaf=has_name)
+    named_variable = [x for x in named_variable if has_name(x)]
+
+    if len(named_variable) == 0:
+        return None
+    elif len(named_variable) > 1:
+        raise Exception(f"Found multiple variables alongside with a name, which should be impossible. Value = {value}")
+    
+    return named_variable[0].metadata['name']
     
 
 def as_param(
@@ -44,7 +80,8 @@ def as_param(
     distribution: Optional[AbstractDistribution] = None,
     constraint: Optional[AbstractConstraint] = None,
     scale: float = 1.0,
-    fixed: bool = False
+    fixed: bool = False,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Coerces a value into a parameter.
@@ -64,6 +101,8 @@ def as_param(
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
         Whether to freeze the parameter, by default False.
+    name : str, optional
+        A name for the parameter, by default None.
 
     Returns
     -------
@@ -109,7 +148,7 @@ def as_param(
         else:
             value = prx.Real(value)
 
-    return apply_wrappers(value, scale=scale, fixed=fixed)
+    return apply_wrappers(value, scale=scale, fixed=fixed, name=name)
 
 
 def param(
@@ -180,6 +219,7 @@ def Value(
     *,
     scale: float = 1.0,
     fixed: bool = False,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Create a simple parameter with an optional scale.
@@ -191,20 +231,23 @@ def Value(
     scale : float, optional
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
-        Whether to freeze the parameter, by default False.        
+        Whether to freeze the parameter, by default False.
+    name : str, optional
+        A name for the parameter, by default None.
 
     Returns
     -------
     pmrf.Param
         An unconstrained parameter.
     """
-    return as_param(value, scale=scale, fixed=fixed)
+    return as_param(value, scale=scale, fixed=fixed, name=name)
 
 
 def Fixed(
     value: ArrayLike,
     *,
     scale: float = 1.0,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Create a fixed parameter that will not be optimized.
@@ -215,13 +258,15 @@ def Fixed(
         The parameter value to fix.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
+    name : str, optional
+        A name for the parameter.       , by default None.
 
     Returns
     -------
     pmrf.Param
         The fixed parameter.
     """
-    return as_param(value, scale=scale, fixed=True)
+    return as_param(value, scale=scale, fixed=True, name=name)
 
 
 def Constrained(
@@ -229,7 +274,8 @@ def Constrained(
     value: ArrayLike,
     *,
     scale: float = 1.0, 
-    fixed: bool = False
+    fixed: bool = False,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Create a parameter constrained to a specific domain.
@@ -246,13 +292,15 @@ def Constrained(
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
         Whether to freeze the parameter, by default False.
+    name : str, optional
+        A name for the parameter, by default None.
 
     Returns
     -------
     pmrf.Param
         The constrained parameter.
     """
-    return as_param(value, constraint=constraint, scale=scale, fixed=fixed)
+    return as_param(value, constraint=constraint, scale=scale, fixed=fixed, name=name)
 
 
 def Bounded(
@@ -261,7 +309,8 @@ def Bounded(
     *,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
-    fixed: bool = False
+    fixed: bool = False,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Create a parameter constrained within a specific interval.
@@ -280,13 +329,15 @@ def Bounded(
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
         Whether to freeze the parameter, by default False.
+    name : str, optional
+        A name for the parameter.       , by default None.
 
     Returns
     -------
     pmrf.Param
         The bounded parameter.
     """
-    return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed)
+    return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed, name=name)
 
 
 def Random(
@@ -295,7 +346,8 @@ def Random(
     constraint: Optional[AbstractConstraint] = None,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
-    fixed: bool = False
+    fixed: bool = False,
+    name: Optional[str] = None,
 ) -> Param:
     """
     Create a parameter initialized with a random distribution.
@@ -319,6 +371,8 @@ def Random(
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
         Whether to freeze the parameter, by default False.
+    name : str, optional
+        A name for the parameter.       , by default None.
 
     Returns
     -------
@@ -330,7 +384,7 @@ def Random(
     ValueError
         If `value` is None and the distribution does not implement `mean()`.
     """
-    return as_param(value, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed)
+    return as_param(value, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed, name=name)
 
 
 __all__ = [
@@ -342,4 +396,5 @@ __all__ = [
     "Random",
     "Param",
     "param",
+    "extract_name",
 ]

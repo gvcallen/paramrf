@@ -7,6 +7,7 @@ import dataclasses
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import PyTree
 import equinox as eqx
 import skrf
 from refrax import Lens
@@ -142,6 +143,12 @@ class Model(eqx.Module):
     #: The characteristic impedance of the model.
     #: NB: Mixing impedances across models is not fully supported.
     z0: complex = field(default=50.0+0j, kw_only=True, static=True)
+
+    #: A name for the model.
+    name: str | None = field(default=None, kw_only=True, static=True)
+
+    #: Arbitrary metadata to store alongside the model.
+    metadata: Any = field(default=None, kw_only=True, static=True)
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -206,8 +213,7 @@ class Model(eqx.Module):
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
-    
-    def named_params(self, include_fixed: bool = False, unwrap: bool = True) -> dict[str, Any]:
+    def named_params(self, include_fixed: bool = False, unwrap: bool = True, namespace_separator='_') -> dict[str, Any]:
         """
         Returns a dictionary of all parameters in the model mapped to their paths.
 
@@ -226,6 +232,8 @@ class Model(eqx.Module):
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.
+        namespace_separator : str
+            The separator to use to create a parameter namespace using model names.
         
         Returns
         -------
@@ -234,21 +242,40 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
+        # Setup callables for filtering and flattening
         if not include_fixed:
-            leaves_with_path, _ = jax.tree.flatten_with_path(self, is_leaf=lambda x: prx.is_param(x) or prx.is_constant(x))
+            filter_spec = lambda x: prx.is_param(x) and not prx.is_constant(x)
+            is_leaf = lambda x: prx.is_param(x) or prx.is_constant(x)
         else:
-            leaves_with_path, _ = jax.tree.flatten_with_path(self, is_leaf=lambda x: prx.is_param(x))
+            filter_spec = lambda x: prx.is_param(x)
+            is_leaf = lambda x: prx.is_param(x)
+
+        # Get rid of any non-param leaves
+        filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
+        leaves_with_path, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
         
-        params = {jax.tree_util.keystr(path): leaf for path, leaf in leaves_with_path if prx.is_param(leaf)}
+        # Detect collisions
+        named = {}
+        for path, leaf in leaves_with_path:
+            if prx.is_param(leaf):
+                name = path_to_name(self, path, namespace_separator=namespace_separator)
+                if name in named:
+                    raise ValueError(
+                        f"Parameter name collision: '{name}'.\n\n"
+                        f"Multiple paths resolved to the same name during flattening. "
+                        f"To fix this, either assign unique names directly to the parameters, "
+                        f"or give their parent models distinct names to create unique prefixes."
+                    )
+                named[name] = leaf
         
         if not include_fixed:
-            params = {k: v for k, v in params.items() if not prx.is_constant(v)}
+            named = {k: v for k, v in named.items() if not prx.is_constant(v)}
         
         if unwrap:
-            params = prx.unwrap(params)
-            params = {k: float(v) if jnp.isscalar(v) else v for k, v in params.items()}
+            named = prx.unwrap(named)
+            named = {k: float(v) if jnp.isscalar(v) else v for k, v in named.items()}
             
-        return params
+        return named
     
     # ---- Core API -------------------------------------------------------------
     
@@ -826,3 +853,96 @@ def validate(tree):
                 # Manually recurse into the field's value to catch nested Models, 
                 # lists of Models, dicts of Models, etc.
                 validate(val)
+
+
+def path_to_name(tree: PyTree, path: list[Any], namespace_separator: str) -> str:
+    """
+    Converts a JAX-style path to an equivalent parameter or model name.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The base PyTree to extract the names of.
+    path : list[Any]:
+        The JAX path to a node in the PyTree.
+    namespace_separator : str
+        A string separator to use when combing multiple nodes in the PyTree
+        together to create a new namespace.
+    
+    Returns
+    -------
+        The name of the parameter or path.
+    """
+    from pmrf.parameters import extract_name
+
+    namespace = []
+    current_obj = tree
+    unnamed_path_parts = []
+    
+    for key in path:
+        if hasattr(key, "name"):
+            attr = key.name
+            current_obj = getattr(current_obj, attr)
+            part_type = "attr"
+        elif hasattr(key, "idx"):
+            attr = key.idx
+            current_obj = current_obj[key.idx]
+            part_type = "idx"
+        elif hasattr(key, "key"):
+            attr = key.key
+            current_obj = current_obj[key.key]
+            part_type = "key"
+        else:
+            attr = key
+            part_type = "fallback"
+            
+        if isinstance(current_obj, Model) and current_obj.name is not None:
+            namespace.append(current_obj.name)
+            unnamed_path_parts = []
+        else:
+            unnamed_path_parts.append((part_type, attr))
+            
+    param_name = None
+    if prx.is_param(current_obj):
+        param_name = extract_name(current_obj)
+    
+    if param_name is None and isinstance(current_obj, Model) and current_obj.name is not None:
+        param_name = namespace.pop()
+
+    if param_name is not None:
+        final_name_part = param_name
+        separator = namespace_separator
+    else:
+        formatted_parts = []
+        for i, (p_type, p_val) in enumerate(unnamed_path_parts):
+            if p_type == "attr":
+                if i == 0:
+                    formatted_parts.append(str(p_val))
+                else:
+                    formatted_parts.append(f".{p_val}")
+            elif p_type == "idx":
+                formatted_parts.append(f"[{p_val}]")
+            elif p_type == "key":
+                if isinstance(p_val, str):
+                    formatted_parts.append(f"['{p_val}']")
+                else:
+                    formatted_parts.append(f"[{p_val}]")
+            else:
+                formatted_parts.append(f"[{p_val}]")
+                
+        final_name_part = "".join(formatted_parts)
+        
+        if not final_name_part:
+            separator = ""
+        elif final_name_part.startswith("["):
+            separator = ""
+        else:
+            separator = "."
+            
+    if namespace:
+        prefix = namespace_separator.join(namespace)
+        name = f"{prefix}{separator}{final_name_part}"
+    else:
+        name = final_name_part
+            
+    return name
