@@ -43,6 +43,10 @@ ParamRF uses a unique approach to circuit modeling via a functional programming 
 - **Parameter Constraints and Manipulation:** Parameters can be scaled, constrained, tied together, or assigned prior probability distributions. This relies on a concept known as "unwrapping". For example, the built-in factory functions in `pmrf.parameters` return nested wrappers that are unwrapped automatically at evaluation time. This approach provides a bridge between JAX's pure functional style, and the declarative, object-oriented syntax desired by RF engineers.
 - **Built-in Solvers:** The framework provides high-level sub-modules (`pmrf.optimize`, `pmrf.infer`, `pmrf.fitting`) that abstract different solver backends into a unified interface. Users can easily swap between classical optimization (using SciPy or Optimistix) and Bayesian inference (using BlackJAX) to perform parameter estimation and uncertainty quantification.
 
+# Research Impact
+
+While the need for programmatic and differentiable RF modeling is broad, ParamRF was initially developed for the REACH (Radio Experiment for the Analysis of Cosmic Hydrogen, [@de2022reach], [@allen2026circuit]) collaboration. In this context, high-dimensional circuit models are fit to measured data for calibration purposes. The project requires both efficient, classical optimization for dynamic fitting, as well as rigorous Bayesian inference for model analysis and uncertainty quantification, and relies on ParamRF for this purpose.
+
 # Example Usage
 
 The following snippet demonstrates ParamRF's syntax and optimization API. A standard RLC circuit is composed using operator overloading, and the component values are optimized to meet a specified $S_{11}$ reflection goal over a target frequency passband.
@@ -51,14 +55,17 @@ The following snippet demonstrates ParamRF's syntax and optimization API. A stan
 import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 
-# Compose a nested circuit using operator overloading (cascade)
-model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
+# Setup the RLC model
+res = Resistor(50)
+ind = Inductor(prf.Value(1.0, scale=1e-9))
+cap = Capacitor(prf.Value(1.0, scale=1e-12))
+model = res ** ind ** cap
 
-# Define optimization goal and passband
+# Defin the goal and passband
 goal = prf.evaluators.Goal('s11_db', '<', -20)
 passband = prf.Frequency(3, 4, 101, 'GHz')
 
-# Minimize the goal using a built-in solver
+# Minimize the goal
 result = prf.optimize.minimize(
     objective=goal,
     model=model,
@@ -66,17 +73,13 @@ result = prf.optimize.minimize(
     solver=prf.optimize.ScipyMinimize(),
 )
 
-# Evaluate and plot the initial and optimized model over a wider band
+# Plot the initial vs optimized models
 plot_freq = prf.Frequency(1, 6, 101, 'GHz')
 model.plot_s_db(plot_freq, m=0, n=0, label='initial')
 result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
 ```
 
-![Optimized vs Initial RLC.](rlc.png)
-
-# Research Impact
-
-While the need for programmatic and differentiable RF modeling is broad, ParamRF was initially developed for the REACH (Radio Experiment for the Analysis of Cosmic Hydrogen, [@de2022reach], [@allen2026circuit]) collaboration. In this context, high-dimensional circuit models are fit to measured data for calibration purposes. The project requires both efficient, classical optimization for dynamic fitting, as well as rigorous Bayesian inference for model analysis and uncertainty quantification, and relies on ParamRF for this purpose.
+![Optimized vs Initial RLC.](rlc.png) { width = 75% }
 
 # AI Usage Disclosure
 
