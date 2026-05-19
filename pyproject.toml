@@ -10,7 +10,6 @@ dependencies = [
     "parax",
     "eqxpress",
     "jax",
-    "jax-optix",
     "jaxtyping",
     "equinox",
     "distreqx",
