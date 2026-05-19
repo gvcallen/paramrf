@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 import jax.numpy as jnp
 import equinox as eqx
@@ -12,16 +12,17 @@ from pmrf.optimize.base import AbstractMinimizer, minimize as base_minimize
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.backends.scipy import ScipyMinimize
 
+ModelT = TypeVar('ModelT', bound=Model)
 
 def minimize(
-    objective: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
-    model: Model,
+    objective: Callable[[ModelT, Frequency], jnp.ndarray] | list[Callable],
+    model: ModelT,
     frequency: Frequency,
     solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
     search_space: str | None = None,
     **kwargs,
-) -> OptimizeResult:
+) -> OptimizeResult[ModelT]:
     """
     Minimizes a given objective function for a model over a frequency range.
     

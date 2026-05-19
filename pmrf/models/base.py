@@ -2,22 +2,24 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, Self, TypeVar
 import dataclasses
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import PyTree
 import equinox as eqx
 import skrf
-from refrax import Lens
 import parax as prx
 
+from pmrf.utils.optix import focus, Lens
+from pmrf.parameters import Param
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
+
+S = TypeVar('S')
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 PRIMARY_METHODS = PRIMARY_PROPERTIES + ('build', 'primary_matrix')
@@ -85,7 +87,7 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :attr:`at`                        Modify a parameter at some path in the model.
+    :meth:`at`                        Modify, filter or inspect a value at some path in the model.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
@@ -213,7 +215,68 @@ class Model(eqx.Module):
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
-    def named_params(self, include_fixed: bool = False, unwrap: bool = True, namespace_separator='_') -> dict[str, Any]:
+    def pathed_params(
+        self,
+        include_fixed: bool = False,
+        unwrap: bool = True,
+        keystr: bool = False,
+        separator: str | None = None,
+    ) -> list[tuple[Any, Param]]:
+        """
+        Returns the parameters as a list of tuples alongside their paths.
+        
+        The paths represent JAX tree paths.
+        
+        Parameters
+        ----------
+        include_fixed : bool, default=False
+            Whether to include fixed parameters in the returned dictionary.
+            Defaults to False.
+        unwrap : bool, default=True
+            Unwraps the parameters into raw floats/arrays. Defaults to True.
+            To inspect internal parameter states (e.g. distributions, fixed etc.)
+            pass `unwrap=False`.        
+        keystr : bool, default=False
+            Whether equivalent strings should be returned as opposed to full JAX paths.
+            Defaults to False.
+        separator : str, optional
+            The separator to use if `keystr` is True.
+        """
+        # Setup callables for filtering/flattening
+        if not include_fixed:
+            filter_spec = lambda x: prx.is_param(x) and not prx.is_constant(x)
+            is_leaf = lambda x: prx.is_param(x) or prx.is_constant(x)
+        else:
+            filter_spec = lambda x: prx.is_param(x)
+            is_leaf = lambda x: prx.is_param(x)
+
+        # Get rid of any non-param leaves
+        filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
+        pathed, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
+        
+        if unwrap or keystr:
+            for i in range(len(pathed)):
+                key, value = pathed[i]
+                
+                if keystr:
+                    kwargs = {'separator': separator} if separator is not None else {}
+                    key = jax.tree_util.keystr(key, **kwargs)
+                
+                if unwrap:
+                    value = prx.unwrap(value)
+                    if jnp.isscalar(value):
+                        value = float(value)
+                
+                pathed[i] = (key, value)
+                
+        return pathed
+    
+    def named_params(
+        self,
+        include_fixed: bool = False,
+        unwrap: bool = True,
+        namespace_separator: str = '_',
+    ) -> dict[str, Param]:
         """
         Returns a named dictionary of parameters in the model.
 
@@ -258,39 +321,21 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        # Setup callables for filtering and flattening
-        if not include_fixed:
-            filter_spec = lambda x: prx.is_param(x) and not prx.is_constant(x)
-            is_leaf = lambda x: prx.is_param(x) or prx.is_constant(x)
-        else:
-            filter_spec = lambda x: prx.is_param(x)
-            is_leaf = lambda x: prx.is_param(x)
-
-        # Get rid of any non-param leaves
-        filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
-        leaves_with_path, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
+        pathed = self.pathed_params(include_fixed=include_fixed, unwrap=unwrap)
         
         # Detect collisions
         named = {}
-        for path, leaf in leaves_with_path:
-            if prx.is_param(leaf):
-                name = path_to_name(self, path, namespace_separator=namespace_separator)
-                if name in named:
-                    raise ValueError(
-                        f"Parameter name collision: '{name}'.\n\n"
-                        f"Multiple paths resolved to the same name during flattening. "
-                        f"To fix this, either assign unique names directly to the parameters, "
-                        f"or give their parent models distinct names to create unique prefixes."
-                    )
-                named[name] = leaf
+        for path, leaf in pathed:
+            name = tree_path_to_name(self, path, namespace_separator=namespace_separator)
+            if name in named:
+                raise ValueError(
+                    f"Parameter name collision: '{name}'.\n\n"
+                    f"Multiple paths resolved to the same name during flattening. "
+                    f"To fix this, either assign unique names directly to the parameters, "
+                    f"or give their parent models distinct names to create unique prefixes."
+                )
+            named[name] = leaf
         
-        if not include_fixed:
-            named = {k: v for k, v in named.items() if not prx.is_constant(v)}
-        
-        if unwrap:
-            named = prx.unwrap(named)
-            named = {k: float(v) if jnp.isscalar(v) else v for k, v in named.items()}
-            
         return named
     
     # ---- Core API -------------------------------------------------------------
@@ -609,47 +654,58 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-    @property
-    def at(self) -> Lens:
-        """Provides a fluent, lens-based interface for immutable PyTree updates.
+    def at(self: Self, where: Callable[[Self], S]) -> Lens[Self, S]:
+        """(experimental) A functional interface for model manipulation.
+        
+        This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
+        
+        Pass in a callable that accepts your model and returns the
+        attributes you would like to retrieve/modify. Then, use
+        methods like `.get()` and `.set()` to retrieve values
+        or an updated model.
+        
+        Warning: Note that updates are "surgical", so the value
+        is replaced as-is i.e. without any automatic converters.
+        When replacing parameters, ensure to pass in a fully
+        constructed parameter and not a float.
+        
+        Examples
+        --------
+        >>> import pmrf as prf
+        >>> from pmrf.models import Resistor
+        >>> model = Resistor(R=50.0)
+        >>> # Retrieve a value using the lens
+        >>> model.at(lambda m: m.R).get()
+        50.0
+        >>> # Return a new model instance with the updated value
+        >>> updated_model = model.at(lambda m: m.R).set(100.0)
 
-        This property exposes a chainable API for safely mutating deeply nested
-        models and parameters.
-        
-        Note that if your goal is to update static fields (not parameters e.g. strings),
-        you should use :func:`pmrf.replace`.
-        
-        For more advanced manipulation, refer to the :mod:`refrax` documentation.
-        
         Returns
         -------
         Lens
             A lens object focused on the root of the current instance.
 
+        """
+        return focus(self).at(where)
+    
+    def map(self: Self, fn: Callable[[Any], Any], is_leaf: Callable | None = None) -> Self:
+        """(experimental) A functional interface for model mapping.
+        
+        This is a wrapper around `jax.tree.map`.
+        
+        To map parameters, pass `is_leaf=prf.is_param`.
+        
         Examples
         --------
-        Update a single attribute using `.set()` or `.apply()`:
+        >>> import pmrf as prf
+        >>> from pmrf.models import Resistor, Capacitor
+        >>> model = Resistor(R=50.0) ** Capacitor(C=1e-12)
+        >>> # Scale all parameters in the model by a factor of 2
+        >>> scaled_model = model.map(lambda p: p * 2.0, is_leaf=prf.is_param)
 
-        >>> new_model = model.at.R.set(20.0)
-        >>> new_model = model.at.length.apply(lambda x: x * 2)
-
-        Target multiple attributes simultaneously using `.select()`:
-
-        >>> new_model = model.at.select('L', 'C').set(2.0)
-
-        Apply a function over every item in a collection using `.each()`:
-
-        >>> new_model = model.at.array_params.each().apply(jnp.abs)
-
-        Select attributes dynamically based on a condition using `.where()`:
-
-        >>> is_model = lambda x: isinstance(x, Model)
-        >>> new_model = model.at.where(is_model).apply(modify_model)
-
-        Select leaves (like parameters) and modify them (e.g. freeze them):
-        >>> frozen_model = model.at.leaves(prf.is_param).apply(prf.freeze)
+        Returns the mapped model.
         """
-        return Lens(self)
+        return jax.tree.map(fn, self, is_leaf=is_leaf)
         
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -871,7 +927,7 @@ def validate(tree):
                 validate(val)
 
 
-def path_to_name(tree: PyTree, path: list[Any], namespace_separator: str) -> str:
+def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, ignore_names: bool = False) -> str:
     """
     Converts a JAX-style path to an equivalent parameter or model name.
 
@@ -879,14 +935,18 @@ def path_to_name(tree: PyTree, path: list[Any], namespace_separator: str) -> str
     ----------
     tree : PyTree
         The base PyTree to extract the names of.
-    path : list[Any]:
+    path : list[Any]
         The JAX path to a node in the PyTree.
     namespace_separator : str
         A string separator to use when combing multiple nodes in the PyTree
         together to create a new namespace.
+    ignore_names : bool, default=False
+        If True, ignores custom Model/Parameter names and generates the string 
+        based strictly on the structural path.
     
     Returns
     -------
+    str
         The name of the parameter or path.
     """
     from pmrf.parameters import extract_name
@@ -912,18 +972,20 @@ def path_to_name(tree: PyTree, path: list[Any], namespace_separator: str) -> str
             attr = key
             part_type = "fallback"
             
-        if isinstance(current_obj, Model) and current_obj.name is not None:
+        if not ignore_names and isinstance(current_obj, Model) and current_obj.name is not None:
             namespace.append(current_obj.name)
             unnamed_path_parts = []
         else:
             unnamed_path_parts.append((part_type, attr))
             
     param_name = None
-    if prx.is_param(current_obj):
-        param_name = extract_name(current_obj)
-    
-    if param_name is None and isinstance(current_obj, Model) and current_obj.name is not None:
-        param_name = namespace.pop()
+    if not ignore_names:
+        if prx.is_param(current_obj):
+            param_name = extract_name(current_obj)
+        
+        if param_name is None and isinstance(current_obj, Model) and current_obj.name is not None:
+            if namespace:
+                param_name = namespace.pop()
 
     if param_name is not None:
         final_name_part = param_name

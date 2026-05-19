@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -14,16 +14,18 @@ from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
 from pmrf.utils.tree import infer_batch_axes
 
+ModelT = TypeVar('ModelT', bound=Model)
+
 def sample(
-    loglikelihood: Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
-    model: Model,
+    loglikelihood: Callable[[ModelT, Frequency], jnp.ndarray] | list[Callable],
+    model: ModelT,
     frequency: Frequency,
     solver: AbstractSampler,
     *,
     key: jnp.ndarray | None = None,
     max_steps: int | None = None,
     **kwargs,
-) -> InferResult:
+) -> InferResult[ModelT]:
     """
     Samples a given log likelihood function for a model over a frequency range.
     
