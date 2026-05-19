@@ -2,22 +2,24 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable, Self
+from typing import Any, Callable, Self, TypeVar
 import dataclasses
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 import skrf
-from optix import focus, Lens
 import parax as prx
 
+from pmrf.utils.optix import focus, Lens
 from pmrf.parameters import Param
 from pmrf.frequency import Frequency
 from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
+
+S = TypeVar('S')
 
 PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
 PRIMARY_METHODS = PRIMARY_PROPERTIES + ('build', 'primary_matrix')
@@ -652,7 +654,7 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-    def at[S](self: Self, where: Callable[[Self], S]) -> Lens[Self, S]:
+    def at(self: Self, where: Callable[[Self], S]) -> Lens[Self, S]:
         """(experimental) A functional interface for model manipulation.
         
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
