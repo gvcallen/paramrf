@@ -92,10 +92,15 @@ For the *PolyChord* solver:
 
    $ pip install git+https://github.com/PolyChord/PolyChordLite.git anesthetic mpi4py
 
+Development Warning
+-------------------
+
+ParamRF is an active research project with an evolving API. Although a large portion of the API has stabilized, until V1.0.0 is reached, minor version bumps (``0.X.0``) will indicate breaking changes, while patch versions (``0.x.Y``) will imply new features and/or bug fixes.
+
 Citation
 ---------------------
 
-If you have used ParamRF for academic work, please cite the arXiv paper (https://doi.org/10.48550/arXiv.2510.15881)
+If you have used ParamRF for academic work, please cite the arXiv preprint (https://doi.org/10.48550/arXiv.2510.15881)
 as: ::
 
    G.V.C. Allen, D.I.L. de Villiers, (2025). ParamRF: A JAX-native Framework for Declarative Circuit Modelling. arXiv, https://doi.org/10.48550/arXiv.2510.15881.
