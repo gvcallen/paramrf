@@ -49,20 +49,22 @@ While the need for programmatic and differentiable RF modeling is broad, ParamRF
 
 # Example Usage
 
-The following snippet demonstrates ParamRF's syntax and optimization API. A standard RLC circuit is composed using operator overloading, and the component values are optimized to meet a specified $S_{11}$ reflection goal over a target frequency passband.
+The following snippet demonstrates ParamRF's syntax and optimization API. A standard RLC (resistor-capacitor-inductor) circuit is first composed using operator overloading. Then, an $S_{11}$ reflection design goal is defined, as well as the target frequency passband over which it should be met. Finally, the goal is minimized, and the initial and optimized models are plotted against each other over a wider frequency range.
+
+\newpage
 
 ```python
 import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 
-# Compose a nested circuit using operator overloading (cascade)
-model = Resistor(50) ** Inductor(prf.Value(1.0, scale=1e-9)) ** Capacitor(prf.Value(1.0, scale=1e-12))
+res = Resistor(50)
+ind = Inductor(prf.Value(1.0, scale=1e-9))
+cap = Capacitor(prf.Value(1.0, scale=1e-12))
+model = res ** ind ** cap
 
-# Define optimization goal and passband
 goal = prf.evaluators.Goal('s11_db', '<', -20)
 passband = prf.Frequency(3, 4, 101, 'GHz')
 
-# Minimize the goal using a built-in solver
 result = prf.optimize.minimize(
     objective=goal,
     model=model,
@@ -70,13 +72,12 @@ result = prf.optimize.minimize(
     solver=prf.optimize.ScipyMinimize(),
 )
 
-# Evaluate and plot the initial and optimized model over a wider band
 plot_freq = prf.Frequency(1, 6, 101, 'GHz')
 model.plot_s_db(plot_freq, m=0, n=0, label='initial')
 result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
 ```
 
-![Optimized vs Initial RLC.](rlc.png){ width=40% }
+![Optimized vs Initial RLC.](rlc.png){width=65%}
 
 # AI Usage Disclosure
 
