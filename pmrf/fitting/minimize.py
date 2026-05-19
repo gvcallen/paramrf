@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 import jax.numpy as jnp
 try:
@@ -23,8 +23,10 @@ from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param
 
+ModelT = TypeVar('ModelT', bound=Model)
+
 def fit_minimize(
-    model: Model,
+    model: ModelT,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractMinimizer | None = None,
@@ -37,7 +39,7 @@ def fit_minimize(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,
-) -> FitResult:
+) -> FitResult[ModelT]:
     """
     Fits an RF model to measured data using non-linear optimization.
 

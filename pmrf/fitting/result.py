@@ -26,7 +26,6 @@ class FitResult(eqx.Module, Generic[ModelT]):
     #: The frequeny used for the fit, if available.
     frequency: Frequency | None = None
 
-    
     @property
     def model(self) -> ModelT:
         """

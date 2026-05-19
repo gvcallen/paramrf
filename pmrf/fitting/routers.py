@@ -1,6 +1,8 @@
 from typing import Any, Callable, TypeVar, TypeAlias
 from dataclasses import replace
 
+from operator import attrgetter
+
 import jax.numpy as jnp
 import skrf
 
@@ -31,7 +33,7 @@ def fit(
     *,
     features: EvaluatorLike | None = 's',
     **kwargs
-) -> FitResult:
+) -> FitResult[ModelT]:
     """
     Fit a model to data using a variety of methods.
 
@@ -118,7 +120,7 @@ def fit_sequential(
     for ntwk in data:
         name = ntwk.name
         
-        sub_model = model.at.path(name).get()
+        sub_model = model.at(lambda m: attrgetter(name)(m)).get()
         sub_data = data.filter(lambda n: n.name == name)
 
         if len(sub_data.networks) > 1:
@@ -164,7 +166,7 @@ def fit_sequential(
         except Exception as e:
             raise Exception(f"Error fitting {name}: {e}")
         
-        model = model.at.path(name).set(result_sub.model)
+        model = model.at(lambda m: attrgetter(name)(m)).set(result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results

@@ -5,7 +5,7 @@ All models store their parameters internally. Although it is usually easiest to 
 
 However, since models are *immutable* and cannot reference each other (to align with JAX's requirements), parameters and sub-models cannot be edited directly (e.g., ``model.R = 50`` will fail), and also cannot point to the same objects in memory.
 
-Instead, ParamRF exposes two primary methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied` and :attr:`pmrf.Model.at`.
+Instead, ParamRF exposes three methods to manipulate parameters and sub-models, specifically via :meth:`pmrf.Model.tied`, :attr:`pmrf.Model.at` and :attr:`pmrf.Model.map`.
 
 Defining the Base Model
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,17 +48,11 @@ Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on spe
 
 .. code-block:: python
 
-  rlc_R200 = rlc.at.res.R.set(200.0)
+  rlc_R200 = rlc.at(lambda m: m.res.R).set(prf.Value(200.0))
+  rlc_fixed = rlc.at(lambda m: m.cap.C).set(prf.Fixed(rlc.cap.C))
 
-We can also use this to change the type of the parameter and filter based on a condition:
-
-.. code-block:: python
-
-  rlc_fixed = rlc.at.cap.C.set(prf.Fixed(rlc.cap.C))
-  rlc_updated = rlc.at.where(lambda x: isinstance(x, Inductor)).L.set(5.0e-9)
-
-Lastly, since a model's structure is not rigid, we can completely swap out components:
+Since a model's structure is not rigid, we can also completely swap out components:
 
 .. code-block:: python
 
-  rlc_shorted = rlc.at.ind.set(Short())
+  rlc_shorted = rlc.at(lambda m: m.ind).set(Short())

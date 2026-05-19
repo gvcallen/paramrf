@@ -2,7 +2,7 @@
 Conditioning a model on data using Bayesian inference.
 """
 
-from typing import Callable
+from typing import Callable, TypeVar
 
 import jax.numpy as jnp
 from distreqx.distributions import AbstractDistribution
@@ -23,8 +23,10 @@ from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param, Random
 from pmrf.distributions import Uniform
 
+ModelT = TypeVar('ModelT', bound=Model)
+
 def fit_sample(
-    model: Model,
+    model: ModelT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractSampler | None = None,
@@ -36,7 +38,7 @@ def fit_sample(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], AbstractDistribution] | None = None,
     temperature: float = None,
     **kwargs,
-) -> FitResult:
+) -> FitResult[ModelT]:
     """
     Conditions an RF model on measured data using Bayesian sampling.
     
