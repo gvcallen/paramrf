@@ -27,7 +27,7 @@ def test_ground_lifted(basic_freq):
     The signal paths should map cleanly to the even indices.
     """
     base_model = Resistor(R=50.0) # 2-port network
-    lifted_model = GroundLifted(model=base_model)
+    lifted_model = GroundLifted(lifted=base_model)
     
     s_lifted = lifted_model.s(basic_freq)
     
@@ -50,7 +50,7 @@ def test_ground_exposed_iam_property(basic_freq):
     all rows and all columns in the resulting Y-matrix must equal zero.
     """
     base_model = Resistor(R=50.0) # 2-port network
-    exposed_model = GroundExposed(model=base_model)
+    exposed_model = GroundExposed(exposed=base_model)
     
     s_exposed = exposed_model.s(basic_freq)
     
@@ -79,7 +79,7 @@ def test_shunt_open_circuit(basic_freq):
     Placing an open circuit in parallel with a line should have no effect.
     """
     open_model = Open()
-    shunt_open = Shunt(model=open_model)
+    shunt_open = Shunt(shunt=open_model)
     s_thru = shunt_open.s(basic_freq)
     
     assert s_thru.shape == (5, 2, 2)
@@ -100,7 +100,7 @@ def test_shunt_short_circuit(basic_freq):
     fully reflect all power and block all transmission.
     """
     short_model = Short()
-    shunt_short = Shunt(model=short_model)
+    shunt_short = Shunt(shunt=short_model)
     s_block = shunt_short.s(basic_freq)
     
     assert s_block.shape == (5, 2, 2)
@@ -119,7 +119,7 @@ def test_shunt_invalid_port_count():
     res_model = Resistor(50.0) # 2-port
     
     with pytest.raises(ValueError, match="Shunt requires a 1-port model"):
-        Shunt(model=res_model)
+        Shunt(shunt=res_model)
 
 # ---------------------------------------------------------
 # CoupledOnePorts Tests
@@ -141,20 +141,20 @@ def test_coupled_one_ports_validation():
     m_2port = Resistor(R=50.0)
 
     with pytest.raises(ValueError, match="requires 1-port models"):
-        CoupledOnePorts(models=[m1, m_2port], k_matrix=np.eye(2))
+        CoupledOnePorts(coupled=[m1, m_2port], k_matrix=np.eye(2))
 
     with pytest.raises(ValueError, match="k_matrix must be shape"):
-        CoupledOnePorts(models=[m1, m2], k_matrix=np.eye(3))
+        CoupledOnePorts(coupled=[m1, m2], k_matrix=np.eye(3))
 
     with pytest.raises(ValueError, match="symmetric"):
-        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
+        CoupledOnePorts(coupled=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
 
     with pytest.raises(ValueError, match="diagonals must be exactly 1.0"):
-        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[0.9, 0.1], [0.1, 0.9]]))
+        CoupledOnePorts(coupled=[m1, m2], k_matrix=np.array([[0.9, 0.1], [0.1, 0.9]]))
 
     with pytest.raises(ValueError, match="positive semi-definite"):
         # k_12 > 1.0 forces a negative eigenvalue
-        CoupledOnePorts(models=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
+        CoupledOnePorts(coupled=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
 
 
 def test_coupled_one_ports_zero_coupling(basic_freq):
@@ -165,7 +165,7 @@ def test_coupled_one_ports_zero_coupling(basic_freq):
     m1, m2 = DummyOnePort(), DummyOnePort()
     k_zero = np.eye(2)
     
-    coupled = CoupledOnePorts(models=[m1, m2], k_matrix=k_zero)
+    coupled = CoupledOnePorts(coupled=[m1, m2], k_matrix=k_zero)
     y_coupled = coupled.y(basic_freq)
     
     assert y_coupled.shape == (basic_freq.npoints, 2, 2)
@@ -188,13 +188,13 @@ def test_coupled_two_ports_validation():
     m_1port = DummyOnePort()
 
     with pytest.raises(ValueError, match="requires 2-port models"):
-        CoupledTwoPorts(models=[m1, m_1port], k_matrix=np.eye(2))
+        CoupledTwoPorts(coupled=[m1, m_1port], k_matrix=np.eye(2))
 
     with pytest.raises(ValueError, match="symmetric"):
-        CoupledTwoPorts(models=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
+        CoupledTwoPorts(coupled=[m1, m2], k_matrix=np.array([[1.0, 0.5], [0.2, 1.0]]))
         
     with pytest.raises(ValueError, match="positive semi-definite"):
-        CoupledTwoPorts(models=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
+        CoupledTwoPorts(coupled=[m1, m2], k_matrix=np.array([[1.0, 1.5], [1.5, 1.0]]))
 
 
 def test_coupled_two_ports_zero_coupling(basic_freq):
@@ -206,7 +206,7 @@ def test_coupled_two_ports_zero_coupling(basic_freq):
     ind2 = Inductor(L=2e-9)
     k_zero = np.eye(2)
     
-    coupled = CoupledTwoPorts(models=[ind1, ind2], k_matrix=k_zero)
+    coupled = CoupledTwoPorts(coupled=[ind1, ind2], k_matrix=k_zero)
     y_coupled = coupled.y(basic_freq)
     
     # 2 models * 2 ports each = 4-port network matrix

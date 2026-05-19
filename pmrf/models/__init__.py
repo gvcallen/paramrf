@@ -82,7 +82,10 @@ from pmrf.models.composite.nodal import (
     CoupledOnePorts as CoupledOnePorts,
     CoupledTwoPorts as CoupledTwoPorts,
 )
-from pmrf.models.composite.wrapped import Tied as Tied
+from pmrf.models.composite.wrapped import (
+    Tied as Tied,
+    Probabilistic as Probabilistic,
+)
 
 from pmrf.models.surrogates.expansion import VectorExpansion as VectorExpansion
 from pmrf.models.surrogates.rational import (

@@ -98,6 +98,15 @@ def test_cascade_valid(basic_freq):
     assert s.shape == (5, 2, 2)
     assert not jnp.any(jnp.isnan(s))
 
+def test_cascade_one(basic_freq):
+    """Test that a cascade of a single model remains the same."""
+    R1 = Resistor(100.0)
+    
+    cascaded = Cascade([R1])
+    s = cascaded.s(basic_freq)
+
+    assert jnp.allclose(s, R1.s(basic_freq))
+
 def test_cascade_invalid_odd_ports():
     """Cascade requires 2N-port networks."""
     R1 = Resistor(50.0) # 2-port
@@ -115,9 +124,10 @@ def test_cascade_flattening():
     nested = Cascade([R1, Cascade([R2, R3])])
     
     # The models tuple should be flattened to just (R1, R2, R3)
-    assert len(nested.models) == 3
-    assert nested.models[0] is R1
-    assert nested.models[2] is R3
+    assert len(nested.merged_cascade) == 3
+    assert nested.merged_cascade[0] is R1
+    assert nested.merged_cascade[2] is R3
+    
 
 # ---------------------------------------------------------
 # Terminated Tests
@@ -142,4 +152,4 @@ def test_terminated_invalid_port_ratios():
     
     # Cannot terminate a 2-port in a 2-port directly with this class
     with pytest.raises(ValueError, match="Terminated only supports terminating 2N port networks in a 1N port"):
-        Terminated(from_model=R1, into_model=R2)
+        Terminated(terminated_from=R1, terminated_into=R2)

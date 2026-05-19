@@ -22,7 +22,7 @@ class GroundLifted(Model):
 
     Parameters
     ----------
-    model : Model
+    lifted : Model
         The inner N-port model to be wrapped and lifted from the global ground.
 
     Reference
@@ -31,10 +31,10 @@ class GroundLifted(Model):
     onto the even ports and a parallel star-node (common return) S-matrix onto the odd ports.
     """
     #: The inner N-port model to be wrapped.
-    model: Model
+    lifted: Model
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        n = self.model.nports
+        n = self.lifted.nports
 
         # TODO currently we do not support mixing internal characteristic impedances.
         # We therefore could broadcast self.z0, though this code is just left for reference
@@ -52,7 +52,7 @@ class GroundLifted(Model):
                     n, axis=-1
                 )
 
-        s_inner = self.model.s(freq)
+        s_inner = self.lifted.s(freq)
 
         y_ret = 1.0 / z_ret
         r_ret = z_ret.real
@@ -84,7 +84,7 @@ class GroundExposed(Model):
 
     Parameters
     ----------
-    model : Model
+    exposed : Model
         The inner N-port model whose ground is to be exposed.
 
     Reference
@@ -94,7 +94,7 @@ class GroundExposed(Model):
     so that the rows and columns of the expanded Y-matrix sum to zero.
     """
     #: The inner N-port model to be wrapped.
-    model: Model
+    exposed: Model
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         if jnp.isscalar(self.z0):
@@ -104,7 +104,7 @@ class GroundExposed(Model):
             z0_inner = self.z0[..., :-1]
             z0_new_port = self.z0[..., -1:]
 
-        s_inner = self.model.s(freq)
+        s_inner = self.exposed.s(freq)
         y_inner = s2y(s_inner, z0=z0_inner)
 
         col_sums = jnp.sum(y_inner, axis=-1, keepdims=True)
@@ -124,7 +124,7 @@ class Shunt(Model):
 
     Parameters
     ----------
-    model : Model
+    shunt : Model
         The 1-port model to be connected in shunt.
 
     Reference
@@ -134,14 +134,14 @@ class Shunt(Model):
     by directly calculating $S_{11}$ and $S_{21}$ using $S_{11, 2port} = (\Gamma - 1) / (\Gamma + 3)$.
     """
     #: The 1-port model to be connected in shunt.
-    model: Model
+    shunt: Model
     
     def __post_init__(self):
-        if self.model.nports != 1:
-            raise ValueError(f"Shunt requires a 1-port model. Received a {self.model.nports}-port model.")
+        if self.shunt.nports != 1:
+            raise ValueError(f"Shunt requires a 1-port model. Received a {self.shunt.nports}-port model.")
 
     def s(self, freq: Frequency) -> jnp.ndarray:
-        s_1p = self.model.s(freq)
+        s_1p = self.shunt.s(freq)
         gamma = s_1p[:, 0, 0]
         
         denom = gamma + 3.0
@@ -162,7 +162,7 @@ class CoupledOnePorts(Model):
     
     Parameters
     ----------
-    models : list[Model]
+    coupled : list[Model]
         The sequence of 1-port models to couple.
     k_matrix : jnp.ndarray
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
@@ -175,16 +175,16 @@ class CoupledOnePorts(Model):
     $$ Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}} $$
     """
     #: The sequence of 1-port models to couple.
-    models: list[Model]
+    coupled: list[Model]
     #: The NxN coupling coefficient matrix.
     k_matrix: jnp.ndarray 
 
     def __post_init__(self):
-        for i, m in enumerate(self.models):
+        for i, m in enumerate(self.coupled):
             if m.nports != 1:
                 raise ValueError(f"CoupledOnePorts requires 1-port models. Model {i} has {m.nports} ports.")
         
-        n = len(self.models)
+        n = len(self.coupled)
         if self.k_matrix.shape != (n, n):
             raise ValueError(f"k_matrix must be shape ({n}, {n}), got {self.k_matrix.shape}")
 
@@ -199,10 +199,10 @@ class CoupledOnePorts(Model):
             raise ValueError("k_matrix must be positive semi-definite to represent a physical system.")
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        n = len(self.models)
+        n = len(self.coupled)
         
         y_diags = []
-        for m in self.models:
+        for m in self.coupled:
             y_i = m.y(freq) 
             y_diags.append(y_i[..., 0, 0])
             
@@ -250,7 +250,7 @@ class CoupledTwoPorts(Model):
 
     Parameters
     ----------
-    models : list[Model]
+    coupled : list[Model]
         The sequence of 2-port series models to couple.
     k_matrix : jnp.ndarray
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
@@ -264,16 +264,16 @@ class CoupledTwoPorts(Model):
     $$ Y_{nodal} = A Z_b^{-1} A^T $$
     """
     #: The sequence of 2-port series models to couple.
-    models: list[Model]
+    coupled: list[Model]
     #: The NxN coupling coefficient matrix (k).
     k_matrix: jnp.ndarray 
 
     def __post_init__(self):
-        for i, m in enumerate(self.models):
+        for i, m in enumerate(self.coupled):
             if m.nports != 2:
                 raise ValueError(f"CoupledTwoPorts requires 2-port models. Model {i} has {m.nports} ports.")
         
-        n = len(self.models)
+        n = len(self.coupled)
         if self.k_matrix.shape != (n, n):
             raise ValueError(f"k_matrix must be shape ({n}, {n}), got {self.k_matrix.shape}")
 
@@ -288,10 +288,10 @@ class CoupledTwoPorts(Model):
             raise ValueError("k_matrix must be positive semi-definite to represent a physical system.")
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        n = len(self.models)
+        n = len(self.coupled)
         
         z_branch_list = []
-        for m in self.models:
+        for m in self.coupled:
             y_i = m.y(freq)
             z_series = -1.0 / y_i[..., 0, 1]
             z_branch_list.append(z_series)

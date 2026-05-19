@@ -72,15 +72,15 @@ class FloatingLine(Model):
 
     Parameters
     ----------
-    line : TransmissionLine
+    loating : TransmissionLine
         The inner transmission line model to be wrapped.
     """
     #: Inner transmission line model
-    line: TransmissionLine
+    floating: TransmissionLine
 
     def s(self, frequency: Frequency) -> jnp.ndarray:
         # 1. Extract the physical wave parameters from the inner line
-        zc, gL = self.line.zc_and_gammaL(frequency)
+        zc, gL = self.floating.zc_and_gammaL(frequency)
         
         # 2. Apply the coupled/floating traveling-wave math
         denom = -1 + 9 * jnp.exp(2 * gL)
