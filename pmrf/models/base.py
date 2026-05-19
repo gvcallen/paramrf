@@ -215,13 +215,29 @@ class Model(eqx.Module):
     
     def named_params(self, include_fixed: bool = False, unwrap: bool = True, namespace_separator='_') -> dict[str, Any]:
         """
-        Returns a dictionary of all parameters in the model mapped to their paths.
+        Returns a named dictionary of parameters in the model.
 
-        This is a convenience method for inspection and debugging. It traverses the
-        model's internal PyTree structure and returns a flat dictionary where the 
-        keys are the Python-style attribute paths to each parameter.
+        Parameters and models can be given names upon construction.
+        The naming convention is as follows:
         
-        Each path can be passed to :attr:`pmrf.Model.at` via `.path` or `.select`.
+        1. If no names are present in the path of a parameter, its Python 
+           path is used.
+        2. If there are any named models in the path of a parameter, the path 
+           up until the left of that model is collapsed, forming a namespace prefix.
+           If multiple models in the path have names, they are joined
+           using the supplied namespace separator.
+        3. If the parameter itself is named, its path to the left is collapsed, 
+           either to the root or to the first named model.
+
+        This enables you to choose your own naming convention:
+
+        1. For flat parameter names across your entire root model,
+           name all your parameters but none of your models.
+        2. For flat model names across your entire root model,
+           name all your leaf models but none of your parameters
+           or composite models.
+        3. For fully nested naming, name all of your models and
+           optionally your parameters.
 
         Parameters
         ----------
