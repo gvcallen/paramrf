@@ -30,12 +30,12 @@ from pmrf.frequency import Frequency as Frequency
 
 #: The canonical type hint for a parameter in a model.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
-#: most of which are re-exported at root (e.g. :func:`pmrf.Value`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
+#: most of which are re-exported at root (e.g. :func:`pmrf.Variable`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
 Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
 from pmrf.parameters import (
     param as param,
     as_param as as_param,
-    Value as Value,
+    Variable as Variable,
     Fixed as Fixed,
     Bounded as Bounded,
     Constrained as Constrained,
@@ -92,7 +92,7 @@ __all__ = [
     "Param",
     "param",
     "as_param",
-    "Value",
+    "Variable",
     "Fixed",
     "Bounded",
     "Constrained",

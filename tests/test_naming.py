@@ -4,7 +4,7 @@ from pmrf.models import Resistor, Inductor, Capacitor, Cascade
 
 def test_explicit_parameter_name():
     """Test that directly naming a parameter overrides the JAX path."""
-    val = prf.Value(2.0, name="custom_param")
+    val = prf.Variable(2.0, name="custom_param")
     res = Resistor(val)
     params = res.named_params()
     
