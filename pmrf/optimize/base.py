@@ -5,6 +5,7 @@ import warnings
 from typing import Any, Callable, TypeAlias
 import abc
 
+import numpy as np
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
 import parax as prx
@@ -163,14 +164,18 @@ def minimize(
     
     # Extract base values and partition based on solver type
     if is_bounded:
+        is_dynamic = lambda x: prx.bounds.is_dynamic(x) and not isinstance(x, np.ndarray)
         is_leaf = prx.bounds.is_leaf
-        dynamic, static = eqx.partition(model, prx.bounds.is_dynamic, is_leaf=is_leaf)
+        
+        dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
         
         params = prx.unwrap(dynamic, only_if=prx.is_bounded)
         bounds = prx.bounds.tree_bounds(dynamic)
     else:
+        is_dynamic = lambda x: eqx.is_inexact_array(x) and not isinstance(x, np.ndarray)
         is_leaf = prx.is_constant
-        params, static = eqx.partition(model, eqx.is_inexact_array, is_leaf=is_leaf)
+        
+        params, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
 
     # Define the unified objective wrapper for the solver
     def objective(p: PyTree, args: Any) -> Scalar:
@@ -190,7 +195,7 @@ def minimize(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
         # No need to re-wrap because `params` was never unwrapped
-        opt_model = eqx.combine(result.y, static)
+        opt_model = eqx.combine(result.y, static, is_leaf=is_leaf)
         
     if not result.success:
         warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
