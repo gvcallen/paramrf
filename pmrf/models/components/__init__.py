@@ -5,11 +5,11 @@ This module provides all the built-in components and circuit elements for buildi
 This includes lumped elements, transmission lines, topological sub-circuits, and more.
 """
 
-from pmrf.models.components import ideal, lines, lumped, topological
+from pmrf.models.components import ideal, lines, lumped, sections
 
 __all__ = [
     "ideal",
     "lines",
     "lumped",
-    "topological",
+    "sections",
 ]

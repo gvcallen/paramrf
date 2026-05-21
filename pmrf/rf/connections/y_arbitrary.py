@@ -16,7 +16,7 @@ def connect_y_arbitrary(
     eps: float = 1e-12,
 ) -> jnp.ndarray:
     """
-    Connect multiple Y-parameter networks together in an arbitrary topology.
+    (experimental) Connect multiple Y-parameter networks together in an arbitrary topology.
 
     Parameters
     ----------
@@ -49,6 +49,7 @@ def connect_y_arbitrary_nam(
     Ymats: Sequence[jnp.ndarray],
     connections: Sequence[Sequence[tuple[int, int]]],
     port_indices: Sequence[int],
+    grounded_nodes: Sequence[int] = None,
     eps: float = 1e-12,
 ) -> jnp.ndarray:
     """

@@ -61,7 +61,8 @@ class Circuit(Model):
     #: The indices of the ports.
     port_idxs: list[int] = field(default=None, kw_only=True, static=True)
     
-    #: The domain to perform the calculation in
+    #: (experimental) The domain to perform the calculation in.
+    #: Options are ('s', 'y'), where 'y' is experimental.
     domain: str = field(default='s', kw_only=True, static=True)
     
     #: The algorithm to use for the call to `connect_<domain>_arbitrary`.
@@ -103,12 +104,12 @@ class Circuit(Model):
                 model_idx = id_to_index[model_id]
                 
                 if value < 0 or value >= model.nports:
-                    raise ValueError(f"Port index {value} out of bounds for model '{getattr(model, 'name', 'unnamed')}' (nports={model.nports}).")
+                    raise ValueError(f"Port index {value} out of bounds for model of type {type(model)} (name = '{getattr(model, 'name', 'unnamed')}', nports={model.nports}).")
                 
                 # Prevent the same port of the same model instance from being connected to multiple nodes
                 port_signature = (model_id, value)
                 if port_signature in seen_ports:
-                    raise ValueError(f"Port {value} of model '{getattr(model, 'name', 'unnamed')}' is connected multiple times. A port can only belong to one node.")
+                    raise ValueError(f"Port {value} of model named '{getattr(model, 'name', 'unnamed')}' is connected multiple times. A port can only belong to one node.")
                 seen_ports.add(port_signature)
 
                 indexed_conn.append((model_idx, value))
@@ -158,6 +159,8 @@ class Circuit(Model):
         for model in self.circuit:
             if isinstance(model, Ground):
                 Ymats.append(jnp.zeros((freq.npoints, 1, 1), dtype=jnp.complex128))
+            elif isinstance(model, Port):
+                Ymats.append(jnp.zeros((freq.npoints, model.nports, model.nports), dtype=jnp.complex128))
             else:
                 Ymats.append(model.y(freq))
 
