@@ -3,7 +3,7 @@ import pytest
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models import PiCLC, BoxCLCC, TeeLCL, LSectionLC
+from pmrf.models import PiSectionCLC, BoxSectionCLCC, TSectionLCL, LSectionLC
 
 @pytest.fixture
 def basic_freq():
@@ -15,7 +15,7 @@ def basic_freq():
 
 def test_piclc_general(basic_freq):
     """Test standard Pi-CLC execution and reciprocity."""
-    model = PiCLC(C1=1e-12, L=1e-9, C2=2e-12)
+    model = PiSectionCLC(C1=1e-12, L=1e-9, C2=2e-12)
     s = model.s(basic_freq)
     
     assert s.shape == (5, 2, 2)
@@ -27,7 +27,7 @@ def test_piclc_general(basic_freq):
 def test_piclc_zero_inductance(basic_freq):
     """Test the edge case where L = 0."""
     # When L=0, the network is just C1 and C2 in parallel to ground
-    model = PiCLC(C1=1e-12, L=0.0, C2=2e-12)
+    model = PiSectionCLC(C1=1e-12, L=0.0, C2=2e-12)
     a_mat = model.a(basic_freq)
     
     # ABCD for a shunt admittance Y is [[1, 0], [Y, 1]]
@@ -44,7 +44,7 @@ def test_piclc_zero_inductance(basic_freq):
 
 def test_boxclcc_general(basic_freq):
     """Test standard Box-CLCC execution (4-port)."""
-    model = BoxCLCC(C1=1e-12, L=1e-9, C2=1e-12, C3=0.5e-12)
+    model = BoxSectionCLCC(C1=1e-12, L=1e-9, C2=1e-12, C3=0.5e-12)
     s = model.s(basic_freq)
     
     assert s.shape == (5, 4, 4)
@@ -52,7 +52,7 @@ def test_boxclcc_general(basic_freq):
 
 def test_boxclcc_zero_inductance(basic_freq):
     """Test the edge case where L is approx 0.0."""
-    model = BoxCLCC(L=0.0, C1=1e-12, C2=1e-12, C3=1e-12)
+    model = BoxSectionCLCC(L=0.0, C1=1e-12, C2=1e-12, C3=1e-12)
     s = model.s(basic_freq)
     
     assert s.shape == (5, 4, 4)
@@ -64,7 +64,7 @@ def test_boxclcc_zero_inductance(basic_freq):
 
 def test_teelcl_general(basic_freq):
     """Test standard Tee-LCL execution and reciprocity."""
-    model = TeeLCL(L1=1e-9, C=1e-12, L2=2e-9)
+    model = TSectionLCL(L1=1e-9, C=1e-12, L2=2e-9)
     s = model.s(basic_freq)
     
     assert s.shape == (5, 2, 2)
@@ -74,7 +74,7 @@ def test_teelcl_general(basic_freq):
 def test_teelcl_zero_capacitance(basic_freq):
     """Test the jax.lax.cond edge case where C = 0."""
     # When C=0, the network is just L1 and L2 in series
-    model = TeeLCL(L1=1e-9, C=0.0, L2=2e-9)
+    model = TSectionLCL(L1=1e-9, C=0.0, L2=2e-9)
     a_mat = model.a(basic_freq)
     
     # ABCD for a series impedance Z is [[1, Z], [0, 1]]

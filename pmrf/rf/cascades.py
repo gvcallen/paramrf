@@ -126,6 +126,7 @@ def _cascade_two_s_redheffer(
 
 def cascade_a(
     Amats: Sequence[jnp.ndarray],
+    method: str | None = None,
 ) -> jnp.ndarray:
     """
     Cascaded multiple ABCD-parameter networks together in a loop.
@@ -141,12 +142,17 @@ def cascade_a(
         A sequence of characteristic impedances (z0) for the component networks.
     s_def : str, optional, default='power'
         The S-parameter definition to use ('power', 'traveling', or 'pseudo').
+    method : str, optional
+        The method to use, currently not used.
 
     Returns
     -------
     jnp.ndarray
         The resulting S-parameter matrix of the cascaded system.
     """
+    if method != None:
+        raise ValueError("Currently only method = None is supported for cascade_a")
+    
     # Ensure we are working with a stacked array of shape (N, Nf, 2, 2)
     Amats_array = jnp.asarray(Amats)
     
@@ -162,32 +168,3 @@ def cascade_a(
     final_a, _ = jax.lax.scan(scan_fn, init=Amats_array[0], xs=Amats_array[1:])
     
     return final_a
-
-def cascade_t(
-    Tmats: Sequence[jnp.ndarray],
-) -> jnp.ndarray:
-    """
-    Cascade multiple wave-transfer (T) matrices.
-
-    Parameters
-    ----------
-    Tmats : Sequence[jnp.ndarray]
-        Sequence of T matrices with shape (Nf, 2, 2)
-
-    Returns
-    -------
-    jnp.ndarray
-        Cascaded T matrix with shape (Nf, 2, 2)
-    """
-
-    Tmats_array = jnp.asarray(Tmats)
-
-    if Tmats_array.shape[0] == 1:
-        return Tmats_array[0]
-
-    def scan_fn(carry, x):
-        return carry @ x, None
-
-    final_t, _ = jax.lax.scan(scan_fn, init=Tmats_array[0], xs=Tmats_array[1:])
-
-    return final_t

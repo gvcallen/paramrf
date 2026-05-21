@@ -3,16 +3,19 @@ Lumped elements (resistors, capacitors, inductors).
 """
 
 import jax.numpy as jnp
+import equinox as eqx
+from jaxtyping import ArrayLike
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.constraints import Positive
 from pmrf.parameters import Param, param
-from pmrf.utils import field
+from pmrf.utils import field, freeze
 
-class Load(Model):
+class VariableLoad(Model):
     """
-    A class for N-port loads defined by their reflection coefficient.
+    A class for variable N-port loads defined by their reflection coefficient.
+
+    For a fixed load, use :class:`pmrf.models.Load`.
     
     Parameters
     ----------
@@ -25,7 +28,7 @@ class Load(Model):
     gamma: Param = param()
     
     #: Number of ports
-    nports: int = 1
+    nports: int = field(default=1, static=True)
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         gamma, nports = self.gamma, self.nports
@@ -33,14 +36,30 @@ class Load(Model):
             jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
             repeat(freq.npoints, 0)
         return s
-    
 
-class ConstantLoad(Model):
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        gamma, nports = self.gamma, self.nports
+        
+        is_invalid = jnp.any(jnp.logical_or(gamma == 1.0, gamma == -1.0))
+        
+        gamma = eqx.error_if(
+            gamma, 
+            is_invalid, 
+            "Y-matrix is singular or undefined for ideal open (1.0) or short (-1.0) loads."
+        )
+        
+        y_val = (1.0 - gamma) / (1.0 + gamma)
+        y = jnp.array(y_val).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return y
+
+
+class Load(Model):
     """
-    A class for N-port loads defined by constant (non-tunable) reflection coefficient.
+    A fixed N-port load defined by fixed (non-tunable) reflection coefficient.
 
-    This bakes in the "non-tunability" into the load by making it a float
-    instead of a parameter.
+    For a variable load, use :class:`pmrf.models.VariableLoad`.
     
     Parameters
     ----------
@@ -50,13 +69,61 @@ class ConstantLoad(Model):
         The number of ports this load presents. Default is 1.
     """
     #: Complex reflection coefficient
-    gamma: float = field(static=True)
+    gamma: ArrayLike = field(converter=freeze)
     
     #: Number of ports
-    nports: int = 1
+    nports: int = field(default=1, static=True)
     
-    def build(self) -> jnp.ndarray:
-        return Load(gamma=self.gamma, nports=self.nports)
+    def build(self) -> Model:
+        return VariableLoad(gamma=self.gamma, nports=self.nports)
+    
+
+class Short(Model):
+    """
+    A standard ideal short circuit load (gamma = -1.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the short presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(-1.0, nports=self.nports)
+
+
+class Open(Model):
+    """
+    A standard ideal open circuit load (gamma = 1.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the open presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(1.0, nports=self.nports)
+
+
+class Match(Model):
+    """
+    A standard ideal matched circuit load (gamma = 0.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the match presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(0.0, nports=self.nports)
 
 
 class Resistor(Model):
@@ -93,7 +160,24 @@ class Resistor(Model):
         ]).transpose(2, 0, 1)
 
         return s    
- 
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        R = self.R
+        Y = 1.0 / R
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
+
  
 class Capacitor(Model):
     """
@@ -128,8 +212,26 @@ class Capacitor(Model):
         ]).transpose(2, 0, 1)
 
         return s
-            
-              
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        C = self.C
+        Y = 1j * w * C
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
+
+
 class Inductor(Model):
     """
     A 2-port model of a series inductor.
@@ -164,6 +266,25 @@ class Inductor(Model):
 
         return s
     
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        L = self.L
+        
+        Y = jnp.where(w == 0, jnp.inf + 0j, 1.0 / (1j * w * L))
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
+
 
 class ShuntResistor(Model):
     """
@@ -200,7 +321,11 @@ class ShuntResistor(Model):
             [s21, s22]
         ]).transpose(2, 0, 1)
 
-        return s    
+        return s
+    
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        # Error checking implemented for Y-domain circuit solver attempts
+        raise ValueError("Cannot get the Y-matrix of a ShuntResistor, since it is infinite.")    
     
     
 class ShuntCapacitor(Model):
@@ -238,6 +363,10 @@ class ShuntCapacitor(Model):
         ]).transpose(2, 0, 1)
 
         return s                
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        # Error checking implemented for Y-domain circuit solver attempts
+        raise ValueError("Cannot get the Y-matrix of a ShuntCapacitor, since it is infinite.")
 
 
 class ShuntInductor(Model):
@@ -278,6 +407,17 @@ class ShuntInductor(Model):
         ]).transpose(2, 0, 1)
 
         return s            
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        inf = jnp.inf * jnp.ones(freq.npoints, dtype=jnp.complex128)
+        return jnp.array([
+            [inf, -inf],
+            [-inf, inf]
+        ]).transpose(2, 0, 1)
+    
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        # Error checking implemented for Y-domain circuit solver attempts
+        raise ValueError("Cannot get the Y-matrix of a ShuntInductor, since it is infinite.")    
 
     
 class InductorQ(Model):
@@ -320,6 +460,27 @@ class InductorQ(Model):
 
         return s
 
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        L = self.L
+        Q = self.Q
+
+        Z = w * L * (1.0 / Q + 1j)
+        Y = jnp.where(w == 0, jnp.inf + 0j, 1.0 / Z)
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
+
 
 class CapacitorQ(Model):
     """
@@ -360,35 +521,24 @@ class CapacitorQ(Model):
 
         return s
     
-def Short(nports=1) -> ConstantLoad:
-    """
-    A standard ideal short circuit load (gamma = -1.0).
-    
-    Parameters
-    ----------
-    nports : int, default=1
-        The number of ports for the load.    
-    """
-    return ConstantLoad(-1.0, nports=nports)
-
-def Open(nports=1) -> ConstantLoad:
-    """
-    A standard ideal open circuit load (gamma = 1.0).
-    
-    Parameters
-    ----------
-    nports : int, default=1
-        The number of ports for the load.
-    """
-    return ConstantLoad(1.0, nports=nports)
-
-def Match(nports=1) -> ConstantLoad:
-    """
-    A standard ideal matched circuit load (gamma = 0.0).
-    
-    Parameters
-    ----------
-    nports : int, default=1
-        The number of ports for the load.
-    """
-    return ConstantLoad(0.0, nports=nports)
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        C = self.C
+        Q = self.Q
+        
+        Z_scaled = 1.0 + 1j * (1.0 / Q)
+        Z_component = Z_scaled / (1j * w * C)
+        Y = jnp.where(w == 0, 0.0 + 0j, 1.0 / Z_component)
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
