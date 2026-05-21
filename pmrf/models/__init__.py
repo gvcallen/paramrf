@@ -10,12 +10,17 @@ from pmrf.models.base import (
     validate as validate,
 )
 
+# Adapters
 from pmrf.models.adapters.base import (
     AbstractDiscrete as AbstractDiscrete,
     AbstractSingleProperty as AbstractSingleProperty,
     AbstractSingleDiscreteProperty as AbstractSingleDiscreteProperty,
 )
-from pmrf.models.adapters.bridge import Host as Host
+
+from pmrf.models.adapters.bridge import (
+    Host as Host
+)
+
 from pmrf.models.adapters.static import (
     Measured as Measured,
     SModel as SModel,
@@ -23,22 +28,28 @@ from pmrf.models.adapters.static import (
     YModel as YModel,
     ZModel as ZModel,
 )
+
 from pmrf.models.adapters.callable import (
     ContinuousCallable as ContinuousCallable,
     DiscreteCallable as DiscreteCallable,
 )
+
+# Components
 from pmrf.models.components.ideal import (
+    Load as Load,
+    Short as Short,
+    Open as Open,
+    Match as Match,
     Port as Port,
     Ground as Ground,
     SourceConverter as SourceConverter,
     Transformer as Transformer,
     Splitter as Splitter,
     Tee as Tee,
-    VariableAttenuator as VariableAttenuator,
-    VariableDirectionalCoupler as VariableDirectionalCoupler,
     Attenuator as Attenuator,
     DirectionalCoupler as DirectionalCoupler,
 )
+
 from pmrf.models.components.lines import (
     TransmissionLine as TransmissionLine,
     FloatingLine as FloatingLine,
@@ -50,8 +61,8 @@ from pmrf.models.components.lines import (
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
 )
+
 from pmrf.models.components.lumped import (
-    VariableLoad as VariableLoad,
     Resistor as Resistor,
     Capacitor as Capacitor,
     Inductor as Inductor,
@@ -60,10 +71,8 @@ from pmrf.models.components.lumped import (
     ShuntInductor as ShuntInductor,
     CapacitorQ as CapacitorQ,
     InductorQ as InductorQ,
-    Short as Short,
-    Open as Open,
-    Match as Match,
 )
+
 from pmrf.models.components.sections import (
     PiSection as PiSection,
     TSection as TSection,
@@ -74,11 +83,14 @@ from pmrf.models.components.sections import (
     TSectionLCL as TSectionLCL,
     LSectionLC as LSectionLC,
 )
+
+# Composite
 from pmrf.models.composite.interconnected import (
     Circuit as Circuit,
     Cascade as Cascade,
     Terminated as Terminated,
 )
+
 from pmrf.models.composite.transformed import (
     Renumbered as Renumbered,
     Flipped as Flipped,
@@ -86,12 +98,13 @@ from pmrf.models.composite.transformed import (
 )
 
 from pmrf.models.composite.nodal import (
+    Shunt as Shunt,
     GroundLifted as GroundLifted,
     GroundExposed as GroundExposed,
-    Shunt as Shunt,
     CoupledOnePorts as CoupledOnePorts,
     CoupledTwoPorts as CoupledTwoPorts,
 )
+
 from pmrf.models.composite.topological import (
     PiTopology as PiTopology,
     TTopology as TTopology,
@@ -103,13 +116,18 @@ from pmrf.models.composite.wrapped import (
     Probabilistic as Probabilistic,
 )
 
-from pmrf.models.surrogates.expansion import VectorExpansion as VectorExpansion
+# Surrogates
+from pmrf.models.surrogates.expansion import (
+    VectorExpansion as VectorExpansion
+)
+
 from pmrf.models.surrogates.rational import (
     PolynomialRatio as PolynomialRatio,
     PoleResidue as PoleResidue,
     StateSpace as StateSpace,
     BarycentricRational as BarycentricRational,
 )
+
 from pmrf.models import adapters, components, composite, surrogates
 
 __all__ = [

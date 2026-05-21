@@ -6,6 +6,7 @@ This includes adding/removing ground, introducing coupling, etc.
 from typing import Self
 
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
 import numpy as np
 
 from pmrf.models import Model
@@ -164,9 +165,9 @@ class CoupledOnePorts(Model):
     ----------
     coupled : list[Model]
         The sequence of 1-port models to couple.
-    k_matrix : jnp.ndarray
+    k_matrix : ArrayLike
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
-        diagonals, and be positive semi-definite.
+        diagonals, and be positive semi-definite. 
 
     Reference
     ----------------------
@@ -177,7 +178,7 @@ class CoupledOnePorts(Model):
     #: The sequence of 1-port models to couple.
     coupled: list[Model]
     #: The NxN coupling coefficient matrix.
-    k_matrix: jnp.ndarray 
+    k_matrix: ArrayLike
 
     def __post_init__(self):
         for i, m in enumerate(self.coupled):
@@ -252,7 +253,7 @@ class CoupledTwoPorts(Model):
     ----------
     coupled : list[Model]
         The sequence of 2-port series models to couple.
-    k_matrix : jnp.ndarray
+    k_matrix : ArrayLike
         The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
         diagonals, and be positive semi-definite.
 
@@ -266,7 +267,7 @@ class CoupledTwoPorts(Model):
     #: The sequence of 2-port series models to couple.
     coupled: list[Model]
     #: The NxN coupling coefficient matrix (k).
-    k_matrix: jnp.ndarray 
+    k_matrix: ArrayLike
 
     def __post_init__(self):
         for i, m in enumerate(self.coupled):

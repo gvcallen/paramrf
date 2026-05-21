@@ -904,26 +904,24 @@ def validate(tree):
     
     for node in nodes:
         if isinstance(node, Model):
-            # Inspect the dataclass fields of our custom RF models
             for f in dataclasses.fields(node):
                 val = getattr(node, f.name)
                 
-                # Check for the silent corruption hazard
                 is_array = isinstance(val, (jnp.ndarray, np.ndarray))
                 is_static = f.metadata.get("static", False)
                 
                 if is_array and not is_static and jnp.issubdtype(val.dtype, jnp.inexact):
                     raise TypeError(
                         f"Field '{f.name}' in '{node.__class__.__name__}' is a raw JAX/NumPy array, "
-                        f"which can be updated during optimization/inference.\n\n"
+                        f"meaning it is unclear whether this is a free or fixed parameter.\n\n"
                         f"To make your intention clear, you must either:\n"
-                        f"  1. Use the `pmrf.param` specifier (or a factory in `pmrf.parameters`) to indicate the value is a parameter\n"
-                        f"  2. Explicitly mark the field as frozen using `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` "
-                        f"and then unwrap the frozen field when you need it using `prf.unwrap`."
+                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Value`) for free variables, or a Python collection (e.g. a list) for fixed variables\n"
+                        f"  2. Use a field specifier in the model class definition, e.g. `{f.name}: prf.Param = prf.param()` for automatic parameter conversion, "
+                        f"or `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` combined with `prf.unwrap` to ensure the variable is not optimized.\n"
+                        f"This restriction is enforced to allow compatibility with machine learning models from othe libraries."
                     )
                 
-                # Manually recurse into the field's value to catch nested Models, 
-                # lists of Models, dicts of Models, etc.
+                # Recurse into submodels
                 validate(val)
 
 

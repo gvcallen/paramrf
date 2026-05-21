@@ -3,12 +3,103 @@ Ideal models, such as ports, grounds and transformers.
 """
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
+import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.models.components.lumped import Match, Short
-from pmrf.utils import field, freeze
-from pmrf.parameters import Param, param
+from pmrf.utils import field
+
+class Load(Model):
+    """
+    A class for variable N-port loads defined by their reflection coefficient.
+
+    Parameters
+    ----------
+    gamma : ArrayLike
+        The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
+        This is not a tunable parameter by default.
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    nports : int
+        The number of ports this load presents. Default is 1.
+    """
+    #: The reflection coefficient
+    gamma: ArrayLike
+    
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+    
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        gamma, nports = self.gamma, self.nports
+        s = jnp.array(gamma).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return s
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        gamma, nports = self.gamma, self.nports
+        
+        is_invalid = jnp.any(jnp.logical_or(gamma == 1.0, gamma == -1.0))
+        
+        gamma = eqx.error_if(
+            gamma, 
+            is_invalid, 
+            "Y-matrix is singular or undefined for ideal open (1.0) or short (-1.0) loads."
+        )
+        
+        y_val = (1.0 - gamma) / (1.0 + gamma)
+        y = jnp.array(y_val).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return y
+
+
+class Short(Model):
+    """
+    A standard ideal short circuit load (gamma = -1.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the short presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(-1.0, nports=self.nports)
+
+
+class Open(Model):
+    """
+    A standard ideal open circuit load (gamma = 1.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the open presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(1.0, nports=self.nports)
+
+
+class Match(Model):
+    """
+    A standard ideal matched circuit load (gamma = 0.0).
+    
+    Parameters
+    ----------
+    nports : int
+        The number of ports the match presents. Default is 1.
+    """
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+
+    def build(self) -> Model:
+        return Load(0.0, nports=self.nports)
+
 
 class Port(Model):
     """
@@ -20,6 +111,7 @@ class Port(Model):
     def build(self) -> Model:
         return Match()
     
+
 class Ground(Model):
     """
     Represents a ground connection.
@@ -29,6 +121,7 @@ class Ground(Model):
     """
     def build(self) -> Model:
         return Short()
+
 
 class Transformer(Model):
     """
@@ -45,6 +138,7 @@ class Transformer(Model):
 
         return s
     
+
 class SourceConverter(Model):
     """
     An ideal 3-port source converter.
@@ -121,17 +215,20 @@ class Tee(Model):
         return Splitter(nports=3)
     
 
-class VariableAttenuator(Model):
+class Attenuator(Model):
     """
-    An variable, matched, 2-port attenuator.
+    An matched, 2-port attenuator.
 
     Parameters
     ----------
-    s21 : Param
+    s21 : ArrayLike
         The linear voltage transmission coefficient. 
+        This is not a tunable parameter by default.
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
         For example, for a 3 dB attenuator, s21 = 10**(-3/20) ≈ 0.707.
+
     """
-    s21: Param = param()
+    s21: ArrayLike
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         s21 = self.s21 * jnp.ones(freq.npoints, dtype=complex)
@@ -143,7 +240,7 @@ class VariableAttenuator(Model):
         ]).transpose(2, 0, 1)
         
 
-class VariableDirectionalCoupler(Model):
+class DirectionalCoupler(Model):
     """
     An ideal 4-port tunable directional coupler.
 
@@ -155,11 +252,13 @@ class VariableDirectionalCoupler(Model):
 
     Parameters
     ----------
-    coupling : Param
+    coupling : ArrayLike
         The linear voltage coupling factor. 
+        This is not a tunable parameter by default.
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
         For example, for a 20 dB coupler, coupling = 10**(-20/20) = 0.1.
     """
-    coupling: Param = param()
+    coupling: ArrayLike
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         c = self.coupling
@@ -177,44 +276,6 @@ class VariableDirectionalCoupler(Model):
             [C, zeros, zeros, T],
             [zeros, C, T, zeros]
         ]).transpose(2, 0, 1)
-
-
-class Attenuator(Model):
-    """
-    An ideal, matched, constant, 2-port attenuator.
-
-    Parameters
-    ----------
-    s21 : ArrayLike
-        The linear voltage transmission coefficient. 
-        For example, for a 3 dB attenuator, s21 = 10**(-3/20) ≈ 0.707.
-    """
-    s21: ArrayLike = field(converter=freeze)
-
-    def build(self) -> Model:
-        return VariableAttenuator(self.s21)
-
-
-class DirectionalCoupler(Model):
-    """
-    An ideal 4-port directional coupler.
-
-    Port routing:
-    - Port 1: Input
-    - Port 2: Through
-    - Port 3: Coupled
-    - Port 4: Isolated
-
-    Parameters
-    ----------
-    coupling : Param
-        The linear voltage coupling factor. 
-        For example, for a 20 dB coupler, coupling = 10**(-20/20) = 0.1.
-    """
-    coupling: ArrayLike = field(converter=freeze)
-
-    def build(self) -> Model:
-        return VariableDirectionalCoupler(self.coupling)
 
 
 # class LosslessMismatch(Model):
