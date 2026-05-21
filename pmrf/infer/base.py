@@ -5,6 +5,7 @@ Base inference functions and classes.
 from typing import Callable, Any, Optional, TypeVar, TypeAlias
 import abc
 
+import numpy as np
 import jax.numpy as jnp
 import jax
 from jaxtyping import Array, PyTree, Scalar
@@ -237,12 +238,13 @@ def sample(
         A tuple of `(batched_model, payload, metrics)`.
     """
     # Filtering/unwrapping
-    is_dynamic, is_leaf = prx.probability.is_dynamic, prx.probability.is_leaf
+    is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
+    is_leaf = prx.probability.is_leaf
     dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
     params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
 
     try:
-        eqx.combine(params, static)
+        eqx.combine(params, static, is_leaf=is_leaf)
     except Exception as e:
         raise Exception(f"Error re-combining params and static. Error: {e}")
     
