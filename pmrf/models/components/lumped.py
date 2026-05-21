@@ -3,6 +3,8 @@ Lumped elements (resistors, capacitors, inductors).
 """
 
 import jax.numpy as jnp
+import equinox as eqx
+from jaxtyping import ArrayLike
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
