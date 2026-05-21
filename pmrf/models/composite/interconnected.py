@@ -4,11 +4,11 @@ Composite models that physically connect ports of other models.
 import jax.numpy as jnp
 from dataclasses import InitVar
 
-from pmrf.models import Model
+from pmrf.models import Model, Ground
 from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.models.components.ideal import Port
-from pmrf.rf import connect_s_arbitrary, terminate_s_in_s, cascade_a, cascade_s
+from pmrf.rf import connect_s_arbitrary, connect_y_arbitrary, cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s
 
 class Circuit(Model):
     """
@@ -60,6 +60,14 @@ class Circuit(Model):
 
     #: The indices of the ports.
     port_idxs: list[int] = field(default=None, kw_only=True, static=True)
+    
+    #: The domain to perform the calculation in
+    domain: str = field(default='s', kw_only=True, static=True)
+    
+    #: The algorithm to use for the call to `connect_<domain>_arbitrary`.
+    #: If None, uses the default algorithm for the domain.
+    #: Algorithms are available in :mod:`pmrf.rf`.
+    method: str | None = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self, connections):
         if not isinstance(connections, list):
@@ -115,13 +123,61 @@ class Circuit(Model):
         self.circuit = models
         self.indexed_connections = indexed_connections
         self.port_idxs = port_idxs
+        
+    @property
+    def primary_property(self):
+        return self.domain
+        
+    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+        if self.domain == 's':
+            return self.s_impl(freq)
+        elif self.domain == 'y':
+            return self.y_impl(freq)
+        else:
+            raise Exception(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s_impl(self, freq: Frequency) -> jnp.ndarray:
         Smats = [model.s(freq) for model in self.circuit]
         z0s = [model.z0 for model in self.circuit]
-
-        Scon, _z0con = connect_s_arbitrary(Smats, z0s, self.indexed_connections, self.port_idxs)
+        
+        kwargs = {'method': self.method} if self.method is not None else {}
+        Scon, _z0con = connect_s_arbitrary(
+            Smats,
+            z0s,
+            self.indexed_connections,
+            self.port_idxs,
+            **kwargs,
+        )
         return Scon
+    
+    def y_impl(self, freq: Frequency) -> jnp.ndarray:
+        """
+        Evaluate the Y-parameters of the composite circuit.
+        """
+        Ymats = []
+        for model in self.circuit:
+            if isinstance(model, Ground):
+                Ymats.append(jnp.zeros((freq.npoints, 1, 1), dtype=jnp.complex128))
+            else:
+                Ymats.append(model.y(freq))
+
+        # We need to explicitly pass grounded nodes
+        ground_idxs = [idx for idx, model in enumerate(self.circuit) if isinstance(model, Ground)]
+        grounded_nodes = set()
+        for node_idx, connection in enumerate(self.indexed_connections):
+            for model_idx, port_idx in connection:
+                if model_idx in ground_idxs:
+                    grounded_nodes.add(node_idx)
+                    
+        kwargs = {'method': self.method} if self.method is not None else {}
+        Ycon = connect_y_arbitrary(
+            Ymats=Ymats, 
+            connections=self.indexed_connections, 
+            port_indices=self.port_idxs,
+            grounded_nodes=list(grounded_nodes),
+            **kwargs,
+        )
+        return Ycon
 
 class Cascade(Model):
     """
@@ -171,6 +227,14 @@ class Cascade(Model):
     #: The models.
     cascade: tuple[Model]
     
+    #: The domain to perform the calculation in. Only 's' is supported.
+    domain: str = field(default='s', kw_only=True, static=True)
+    
+    #: The algorithm to use for the call to `cascade_<domain>`.
+    #: If None, uses the default algorithm for the domain.
+    #: Algorithms are available in :mod:`pmrf.rf`.
+    method: str | None = field(default=None, kw_only=True, static=True)    
+    
     def __post_init__(self):
         for model in self.cascade:
             if model.nports % 2 != 0:
@@ -191,16 +255,32 @@ class Cascade(Model):
             else:
                 merged.append(model)
         return merged
+    
+    @property
+    def primary_property(self):
+        return self.domain
+    
+    def primary_matrix(self, freq):
+        if self.domain == 's':
+            return self.s_impl(freq)
+        elif self.domain == 'a':
+            return self.a_impl(freq)
+        else:
+            raise ValueError(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
 
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        return cascade_a([model.a(freq) for model in self.merged_cascade])
+    def a_impl(self, freq: Frequency) -> jnp.ndarray:
+        kwargs = {'method': self.method} if self.method is not None else {}
+        return cascade_a([model.a(freq) for model in self.merged_cascade], **kwargs)
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s_impl(self, freq: Frequency) -> jnp.ndarray:
         merged_models = self.merged_cascade
 
         Smats = jnp.array([model.s(freq) for model in merged_models])
         z0s = jnp.array([model.z0 for model in merged_models])
-        Scas, z0cas = cascade_s(Smats, z0s)
+        
+        kwargs = {'method': self.method} if self.method is not None else {}
+        Scas, z0cas = cascade_s(Smats, z0s, **kwargs)
+        
         return Scas
     
     
@@ -222,14 +302,55 @@ class Terminated(Model):
     #: The "into" model.
     terminated_into: Model
     
+    #: The domain to use for the "from" model. Only 's' is supported.
+    domain_from: str = field(default='s', kw_only=True, static=True)
+    
+    #: The domain to use for the "to" model. Only 's' is supported.
+    domain_to: str = field(default='s', kw_only=True, static=True)
+    
+    #: The algorithm to use for the call to `terminate_<domain_from>_in_<domain_to>`.
+    #: If None, uses the default algorithm for the domain combination.
+    #: Algorithms are available in :mod:`pmrf.rf`.
+    method: str | None = field(default=None, kw_only=True, static=True)    
+    
     def __post_init__(self):
         if self.terminated_from.nports != 2*self.terminated_into.nports:
             raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
+        
+    @property
+    def primary_property(self):
+        if self.domain_from == 'a' and self.domain_to == 's':
+            return 's'
+        elif self.domain_from == 's' and self.domain_to == 's':
+            return 's'
+        else:
+            raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
+    
+    def primary_matrix(self, freq):
+        if self.domain_from == 'a' and self.domain_to == 's':
+            return self.a_in_s_impl(freq)
+        elif self.domain_from == 's' and self.domain_to == 's':
+            return self.s_in_s_impl(freq)
+        else:
+            raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
+        
+    def a_in_s_impl(self, freq: Frequency) -> jnp.ndarray:
+        Amat_from = self.terminated_from.a(freq)
+        Smat_into = self.terminated_into.s(freq)
+        z0_into = self.terminated_into.z0
+        
+        kwargs = {'method': self.method} if self.method is not None else {}
+        S_term = terminate_a_in_s(Amat_from, Smat_into, z0_into, z0_into, **kwargs)
+        
+        return S_term        
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s_in_s_impl(self, freq: Frequency) -> jnp.ndarray:
         Smat_from = self.terminated_from.s(freq)
         z0_from = self.terminated_from.z0
         Smat_into = self.terminated_into.s(freq)
         z0_into = self.terminated_into.z0
-        S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into)
+        
+        kwargs = {'method': self.method} if self.method is not None else {}
+        S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into, **kwargs)
+        
         return S_term

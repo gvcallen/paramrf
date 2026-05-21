@@ -1,5 +1,5 @@
 """
-General circuit connection algorithms.
+Arbitrary S-parameter circuit connection algorithms.
 """
 
 from typing import Sequence
@@ -11,6 +11,52 @@ from pmrf.rf.conversions import s2s
 from pmrf.utils.rf import fix_z0_shape
 
 def connect_s_arbitrary(
+    Smats: Sequence[jnp.ndarray],
+    z0s: Sequence[jnp.ndarray],
+    connections: Sequence[Sequence[tuple[int, int]]],
+    port_indices: Sequence[int],
+    s_def = 'power',
+    method = 'hallbjorner2003',
+) -> jnp.ndarray:
+    """
+    Connect multiple S-parameter networks together in an arbitrary topology.
+
+    This is the most general function for connecting RF networks together in a circuit.
+
+    This function constructs a global S-matrix by connecting ports from various
+    sub-networks at common nodes (intersections).
+
+    Parameters
+    ----------
+    Smats : Sequence[jnp.ndarray]
+        A sequence of S-parameter matrices for the component networks.
+        Each element has shape `(Nf, n_ports, n_ports)`.
+    z0s : Sequence[jnp.ndarray]
+        A sequence of characteristic impedances (z0) for the component networks.
+    connections : Sequence[Sequence[tuple[int, int]]]
+        A list of connection nodes. Each node is a list of `(network_index, port_index)`
+        tuples indicating which ports are electrically connected at that node.
+    port_indices : Sequence[int]
+        A list of network indices. Any port belonging to a network in this list
+        that appears in `connections` is treated as an external port of the
+        resulting connected network.
+    s_def : str, optional, default='power'
+        The S-parameter definition to use ('power', 'traveling', or 'pseudo').
+    method : str, optional, default='hallbjorner2003'
+        The algorithm to use ('hallbjorner2003').
+
+    Returns
+    -------
+    tuple[jnp.ndarray, jnp.ndarray]
+        The resulting S-parameter matrix and characteristic impedances of the connected system.
+    """
+    if method == 'hallbjorner2003':
+        return connect_s_arbitrary_hallbjorner(Smats, z0s, connections, port_indices=port_indices, s_def=s_def)
+    else:
+        raise Exception("Unknown S-parameter circuit connection method")
+    
+
+def connect_s_arbitrary_hallbjorner(
     Smats: Sequence[jnp.ndarray],
     z0s: Sequence[jnp.ndarray],
     connections: Sequence[Sequence[tuple[int, int]]],
@@ -81,21 +127,13 @@ def connect_s_arbitrary(
     # [T] = - [C] @ [X]
     networks = list(zip(Smats, z0s))
     
-    x, t = _connect_s_arbitrary_X_and_T(networks, connections, port_connection_indices, s_def=s_def)
+    x, t = connect_s_arbitrary_hallbjorner_X_and_T(networks, connections, port_connection_indices, s_def=s_def)
 
     # jnp.einsum('...ii->...i', t)[:] += 1
     t = t + jnp.eye(t.shape[-1])
 
     # Get the sub-matrices of inverse of intermediate temporary matrix t
-    # The method np.linalg.solve(A, B) is equivalent to np.inv(A) @ B, but more efficient
     tmp_mat = jnp.linalg.pinv(t[D_idx]) @ t[C_idx]
-    # try:
-    #     tmp_mat = jnp.linalg.solve(t[D_idx], t[C_idx])
-    # except jnp.linalg.LinAlgError:
-    #     # numpy.linalg.lstsq only works for 2D arrays, so we need to loop over frequencies
-    #     tmp_mat = jnp.zeros((Nf, len(in_idxs), len(ext_idxs)), dtype='complex')
-    #     for i in range(Nf):
-    #         tmp_mat[i, :, :] = jnp.linalg.lstsq(t[i, D_idx[1], D_idx[2]], t[i, C_idx[1], C_idx[2]], rcond=None)[0]
 
     # Get the external S-parameters for the external ports
     # Calculated by multiplying the sub-matrices of x and t
@@ -111,9 +149,8 @@ def connect_s_arbitrary(
 
     S_ext_converted = s2s(S_ext, port_z0, s_def, 'traveling')
     return S_ext_converted, port_z0
-    # return S_ext  # shape (nb_frequency, nb_ports, nb_ports)
 
-def _connect_s_arbitrary_C(
+def connect_s_arbitrary_hallbjorner_C(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]],
     port_connection_indices: Sequence[int],
@@ -170,7 +207,7 @@ def _connect_s_arbitrary_C(
 
     return S  # shape (nb_frequency, nb_inter*nb_n, nb_inter*nb_n)
 
-def _connect_s_arbitrary_X(
+def connect_s_arbitrary_hallbjorner_X(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]],        
     inverse: bool = False,
@@ -220,7 +257,7 @@ def _connect_s_arbitrary_X(
 
     return Xf 
     
-def _connect_s_arbitrary_X_and_T(
+def connect_s_arbitrary_hallbjorner_X_and_T(
     networks: Sequence[tuple[jnp.ndarray, jnp.ndarray]],
     connections: Sequence[Sequence[tuple[int, int]]], 
     port_connection_indices: Sequence[int],       
@@ -245,8 +282,8 @@ def _connect_s_arbitrary_X_and_T(
     tuple
         A tuple `(X, T)` of JAX arrays.
     """
-    X = _connect_s_arbitrary_X(networks, connections, s_def=s_def)
-    C = _connect_s_arbitrary_C(networks, connections, port_connection_indices, s_def=s_def)
+    X = connect_s_arbitrary_hallbjorner_X(networks, connections, s_def=s_def)
+    C = connect_s_arbitrary_hallbjorner_C(networks, connections, port_connection_indices, s_def=s_def)
 
     # T will be fully updated, so `empty_like` is safe and faster
     T = jnp.empty_like(X, dtype="complex")
@@ -268,105 +305,3 @@ def _connect_s_arbitrary_X_and_T(
             T = T.at[:, i_slice, j_slice].set(C_j[:, i_slice, :] @ X_jj)
 
     return X, T
-
-def connect_s_common(
-    Smats: Sequence[jnp.ndarray] | jnp.ndarray,
-    z0s: Sequence[jnp.ndarray] | jnp.ndarray,
-    ports: Sequence[int | Sequence[int]],
-) -> jnp.ndarray:
-    """
-    Connect a series of multi-port S-parameter matrices using Hallbjörner's method at a single intersection.
-    
-    Ensures that the specified port indices share the concatenated intersection, implying they are
-    electrically common.
-
-    Parameters
-    ----------
-    Smats : jnp.ndarray or Sequence[jnp.ndarray]
-        S-parameter matrices. Shape of each matrix is `(Nf, n, n)`.
-    z0s: jnp.ndarray or Sequence[jnp.ndarray]
-        Characteristic impedances (z0) of each `S` in `Smats`.
-    ports : Sequence[int | Sequence[int]]
-        A sequence of port indices. Each entry corresponds to the ports of the respective 
-        network in `Smats`. The length of `ports` should match the length of `Smats`.
-
-    Returns
-    -------
-    tuple
-        A tuple `(S, z0)` containing the combined S-matrix and z0 matrix.
-
-    References
-    ----------
-    .. P. Hallbjörner, Microw. Opt. Technol. Lett. 38, 99 (2003).
-    """
-    # Adapted from scikit-rf. See the copyright notice in pmrf._frequency.py  
-
-    # Handle single network input
-    if isinstance(Smats, jnp.ndarray):
-        Smats = [Smats]
-    if isinstance(z0s, jnp.ndarray):
-        z0s = [z0s]
-
-    if len(Smats) != len(ports):
-        raise ValueError(f'Smats and ports must have the same length ({len(Smats)} != {len(ports)})')
-    if len(Smats) != len(z0s):
-        raise ValueError(f'Smats and z0s must have the same length ({len(Smats)} != {len(z0s)})')
-
-    # Get the index of each network in the list
-    dim, off = sum(S.shape[1] for S in Smats), 0
-    inter_indices, exter_indices =  [], []
-    z0_in, z0_ext = [], []
-    Nf = Smats[0].shape[0]
-
-    # Assign the global scattering matrix [X] and concatenated intersection matrix [C]
-    X = jnp.zeros((Nf, dim, dim), dtype='complex')
-    C = jnp.zeros((Nf, dim, dim), dtype='complex')
-
-    for i, (S, z0, port) in enumerate(zip(Smats, z0s, ports)):
-        nports: int = S.shape[0]
-        z0 = fix_z0_shape(z0)
-        port = [port] if isinstance(port, int) else port
-
-        # Check the port indecies valid or not
-        if len(port) != len(set(port)):
-            raise ValueError(f"Matrix {i}'s port should not be duplicated.")
-        if max(port) >= nports or min(port) < 0:
-            raise ValueError(f"Matrix {i}'s port index should be between 0 and {nports-1}")
-
-        # Append the port index with offset to indices list
-        for p in range(nports):
-            if p in port:
-                inter_indices.append(p + off)
-                z0_in.append(z0[:, p])
-            else:
-                exter_indices.append(p + off)
-                z0_ext.append(z0[:, p])
-
-        # Assign the scattering matrix of each network to the global scattering matrix
-        X[:, off:off+nports, off:off+nports] = S
-
-        # Update the offset
-        off += nports
-
-    # Compute interaction matrix for internal connections
-    z0s = jnp.array(z0_in).T
-    y0s = 1./z0s
-    y_tot = y0s.sum(axis=1)
-
-    s = 2 *jnp.sqrt(jnp.einsum('ki,kj->kij', y0s, y0s)) / y_tot[:, None, None]
-    jnp.einsum('kii->ki', s)[:] -= 1  # Sii
-
-    # Get the index of internal port and external port from global matrix
-    in_ind = jnp.meshgrid(inter_indices, inter_indices, indexing='ij')
-    out_ind = jnp.meshgrid(exter_indices, exter_indices, indexing='ij')
-
-    # Update the concatenated intersection matrix
-    C[:, in_ind[0], in_ind[1]] = s
-
-    # Get the global scattering matrix
-    s = X @ jnp.linalg.inv(jnp.identity(dim) - C @ X)
-
-    s_out = s[:, out_ind[0], out_ind[1]]
-
-    z0_out = jnp.array(z0_ext).T
-    return s_out, z0_out

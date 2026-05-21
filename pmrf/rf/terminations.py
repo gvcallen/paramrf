@@ -11,7 +11,8 @@ def terminate_s_in_s(
     z0_from: jnp.ndarray,
     Smat_into: jnp.ndarray,
     z0_into: jnp.ndarray,
-    s_def = "power",
+    s_def: str = "power",
+    method: str | None = None,
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """
     Terminates one S-parameter matrix in another S-parameter matrix.
@@ -32,12 +33,17 @@ def terminate_s_in_s(
         The characteristic impedance of Smat_into.
     s_def : string
         The S-parameter definition. Defaults to "power".
+    method : string, optional
+        The method to use, currently not used.
         
     Returns
     -------
     tuple[jnp.ndarray, jnp.ndarray]
         The resulting S-parameter matrix and characteristic impedance.
     """
+    if method != None:
+        raise Exception("'method' not yet supported for terminate_s_in_s")
+    
     N = Smat_into.shape[1]
     
     if Smat_from.shape[1] != 2 * N:
@@ -114,6 +120,7 @@ def terminate_a_in_s(
     Smat: jnp.ndarray,
     z0: jnp.ndarray,
     s_def = "power",
+    method: str | None = None,
 ) -> jnp.ndarray:
     """
     Terminates an ABCD matrix in an S-parameter matrix.
@@ -129,11 +136,15 @@ def terminate_a_in_s(
         The S matrix to terminate into.
     z0 : jnp.ndarray:
         The characteristic impedance of the S-matrix being terminated.
+    method : str, optional
+        The method, not yet used.        
     Returns
     -------
     jnp.ndarray
         The resulting S-parameter matrix of the terminated system.
     """
+    if method != None:
+        raise Exception("'method' not yet supported for terminate_a_in_s")    
     if Smat.shape[1] != 1:
         raise Exception("terminate_a_in_s can only be called for one-port S matrices")
     
