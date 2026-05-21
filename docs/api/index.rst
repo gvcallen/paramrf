@@ -11,7 +11,7 @@ Core Primitives
 
    pmrf.Model
    pmrf.Frequency
-   pmrf.Value
+   pmrf.Variable
    pmrf.Param
    pmrf.Fixed
    pmrf.Bounded

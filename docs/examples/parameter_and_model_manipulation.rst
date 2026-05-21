@@ -19,8 +19,8 @@ Let's first define a custom RLC composite model to manipulate:
 
   class RLC(prf.Model):
       res: Resistor = Resistor(R=100.0)
-      ind: Inductor = Inductor(L=prf.Value(2.0, scale=1e-9))
-      cap: Capacitor = Capacitor(C=prf.Value(1.0, scale=1e-12))
+      ind: Inductor = Inductor(L=prf.Variable(2.0, scale=1e-9))
+      cap: Capacitor = Capacitor(C=prf.Variable(1.0, scale=1e-12))
 
       def build(self) -> prf.Model:
           return self.res ** self.ind ** self.cap
@@ -48,7 +48,7 @@ Using :meth:`pmrf.Model.at`, we can traverse down the model tree to focus on spe
 
 .. code-block:: python
 
-  rlc_R200 = rlc.at(lambda m: m.res.R).set(prf.Value(200.0))
+  rlc_R200 = rlc.at(lambda m: m.res.R).set(prf.Variable(200.0))
   rlc_fixed = rlc.at(lambda m: m.cap.C).set(prf.Fixed(rlc.cap.C))
 
 Since a model's structure is not rigid, we can also completely swap out components:

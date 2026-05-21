@@ -214,7 +214,7 @@ def param(
     return eqx.field(default=value, converter=converter)
 
 
-def Value(
+def Variable(
     value: ArrayLike,
     *,
     scale: float = 1.0,
@@ -222,7 +222,7 @@ def Value(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a simple parameter with an optional scale.
+    Create a variable parameter.
 
     Parameters
     ----------
@@ -250,7 +250,7 @@ def Fixed(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a fixed parameter that will not be optimized.
+    Create a fixed parameter.
 
     Parameters
     ----------
@@ -389,7 +389,7 @@ def Random(
 
 __all__ = [
     "as_param",
-    "Value",
+    "Variable",
     "Fixed",
     "Bounded",
     "Constrained",
