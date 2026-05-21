@@ -69,7 +69,7 @@ class Resistor(Model):
         The resistance in Ohms.
     """
     #: Resistance in Ohms
-    R: Param = param(constraint=Positive())
+    R: Param = param()
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -105,7 +105,7 @@ class Capacitor(Model):
         The capacitance in Farads.
     """
     #: Capacitance in Farads
-    C: Param = param(constraint=Positive())
+    C: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -140,7 +140,7 @@ class Inductor(Model):
         The inductance in Henrys.
     """
     #: Inductance in Henrys
-    L: Param = param(constraint=Positive())
+    L: Param = param()
     
     def s(self, freq: Frequency) -> jnp.ndarray:
         L = self.L
@@ -175,7 +175,7 @@ class ShuntResistor(Model):
         The resistance in Ohms.
     """
     #: Resistance in Ohms
-    R: Param = param(constraint=Positive())
+    R: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
@@ -213,7 +213,7 @@ class ShuntCapacitor(Model):
         The capacitance in Farads
     """
     #: Capacitance in Farads
-    C: Param = param(constraint=Positive())
+    C: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -251,7 +251,7 @@ class ShuntInductor(Model):
         The inductance in Henrys
     """
     #: Inductance in Henrys
-    L: Param = param(constraint=Positive())
+    L: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -292,10 +292,10 @@ class InductorQ(Model):
         The quality factor representing non-ideal losses
     """
     #: Inductance in Henrys
-    L: Param = param(constraint=Positive())
+    L: Param = param()
 
     #: Quality factor
-    Q: Param = param(constraint=Positive())
+    Q: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
@@ -333,10 +333,10 @@ class CapacitorQ(Model):
         The quality factor representing non-ideal losses. Default is 50.0.
     """
     #: Capacitance in Farads
-    C: Param = param(constraint=Positive())
+    C: Param = param()
     
     #: Quality factor
-    Q: Param = param(constraint=Positive())
+    Q: Param = param()
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
