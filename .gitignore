@@ -8,7 +8,7 @@ __pycache__/
 
 docs/api/generated/*
 docs/_build/*
-docs/api/_models_tree.rst
+docs/models/generated/*
 
 # Distribution / packaging
 .Python
