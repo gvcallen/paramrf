@@ -1,7 +1,7 @@
 Custom Composite Models
 =======================
 
-In ParamRF, models can contain other models, referred to as *composite* models. The following example builds on top of the :doc:`custom_models` example to demonstrate how to build these effectively.
+In ParamRF, models can contain other models, referred to as *composite* models. The following example builds on top of the :doc:`custom_parametric_models` example to demonstrate how to build these effectively.
 
 Before we do this, it is useful to note the following two rules when creating custom models:
 

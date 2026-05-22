@@ -1,0 +1,12 @@
+﻿
+
+
+CoupledOnePorts
+===============
+
+.. currentmodule:: pmrf.models.composite.nodal
+
+.. autoclass:: CoupledOnePorts
+   :members:
+   :show-inheritance:
+   :inherited-members:

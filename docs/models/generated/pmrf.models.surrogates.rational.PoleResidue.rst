@@ -1,0 +1,12 @@
+﻿
+
+
+PoleResidue
+===========
+
+.. currentmodule:: pmrf.models.surrogates.rational
+
+.. autoclass:: PoleResidue
+   :members:
+   :show-inheritance:
+   :inherited-members:

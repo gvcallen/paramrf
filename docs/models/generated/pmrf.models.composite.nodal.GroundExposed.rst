@@ -1,0 +1,12 @@
+﻿
+
+
+GroundExposed
+=============
+
+.. currentmodule:: pmrf.models.composite.nodal
+
+.. autoclass:: GroundExposed
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+﻿
+
+
+CoupledTwoPorts
+===============
+
+.. currentmodule:: pmrf.models.composite.nodal
+
+.. autoclass:: CoupledTwoPorts
+   :members:
+   :show-inheritance:
+   :inherited-members:
