@@ -189,10 +189,29 @@ def skip_member(app, what, name, obj, skip, options):
     if obj_module is None and isinstance(obj, property):
         obj_module = getattr(obj.fget, '__module__', '')
 
-    # 4. Skip specific single-letter methods/properties globally
+    # 4. Skip specific methods/properties in derived classes only
     methods_to_hide = {"s", "y", "z", "a", "build"}
     if name in methods_to_hide:
-        return True
+        # Attempt to get the qualified name (e.g., 'Model.build')
+        qualname = getattr(obj, '__qualname__', '')
+        
+        # Handle properties and classmethods/bound methods
+        if not qualname:
+            if isinstance(obj, property):
+                qualname = getattr(obj.fget, '__qualname__', '')
+            elif hasattr(obj, '__func__'):
+                qualname = getattr(obj.__func__, '__qualname__', '')
+        
+        if qualname:
+            parts = qualname.split('.')
+            if len(parts) >= 2:
+                parent_class_name = parts[-2]
+                # Skip if the method belongs to any class OTHER than the base 'Model'
+                if parent_class_name != 'Model':
+                    return True
+        else:
+            # Default to skipping if we can't reliably resolve the class scope
+            return True
 
     return skip
 
