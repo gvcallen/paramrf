@@ -1,0 +1,12 @@
+﻿
+
+
+SkrfNetwork
+===========
+
+.. currentmodule:: pmrf.models.adapters.static
+
+.. autoclass:: SkrfNetwork
+   :members:
+   :show-inheritance:
+   :inherited-members:

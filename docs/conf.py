@@ -6,6 +6,8 @@ from importlib.metadata import version as get_version, PackageNotFoundError
 import pkgutil
 import importlib
 import inspect
+import sphinx.addnodes
+from sphinx_math_dollar import NODE_BLACKLIST
 
 def generate_models_tree(app):
     """Dynamically generates a nested bulleted list of the pmrf.models hierarchy 
@@ -43,7 +45,13 @@ def generate_models_tree(app):
                     
         return lines
 
-    tree_lines = walk_module(pmrf.models)
+    # Prepend the page header
+    tree_lines = [
+        "Model Hierarchy", 
+        "===============", 
+        ""
+    ]
+    tree_lines.extend(walk_module(pmrf.models))
     
     # Append a HIDDEN autosummary block to force page generation
     tree_lines.append("")
@@ -62,27 +70,11 @@ def generate_models_tree(app):
     tree_lines.append("   </div>")
     tree_lines.append("")
     
-    # Save to a temporary file
-    output_path = os.path.join(app.srcdir, 'api', '_models_tree.rst')
+    # Save directly to the models directory
+    output_path = os.path.join(app.srcdir, 'models', 'index.rst')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
         f.write("\n".join(tree_lines) + "\n")
-
-def inject_models_tree(app, what, name, obj, options, lines):
-    """Automatically injects the generated tree into the pmrf.models page."""
-    # Only intercept the pmrf.models module
-    if name == "pmrf.models" and what == "module":
-        tree_path = os.path.join(app.srcdir, 'api', '_models_tree.rst')
-        if os.path.exists(tree_path):
-            with open(tree_path, 'r') as f:
-                tree_lines = f.read().splitlines()
-            
-            # Append a header and the tree directly into the docstring
-            lines.extend(["", "Model Hierarchy", "===============", ""])
-            lines.extend(tree_lines)
-
-import sphinx.addnodes
-from sphinx_math_dollar import NODE_BLACKLIST
 
 # --- 1. Path Setup -----------------------------------------------------------
 _repo_root = os.path.abspath('../')
@@ -207,4 +199,3 @@ def skip_member(app, what, name, obj, skip, options):
 def setup(app):
     app.connect("builder-inited", generate_models_tree)
     app.connect("autodoc-skip-member", skip_member)
-    app.connect("autodoc-process-docstring", inject_models_tree)

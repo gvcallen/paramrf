@@ -9,6 +9,7 @@
    core_concepts/index
    examples/index
    tutorials/index
+   models/index
    api/index
    skrf_comparison
    license
