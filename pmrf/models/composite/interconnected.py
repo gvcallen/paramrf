@@ -26,6 +26,13 @@ class Circuit(Model):
         A list representing the nodes of the circuit. Each node is a list of
         tuples, where each tuple contains a `Model` instance and the integer
         index of the port to connect to that node.
+    domain : str, default='s'
+        (experimental) The domain to perform the calculation in.
+        Options are ('s', 'y'), where 'y' is experimental.
+    method : str, optional
+        The algorithm to use for the call to `connect_<domain>_arbitrary`.
+        If None, uses the default algorithm for the domain.
+        Algorithms are available in :mod:`pmrf.rf`.
 
     Examples
     --------
@@ -54,6 +61,12 @@ class Circuit(Model):
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
+    #: The domain to perform the calculation in.
+    domain: str = field(default='s', kw_only=True, static=True)
+    
+    #: The method for the algorithm
+    method: str | None = field(default=None, kw_only=True, static=True)
+    
     #: The models in the circuit.
     circuit: list[Model] = field(default=None, kw_only=True)
 
@@ -63,14 +76,6 @@ class Circuit(Model):
     #: The indices of the ports.
     port_idxs: list[int] = field(default=None, kw_only=True, static=True)
     
-    #: (experimental) The domain to perform the calculation in.
-    #: Options are ('s', 'y'), where 'y' is experimental.
-    domain: str = field(default='s', kw_only=True, static=True)
-    
-    #: The algorithm to use for the call to `connect_<domain>_arbitrary`.
-    #: If None, uses the default algorithm for the domain.
-    #: Algorithms are available in :mod:`pmrf.rf`.
-    method: str | None = field(default=None, kw_only=True, static=True)
 
     def __post_init__(self, connections):
         if not isinstance(connections, list):
@@ -204,6 +209,13 @@ class Cascade(Model):
     ----------
     cascade : tuple[Model]
         The sequence of models in the cascade.
+    domain : str, default='s'
+        (experimental) The domain to perform the calculation in.
+        Options are 's' or 'a'.
+    method : str, optional
+        The algorithm to use for the call to `cascade_<domain>`.
+        If None, uses the default algorithm for the domain.
+        Algorithms are available in :mod:`pmrf.rf`.        
 
     Examples
     --------
@@ -234,12 +246,10 @@ class Cascade(Model):
     #: The models.
     cascade: tuple[Model]
     
-    #: The domain to perform the calculation in. Only 's' is supported.
+    #: The domain to perform the calculation in.
     domain: str = field(default='s', kw_only=True, static=True)
     
-    #: The algorithm to use for the call to `cascade_<domain>`.
-    #: If None, uses the default algorithm for the domain.
-    #: Algorithms are available in :mod:`pmrf.rf`.
+    #: The algorithm to use.
     method: str | None = field(default=None, kw_only=True, static=True)    
     
     def __post_init__(self):
@@ -302,7 +312,17 @@ class Terminated(Model):
     terminated_from : Model
         The model being terminated.
     terminated_into : Model
-        The model that `terminated_from` is terminated into.        
+        The model that `terminated_from` is terminated into.
+    domain_from : str, default='s'
+        (experimental) The domain to perform the calculation in for `terminated_from`.
+        Options are ('s', 'a').
+    domain_to : str, default='s'
+        (experimental) The domain to perform the calculation in for `terminated_to`.
+        Only 's' is supported.
+    method : str, optional
+        The algorithm to use for the call to `terminate_<domain_from>_in_<domain_to>`.
+        If None, uses the default algorithm for the domain.
+        Algorithms are available in :mod:`pmrf.rf`.                
     """
     #: The "from" model.
     terminated_from: Model
@@ -310,15 +330,13 @@ class Terminated(Model):
     #: The "into" model.
     terminated_into: Model
     
-    #: The domain to use for the "from" model. Only 's' is supported.
+    #: The domain to use for the "from" model.
     domain_from: str = field(default='s', kw_only=True, static=True)
     
-    #: The domain to use for the "to" model. Only 's' is supported.
+    #: The domain to use for the "to" model.
     domain_to: str = field(default='s', kw_only=True, static=True)
     
-    #: The algorithm to use for the call to `terminate_<domain_from>_in_<domain_to>`.
-    #: If None, uses the default algorithm for the domain combination.
-    #: Algorithms are available in :mod:`pmrf.rf`.
+    #: The algorithm to use.
     method: str | None = field(default=None, kw_only=True, static=True)    
     
     def __post_init__(self):
