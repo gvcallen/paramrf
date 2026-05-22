@@ -7,6 +7,7 @@ import dataclasses
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
 import equinox as eqx
 import skrf
 import parax as prx
@@ -19,18 +20,12 @@ from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
 
-S = TypeVar('S')
+T = TypeVar('T')
 
-PRIMARY_PROPERTIES = ('s', 'a', 'y', 'z')
-PRIMARY_METHODS = PRIMARY_PROPERTIES + ('build', 'primary_matrix')
+PRIMARY_DOMAINS = ('s', 'a', 'y', 'z')
+PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
+HUB_Z0 = 50.0 + 0.0j
 
-Z0_WARNING = \
-r"""
-WARNING: You have created a model with characteristic impedance other than 50 ohm.
-Working with multiple models in ParamRF with differing characteristic impedances
-is not yet officially supported and you may encounter subtle bugs. For now, it is
-recommended to keep the default z0 and convert your results at the end.
-"""
 
 class Model(eqx.Module):
     """
@@ -62,13 +57,13 @@ class Model(eqx.Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`s`                         Scattering (S) parameter matrix.
+    :meth:`s`                         Scattering (S) parameter matrix at impedance z0.
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
     :meth:`build`                     Build the model. Can be overridden for advanced models.
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
-    :attr:`primary_property`          The primary property (e.g. ``"s"``, ``"a"``) as a string.
+    :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
     ================================= ====================================================================
 
     **Helper Methods**
@@ -142,10 +137,6 @@ class Model(eqx.Module):
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
-    #: The characteristic impedance of the model.
-    #: NB: Mixing impedances across models is not fully supported.
-    z0: complex = field(default=50.0+0j, kw_only=True, static=True)
-
     #: A name for the model.
     name: str | None = field(default=None, kw_only=True, static=True)
 
@@ -168,7 +159,7 @@ class Model(eqx.Module):
                 return func(matrix)
             return dynamic_method
             
-        for prop in PRIMARY_PROPERTIES:
+        for prop in PRIMARY_DOMAINS:
             for suffix, lookup in CONVERSION_LOOKUP.items():
                 func = lookup[1]
                 
@@ -363,10 +354,10 @@ class Model(eqx.Module):
         """     
         raise NotImplementedError
     
-    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, freq: Frequency, **kwargs) -> jnp.ndarray:
         """The primary matrix (e.g. ``s``, ``a`` etc.) as a function of frequency.
 
-        The primary matrix represents the matrix returned by :attr:`pmrf.Model.primary_property`,
+        The primary matrix represents the matrix returned by :attr:`pmrf.Model.primary_domain`,
         which is either overridden by sub-classes, or is the first proprerty directly overriden
         out of :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`
         (in that order), unless :meth:``pmrf.Model.build`` is overridden, in which case the primary matrix
@@ -374,6 +365,16 @@ class Model(eqx.Module):
         
         This method can also be overriden itself in order to to dynamically
         implement one of the matrices as opposed to overriding it explicitly. 
+        
+        If this method is called and `self.primary_domain` is 's',
+        then 'z0' should be passed in `kwargs`.
+        
+        Parameters
+        ----------
+        freq : Frequency
+            Frequency grid.
+        kwargs
+            Key-word arguments forwarded to the primary matrix function, such as z0.
 
         Returns
         -------
@@ -384,15 +385,15 @@ class Model(eqx.Module):
         NotImplementedError
             If no primary property is overridden.
         """      
-        primary_function = getattr(self, self.primary_property)
-        return primary_function(freq)
+        primary_function = getattr(self, self.primary_domain)
+        return primary_function(freq, **kwargs)
     
     @property
-    def primary_property(self) -> str:
-        """The primary property (e.g. ``"s"``, ``"a"``) as a string.
+    def primary_domain(self) -> str:
+        """The primary domain (e.g. ``"s"``, ``"a"``) as a string.
 
         The primary property is the first overridden among
-        :data:`PRIMARY_PROPERTIES`, unless ``build`` is overridden,
+        :data:`PRIMARY_DOMAINS`, unless ``build`` is overridden,
         in which case the primary property of the built model is returned.
 
         Returns
@@ -405,10 +406,10 @@ class Model(eqx.Module):
             If no primary property is overridden.
         """
         prioritized = () # for future expansion
-        unprioritized = tuple(p for p in PRIMARY_PROPERTIES if p not in prioritized)
+        unprioritized = tuple(p for p in PRIMARY_DOMAINS if p not in prioritized)
 
         if is_overridden(type(self), Model, 'build'):
-            return self.build().primary_property
+            return self.build().primary_domain
         
         for property in prioritized:
             if is_overridden(type(self), Model, property):
@@ -416,20 +417,21 @@ class Model(eqx.Module):
         for property in unprioritized:
             if is_overridden(type(self), Model, property):
                 return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_PROPERTIES} are overridden, which are the only ones supported currently")     
+        raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} are overridden, which are the only ones supported currently")     
     
     @eqx.filter_jit
     @unwrap_self
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        """Scattering parameter matrix.
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        """Scattering parameter matrix at port impedance z0.
 
         If a different parameter type (a, z, y) is primary, this converts it to S.
         
-        Note that, in ParamRF, the **power wave** definition of S-parameters
-        should be used. If you have a formulation in terms of another definition
-        (such as traveling waves), simply use :meth:`pmrf.rf.s2s`
-        (or :meth:`pmrf.rf.renormalize_s` if you need to change
-        impedance too).
+        To convert between port impedances, use :meth:`pmrf.rf.renormalize_s`.
+        
+        Note that, derived classes should use the **power wave** definition of S-parameters
+        when implementing components using S-parameters.
+        If you have a formulation in terms of another definition
+        (such as traveling waves), simply use :meth:`pmrf.rf.s2s`.
 
         Parameters
         ----------
@@ -442,23 +444,25 @@ class Model(eqx.Module):
             S-parameter matrix with shape ``(nf, n, n)``.
         """
         if is_overridden(type(self), Model, 'build'):
-            return self.build().s(freq)
+            return self.build().s(freq, z0=z0)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
-        val = self.primary_matrix(freq)
-
-        # 2. Return or Convert
-        if primary_prop == 's':
-            return val
-        elif primary_prop == 'a':
-            return a2s(val, self.z0)
-        elif primary_prop == 'z':
-            return z2s(val, self.z0)
-        elif primary_prop == 'y':
-            return y2s(val, self.z0)
+        # Fetch primary
+        primary_dom = self.primary_domain
         
-        raise NotImplementedError(f"Conversion from '{primary_prop}' to 's' is not implemented.")
+        kwargs = {'z0': z0} if primary_dom == 's' else {}
+        val = self.primary_matrix(freq, **kwargs)
+
+        # Return or Convert
+        if primary_dom == 's':
+            return val
+        elif primary_dom == 'a':
+            return a2s(val, z0)
+        elif primary_dom == 'z':
+            return z2s(val, z0)
+        elif primary_dom == 'y':
+            return y2s(val, z0)
+        
+        raise NotImplementedError(f"Conversion from '{primary_dom}' to 's' is not implemented.")
     
     @eqx.filter_jit
     @unwrap_self
@@ -480,11 +484,11 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, 'build'):
             return self.build().a(freq)
         
-        # 1. Fetch primary
-        primary_prop = self.primary_property
+        # Fetch primary
+        primary_prop = self.primary_domain
         val = self.primary_matrix(freq)
 
-        # 2. Return or Convert
+        # Return or Convert
         if primary_prop == 'a':
             return val
         
@@ -492,13 +496,13 @@ class Model(eqx.Module):
         if primary_prop == 's':
             s = val
         elif primary_prop == 'z':
-            s = z2s(val, self.z0)
+            s = z2s(val, HUB_Z0)
         elif primary_prop == 'y':
-            s = y2s(val, self.z0)
+            s = y2s(val, HUB_Z0)
         else:
             raise NotImplementedError(f"Conversion from '{primary_prop}' to 'a' is not implemented.")
             
-        return s2a(s, self.z0)
+        return s2a(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -520,11 +524,11 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, 'build'):
             return self.build().z(freq)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
+        # Fetch primary
+        primary_prop = self.primary_domain
         val = self.primary_matrix(freq)
 
-        # 2. Return or Convert
+        # Return or Convert
         if primary_prop == 'z':
             return val
 
@@ -532,13 +536,13 @@ class Model(eqx.Module):
         if primary_prop == 's':
             s = val
         elif primary_prop == 'a':
-            s = a2s(val, self.z0)
+            s = a2s(val, HUB_Z0)
         elif primary_prop == 'y':
-            s = y2s(val, self.z0)
+            s = y2s(val, HUB_Z0)
         else:
             raise NotImplementedError(f"Conversion from '{primary_prop}' to 'z' is not implemented.")
 
-        return s2z(s, self.z0)
+        return s2z(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -560,11 +564,11 @@ class Model(eqx.Module):
         if is_overridden(type(self), Model, 'build'):
             return self.build().y(freq)
 
-        # 1. Fetch primary
-        primary_prop = self.primary_property
+        # Fetch primary
+        primary_prop = self.primary_domain
         val = self.primary_matrix(freq)
 
-        # 2. Return or Convert
+        # Return or Convert
         if primary_prop == 'y':
             return val
 
@@ -572,13 +576,13 @@ class Model(eqx.Module):
         if primary_prop == 's':
             s = val
         elif primary_prop == 'a':
-            s = a2s(val, self.z0)
+            s = a2s(val, HUB_Z0)
         elif primary_prop == 'z':
-            s = z2s(val, self.z0)
+            s = z2s(val, HUB_Z0)
         else:
             raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
 
-        return s2y(s, self.z0)            
+        return s2y(s, HUB_Z0)            
     
     # ---- Magic methods and copying --------------------------------------------------
 
@@ -654,7 +658,7 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-    def at(self: Self, where: Callable[[Self], S]) -> Lens[Self, S]:
+    def at(self: Self, where: Callable[[Self], T]) -> Lens[Self, T]:
         """(experimental) A functional interface for model manipulation.
         
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
@@ -826,15 +830,17 @@ class Model(eqx.Module):
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
-    def to_skrf(self, frequency: Frequency | Any, sigma=0.0, **kwargs) -> skrf.Network:
+    def to_skrf(self, frequency: Frequency | Any, z0: ArrayLike = 50.0, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
 
-        The active primary property (``self.primary_property``) is used.
+        The active primary property (``self.primary_domain``) is used.
 
         Parameters
         ----------
         frequency : pmrf.frequency.Frequency | skrf.Frequency
             Frequency grid.
+        z0 : ArrayLike, default=50.0
+            The charactestic impedance.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
         **kwargs
@@ -854,12 +860,13 @@ class Model(eqx.Module):
             model_freq = Frequency.from_skrf(frequency)
             measured_freq = frequency
         
-        fval, fname = self.primary_matrix(model_freq), self.primary_property
+        s_matrix = self.s(model_freq, z0=z0)
+        
         kwargs = kwargs or {}
         kwargs.update({
-            fname: np.array(fval),
+            's': np.array(s_matrix),
             'frequency': measured_freq,
-            'z0': self.z0,
+            'z0': z0,
         })
         ntwk = skrf.Network(**kwargs)
         if sigma != 0.0:

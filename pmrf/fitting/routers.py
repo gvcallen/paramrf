@@ -12,7 +12,7 @@ from pmrf.evaluators import EvaluatorLike
 from pmrf.optimize import is_minimizer, OptimizeResult, ScipyMinimize, AbstractMinimizer
 from pmrf.infer import is_sampler, InferResult, AbstractSampler
 from pmrf.evaluators import Feature
-from pmrf.models import Measured
+from pmrf.models import SkrfNetwork
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.minimize import fit_minimize
 from pmrf.fitting.sample import fit_sample
@@ -147,7 +147,7 @@ def fit_sequential(
         final_kwargs = {**kwargs, **resolved_dynamics}
         frequency = final_kwargs.setdefault('frequency', Frequency.from_skrf(sub_ntwk.frequency))
         features = final_kwargs.pop('features', 's')
-        sub_array = Feature(features)(Measured(sub_ntwk), frequency)
+        sub_array = Feature(features)(SkrfNetwork(sub_ntwk), frequency)
         
         try:
             # Fit the sub-module

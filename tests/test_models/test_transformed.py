@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models import (
-    Renumbered, Flipped, Stacked,
+    Renumbered, Flipped,
     LSectionLC, Resistor, Short
 )
 
@@ -47,29 +47,3 @@ def test_flipped_odd_ports_error():
     """Ensure Flipped raises an error for models with an odd number of ports."""
     with pytest.raises(ValueError, match="You can only flip multiple-of-two-port"):
         Flipped(model=Short())
-
-# ---------------------------------------------------------
-# Stacked Tests
-# ---------------------------------------------------------
-
-def test_stacked_block_diagonal(basic_freq):
-    """Ensure Stacked correctly combines S-matrices along the diagonal."""
-    res_model = Resistor(R=50.0)    # 2-port
-    short_model = Short()           # 1-port
-    
-    stacked_model = Stacked(models=(res_model, short_model))
-    s_stacked = stacked_model.s(basic_freq)
-    
-    assert s_stacked.shape == (5, 3, 3)
-    
-    # Check that the top-left 2x2 block exactly matches the Resistor
-    s_res = res_model.s(basic_freq)
-    assert jnp.allclose(s_stacked[:, 0:2, 0:2], s_res)
-    
-    # Check that the bottom-right 1x1 block exactly matches the Short
-    s_short = short_model.s(basic_freq)
-    assert jnp.allclose(s_stacked[:, 2:3, 2:3], s_short)
-    
-    # Check that off-diagonal blocks (uncoupled ports) are exactly zero
-    assert jnp.allclose(s_stacked[:, 0:2, 2], 0.0 + 0.0j)
-    assert jnp.allclose(s_stacked[:, 2, 0:2], 0.0 + 0.0j)

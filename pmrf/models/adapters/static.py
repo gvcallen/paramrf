@@ -3,6 +3,7 @@ Models that store and interpolate static network data from raw arrays.
 """
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 import skrf
@@ -10,27 +11,11 @@ import skrf
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Model
-from pmrf.utils import field, freeze
+from pmrf.utils import field, freeze, ArrayLike
+from pmrf.rf import renormalize_s
 
 
 def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: jnp.ndarray) -> jnp.ndarray:
-    """
-    Interpolates 3D network parameter data (Freq, Port, Port) across new frequencies.
-
-    Parameters
-    ----------
-    f_old : jnp.ndarray
-        The original frequency grid (1D array).
-    f_new : jnp.ndarray
-        The target frequency grid (1D array) requested for simulation.
-    data_old : jnp.ndarray
-        The network parameters to interpolate, shape (n_freqs, n_ports, n_ports).
-
-    Returns
-    -------
-    jnp.ndarray
-        The interpolated network parameters, shape (n_freqs_new, n_ports, n_ports).
-    """
     # Ensure inputs are JAX arrays
     f_old = jnp.asarray(f_old)
     f_new = jnp.asarray(f_new)
@@ -59,7 +44,26 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
     return (data_real_new + 1j * data_imag_new).transpose(2, 0, 1)
 
 
-class Measured(Model):
+def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jnp.ndarray) -> jnp.ndarray:
+    z0_new_arr = jnp.asarray(z0_new)
+    is_matched = jnp.all(z0_new_arr == z0_old)
+    
+    def _renorm():
+        return renormalize_s(
+            s=s_old, 
+            z_old=z0_old, 
+            z_new=z0_new_arr, 
+            s_def_old='power', 
+            s_def_new='power'
+        )
+        
+    def _identity():
+        return s_old
+        
+    return jax.lax.cond(is_matched, _identity, _renorm)
+
+
+class SkrfNetwork(Model):
     """
     A model wrapping a static :class:`skrf.Network` or :class:`NetworkCollection`.
 
@@ -72,30 +76,59 @@ class Measured(Model):
         The static network data containing S-parameters and frequency information.
     """
     #: The underlying network data.
-    data: skrf.Network | NetworkCollection = field(static=True)
+    network: skrf.Network | NetworkCollection = field(static=True)
     
-    def __getattr__(self, name: str) -> 'Measured':
-        data = self.__getattribute__('data')
+    def __getattr__(self, name: str) -> 'SkrfNetwork':
+        network = self.__getattribute__('network')
 
-        if isinstance(data, NetworkCollection) and name in data.to_dict():
-            return Measured(data[name])
-        elif isinstance(data, skrf.Network) and name == data.name:
-            return Measured(data)
+        if isinstance(network, NetworkCollection) and name in network.to_dict():
+            return SkrfNetwork(network[name])
+        elif isinstance(network, skrf.Network) and name == network.name:
+            return SkrfNetwork(network)
         return super().__getattr__(name)
     
     def __post_init__(self):
-        self.data.renormalize(self.z0, 'power')
+        if isinstance(self.network, skrf.Network):
+            net_copy = self.network.copy()
+            net_copy.renormalize(50.0, 'power')
+            self.network = net_copy
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        if isinstance(self.data, NetworkCollection):
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        if isinstance(self.network, NetworkCollection):
             raise Exception("Cannot call s() on a Measured model that contains a NetworkCollection")
         
-        # Delegate to the shared interpolation helper
-        return interpolate_network_data(
-            f_old=self.data.f, 
+        f_old = jnp.array(self.network.f)
+        s_old = jnp.array(self.network.s)
+        
+        s_interp = interpolate_network_data(
+            f_old=f_old, 
             f_new=freq.f, 
-            data_old=self.data.s
+            data_old=s_old,
         )
+        
+        return renormalize_network_data(s_interp, 50.0, z0)
+        
+        
+class Touchstone(Model):
+    """
+    A model for a touchstone file.
+
+    This internally uses :class:`pmrf.models.SkrfNetwork` to load the touchstone.
+
+    Parameters
+    ----------
+    file : str
+        The file to open.
+    """
+    #: The underlying Network model use to encapsulate the touchstone.
+    touchstone: SkrfNetwork = field(static=True)
+    
+    def __init__(self, file: str, **kwargs):
+        skrf_network = SkrfNetwork(skrf.Network(file, **kwargs))
+        self.touchstone = skrf_network
+    
+    def build(self):
+        return self.touchstone
 
 
 class SModel(Model):
@@ -104,18 +137,27 @@ class SModel(Model):
 
     Parameters
     ----------
-    freq : Frequency
-        The frequency object containing the grid of the static data.
-    data : np.ndarray | jnp.ndarray
+    s_matrix : np.ndarray
         The static S-parameter matrix data of shape (n_freqs, n_ports, n_ports).
+    frequency : Frequency
+        The frequency object containing the grid of the static data.
+    z0 : np.ndarray
+        The characteristic impedance for which `s_matrix` is defined.
+        Can be initialized with any float-like value.
     """
-    #: The frequency grid of the static data.
-    freq: Frequency = field(converter=freeze)
     #: The static S-parameter matrix data.
-    data: np.ndarray | jnp.ndarray = field(converter=freeze)
+    s_matrix: np.ndarray
+    
+    #: The frequency grid of the static data.
+    frequency: Frequency = field(converter=freeze)
+    
+    #: The z0 for which the data is defined.
+    z0: np.ndarray = field(converter=np.asarray)
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        return interpolate_network_data(self.freq.f, freq.f, self.data)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s_matrix_interp = interpolate_network_data(self.frequency.f, freq.f, self.s_matrix)
+        return renormalize_network_data(s_matrix_interp, self.z0, z0)
+        
 
 
 class AModel(Model):
@@ -124,18 +166,19 @@ class AModel(Model):
 
     Parameters
     ----------
-    freq : Frequency
-        The frequency object containing the grid of the static data.
-    data : np.ndarray | jnp.ndarray
+    a_matrix : np.ndarray
         The static ABCD-parameter matrix data of shape (n_freqs, n_ports, n_ports).
+    frequency : Frequency
+        The frequency object containing the grid of the static data.
     """
-    #: The frequency grid of the static data.
-    freq: Frequency = field(converter=freeze)
     #: The static ABCD-parameter matrix data.
-    data: np.ndarray | jnp.ndarray = field(converter=freeze)
+    a_matrix: np.ndarray
+    
+    #: The frequency grid of the static data.
+    frequency: Frequency = field(converter=freeze)
 
     def a(self, freq: Frequency) -> jnp.ndarray:
-        return interpolate_network_data(self.freq.f, freq.f, self.data)
+        return interpolate_network_data(self.frequency.f, freq.f, self.a_matrix)
 
 
 class YModel(Model):
@@ -144,18 +187,19 @@ class YModel(Model):
 
     Parameters
     ----------
-    freq : Frequency
-        The frequency object containing the grid of the static data.
-    data : np.ndarray | jnp.ndarray
+    y_matrix : np.ndarray
         The static Y-parameter matrix data of shape (n_freqs, n_ports, n_ports).
+    frequency : Frequency
+        The frequency object containing the grid of the static data.
     """
-    #: The frequency grid of the static data.
-    freq: Frequency = field(converter=freeze)
     #: The static Y-parameter matrix data.
-    data: np.ndarray | jnp.ndarray = field(converter=freeze)
+    y_matrix: np.ndarray
+    
+    #: The frequency grid of the static data.
+    frequency: Frequency = field(converter=freeze)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        return interpolate_network_data(self.freq.f, freq.f, self.data)
+        return interpolate_network_data(self.frequency.f, freq.f, self.y_matrix)
 
 
 class ZModel(Model):
@@ -164,15 +208,16 @@ class ZModel(Model):
 
     Parameters
     ----------
-    freq : Frequency
-        The frequency object containing the grid of the static data.
-    data : np.ndarray | jnp.ndarray
+    z_matrix : np.ndarray
         The static Z-parameter matrix data of shape (n_freqs, n_ports, n_ports).
+    frequency : Frequency
+        The frequency object containing the grid of the static data.
     """
-    #: The frequency grid of the static data.
-    freq: Frequency = field(converter=freeze)
     #: The static Z-parameter matrix data.
-    data: np.ndarray | jnp.ndarray = field(converter=freeze)
+    z_matrix: np.ndarray
+    
+    #: The frequency grid of the static data.
+    frequency: Frequency = field(converter=freeze)
 
     def z(self, freq: Frequency) -> jnp.ndarray:
-        return interpolate_network_data(self.freq.f, freq.f, self.data)
+        return interpolate_network_data(self.frequency.f, freq.f, self.z_matrix)

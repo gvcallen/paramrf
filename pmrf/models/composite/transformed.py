@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.numpy as jnp
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field
+from pmrf.utils import field, ArrayLike
 
 class Renumbered(Model):
     """
@@ -36,7 +36,7 @@ class Renumbered(Model):
                 raise Exception("from_ports must have length==2 if to_ports is None")
             self.to_ports = (self.from_ports[1], self.from_ports[0])
         
-        if model.primary_property == 'a' and len(self.from_ports) != 2 and len(self.to_ports) != 2:
+        if model.primary_domain == 'a' and len(self.from_ports) != 2 and len(self.to_ports) != 2:
             raise ValueError("(from_ports, to_ports) must be either (0, 1) or (1, 0) for 'a' primary networks")        
         
         if len(self.from_ports) != len(self.to_ports):
@@ -64,8 +64,8 @@ class Renumbered(Model):
     def a(self, freq: Frequency) -> jnp.ndarray:
         return self.renumber(self.model.a(freq))
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        return self.renumber(self.model.s(freq))
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return self.renumber(self.model.s(freq, z0=z0))
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         return self.renumber(self.model.y(freq))
@@ -94,35 +94,3 @@ class Flipped(Renumbered):
         self.from_ports = tuple(range(n, 2 * n)) + tuple(range(0, n))
 
         super().__post_init__()
-        
-        
-class Stacked(Model):
-    """
-    A container that stacks multiple models in a block-diagonal fashion.
-
-    This combines several `Model` objects into a single, larger model where
-    the individual S-parameter matrices are placed along the diagonal of the
-    combined S-parameter matrix. This represents a set of unconnected
-    networks treated as a single component.
-
-    Attributes
-    ----------
-    models : tuple[Model, ...]
-        The models to stack.
-    """
-    models: tuple[Model, ...]
-    
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        num_ports = sum(model.nports for model in self.models)
-
-        s = jnp.zeros((freq.npoints, num_ports, num_ports), dtype=jnp.complex128)
-        i = 0
-        for submodel in self.models:
-            s_sub = submodel.s(freq)
-            n_sub = submodel.nports
-            
-            s = s.at[:,i:i+n_sub,i:i+n_sub].set(s_sub)
-            
-            i += n_sub
-        return s
-    

@@ -12,7 +12,7 @@ import distreqx.distributions as dist
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.models import Measured
+from pmrf.models import SkrfNetwork
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
@@ -130,7 +130,7 @@ def fit_minimize(
                 frequency = Frequency.from_skrf(data.frequency)
             else:
                 frequency = Frequency.from_skrf(data.common_frequency())
-        target = features(Measured(data), frequency)
+        target = features(SkrfNetwork(data), frequency)
     else:
         target = data
 

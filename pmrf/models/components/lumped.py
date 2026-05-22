@@ -3,12 +3,11 @@ Lumped elements (resistors, capacitors, inductors).
 """
 
 import jax.numpy as jnp
-import equinox as eqx
-from jaxtyping import ArrayLike
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import Param, param
+from pmrf.utils import ArrayLike
 
 class Resistor(Model):
     """
@@ -22,15 +21,15 @@ class Resistor(Model):
     #: Resistance in Ohms
     R: Param = param()
     
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         R = self.R
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
-        if jnp.isscalar(self.z0):
-            z_in = z_out = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z_in = self.z0[..., 0]
-            z_out = self.z0[..., 1]
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
 
         denom_c = R + (z_in + z_out)
         s_c11 = ((R - jnp.conj(z_in) + z_out) / denom_c) * ones
@@ -75,15 +74,15 @@ class Capacitor(Model):
     #: Capacitance in Farads
     C: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
         C = self.C
 
-        if jnp.isscalar(self.z0):
-            z_in = z_out = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z_in = self.z0[..., 0]
-            z_out = self.z0[..., 1]
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
         
         denom_c = 1.0 + 1j * w * C * (z_in + z_out)
         s_c11 = (1.0 - 1j * w * C * (jnp.conj(z_in) - z_out) ) / denom_c
@@ -128,15 +127,15 @@ class Inductor(Model):
     #: Inductance in Henrys
     L: Param = param()
     
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         L = self.L
         w = freq.w
 
-        if jnp.isscalar(self.z0):
-            z_in = z_out = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z_in = self.z0[..., 0]
-            z_out = self.z0[..., 1]
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
 
         denom_c = (1j * w * L) + (z_in + z_out)
         s_c11 = (1j * w * L - jnp.conj(z_in) + z_out) / denom_c
@@ -182,22 +181,22 @@ class ShuntResistor(Model):
     #: Resistance in Ohms
     R: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         R = self.R
         Y = 1.0 / R
         
-        if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
+            z_in, z_out = z0[..., 0], z0[..., 1]
 
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
-        denom = z0_0 + z0_1 + Y * z0_0 * z0_1
+        denom = z_in + z_out + Y * z_in * z_out
         
-        s11 = ((z0_1 - jnp.conj(z0_0) - Y * jnp.conj(z0_0) * z0_1) / denom) * ones
-        s22 = ((z0_0 - jnp.conj(z0_1) - Y * z0_0 * jnp.conj(z0_1)) / denom) * ones
-        s21 = ((2.0 * (z0_0.real * z0_1.real)**0.5) / denom) * ones
+        s11 = ((z_out - jnp.conj(z_in) - Y * jnp.conj(z_in) * z_out) / denom) * ones
+        s22 = ((z_in - jnp.conj(z_out) - Y * z_in * jnp.conj(z_out)) / denom) * ones
+        s21 = ((2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
         s = jnp.array([
@@ -224,21 +223,21 @@ class ShuntCapacitor(Model):
     #: Capacitance in Farads
     C: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
         C = self.C
         Y = 1j * w * C
         
-        if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
+            z_in, z_out = z0[..., 0], z0[..., 1]
         
-        denom = z0_0 + z0_1 + Y * z0_0 * z0_1
+        denom = z_in + z_out + Y * z_in * z_out
         
-        s11 = (z0_1 - jnp.conj(z0_0) - Y * jnp.conj(z0_0) * z0_1) / denom
-        s22 = (z0_0 - jnp.conj(z0_1) - Y * z0_0 * jnp.conj(z0_1)) / denom
-        s21 = (2.0 * (z0_0.real * z0_1.real)**0.5) / denom
+        s11 = (z_out - jnp.conj(z_in) - Y * jnp.conj(z_in) * z_out) / denom
+        s22 = (z_in - jnp.conj(z_out) - Y * z_in * jnp.conj(z_out)) / denom
+        s21 = (2.0 * (z_in.real * z_out.real)**0.5) / denom
         s12 = s21
 
         s = jnp.array([
@@ -266,23 +265,23 @@ class ShuntInductor(Model):
     #: Inductance in Henrys
     L: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
         L = self.L
         Z = 1j * w * L
 
-        if jnp.isscalar(self.z0):
-            z0_0 = z0_1 = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
         else:
-            z0_0, z0_1 = self.z0[..., 0], self.z0[..., 1]
+            z_in, z_out = z0[..., 0], z0[..., 1]
 
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
-        denom = Z * (z0_0 + z0_1) + z0_0 * z0_1
+        denom = Z * (z_in + z_out) + z_in * z_out
         
-        s11 = ((Z * (z0_1 - jnp.conj(z0_0)) - jnp.conj(z0_0) * z0_1) / denom) * ones
-        s22 = ((Z * (z0_0 - jnp.conj(z0_1)) - z0_0 * jnp.conj(z0_1)) / denom) * ones
-        s21 = ((Z * 2.0 * (z0_0.real * z0_1.real)**0.5) / denom) * ones
+        s11 = ((Z * (z_out - jnp.conj(z_in)) - jnp.conj(z_in) * z_out) / denom) * ones
+        s22 = ((Z * (z_in - jnp.conj(z_out)) - z_in * jnp.conj(z_out)) / denom) * ones
+        s21 = ((Z * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
         s = jnp.array([
@@ -292,13 +291,6 @@ class ShuntInductor(Model):
 
         return s            
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
-        inf = jnp.inf * jnp.ones(freq.npoints, dtype=jnp.complex128)
-        return jnp.array([
-            [inf, -inf],
-            [-inf, inf]
-        ]).transpose(2, 0, 1)
-    
     def y(self, freq: Frequency) -> jnp.ndarray:
         # Error checking implemented for Y-domain circuit solver attempts
         raise ValueError("Cannot get the Y-matrix of a ShuntInductor, since it is infinite.")    
@@ -321,21 +313,25 @@ class InductorQ(Model):
     #: Quality factor
     Q: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
         L = self.L
         Q = self.Q
 
-        z0_0 = z0_1 = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
+        else:
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
         
         # Total impedance Z = w*L/Q + j*w*L
         Z = w * L * (1.0 / Q + 1j)
 
-        denom = Z + (z0_0 + z0_1)
+        denom = Z + (z_in + z_out)
         
-        s11 = (Z - jnp.conj(z0_0) + z0_1) / denom
-        s22 = (Z + z0_0 - jnp.conj(z0_1)) / denom
-        s12 = s21 = (2.0 * (z0_0.real * z0_1.real)**0.5) / denom
+        s11 = (Z - jnp.conj(z_in) + z_out) / denom
+        s22 = (Z + z_in - jnp.conj(z_out)) / denom
+        s12 = s21 = (2.0 * (z_in.real * z_out.real)**0.5) / denom
 
         s = jnp.array([
             [s11, s12],
@@ -383,20 +379,24 @@ class CapacitorQ(Model):
     #: Quality factor
     Q: Param = param()
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
         C = self.C
         Q = self.Q
 
-        z0_0 = z0_1 = self.z0
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
+        else:
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
         
         Z_scaled = 1.0 + 1j * (1.0 / Q)
         
-        denom = Z_scaled + 1j * w * C * (z0_0 + z0_1)
+        denom = Z_scaled + 1j * w * C * (z_in + z_out)
         
-        s11 = (Z_scaled + 1j * w * C * (-jnp.conj(z0_0) + z0_1)) / denom
-        s22 = (Z_scaled + 1j * w * C * (z0_0 - jnp.conj(z0_1))) / denom
-        s12 = s21 = (1j * w * C * 2.0 * (z0_0.real * z0_1.real)**0.5) / denom
+        s11 = (Z_scaled + 1j * w * C * (-jnp.conj(z_in) + z_out)) / denom
+        s22 = (Z_scaled + 1j * w * C * (z_in - jnp.conj(z_out))) / denom
+        s12 = s21 = (1j * w * C * 2.0 * (z_in.real * z_out.real)**0.5) / denom
 
         s = jnp.array([
             [s11, s12],

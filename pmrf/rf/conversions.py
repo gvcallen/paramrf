@@ -390,6 +390,8 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
 def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.
+    
+    Includes branches to skip normalization if not needed.
 
     Parameters
     ----------
@@ -403,22 +405,35 @@ def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old=
         The original S-parameter definition.
     s_def_new : str, optional, default='power'
         The new S-parameter definition.
-    method: str, optional, default='direct'
-        The algorithm to use. Can be 'direct' or 'hub'.
+    method: str, optional, default='mobius'
+        The algorithm to use. Can be 'mobius' or 'hub'.
 
     Returns
     -------
     jnp.ndarray
         The renormalized S-parameter matrix.
     """
-    if method == 'hub':
-        return z2s(s2z(s, z0=z_old, s_def=s_def_old), z0=z_new, s_def=s_def_new)
-    elif method == 'mobius':
-        s_renorm = renormalize_s_mobius(s, z_old, z_new, s_def=s_def_old)
-        s_redef = s2s(s_renorm, z_new, s_def_new=s_def_new, s_def_old=s_def_old)
-        return s_redef
-    else:
-        raise ValueError("Unknown S renormalization method")
+    z_old_arr = jnp.asarray(z_old)
+    z_new_arr = jnp.asarray(z_new)
+    
+    defs_match = (s_def_old == s_def_new)
+    z_match = jnp.all(z_old_arr == z_new_arr)
+    is_matched = jnp.logical_and(defs_match, z_match)
+    
+    def _do_renorm():
+        if method == 'hub':
+            return z2s(s2z(s, z0=z_old_arr, s_def=s_def_old), z0=z_new_arr, s_def=s_def_new)
+        elif method == 'mobius':
+            s_renorm = renormalize_s_mobius(s, z_old_arr, z_new_arr, s_def=s_def_old)
+            s_redef = s2s(s_renorm, z_new_arr, s_def_new=s_def_new, s_def_old=s_def_old)
+            return s_redef
+        else:
+            raise ValueError(f"Unknown S renormalization method: {method}")
+            
+    def _identity():
+        return s
+        
+    return jax.lax.cond(is_matched, _identity, _do_renorm)
 
 def renormalize_s_mobius(
     s: jnp.ndarray,

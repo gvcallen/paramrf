@@ -6,10 +6,11 @@ import numpy as np
 
 from pmrf import Frequency, Param, param
 from pmrf.models import (
-    AbstractDiscrete, AbstractSingleProperty,
-    Host, ContinuousCallable, Measured
+    AbstractDiscrete, AbstractSingleDomain,
+    Host, ContinuousCallable, SkrfNetwork
 )
 from pmrf.network_collection import NetworkCollection
+from pmrf.utils import ArrayLike
 
 # ---------------------------------------------------------
 # Fixtures
@@ -33,7 +34,7 @@ class DummyDiscrete(AbstractDiscrete):
     """A 1-port discrete model with tabulated S-parameters."""
     frequency: Frequency
 
-    def s_discrete(self) -> jnp.ndarray:
+    def s_discrete(self, z0: ArrayLike = 50.0) -> jnp.ndarray:
         vals = jnp.array([1.0, 2.0, 3.0], dtype=complex)
         return vals.reshape(-1, 1, 1)
 
@@ -48,17 +49,17 @@ def test_abstract_discrete_interpolation(coarse_freq, fine_freq):
     # The middle point (1.5 GHz) should interpolate perfectly to 1.5
     assert jnp.allclose(s_interp[1, 0, 0], 1.5 + 0.0j)
     
-class DummySinglePropertyY(AbstractSingleProperty):
+class DummySinglePropertyY(AbstractSingleDomain):
     """A model that only natively knows its Y-parameters."""
-    kind: str = 'y'
-    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+    domain: str = 'y'
+    def matrix(self, freq: Frequency) -> jnp.ndarray:
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * 0.02 # 50 ohm admittance
 
 def test_single_property_routing(fine_freq):
     """Test that specifying property='y' correctly routes and triggers conversions."""
     model = DummySinglePropertyY()
     
-    # Querying Y should hit primary_matrix() directly
+    # Querying Y should hit matrix() directly
     y_mat = model.y(fine_freq)
     assert jnp.allclose(y_mat, 0.02)
     
@@ -76,10 +77,6 @@ class DummyHostModel(Host):
     val: Param = param(10.0)
     
     @property
-    def primary_property(self): 
-        return 's'
-    
-    @property
     def number_of_ports(self): 
         return 1
     
@@ -91,7 +88,7 @@ class DummyHostModel(Host):
 
 def test_host_model_single_execution(fine_freq):
     """Test standard single-thread execution of a Host model."""
-    model = DummyHostModel(val=5.0)
+    model = DummyHostModel(val=5.0, domain='s')
     s = model.s(fine_freq)
     
     assert s.shape == (5, 1, 1)
@@ -99,15 +96,21 @@ def test_host_model_single_execution(fine_freq):
 
 def test_host_model_vmap_multithreading(fine_freq):
     """Test that Host models successfully map batched parameters using the ThreadPool."""
-    # Create a batch of 3 parameter values
+    # Create a batch of 3 parameter values as a JAX array
     batched_val = jnp.array([1.0, 2.0, 3.0])
     model = DummyHostModel(val=batched_val)
     
-    # VMAP across parameters
-    @jax.vmap
-    def run_batch(m):
-        return m.s(fine_freq)
-        
+    # Build an in_axes tree matching the model structure.
+    # Map over JAX arrays (dynamic/batched), but skip NumPy arrays (static) and scalars.
+    axes = jax.tree.map(
+        lambda x: 0 if isinstance(x, jax.Array) and x.ndim > 0 else None, 
+        model
+    )
+    
+    # Pass the custom in_axes to vmap.
+    run_batch = jax.vmap(lambda m: m.s(fine_freq), in_axes=(axes,))
+    
+    # Run the batched execution
     s_batch = run_batch(model)
     
     # Output should be (batch=3, nfreq=5, nports=1, nports=1)
@@ -147,7 +150,7 @@ def test_measured_skrf_interpolation(coarse_freq, fine_freq):
     s_data = np.array([1.0, 2.0, 3.0]).reshape(-1, 1, 1)
     ntwk = skrf.Network(frequency=skrf_freq, s=s_data, z0=50)
     
-    measured_model = Measured(data=ntwk)
+    measured_model = SkrfNetwork(network=ntwk)
     s_interp = measured_model.s(fine_freq)
     
     assert s_interp.shape == (5, 1, 1)
@@ -165,12 +168,12 @@ def test_measured_network_collection_getattr(coarse_freq):
     ntwk2.name = 'line'
     
     nc = NetworkCollection([ntwk1, ntwk2])
-    measured_collection = Measured(data=nc)
+    measured_collection = SkrfNetwork(network=nc)
     
     sub_model = measured_collection.thru
     
-    assert isinstance(sub_model, Measured)
-    assert np.allclose(sub_model.data.s, ntwk1.s)
+    assert isinstance(sub_model, SkrfNetwork)
+    assert np.allclose(sub_model.network.s, ntwk1.s)
     
     with pytest.raises(Exception, match="Cannot call s\\(\\) on a Measured model that contains a NetworkCollection"):
         measured_collection.s(coarse_freq)

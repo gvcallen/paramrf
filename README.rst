@@ -7,9 +7,9 @@
    :alt: ParamRF Logo
 
 
-**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) modeling framework. It provides a declarative syntax for creating RF circuit and surrogate models using `JAX <https://github.com/jax-ml/jax>`_.
+**ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) design and modeling framework. It provides a declarative syntax for creating microwave circuits and surrogate models using `JAX <https://github.com/jax-ml/jax>`_.
 
-The library provides tools for model simulation, optimization, fitting, statistical analysis, and Bayesian inference.
+The library provides tools for frequency-domain model simulation, optimization, fitting, statistical analysis, and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen

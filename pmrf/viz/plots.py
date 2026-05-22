@@ -5,7 +5,7 @@ import skrf
 
 from pmrf.frequency import Frequency
 from pmrf.fitting.result import FitResult
-from pmrf.models import Measured
+from pmrf.models import SkrfNetwork
 from pmrf.evaluators import AbstractEvaluator, Feature
 from pmrf.network_collection import NetworkCollection
 
@@ -147,9 +147,9 @@ def plot_fit_result(
         try:
             if isinstance(result.data, NetworkCollection | skrf.Network):
                 if isinstance(result, NetworkCollection):
-                    data = Measured(result.data[0])
+                    data = SkrfNetwork(result.data[0])
                 else:
-                    data = Measured(result.data)
+                    data = SkrfNetwork(result.data)
                 y_meas = data_evaluator(data, result.frequency)
             else:
                 y_meas = result.data
