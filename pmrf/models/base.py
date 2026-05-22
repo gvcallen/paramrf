@@ -447,22 +447,21 @@ class Model(eqx.Module):
             return self.build().s(freq, z0=z0)
 
         # Fetch primary
-        primary_dom = self.primary_domain
-        
-        kwargs = {'z0': z0} if primary_dom == 's' else {}
+        primary_domain = self.primary_domain
+        kwargs = {'z0': z0} if primary_domain == 's' else {}
         val = self.primary_matrix(freq, **kwargs)
 
         # Return or Convert
-        if primary_dom == 's':
+        if primary_domain == 's':
             return val
-        elif primary_dom == 'a':
+        elif primary_domain == 'a':
             return a2s(val, z0)
-        elif primary_dom == 'z':
+        elif primary_domain == 'z':
             return z2s(val, z0)
-        elif primary_dom == 'y':
+        elif primary_domain == 'y':
             return y2s(val, z0)
         
-        raise NotImplementedError(f"Conversion from '{primary_dom}' to 's' is not implemented.")
+        raise NotImplementedError(f"Conversion from '{primary_domain}' to 's' is not implemented.")
     
     @eqx.filter_jit
     @unwrap_self
@@ -485,22 +484,23 @@ class Model(eqx.Module):
             return self.build().a(freq)
         
         # Fetch primary
-        primary_prop = self.primary_domain
-        val = self.primary_matrix(freq)
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix(freq, **kwargs)
 
         # Return or Convert
-        if primary_prop == 'a':
+        if primary_domain == 'a':
             return val
         
         # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
+        if primary_domain == 's':
             s = val
-        elif primary_prop == 'z':
+        elif primary_domain == 'z':
             s = z2s(val, HUB_Z0)
-        elif primary_prop == 'y':
+        elif primary_domain == 'y':
             s = y2s(val, HUB_Z0)
         else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'a' is not implemented.")
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'a' is not implemented.")
             
         return s2a(s, HUB_Z0)
 
@@ -525,22 +525,23 @@ class Model(eqx.Module):
             return self.build().z(freq)
 
         # Fetch primary
-        primary_prop = self.primary_domain
-        val = self.primary_matrix(freq)
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix(freq, **kwargs)
 
         # Return or Convert
-        if primary_prop == 'z':
+        if primary_domain == 'z':
             return val
 
         # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
+        if primary_domain == 's':
             s = val
-        elif primary_prop == 'a':
+        elif primary_domain == 'a':
             s = a2s(val, HUB_Z0)
-        elif primary_prop == 'y':
+        elif primary_domain == 'y':
             s = y2s(val, HUB_Z0)
         else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'z' is not implemented.")
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'z' is not implemented.")
 
         return s2z(s, HUB_Z0)
 
@@ -565,22 +566,23 @@ class Model(eqx.Module):
             return self.build().y(freq)
 
         # Fetch primary
-        primary_prop = self.primary_domain
-        val = self.primary_matrix(freq)
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix(freq, **kwargs)
 
         # Return or Convert
-        if primary_prop == 'y':
+        if primary_domain == 'y':
             return val
 
         # Convert via S parameters (Hub strategy)
-        if primary_prop == 's':
+        if primary_domain == 's':
             s = val
-        elif primary_prop == 'a':
+        elif primary_domain == 'a':
             s = a2s(val, HUB_Z0)
-        elif primary_prop == 'z':
+        elif primary_domain == 'z':
             s = z2s(val, HUB_Z0)
         else:
-            raise NotImplementedError(f"Conversion from '{primary_prop}' to 'y' is not implemented.")
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y' is not implemented.")
 
         return s2y(s, HUB_Z0)            
     
