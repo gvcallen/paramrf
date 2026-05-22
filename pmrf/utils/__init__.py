@@ -22,3 +22,5 @@ from pmrf.utils.tree import (
     is_param as is_param,
     is_model as is_model,    
 )
+
+from jaxtyping import ArrayLike as ArrayLike

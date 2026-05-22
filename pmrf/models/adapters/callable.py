@@ -5,18 +5,19 @@ Adapters that wrap callables representing external models.
 from typing import Callable
 
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.models.adapters.base import AbstractSingleProperty, AbstractSingleDiscreteProperty
+from pmrf.models.adapters.base import AbstractSingleDomain, AbstractSingleDiscreteDomain
 from pmrf.parameters import Param, param
-from pmrf.utils import freeze, field, unwrap, unfreeze
+from pmrf.utils import freeze, field, unwrap_self
     
-class ContinuousCallable(AbstractSingleProperty):
+class ContinuousCallable(AbstractSingleDomain):
     """
     A model that predicts its output at an arbitrary frequency using an arbitrary callable.
     
-    This class can be used to wrap external machine learning architectures (Equinox/Parax/other).
-
+    This class can be used to wrap external machine learning architectures (Equinox/other).
+    
     Parameters
     ----------
     fn : Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
@@ -35,15 +36,19 @@ class ContinuousCallable(AbstractSingleProperty):
     #: Parameters to pass to fn
     theta: Param = param()
     
-    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+    @eqx.filter_jit
+    @unwrap_self
+    def matrix(self, freq: Frequency) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
-            return unfreeze(self.fn)(freq.f_scaled, flat_theta)
+            mat = self.fn(freq.f_scaled, flat_theta)
         else:
-            return unfreeze(self.fn)(freq.f_scaled)
+            mat = self.fn(freq.f_scaled)
+            
+        return jnp.asarray(mat, dtype=jnp.complex128)
     
 
-class DiscreteCallable(AbstractSingleDiscreteProperty):
+class DiscreteCallable(AbstractSingleDiscreteDomain):
     """
     A model that predicts its output at a discrete set of frequencies already known to the model using an arbitrary callable.
     
@@ -67,9 +72,13 @@ class DiscreteCallable(AbstractSingleDiscreteProperty):
     #: Parameters to pass to fn
     theta: Param = param()
     
+    @eqx.filter_jit
+    @unwrap_self
     def discrete_matrix(self) -> jnp.ndarray:
         if self.theta is not None:
             flat_theta = jnp.array(self.theta)
-            return unfreeze(self.fn)(flat_theta)
+            mat = self.fn(flat_theta)
         else:
-            return unfreeze(self.fn)()
+            mat = self.fn()
+            
+        return jnp.asarray(mat, dtype=jnp.complex128)

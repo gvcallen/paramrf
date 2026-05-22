@@ -15,7 +15,7 @@ except ImportError:
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.models import Measured
+from pmrf.models import SkrfNetwork
 from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample, AbstractSampler
@@ -116,7 +116,7 @@ def fit_sample(
                 frequency = Frequency.from_skrf(data.frequency)
             else:
                 frequency = Frequency.from_skrf(data.common_frequency())
-        observed = features(Measured(data), frequency)
+        observed = features(SkrfNetwork(data), frequency)
     else:
         observed = data
         

@@ -5,10 +5,10 @@ Rational approximation surrogate models.
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models.adapters.base import AbstractSingleProperty
+from pmrf.models.adapters.base import AbstractSingleDomain
 from pmrf.parameters import Param, param
 
-class PolynomialRatio(AbstractSingleProperty):
+class PolynomialRatio(AbstractSingleDomain):
     """
     (experimental) A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) 
     where s = j*w.
@@ -52,7 +52,7 @@ class PolynomialRatio(AbstractSingleProperty):
         return H
     
     
-class PoleResidue(AbstractSingleProperty):
+class PoleResidue(AbstractSingleDomain):
     """
     (experimental) A general N-port model defined by a pole-residue expansion:
     H(s) = D + sum( R_i / (s - p_i) )
@@ -94,7 +94,7 @@ class PoleResidue(AbstractSingleProperty):
         return H
     
     
-class StateSpace(AbstractSingleProperty):
+class StateSpace(AbstractSingleDomain):
     """
     (experimental) A general N-port model defined by continuous-time state-space matrices:
     H(s) = C * (sI - A)^-1 * B + D
@@ -148,7 +148,7 @@ class StateSpace(AbstractSingleProperty):
         return H
     
     
-class BarycentricRational(AbstractSingleProperty):
+class BarycentricRational(AbstractSingleDomain):
     """
     (experimental) A highly numerically stable rational model defined by a barycentric expansion:
     H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]

@@ -1,7 +1,7 @@
 """
 Adapter models to bridge ParamRF with external software.
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -10,7 +10,7 @@ from functools import partial
 import concurrent.futures
 
 from pmrf.frequency import Frequency
-from pmrf.models import Model
+from pmrf.models.adapters.base import AbstractSingleDomain
             
 def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     all_leaves = jax.tree.leaves((dynamic_vals, freq))
@@ -41,7 +41,7 @@ def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     return np.stack(results)
 
 
-class Host(Model):
+class Host(AbstractSingleDomain):
     """
     An abstract base class for models where computation occurs on the Host (CPU/Python)
     rather than the Device (XLA/GPU).
@@ -57,10 +57,7 @@ class Host(Model):
     in a thread-safe manner, as it may be called from multiple threads that share the same memory.
     """
     @property
-    def primary_property(self):
-        raise NotImplementedError("Override 'primary_property' directly when creating a Host model")
-    
-    @property
+    @abstractmethod
     def number_of_ports(self):
         raise NotImplementedError("Override 'number_of_ports' directly when using a Host model")
 
@@ -74,7 +71,7 @@ class Host(Model):
         """
         raise NotImplementedError("Subclasses of `Host` must implement 'compute'.")
 
-    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+    def matrix(self, freq: Frequency) -> jnp.ndarray:
         """
         The JIT-compatible entry point. 
         Automatically handles threading if called inside a vmap.

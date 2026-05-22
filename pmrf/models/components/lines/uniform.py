@@ -11,7 +11,7 @@ from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
 from pmrf.parameters import Param, param
 from pmrf.constraints import Positive, GreaterThan
-from pmrf.utils import field
+from pmrf.utils import field, ArrayLike
 
 class TransmissionLine(Model):
     r"""
@@ -49,7 +49,7 @@ class TransmissionLine(Model):
         """
         raise NotImplementedError
 
-    def s(self, frequency: Frequency) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         zc, gL = self.zc_and_gammaL(frequency)
         
         a = jnp.zeros(frequency.npoints, dtype=complex)
@@ -60,9 +60,9 @@ class TransmissionLine(Model):
             [s21, a],
         ]).transpose(2, 0, 1)
 
-        # Renormalize into the model's characteristic impedance and power waves
+        # Renormalize into the requested characteristic impedance and power waves
         # (the above formulation is in terms of traveling waves).
-        return renormalize_s(s, zc, self.z0, 'traveling', 'power')
+        return renormalize_s(s, zc, z0, 'traveling', 'power')
 
     def y(self, frequency: Frequency) -> jnp.ndarray:
         zc, gL = self.zc_and_gammaL(frequency)
@@ -93,13 +93,13 @@ class FloatingLine(Model):
 
     Parameters
     ----------
-    loating : TransmissionLine
+    floating : TransmissionLine
         The inner transmission line model to be wrapped.
     """
     #: Inner transmission line model
     floating: TransmissionLine
 
-    def s(self, frequency: Frequency) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line
         zc, gL = self.floating.zc_and_gammaL(frequency)
         
@@ -118,7 +118,7 @@ class FloatingLine(Model):
         ]).transpose(2, 0, 1)
 
         # Renormalize the 4-port matrix
-        return renormalize_s(s, zc, self.z0, 'traveling', 'power')
+        return renormalize_s(s, zc, z0, 'traveling', 'power')
 
     def y(self, frequency: Frequency) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line

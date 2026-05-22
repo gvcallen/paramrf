@@ -6,9 +6,11 @@ from dataclasses import InitVar
 
 from pmrf.models import Model, Ground
 from pmrf.frequency import Frequency
-from pmrf.utils import field
+from pmrf.utils import field, ArrayLike
 from pmrf.models.components.ideal import Port
-from pmrf.rf import connect_s_arbitrary, connect_y_arbitrary, cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s
+from pmrf.rf import connect_s_arbitrary, connect_y_arbitrary, cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s, renormalize_s
+
+EVAL_Z0 = 50.0
 
 class Circuit(Model):
     """
@@ -126,30 +128,32 @@ class Circuit(Model):
         self.port_idxs = port_idxs
         
     @property
-    def primary_property(self):
+    def primary_domain(self):
         return self.domain
         
-    def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
+    def primary_matrix(self, frequency: Frequency, **kwargs) -> jnp.ndarray:
         if self.domain == 's':
-            return self.s_impl(freq)
+            z0 = kwargs.pop('z0')
+            return self.s_impl(frequency, z0=z0)
         elif self.domain == 'y':
-            return self.y_impl(freq)
+            return self.y_impl(frequency)
         else:
             raise Exception(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
-
-    def s_impl(self, freq: Frequency) -> jnp.ndarray:
-        Smats = [model.s(freq) for model in self.circuit]
-        z0s = [model.z0 for model in self.circuit]
+    
+    def s_impl(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        Smats = [model.s(freq, z0=EVAL_Z0) for model in self.circuit]
+        z0s = [EVAL_Z0 for _ in self.circuit]
         
         kwargs = {'method': self.method} if self.method is not None else {}
-        Scon, _z0con = connect_s_arbitrary(
+        Scon, _ = connect_s_arbitrary(
             Smats,
             z0s,
             self.indexed_connections,
             self.port_idxs,
             **kwargs,
         )
-        return Scon
+        
+        return renormalize_s(Scon, z_old=EVAL_Z0, z_new=z0, s_def_old='power', s_def_new='power')    
     
     def y_impl(self, freq: Frequency) -> jnp.ndarray:
         """
@@ -260,31 +264,32 @@ class Cascade(Model):
         return merged
     
     @property
-    def primary_property(self):
+    def primary_domain(self):
         return self.domain
     
-    def primary_matrix(self, freq):
+    def primary_matrix(self, frequency: Frequency, **kwargs):
         if self.domain == 's':
-            return self.s_impl(freq)
+            z0 = kwargs.pop('z0')
+            return self.s_impl(frequency, z0=z0)
         elif self.domain == 'a':
-            return self.a_impl(freq)
+            return self.a_impl(frequency)
         else:
             raise ValueError(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
 
-    def a_impl(self, freq: Frequency) -> jnp.ndarray:
+    def a_impl(self, frequency: Frequency) -> jnp.ndarray:
         kwargs = {'method': self.method} if self.method is not None else {}
-        return cascade_a([model.a(freq) for model in self.merged_cascade], **kwargs)
+        return cascade_a([model.a(frequency) for model in self.merged_cascade], **kwargs)
 
-    def s_impl(self, freq: Frequency) -> jnp.ndarray:
+    def s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         merged_models = self.merged_cascade
-
-        Smats = jnp.array([model.s(freq) for model in merged_models])
-        z0s = jnp.array([model.z0 for model in merged_models])
+        
+        Smats = jnp.array([model.s(frequency, z0=EVAL_Z0) for model in merged_models])
+        z0s = jnp.array([EVAL_Z0 for _ in merged_models])
         
         kwargs = {'method': self.method} if self.method is not None else {}
-        Scas, z0cas = cascade_s(Smats, z0s, **kwargs)
+        Scas, _ = cascade_s(Smats, z0s, **kwargs)
         
-        return Scas
+        return renormalize_s(Scas, z_old=EVAL_Z0, z_new=z0, s_def_old='power', s_def_new='power')
     
     
 class Terminated(Model):
@@ -321,7 +326,7 @@ class Terminated(Model):
             raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
         
     @property
-    def primary_property(self):
+    def primary_domain(self):
         if self.domain_from == 'a' and self.domain_to == 's':
             return 's'
         elif self.domain_from == 's' and self.domain_to == 's':
@@ -329,31 +334,30 @@ class Terminated(Model):
         else:
             raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
     
-    def primary_matrix(self, freq):
+    def primary_matrix(self, frequency: Frequency, **kwargs):
         if self.domain_from == 'a' and self.domain_to == 's':
-            return self.a_in_s_impl(freq)
+            z0 = kwargs.pop('z0')
+            return self.a_in_s_impl(frequency, z0=z0)
         elif self.domain_from == 's' and self.domain_to == 's':
-            return self.s_in_s_impl(freq)
+            z0 = kwargs.pop('z0')
+            return self.s_in_s_impl(frequency, z0=z0)
         else:
             raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
         
-    def a_in_s_impl(self, freq: Frequency) -> jnp.ndarray:
-        Amat_from = self.terminated_from.a(freq)
-        Smat_into = self.terminated_into.s(freq)
-        z0_into = self.terminated_into.z0
+    def a_in_s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        Amat_from = self.terminated_from.a(frequency)
+        Smat_into = self.terminated_into.s(frequency, z0=z0)
         
         kwargs = {'method': self.method} if self.method is not None else {}
-        S_term = terminate_a_in_s(Amat_from, Smat_into, z0_into, z0_into, **kwargs)
+        S_term = terminate_a_in_s(Amat_from, Smat_into, z0=z0, s_def='power', **kwargs)
         
         return S_term        
 
-    def s_in_s_impl(self, freq: Frequency) -> jnp.ndarray:
-        Smat_from = self.terminated_from.s(freq)
-        z0_from = self.terminated_from.z0
-        Smat_into = self.terminated_into.s(freq)
-        z0_into = self.terminated_into.z0
+    def s_in_s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        Smat_from = self.terminated_from.s(frequency, z0=EVAL_Z0)
+        Smat_into = self.terminated_into.s(frequency, z0=EVAL_Z0)
         
         kwargs = {'method': self.method} if self.method is not None else {}
-        S_term, z0_term = terminate_s_in_s(Smat_from, z0_from, Smat_into, z0_into, **kwargs)
+        S_term, _ = terminate_s_in_s(Smat_from=Smat_from, z0_from=EVAL_Z0, Smat_into=Smat_into, z0_into=EVAL_Z0, **kwargs)
         
-        return S_term
+        return renormalize_s(S_term, EVAL_Z0, z0, 'power', 'power')

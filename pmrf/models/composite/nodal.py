@@ -3,15 +3,15 @@ Models that alter the nodal environment of wrapped models.
 
 This includes adding/removing ground, introducing coupling, etc.
 """
-from typing import Self
+from typing import Any
 
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 import numpy as np
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.rf.conversions import s2y, y2s
+from pmrf.rf import y2s, renormalize_s
+from pmrf.utils import ArrayLike
 
 class GroundLifted(Model):
     r"""
@@ -34,45 +34,26 @@ class GroundLifted(Model):
     #: The inner N-port model to be wrapped.
     lifted: Model
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         n = self.lifted.nports
 
-        # TODO currently we do not support mixing internal characteristic impedances.
-        # We therefore could broadcast self.z0, though this code is just left for reference
-        if jnp.isscalar(self.z0):
-            inner_z0 = self.z0
-            z_ret = jnp.full((freq.npoints, n), self.z0, dtype=jnp.complex128)
-        else:
-            if self.z0.shape[-1] >= 2 * n:
-                inner_z0 = self.z0[..., 0:2*n:2]
-                z_ret = self.z0[..., 1:2*n:2]
-            else:
-                inner_z0 = jnp.repeat(self.z0[..., 0:1], n, axis=-1)
-                z_ret = jnp.repeat(
-                    self.z0[..., 1:2] if self.z0.shape[-1] > 1 else self.z0[..., 0:1], 
-                    n, axis=-1
-                )
+        # Evaluate the inner model at a uniform, scalar reference impedance
+        z0_eval = 50.0
+        s_inner = self.lifted.s(freq, z0=z0_eval)
 
-        s_inner = self.lifted.s(freq)
-
-        y_ret = 1.0 / z_ret
-        r_ret = z_ret.real
-        y_tot = jnp.sum(y_ret, axis=-1, keepdims=True)
-
-        term = jnp.sqrt(r_ret) * y_ret
-        s_ret = 2.0 * jnp.einsum('...i,...j->...ij', term, term)
-        s_ret = s_ret / y_tot[..., jnp.newaxis]
-
-        diag_correction = jnp.conj(z_ret) / z_ret
+        # The lifted ground forms an ideal common return node (an N-port parallel junction).
+        s_ret = jnp.full((freq.npoints, n, n), 2.0 / n, dtype=jnp.complex128)
         i = jnp.arange(n)
-        s_ret = s_ret.at[..., i, i].add(-diag_correction)
+        s_ret = s_ret.at[..., i, i].add(-1.0)
 
-        s_out = jnp.zeros(s_inner.shape[:-2] + (2 * n, 2 * n), dtype=jnp.complex128)
+        # Superimpose signal ports (even) and return ports (odd)
+        s_out = jnp.zeros((freq.npoints, 2 * n, 2 * n), dtype=jnp.complex128)
         
         s_out = s_out.at[..., 0::2, 0::2].set(s_inner)
         s_out = s_out.at[..., 1::2, 1::2].set(s_ret)
 
-        return s_out
+        # Renormalize to the requested z0
+        return renormalize_s(s_out, z0_eval, z0, 'power', 'power')
     
 
 class GroundExposed(Model):
@@ -97,16 +78,9 @@ class GroundExposed(Model):
     #: The inner N-port model to be wrapped.
     exposed: Model
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        if jnp.isscalar(self.z0):
-            z0_inner = self.z0
-            z0_new_port = self.z0
-        else:
-            z0_inner = self.z0[..., :-1]
-            z0_new_port = self.z0[..., -1:]
-
-        s_inner = self.exposed.s(freq)
-        y_inner = s2y(s_inner, z0=z0_inner)
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        # Fetch the intrinsic admittance matrix
+        y_inner = self.exposed.y(freq)
 
         col_sums = jnp.sum(y_inner, axis=-1, keepdims=True)
         row_sums = jnp.sum(y_inner, axis=-2, keepdims=True)
@@ -116,8 +90,8 @@ class GroundExposed(Model):
         bottom_block = jnp.concatenate([-row_sums, total_sum], axis=-1)
         y_exposed = jnp.concatenate([top_block, bottom_block], axis=-2)
 
-        return y2s(y_exposed, z0=self.z0)
-    
+        return y_exposed
+        
 
 class Shunt(Model):
     r"""
@@ -141,10 +115,13 @@ class Shunt(Model):
         if self.shunt.nports != 1:
             raise ValueError(f"Shunt requires a 1-port model. Received a {self.shunt.nports}-port model.")
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        s_1p = self.shunt.s(freq)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        # Evaluate the 1-port shunt at a common uniform reference
+        z0_eval = 50.0
+        s_1p = self.shunt.s(freq, z0=z0_eval)
         gamma = s_1p[:, 0, 0]
         
+        # Map Gamma into a 2-port transmission matrix at that same reference
         denom = gamma + 3.0
         s11 = (gamma - 1.0) / denom
         s21 = 2.0 * (1.0 + gamma) / denom
@@ -154,9 +131,14 @@ class Shunt(Model):
             [s21, s11],
         ]).transpose(2, 0, 1)
         
-        return S_shunt
+        # Renormalize to the requested z0 
+        return renormalize_s(S_shunt, z0_eval, z0, 'power', 'power')
     
     
+import numpy as np
+import jax.numpy as jnp
+from typing import Any
+
 class CoupledOnePorts(Model):
     r"""
     (experimental) Wraps N 1-port models (e.g. inductors) and couples them via a given K-matrix.
@@ -165,20 +147,65 @@ class CoupledOnePorts(Model):
     ----------
     coupled : list[Model]
         The sequence of 1-port models to couple.
-    k_matrix : ArrayLike
-        The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
-        diagonals, and be positive semi-definite. 
+    coupling : Any
+        The coupling definition between the elements. Meaning depends on `method`.
+        For fixed coupling, pass Python collections and numpy arrays.
+        For variable coupling, pass parameters from `pmrf.parameters`.
+    method : str, default='coefficients'
+        The meaning of `coupling`. Options are ('coefficients', 'matrix').
+        For 'coefficients', must be a list of tuples (model_i, model_j, k_factor).
+        For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
+        diagonals, and is positive semi-definite. 
 
     Reference
-    ----------------------
+    ---------
     Creates an N-port model where the off-diagonal interactions are defined 
     by the mutual admittance relation: 
     $$ Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}} $$
     """
     #: The sequence of 1-port models to couple.
-    coupled: list[Model]
-    #: The NxN coupling coefficient matrix.
-    k_matrix: ArrayLike
+    coupled: list['Model']
+    
+    #: The coupling definition (list of tuples or array-like matrix).
+    coupling: Any
+    
+    #: The method used to interpret the coupling definition.
+    method: str = 'coefficients'
+
+    @property
+    def coupling_matrix(self) -> jnp.ndarray:
+        """
+        Evaluates the coupling definition based on the method and returns the NxN coupling matrix.
+        
+        Returns
+        -------
+        jnp.ndarray
+            The full, symmetric NxN coupling matrix.
+        """
+        n = len(self.coupled)
+        
+        if self.method == 'matrix':
+            return jnp.asarray(self.coupling)
+            
+        elif self.method == 'coefficients':
+            k = jnp.eye(n)
+            seen = set()
+            
+            for i, j, k_val in self.coupling:
+                if (i, j) in seen or (j, i) in seen:
+                    raise ValueError(f"Duplicate coupling pair provided for indices ({i}, {j}).")
+                
+                seen.add((i, j))
+                seen.add((j, i))
+                
+                # JAX compatible array update
+                k = k.at[i, j].set(k_val)
+                k = k.at[j, i].set(k_val)
+                
+            return k
+            
+        else:
+            raise ValueError(f"Unknown method '{self.method}'. Must be 'coefficients' or 'matrix'.")
 
     def __post_init__(self):
         for i, m in enumerate(self.coupled):
@@ -186,20 +213,21 @@ class CoupledOnePorts(Model):
                 raise ValueError(f"CoupledOnePorts requires 1-port models. Model {i} has {m.nports} ports.")
         
         n = len(self.coupled)
-        if self.k_matrix.shape != (n, n):
-            raise ValueError(f"k_matrix must be shape ({n}, {n}), got {self.k_matrix.shape}")
-
-        k = np.asarray(self.k_matrix)
-        if not np.allclose(k, k.T):
-            raise ValueError("k_matrix must be symmetric.")
-        if not np.allclose(np.diag(k), 1.0):
-            raise ValueError("k_matrix diagonals must be exactly 1.0 (self-coupling).")
+        k = self.coupling_matrix
         
-        eigenvalues = np.linalg.eigvalsh(k)
-        if np.any(eigenvalues < -1e-10):
-            raise ValueError("k_matrix must be positive semi-definite to represent a physical system.")
+        if k.shape != (n, n):
+            raise ValueError(f"Coupling matrix must be shape ({n}, {n}), got {k.shape}")
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
+        if not jnp.allclose(k, k.T):
+            raise ValueError("Coupling matrix must be symmetric.")
+        if not jnp.allclose(jnp.diag(k), 1.0):
+            raise ValueError("Coupling matrix diagonals must be exactly 1.0 (self-coupling).")
+        
+        eigenvalues = jnp.linalg.eigvalsh(k)
+        if jnp.any(eigenvalues < -1e-10):
+            raise ValueError("Coupling matrix must be positive semi-definite to represent a physical system.")
+
+    def y(self, freq: 'Frequency') -> jnp.ndarray:
         n = len(self.coupled)
         
         y_diags = []
@@ -210,36 +238,14 @@ class CoupledOnePorts(Model):
         y_diag = jnp.stack(y_diags, axis=-1)
         
         y_outer = y_diag[..., :, jnp.newaxis] * y_diag[..., jnp.newaxis, :]
-        y_coupled = self.k_matrix * jnp.sqrt(y_outer)
+        
+        k_mat = self.coupling_matrix
+        y_coupled = k_mat * jnp.sqrt(y_outer)
         
         i = jnp.arange(n)
         y_coupled = y_coupled.at[..., i, i].set(y_diag)
         
         return y_coupled
-    
-    @classmethod
-    def from_couplings(cls, models: list[Model], couplings: list[tuple[int, int, float]], **kwargs) -> Self:
-        """
-        Builds of model of coupled one-ports from a list of couplings coefficients between them.
-        
-        Parameters:
-        - models: The models to be coupled.
-        - defined_couplings: A list of tuples (model_i, model_j, k_factor).
-        """
-        seen = set()
-        
-        n_components = len(models)
-        K = np.eye(n_components)
-        
-        for i, j, k_val in couplings:
-            if (i, j) in seen:
-                raise Exception(f"Same coupling pairs passed twice. Indices {i} and {j}")
-            seen.add((i, j))
-            
-            K[i, j] = k_val
-            K[j, i] = k_val
-            
-        return CoupledOnePorts(models, K, **kwargs)    
 
 
 class CoupledTwoPorts(Model):
@@ -252,22 +258,67 @@ class CoupledTwoPorts(Model):
     Parameters
     ----------
     coupled : list[Model]
-        The sequence of 2-port series models to couple.
-    k_matrix : ArrayLike
-        The NxN coupling coefficient matrix. Must be symmetric, have 1.0 on the 
-        diagonals, and be positive semi-definite.
+        The sequence of 2-port models to couple.
+    coupling : Any
+        The coupling definition between the elements. Meaning depends on `method`.
+        For fixed coupling, pass Python collections and numpy arrays.
+        For variable coupling, pass parameters from `pmrf.parameters`.
+    method : str, default='coefficients'
+        The meaning of `coupling`. Options are ('coefficients', 'matrix').
+        For 'coefficients', must be a list of tuples (model_i, model_j, k_factor).
+        For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
+        diagonals, and is positive semi-definite. 
 
     Reference
-    ----------------------
+    ---------
     Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
     component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
     and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
     $$ Y_{nodal} = A Z_b^{-1} A^T $$
     """
     #: The sequence of 2-port series models to couple.
-    coupled: list[Model]
-    #: The NxN coupling coefficient matrix (k).
-    k_matrix: ArrayLike
+    coupled: list['Model']
+    
+    #: The coupling definition (list of tuples or array-like matrix).
+    coupling: Any
+    
+    #: The method used to interpret the coupling definition.
+    method: str = 'coefficients'
+
+    @property
+    def coupling_matrix(self) -> jnp.ndarray:
+        """
+        Evaluates the coupling definition based on the method and returns the NxN coupling matrix.
+        
+        Returns
+        -------
+        jnp.ndarray
+            The full, symmetric NxN coupling matrix.
+        """
+        n = len(self.coupled)
+        
+        if self.method == 'matrix':
+            return jnp.asarray(self.coupling)
+            
+        elif self.method == 'coefficients':
+            k = jnp.eye(n)
+            seen = set()
+            
+            for i, j, k_val in self.coupling:
+                if (i, j) in seen or (j, i) in seen:
+                    raise ValueError(f"Duplicate coupling pair provided for indices ({i}, {j}).")
+                
+                seen.add((i, j))
+                seen.add((j, i))
+                
+                # JAX compatible array update
+                k = k.at[i, j].set(k_val)
+                k = k.at[j, i].set(k_val)
+                
+            return k
+            
+        else:
+            raise ValueError(f"Unknown method '{self.method}'. Must be 'coefficients' or 'matrix'.")
 
     def __post_init__(self):
         for i, m in enumerate(self.coupled):
@@ -275,20 +326,21 @@ class CoupledTwoPorts(Model):
                 raise ValueError(f"CoupledTwoPorts requires 2-port models. Model {i} has {m.nports} ports.")
         
         n = len(self.coupled)
-        if self.k_matrix.shape != (n, n):
-            raise ValueError(f"k_matrix must be shape ({n}, {n}), got {self.k_matrix.shape}")
-
-        k = np.asarray(self.k_matrix)
-        if not np.allclose(k, k.T):
-            raise ValueError("k_matrix must be symmetric.")
-        if not np.allclose(np.diag(k), 1.0):
-            raise ValueError("k_matrix diagonals must be exactly 1.0 (self-coupling).")
+        k = self.coupling_matrix
         
-        eigenvalues = np.linalg.eigvalsh(k)
-        if np.any(eigenvalues < -1e-10):
-            raise ValueError("k_matrix must be positive semi-definite to represent a physical system.")
+        if k.shape != (n, n):
+            raise ValueError(f"Coupling matrix must be shape ({n}, {n}), got {k.shape}")
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
+        if not jnp.allclose(k, k.T):
+            raise ValueError("Coupling matrix must be symmetric.")
+        if not jnp.allclose(jnp.diag(k), 1.0):
+            raise ValueError("Coupling matrix diagonals must be exactly 1.0 (self-coupling).")
+        
+        eigenvalues = jnp.linalg.eigvalsh(k)
+        if jnp.any(eigenvalues < -1e-10):
+            raise ValueError("Coupling matrix must be positive semi-definite to represent a physical system.")
+
+    def y(self, freq: 'Frequency') -> jnp.ndarray:
         n = len(self.coupled)
         
         z_branch_list = []
@@ -300,7 +352,9 @@ class CoupledTwoPorts(Model):
         z_branch = jnp.stack(z_branch_list, axis=-1)
         
         z_outer = z_branch[..., :, jnp.newaxis] * z_branch[..., jnp.newaxis, :]
-        z_b_matrix = self.k_matrix * jnp.sqrt(z_outer)
+        
+        k_mat = self.coupling_matrix
+        z_b_matrix = k_mat * jnp.sqrt(z_outer)
         
         i = jnp.arange(n)
         z_b_matrix = z_b_matrix.at[..., i, i].set(z_branch)
@@ -314,27 +368,3 @@ class CoupledTwoPorts(Model):
         y_nodal = jnp.einsum('pi,...ij,qj->...pq', A, y_b_matrix, A)
         
         return y_nodal
-    
-    @classmethod
-    def from_couplings(cls, models: list[Model], couplings: list[tuple[int, int, float]], **kwargs) -> Self:
-        """
-        Builds of model of coupled two-ports from a list of couplings coefficients between them.
-        
-        Parameters:
-        - models: The models to be coupled.
-        - defined_couplings: A list of tuples (model_i, model_j, k_factor).
-        """
-        seen = set()
-        
-        n_components = len(models)
-        K = np.eye(n_components)
-        
-        for i, j, k_val in couplings:
-            if (i, j) in seen:
-                raise Exception(f"Same coupling pairs passed twice. Indices {i} and {j}")
-            seen.add((i, j))
-            
-            K[i, j] = k_val
-            K[j, i] = k_val
-            
-        return CoupledTwoPorts(models, K, **kwargs)

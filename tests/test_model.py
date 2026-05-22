@@ -2,17 +2,17 @@
 import pytest
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
+from pmrf.utils import ArrayLike
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing
 # ---------------------------------------------------------
 
 class DummyModelS(Model):
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         nf = freq.npoints
         return jnp.zeros((nf, 1, 1), dtype=complex)
 
@@ -22,7 +22,7 @@ class DummyModelZ(Model):
         return jnp.ones((nf, 1, 1), dtype=complex) * 50.0
 
 class DummyModelS2Port(Model):
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         nf = freq.npoints
         return jnp.zeros((nf, 2, 2), dtype=complex)
 
@@ -58,12 +58,12 @@ def model_comp():
 # Primary Property Resolution
 # ---------------------------------------------------------
 
-def test_primary_property_resolution(model_s, model_z, model_comp):
+def test_primary_domain_resolution(model_s, model_z, model_comp):
     """Ensure the metaclass/property correctly identifies the overridden function."""
-    assert model_s.primary_property == 's'
-    assert model_z.primary_property == 'z'
+    assert model_s.primary_domain == 's'
+    assert model_z.primary_domain == 'z'
     # Compositional models should inherit the primary property of what they build
-    assert model_comp.primary_property == 's'
+    assert model_comp.primary_domain == 's'
 
 def test_primary_matrix_execution(model_s, basic_freq):
     """Test that calling .primary_matrix() routes to the correct evaluation method."""

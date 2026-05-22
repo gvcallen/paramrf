@@ -1,6 +1,9 @@
 """
 Ideal models, such as ports, grounds and transformers.
+
+These components are all non-tunable by default. To specify free parameters, use a constructor from :mod:`pmrf.parameters`.
 """
+import numpy as np
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 import equinox as eqx
@@ -8,10 +11,11 @@ import equinox as eqx
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import field
+from pmrf.rf import renormalize_s
 
 class Load(Model):
     """
-    A class for variable N-port loads defined by their reflection coefficient.
+    A class for ideal N-port loads defined by their reflection coefficient.
 
     Parameters
     ----------
@@ -28,7 +32,7 @@ class Load(Model):
     #: Number of ports
     nports: int = field(default=1, static=True)
     
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         gamma, nports = self.gamma, self.nports
         s = jnp.array(gamma).reshape(-1, 1, 1) * \
             jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
@@ -117,7 +121,7 @@ class Ground(Model):
     Represents a ground connection.
 
     This class serves as a placeholder for a ground node in a circuit definition.
-    Calling an instance returns a short circuit model.
+    Building an instance returns a short circuit model.
     """
     def build(self) -> Model:
         return Short()
@@ -125,28 +129,42 @@ class Ground(Model):
 
 class Transformer(Model):
     """
-    An ideal, lossless, frequency-independent 4-port 1:1 transformer.
+    (experimental) An ideal, lossless, frequency-independent 4-port 1:N transformer.
 
     The S-parameters are constant across all frequencies.
+    
+    Parameters
+    ----------
+    N : float
+        The turns ratio (1:N) from primary to secondary. Defaults to 1.0.
     """
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        s = 0.5 * jnp.ones((freq.npoints, 4, 4), dtype='complex')
-        s = s.at[:, 0, 3].set(-0.5)
-        s = s.at[:, 1, 2].set(-0.5)
-        s = s.at[:, 2, 1].set(-0.5)
-        s = s.at[:, 3, 0].set(-0.5)
+    #: The turns ratio 1:N
+    N: float = field(default=1.0, static=True, kw_only=True)
 
-        return s
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        N = self.N
+        D = 1.0 + N**2
+        
+        # The intrinsic 4-port scattering matrix for an ideal 1:N transformer
+        s_mat = jnp.array([
+            [1.0,   N**2,  N,    -N],
+            [N**2,  1.0,  -N,     N],
+            [N,    -N,     N**2,  1.0],
+            [-N,    N,     1.0,   N**2]
+        ], dtype=jnp.complex128) / D
+
+        # Broadcast the 4x4 matrix across the frequency grid
+        return jnp.broadcast_to(s_mat, (freq.npoints, 4, 4))
     
 
 class SourceConverter(Model):
     """
-    An ideal 3-port source converter.
+    (experimental) An ideal 3-port source converter.
 
     This model represents a specific ideal component with a fixed, frequency-independent
     3x3 scattering matrix.
     """
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s_one = jnp.array([
             [ 1,  2, -2],
             [ 2,  1,  2],
@@ -162,26 +180,46 @@ class Isolator(Model):
     """
     (experimental) An ideal 2-port isolator. 
     
-    Allows perfect transmission from Port 1 to Port 2, and infinite 
-    isolation (zero transmission) from Port 2 to Port 1. Both ports are 
-    perfectly matched.
+    Allows perfect transmission from Port 1 to Port 2, and attenuates 
+    reverse transmission from Port 2 to Port 1 by `isolation` dB. Both 
+    ports are perfectly matched at the designed characteristic impedance.
+    
+    Parameters
+    ----------
+    isolation : ArrayLike, default=np.inf
+        The reverse isolation in dB. Defaults to infinity (perfect isolation).
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    z0 : ArrayLike, default=50.0
+        The intrinsic characteristic impedance for which the isolator was designed.
     """
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        ones = jnp.ones(freq.npoints, dtype=complex)
+    #: The reverse isolation in dB.
+    isolation: ArrayLike = field(default=np.inf, kw_only=True)
+    
+    #: The intrinsic characteristic impedance of the physical device.
+    z0: jnp.ndarray = field(default=50.0, converter=jnp.asarray, kw_only=True)
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s12_lin = 10.0 ** (-self.isolation / 20.0)
+        
+        s21 = jnp.ones(freq.npoints, dtype=complex)
+        s12 = s12_lin * jnp.ones(freq.npoints, dtype=complex)
         zeros = jnp.zeros(freq.npoints, dtype=complex)
 
-        return jnp.array([
-            [zeros, zeros],
-            [ones, zeros],
+        s_mat = jnp.array([
+            [zeros, s12],
+            [s21, zeros],
         ]).transpose(2, 0, 1)
+        return renormalize_s(s_mat, self.z0, z0, 'power', 'power')
 
 
 class Splitter(Model):
     """
-    (experimental) An ideal, lossless n-way power splitter.
+    (experimental) An ideal n-way parallel node (lossless junction).
 
-    The port impedances are matched when driving one port and terminating 
-    the others in matched loads. Power is split equally among the remaining ports.
+    This model represents a purely topological connection where all n ports 
+    are tied to a single common voltage node. Because it is lossless and 
+    reciprocal, it cannot be simultaneously matched at all ports (e.g., a 
+    3-port Tee will have S11 = -1/3).
 
     Parameters
     ----------
@@ -190,7 +228,7 @@ class Splitter(Model):
     """
     nports: int = field(default=3, static=True)
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         n = self.nports
         
         # S-parameter equations for an ideal N-port equal splitter
@@ -217,32 +255,41 @@ class Tee(Model):
 
 class Attenuator(Model):
     """
-    An matched, 2-port attenuator.
+    (experimental) A matched, 2-port physical attenuator.
 
     Parameters
     ----------
-    s21 : ArrayLike
-        The linear voltage transmission coefficient. 
+    loss : ArrayLike
+        The attenuation in dB (a positive value indicates loss).
         This is not a tunable parameter by default.
         To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
-        For example, for a 3 dB attenuator, s21 = 10**(-3/20) ≈ 0.707.
-
+    z0 : ArrayLike, default=50.0
+        The intrinsic characteristic impedance for which the physical attenuator 
+        was designed.
     """
-    s21: ArrayLike
+    #: The attenuation in dB.
+    loss: ArrayLike
+    
+    #: The intrinsic characteristic impedance of the physical device.
+    z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
-        s21 = self.s21 * jnp.ones(freq.npoints, dtype=complex)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s21_lin = 10.0 ** (-self.loss / 20.0)
+        
+        s21 = s21_lin * jnp.ones(freq.npoints, dtype=complex)
         zeros = jnp.zeros(freq.npoints, dtype=complex)
 
-        return jnp.array([
+        s_mat = jnp.array([
             [zeros, s21],
             [s21, zeros],
         ]).transpose(2, 0, 1)
         
-
+        return renormalize_s(s_mat, self.z0, z0, 'power', 'power')
+        
+        
 class DirectionalCoupler(Model):
     """
-    An ideal 4-port tunable directional coupler.
+    (experimental) An ideal 4-port tunable directional coupler.
 
     Port routing:
     - Port 1: Input
@@ -257,10 +304,16 @@ class DirectionalCoupler(Model):
         This is not a tunable parameter by default.
         To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
         For example, for a 20 dB coupler, coupling = 10**(-20/20) = 0.1.
+    z0 : ArrayLike, default=50.0
+        The intrinsic characteristic impedance for which the coupler was designed.
     """
+    #: The linear voltage coupling factor.
     coupling: ArrayLike
+    
+    #: The intrinsic characteristic impedance of the physical device.
+    z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
 
-    def s(self, freq: Frequency) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         c = self.coupling
         t = jnp.sqrt(1.0 - c**2)
         
@@ -270,45 +323,11 @@ class DirectionalCoupler(Model):
         C = 1j * c * ones
         T = t * ones + 0j
 
-        return jnp.array([
+        s_mat = jnp.array([
             [zeros, T, C, zeros],
             [T, zeros, zeros, C],
             [C, zeros, zeros, T],
             [zeros, C, T, zeros]
         ]).transpose(2, 0, 1)
-
-
-# class LosslessMismatch(Model):
-#     """
-#     An ideal, lossless, symmetric 2-port mismatch defined by its return loss.
-
-#     This component automatically calculates the phase and magnitude of S21 
-#     required to ensure the network remains unitary (perfectly lossless). 
-#     It is extremely useful for inserting synthetic mismatch reflections 
-#     into a cascade for Monte Carlo or tolerance analysis.
-
-#     Parameters
-#     ----------
-#     s11 : Param
-#         The complex reflection coefficient.
-#     """
-#     s11: Param = param()
-
-#     def s(self, freq: Frequency) -> jnp.ndarray:
-#         s11_val = self.s11
-#         s21_mag = jnp.sqrt(1.0 - jnp.abs(s11_val)**2)
         
-#         # Calculate the phase required for a lossless reciprocal 2-port
-#         s11_angle = jnp.angle(s11_val)
-#         s21_phase = s11_angle + jnp.where(s11_angle <= 0, jnp.pi / 2, -jnp.pi / 2)
-        
-#         s21_val = s21_mag * jnp.exp(1j * s21_phase)
-        
-#         ones = jnp.ones(freq.npoints, dtype=complex)
-#         S11 = s11_val * ones
-#         S21 = s21_val * ones
-
-#         return jnp.array([
-#             [S11, S21],
-#             [S21, S11],
-#         ]).transpose(2, 0, 1)
+        return renormalize_s(s_mat, self.z0, z0, 'power', 'power')
