@@ -38,6 +38,7 @@ from pmrf.models.adapters.callable import (
 # Components
 from pmrf.models.components.ideal import (
     Load as Load,
+    Impedance as Impedance,
     Short as Short,
     Open as Open,
     Match as Match,

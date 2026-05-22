@@ -55,6 +55,63 @@ class Load(Model):
             jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
             repeat(freq.npoints, 0)
         return y
+    
+    
+class Impedance(Model):
+    """
+    A class for ideal N-port termination impedances defined by their resistance and reactance.
+
+    Parameters
+    ----------
+    R : ArrayLike
+        The resistance in Ohms.
+        This is not a tunable parameter by default.
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    X : ArrayLike
+        The reactance in Ohms.
+        This is not a tunable parameter by default.
+        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    nports : int
+        The number of ports this impedance presents. Default is 1.
+    """
+    #: The resistance in Ohms
+    R: ArrayLike
+    
+    #: The reactance in Ohms
+    X: ArrayLike
+    
+    #: Number of ports
+    nports: int = field(default=1, static=True)
+    
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        R, X, nports = self.R, self.X, self.nports
+        Z = R + 1j * X
+        
+        # Calculate reflection coefficient using generalized power waves
+        gamma = (Z - jnp.conj(z0)) / (Z + z0)
+        
+        s = jnp.array(gamma).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return s
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        R, X, nports = self.R, self.X, self.nports
+        Z = R + 1j * X
+        
+        is_invalid = (jnp.abs(Z) == 0.0)
+        
+        Z = eqx.error_if(
+            Z, 
+            jnp.any(is_invalid), 
+            "Y-matrix is singular or undefined for a 0-Ohm impedance (short circuit)."
+        )
+        
+        y_val = 1.0 / Z
+        y = jnp.array(y_val).reshape(-1, 1, 1) * \
+            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+            repeat(freq.npoints, 0)
+        return y
 
 
 class Short(Model):
