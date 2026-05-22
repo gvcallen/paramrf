@@ -2,7 +2,7 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable, Self, TypeVar
+from typing import Any, Callable, Self, TypeVar, Union
 import dataclasses
 
 import jax
@@ -660,13 +660,16 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-    def at(self: Self, where: Callable[[Self], T]) -> Lens[Self, T]:
+    def at(
+        self: Self, 
+        where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
+    ) -> Lens[Self, T]:
         """(experimental) A functional interface for model manipulation.
         
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
         
-        Pass in a callable that accepts your model and returns the
-        attributes you would like to retrieve/modify. Then, use
+        Pass in a callable, a string parameter name, or a tuple of names that 
+        returns the attributes you would like to retrieve/modify. Then, use
         methods like `.get()` and `.set()` to retrieve values
         or an updated model.
         
@@ -679,12 +682,12 @@ class Model(eqx.Module):
         --------
         >>> import pmrf as prf
         >>> from pmrf.models import Resistor
-        >>> model = Resistor(R=50.0)
-        >>> # Retrieve a value using the lens
-        >>> model.at(lambda m: m.R).get()
+        >>> model = Resistor(R=50.0, name="res")
+        >>> # Retrieve a value using the lens with a parameter name
+        >>> model.at("res.R").get()
         50.0
         >>> # Return a new model instance with the updated value
-        >>> updated_model = model.at(lambda m: m.R).set(100.0)
+        >>> updated_model = model.at("res.R").set(100.0)
 
         Returns
         -------
@@ -692,7 +695,8 @@ class Model(eqx.Module):
             A lens object focused on the root of the current instance.
 
         """
-        return focus(self).at(where)
+        resolved_where = _resolve_target(self, where)
+        return focus(self).at(resolved_where)
     
     def map(self: Self, fn: Callable[[Any], Any], is_leaf: Callable | None = None) -> Self:
         """(experimental) A functional interface for model mapping.
@@ -787,7 +791,13 @@ class Model(eqx.Module):
         other = other or Short()
         return Terminated(self, other, **kwargs)
     
-    def tied(self, target: Callable[[Any], Any], source: Callable[[Any], Any], tie_fn: Callable[[Any], Any] = lambda x: x, **kwargs) -> 'Model':
+    def tied(
+        self, 
+        target: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]], 
+        source: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]], 
+        tie_fn: Callable[[Any], Any] = lambda x: x, 
+        **kwargs
+    ) -> 'Model':
         """Tie parameters or sub-models within this model together.
         
         See :class:`pmrf.models.composite.wrapped.Tied` for more details.
@@ -797,12 +807,12 @@ class Model(eqx.Module):
         >>> import pmrf as prf
         >>> from pmrf.models import Resistor, Capacitor
         >>> 
-        >>> rc = Resistor(R=50.0) ** Capacitor(C=1.0e-12)
+        >>> rc = Resistor(R=50.0, name="res") ** Capacitor(C=1.0e-12, name="cap")
         >>> 
         >>> # Tie the resistor's R to always be 50e12 times the capacitor's C
         >>> tied_rc = rc.tied(
-        ...     target=lambda m: m.models[0].R,
-        ...     source=lambda m: m.models[1].C,
+        ...     target="res.R",
+        ...     source="cap.C",
         ...     tie_fn=lambda c: c * 50e12
         ... )
         >>> 
@@ -811,12 +821,12 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        target : callable
+        target : callable | str | tuple[str, ...] | list[str]
             A callable extracting the parameter to be overwritten 
-            (e.g., `lambda m: m.resistor.R`).
-        source : callable
+            (e.g., `lambda m: m.resistor.R`), or the parameter's name.
+        source : callable | str | tuple[str, ...] | list[str]
             A callable extracting the parameter to draw the value from 
-            (e.g., `lambda m: m.capacitor.C`).
+            (e.g., `lambda m: m.capacitor.C`), or the parameter's name.
         tie_fn : callable, optional
             An optional transformation function applied to the source 
             before injecting it into the target. Defaults to the identity 
@@ -828,7 +838,10 @@ class Model(eqx.Module):
         """
         from pmrf.models import Tied
         
-        return Tied(self, target=target, source=source, tie_fn=tie_fn, **kwargs)
+        resolved_target = _resolve_target(self, target)
+        resolved_source = _resolve_target(self, source)
+        
+        return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
@@ -1031,3 +1044,60 @@ def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, igno
         name = final_name_part
             
     return name
+
+
+def _make_getter(path: list[Any]) -> Callable[[Any], Any]:
+    """Creates a callable that retrieves a value from a PyTree given its JAX path."""
+    def getter(tree):
+        curr = tree
+        for p in path:
+            if hasattr(p, "name"):
+                curr = getattr(curr, p.name)
+            elif hasattr(p, "idx"):
+                curr = curr[p.idx]
+            elif hasattr(p, "key"):
+                curr = curr[p.key]
+            else:
+                # Fallback for unexpected path elements
+                try:
+                    curr = getattr(curr, p)
+                except AttributeError:
+                    curr = curr[p]
+        return curr
+    return getter
+
+def _resolve_target(model: Any, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
+    """Resolves callables, string names, or iterables of string names into a callable getter."""
+    if callable(target):
+        return target
+        
+    # Determine if target is a single string or an iterable of strings
+    is_single = isinstance(target, str)
+    if is_single:
+        names_to_find = [target]
+    elif isinstance(target, (list, tuple)) and all(isinstance(x, str) for x in target):
+        names_to_find = list(target)
+    else:
+        raise TypeError(
+            "Targets must be a callable, a string parameter name, "
+            "or a tuple/list of string parameter names."
+        )
+
+    # Build name -> path mapping using the model's pathed_params
+    pathed = model.pathed_params(include_fixed=True, unwrap=False)
+    name_to_path = {}
+    for path, _ in pathed:
+        name = tree_path_to_name(model, path, namespace_separator=namespace_separator)
+        name_to_path[name] = path
+        
+    getters = []
+    for name in names_to_find:
+        if name not in name_to_path:
+            raise ValueError(f"Parameter name '{name}' not found in the model.")
+        getters.append(_make_getter(name_to_path[name]))
+        
+    # Return a single element getter or a tuple getter depending on the input
+    if is_single:
+        return getters[0]
+    else:
+        return lambda m: tuple(g(m) for g in getters)
