@@ -30,30 +30,31 @@ class Load(Model):
     gamma: ArrayLike
     
     #: Number of ports
-    nports: int = field(default=1, static=True)
+    nports: int = eqx.field(default=1, static=True)
     
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        gamma, nports = self.gamma, self.nports
-        s = jnp.array(gamma).reshape(-1, 1, 1) * \
-            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+        s = jnp.asarray(self.gamma).reshape(-1, 1, 1) * \
+            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
             repeat(freq.npoints, 0)
         return s
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        gamma, nports = self.gamma, self.nports
+        gamma_arr = jnp.asarray(self.gamma)
         
-        is_invalid = jnp.any(jnp.logical_or(gamma == 1.0, gamma == -1.0))
+        is_invalid = jnp.any(gamma_arr == -1.0)
         
-        gamma = eqx.error_if(
-            gamma, 
+        gamma_safe = eqx.error_if(
+            gamma_arr, 
             is_invalid, 
-            "Y-matrix is singular or undefined for ideal open (1.0) or short (-1.0) loads."
+            "Y-matrix is singular and undefined for ideal short (-1.0) loads."
         )
         
-        y_val = (1.0 - gamma) / (1.0 + gamma)
-        y = jnp.array(y_val).reshape(-1, 1, 1) * \
-            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+        y_val = (1.0 - gamma_safe) / (1.0 + gamma_safe)
+        
+        y = jnp.asarray(y_val).reshape(-1, 1, 1) * \
+            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
             repeat(freq.npoints, 0)
+            
         return y
     
     

@@ -1,5 +1,3 @@
-"""pmrf/simulate/topology.py"""
-
 import equinox as eqx
 from jaxtyping import ArrayLike
 import numpy as np
@@ -7,8 +5,6 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.simulate.base import PortRepresentation, NodalRepresentation
-
 
 class Topology(eqx.Module):
     """A higher-level model containing sub-models and their topological connections."""
@@ -17,76 +13,6 @@ class Topology(eqx.Module):
     indexed_connections: list[list[tuple[int, int]]] = eqx.field(static=True)
     port_indices: list[int] = eqx.field(static=True)
     ground_indices: list[int] = eqx.field(static=True)
-    
-    def to_ports(self) -> PortRepresentation:
-        """Generates the static S-Parameter topological representation."""
-        num_ports = sum(m.nports for m in self.models)
-        port_to_net_map = self.connected_components()
-        
-        # Assumes circuit.port_idxs contains flat global port indices
-        ext_idx = np.array(self.port_indices or [], dtype=int)
-        int_idx = np.setdiff1d(np.arange(num_ports), ext_idx)
-        
-        return PortRepresentation(
-            num_ports=num_ports,
-            ext_idx=ext_idx,
-            int_idx=int_idx,
-            port_to_net_map=port_to_net_map
-        )    
-
-    def to_nodal(self) -> NodalRepresentation:
-        """Generates the static Y-Parameter topological representation using a dummy ground node."""
-        port_to_net_map = self.connected_components()
-        unique_nets = np.unique(port_to_net_map)
-        
-        # Identify which nets represent ground
-        ground_nets = set()
-        for p in (self.ground_indices or []):
-            ground_nets.add(port_to_net_map[p])
-            
-        # Remap active nets to (0 ... V-1) and ground nets to a dummy node (V)
-        num_active = 0
-        remap = {}
-        for net in unique_nets:
-            if net not in ground_nets:
-                remap[net] = num_active
-                num_active += 1
-                
-        for net in ground_nets:
-            remap[net] = num_active # Dummy ground node at the end
-            
-        final_port_nodes = np.array([remap[net] for net in port_to_net_map], dtype=int)
-        
-        # Build r_idx and c_idx by unrolling the local port matrices
-        r_idx, c_idx = [], []
-        offset = 0
-        for m in self.models:
-            n = m.nports
-            nodes = final_port_nodes[offset:offset+n]
-            for i in range(n):
-                for j in range(n):
-                    r_idx.append(nodes[i])
-                    c_idx.append(nodes[j])
-            offset += n
-            
-        # Identify external and internal active nets
-        ext_nets = set()
-        for p in (self.port_indices or []):
-            net = final_port_nodes[p]
-            if net != num_active: # Exclude the dummy ground node
-                ext_nets.add(net)
-                
-        ext_idx = np.array(sorted(list(ext_nets)), dtype=int)
-        all_active = set(range(num_active))
-        int_idx = np.array(sorted(list(all_active - ext_nets)), dtype=int)
-        
-        return NodalRepresentation(
-            num_nodes=num_active + 1, # +1 creates the space for the dummy ground node
-            r_idx=np.array(r_idx, dtype=int),
-            c_idx=np.array(c_idx, dtype=int),
-            ext_idx=ext_idx,
-            int_idx=int_idx
-        )    
     
     def connected_components(self) -> np.ndarray:
         """
@@ -138,15 +64,19 @@ class Topology(eqx.Module):
                 batched_S = batched_S.at[:, offset:offset+n, offset:offset+n].set(S_m)
                 offset += n
                 
-            # Safely handle z0 as scalar OR array by using broadcast_to instead of full
             batched_z0 = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
             return batched_S, batched_z0
             
         else:
-            cascade_models = [
-                m for m in self.models 
-                if m.nports > 1 and type(m).__name__ not in ("Port", "Ground")
-            ]
+            cascade_models = []
+            offset = 0
+            marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
+            
+            for m in self.models:
+                # Exclude topological markers from the cascade solver list
+                if m.nports > 1 and offset not in marker_indices:
+                    cascade_models.append(m)
+                offset += m.nports
             
             # jnp.stack creates (N, F, m, m). 
             # We transpose to (F, N, m, m) so Frequency is ALWAYS axis 0.
@@ -161,8 +91,22 @@ class Topology(eqx.Module):
 
     def evaluate_admittance(self, freq: Frequency) -> jnp.ndarray:
         """Evaluates .y() on all models and flattens them for scatter-add assembly."""
-        Y_blocks = [m.y(freq) for m in self.models]
+        Y_blocks = []
+        offset = 0
         
+        # Pre-compute the set of global indices that belong to markers for O(1) lookup
+        marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
+        
+        for m in self.models:
+            # If the model's global port offset is in the markers list, inject zeros
+            if offset in marker_indices:
+                zeros = jnp.zeros((freq.npoints, m.nports, m.nports), dtype=jnp.complex128)
+                Y_blocks.append(zeros)
+            else:
+                Y_blocks.append(m.y(freq))
+            
+            offset += m.nports
+            
         flat_Y_list = []
         for Y in Y_blocks:
             Nf, n, _ = Y.shape
@@ -170,4 +114,4 @@ class Topology(eqx.Module):
             
         batched_Y_elements = jnp.concatenate(flat_Y_list, axis=1)
         
-        return batched_Y_elements    
+        return batched_Y_elements

@@ -27,6 +27,7 @@ except PackageNotFoundError:
 # Re-exports
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
+from pmrf.topology import Topology as Topology
 
 #: The canonical type hint for a parameter in a model.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,

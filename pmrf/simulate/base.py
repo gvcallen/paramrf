@@ -16,12 +16,12 @@ class NodalRepresentation(eqx.Module):
 
 class PortRepresentation(eqx.Module):
     num_ports: int = eqx.field(static=True)
-    ext_idx: np.ndarray = eqx.field(static=True)
-    int_idx: np.ndarray = eqx.field(static=True)
+    ext_idx: np.ndarray
+    int_idx: np.ndarray
     
     # 1D array of length `num_ports`.
     # Value is the integer ID of the Net/Node that port connects to.
-    port_to_net_map: np.ndarray = eqx.field(static=True)
+    port_to_net_map: np.ndarray
 
 class ScatteringResult(eqx.Module):
     s: jnp.ndarray
@@ -47,9 +47,6 @@ class AbstractAdmittanceReducer(eqx.Module):
         raise NotImplementedError
     
 class AbstractScatteringReducer(eqx.Module):
-    #: The required layout of the incoming S-matrices, either 'block_diagonal' or 'stacked'
-    s_layout: eqx.AbstractClassVar[str]
-    
     @abstractmethod
     def run(
         self, 
@@ -58,6 +55,5 @@ class AbstractScatteringReducer(eqx.Module):
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         raise NotImplementedError
-
 
 AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer

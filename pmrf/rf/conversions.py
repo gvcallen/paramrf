@@ -11,17 +11,18 @@ from pmrf.utils.rf import fix_z0_shape
 
 ZERO = 1e-4
 
-def s2s(s: ArrayLike, z0: ArrayLike, s_def_new, s_def_old):
+def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
     """
     Convert S-parameters between different definitions (e.g., Power waves vs Traveling waves).
 
     This function handles the conversion logic defined by `s_def_old` to `s_def_new`.
-    It supports complex characteristic impedances.
+    It supports complex characteristic impedances and accepts both single-frequency
+    (2D) and multi-frequency (3D) S-parameter matrices.
 
     Parameters
     ----------
-    s : jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+    s : ArrayLike
+        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike
         The characteristic impedance. Can be a scalar, or an array broadcastable
         to `(nfreqs, nports)`.
@@ -33,62 +34,81 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new, s_def_old):
     Returns
     -------
     jnp.ndarray
-        The converted S-parameter matrix with shape `(nfreqs, nports, nports)`.
+        The converted S-parameter matrix matching the shape of the input `s`.
     """
     if s_def_new == s_def_old:
         return s
 
-    nfreqs, nports, nports = s.shape
+    # Ensure it's a jnp array to safely check dimensions
+    s_arr = jnp.asarray(s)
+    
+    # Check dimensionality and standardize to 3D for internal computation
+    if s_arr.ndim not in (2, 3):
+        raise ValueError(f"S-parameters must be 2D (nports, nports) or 3D (nfreqs, nports, nports). Got {s_arr.ndim}D.")
+        
+    is_2d = (s_arr.ndim == 2)
+    if is_2d:
+        s_arr = jnp.expand_dims(s_arr, axis=0)
+
+    nfreqs, nports, _ = s_arr.shape
     z0 = fix_z0_shape(z0, nfreqs, nports)
 
     all_real = jnp.isreal(z0).all()
     
     def real_branch():
-        return s
+        return s_arr
     
     def imag_branch():
         # Calculate port voltages and currents using the old s_def.
-        F, G = jnp.zeros_like(s), jnp.zeros_like(s)
-        diag_idx = jnp.arange(F.shape[1])
+        F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
+        diag_idx = jnp.arange(nports)
+        
         if s_def_old == 'power':
             F = F.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0.real)))
             G = G.at[:, diag_idx, diag_idx].set(z0)        
-            Id = jnp.eye(s.shape[1], dtype=complex)
-            v = F @ (G.conjugate() + G @ s)
-            i = F @ (Id - s)
+            Id = jnp.eye(nports, dtype=complex)
+            v = F @ (G.conjugate() + G @ s_arr)
+            i = F @ (Id - s_arr)
         elif s_def_old == 'traveling':
             F = F.at[:, diag_idx, diag_idx].set(jnp.sqrt(z0))
-            G = G.at[:, diag_idx, diag_idx].set(1/(jnp.sqrt(z0)))        
-            Id = jnp.eye(s.shape[1], dtype=complex)
-            v = F @ (Id + s)
-            i = G @ (Id - s)
+            G = G.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0)))        
+            Id = jnp.eye(nports, dtype=complex)
+            v = F @ (Id + s_arr)
+            i = G @ (Id - s_arr)
         else:
             raise ValueError(f'Unknown s_def: {s_def_old}')
 
         # Calculate a and b waves from the voltages and currents.
-        F, G = jnp.zeros_like(s), jnp.zeros_like(s)
+        F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
         if s_def_new == 'power':
-            F = F.at[:, diag_idx, diag_idx].set(1/(2*jnp.sqrt(z0.real)))
-            G = G.at[:, diag_idx, diag_idx].set(z0)     
+            F = F.at[:, diag_idx, diag_idx].set(1.0 / (2.0 * jnp.sqrt(z0.real)))
+            G = G.at[:, diag_idx, diag_idx].set(z0)    
             a = F @ (v + G @ i)
             b = F @ (v - G.conjugate() @ i)
         elif s_def_new == 'traveling':
-            F = F.at[:, diag_idx, diag_idx].set(1/(jnp.sqrt(z0)))
+            F = F.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0)))
             G = G.at[:, diag_idx, diag_idx].set(z0) 
             a = F @ (v + G @ i)
             b = F @ (v - G @ i)
         else:
-            raise ValueError(f'Unknown s_def: {s_def_old}')
+            raise ValueError(f'Unknown s_def: {s_def_new}')
 
         # New S-parameter matrix from a and b waves.
-        s_new = jnp.zeros_like(s)
+        s_new = jnp.zeros_like(s_arr)
         for n in range(nports):
             for m in range(nports):
                 s_new = s_new.at[:, m, n].set(b[:, m, n] / a[:, n, n])
 
         return s_new
 
-    return jax.lax.cond(all_real, real_branch, imag_branch)
+    # Execute the appropriate branch based on impedance characteristics
+    out = jax.lax.cond(all_real, real_branch, imag_branch)
+    
+    # Restore original 2D shape if needed
+    if is_2d:
+        out = jnp.squeeze(out, axis=0)
+        
+    return out
 
 def a2s(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     """

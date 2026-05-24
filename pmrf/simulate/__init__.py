@@ -1,6 +1,5 @@
 from pmrf.simulate.base import ScatteringResult, AdmittanceResult, AbstractAdmittanceReducer, AbstractScatteringReducer, AbstractReducer, NodalRepresentation, PortRepresentation
 from pmrf.simulate.reduce import reduce
-from pmrf.simulate.topology import Topology
 from pmrf.simulate.result import SimulateResult
 
 from pmrf.simulate.solvers.hallbjorner import Hallbjorner
@@ -13,7 +12,6 @@ __all__ = [
     'AbstractScatteringReducer',
     'AbstractReducer',
     'reduce',
-    'Topology',
     'PortRepresentation',
     'NodalRepresentation',
     'SimulateResult',

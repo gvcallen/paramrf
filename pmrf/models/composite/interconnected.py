@@ -9,8 +9,8 @@ from pmrf.frequency import Frequency
 from pmrf.utils import field, ArrayLike
 from pmrf.models.components.ideal import Port
 from pmrf.rf import cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s, renormalize_s
-
-from pmrf.simulate import AbstractReducer, Hallbjorner, reduce, Topology
+from pmrf.topology import Topology
+from pmrf.simulate import AbstractReducer, Hallbjorner, reduce
 
 EVAL_Z0 = 50.0
 
@@ -28,6 +28,8 @@ class Circuit(Model):
         A list representing the nodes of the circuit. Each node is a list of
         tuples, where each tuple contains a `Model` instance and the integer
         index of the port to connect to that node.
+    solver : AbstractReducer, default=Hallbjorner()
+        The solver to use. Available solvers can be found in :mod:`pmrf.simulate`.
 
     Examples
     --------
@@ -138,6 +140,7 @@ class Circuit(Model):
     def y(self, freq: Frequency) -> jnp.ndarray:
         result = reduce(self.topology, freq, self.solver)
         return result.y
+    
 
 class Cascade(Model):
     """
@@ -157,13 +160,6 @@ class Cascade(Model):
     ----------
     cascade : tuple[Model]
         The sequence of models in the cascade.
-    domain : str, default='s'
-        (experimental) The domain to perform the calculation in.
-        Options are 's' or 'a'.
-    method : str, optional
-        The algorithm to use for the call to `cascade_<domain>`.
-        If None, uses the default algorithm for the domain.
-        Algorithms are available in :mod:`pmrf.rf`.        
 
     Examples
     --------
@@ -194,12 +190,6 @@ class Cascade(Model):
     #: The models.
     cascade: tuple[Model]
     
-    #: The domain to perform the calculation in.
-    domain: str = field(default='s', kw_only=True, static=True)
-    
-    #: The algorithm to use.
-    method: str | None = field(default=None, kw_only=True, static=True)    
-    
     def __post_init__(self):
         for model in self.cascade:
             if model.nports % 2 != 0:
@@ -221,33 +211,19 @@ class Cascade(Model):
                 merged.append(model)
         return merged
     
-    @property
-    def primary_domain(self):
-        return self.domain
-    
-    def primary_matrix(self, frequency: Frequency, **kwargs):
-        if self.domain == 's':
-            z0 = kwargs.pop('z0')
-            return self.s_impl(frequency, z0=z0)
-        elif self.domain == 'a':
-            return self.a_impl(frequency)
-        else:
-            raise ValueError(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
-
-    def a_impl(self, frequency: Frequency) -> jnp.ndarray:
-        kwargs = {'method': self.method} if self.method is not None else {}
-        return cascade_a([model.a(frequency) for model in self.merged_cascade], **kwargs)
-
-    def s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
         merged_models = self.merged_cascade
         
         Smats = jnp.array([model.s(frequency, z0=EVAL_Z0) for model in merged_models])
         z0s = jnp.array([EVAL_Z0 for _ in merged_models])
         
-        kwargs = {'method': self.method} if self.method is not None else {}
-        Scas, _ = cascade_s(Smats, z0s, **kwargs)
-        
+        Scas, _ = cascade_s(Smats, z0s)
         return renormalize_s(Scas, z_old=EVAL_Z0, z_new=z0, s_def_old='power', s_def_new='power')
+    
+    def a(self, frequency: Frequency):
+        merged_models = self.merged_cascade
+        Amats = jnp.array([model.a(frequency) for model in merged_models])
+        return cascade_a(Amats)
     
     
 class Terminated(Model):
@@ -261,16 +237,6 @@ class Terminated(Model):
         The model being terminated.
     terminated_into : Model
         The model that `terminated_from` is terminated into.
-    domain_from : str, default='s'
-        (experimental) The domain to perform the calculation in for `terminated_from`.
-        Options are ('s', 'a').
-    domain_to : str, default='s'
-        (experimental) The domain to perform the calculation in for `terminated_to`.
-        Only 's' is supported.
-    method : str, optional
-        The algorithm to use for the call to `terminate_<domain_from>_in_<domain_to>`.
-        If None, uses the default algorithm for the domain.
-        Algorithms are available in :mod:`pmrf.rf`.                
     """
     #: The "from" model.
     terminated_from: Model
@@ -278,52 +244,13 @@ class Terminated(Model):
     #: The "into" model.
     terminated_into: Model
     
-    #: The domain to use for the "from" model.
-    domain_from: str = field(default='s', kw_only=True, static=True)
-    
-    #: The domain to use for the "to" model.
-    domain_to: str = field(default='s', kw_only=True, static=True)
-    
-    #: The algorithm to use.
-    method: str | None = field(default=None, kw_only=True, static=True)    
-    
     def __post_init__(self):
         if self.terminated_from.nports != 2*self.terminated_into.nports:
             raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
         
-    @property
-    def primary_domain(self):
-        if self.domain_from == 'a' and self.domain_to == 's':
-            return 's'
-        elif self.domain_from == 's' and self.domain_to == 's':
-            return 's'
-        else:
-            raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
-    
-    def primary_matrix(self, frequency: Frequency, **kwargs):
-        if self.domain_from == 'a' and self.domain_to == 's':
-            z0 = kwargs.pop('z0')
-            return self.a_in_s_impl(frequency, z0=z0)
-        elif self.domain_from == 's' and self.domain_to == 's':
-            z0 = kwargs.pop('z0')
-            return self.s_in_s_impl(frequency, z0=z0)
-        else:
-            raise ValueError(f"Invalid combination of domains in Terminated: from: '{self.domain_from}', to: '{self.domain_to}'")
-        
-    def a_in_s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        Amat_from = self.terminated_from.a(frequency)
-        Smat_into = self.terminated_into.s(frequency, z0=z0)
-        
-        kwargs = {'method': self.method} if self.method is not None else {}
-        S_term = terminate_a_in_s(Amat_from, Smat_into, z0=z0, s_def='power', **kwargs)
-        
-        return S_term        
-
-    def s_in_s_impl(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         Smat_from = self.terminated_from.s(frequency, z0=EVAL_Z0)
         Smat_into = self.terminated_into.s(frequency, z0=EVAL_Z0)
         
-        kwargs = {'method': self.method} if self.method is not None else {}
-        S_term, _ = terminate_s_in_s(Smat_from=Smat_from, z0_from=EVAL_Z0, Smat_into=Smat_into, z0_into=EVAL_Z0, **kwargs)
-        
+        S_term, _ = terminate_s_in_s(Smat_from=Smat_from, z0_from=EVAL_Z0, Smat_into=Smat_into, z0_into=EVAL_Z0)
         return renormalize_s(S_term, EVAL_Z0, z0, 'power', 'power')
