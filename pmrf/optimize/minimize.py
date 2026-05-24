@@ -8,9 +8,9 @@ import parax as prx
 from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
-from pmrf.optimize.base import AbstractMinimizer, minimize as base_minimize
+from pmrf.optimize.base import AbstractMinimizer, run_minimizer
 from pmrf.optimize.result import OptimizeResult
-from pmrf.optimize.backends.scipy import ScipyMinimize
+from pmrf.optimize.solvers.scipy import ScipyMinimize
 
 ModelT = TypeVar('ModelT', bound=Model)
 
@@ -72,7 +72,7 @@ def minimize(
     validate(problem)
     
     # Run the optimization
-    opt_problem, payload, metrics = base_minimize(
+    opt_problem, result = run_minimizer(
         lambda p, _args: p(),
         model=problem,
         solver=solver,
@@ -84,7 +84,7 @@ def minimize(
     results = OptimizeResult(
         model=opt_problem.model,
         objective=opt_problem.evaluator,
-        success=payload.success,
-        metrics=metrics,
+        success=result.success,
+        metrics=result.metrics,
     )
     return results

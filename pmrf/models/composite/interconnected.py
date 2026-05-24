@@ -8,7 +8,9 @@ from pmrf.models import Model, Ground
 from pmrf.frequency import Frequency
 from pmrf.utils import field, ArrayLike
 from pmrf.models.components.ideal import Port
-from pmrf.rf import connect_s_arbitrary, connect_y_arbitrary, cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s, renormalize_s
+from pmrf.rf import cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s, renormalize_s
+
+from pmrf.simulate import AbstractReducer, Hallbjorner, reduce, Topology
 
 EVAL_Z0 = 50.0
 
@@ -26,13 +28,6 @@ class Circuit(Model):
         A list representing the nodes of the circuit. Each node is a list of
         tuples, where each tuple contains a `Model` instance and the integer
         index of the port to connect to that node.
-    domain : str, default='s'
-        (experimental) The domain to perform the calculation in.
-        Options are ('s', 'y'), where 'y' is experimental.
-    method : str, optional
-        The algorithm to use for the call to `connect_<domain>_arbitrary`.
-        If None, uses the default algorithm for the domain.
-        Algorithms are available in :mod:`pmrf.rf`.
 
     Examples
     --------
@@ -61,29 +56,21 @@ class Circuit(Model):
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
     
-    #: The domain to perform the calculation in.
-    domain: str = field(default='s', kw_only=True, static=True)
-    
-    #: The method for the algorithm
-    method: str | None = field(default=None, kw_only=True, static=True)
-    
-    #: The models in the circuit.
+    #: The models in the connections.
     circuit: list[Model] = field(default=None, kw_only=True)
 
-    #: The indices of the connections.
+    #: The collated indices of the connections.
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
-
-    #: The indices of the ports.
-    port_idxs: list[int] = field(default=None, kw_only=True, static=True)
     
-
+    #: The circuit solver.
+    solver: AbstractReducer = field(default=Hallbjorner())
+    
     def __post_init__(self, connections):
         if not isinstance(connections, list):
             raise TypeError("`connections` must be a list of lists (representing nodes).")
 
         models = []
         indexed_connections = []
-        port_idxs = []
         id_to_index = {}
         seen_ports = set()
 
@@ -123,73 +110,34 @@ class Circuit(Model):
             
             indexed_connections.append(indexed_conn)
             
-        for model in models:
-            if isinstance(model, Port): 
-                port_idxs.append(id_to_index[id(model)])
-
         # Assign the computed values
         self.circuit = models
         self.indexed_connections = indexed_connections
-        self.port_idxs = port_idxs
         
     @property
-    def primary_domain(self):
-        return self.domain
+    def topology(self) -> Topology:
+        port_idx = []
+        ground_idxs = []
+        offset = 0
         
-    def primary_matrix(self, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        if self.domain == 's':
-            z0 = kwargs.pop('z0')
-            return self.s_impl(frequency, z0=z0)
-        elif self.domain == 'y':
-            return self.y_impl(frequency)
-        else:
-            raise Exception(f"No circuit connection algorithms available for the specified '{self.domain}' domain")
-    
-    def s_impl(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        Smats = [model.s(freq, z0=EVAL_Z0) for model in self.circuit]
-        z0s = [EVAL_Z0 for _ in self.circuit]
-        
-        kwargs = {'method': self.method} if self.method is not None else {}
-        Scon, _ = connect_s_arbitrary(
-            Smats,
-            z0s,
-            self.indexed_connections,
-            self.port_idxs,
-            **kwargs,
-        )
-        
-        return renormalize_s(Scon, z_old=EVAL_Z0, z_new=z0, s_def_old='power', s_def_new='power')    
-    
-    def y_impl(self, freq: Frequency) -> jnp.ndarray:
-        """
-        Evaluate the Y-parameters of the composite circuit.
-        """
-        Ymats = []
         for model in self.circuit:
-            if isinstance(model, Ground):
-                Ymats.append(jnp.zeros((freq.npoints, 1, 1), dtype=jnp.complex128))
-            elif isinstance(model, Port):
-                Ymats.append(jnp.zeros((freq.npoints, model.nports, model.nports), dtype=jnp.complex128))
-            else:
-                Ymats.append(model.y(freq))
-
-        # We need to explicitly pass grounded nodes
-        ground_idxs = [idx for idx, model in enumerate(self.circuit) if isinstance(model, Ground)]
-        grounded_nodes = set()
-        for node_idx, connection in enumerate(self.indexed_connections):
-            for model_idx, port_idx in connection:
-                if model_idx in ground_idxs:
-                    grounded_nodes.add(node_idx)
-                    
-        kwargs = {'method': self.method} if self.method is not None else {}
-        Ycon = connect_y_arbitrary(
-            Ymats=Ymats, 
-            connections=self.indexed_connections, 
-            port_indices=self.port_idxs,
-            grounded_nodes=list(grounded_nodes),
-            **kwargs,
-        )
-        return Ycon
+            if isinstance(model, Port):
+                for p in range(model.nports):
+                    port_idx.append(offset + p)
+            elif isinstance(model, Ground):
+                for p in range(model.nports):
+                    ground_idxs.append(offset + p)
+            offset += model.nports        
+        
+        return Topology(self.circuit, self.indexed_connections, port_idx, ground_idxs)
+        
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        result = reduce(self.topology, freq, self.solver, z0=z0)
+        return result.s
+    
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        result = reduce(self.topology, freq, self.solver)
+        return result.y
 
 class Cascade(Model):
     """

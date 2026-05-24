@@ -50,5 +50,4 @@ class LBFGSB(AbstractBoundedMinimizer):
         y_opt, state = solver.run(y0, bounds, args, **kwargs)
 
         converged = state.error <= self.gtol
-        payload = MinimizeResult(y=y_opt, success=converged)
-        return payload, state
+        return MinimizeResult(y=y_opt, success=converged, metrics=state)

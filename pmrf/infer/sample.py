@@ -9,10 +9,10 @@ import parax as prx
 from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
-from pmrf.infer.base import AbstractSampler, sample as base_sample
+from pmrf.infer.base import AbstractSampler, run_sampler
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
-from pmrf.utils.tree import infer_batch_axes
+from pmrf.utils.tree import extract_batch_axes
 
 ModelT = TypeVar('ModelT', bound=Model)
 
@@ -74,7 +74,7 @@ def sample(
         
     validate(problem)
         
-    batched_problem, payload, metrics = base_sample(
+    batched_problem, results = run_sampler(
         loglikelihood_fn=lambda p, _args: p(),
         model=problem,
         solver=solver,
@@ -84,8 +84,8 @@ def sample(
     )
 
     # Extract MAP/MLE parameters using the best evaluated function value
-    problem_batch_axes = infer_batch_axes(batched_problem, problem)
-    best_idx = jnp.argmax(payload.fn_values)
+    problem_batch_axes = extract_batch_axes(batched_problem, problem)
+    best_idx = jnp.argmax(results.fn_values)
 
     def extract_best(leaf, axis):
         if axis is None:
@@ -101,7 +101,7 @@ def sample(
         best_loglikelihood=best_loglikelihood,
         sampled_model=batched_problem.model,
         sampled_loglikelihood=batched_problem.evaluator,
-        fn_values=payload.fn_values,
-        weights=payload.weights,
-        metrics=metrics,
+        fn_values=results.fn_values,
+        weights=results.weights,
+        metrics=results.metrics,
     )

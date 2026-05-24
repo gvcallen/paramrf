@@ -56,7 +56,7 @@ def is_model(x: Any):
     return isinstance(x, Model)
 
 
-def infer_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
+def extract_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
     """
     (experimental) Generates an in_axes PyTree by comparing a batched model to a template.
     

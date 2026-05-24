@@ -7,7 +7,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import Bounded
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.backends.scipy import ScipyMinimize
+from pmrf.optimize.solvers.scipy import ScipyMinimize
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

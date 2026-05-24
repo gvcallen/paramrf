@@ -33,6 +33,9 @@ class SampleResult(eqx.Module):
     #: Error of the log of the evidence
     logevidence_error: Array | None = None
     
+    #: Metrics from the underlying solver.
+    metrics: Any = None
+    
 
 class AbstractJointSampler(eqx.Module):
     """Interface for samplers exploring the joint log-posterior (e.g. MCMC-based NUTS or HMC)."""
@@ -46,7 +49,7 @@ class AbstractJointSampler(eqx.Module):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResult, Any]:
+    ) -> SampleResult:
         """
         Execute the sampling algorithm.
 
@@ -69,8 +72,8 @@ class AbstractJointSampler(eqx.Module):
 
         Returns
         -------
-        tuple
-            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        results
+            An instance of :class:`pmrf.infer.SampleResult`.
         """        
         raise NotImplementedError
 
@@ -88,7 +91,7 @@ class AbstractSplitSampler(eqx.Module):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResult, Any]:
+    ) -> SampleResult:
         """
         Execute the sampling algorithm.
 
@@ -113,8 +116,8 @@ class AbstractSplitSampler(eqx.Module):
 
         Returns
         -------
-        tuple
-            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        results
+            An instance of :class:`pmrf.infer.SampleResult`.
         """              
         raise NotImplementedError
 
@@ -137,7 +140,7 @@ class AbstractHypercubeSampler(eqx.Module):
         init_cube_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResult, Any]:
+    ) -> SampleResult:
         """
         Execute the sampling algorithm.
 
@@ -162,8 +165,8 @@ class AbstractHypercubeSampler(eqx.Module):
 
         Returns
         -------
-        tuple
-            A tuple of (:class:`pmrf.infer.SampleResult`, metrics)`.
+        results
+            An instance of :class:`pmrf.infer.SampleResult`.
         """               
         raise NotImplementedError
     
@@ -190,7 +193,7 @@ def is_inferer(x):
     return is_sampler(x)
     
 
-def sample(
+def run_sampler(
     loglikelihood_fn: Callable[[T, Any], Scalar],
     model: T,
     solver: AbstractSampler,
@@ -199,7 +202,7 @@ def sample(
     init_samples: Optional[T] = None,
     max_steps: Optional[int] = None,
     **kwargs
-) -> tuple[T, SampleResult, Any]:
+) -> tuple[T, SampleResult]:
     """
     Samples a general PyTree potentially containing Parax probabilistic parameters
     using a joint, split, or hypercube Bayesian sampler.
@@ -235,7 +238,7 @@ def sample(
     Returns
     -------
     tuple
-        A tuple of `(batched_model, payload, metrics)`.
+        A tuple of `(batched_model, sample_results)`.
     """
     # Filtering/unwrapping
     is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
@@ -282,13 +285,13 @@ def sample(
 
         # Run the sampler
         if isinstance(solver, AbstractJointSampler):
-            results, metrics = solver.run(
+            results = solver.run(
                 logposterior_fn=_logposterior_fn,
                 y0=unconstrained_params, args=args, key=key,
                 init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
             )
         else:
-            results, metrics = solver.run(
+            results = solver.run(
                 loglikelihood_fn=_loglikelihood_fn,
                 logprior_fn=_logprior_fn,
                 y0=unconstrained_params, args=args, key=key,
@@ -298,7 +301,7 @@ def sample(
         # Post-process back to original parameter space and re-wrap
         batched_params_unwrapped = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
         batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
-        return eqx.combine(batched_params, static, is_leaf=is_leaf), results, metrics
+        return eqx.combine(batched_params, static, is_leaf=is_leaf), results
 
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
@@ -323,7 +326,7 @@ def sample(
         if batched_params is not None:
             batched_cube_params = eqx.filter_vmap(_params_to_cube)(batched_dynamic)
         
-        results, metrics = solver.run(
+        results = solver.run(
             loglikelihood_fn=_loglikelihood_fn,
             prior_transform_fn=_cube_to_params,
             u0=cube_params, args=args, key=key,
@@ -331,7 +334,7 @@ def sample(
         )
 
         batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)
-        return eqx.combine(batched_params, static, is_leaf=is_leaf), results, metrics
+        return eqx.combine(batched_params, static, is_leaf=is_leaf), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")
