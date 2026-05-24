@@ -8,9 +8,8 @@ from pmrf.models import Model, Ground
 from pmrf.frequency import Frequency
 from pmrf.utils import field, ArrayLike
 from pmrf.models.components.ideal import Port
-from pmrf.rf import cascade_a, cascade_s, terminate_s_in_s, terminate_a_in_s, renormalize_s
 from pmrf.topology import Topology
-from pmrf.simulate import AbstractReducer, Hallbjorner, reduce
+from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, MobiusTerminator, Redheffer, reduce, cascade, terminate
 
 EVAL_Z0 = 50.0
 
@@ -134,12 +133,10 @@ class Circuit(Model):
         return Topology(self.circuit, self.indexed_connections, port_idx, ground_idxs)
         
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        result = reduce(self.topology, freq, self.solver, z0=z0)
-        return result.s
+        return reduce(self.topology, freq, self.solver, z0=z0).s
     
     def y(self, freq: Frequency) -> jnp.ndarray:
-        result = reduce(self.topology, freq, self.solver)
-        return result.y
+        return reduce(self.topology, freq, self.solver).y
     
 
 class Cascade(Model):
@@ -160,6 +157,8 @@ class Cascade(Model):
     ----------
     cascade : tuple[Model]
         The sequence of models in the cascade.
+    solver : AbstractCascader
+        The solver to use. Available solvers can be found in :mod:`pmrf.simulate`.
 
     Examples
     --------
@@ -190,6 +189,9 @@ class Cascade(Model):
     #: The models.
     cascade: tuple[Model]
     
+    #: The solver.
+    solver: AbstractCascader = field(default=Redheffer())
+    
     def __post_init__(self):
         for model in self.cascade:
             if model.nports % 2 != 0:
@@ -212,19 +214,7 @@ class Cascade(Model):
         return merged
     
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
-        merged_models = self.merged_cascade
-        
-        Smats = jnp.array([model.s(frequency, z0=EVAL_Z0) for model in merged_models])
-        z0s = jnp.array([EVAL_Z0 for _ in merged_models])
-        
-        Scas, _ = cascade_s(Smats, z0s)
-        return renormalize_s(Scas, z_old=EVAL_Z0, z_new=z0, s_def_old='power', s_def_new='power')
-    
-    def a(self, frequency: Frequency):
-        merged_models = self.merged_cascade
-        Amats = jnp.array([model.a(frequency) for model in merged_models])
-        return cascade_a(Amats)
-    
+        return cascade(self.merged_cascade, frequency, solver=self.solver, z0=z0).s
     
 class Terminated(Model):
     """
@@ -237,6 +227,8 @@ class Terminated(Model):
         The model being terminated.
     terminated_into : Model
         The model that `terminated_from` is terminated into.
+    solver : AbstractCascader
+        The solver to use. Available solvers can be found in :mod:`pmrf.simulate`.        
     """
     #: The "from" model.
     terminated_from: Model
@@ -244,13 +236,12 @@ class Terminated(Model):
     #: The "into" model.
     terminated_into: Model
     
+    #: The solver.
+    solver: AbstractTerminator = field(default=MobiusTerminator())
+    
     def __post_init__(self):
         if self.terminated_from.nports != 2*self.terminated_into.nports:
             raise ValueError("Terminated only supports terminating 2N port networks in a 1N port")
         
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        Smat_from = self.terminated_from.s(frequency, z0=EVAL_Z0)
-        Smat_into = self.terminated_into.s(frequency, z0=EVAL_Z0)
-        
-        S_term, _ = terminate_s_in_s(Smat_from=Smat_from, z0_from=EVAL_Z0, Smat_into=Smat_into, z0_into=EVAL_Z0)
-        return renormalize_s(S_term, EVAL_Z0, z0, 'power', 'power')
+        return terminate(self.terminated_from, self.terminated_into, frequency, solver=self.solver, z0=z0).s

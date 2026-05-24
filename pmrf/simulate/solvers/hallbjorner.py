@@ -11,8 +11,6 @@ class Hallbjorner(AbstractScatteringReducer):
     Standard S-parameter solver using Hallbjorner's method.
     Re-written purely in vector math. No for-loops, no slice-packing.
     """
-    layout: str = 'block_diagonal'
-
     def run(
         self, 
         s_matrices: jax.Array,  # Shape: (num_ports, num_ports)

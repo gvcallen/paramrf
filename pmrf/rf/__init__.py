@@ -1,10 +1,11 @@
 """
-Core RF functions, algorithms and conversions.
+Core RF functions and conversions.
 """
-from pmrf.rf.conversions import s2s, a2s, s2a, s2y, y2s, s2z, z2s, renormalize_s
-from pmrf.rf.cascades import cascade_s, cascade_a
-from pmrf.rf.connections import connect_s_arbitrary, connect_s_common, connect_y_arbitrary
-from pmrf.rf.terminations import terminate_a_in_s, terminate_s_in_s
+from pmrf.rf.conversions import (
+    s2s, a2s, s2a, s2y, y2s, s2z, z2s, 
+    y2z, z2y, a2y, y2a, a2z, z2a, 
+    renormalize_s
+)
 
 __all__ = [
     "s2s",
@@ -14,13 +15,11 @@ __all__ = [
     "y2s",
     "s2z",
     "z2s",
+    "y2z",
+    "z2y",
+    "a2y",
+    "y2a",
+    "a2z",
+    "z2a",
     "renormalize_s",
-    "cascade_s",
-    "cascade_a",
-    "connect_s_arbitrary",
-    "connect_s_common",
-    "connect_y_arbitrary",
-    "terminate_a_in_s",
-    "terminate_s_in_s",
 ]
-

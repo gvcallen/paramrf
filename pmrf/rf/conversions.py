@@ -407,6 +407,126 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
+def y2z(y: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert Admittance (Y) parameters to Impedance (Z) parameters.
+
+    Utilizes the S-parameter hub strategy (Y -> S -> Z).
+
+    Parameters
+    ----------
+    y : jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+    """
+    return s2z(y2s(y, z0=z0), z0=z0)
+
+def z2y(z: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert Impedance (Z) parameters to Admittance (Y) parameters.
+
+    Utilizes the S-parameter hub strategy (Z -> S -> Y).
+
+    Parameters
+    ----------
+    z : jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+    """
+    return s2y(z2s(z, z0=z0), z0=z0)
+
+def a2y(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert ABCD parameters to Admittance (Y) parameters.
+
+    Utilizes the S-parameter hub strategy (ABCD -> S -> Y).
+
+    Parameters
+    ----------
+    a : jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, 2, 2)`.
+    """
+    return s2y(a2s(a, z0=z0), z0=z0)
+
+def y2a(y: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert Admittance (Y) parameters to ABCD parameters.
+
+    Utilizes the S-parameter hub strategy (Y -> S -> ABCD).
+
+    Parameters
+    ----------
+    y : jnp.ndarray
+        The Admittance matrix with shape `(nfreqs, 2, 2)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+    """
+    return s2a(y2s(y, z0=z0), z0=z0)
+
+def a2z(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert ABCD parameters to Impedance (Z) parameters.
+
+    Utilizes the S-parameter hub strategy (ABCD -> S -> Z).
+
+    Parameters
+    ----------
+    a : jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, 2, 2)`.
+    """
+    return s2z(a2s(a, z0=z0), z0=z0)
+
+def z2a(z: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    """
+    Convert Impedance (Z) parameters to ABCD parameters.
+
+    Utilizes the S-parameter hub strategy (Z -> S -> ABCD).
+
+    Parameters
+    ----------
+    z : jnp.ndarray
+        The Impedance matrix with shape `(nfreqs, 2, 2)`.
+    z0 : ArrayLike, optional, default=50
+        The intermediate characteristic impedance.
+
+    Returns
+    -------
+    jnp.ndarray
+        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+    """
+    return s2a(z2s(z, z0=z0), z0=z0)
+
 def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
     Renormalize S-parameters from one impedance/definition to another.

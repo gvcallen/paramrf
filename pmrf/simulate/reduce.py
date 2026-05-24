@@ -51,7 +51,7 @@ def reduce(
         
     elif isinstance(solver, AbstractAdmittanceReducer):
         rep = topology_to_nodal(topology)
-        batched_Y_elements = topology.evaluate_admittance(frequency)
+        batched_Y_elements = topology.evaluate_admittance(frequency, layout='flattened')
         
         # batched_Y_elements is (F, N*N). The representation has no frequency axis.
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None))
@@ -111,10 +111,11 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
     for m in topology.models:
         n = m.nports
         nodes = final_port_nodes[offset:offset+n]
-        for i in range(n):
-            for j in range(n):
-                r_idx.append(nodes[i])
-                c_idx.append(nodes[j])
+        
+        # Vectorized meshgrid equivalent
+        r_idx.extend(np.repeat(nodes, n))
+        c_idx.extend(np.tile(nodes, n))
+        
         offset += n
         
     # Identify external and internal active nets

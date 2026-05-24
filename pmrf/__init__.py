@@ -28,6 +28,7 @@ except PackageNotFoundError:
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
 from pmrf.topology import Topology as Topology
+from pmrf.problem import Problem as Problem
 
 #: The canonical type hint for a parameter in a model.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
@@ -89,6 +90,8 @@ __all__ = [
     # Core
     "Model",
     "Frequency",
+    "Topology",
+    "Problem",
 
     "Param",
     "param",

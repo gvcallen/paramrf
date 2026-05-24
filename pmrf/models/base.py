@@ -15,7 +15,10 @@ import parax as prx
 from pmrf.utils.optix import focus, Lens
 from pmrf.parameters import Param
 from pmrf.frequency import Frequency
-from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
+from pmrf.rf import (
+    s2s, a2s, s2a, s2y, y2s, s2z, z2s, 
+    y2z, z2y, a2y, y2a, a2z, z2a, 
+)
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
@@ -494,15 +497,13 @@ class Model(eqx.Module):
         
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
-            s = z2s(val, HUB_Z0)
+            return z2a(val)
         elif primary_domain == 'y':
-            s = y2s(val, HUB_Z0)
+            return y2a(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'a' is not implemented.")
-            
-        return s2a(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -535,15 +536,13 @@ class Model(eqx.Module):
 
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
-            s = a2s(val, HUB_Z0)
+            return a2z(val)
         elif primary_domain == 'y':
-            s = y2s(val, HUB_Z0)
+            return y2z(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'z' is not implemented.")
-
-        return s2z(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -576,16 +575,14 @@ class Model(eqx.Module):
 
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2y(s, HUB_Z0)
         elif primary_domain == 'a':
-            s = a2s(val, HUB_Z0)
+            s = a2y(val)
         elif primary_domain == 'z':
-            s = z2s(val, HUB_Z0)
+            s = z2y(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y' is not implemented.")
 
-        return s2y(s, HUB_Z0)            
-    
     # ---- Magic methods and copying --------------------------------------------------
 
     def __repr__(self) -> str:

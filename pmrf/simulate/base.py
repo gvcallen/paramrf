@@ -36,12 +36,17 @@ class AdmittanceResult(eqx.Module):
     success: bool = True
     metrics: Any = None
 
+class TransferResult(eqx.Module):
+    a: jnp.ndarray
+    
+    success: bool = True
+    metrics: Any = None
 
 class AbstractAdmittanceReducer(eqx.Module):
     @abstractmethod
     def run(
         self, 
-        y_matrices: jnp.ndarray,
+        y_flattened: jnp.ndarray,
         topology: NodalRepresentation, 
     ) -> AdmittanceResult:
         raise NotImplementedError
@@ -50,10 +55,50 @@ class AbstractScatteringReducer(eqx.Module):
     @abstractmethod
     def run(
         self, 
-        s_matrices: jnp.ndarray,
+        s_block_diagonal: jnp.ndarray,
         port_z0: jnp.ndarray,
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         raise NotImplementedError
+    
+class AbstractScatteringCascader(eqx.Module):
+    @abstractmethod
+    def run(
+        self, 
+        s_stacked: jnp.ndarray,
+        port_z0: jnp.ndarray,
+    ) -> ScatteringResult:
+        raise NotImplementedError
+    
+class AbstractTransferCascader(eqx.Module):
+    @abstractmethod
+    def run(
+        self, 
+        a_stacked: jnp.ndarray,
+    ) -> TransferResult:
+        raise NotImplementedError
+    
+class AbstractScatteringTerminator(eqx.Module):
+    @abstractmethod
+    def run(
+        self, 
+        s_from: jnp.ndarray, 
+        z0_from: jnp.ndarray, 
+        s_into: jnp.ndarray, 
+        z0_into: jnp.ndarray
+    ) -> ScatteringResult:
+        raise NotImplementedError
+
+class AbstractTransferTerminator(eqx.Module):
+    @abstractmethod
+    def run(
+        self, 
+        a_from: jnp.ndarray, 
+        s_into: jnp.ndarray, 
+        z0_into: jnp.ndarray
+    ) -> ScatteringResult:
+        raise NotImplementedError
 
 AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer
+AbstractCascader = AbstractScatteringCascader | AbstractTransferCascader
+AbstractTerminator = AbstractScatteringTerminator | AbstractTransferTerminator

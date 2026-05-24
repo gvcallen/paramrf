@@ -167,8 +167,8 @@ class Port(Model):
     """
     Represents a circuit port.
 
-    This class serves as a placeholder or marker for external connections in a circuit definition.
-    Calling an instance returns a matched load model.
+    This class serves as a placeholder or marker for external connections in a :class:`pmrf.models.Circuit` definition.
+    Calling `build` returns a matched load model.
     """
     def build(self) -> Model:
         return Match()
@@ -178,8 +178,8 @@ class Ground(Model):
     """
     Represents a ground connection.
 
-    This class serves as a placeholder for a ground node in a circuit definition.
-    Building an instance returns a short circuit model.
+    This class serves as a placeholder for a ground node in a :class:`pmrf.models.Circuit` definition.
+    Calling `build` returns a short circuit model.
     """
     def build(self) -> Model:
         return Short()
