@@ -18,15 +18,31 @@ def cascade(
 ) -> SimulateResult:
     """
     Cascades a chain of 2N-port components in series.
-    
-    Args:
-        models: An ordered sequence of Models to cascade (Left to Right).
-        frequency: The frequency sweep over which to characterize the network.
-        solver: An instance of a cascader algorithm (e.g., Redheffer or TransferMatmul).
-        z0: The characteristic impedance for parameter evaluation.
-        
-    Returns:
-        SimulateResult: A structured result containing the final cascaded matrices.
+
+    Parameters
+    ----------
+    models : Sequence[Model]
+        An ordered sequence of Models to cascade (left to right).
+    frequency : Frequency
+        The frequency sweep over which to characterize the network.
+    solver : AbstractCascader
+        An instance of a cascader algorithm (e.g., Redheffer or TransferCascader).
+    z0 : ArrayLike, optional
+        The characteristic impedance for parameter evaluation, by default 50.0.
+
+    Returns
+    -------
+    SimulateResult
+        A structured result containing the final cascaded matrices.
+
+    Raises
+    ------
+    ValueError
+        If an empty sequence of models is provided, or if a non-scalar 
+        characteristic impedance (`z0`) is passed to a scattering cascader.
+    TypeError
+        If the provided solver does not inherit from `AbstractScatteringCascader` 
+        or `AbstractTransferCascader`.
     """
     if not models:
         raise ValueError("Cannot cascade an empty list of models.")

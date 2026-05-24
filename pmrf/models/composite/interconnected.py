@@ -9,7 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.utils import field, ArrayLike
 from pmrf.models.components.ideal import Port
 from pmrf.topology import Topology
-from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, MobiusTerminator, Redheffer, reduce, cascade, terminate
+from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, LinearFractionalTerminator, Redheffer, reduce, cascade, terminate
 
 EVAL_Z0 = 50.0
 
@@ -216,6 +216,7 @@ class Cascade(Model):
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
         return cascade(self.merged_cascade, frequency, solver=self.solver, z0=z0).s
     
+    
 class Terminated(Model):
     """
     Represents one network terminated in another.
@@ -237,7 +238,7 @@ class Terminated(Model):
     terminated_into: Model
     
     #: The solver.
-    solver: AbstractTerminator = field(default=MobiusTerminator())
+    solver: AbstractTerminator = field(default=LinearFractionalTerminator())
     
     def __post_init__(self):
         if self.terminated_from.nports != 2*self.terminated_into.nports:

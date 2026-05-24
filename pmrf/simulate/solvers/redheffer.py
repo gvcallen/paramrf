@@ -9,7 +9,6 @@ from pmrf.simulate.base import AbstractScatteringCascader, ScatteringResult
 
 
 class Redheffer(AbstractScatteringCascader):
-    """Cascades a stacked sequence of S-parameter networks using Redheffer's star product."""
     eps: float = eqx.field(default=1e-12, static=True)
     
     def run(

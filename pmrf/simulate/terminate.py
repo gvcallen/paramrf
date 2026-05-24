@@ -18,28 +18,46 @@ def terminate(
 ) -> SimulateResult:
     """
     Terminates a source network into a load network.
-    
-    Args:
-        model_from: The upstream/source Model.
-        model_into: The downstream/load Model to terminate into.
-        frequency: The frequency sweep over which to characterize the network.
-        solver: An instance of a termination algorithm.
-        z0: The characteristic impedance for parameter evaluation.
-        
-    Returns:
-        SimulateResult: A structured result containing the terminated matrix.
+
+    Parameters
+    ----------
+    model_from : Model
+        The upstream/source Model being terminated.
+    model_into : Model
+        The downstream/load Model to terminate into.
+    frequency : Frequency
+        The frequency sweep over which to characterize the network.
+    solver : AbstractTerminator
+        An instance of a termination algorithm (e.g., LinearFractionalTerminator or MobiusTerminator).
+    z0 : ArrayLike, optional
+        The characteristic impedance for parameter evaluation, by default 50.0.
+
+    Returns
+    -------
+    SimulateResult
+        A structured result containing the fully terminated network matrix.
+
+    Raises
+    ------
+    ValueError
+        If a non-scalar characteristic impedance (`z0`) is passed, or if the 
+        source and load port counts do not satisfy the 2N-to-N requirement.
+    TypeError
+        If the provided solver does not inherit from `AbstractScatteringTerminator` 
+        or `AbstractTransferTerminator`.
     """
     if not jnp.isscalar(z0):
         raise ValueError("Terminate currently only accepts scalar characteristic impedances.")
 
-    if isinstance(solver, AbstractScatteringTerminator):
+    n_into = model_into.nports
+
+    if model_from.nports != 2 * n_into:
+        raise ValueError(
+            f"Termination requires a 2N-port terminating into an N-port. "
+            f"Got {model_from.nports} and {n_into}."
+        )
         
-        n_into = model_into.nports
-        if model_from.nports != 2 * n_into:
-            raise ValueError(
-                f"Scattering termination requires a 2N-port terminating into an N-port. "
-                f"Got {model_from.nports} and {n_into}."
-            )
+    if isinstance(solver, AbstractScatteringTerminator):
             
         s_from = model_from.s(frequency, z0=z0)
         s_into = model_into.s(frequency, z0=z0)
@@ -56,9 +74,6 @@ def terminate(
         
     elif isinstance(solver, AbstractTransferTerminator):
         
-        if model_from.nports != 2 or model_into.nports != 1:
-            raise ValueError("Transfer termination currently only supports terminating a 2-port into a 1-port.")
-            
         a_from = model_from.a(frequency)
         s_into = model_into.s(frequency, z0=z0)
         

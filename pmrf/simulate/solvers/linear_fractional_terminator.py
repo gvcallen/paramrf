@@ -2,17 +2,9 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from pmrf.simulate.base import AbstractScatteringTerminator, AbstractTransferTerminator, ScatteringResult
+from pmrf.simulate.base import AbstractScatteringTerminator, ScatteringResult
 
 class LinearFractionalTerminator(AbstractScatteringTerminator):
-    """
-    Evaluates the Lower Linear Fractional Transformation (Lower LFT) of a 
-    2N-port S-parameter matrix terminated by an N-port S-parameter matrix.
-    
-    Automatically renormalizes the terminating network if port impedances mismatch.
-    """
-    s_def: str = eqx.field(default="power", static=True)
-
     def run(
         self, 
         s_from: jnp.ndarray,  # Shape: (2N, 2N)
@@ -36,10 +28,7 @@ class LinearFractionalTerminator(AbstractScatteringTerminator):
         def apply_renorm(operand):
             S_L, z_old, z_new = operand
             
-            if self.s_def == "power":
-                g = (z_new - z_old) / (z_new + jnp.conj(z_old))
-            else:
-                g = (z_new - z_old) / (z_new + z_old)
+            g = (z_new - z_old) / (z_new + jnp.conj(z_old))
                 
             G = jnp.diag(g)
             I = jnp.eye(N, dtype=S_L.dtype)

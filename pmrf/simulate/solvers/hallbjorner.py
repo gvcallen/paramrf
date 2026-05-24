@@ -7,10 +7,6 @@ from pmrf.simulate.base import AbstractScatteringReducer, PortRepresentation, Sc
 from pmrf.rf.conversions import s2s
 
 class Hallbjorner(AbstractScatteringReducer):
-    """
-    Standard S-parameter solver using Hallbjorner's method.
-    Re-written purely in vector math. No for-loops, no slice-packing.
-    """
     def run(
         self, 
         s_matrices: jax.Array,  # Shape: (num_ports, num_ports)

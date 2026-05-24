@@ -21,16 +21,31 @@ def reduce(
     z0: ArrayLike = 50.0,
 ) -> SimulateResult:
     """
-    Rerduce a topology down to its external network parameters.
-    
-    Args:
-        topology: The Topology containing sub-models and connections.
-        frequency: The frequency sweep over which to characterize the network.
-        solver: An instance of a network characterizer.
-        z0: The characteristic impedance for S-parameter evaluation.
-        
-    Returns:
-        SimulateResult: A structured result containing the network matrices.
+    Reduces a topology down to its external network parameters.
+
+    Parameters
+    ----------
+    topology : TopologyT
+        The Topology containing sub-models and connections.
+    frequency : Frequency
+        The frequency sweep over which to characterize the network.
+    solver : AbstractReducer
+        An instance of a network reduction algorithm (e.g., Hallbjorner or Kron).
+    z0 : ArrayLike, optional
+        The characteristic impedance for S-parameter evaluation, by default 50.0.
+
+    Returns
+    -------
+    SimulateResult
+        A structured result containing the fully reduced network matrices.
+
+    Raises
+    ------
+    ValueError
+        If a non-scalar characteristic impedance (`z0`) is passed to a scattering reducer.
+    TypeError
+        If the provided solver does not inherit from `AbstractScatteringReducer` 
+        or `AbstractAdmittanceReducer`.
     """
     
     if isinstance(solver, AbstractScatteringReducer):
@@ -38,7 +53,7 @@ def reduce(
         batched_S, batched_z0 = topology.evaluate_scattering(frequency, z0=z0, layout='block_diagonal')
         
         if not jnp.isscalar(z0):
-            raise Exception("Reduce currently only accepts scalar characteristic impedances")
+            raise ValueError("Reduce currently only accepts scalar characteristic impedances")
         
         # in_axes for batched_z0 is None, as it has no Frequency dimension
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None, None))
@@ -67,7 +82,19 @@ def reduce(
     
     
 def topology_to_ports(topology: Topology) -> PortRepresentation:
-    """Generates the static S-Parameter topological representation."""
+    """
+    Generates the static S-Parameter topological representation.
+
+    Parameters
+    ----------
+    topology : Topology
+        The parsed circuit topology containing connectivity information.
+
+    Returns
+    -------
+    PortRepresentation
+        The structural map defining external vs. internal ports and their nets.
+    """
     num_ports = sum(m.nports for m in topology.models)
     port_to_net_map = topology.connected_components()
     
@@ -82,8 +109,22 @@ def topology_to_ports(topology: Topology) -> PortRepresentation:
         port_to_net_map=port_to_net_map
     )    
 
+
 def topology_to_nodal(topology: Topology) -> NodalRepresentation:
-    """Generates the static Y-Parameter topological representation using a dummy ground node."""
+    """
+    Generates the static Y-Parameter topological representation using a dummy ground node.
+
+    Parameters
+    ----------
+    topology : Topology
+        The parsed circuit topology containing connectivity and ground reference information.
+
+    Returns
+    -------
+    NodalRepresentation
+        The structural map providing flattened indices for global COO scatter-add assembly,
+        including partitions for external and internal nodal nets.
+    """
     port_to_net_map = topology.connected_components()
     unique_nets = np.unique(port_to_net_map)
     
@@ -135,4 +176,4 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
         c_idx=np.array(c_idx, dtype=int),
         ext_idx=ext_idx,
         int_idx=int_idx
-    )    
+    )

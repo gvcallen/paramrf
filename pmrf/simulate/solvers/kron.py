@@ -7,8 +7,6 @@ import equinox as eqx
 from pmrf.simulate.base import AbstractAdmittanceReducer, NodalRepresentation, AdmittanceResult
 
 class Kron(AbstractAdmittanceReducer):
-    """Reduces an admittance network by applying kron reduction to internal nodes."""
-    
     eps: float = eqx.field(default=1e-12, static=True)
 
     def run(
