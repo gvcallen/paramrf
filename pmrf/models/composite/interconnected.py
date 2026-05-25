@@ -6,7 +6,8 @@ from dataclasses import InitVar
 
 from pmrf.models import Model, Ground
 from pmrf.frequency import Frequency
-from pmrf.utils import field, ArrayLike
+from pmrf.utils import field
+from pmrf.types import ArrayLike
 from pmrf.models.components.ideal import Port
 from pmrf.topology import Topology
 from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, LinearFractionalTerminator, Redheffer, reduce, cascade, terminate

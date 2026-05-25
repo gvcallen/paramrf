@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
+from pmrf.parameters import Variable
 from pmrf.frequency import Frequency
 from pmrf.models import Resistor, Capacitor, Inductor, ShuntResistor, ShuntCapacitor, ShuntInductor
 
@@ -30,7 +31,7 @@ def test_resistor_gradient_analytic(single_freq):
     grad_fn = jax.grad(s11_real)
     
     # Evaluate at R = 50.0
-    r_test = 50.0
+    r_test = Variable(50.0)
     z0 = 50.0 # Default Z0
     computed_grad = grad_fn(r_test)
     
@@ -51,7 +52,7 @@ def test_equinox_filter_grad_pytree(single_freq):
         return jnp.real(s21 * jnp.conj(s21))
     
     # Initialize a capacitor model
-    model = Capacitor(C=1.0e-12)
+    model = Capacitor(C=Variable(1.0e-12))
     
     # Compute gradients with respect to all continuous parameters in the model
     grads = eqx.filter_grad(loss)(model)
@@ -83,7 +84,7 @@ def test_full_jacobian_no_nans(model_class, param_name, param_val, sweep_freq):
 
     # Use jacrev for efficiency (few params -> many freq)
     jac_fn = jax.jacrev(get_s_matrix_components)
-    jacobian = jac_fn(param_val)
+    jacobian = jac_fn(Variable(param_val))
     
     assert not jnp.any(jnp.isnan(jacobian))
     assert jacobian.shape == (2 * sweep_freq.npoints, 2, 2)
@@ -93,7 +94,7 @@ def test_autodiff_frequency_parameter():
     Test that we can actually differentiate the network response with respect 
     to the frequency array itself (useful for group delay and dispersion analysis).
     """
-    model = Inductor(L=1.0e-9)
+    model = Inductor(L=Variable(1.0e-9))
     
     def s21_phase(w_val):
         # We bypass the Frequency object for a pure JAX scalar test

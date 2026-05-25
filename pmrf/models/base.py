@@ -111,9 +111,9 @@ class Model(eqx.Module):
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prf.Param = prf.param()
-            L:  prf.Param = prf.param()
-            C2: prf.Param = prf.param()
+            C1: prf.Param
+            L:  prf.Param
+            C2: prf.Param
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -123,18 +123,17 @@ class Model(eqx.Module):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` network built in `build` using cascading:
+    An ``RLC`` model built using cascading and with parameters specified:
 
     .. code-block:: python
 
         import pmrf as prf
         from pmrf.models import Resistor, Capacitor, Inductor
-        from pmrf.parameters import Bounded
 
         class RLC(prf.Model):
-            res: Resistor = Resistor(Bounded(9.0, 11.0))
-            ind: Inductor = Inductor(Bounded(0.0, 10.0, scale=1e-12))
-            cap: Capacitor = Capacitor(Bounded(0.0, 10.0, scale=1e-12))
+            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
+            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
 
             def build(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
@@ -211,8 +210,8 @@ class Model(eqx.Module):
     
     def pathed_params(
         self,
-        include_fixed: bool = False,
         unwrap: bool = True,
+        include_fixed: bool = True,
         keystr: bool = False,
         separator: str | None = None,
     ) -> list[tuple[Any, Param]]:
@@ -267,8 +266,8 @@ class Model(eqx.Module):
     
     def named_params(
         self,
-        include_fixed: bool = False,
         unwrap: bool = True,
+        include_fixed: bool = True,
         namespace_separator: str = '_',
     ) -> dict[str, Param]:
         """
@@ -298,13 +297,13 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        include_fixed : bool
-            Whether to include fixed parameters in the returned dictionary.
-            Defaults to False.
         unwrap : bool
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.
+        include_fixed : bool
+            Whether to include fixed parameters in the returned dictionary.
+            Defaults to False.
         namespace_separator : str
             The separator to use to create a parameter namespace using model names.
         

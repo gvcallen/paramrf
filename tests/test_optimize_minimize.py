@@ -15,7 +15,7 @@ from pmrf.optimize.solvers.scipy import ScipyMinimize
 
 class DummyOptModel(Model):
     """A simple 1-port model with one free parameter for optimization."""
-    val: prf.Param = prf.param(1.0)
+    val: prf.Param = prf.param(default=1.0, as_variable=True)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints

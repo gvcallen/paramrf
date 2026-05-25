@@ -7,12 +7,12 @@ from abc import ABC, abstractmethod
 import numpy as np
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils.type import is_overridden
-from pmrf.utils import field, freeze, ArrayLike
+from pmrf.utils import field, freeze
+from pmrf.types import ArrayLike
 from pmrf.rf import renormalize_s
 
 class AbstractDiscrete(Model, ABC):

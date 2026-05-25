@@ -12,7 +12,7 @@ import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
 import parax 
-from jaxtyping import Inexact, Array
+from jaxtyping import Inexact, Array, ArrayLike
 from typing import TypeAlias
 
 # Environment Setup
@@ -30,14 +30,25 @@ from pmrf.frequency import Frequency as Frequency
 from pmrf.topology import Topology as Topology
 from pmrf.problem import Problem as Problem
 
-#: The canonical type hint for a parameter in a model.
+#: The canonical type hint for a float, or a numpy or JAX array.
+ArrayLike: TypeAlias = ArrayLike
+
+#: The canonical type hint for a parameter.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
 #: most of which are re-exported at root (e.g. :func:`pmrf.Variable`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
 Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
+
+#: The canonical type hint for a tunable parameter or fixed number in a model.
+#: For a fixed value, pass a float or numpy array.
+#: For a tunable value, pass a parameter e.g. :func:`pmrf.Variable` or :func:`pmrf.Bounded`.
+Param: TypeAlias = Param | ArrayLike
+
+
 from pmrf.parameters import (
     param as param,
-    as_param as as_param,
+    as_variable as as_variable,
     Variable as Variable,
+    Variables as Variables,
     Fixed as Fixed,
     Bounded as Bounded,
     Constrained as Constrained,
@@ -63,6 +74,8 @@ from pmrf.utils import (
     is_constant as is_constant,
     is_param as is_param,
     is_model as is_model,
+    derivative as derivative,
+    sweep as sweep,
 )
 
 # Modules
@@ -95,7 +108,7 @@ __all__ = [
 
     "Param",
     "param",
-    "as_param",
+    "as_variable",
     "Variable",
     "Fixed",
     "Bounded",
@@ -119,6 +132,8 @@ __all__ = [
     "is_constant",
     "is_param",
     "is_model",
+    "derivative",
+    "sweep",
     
     # Sub-modules
     "constraints",

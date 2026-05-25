@@ -66,6 +66,7 @@ def test_fit_skrf_synthetic_data(starting_model, target_network):
 def test_fit_raw_ndarray(truth_model, starting_model, fit_freq):
     target_s = np.array(truth_model.s(fit_freq))
     results = fit_minimize(starting_model, target_s, frequency=fit_freq)
+
     assert jnp.allclose(results.model.length.value, 0.1, atol=1e-3)
 
 def test_fit_missing_freq_error(starting_model, fit_freq):

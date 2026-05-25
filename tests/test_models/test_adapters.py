@@ -10,7 +10,7 @@ from pmrf.models import (
     Host, ContinuousCallable, SkrfNetwork
 )
 from pmrf.network_collection import NetworkCollection
-from pmrf.utils import ArrayLike
+from pmrf.types import ArrayLike
 
 # ---------------------------------------------------------
 # Fixtures
@@ -74,7 +74,7 @@ def test_single_property_routing(fine_freq):
 
 class DummyHostModel(Host):
     """A dummy host model representing an external simulator."""
-    val: Param = param(10.0)
+    val: Param = param(default=10.0, as_variable=True)
     
     @property
     def number_of_ports(self): 

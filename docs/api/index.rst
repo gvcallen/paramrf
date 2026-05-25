@@ -68,7 +68,10 @@ Utilities
    pmrf.InitVar
    pmrf.load
    pmrf.save
+   pmrf.derivative
+   pmrf.sweep
    pmrf.freeze
+   pmrf.unfreeze
    pmrf.replace
    pmrf.unwrap
    pmrf.unwrap_self

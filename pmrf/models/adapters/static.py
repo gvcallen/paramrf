@@ -11,7 +11,8 @@ import skrf
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Model
-from pmrf.utils import field, freeze, ArrayLike
+from pmrf.utils import field, freeze
+from pmrf.types import ArrayLike
 from pmrf.rf import renormalize_s
 
 

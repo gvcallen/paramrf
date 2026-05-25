@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.utils import field
-from pmrf.parameters import Param, param
+from pmrf.types import ArrayLike
 
 
 class AbstractCovarianceKernel(eqx.Module):
@@ -93,18 +93,17 @@ class ProductKernel(AbstractCovarianceKernel):
     def __call__(self, x1, x2, key=None):
         return self.k1(x1, x2) * self.k2(x1, x2)
 
-
 class ConstantKernel(AbstractCovarianceKernel):
     """
     Kernel that returns a constant variance.
 
     Parameters
     ----------
-    variance : pmrf.Param
+    variance : ArrayLike
         Constant variance value.
     """
     #: The variance.
-    variance: Param = param()
+    variance: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         return self.variance
@@ -116,10 +115,10 @@ class RBFKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : pmrf.Param
+    lengthscale : ArrayLike
         Characteristic length scale of the correlation.
     """
-    lengthscale: Param = param()
+    lengthscale: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -135,16 +134,16 @@ class PeriodicKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    period : pmrf.Param
+    period : ArrayLike
         The period of the kernel, dictating the distance between repetitions.
-    lengthscale : pmrf.Param
+    lengthscale : ArrayLike
         Characteristic length scale of the correlation.
     """
     #: The period.
-    period: Param = param()
+    period: ArrayLike
 
     #: The lengthscale,
-    lengthscale: Param = param()
+    lengthscale: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         # Add a tiny jitter to the squared distance before taking the square root.
@@ -165,11 +164,11 @@ class WhiteNoiseKernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    variance : pmrf.Param
+    variance : ArrayLike
         Noise variance level.
     """
     #: The variance.
-    variance: Param = param()
+    variance: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         is_equal = jnp.allclose(x1, x2)
@@ -186,11 +185,11 @@ class Matern32Kernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : pmrf.Param
+    lengthscale : ArrayLike
         Characteristic length scale of the correlation.
     """
     # The lengthscale
-    lengthscale: Param = param()
+    lengthscale: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale
@@ -214,11 +213,11 @@ class Matern52Kernel(AbstractCovarianceKernel):
 
     Parameters
     ----------
-    lengthscale : pmrf.Param
+    lengthscale : ArrayLike
         Characteristic length scale of the correlation.
     """
     # The lengthscale.
-    lengthscale: Param = param()
+    lengthscale: ArrayLike
 
     def __call__(self, x1, x2, key=None):
         scaled_diff = (x1 - x2) / self.lengthscale

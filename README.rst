@@ -54,7 +54,9 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  model = Resistor(50) ** Inductor(1.0e-9) ** Capacitor(1.0e-12)
+  R, L, C = prf.Variables([50, 1.0e-9, 1.0e-12])
+
+  model = Resistor(R) ** Inductor(L) ** Capacitor(C)
   goal = prf.evaluators.Goal('s11_db', '<', -20)
   passband = prf.Frequency(3, 4, 101, 'GHz')
   

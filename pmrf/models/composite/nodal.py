@@ -6,12 +6,12 @@ This includes adding/removing ground, introducing coupling, etc.
 from typing import Any
 
 import jax.numpy as jnp
-import numpy as np
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.rf import y2s, renormalize_s
-from pmrf.utils import ArrayLike
+from pmrf.rf import renormalize_s
+from pmrf.types import ArrayLike
+
 
 class GroundLifted(Model):
     r"""

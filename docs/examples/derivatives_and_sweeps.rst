@@ -1,12 +1,12 @@
-Automatic Differentiation
+Derivatives and Sweeps
 =========================
 
-ParamRF is built on JAX and Equinox, making models natively differentiable. This allows for analytical gradients of circuit responses with respect to component values, avoiding the need for numerical approximations. These gradients can be interpreted, for example, as the sensitivities of a given response to specific components. In this example, we compute these sensitivities for a CLC low-pass filter across frequency.
+ParamRF provides built-in utilities for the calculation of analytical derivatives, as well as for performing vectorized parameter and function sweeps.
 
-Computing Parameter Sensitivities
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Model Setup
+~~~~~~~~~~~
 
-First, let's set up a low-pass filter model which we want to take derivatives with respect to:
+First, let's set up a base low-pass filter example model with named models:
 
 .. plot::
    :context: reset
@@ -14,32 +14,33 @@ First, let's set up a low-pass filter model which we want to take derivatives wi
 
    from pmrf.models import ShuntCapacitor, Inductor, Cascade
    
-   c1 = ShuntCapacitor(C=1.0e-12)
-   l1 = Inductor(L=1.0e-9)
-   c2 = ShuntCapacitor(C=1.0e-12)
+   c1 = ShuntCapacitor(C=1.0e-12, name='c1')
+   l1 = Inductor(L=1.0e-9, name='l1')
+   c2 = ShuntCapacitor(C=1.0e-12, name='c2')
    
    lpf = Cascade([c1, l1, c2])
 
+Scalar Derivatives
+~~~~~~~~~~~~~~~~~~
 
-To differentiate a model's parameters, we must define a pure function that returns a scalar metric (e.g., insertion loss). We use :func:`equinox.filter_grad` to compute derivatives for the parameters within the model tree:
+
+To differentiate a model's parameters, we can pass any differentiable function to :func:`pmrf.derivative`, as well as its nominal arguments:
 
 .. plot::
    :context:
    :include-source:
 
    import pmrf as prf
-   import equinox as eqx
    
    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
    
    def s21_mag(model):
        return model.s_mag(freq)[0,1,0]
-
-   grad_fn = eqx.filter_grad(s21_mag)
-   sensitivities = grad_fn(prf.unwrap(lpf))
    
-   print(f"Sensitivity to C1: {sensitivities.models[0].C * 1e-12:.3f} / pF")
-   print(f"Sensitivity to L: {sensitivities.models[1].L * 1e-9:.3f} / nH")
+   (derivatives,) = prf.derivative(s21_mag, lpf)
+   
+   print(f"Sensitivity to C1: {derivatives.at('c1.C').get() * 1e-12:.3f} / pF")
+   print(f"Sensitivity to L: {derivatives.at('l1.L').get() * 1e-9:.3f} / nH")
 
 **Output:**
 

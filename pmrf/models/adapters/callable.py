@@ -9,8 +9,9 @@ import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleDomain, AbstractSingleDiscreteDomain
-from pmrf.parameters import Param, param
 from pmrf.utils import freeze, field, unwrap_self
+from pmrf.types import Param
+from pmrf.parameters import param
     
 class ContinuousCallable(AbstractSingleDomain):
     """

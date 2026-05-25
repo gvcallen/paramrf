@@ -9,9 +9,10 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
-from pmrf.parameters import Param, param
+from pmrf.parameters import param
 from pmrf.constraints import Positive, GreaterThan
-from pmrf.utils import field, ArrayLike
+from pmrf.utils import field
+from pmrf.types import Param, ArrayLike
 
 class TransmissionLine(Model):
     r"""
@@ -227,10 +228,10 @@ class PhaseLine(TransmissionLine):
         Reference frequency in Hz for `theta`. Key-word only static argument.
     """
     #: Electrical length (phase shift)
-    theta: Param = param(90.0, constraint=Positive())
+    theta: Param = param(default=90.0, constraint=Positive())
     
     #: Characteristic impedance
-    zc: Param = param(50.0, constraint=Positive())
+    zc: Param = param(default=50.0, constraint=Positive())
     
     #: Reference frequency
     f0: float = field(static=True, kw_only=True)
@@ -284,16 +285,16 @@ class ConstantRLGCLine(RLGCLine):
         Capacitance in Farads/m.
     """
     #: Resistance in Ohms/m
-    R: Param = param(0.0, constraint=Positive())
+    R: Param = param(default=0.0, constraint=Positive())
     
     #: Inductance in Henries/m
-    L: Param = param(280e-9, constraint=Positive())
+    L: Param = param(default=280e-9, constraint=Positive())
     
     #: Conductance in Siemens/m
-    G: Param = param(0.0, constraint=Positive())
+    G: Param = param(default=0.0, constraint=Positive())
     
     #: Capacitance in Farads/m
-    C: Param = param(90e-12, constraint=Positive())
+    C: Param = param(default=90e-12, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         ones = jnp.ones(freq.npoints)
@@ -350,19 +351,19 @@ class PhysicalLine(RLGCLine):
         Dielectric loss tangent.
     """
     #: Nominal characteristic impedance
-    zn: Param = param(50.0, constraint=Positive())
+    zn: Param = param(default=50.0, constraint=Positive())
     
     #: Relative permittivity
-    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    epr: Param = param(default=1.0, constraint=GreaterThan(1.0))
     
     #: Conductor loss in dB/m/sqrt(Hz)
-    A: Param = param(0.0, constraint=Positive())
+    A: Param = param(default=0.0, constraint=Positive())
     
     #: Frequency scaling reference
-    fA: Param = param(1.0, constraint=Positive())
+    fA: Param = param(default=1.0, constraint=Positive())
     
     #: Dielectric loss tangent
-    tand: Param = param(0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         f = freq.f
@@ -439,16 +440,16 @@ class DatasheetLine(RLGCLine):
         Angular frequency limits (start, stop) used to scale `epr_slope`. Defaults to the analysis array bounds.
     """
     #: Nominal characteristic impedance
-    zn: Param = param(50.0, constraint=Positive())
+    zn: Param = param(default=50.0, constraint=Positive())
     
     #: Velocity factor
-    vf: Param = param(1.0, constraint=Positive())
+    vf: Param = param(default=1.0, constraint=Positive())
     
     #: Skin effect loss factor
-    k1: Param = param(0.0, constraint=Positive())
+    k1: Param = param(default=0.0, constraint=Positive())
     
     #: Dielectric loss factor
-    k2: Param = param(0.0, constraint=Positive())
+    k2: Param = param(default=0.0, constraint=Positive())
     
     #: Loss coefficients normalization flag
     loss_coeffs_normalized: bool = field(default=False, static=True)
@@ -534,22 +535,22 @@ class CoaxialLine(RLGCLine):
         Resistivity of the conductors in Ohm-meters.
     """
     #: Inner conductor diameter
-    din: Param = param(1.12e-3, constraint=Positive())
+    din: Param = param(default=1.12e-3, constraint=Positive())
     
     #: Outer conductor inner diameter
-    dout: Param = param(3.2e-3, constraint=Positive())
+    dout: Param = param(default=3.2e-3, constraint=Positive())
     
     #: Relative permittivity
-    epr: Param = param(1.0, constraint=GreaterThan(1.0))
+    epr: Param = param(default=1.0, constraint=GreaterThan(1.0))
     
     #: Relative permeability
-    mur: Param = param(1.0, constraint=Positive())
+    mur: Param = param(default=1.0, constraint=Positive())
     
     #: Loss tangent
-    tand: Param = param(0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=Positive())
     
     #: Resistivity of the conductors
-    rho: Param = param(1.68e-8, constraint=Positive())
+    rho: Param = param(default=1.68e-8, constraint=Positive())
     
     @property
     def eps(self) -> jnp.ndarray:
@@ -657,19 +658,19 @@ class MicrostripLine(RLGCLine):
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     """
     #: Width of the microstrip trace
-    w: Param = param(3e-3, constraint=Positive())
+    w: Param = param(default=3e-3, constraint=Positive())
     
     #: Height of the dielectric substrate
-    h: Param = param(1.6e-3, constraint=Positive())
+    h: Param = param(default=1.6e-3, constraint=Positive())
     
     #: Relative permittivity
-    epr: Param = param(4.3, constraint=GreaterThan(1.0))
+    epr: Param = param(default=4.3, constraint=GreaterThan(1.0))
     
     #: Dielectric loss tangent
-    tand: Param = param(0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=Positive())
     
     #: Resistivity of the conductor
-    rho: Param = param(0.0, constraint=Positive())
+    rho: Param = param(default=0.0, constraint=Positive())
 
     def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         W, H = self.w, self.h

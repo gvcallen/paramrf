@@ -5,13 +5,14 @@ These components are all non-tunable by default. To specify free parameters, use
 """
 import numpy as np
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.rf import renormalize_s
+from pmrf.types import ArrayLike, Param
+from pmrf.parameters import param
 
 class Load(Model):
     """
@@ -19,15 +20,13 @@ class Load(Model):
 
     Parameters
     ----------
-    gamma : ArrayLike
+    gamma : Param
         The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     nports : int
         The number of ports this load presents. Default is 1.
     """
     #: The reflection coefficient
-    gamma: ArrayLike
+    gamma: Param = param()
     
     #: Number of ports
     nports: int = eqx.field(default=1, static=True)
@@ -64,22 +63,18 @@ class Impedance(Model):
 
     Parameters
     ----------
-    R : ArrayLike
+    R : Param
         The resistance in Ohms.
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
-    X : ArrayLike
+    X : Param
         The reactance in Ohms.
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     nports : int
         The number of ports this impedance presents. Default is 1.
     """
     #: The resistance in Ohms
-    R: ArrayLike
+    R: Param = param()
     
     #: The reactance in Ohms
-    X: ArrayLike
+    X: Param = param()
     
     #: Number of ports
     nports: int = field(default=1, static=True)
@@ -244,17 +239,17 @@ class Isolator(Model):
     
     Parameters
     ----------
-    isolation : ArrayLike, default=np.inf
-        The reverse isolation in dB. Defaults to infinity (perfect isolation).
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    isolation : Param, default=np.inf
+        The reverse isolation in dB. 
+        Defaults to infinity (perfect isolation).
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the isolator was designed.
     """
     #: The reverse isolation in dB.
-    isolation: ArrayLike = field(default=np.inf, kw_only=True)
+    isolation: Param = param(default=np.inf)
     
     #: The intrinsic characteristic impedance of the physical device.
-    z0: jnp.ndarray = field(default=50.0, converter=jnp.asarray, kw_only=True)
+    z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s12_lin = 10.0 ** (-self.isolation / 20.0)
@@ -317,16 +312,14 @@ class Attenuator(Model):
 
     Parameters
     ----------
-    loss : ArrayLike
+    loss : Param
         The attenuation in dB (a positive value indicates loss).
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the physical attenuator 
         was designed.
     """
     #: The attenuation in dB.
-    loss: ArrayLike
+    loss: Param = param()
     
     #: The intrinsic characteristic impedance of the physical device.
     z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
@@ -357,16 +350,14 @@ class DirectionalCoupler(Model):
 
     Parameters
     ----------
-    coupling : ArrayLike
+    coupling : Param
         The linear voltage coupling factor. 
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
         For example, for a 20 dB coupler, coupling = 10**(-20/20) = 0.1.
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the coupler was designed.
     """
     #: The linear voltage coupling factor.
-    coupling: ArrayLike
+    coupling: Param = param()
     
     #: The intrinsic characteristic impedance of the physical device.
     z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)

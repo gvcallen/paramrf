@@ -6,7 +6,8 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleDomain
-from pmrf.parameters import Param, param
+from pmrf.types import Param
+from pmrf.parameters import param
 
 class PolynomialRatio(AbstractSingleDomain):
     """
@@ -69,13 +70,13 @@ class PoleResidue(AbstractSingleDomain):
         Shape: () or (N, N).
     """
     #: The poles of the system
-    poles: Param = None
+    poles: Param = param(default=None)
     
     #: The residues of the system
-    residues: Param = None
+    residues: Param = param(default=None)
     
     #: Optional direct feedthrough matrix
-    d: Param = None
+    d: Param = param(default=None)
 
     def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w

@@ -23,4 +23,7 @@ from pmrf.utils.tree import (
     is_model as is_model,    
 )
 
-from jaxtyping import ArrayLike as ArrayLike
+from pmrf.utils.transforms import (
+    sweep as sweep,
+    derivative as derivative,
+)
