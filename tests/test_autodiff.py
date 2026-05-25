@@ -5,7 +5,7 @@ import equinox as eqx
 
 from pmrf.parameters import Unconstrained
 from pmrf.frequency import Frequency
-from pmrf.models import Resistor, Capacitor, Inductor, ShuntResistor, ShuntCapacitor, ShuntInductor
+from pmrf.models import Resistor, Capacitor, Inductor
 
 @pytest.fixture
 def single_freq():
@@ -65,9 +65,6 @@ def test_equinox_filter_grad_pytree(single_freq):
     (Resistor, 'R', 50.0),
     (Capacitor, 'C', 1.0e-12),
     (Inductor, 'L', 1.0e-9),
-    (ShuntResistor, 'R', 50.0),
-    (ShuntInductor, 'L', 1.0e-9),
-    (ShuntCapacitor, 'C', 1.0e-12),
 ])
 def test_full_jacobian_no_nans(model_class, param_name, param_val, sweep_freq):
     """

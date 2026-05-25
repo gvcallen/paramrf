@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 import pmrf as prf
-from pmrf.models import ShuntCapacitor
+from pmrf.models import Capacitor
 
 
 def test_derivative_math_and_static_filtering():
@@ -30,7 +30,7 @@ def test_derivative_model_structure():
     returns a structurally identical PyTree without throwing arbitrary-type errors.
     """
     freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
-    cap = ShuntCapacitor(C=jnp.array(1.0e-12), name='test_cap')
+    cap = Capacitor(C=jnp.array(1.0e-12), name='test_cap')
 
     def eval_s21(model):
         return model.s_mag(freq)[0, 1, 0]

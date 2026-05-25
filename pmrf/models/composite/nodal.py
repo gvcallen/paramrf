@@ -25,35 +25,38 @@ class GroundLifted(Model):
     ----------
     lifted : Model
         The inner N-port model to be wrapped and lifted from the global ground.
-
-    Reference
-    ----------------------
-    Constructs a $2N \times 2N$ floating S-matrix by superimposing the signal S-matrix 
-    onto the even ports and a parallel star-node (common return) S-matrix onto the odd ports.
     """
     #: The inner N-port model to be wrapped.
     lifted: Model
 
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def y(self, freq: Frequency) -> jnp.ndarray:
         n = self.lifted.nports
-
-        # Evaluate the inner model at a uniform, scalar reference impedance
-        z0_eval = 50.0
-        s_inner = self.lifted.s(freq, z0=z0_eval)
-
-        # The lifted ground forms an ideal common return node (an N-port parallel junction).
-        s_ret = jnp.full((freq.npoints, n, n), 2.0 / n, dtype=jnp.complex128)
-        i = jnp.arange(n)
-        s_ret = s_ret.at[..., i, i].add(-1.0)
-
-        # Superimpose signal ports (even) and return ports (odd)
-        s_out = jnp.zeros((freq.npoints, 2 * n, 2 * n), dtype=jnp.complex128)
         
-        s_out = s_out.at[..., 0::2, 0::2].set(s_inner)
-        s_out = s_out.at[..., 1::2, 1::2].set(s_ret)
+        # Get the intrinsic admittance matrix
+        y_inner = self.lifted.y(freq)
 
-        # Renormalize to the requested z0
-        return renormalize_s(s_out, z0_eval, z0, 'power', 'power')
+        # Use the IAM to expose the ground as a single (N+1) port 
+        col_sums = jnp.sum(y_inner, axis=-1, keepdims=True)
+        row_sums = jnp.sum(y_inner, axis=-2, keepdims=True)
+        total_sum = jnp.sum(y_inner, axis=(-2, -1), keepdims=True)
+
+        top_block = jnp.concatenate([y_inner, -col_sums], axis=-1)
+        bottom_block = jnp.concatenate([-row_sums, total_sum], axis=-1)
+        y_exposed = jnp.concatenate([top_block, bottom_block], axis=-2)
+        
+        # Create an incidence matrix A of shape (2N, N+1)
+        A = jnp.zeros((2 * n, n + 1), dtype=jnp.complex128)
+        
+        # Map even ports (0, 2, 4...) to the original signal ports (0, 1, 2... N-1)
+        A = A.at[0::2, 0:n].set(jnp.eye(n))
+        
+        # Map odd ports (1, 3, 5...) all to the single exposed ground port (index N)
+        A = A.at[1::2, n].set(1.0)
+        
+        # Map the admittances: Y_out = A * Y_exposed * A^T
+        y_out = jnp.einsum('pi,...ij,qj->...pq', A, y_exposed, A)
+        
+        return y_out
     
 
 class GroundExposed(Model):
@@ -134,10 +137,6 @@ class Shunt(Model):
         # Renormalize to the requested z0 
         return renormalize_s(S_shunt, z0_eval, z0, 'power', 'power')
     
-    
-import numpy as np
-import jax.numpy as jnp
-from typing import Any
 
 class CoupledOnePorts(Model):
     r"""
@@ -237,11 +236,13 @@ class CoupledOnePorts(Model):
             
         y_diag = jnp.stack(y_diags, axis=-1)
         
-        y_outer = y_diag[..., :, jnp.newaxis] * y_diag[..., jnp.newaxis, :]
+        b_diag = jnp.imag(y_diag)
+        b_outer = b_diag[..., :, jnp.newaxis] * b_diag[..., jnp.newaxis, :]
         
         k_mat = self.coupling_matrix
-        y_coupled = k_mat * jnp.sqrt(y_outer)
+        y_mutual = 1j * k_mat * jnp.sqrt(b_outer + 0j)
         
+        y_coupled = y_mutual
         i = jnp.arange(n)
         y_coupled = y_coupled.at[..., i, i].set(y_diag)
         
@@ -351,16 +352,20 @@ class CoupledTwoPorts(Model):
             
         z_branch = jnp.stack(z_branch_list, axis=-1)
         
-        z_outer = z_branch[..., :, jnp.newaxis] * z_branch[..., jnp.newaxis, :]
+        x_branch = jnp.imag(z_branch)
+        x_outer = x_branch[..., :, jnp.newaxis] * x_branch[..., jnp.newaxis, :]
         
         k_mat = self.coupling_matrix
-        z_b_matrix = k_mat * jnp.sqrt(z_outer)
+        z_mutual = 1j * k_mat * jnp.sqrt(x_outer + 0j)
         
+        z_b_matrix = z_mutual
         i = jnp.arange(n)
         z_b_matrix = z_b_matrix.at[..., i, i].set(z_branch)
         
+        # Invert to get branch admittances
         y_b_matrix = jnp.linalg.inv(z_b_matrix)
         
+        # Nodal incidence matrix translation
         A = jnp.zeros((2 * n, n), dtype=jnp.float64)
         A = A.at[0::2, :].set(jnp.eye(n))
         A = A.at[1::2, :].set(-jnp.eye(n))

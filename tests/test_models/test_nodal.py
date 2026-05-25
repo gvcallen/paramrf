@@ -200,8 +200,9 @@ def test_coupled_one_ports_coefficients(basic_freq):
     y_coupled = coupled.y(basic_freq)
     y11 = m1.y(basic_freq)[..., 0, 0]
     
-    # Mutual admittance Y_12 = k_12 * sqrt(Y_11 * Y_22)
-    expected_mutual = 0.5 * jnp.sqrt(y11 * y11)
+    # Mutual admittance only couples the imaginary (susceptance) part.
+    b11 = jnp.imag(y11)
+    expected_mutual = 1j * 0.5 * jnp.sqrt(b11 * b11)
     
     assert jnp.allclose(y_coupled[..., 0, 1], expected_mutual)
     assert jnp.allclose(y_coupled[..., 1, 0], expected_mutual)
@@ -265,3 +266,37 @@ def test_coupled_two_ports_coefficients():
     
     coupled = CoupledTwoPorts(coupled=[ind1, ind2], coupling=[(0, 1, 0.1)], method='coefficients')
     assert jnp.allclose(coupled.coupling_matrix, np.array([[1.0, 0.1], [0.1, 1.0]]))
+
+
+def test_coupled_two_ports_pure_real_isolation(basic_freq):
+    """Pure real components (resistors) cannot couple, even if k > 0."""
+    r1, r2 = Resistor(R=50.0), Resistor(R=50.0)
+    
+    coupled = CoupledTwoPorts(coupled=[r1, r2], coupling=[(0, 1, 0.5)], method='coefficients')
+    y_coupled = coupled.y(basic_freq)
+    
+    # Off-diagonal blocks (ports 0,1 to ports 2,3) must remain exactly 0 
+    # because the imaginary part (reactance) is 0.
+    assert jnp.allclose(y_coupled[..., 0:2, 2:4], 0.0 + 0.0j)
+    assert jnp.allclose(y_coupled[..., 2:4, 0:2], 0.0 + 0.0j)
+
+def test_coupled_two_ports_complex_reactance_coupling(basic_freq):
+    """Ensure mutual impedance accurately scales the reactive part of complex branches."""
+    class DummyComplexBranch(Model):
+        @property
+        def nports(self): return 2
+        
+        def y(self, freq: Frequency) -> jnp.ndarray:
+            z = 50.0 + 100.0j # R + jX
+            y_mat = jnp.array([[1.0, -1.0], [-1.0, 1.0]], dtype=jnp.complex128) / z
+            return y_mat.reshape((1, 2, 2)).repeat(freq.npoints, 0)
+
+    m1, m2 = DummyComplexBranch(), DummyComplexBranch()
+    coupled = CoupledTwoPorts(coupled=[m1, m2], coupling=[(0, 1, 0.5)], method='coefficients')
+    
+    y_nodal = coupled.y(basic_freq)
+    
+    # Ensure the nodal matrix evaluates safely without NaN/Inf (proving no negative roots)
+    # and that the cross-coupling occurred.
+    assert not jnp.any(jnp.isnan(y_nodal))
+    assert not jnp.allclose(y_nodal[..., 0:2, 2:4], 0.0 + 0.0j)
