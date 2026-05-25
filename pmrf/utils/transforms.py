@@ -10,7 +10,7 @@ Ts = TypeVarTuple("Ts")
 
 
 def is_jax_array(x: Any) -> bool:
-    return isinstance(x, jax.Array, jax.ShapeDtypeStruct)
+    return isinstance(x, jax.Array)
 
 
 def is_inexact_jax_array(x):
