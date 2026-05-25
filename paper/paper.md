@@ -57,9 +57,9 @@ The following snippet demonstrates ParamRF's syntax and optimization API. A stan
 import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 
-R = prf.Unconstrained(50.0, name='R')
-L = prf.Bounded(0.0, 100.0, scale=1e-9, name='L')
-C = prf.Bounded(0.0, 100.0, scale=1e-12, name='C')
+R = prf.Unconstrained(50.0)
+L = prf.Bounded(0.0, 100.0, scale=1e-9)
+C = prf.Bounded(0.0, 100.0, scale=1e-12)
 
 model = Resistor(R) ** Inductor(L) ** Capacitor(C)
 goal = prf.evaluators.Goal('s11_db', '<', -20)
