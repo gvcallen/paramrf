@@ -41,7 +41,7 @@ Param: TypeAlias = parax.AbstractVariable | ArrayLike
 
 from pmrf.parameters import (
     param as param,
-    as_variable as as_variable,
+    as_free as as_free,
     as_fixed as as_fixed,
     Unconstrained as Unconstrained,
     Fixed as Fixed,
@@ -103,7 +103,7 @@ __all__ = [
 
     "Param",
     "param",
-    "as_variable",
+    "as_free",
     "as_fixed",
     "Unconstrained",
     "Fixed",

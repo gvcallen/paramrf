@@ -74,7 +74,7 @@ def test_single_property_routing(fine_freq):
 
 class DummyHostModel(Host):
     """A dummy host model representing an external simulator."""
-    val: Param = param(default=10.0, as_variable=True)
+    val: Param = param(default=10.0, as_free=True)
     
     @property
     def number_of_ports(self): 

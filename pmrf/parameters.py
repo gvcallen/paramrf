@@ -22,7 +22,7 @@ from pmrf.types import Param
 from pmrf.utils import unfreeze
 
 def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
-    value = prx.as_variable(value)
+    value = prx.as_free(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
         try:
@@ -73,7 +73,7 @@ def extract_name(value: Any) -> str | None:
     return named_variable[0].metadata['name']
     
 
-def as_variable(
+def as_free(
     value: Any = None,
     *,
     distribution: Optional[AbstractDistribution] = None,
@@ -82,7 +82,7 @@ def as_variable(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Coerces a value into a variable parameter.
+    Coerces a value into a free parameter.
 
     The incoming value can be an existing parameter or any
     parameter-like object (float, array etc.).
@@ -183,7 +183,7 @@ def as_fixed(
     pmrf.Param
         A fixed parameter.
     """
-    variable = as_variable(
+    variable = as_free(
         value,
         distribution=distribution,
         constraint=constraint,
@@ -197,7 +197,7 @@ def as_fixed(
 def param(
     *,
     default: Any = dataclasses.MISSING,
-    as_variable: bool = False,
+    as_free: bool = False,
     as_fixed: bool = False,
     distribution: Optional[AbstractDistribution] = None,
     constraint: Optional[AbstractConstraint] = None,
@@ -241,7 +241,7 @@ def param(
     ----------
     default : Any, optional
         The default value of the parameter.
-    as_variable : bool, optional
+    as_free : bool, optional
         Whether to enforce that the value is a variable parameter.
         If False, incoming values will keep the variability (e.g. constants will remain constants).
         If True, all values will be co-erced into variable parameters.
@@ -263,22 +263,22 @@ def param(
     Any
         An equinox field with a built-in converter for parameter rules.
     """
-    if as_fixed and as_variable:
-        raise ValueError("Cannot pass both `as_fixed=True` and `as_variable=True` to `pmrf.param`")
+    if as_fixed and as_free:
+        raise ValueError("Cannot pass both `as_fixed=True` and `as_free=True` to `pmrf.param`")
     
-    as_variable_func = globals()['as_variable']
+    as_free_func = globals()['as_free']
     as_fixed_func = globals()['as_fixed']
 
     def converter(x):
-        if as_variable:
-            return as_variable_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
+        if as_free:
+            return as_free_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
         if as_fixed:
             return as_fixed_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
         
         if x is None:
             return None
         elif (prx.is_variable(x) or isinstance(x, jax.Array)) and not prx.is_constant(x):
-            return as_variable_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
+            return as_free_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
         return as_fixed_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
 
     return eqx.field(default=default, converter=converter, **kwargs)
@@ -322,7 +322,7 @@ def Unconstrained(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create an unconstrained variable parameter.
+    Create an unconstrained free parameter.
 
     Parameters
     ----------
@@ -338,7 +338,7 @@ def Unconstrained(
     pmrf.Param
         An unconstrained parameter.
     """
-    return as_variable(value, scale=scale, name=name)
+    return as_free(value, scale=scale, name=name)
 
 
 def Constrained(
@@ -349,7 +349,7 @@ def Constrained(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a variable parameter constrained to a specific domain.
+    Create a free parameter constrained to a specific domain.
 
     See :mod:`pmrf.constraints` for built-in constraints.
 
@@ -369,7 +369,7 @@ def Constrained(
     pmrf.Param
         The constrained parameter.
     """
-    return as_variable(value, constraint=constraint, scale=scale, name=name)
+    return as_free(value, constraint=constraint, scale=scale, name=name)
 
 
 def Bounded(
@@ -381,7 +381,7 @@ def Bounded(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a variable parameter constrained within a specific interval.
+    Create a free parameter constrained within a specific interval.
 
     Used as the main factory to define parameters for bounded optimization.
 
@@ -405,7 +405,7 @@ def Bounded(
     pmrf.Param
         The bounded parameter.
     """
-    return as_variable(value, constraint=Interval(lower, upper), scale=scale, name=name)
+    return as_free(value, constraint=Interval(lower, upper), scale=scale, name=name)
 
 
 def Random(
@@ -417,7 +417,7 @@ def Random(
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a variable parameter with an associated probability distribution.
+    Create a free parameter with an associated probability distribution.
 
     Used as the main factory to define parameters for Bayesian inference.
     Can also be used for bounded optimization, in which case the random
@@ -451,11 +451,12 @@ def Random(
     ValueError
         If `value` is None and the distribution does not implement `mean()`.
     """
-    return as_variable(value, distribution=distribution, constraint=constraint, scale=scale, name=name)
+    return as_free(value, distribution=distribution, constraint=constraint, scale=scale, name=name)
 
 
 __all__ = [
-    "as_variable",
+    "as_free",
+    "as_fixed",
     "Unconstrained",
     "Fixed",
     "Bounded",
