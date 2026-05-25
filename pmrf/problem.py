@@ -8,7 +8,7 @@ import equinox as eqx
 from pmrf.models.base import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
-from pmrf.utils import freeze, field, unwrap
+from pmrf.utils import unfreeze, field, unwrap
 
 class Problem(eqx.Module):
     """
@@ -31,7 +31,7 @@ class Problem(eqx.Module):
     model: Model
     
     #: The active frequency domain.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
     
     #: The active evaluator.
     evaluator: AbstractEvaluator

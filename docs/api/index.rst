@@ -11,7 +11,7 @@ Core Primitives
 
    pmrf.Model
    pmrf.Frequency
-   pmrf.Variable
+   pmrf.Unconstrained
    pmrf.Param
    pmrf.Fixed
    pmrf.Bounded
@@ -33,6 +33,7 @@ Main Modules
    pmrf.optimize
    pmrf.infer
    pmrf.fitting
+   pmrf.simulate
 
 Other Modules
 -------------
@@ -67,8 +68,12 @@ Utilities
    pmrf.InitVar
    pmrf.load
    pmrf.save
+   pmrf.derivative
+   pmrf.sweep
    pmrf.freeze
+   pmrf.unfreeze
    pmrf.replace
    pmrf.unwrap
    pmrf.unwrap_self
-   pmrf.as_param
+   pmrf.as_fixed
+   pmrf.as_variable

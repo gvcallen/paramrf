@@ -35,7 +35,7 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
         args: Any,
         max_iter: int,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         kwargs.setdefault('throw', False)
         
         result = optx.minimise(
@@ -52,8 +52,7 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
         f_converged = jnp.less_equal(jnp.abs(f_val), self.fatol)
         success = is_optx_success | f_converged
 
-        payload = MinimizeResult(y=result.value, success=success)
-        return payload, result
+        return MinimizeResult(y=result.value, success=success, metrics=result)
       
 
 class GradientDescent(AbstractUnconstrainedMinimizer):
@@ -88,7 +87,7 @@ class GradientDescent(AbstractUnconstrainedMinimizer):
         args: Any,
         max_iter: int,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         
         solver = optx.GradientDescent(
             learning_rate=self.learning_rate,
@@ -131,7 +130,7 @@ class BFGS(AbstractUnconstrainedMinimizer):
         args: Any,
         max_iter: int,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         solver = optx.BFGS(
             rtol=self.step_rtol,
             atol=self.step_atol,
@@ -173,7 +172,7 @@ class LBFGS(AbstractUnconstrainedMinimizer):
         args: Any,
         max_iter: int,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         solver = optx.LBFGS(
             rtol=self.step_rtol,
             atol=self.step_atol,
@@ -219,7 +218,7 @@ class NelderMead(AbstractUnconstrainedMinimizer):
         args: Any,
         max_iter: int,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         
         solver = optx.NelderMead(
             rtol=self.xrtol,

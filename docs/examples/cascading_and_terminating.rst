@@ -15,7 +15,7 @@ A simple example of compositional modeling is cascaded (series) elements. In Par
    import pmrf as prf
    from pmrf.models import ShuntResistor, ShuntInductor, ShuntCapacitor
    
-   res, ind, cap = ShuntResistor(100.0), ShuntInductor(2.0e-9), ShuntCapacitor(1.0e-12)
+   res, ind, cap = ShuntResistor(R=100.0), ShuntInductor(L=2.0e-9), ShuntCapacitor(C=1.0e-12)
    rlc = res ** ind ** cap
 
 Note that, in the above example, *no computation* was done. Models are *lazy*, and are only evaluated when we pass them a frequency. To evaluate the model, we could extract its S-parameter matrix using :meth:`pmrf.Model.s`:

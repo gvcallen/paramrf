@@ -6,7 +6,8 @@ import jax.numpy as jnp
 import jax.numpy as jnp
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field, ArrayLike
+from pmrf.utils import field
+from pmrf.types import ArrayLike
 
 class Renumbered(Model):
     """

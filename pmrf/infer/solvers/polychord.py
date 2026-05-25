@@ -133,7 +133,7 @@ class PolyChord(AbstractHypercubeSampler):
         init_cube_samples: Optional[PyTree] = None,
         max_steps: int | None = None,
         **kwargs,
-    ) -> tuple[SampleResult, PyTree]:
+    ) -> SampleResult:
         if not MPI_AVAILABLE:
             raise ImportError("pypolychord, anesthetic and mpi4py must be installed to use the PolyChord sampler.")
 
@@ -235,12 +235,11 @@ class PolyChord(AbstractHypercubeSampler):
             logevidence_error = None
         
         structured_samples = jax.vmap(cube_reconstruct_fn)(jnp.array(samples))
-        results = SampleResult(
+        return SampleResult(
             samples=structured_samples,
             fn_values=loglikes,
             weights=weights,
             logevidence=logevidence,
             logevidence_error=logevidence_error,
+            metrics=nested_samples,
         )
-
-        return results, nested_samples

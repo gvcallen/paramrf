@@ -34,16 +34,19 @@ Let's define a capacitor from first principles using its ABCD parameters:
                [zeros, ones]
            ]).transpose(2, 0, 1)
 
-By inheriting from :class:`~pmrf.Model`, ``Capacitor`` becomes a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_ and a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_! For those familiar with dataclasses, this means that any standard dataclass syntax applies. However, note that :class:`~pmrf.Param` is simply a *type-hint*, and does *not enforce* that the caller actually passes a valid parameter. To guarantee that ``C`` becomes a parameter for optimization even if the caller passes a float, we can use a *field specifier*.
+By inheriting from :class:`~pmrf.Model`, ``Capacitor`` becomes both a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_ and a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_! For those familiar with dataclasses, this means that any standard dataclass syntax applies.
+
+Note that :class:`~pmrf.Param` is a merely a field *type-hint*, and does not enforce that the resulting field is actually a parameter and is registered as such. To ensure that the caller's value is register as either a fixed or variable parameter so that it is returned by :meth:`pmrf.Model.named_params`, and to also specify parameter *constraints* and additional features, we can use a *field specifier*.
 
 Adding a Field Specifier
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 ParamRF provides two field specifiers: :class:`~pmrf.field` and :class:`~pmrf.param`. For parameters, :class:`~pmrf.param` allows the following:
 
-  * Callers can initialize the parameter with a simple float or array-like number
-  * Constraints can be specified that are inherent to the model and will always be enforced
-  * Metadata and scaling can be attached, allowing the model's units to be changed
+  * Setting a default value
+  * Specifying parameter constraints that are inherent to the model
+  * Attaching additional metadata and scaling at the model level
+  * Auto-converting floats and other array-like values into variable/fixed parameters
   
 The code below demonstrates this by extending the previous class, while constraining ``C`` to be only positive and defining the capacitance in terms of picofarads (pF) instead of farads (F):
 
@@ -55,12 +58,14 @@ The code below demonstrates this by extending the previous class, while constrai
    from pmrf.constraints import Positive
    
    class Capacitor(Capacitor):
-       C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
+       C: prf.Param = prf.param(constraint=Positive(), as_variable=True, scale=1e-12)
    
        # def a(self, freq: prf.Frequency) -> jnp.ndarray:
            # <same as before>
 
-The constraints will always be enforced (even for unconstrained optimizers!), and ParamRF will also automatically intersect them with any new constraints provided by the caller.
+By passing ``as_variable=True``, ParamRF will enforce that the incoming value is a tunable parameter even if a float is passed. Similarly, ``as_fixed=True`` can be used to fix any incoming parameters. However, these converters are entirely optionaly, and by default the parameter's "tunability" is left unchanged, which is the most common use-case (simply registering the value in the parameter hierarchy).
+
+Note that constraints will also always be enforced (even for unconstrained optimizers!), and will also automatically be intersected with any new constraints provided by the caller.
 
 Evaluating the S-parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

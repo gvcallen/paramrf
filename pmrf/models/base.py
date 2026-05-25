@@ -15,7 +15,10 @@ import parax as prx
 from pmrf.utils.optix import focus, Lens
 from pmrf.parameters import Param
 from pmrf.frequency import Frequency
-from pmrf.rf import a2s, s2a, s2z, z2s, s2y, y2s
+from pmrf.rf import (
+    s2s, a2s, s2a, s2y, y2s, s2z, z2s, 
+    y2z, z2y, a2y, y2a, a2z, z2a, 
+)
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
@@ -108,9 +111,9 @@ class Model(eqx.Module):
         import pmrf as prf        
 
         class PiCLC(prf.Model):
-            C1: prf.Param = prf.param()
-            L:  prf.Param = prf.param()
-            C2: prf.Param = prf.param()
+            C1: prf.Param
+            L:  prf.Param
+            C2: prf.Param
 
             def a(self, freq: prf.Frequency) -> jnp.ndarray:
                 w = freq.w
@@ -120,18 +123,17 @@ class Model(eqx.Module):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` network built in `build` using cascading:
+    An ``RLC`` model built using cascading and with parameters specified:
 
     .. code-block:: python
 
         import pmrf as prf
         from pmrf.models import Resistor, Capacitor, Inductor
-        from pmrf.parameters import Bounded
 
         class RLC(prf.Model):
-            res: Resistor = Resistor(Bounded(9.0, 11.0))
-            ind: Inductor = Inductor(Bounded(0.0, 10.0, scale=1e-12))
-            cap: Capacitor = Capacitor(Bounded(0.0, 10.0, scale=1e-12))
+            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
+            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
+            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
 
             def build(self) -> prf.Model:
                 return self.res ** self.ind ** self.cap.terminated()
@@ -208,8 +210,8 @@ class Model(eqx.Module):
     
     def pathed_params(
         self,
-        include_fixed: bool = False,
-        unwrap: bool = True,
+        values: bool = True,
+        include_fixed: bool = True,
         keystr: bool = False,
         separator: str | None = None,
     ) -> list[tuple[Any, Param]]:
@@ -223,9 +225,9 @@ class Model(eqx.Module):
         include_fixed : bool, default=False
             Whether to include fixed parameters in the returned dictionary.
             Defaults to False.
-        unwrap : bool, default=True
+        values : bool, default=True
             Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect internal parameter states (e.g. distributions, fixed etc.)
+            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.        
         keystr : bool, default=False
             Whether equivalent strings should be returned as opposed to full JAX paths.
@@ -245,7 +247,7 @@ class Model(eqx.Module):
         filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
         pathed, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
         
-        if unwrap or keystr:
+        if values or keystr:
             for i in range(len(pathed)):
                 key, value = pathed[i]
                 
@@ -253,7 +255,7 @@ class Model(eqx.Module):
                     kwargs = {'separator': separator} if separator is not None else {}
                     key = jax.tree_util.keystr(key, **kwargs)
                 
-                if unwrap:
+                if values:
                     value = prx.unwrap(value)
                     if jnp.isscalar(value):
                         value = float(value)
@@ -264,8 +266,8 @@ class Model(eqx.Module):
     
     def named_params(
         self,
-        include_fixed: bool = False,
-        unwrap: bool = True,
+        values: bool = True,
+        include_fixed: bool = True,
         namespace_separator: str = '_',
     ) -> dict[str, Param]:
         """
@@ -295,13 +297,13 @@ class Model(eqx.Module):
 
         Parameters
         ----------
+        values : bool
+            Unwraps the parameters into raw floats/arrays. Defaults to True.
+            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
+            pass `unwrap=False`.
         include_fixed : bool
             Whether to include fixed parameters in the returned dictionary.
             Defaults to False.
-        unwrap : bool
-            Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect internal parameter states (e.g. distributions, fixed etc.)
-            pass `unwrap=False`.
         namespace_separator : str
             The separator to use to create a parameter namespace using model names.
         
@@ -312,7 +314,7 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        pathed = self.pathed_params(include_fixed=include_fixed, unwrap=unwrap)
+        pathed = self.pathed_params(include_fixed=include_fixed, values=values)
         
         # Detect collisions
         named = {}
@@ -494,15 +496,13 @@ class Model(eqx.Module):
         
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
-            s = z2s(val, HUB_Z0)
+            return z2a(val)
         elif primary_domain == 'y':
-            s = y2s(val, HUB_Z0)
+            return y2a(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'a' is not implemented.")
-            
-        return s2a(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -535,15 +535,13 @@ class Model(eqx.Module):
 
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
-            s = a2s(val, HUB_Z0)
+            return a2z(val)
         elif primary_domain == 'y':
-            s = y2s(val, HUB_Z0)
+            return y2z(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'z' is not implemented.")
-
-        return s2z(s, HUB_Z0)
 
     @eqx.filter_jit
     @unwrap_self
@@ -576,16 +574,14 @@ class Model(eqx.Module):
 
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            s = val
+            return s2y(s, HUB_Z0)
         elif primary_domain == 'a':
-            s = a2s(val, HUB_Z0)
+            s = a2y(val)
         elif primary_domain == 'z':
-            s = z2s(val, HUB_Z0)
+            s = z2y(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y' is not implemented.")
 
-        return s2y(s, HUB_Z0)            
-    
     # ---- Magic methods and copying --------------------------------------------------
 
     def __repr__(self) -> str:
@@ -698,12 +694,12 @@ class Model(eqx.Module):
         resolved_where = _resolve_target(self, where)
         return focus(self).at(resolved_where)
     
-    def map(self: Self, fn: Callable[[Any], Any], is_leaf: Callable | None = None) -> Self:
+    def map(self: Self, fn: Callable[[Any], Any], predicate: Callable | None = None) -> Self:
         """(experimental) A functional interface for model mapping.
         
         This is a wrapper around `jax.tree.map`.
         
-        To map parameters, pass `is_leaf=prf.is_param`.
+        To map parameters, pass `is_target=prf.is_param`.
         
         Examples
         --------
@@ -715,7 +711,12 @@ class Model(eqx.Module):
 
         Returns the mapped model.
         """
-        return jax.tree.map(fn, self, is_leaf=is_leaf)
+        def _wrapped_fn(node):
+            if not predicate(node):
+                return node
+            return fn(node)
+
+        return jax.tree.map(_wrapped_fn, self, is_leaf=predicate)
         
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -937,7 +938,7 @@ def validate(tree):
                         f"Field '{f.name}' in '{node.__class__.__name__}' is a raw JAX array, "
                         f"meaning it is unclear whether this is a free or fixed parameter.\n\n"
                         f"To make your intention clear, you must either:\n"
-                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Variable`) for free variables, or a numpy array for fixed variables\n"
+                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Unconstrained`) for free variables, or a numpy array for fixed variables\n"
                         f"  2. Use a field specifier in the model class definition, e.g. `{f.name}: prf.Param = prf.param()` for automatic parameter conversion, "
                         f"or `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` combined with `prf.unwrap` to ensure the variable is not optimized.\n"
                         f"This restriction is enforced to allow compatibility with machine learning models from othe libraries."
@@ -1084,7 +1085,7 @@ def _resolve_target(model: Any, target: Any, namespace_separator: str = '_') -> 
         )
 
     # Build name -> path mapping using the model's pathed_params
-    pathed = model.pathed_params(include_fixed=True, unwrap=False)
+    pathed = model.pathed_params(include_fixed=True, values=False)
     name_to_path = {}
     for path, _ in pathed:
         name = tree_path_to_name(model, path, namespace_separator=namespace_separator)

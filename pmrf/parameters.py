@@ -8,19 +8,19 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Optional, TypeAlias
+from typing import Any, Optional, Sequence, Union, Tuple
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike, Inexact, Array
+from jaxtyping import ArrayLike
+import numpy as np
 import equinox as eqx
 import parax as prx
 
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
-
-#: The canonical type hint for a parameter in a model.
-Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]
+from pmrf.types import Param
+from pmrf.utils import freeze
 
 def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
     value = prx.as_variable(value)
@@ -74,17 +74,16 @@ def extract_name(value: Any) -> str | None:
     return named_variable[0].metadata['name']
     
 
-def as_param(
+def as_variable(
     value: Any = None,
     *,
     distribution: Optional[AbstractDistribution] = None,
     constraint: Optional[AbstractConstraint] = None,
     scale: float = 1.0,
-    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
-    Coerces a value into a parameter.
+    Coerces a value into a variable parameter.
 
     The incoming value can be an existing parameter or any
     parameter-like object (float, array etc.).
@@ -99,15 +98,13 @@ def as_param(
         The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
     name : str, optional
         A name for the parameter, by default None.
 
     Returns
     -------
     pmrf.Param
-        An equinox field with a built-in converter for parameter rules.
+        A variable parameter.
     """
     # Unwrapping for safety
     distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
@@ -132,6 +129,10 @@ def as_param(
             value = constraint.midpoint()
         else:
             value = distribution.mean()
+
+    # Make sure the value is not fixed
+    # TODO: this will not yet work for fixed parameters deeply composed within other variables
+    value = freeze(value)
     
     # Base Construction (if it's not a variable yet)
     if prx.is_variable(value):
@@ -148,23 +149,70 @@ def as_param(
         else:
             value = prx.Real(value)
 
-    return apply_wrappers(value, scale=scale, fixed=fixed, name=name)
+    return apply_wrappers(value, scale=scale, fixed=False, name=name)
 
 
-def param(
-    value: Any = dataclasses.MISSING,
+def as_fixed(
+    value: Any = None,
     *,
     distribution: Optional[AbstractDistribution] = None,
     constraint: Optional[AbstractConstraint] = None,
     scale: float = 1.0,
-    fixed: bool = False,
+    name: Optional[str] = None,
+) -> Param:
+    """
+    Coerces a value into a fixed parameter.
+
+    The incoming value can be an existing parameter or any
+    parameter-like object (float, array etc.).
+
+    Parameters
+    ----------
+    value : Any, optional
+        The value of the parameter.
+    distribution : Optional[AbstractDistribution], optional
+        The probability distribution for the parameter. See :mod:`pmrf.distributions`.
+    constraint : Optional[AbstractConstraint], optional
+        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    name : str, optional
+        A name for the parameter, by default None.
+
+    Returns
+    -------
+    pmrf.Param
+        A fixed parameter.
+    """
+    variable = as_variable(
+        value,
+        distribution=distribution,
+        constraint=constraint,
+        scale=scale,
+        name=name,
+    )
+
+    return apply_wrappers(variable, scale=1.0, fixed=True, name=None)
+
+
+def param(
+    *,
+    default: Any = dataclasses.MISSING,
+    as_variable: bool = False,
+    as_fixed: bool = False,
+    distribution: Optional[AbstractDistribution] = None,
+    constraint: Optional[AbstractConstraint] = None,
+    scale: float = 1.0,
+    **kwargs,
 ) -> Any:
     """
-    A field specifier for defining the rules of parameters in custom models.
+    A field specifier for registering parameters within a model.
 
     This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
-    For example, it can be used to enforce constraints/scaling/bounds that are required
-    by the model itself.
+
+    It is used to register the parameter within the model so that it is listed
+    under :meth:`pmrf.Model.named_params`. It can also be used to enforce
+    constraints, scaling, bounds and variability within the model itself.
 
     Example
     --------
@@ -192,55 +240,49 @@ def param(
 
     Parameters
     ----------
-    value : Any, optional
-        The default value of the field.
+    default : Any, optional
+        The default value of the parameter.
+    as_variable : bool, optional
+        Whether to enforce that the value is a variable parameter.
+        If False, incoming values will keep the variability (e.g. constants will remain constants).
+        If True, all values will be co-erced into variable parameters.
+    as_fixed : bool, optional
+        Whether to enforce that the value is a fixed parameter.
+        If False, incoming values will keep the variability (e.g. constants will remain constants).
+        If True, all values will be wrapped in :func:`pmrf.Fixed`.
     distribution : Optional[AbstractDistribution], optional
         The probability distribution for the parameter. See :mod:`pmrf.distributions`.
     constraint : Optional[AbstractConstraint], optional
         The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
+    **kwargs
+        Additional key-word arguments to pass to the general :func:`pmrf.field` specifier.
 
     Returns
     -------
     Any
         An equinox field with a built-in converter for parameter rules.
     """
-    def converter(x):
-        return as_param(value=x, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed)
+    if as_fixed and as_variable:
+        raise ValueError("Cannot pass both `as_fixed=True` and `as_variable=True` to `pmrf.param`")
     
-    return eqx.field(default=value, converter=converter)
+    as_variable_func = globals()['as_variable']
+    as_fixed_func = globals()['as_fixed']
 
+    def converter(x):
+        if as_variable:
+            return as_variable_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
+        if as_fixed:
+            return as_fixed_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
+        
+        if x is None:
+            return None
+        elif (prx.is_variable(x) or isinstance(x, jax.Array)) and not prx.is_constant(x):
+            return as_variable_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
+        return as_fixed_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
 
-def Variable(
-    value: ArrayLike,
-    *,
-    scale: float = 1.0,
-    fixed: bool = False,
-    name: Optional[str] = None,
-) -> Param:
-    """
-    Create a variable parameter.
-
-    Parameters
-    ----------
-    value : ArrayLike
-        The base parameter value.
-    scale : float, optional
-        The scaling factor to apply, by default 1.0.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
-    name : str, optional
-        A name for the parameter, by default None.
-
-    Returns
-    -------
-    pmrf.Param
-        An unconstrained parameter.
-    """
-    return as_param(value, scale=scale, fixed=fixed, name=name)
+    return eqx.field(default=default, converter=converter, **kwargs)
 
 
 def Fixed(
@@ -251,6 +293,11 @@ def Fixed(
 ) -> Param:
     """
     Create a fixed parameter.
+
+    Compared to specifying raw floats or numpy arrays, this is a convenience
+    specifier that allows the parameters to be ignored by optimizers
+    while still having a name and being capable of easily being made
+    into a variable using :func:`pmrf.unfreeze`.
 
     Parameters
     ----------
@@ -266,7 +313,33 @@ def Fixed(
     pmrf.Param
         The fixed parameter.
     """
-    return as_param(value, scale=scale, fixed=True, name=name)
+    return as_fixed(value, scale=scale, name=name)
+
+
+def Unconstrained(
+    value: ArrayLike,
+    *,
+    scale: float = 1.0,
+    name: Optional[str] = None,
+) -> Param:
+    """
+    Create an unconstrained variable parameter.
+
+    Parameters
+    ----------
+    value : ArrayLike
+        The base parameter value.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    name : str, optional
+        A name for the parameter, by default None.
+
+    Returns
+    -------
+    pmrf.Param
+        An unconstrained parameter.
+    """
+    return as_variable(value, scale=scale, name=name)
 
 
 def Constrained(
@@ -274,11 +347,10 @@ def Constrained(
     value: ArrayLike,
     *,
     scale: float = 1.0, 
-    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a parameter constrained to a specific domain.
+    Create a variable parameter constrained to a specific domain.
 
     See :mod:`pmrf.constraints` for built-in constraints.
 
@@ -290,8 +362,6 @@ def Constrained(
         The initial value of the parameter.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
-    fixed : bool, optional
-        Whether to freeze the parameter, by default False.
     name : str, optional
         A name for the parameter, by default None.
 
@@ -300,7 +370,7 @@ def Constrained(
     pmrf.Param
         The constrained parameter.
     """
-    return as_param(value, constraint=constraint, scale=scale, fixed=fixed, name=name)
+    return as_variable(value, constraint=constraint, scale=scale, name=name)
 
 
 def Bounded(
@@ -309,11 +379,10 @@ def Bounded(
     *,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
-    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a parameter constrained within a specific interval.
+    Create a variable parameter constrained within a specific interval.
 
     Used as the main factory to define parameters for bounded optimization.
 
@@ -337,7 +406,7 @@ def Bounded(
     pmrf.Param
         The bounded parameter.
     """
-    return as_param(value, constraint=Interval(lower, upper), scale=scale, fixed=fixed, name=name)
+    return as_variable(value, constraint=Interval(lower, upper), scale=scale, name=name)
 
 
 def Random(
@@ -346,11 +415,10 @@ def Random(
     constraint: Optional[AbstractConstraint] = None,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
-    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
-    Create a parameter initialized with a random distribution.
+    Create a variable parameter with an associated probability distribution.
 
     Used as the main factory to define parameters for Bayesian inference.
     Can also be used for bounded optimization, in which case the random
@@ -384,12 +452,12 @@ def Random(
     ValueError
         If `value` is None and the distribution does not implement `mean()`.
     """
-    return as_param(value, distribution=distribution, constraint=constraint, scale=scale, fixed=fixed, name=name)
+    return as_variable(value, distribution=distribution, constraint=constraint, scale=scale, name=name)
 
 
 __all__ = [
-    "as_param",
-    "Variable",
+    "as_variable",
+    "Unconstrained",
     "Fixed",
     "Bounded",
     "Constrained",

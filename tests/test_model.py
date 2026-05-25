@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.utils import ArrayLike
+from pmrf.types import ArrayLike
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

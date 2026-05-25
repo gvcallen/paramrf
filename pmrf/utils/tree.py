@@ -27,25 +27,25 @@ from dataclasses import (
 )
 
 
-def freeze(model: Any):
+def unfreeze(value: Any):
     """
-    Freezes a model (or any JAX PyTree) and returns the frozen model.
+    Fixes/freezes a parameter or entire model and returns the frozen model.
 
     This can be used to freeze models to make them non-optimizable,
-    but should also be used as a field converter (using `prf.field(converter=prf.freeze)`)
+    but should also be used as a field converter (using `prf.field(converter=prf.fix)`)
     when storing raw arrays within in a model.
     """
-    return prx.as_opaque(model)
+    return prx.as_opaque(value)
 
 
-def unfreeze(model: Any):
+def freeze(value: Any):
     """
-    Unfreezes a potentially frozen model and returns the unfrozen model.
+    Frees/unfreezes a potentially frozen parameter or model and returns the unfrozen model.
     """
-    model = prx.as_free(model)
-    if isinstance(model, prx.Static):
-        model = model.unwrap()
-    return model
+    value = prx.as_free(value)
+    if isinstance(value, prx.Static):
+        value = value.unwrap()
+    return value
 
 
 def is_model(x: Any):
@@ -56,7 +56,7 @@ def is_model(x: Any):
     return isinstance(x, Model)
 
 
-def infer_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
+def extract_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
     """
     (experimental) Generates an in_axes PyTree by comparing a batched model to a template.
     

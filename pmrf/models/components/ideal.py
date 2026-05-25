@@ -5,13 +5,14 @@ These components are all non-tunable by default. To specify free parameters, use
 """
 import numpy as np
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.rf import renormalize_s
+from pmrf.types import ArrayLike, Param
+from pmrf.parameters import param
 
 class Load(Model):
     """
@@ -19,41 +20,40 @@ class Load(Model):
 
     Parameters
     ----------
-    gamma : ArrayLike
+    gamma : Param
         The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     nports : int
         The number of ports this load presents. Default is 1.
     """
     #: The reflection coefficient
-    gamma: ArrayLike
+    gamma: Param = param()
     
     #: Number of ports
-    nports: int = field(default=1, static=True)
+    nports: int = eqx.field(default=1, static=True)
     
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        gamma, nports = self.gamma, self.nports
-        s = jnp.array(gamma).reshape(-1, 1, 1) * \
-            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+        s = jnp.asarray(self.gamma).reshape(-1, 1, 1) * \
+            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
             repeat(freq.npoints, 0)
         return s
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        gamma, nports = self.gamma, self.nports
+        gamma_arr = jnp.asarray(self.gamma)
         
-        is_invalid = jnp.any(jnp.logical_or(gamma == 1.0, gamma == -1.0))
+        is_invalid = jnp.any(gamma_arr == -1.0)
         
-        gamma = eqx.error_if(
-            gamma, 
+        gamma_safe = eqx.error_if(
+            gamma_arr, 
             is_invalid, 
-            "Y-matrix is singular or undefined for ideal open (1.0) or short (-1.0) loads."
+            "Y-matrix is singular and undefined for ideal short (-1.0) loads."
         )
         
-        y_val = (1.0 - gamma) / (1.0 + gamma)
-        y = jnp.array(y_val).reshape(-1, 1, 1) * \
-            jnp.eye(nports, dtype=jnp.complex128).reshape((-1, nports, nports)).\
+        y_val = (1.0 - gamma_safe) / (1.0 + gamma_safe)
+        
+        y = jnp.asarray(y_val).reshape(-1, 1, 1) * \
+            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
             repeat(freq.npoints, 0)
+            
         return y
     
     
@@ -63,22 +63,18 @@ class Impedance(Model):
 
     Parameters
     ----------
-    R : ArrayLike
+    R : Param
         The resistance in Ohms.
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
-    X : ArrayLike
+    X : Param
         The reactance in Ohms.
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     nports : int
         The number of ports this impedance presents. Default is 1.
     """
     #: The resistance in Ohms
-    R: ArrayLike
+    R: Param = param()
     
     #: The reactance in Ohms
-    X: ArrayLike
+    X: Param = param()
     
     #: Number of ports
     nports: int = field(default=1, static=True)
@@ -166,8 +162,8 @@ class Port(Model):
     """
     Represents a circuit port.
 
-    This class serves as a placeholder or marker for external connections in a circuit definition.
-    Calling an instance returns a matched load model.
+    This class serves as a placeholder or marker for external connections in a :class:`pmrf.models.Circuit` definition.
+    Calling `build` returns a matched load model.
     """
     def build(self) -> Model:
         return Match()
@@ -177,8 +173,8 @@ class Ground(Model):
     """
     Represents a ground connection.
 
-    This class serves as a placeholder for a ground node in a circuit definition.
-    Building an instance returns a short circuit model.
+    This class serves as a placeholder for a ground node in a :class:`pmrf.models.Circuit` definition.
+    Calling `build` returns a short circuit model.
     """
     def build(self) -> Model:
         return Short()
@@ -243,17 +239,17 @@ class Isolator(Model):
     
     Parameters
     ----------
-    isolation : ArrayLike, default=np.inf
-        The reverse isolation in dB. Defaults to infinity (perfect isolation).
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
+    isolation : Param, default=np.inf
+        The reverse isolation in dB. 
+        Defaults to infinity (perfect isolation).
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the isolator was designed.
     """
     #: The reverse isolation in dB.
-    isolation: ArrayLike = field(default=np.inf, kw_only=True)
+    isolation: Param = param(default=np.inf)
     
     #: The intrinsic characteristic impedance of the physical device.
-    z0: jnp.ndarray = field(default=50.0, converter=jnp.asarray, kw_only=True)
+    z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s12_lin = 10.0 ** (-self.isolation / 20.0)
@@ -316,16 +312,14 @@ class Attenuator(Model):
 
     Parameters
     ----------
-    loss : ArrayLike
+    loss : Param
         The attenuation in dB (a positive value indicates loss).
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the physical attenuator 
         was designed.
     """
     #: The attenuation in dB.
-    loss: ArrayLike
+    loss: Param = param()
     
     #: The intrinsic characteristic impedance of the physical device.
     z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
@@ -356,16 +350,14 @@ class DirectionalCoupler(Model):
 
     Parameters
     ----------
-    coupling : ArrayLike
+    coupling : Param
         The linear voltage coupling factor. 
-        This is not a tunable parameter by default.
-        To specify a free parameter, use a constructor from :mod:`pmrf.parameters`.
         For example, for a 20 dB coupler, coupling = 10**(-20/20) = 0.1.
     z0 : ArrayLike, default=50.0
         The intrinsic characteristic impedance for which the coupler was designed.
     """
     #: The linear voltage coupling factor.
-    coupling: ArrayLike
+    coupling: Param = param()
     
     #: The intrinsic characteristic impedance of the physical device.
     z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)

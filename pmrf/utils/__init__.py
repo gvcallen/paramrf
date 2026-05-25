@@ -11,8 +11,8 @@ from pmrf.utils import type as type
 from pmrf.utils.tree import (
     Partial as Partial,
     InitVar as InitVar,
-    freeze as freeze,
     unfreeze as unfreeze,
+    freeze as freeze,
     replace as replace,
     combine as combine,
     field as field,
@@ -23,4 +23,7 @@ from pmrf.utils.tree import (
     is_model as is_model,    
 )
 
-from jaxtyping import ArrayLike as ArrayLike
+from pmrf.utils.transforms import (
+    sweep as sweep,
+    derivative as derivative,
+)

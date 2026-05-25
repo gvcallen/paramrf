@@ -7,12 +7,12 @@ from abc import ABC, abstractmethod
 import numpy as np
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils.type import is_overridden
-from pmrf.utils import field, freeze, ArrayLike
+from pmrf.utils import field, unfreeze
+from pmrf.types import ArrayLike
 from pmrf.rf import renormalize_s
 
 class AbstractDiscrete(Model, ABC):
@@ -29,7 +29,7 @@ class AbstractDiscrete(Model, ABC):
         The constant frequency over which the discrete model is defined.
     """
     #: The constant frequency.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
 
     # Tabulated data entry points
     def s_discrete(self, z0: ArrayLike = 50.0) -> jnp.ndarray: raise NotImplementedError

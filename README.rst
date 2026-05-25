@@ -9,7 +9,7 @@
 
 **ParamRF**, or ``pmrf``, is an open-source radio frequency (RF) design and modeling framework. It provides a declarative syntax for creating microwave circuits and surrogate models using `JAX <https://github.com/jax-ml/jax>`_.
 
-The library provides tools for frequency-domain model simulation, optimization, fitting, statistical analysis, and Bayesian inference.
+The library provides tools for frequency-domain simulation, optimization, fitting, statistical analysis, and Bayesian inference.
 
 :Version: |version_badge_text|
 :Author: Gary Allen
@@ -54,9 +54,13 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  model = Resistor(50) ** Inductor(1.0e-9) ** Capacitor(1.0e-12)
+  R = prf.Unconstrained(50.0, name='R')
+  L = prf.Bounded(0.0, 100.0, scale=1e-9, name='L')
+  C = prf.Bounded(0.0, 100.0, scale=1e-12, name='C')
+  
+  model = Resistor(R) ** Inductor(L) ** Capacitor(C)
   goal = prf.evaluators.Goal('s11_db', '<', -20)
-  passband = prf.Frequency(3, 4, 101, 'GHz')
+  passband = prf.Frequency(2, 5, 101, 'GHz')
   
   result = prf.optimize.minimize(goal, model, passband, solver=prf.optimize.NelderMead())
   

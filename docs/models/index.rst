@@ -25,6 +25,7 @@ Model Hierarchy
         * :class:`~pmrf.models.components.ideal.Attenuator`
         * :class:`~pmrf.models.components.ideal.DirectionalCoupler`
         * :class:`~pmrf.models.components.ideal.Ground`
+        * :class:`~pmrf.models.components.ideal.Impedance`
         * :class:`~pmrf.models.components.ideal.Isolator`
         * :class:`~pmrf.models.components.ideal.Load`
         * :class:`~pmrf.models.components.ideal.Match`
@@ -118,6 +119,7 @@ Model Hierarchy
    pmrf.models.components.ideal.Attenuator
    pmrf.models.components.ideal.DirectionalCoupler
    pmrf.models.components.ideal.Ground
+   pmrf.models.components.ideal.Impedance
    pmrf.models.components.ideal.Isolator
    pmrf.models.components.ideal.Load
    pmrf.models.components.ideal.Match

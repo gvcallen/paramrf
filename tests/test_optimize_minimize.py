@@ -7,7 +7,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import Bounded
 from pmrf.optimize.minimize import minimize
-from pmrf.optimize.backends.scipy import ScipyMinimize
+from pmrf.optimize.solvers.scipy import ScipyMinimize
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing
@@ -15,7 +15,7 @@ from pmrf.optimize.backends.scipy import ScipyMinimize
 
 class DummyOptModel(Model):
     """A simple 1-port model with one free parameter for optimization."""
-    val: prf.Param = prf.param(1.0)
+    val: prf.Param = prf.param(default=1.0, as_variable=True)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints

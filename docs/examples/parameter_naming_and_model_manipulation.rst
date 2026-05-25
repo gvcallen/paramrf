@@ -16,7 +16,7 @@ Parameters and models can be explicitly named upon construction. ParamRF uses th
 2. If models within the structural path have names, they are joined using a separator (default ``_``) to form a namespace prefix. 
 3. If the parameter itself is named, it is appended to this namespace prefix, dropping the generic attribute paths.
 
-This approach gives you the flexibility to use a flat naming convention (naming only the parameters), a namespace convention (naming only the models), or a fully nested convention. 
+This approach gives you the flexibility to use a flat naming convention (naming only the parameters), a namespace convention (naming only the models), a fully nested convention, or a combination of these.
 
 Defining the Base Model
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,8 +30,8 @@ Let's define a custom RLC composite model with explicit names to demonstrate how
 
   class RLC(prf.Model):
       res: Resistor = Resistor(R=100.0, name="myR")
-      ind: Inductor = Inductor(L=prf.Variable(2.0, scale=1e-9, name="L_val"), name="myL")
-      cap: Capacitor = Capacitor(C=prf.Variable(1.0, scale=1e-12, name="C_val"), name="myC")
+      ind: Inductor = Inductor(L=prf.Unconstrained(2.0, scale=1e-9, name="L_val"), name="myL")
+      cap: Capacitor = Capacitor(C=prf.Unconstrained(1.0, scale=1e-12, name="C_global"))
 
       def build(self) -> prf.Model:
           return self.res ** self.ind ** self.cap
@@ -48,13 +48,10 @@ You can pass a single parameter name, an iterable of parameter names, or a funct
 .. code-block:: python
 
   # Updating a single value via its string name
-  rlc_R200 = rlc.at("myR_R").set(prf.Variable(200.0))
-
+  rlc_R200 = rlc.at("myR.R").set(prf.Unconstrained(200.0))
+  
   # Updating multiple values simultaneously by passing a tuple of names
-  rlc_fixed = rlc.at(("myL_L_val", "myC_C_val")).set((
-      prf.Fixed(rlc.ind.L),
-      prf.Fixed(rlc.cap.C)
-  ))
+  rlc_fixed = rlc.at(("myL_L_val", "C_global")).apply(lambda xs: tuple(prf.as_fixed(x) for x in xs))
 
 Because the model's structure is not rigid, we can also swap entire sub-models. Since sub-models themselves aren't extracted by `.named_params()`, we use functional targets to replace them:
 
@@ -74,11 +71,11 @@ For example, to set the resistor's value to always be 100e12 times the capacitor
 
   # Using generated parameter names
   rlc_tied = rlc.tied(
-      target="myR_R",
-      source="myC_C_val",
+      target="myR.R",
+      source="C_global",
       tie_fn=lambda c: c * 100e12
   )
-
+  
   # Alternatively, using callables
   rlc_tied_func = rlc.tied(
       target=lambda m: m.res.R,

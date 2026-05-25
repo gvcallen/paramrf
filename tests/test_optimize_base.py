@@ -7,9 +7,9 @@ import equinox as eqx
 import parax as prx
 from pmrf.parameters import Param, Fixed
 from pmrf.optimize import base
-from pmrf.optimize.backends.optimistix import BFGS, NelderMead
-from pmrf.optimize.backends.jaxopt import LBFGSB
-from pmrf.optimize.backends.scipy import ScipyMinimize
+from pmrf.optimize.solvers.optimistix import BFGS, NelderMead
+from pmrf.optimize.solvers.jaxopt import LBFGSB
+from pmrf.optimize.solvers.scipy import ScipyMinimize
 
 
 # ==========================================
@@ -51,7 +51,7 @@ def test_unconstrained_dict_model(solver_cls):
     
     solver = solver_cls()
     
-    final_model, payload, metrics = base.minimize(
+    final_model, payload = base.run_minimizer(
         fn=simple_quadratic_dict, 
         model=y0, 
         solver=solver, 
@@ -74,7 +74,7 @@ def test_unconstrained_equinox_model():
     )
     solver = BFGS()
     
-    opt_model, payload, metrics = base.minimize(
+    opt_model, payload = base.run_minimizer(
         fn=quadratic_objective, 
         model=model, 
         solver=solver
@@ -103,7 +103,7 @@ def test_bounded_minimization_jaxopt():
     
     solver = LBFGSB()
     
-    opt_model, payload, metrics = base.minimize(
+    opt_model, payload = base.run_minimizer(
         fn=simple_quadratic_dict,  # Switched to gentler objective 
         model=y0, 
         solver=solver,
@@ -126,7 +126,7 @@ def test_bounded_minimization_scipy():
     
     solver = ScipyMinimize()
     
-    opt_model, payload, metrics = base.minimize(
+    opt_model, payload = base.run_minimizer(
         fn=simple_quadratic_dict, # Switched to gentler objective
         model=y0, 
         solver=solver,
@@ -156,7 +156,7 @@ def test_fixed_variable_partitioning():
     
     solver = BFGS()
     
-    opt_model, payload, metrics = base.minimize(
+    opt_model, payload = base.run_minimizer(
         fn=simple_quadratic_dict, 
         model=y0, 
         solver=solver

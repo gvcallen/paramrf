@@ -6,8 +6,8 @@ from abc import abstractmethod
 import jax.numpy as jnp
 
 import equinox as eqx
-from pmrf.parameters import Param, param
 from pmrf.utils import field
+from pmrf.types import ArrayLike
 
 class AbstractNoiseModel(eqx.Module):
     """
@@ -52,19 +52,19 @@ class AutoCrossNoise(AbstractNoiseModel):
 
     Parameters
     ----------
-    auto : Param
+    auto : ArrayLike
         The "auto" term, e.g. S11, S22 etc.
-    cross : Param
+    cross : ArrayLike
         The "cross" term, e.g. S21, S43 etc.
-    port_axes : Param
+    port_axes : tuple[int, int]
         The axes defining the ports. Defaults to (0, 1).
     """    
 
     #: The "auto" term.
-    auto: Param = param()
+    auto: ArrayLike
 
     #: The "cross" term.
-    cross: Param = param()
+    cross: ArrayLike
     
     #: The port axes in the array.
     port_axes: tuple[int, int] = field(static=True, default=(0, 1))

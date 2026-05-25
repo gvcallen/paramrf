@@ -17,7 +17,7 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils import freeze, field, unwrap, unwrap_self
+from pmrf.utils import unfreeze, field, unwrap, unwrap_self
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -155,7 +155,7 @@ class TargetLoss(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
     #: The fixed target data.
-    target: jnp.ndarray = field(converter=freeze)
+    target: jnp.ndarray = field(converter=unfreeze)
     
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
@@ -207,7 +207,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
     #: The observed data.
-    observed: jnp.ndarray = field(converter=freeze)
+    observed: jnp.ndarray = field(converter=unfreeze)
     
     #: The active likelihood function.
     likelihood: Callable[[jnp.ndarray | dist.AbstractDistribution], dist.AbstractDistribution]
@@ -361,7 +361,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
     #: The observed data.
-    observed: jnp.ndarray = field(converter=freeze)
+    observed: jnp.ndarray = field(converter=unfreeze)
     
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]

@@ -124,9 +124,9 @@ def test_cascade_flattening():
     nested = Cascade([R1, Cascade([R2, R3])])
     
     # The models tuple should be flattened to just (R1, R2, R3)
-    assert len(nested.merged_cascade) == 3
-    assert nested.merged_cascade[0] is R1
-    assert nested.merged_cascade[2] is R3
+    assert len(nested.cascade) == 3
+    assert nested.cascade[0] is R1
+    assert nested.cascade[2] is R3
     
 
 # ---------------------------------------------------------

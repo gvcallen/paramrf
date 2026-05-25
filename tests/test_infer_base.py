@@ -53,7 +53,7 @@ def check_samples(x_samples, y_samples):
 @pytest.mark.parametrize("solver_name", ["NUTS", "HMC"])
 def test_joint_samplers(solver_name, dummy_model):
     """Test unconstrained joint sampling using BlackJAX NUTS and HMC."""
-    blackjax_backend = pytest.importorskip("pmrf.infer.backends.blackjax")
+    blackjax_backend = pytest.importorskip("pmrf.infer.solvers.blackjax")
     solver_cls = getattr(blackjax_backend, solver_name)
 
     key = jax.random.key(0)
@@ -61,7 +61,7 @@ def test_joint_samplers(solver_name, dummy_model):
     solver = solver_cls(num_warmup=50)
     max_steps = 100
     
-    batched_model, results, metrics = base.sample(
+    batched_model, results = base.run_sampler(
         loglikelihood_fn=dummy_ll,
         model=dummy_model,
         solver=solver,
@@ -86,7 +86,7 @@ def test_joint_samplers(solver_name, dummy_model):
 
 def test_split_sampler_nss(dummy_model):
     """Test constrained split sampling using BlackJAX NSS."""
-    blackjax_backend = pytest.importorskip("pmrf.infer.backends.blackjax")
+    blackjax_backend = pytest.importorskip("pmrf.infer.solvers.blackjax")
     NSS = blackjax_backend.NSS
  
     key = jax.random.key(0)
@@ -101,7 +101,7 @@ def test_split_sampler_nss(dummy_model):
     solver = NSS(num_delete=5, num_inner_steps=2, evidence_convergence=0.5)
     max_steps = 50
     
-    batched_model, results, metrics = base.sample(
+    batched_model, results = base.run_sampler(
         loglikelihood_fn=dummy_ll,
         model=dummy_model,
         solver=solver,
@@ -134,7 +134,7 @@ def test_split_sampler_nss(dummy_model):
 
 def test_hypercube_polychord(tmp_path, dummy_model):
     """Test unit hypercube sampling using PolyChord."""
-    polychord_backend = pytest.importorskip("pmrf.infer.backends.polychord")
+    polychord_backend = pytest.importorskip("pmrf.infer.solvers.polychord")
     
     if not getattr(polychord_backend, "MPI_AVAILABLE", False):
         pytest.skip("PolyChord, anesthetic, or mpi4py not installed.")
@@ -144,7 +144,7 @@ def test_hypercube_polychord(tmp_path, dummy_model):
     # Run a tiny nested sampling instance
     solver = PolyChord(nlive=50, num_repeats=2, do_clustering=False, base_dir=str(tmp_path), seed=0)
     
-    batched_model, results, metrics = base.sample(
+    batched_model, results = base.run_sampler(
         loglikelihood_fn=dummy_ll,
         model=dummy_model,
         solver=solver,

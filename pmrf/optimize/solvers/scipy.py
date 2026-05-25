@@ -43,7 +43,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
         
         pbar = None
@@ -74,5 +74,4 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             if pbar is not None:
                 pbar.close()
 
-        payload = MinimizeResult(y=y_opt, success=bool(state.success))
-        return payload, state
+        return MinimizeResult(y=y_opt, success=bool(state.success), metrics=state)

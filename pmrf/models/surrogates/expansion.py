@@ -5,7 +5,8 @@ An expansion of a set of basis functions.
 import jax.numpy as jnp
 
 from pmrf.models.adapters.base import AbstractSingleDiscreteDomain
-from pmrf.parameters import Param, param
+from pmrf.types import Param
+from pmrf.parameters import param
 
 class VectorExpansion(AbstractSingleDiscreteDomain):
     """
@@ -16,13 +17,13 @@ class VectorExpansion(AbstractSingleDiscreteDomain):
     Parameters
     ----------
     coefficients_real : Param
-        The real coefficients parameters
+        The real coefficients
     coefficients_imag : Param
-        The imaginary coefficients parameters
-    basis : jnp.ndarray
-        The fixed basis functions
-    offset : jnp.ndarray
-        An optional fixed offset
+        The imaginary coefficients
+    basis : Param
+        The basis functions
+    offset : Param
+        An optional offset
     """
     #: The real coefficients parameters
     coefficients_real: Param = param()
@@ -30,11 +31,11 @@ class VectorExpansion(AbstractSingleDiscreteDomain):
     #: The imaginary coefficients parameters
     coefficients_imag: Param = param()
     
-    #: The fixed basis functions
-    basis: jnp.ndarray = param()
+    #: The basis functions
+    basis: Param = param()
     
     #: An optional fixed offset
-    offset: jnp.ndarray = param()
+    offset: Param = param()
     
     def discrete_matrix(self) -> jnp.ndarray:
         coeff = self.coefficients_real

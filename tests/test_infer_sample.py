@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from pmrf.parameters import Param, Random
 from pmrf.distributions import Normal
 from pmrf.infer.sample import sample
-from pmrf.infer.backends.blackjax import NUTS
+from pmrf.infer.solvers.blackjax import NUTS
 from pmrf.infer.result import InferResult
 from pmrf.models import Model
 from pmrf.frequency import Frequency

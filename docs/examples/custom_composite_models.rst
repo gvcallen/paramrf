@@ -22,14 +22,14 @@ When building composite models, it is often desirable to initialize a model base
    from pmrf.models import ShuntCapacitor, Inductor, Cascade
    
    class NStageFilter(prf.Model):
-       num_stages: prf.InitVar[int] 
+       num_stages: prf.InitVar[int]
        fc: prf.InitVar[float]
-       
+       z0: prf.InitVar[float] = prf.field(default=50.0)
+   
        capacitors: list[ShuntCapacitor] = prf.field(init=False)
        inductors: list[Inductor] = prf.field(init=False)
    
-       def __post_init__(self, num_stages: int, fc: float):
-           z0 = self.z0
+       def __post_init__(self, num_stages: int, fc: float, z0: float):
            c_val = 1.0 / (math.pi * fc * z0)
            l_val = z0 / (math.pi * fc)
    

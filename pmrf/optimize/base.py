@@ -18,6 +18,9 @@ class MinimizeResult(eqx.Module):
     
     #: Whether the algorithm successfully converged
     success: bool = True
+    
+    #: Any solver metrics.
+    metrics: Any = None
 
 
 class AbstractUnconstrainedMinimizer(eqx.Module):
@@ -33,7 +36,7 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
         args: Any,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         """
         Execute the minimization algorithm.
 
@@ -52,8 +55,8 @@ class AbstractUnconstrainedMinimizer(eqx.Module):
 
         Returns
         -------
-        tuple
-            A tuple of (:class:`pmrf.optimize.MinimizeResult`, metrics)`.
+        results
+            An instance of :class:`pmrf.optimize.MinimizeResult`.
         """
         raise NotImplementedError
     
@@ -72,7 +75,7 @@ class AbstractBoundedMinimizer(eqx.Module):
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
         **kwargs
-    ) -> tuple[MinimizeResult, PyTree]:
+    ) -> MinimizeResult:
         """
         Execute the minimization algorithm.
 
@@ -93,8 +96,8 @@ class AbstractBoundedMinimizer(eqx.Module):
 
         Returns
         -------
-        tuple
-            A tuple of (:class:`pmrf.optimize.MinimizeResult`, metrics)`.
+        results
+            An instance of :class:`pmrf.optimize.MinimizeResult`.
         """
         raise NotImplementedError
     
@@ -116,7 +119,7 @@ def is_optimizer(x):
     return is_minimizer(x)
 
 
-def minimize(
+def run_minimizer(
     fn: Callable[[PyTree, Any], Scalar], 
     model: PyTree, 
     solver: AbstractMinimizer,
@@ -124,7 +127,7 @@ def minimize(
     max_iter: int = 1024, 
     use_bounds: bool | None = None,
     **kwargs
-) -> tuple[PyTree, MinimizeResult, PyTree]:
+) -> tuple[PyTree, MinimizeResult]:
     """
     Optimizes a general PyTree potentially containing Parax parameters.
 
@@ -156,7 +159,7 @@ def minimize(
     Returns
     -------
     tuple
-        A tuple of `(best_model, payload, metrics)`.    
+        A tuple of `(best_model, minimize_results)`.    
     """
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
     if use_bounds is not None:
@@ -184,14 +187,14 @@ def minimize(
 
     # Run the correct solver execution and reconstruct the final model
     if is_bounded:
-        result, metrics = solver.run(
+        result = solver.run(
             fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
         # Re-wrap into unbounded domain
         opt_dynamic = prx.wrap(dynamic, result.y, only_if=prx.is_bounded)
         opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
     else:
-        result, metrics = solver.run(
+        result = solver.run(
             fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
         )
         # No need to re-wrap because `params` was never unwrapped
@@ -200,4 +203,4 @@ def minimize(
     if not result.success:
         warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
 
-    return opt_model, result, metrics
+    return opt_model, result

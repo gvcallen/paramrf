@@ -19,9 +19,9 @@ from pmrf.infer.result import InferResult
 from pmrf.infer.sample import sample
 
 # Backends
-from pmrf.infer.backends import polychord, blackjax
-from pmrf.infer.backends.polychord import PolyChord
-from pmrf.infer.backends.blackjax import HMC, NUTS, NSS
+from pmrf.infer.solvers import polychord, blackjax
+from pmrf.infer.solvers.polychord import PolyChord
+from pmrf.infer.solvers.blackjax import HMC, NUTS, NSS
 
 __all__ = [
     "AbstractJointSampler",

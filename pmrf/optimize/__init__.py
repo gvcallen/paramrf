@@ -17,11 +17,11 @@ from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.minimize import minimize
 
 # Backends
-from pmrf.optimize.backends import optimistix, jaxopt, scipy
-from pmrf.optimize.backends.scipy import ScipyMinimize
-from pmrf.optimize.backends.optimistix import OptimistixMinimise
-from pmrf.optimize.backends.jaxopt import LBFGSB
-from pmrf.optimize.backends.optimistix import (
+from pmrf.optimize.solvers import optimistix, jaxopt, scipy
+from pmrf.optimize.solvers.scipy import ScipyMinimize
+from pmrf.optimize.solvers.optimistix import OptimistixMinimise
+from pmrf.optimize.solvers.jaxopt import LBFGSB
+from pmrf.optimize.solvers.optimistix import (
     NelderMead,
     LBFGS,
     BFGS,

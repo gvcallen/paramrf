@@ -9,8 +9,9 @@ import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleDomain, AbstractSingleDiscreteDomain
-from pmrf.parameters import Param, param
-from pmrf.utils import freeze, field, unwrap_self
+from pmrf.utils import unfreeze, field, unwrap_self
+from pmrf.types import Param
+from pmrf.parameters import param
     
 class ContinuousCallable(AbstractSingleDomain):
     """
@@ -31,7 +32,7 @@ class ContinuousCallable(AbstractSingleDomain):
         All parameters, including fixed parameters, are passed.
     """
     #: The underlying callable model
-    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = field(converter=freeze)
+    fn: Callable[[jnp.ndarray], jnp.ndarray] | Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray] = field(converter=unfreeze)
     
     #: Parameters to pass to fn
     theta: Param = param()
@@ -67,7 +68,7 @@ class DiscreteCallable(AbstractSingleDiscreteDomain):
         All parameters, including fixed parameters, are passed.
     """
     #: The underlying callable model
-    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = field(converter=freeze)
+    fn: Callable[[], jnp.ndarray] | Callable[[jnp.ndarray], jnp.ndarray] = field(converter=unfreeze)
     
     #: Parameters to pass to fn
     theta: Param = param()

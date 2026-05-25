@@ -50,7 +50,7 @@ class NUTS(AbstractJointSampler):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
         **kwargs,
-    ) -> tuple[SampleResult, PyTree]:
+    ) -> SampleResult:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
@@ -82,11 +82,11 @@ class NUTS(AbstractJointSampler):
 
         fn_values = jax.vmap(logprob_fn)(trace_state.position)
 
-        result = SampleResult(
+        return SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
+            metrics=trace_info
         )
-        return result, trace_info
 
 
 class HMC(AbstractJointSampler):
@@ -152,12 +152,11 @@ class HMC(AbstractJointSampler):
 
         fn_values = jax.vmap(logprob_fn)(trace_state.position)
 
-        result = SampleResult(
+        return SampleResult(
             samples=trace_state.position,
             fn_values=fn_values,
+            metrics=trace_info,
         )
-        return result, trace_info
-    
 
 class NSS(AbstractSplitSampler):
     """
@@ -288,12 +287,11 @@ class NSS(AbstractSplitSampler):
         samples = final_state.particles
         fn_values = final_state.loglikelihood
 
-        result = SampleResult(
+        return SampleResult(
             samples=samples,
             fn_values=fn_values,
             weights=weights,
             logevidence=logevidence,
-            logevidence_error=logevidence_error
+            logevidence_error=logevidence_error,
+            metrics=dead,
         )
-
-        return result, dead

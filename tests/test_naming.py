@@ -4,7 +4,7 @@ from pmrf.models import Resistor, Inductor, Capacitor, Cascade
 
 def test_explicit_parameter_name():
     """Test that directly naming a parameter overrides the JAX path."""
-    val = prf.Variable(2.0, name="custom_param")
+    val = prf.Unconstrained(2.0, name="custom_param")
     res = Resistor(val)
     params = res.named_params()
     
@@ -46,17 +46,17 @@ def test_name_collision_raises_error():
 
 def test_at_string_target():
     """Test that .at() accepts a string parameter name."""
-    r = Resistor(prf.Variable(50.0, name="custom_R"))
+    r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
     val = r.at("custom_R").get()
     assert prf.unwrap(val) == 50.0
     
-    new_r = r.at("custom_R").set(prf.Variable(100.0, name="custom_R"))
+    new_r = r.at("custom_R").set(prf.Unconstrained(100.0, name="custom_R"))
     assert prf.unwrap(new_r.at("custom_R").get()) == 100.0
 
 def test_at_multiple_string_targets():
     """Test that .at() accepts an iterable of string parameter names."""
-    rc = Resistor(prf.Variable(50.0, name="custom_R")) ** Capacitor(prf.Variable(10.0, name="custom_C"))
+    rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
     # Get multiple using a tuple
     vals = rc.at(("custom_R", "custom_C")).get()
@@ -65,8 +65,8 @@ def test_at_multiple_string_targets():
     
     # Set multiple using a list
     new_rc = rc.at(["custom_R", "custom_C"]).set((
-        prf.Variable(100.0, name="custom_R"), 
-        prf.Variable(20.0, name="custom_C")
+        prf.Unconstrained(100.0, name="custom_R"), 
+        prf.Unconstrained(20.0, name="custom_C")
     ))
     assert prf.unwrap(new_rc.at("custom_R").get()) == 100.0
     assert prf.unwrap(new_rc.at("custom_C").get()) == 20.0
@@ -75,7 +75,7 @@ def test_tied_string_targets():
     """Test that .tied() accepts string parameter names for source and target."""
     from pmrf.models import Tied
     
-    rc = Resistor(prf.Variable(50.0, name="custom_R")) ** Capacitor(prf.Variable(10.0, name="custom_C"))
+    rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
     # Tie custom_R to custom_C using strings
     tied_rc = rc.tied(target="custom_R", source="custom_C", tie_fn=lambda c: c * 5.0)
@@ -85,7 +85,7 @@ def test_tied_string_targets():
 
 def test_target_resolution_errors():
     """Test that invalid target formats or non-existent names raise appropriate errors."""
-    r = Resistor(prf.Variable(50.0, name="custom_R"))
+    r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
     # Test non-existent string name
     with pytest.raises(ValueError, match="not found in the model"):
@@ -101,7 +101,7 @@ def test_target_resolution_errors():
 
 def test_at_nested_namespace():
     """Test that .at() resolves string targets using nested model namespaces."""
-    r = Resistor(prf.Variable(50.0, name="res_val"), name="myR")
+    r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
     cas1 = Cascade([r], name="myCas")
     
     # Go a level deeper: cas2 acts as the root, so cas1's name ("myCas") 
@@ -115,7 +115,7 @@ def test_at_nested_namespace():
     assert prf.unwrap(val) == 50.0
     
     # Verify the value can be updated using the fully namespaced string
-    new_cas2 = cas2.at(expected_namespace_name).set(prf.Variable(100.0, name="res_val"))
+    new_cas2 = cas2.at(expected_namespace_name).set(prf.Unconstrained(100.0, name="res_val"))
     assert prf.unwrap(new_cas2.at(expected_namespace_name).get()) == 100.0
 
 
@@ -123,8 +123,8 @@ def test_tied_nested_namespace():
     """Test that .tied() resolves string targets using nested model namespaces."""
     from pmrf.models import Tied
     
-    r = Resistor(prf.Variable(50.0, name="res_val"), name="myR")
-    c = Capacitor(prf.Variable(10.0, name="cap_val"), name="myC")
+    r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
+    c = Capacitor(prf.Unconstrained(10.0, name="cap_val"), name="myC")
     cas1 = Cascade([r, c], name="myCas")
     
     # Go a level deeper so "myCas" acts as a namespace prefix for its children
