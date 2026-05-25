@@ -70,6 +70,9 @@ from pmrf.models.components.lumped import (
     Inductor as Inductor,
     Impedance as Impedance,
     Admittance as Admittance,
+    ShuntResistor as ShuntResistor,
+    ShuntCapacitor as ShuntCapacitor,
+    ShuntInductor as ShuntInductor,
     CapacitorQ as CapacitorQ,
     InductorQ as InductorQ,
 )
