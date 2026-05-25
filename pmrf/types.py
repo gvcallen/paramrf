@@ -19,5 +19,5 @@ ArrayLike: TypeAlias = ArrayLike
 
 #: The canonical type hint for a fixed or variable parameter.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
-#: most of which are re-exported at root (e.g. :func:`pmrf.Variable`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
+#: most of which are re-exported at root (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
 Param: TypeAlias = prx.AbstractVariable | Inexact[Array, "..."]

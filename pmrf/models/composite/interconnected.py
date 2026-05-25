@@ -198,24 +198,18 @@ class Cascade(Model):
             if model.nports % 2 != 0:
                 raise ValueError('All networks must be 2N-ports for Cascade')
             
-    @property
-    def merged_cascade(self) -> list[Model]:
-        """
-        Returns the models of the cascade merged such that any cascades are combined.
-
-        This is done only during the forward pass to retain the caller's
-        original nesting for debugging/inspection purposes.
-        """
         merged = []
         for model in self.cascade:
             if isinstance(model, Cascade):
-                merged.extend(model.merged_cascade)
+                merged.extend(model.cascade)
             else:
                 merged.append(model)
-        return merged
+        
+        self.cascade = merged
+        
     
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
-        return cascade(self.merged_cascade, frequency, solver=self.solver, z0=z0).s
+        return cascade(self.cascade, frequency, solver=self.solver, z0=z0).s
     
     
 class Terminated(Model):

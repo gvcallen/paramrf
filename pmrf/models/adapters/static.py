@@ -11,7 +11,7 @@ import skrf
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Model
-from pmrf.utils import field, freeze
+from pmrf.utils import field, unfreeze
 from pmrf.types import ArrayLike
 from pmrf.rf import renormalize_s
 
@@ -150,7 +150,7 @@ class SModel(Model):
     s_matrix: np.ndarray
     
     #: The frequency grid of the static data.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
     
     #: The z0 for which the data is defined.
     z0: np.ndarray = field(converter=np.asarray)
@@ -176,7 +176,7 @@ class AModel(Model):
     a_matrix: np.ndarray
     
     #: The frequency grid of the static data.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
 
     def a(self, freq: Frequency) -> jnp.ndarray:
         return interpolate_network_data(self.frequency.f, freq.f, self.a_matrix)
@@ -197,7 +197,7 @@ class YModel(Model):
     y_matrix: np.ndarray
     
     #: The frequency grid of the static data.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         return interpolate_network_data(self.frequency.f, freq.f, self.y_matrix)
@@ -218,7 +218,7 @@ class ZModel(Model):
     z_matrix: np.ndarray
     
     #: The frequency grid of the static data.
-    frequency: Frequency = field(converter=freeze)
+    frequency: Frequency = field(converter=unfreeze)
 
     def z(self, freq: Frequency) -> jnp.ndarray:
         return interpolate_network_data(self.frequency.f, freq.f, self.z_matrix)

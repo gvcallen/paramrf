@@ -210,7 +210,7 @@ class Model(eqx.Module):
     
     def pathed_params(
         self,
-        unwrap: bool = True,
+        values: bool = True,
         include_fixed: bool = True,
         keystr: bool = False,
         separator: str | None = None,
@@ -225,9 +225,9 @@ class Model(eqx.Module):
         include_fixed : bool, default=False
             Whether to include fixed parameters in the returned dictionary.
             Defaults to False.
-        unwrap : bool, default=True
+        values : bool, default=True
             Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect internal parameter states (e.g. distributions, fixed etc.)
+            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.        
         keystr : bool, default=False
             Whether equivalent strings should be returned as opposed to full JAX paths.
@@ -247,7 +247,7 @@ class Model(eqx.Module):
         filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
         pathed, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
         
-        if unwrap or keystr:
+        if values or keystr:
             for i in range(len(pathed)):
                 key, value = pathed[i]
                 
@@ -255,7 +255,7 @@ class Model(eqx.Module):
                     kwargs = {'separator': separator} if separator is not None else {}
                     key = jax.tree_util.keystr(key, **kwargs)
                 
-                if unwrap:
+                if values:
                     value = prx.unwrap(value)
                     if jnp.isscalar(value):
                         value = float(value)
@@ -266,7 +266,7 @@ class Model(eqx.Module):
     
     def named_params(
         self,
-        unwrap: bool = True,
+        values: bool = True,
         include_fixed: bool = True,
         namespace_separator: str = '_',
     ) -> dict[str, Param]:
@@ -297,9 +297,9 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        unwrap : bool
+        values : bool
             Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect internal parameter states (e.g. distributions, fixed etc.)
+            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.
         include_fixed : bool
             Whether to include fixed parameters in the returned dictionary.
@@ -314,7 +314,7 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        pathed = self.pathed_params(include_fixed=include_fixed, unwrap=unwrap)
+        pathed = self.pathed_params(include_fixed=include_fixed, values=values)
         
         # Detect collisions
         named = {}
@@ -694,12 +694,12 @@ class Model(eqx.Module):
         resolved_where = _resolve_target(self, where)
         return focus(self).at(resolved_where)
     
-    def map(self: Self, fn: Callable[[Any], Any], is_leaf: Callable | None = None) -> Self:
+    def map(self: Self, fn: Callable[[Any], Any], predicate: Callable | None = None) -> Self:
         """(experimental) A functional interface for model mapping.
         
         This is a wrapper around `jax.tree.map`.
         
-        To map parameters, pass `is_leaf=prf.is_param`.
+        To map parameters, pass `is_target=prf.is_param`.
         
         Examples
         --------
@@ -711,7 +711,12 @@ class Model(eqx.Module):
 
         Returns the mapped model.
         """
-        return jax.tree.map(fn, self, is_leaf=is_leaf)
+        def _wrapped_fn(node):
+            if not predicate(node):
+                return node
+            return fn(node)
+
+        return jax.tree.map(_wrapped_fn, self, is_leaf=predicate)
         
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -1080,7 +1085,7 @@ def _resolve_target(model: Any, target: Any, namespace_separator: str = '_') -> 
         )
 
     # Build name -> path mapping using the model's pathed_params
-    pathed = model.pathed_params(include_fixed=True, unwrap=False)
+    pathed = model.pathed_params(include_fixed=True, values=False)
     name_to_path = {}
     for path, _ in pathed:
         name = tree_path_to_name(model, path, namespace_separator=namespace_separator)

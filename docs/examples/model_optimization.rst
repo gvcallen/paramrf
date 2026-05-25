@@ -6,7 +6,7 @@ ParamRF allows you to easily optimize model parameters to meet a given design go
 Defining the Model
 ~~~~~~~~~~~~~~~~~~~
 
-Instead of passing unconstrained floats, we can pass :class:`~pmrf.parameters.Bounded` parameters to specify interval constraints on our values:
+When optimizing a model, instead of passing fixed floats, we pass *variable* parameters to indicate that they are free to be tuned by the optimizer. This can be done using constructors like :class:`pmrf.Unconstrained` or, more commonly, :class:`pmrf.Bounded`:
 
 .. plot::
    :context: reset
@@ -21,7 +21,7 @@ Instead of passing unconstrained floats, we can pass :class:`~pmrf.parameters.Bo
    
    lpf = C1 ** L1 ** C2
 
-It is best practice to apply a scaling factor to our values in order to keep the optimization numerically stable. To create fixed parameters and apply more complicated constraints, parameters re-exported from :mod:`pmrf.parameters` can be used e.g. :func:`pmrf.Fixed` and :func:`pmrf.Constrained`.
+It is best practice to apply a scaling factor to our values in order to keep the optimization numerically stable. To create fixed parameters and apply more complicated constraints, more parameters are available in :mod:`pmrf.parameters`, that are re-exported at the root, for example :func:`pmrf.Constrained` and :func:`pmrf.Random`. To specifying scaling and constraints while keeping the parameter fixed, use :func:`pmrf.Fixed`.
 
 Running the Optimizer
 ~~~~~~~~~~~~~~~~~~~~~

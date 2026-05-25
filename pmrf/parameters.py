@@ -20,7 +20,7 @@ import parax as prx
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.types import Param
-from pmrf.utils import unfreeze
+from pmrf.utils import freeze
 
 def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
     value = prx.as_variable(value)
@@ -132,7 +132,7 @@ def as_variable(
 
     # Make sure the value is not fixed
     # TODO: this will not yet work for fixed parameters deeply composed within other variables
-    value = unfreeze(value)
+    value = freeze(value)
     
     # Base Construction (if it's not a variable yet)
     if prx.is_variable(value):
@@ -285,89 +285,6 @@ def param(
     return eqx.field(default=default, converter=converter, **kwargs)
 
 
-def Variable(
-    value: ArrayLike,
-    *,
-    scale: float = 1.0,
-    name: Optional[str] = None,
-) -> Param:
-    """
-    Create an unconstrained variable parameter.
-
-    Parameters
-    ----------
-    value : ArrayLike
-        The base parameter value.
-    scale : float, optional
-        The scaling factor to apply, by default 1.0.
-    name : str, optional
-        A name for the parameter, by default None.
-
-    Returns
-    -------
-    pmrf.Param
-        An unconstrained parameter.
-    """
-    return as_variable(value, scale=scale, name=name)
-
-
-def Variables(
-    values: Sequence[ArrayLike],
-    *,
-    scales: Union[float, Sequence[float]] = 1.0,
-    names: Union[Optional[str], Sequence[Optional[str]]] = None,
-) -> Tuple[Param, ...]:
-    """
-    Create a sequence of unconstrained variable parameters.
-
-    Parameters
-    ----------
-    values : Sequence[ArrayLike]
-        A sequence of base parameter values.
-    scales : float or Sequence[float], optional
-        The scaling factor(s) to apply, by default 1.0. If a single float
-        is provided, it is applied to all variables.
-    names : str, Sequence[str], or None, optional
-        The name(s) for the parameter(s), by default None. If a single string
-        or None is provided, it is applied to all variables.
-
-    Returns
-    -------
-    Tuple[pmrf.Param, ...]
-        A tuple of unconstrained parameters.
-        
-    Raises
-    ------
-    ValueError
-        If the lengths of any provided sequences do not match the length of `values`.
-    """
-    n_vars = len(values)
-
-    # Broadcast single values to match the length of `values`
-    if isinstance(scales, (int, float)):
-        scales_seq = [scales] * n_vars
-    else:
-        scales_seq = scales
-
-    if isinstance(names, str) or names is None:
-        names_seq = [names] * n_vars
-    else:
-        names_seq = names
-
-    # Validate that all sequences have the correct length
-    if not (n_vars == len(scales_seq) == len(names_seq)):
-        raise ValueError(
-            f"Sequence lengths do not match: values({n_vars}), "
-            f"scales({len(scales_seq)}), names({len(names_seq)})."
-        )
-
-    # Generate and return the parameters
-    return tuple(
-        as_variable(v, scale=s, fixed=f, name=n)
-        for v, s, f, n in zip(values, scales_seq, names_seq)
-    )
-
-
 def Fixed(
     value: ArrayLike,
     *,
@@ -397,6 +314,32 @@ def Fixed(
         The fixed parameter.
     """
     return as_fixed(value, scale=scale, name=name)
+
+
+def Unconstrained(
+    value: ArrayLike,
+    *,
+    scale: float = 1.0,
+    name: Optional[str] = None,
+) -> Param:
+    """
+    Create an unconstrained variable parameter.
+
+    Parameters
+    ----------
+    value : ArrayLike
+        The base parameter value.
+    scale : float, optional
+        The scaling factor to apply, by default 1.0.
+    name : str, optional
+        A name for the parameter, by default None.
+
+    Returns
+    -------
+    pmrf.Param
+        An unconstrained parameter.
+    """
+    return as_variable(value, scale=scale, name=name)
 
 
 def Constrained(
@@ -514,7 +457,7 @@ def Random(
 
 __all__ = [
     "as_variable",
-    "Variable",
+    "Unconstrained",
     "Fixed",
     "Bounded",
     "Constrained",

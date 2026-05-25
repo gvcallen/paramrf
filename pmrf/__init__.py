@@ -35,20 +35,20 @@ ArrayLike: TypeAlias = ArrayLike
 
 #: The canonical type hint for a parameter.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
-#: most of which are re-exported at root (e.g. :func:`pmrf.Variable`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
+#: most of which are re-exported at root (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
 Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
 
 #: The canonical type hint for a tunable parameter or fixed number in a model.
 #: For a fixed value, pass a float or numpy array.
-#: For a tunable value, pass a parameter e.g. :func:`pmrf.Variable` or :func:`pmrf.Bounded`.
+#: For a tunable value, pass a parameter e.g. :func:`pmrf.Unconstrained` or :func:`pmrf.Bounded`.
 Param: TypeAlias = Param | ArrayLike
 
 
 from pmrf.parameters import (
     param as param,
     as_variable as as_variable,
-    Variable as Variable,
-    Variables as Variables,
+    as_fixed as as_fixed,
+    Unconstrained as Unconstrained,
     Fixed as Fixed,
     Bounded as Bounded,
     Constrained as Constrained,
@@ -66,8 +66,8 @@ from pmrf.utils import (
     Partial as Partial,
     InitVar as InitVar,
     field as field,
-    freeze as freeze,
     unfreeze as unfreeze,
+    freeze as freeze,
     replace as replace,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
@@ -109,7 +109,8 @@ __all__ = [
     "Param",
     "param",
     "as_variable",
-    "Variable",
+    "as_fixed",
+    "Unconstrained",
     "Fixed",
     "Bounded",
     "Constrained",
@@ -124,8 +125,8 @@ __all__ = [
     "Initvar",
     "NetworkCollection",
     "field",
-    "freeze",
     "unfreeze",
+    "freeze",
     "replace",
     "unwrap",
     "unwrap_self",

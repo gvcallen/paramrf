@@ -43,10 +43,10 @@ Adding a Field Specifier
 
 ParamRF provides two field specifiers: :class:`~pmrf.field` and :class:`~pmrf.param`. For parameters, :class:`~pmrf.param` allows the following:
 
-  * Setting a default value that the caller can override
-  * Specifying parameter constraints that are inherent to the model and will always be enforced
-  * Attaching additional metadata and specifying scaling at the model level
-  * Auto-converting and registering floats and other array-like values into variable or fixed parameters
+  * Setting a default value
+  * Specifying parameter constraints that are inherent to the model
+  * Attaching additional metadata and scaling at the model level
+  * Auto-converting floats and other array-like values into variable/fixed parameters
   
 The code below demonstrates this by extending the previous class, while constraining ``C`` to be only positive and defining the capacitance in terms of picofarads (pF) instead of farads (F):
 
@@ -63,7 +63,9 @@ The code below demonstrates this by extending the previous class, while constrai
        # def a(self, freq: prf.Frequency) -> jnp.ndarray:
            # <same as before>
 
-By passing ``as_variable=True``, ParamRF will enforce that the incoming value is an unconstrained, tunable parameter. By default, the parameters tunability (fixed or variable) is left unchanged. Note that even without this argument, constraints will also always be enforced (even for unconstrained optimizers!), and will also automatically be intersected with any new constraints provided by the caller.
+By passing ``as_variable=True``, ParamRF will enforce that the incoming value is an tunable parameter, even if a float is passed. Similarly, ``as_fixed=True`` can be used. By default, the parameters tunability (fixed or variable) is left unchanged, and the parameter is simply registered in the parameter hierarchy.
+
+Note that constraints will also always be enforced (even for unconstrained optimizers!), and will also automatically be intersected with any new constraints provided by the caller.
 
 Evaluating the S-parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
