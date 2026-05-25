@@ -345,13 +345,27 @@ class CoupledTwoPorts(Model):
         n = len(self.coupled)
         
         z_branch_list = []
+        y_shunt1_list = []
+        y_shunt2_list = []
+        
         for m in self.coupled:
             y_i = m.y(freq)
-            z_series = -1.0 / y_i[..., 0, 1]
+            
+            # Decompose the Pi-Network
+            # Series branch
+            y_series = -y_i[..., 0, 1]
+            z_series = 1.0 / y_series
             z_branch_list.append(z_series)
             
+            # Shunt branches to ground
+            y_shunt1_list.append(y_i[..., 0, 0] + y_i[..., 0, 1])
+            y_shunt2_list.append(y_i[..., 1, 1] + y_i[..., 1, 0])
+            
         z_branch = jnp.stack(z_branch_list, axis=-1)
+        y_p1 = jnp.stack(y_shunt1_list, axis=-1)
+        y_p2 = jnp.stack(y_shunt2_list, axis=-1)
         
+        # Couple the series branches exactly as before
         x_branch = jnp.imag(z_branch)
         x_outer = x_branch[..., :, jnp.newaxis] * x_branch[..., jnp.newaxis, :]
         
@@ -362,14 +376,20 @@ class CoupledTwoPorts(Model):
         i = jnp.arange(n)
         z_b_matrix = z_b_matrix.at[..., i, i].set(z_branch)
         
-        # Invert to get branch admittances
         y_b_matrix = jnp.linalg.inv(z_b_matrix)
         
-        # Nodal incidence matrix translation
         A = jnp.zeros((2 * n, n), dtype=jnp.float64)
         A = A.at[0::2, :].set(jnp.eye(n))
         A = A.at[1::2, :].set(-jnp.eye(n))
         
         y_nodal = jnp.einsum('pi,...ij,qj->...pq', A, y_b_matrix, A)
+        
+        # Glue the substrate/shunt parasitics back onto the final nodes
+        # Model 'm' has Port 1 at index 2*m, and Port 2 at index 2*m + 1
+        even_indices = jnp.arange(0, 2 * n, 2)
+        odd_indices = jnp.arange(1, 2 * n, 2)
+        
+        y_nodal = y_nodal.at[..., even_indices, even_indices].add(y_p1)
+        y_nodal = y_nodal.at[..., odd_indices, odd_indices].add(y_p2)
         
         return y_nodal
