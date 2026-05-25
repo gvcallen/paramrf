@@ -200,13 +200,13 @@ class Cascade(Model):
             
         merged = []
         for model in self.cascade:
-            if isinstance(model, Cascade):
+            # Only extend if the user has not given it a name or metadata
+            if isinstance(model, Cascade) and model.name is None and model.metadata is None:
                 merged.extend(model.cascade)
             else:
                 merged.append(model)
         
-        self.cascade = merged
-        
+        self.cascade = tuple(merged)
     
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
         return cascade(self.cascade, frequency, solver=self.solver, z0=z0).s
