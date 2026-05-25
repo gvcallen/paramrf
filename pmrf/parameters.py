@@ -8,19 +8,18 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Optional, Sequence, Union, Tuple
+from typing import Any, Optional
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
-import numpy as np
 import equinox as eqx
 import parax as prx
 
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.types import Param
-from pmrf.utils import freeze
+from pmrf.utils import unfreeze
 
 def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
     value = prx.as_variable(value)
@@ -132,7 +131,7 @@ def as_variable(
 
     # Make sure the value is not fixed
     # TODO: this will not yet work for fixed parameters deeply composed within other variables
-    value = freeze(value)
+    value = unfreeze(value)
     
     # Base Construction (if it's not a variable yet)
     if prx.is_variable(value):

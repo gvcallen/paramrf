@@ -11,8 +11,8 @@ from pmrf.utils import type as type
 from pmrf.utils.tree import (
     Partial as Partial,
     InitVar as InitVar,
-    unfreeze as unfreeze,
     freeze as freeze,
+    unfreeze as unfreeze,
     replace as replace,
     combine as combine,
     field as field,

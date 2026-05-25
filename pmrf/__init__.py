@@ -33,15 +33,10 @@ from pmrf.problem import Problem as Problem
 #: The canonical type hint for a float, or a numpy or JAX array.
 ArrayLike: TypeAlias = ArrayLike
 
-#: The canonical type hint for a parameter.
+#: The canonical type hint for a variable or fixed parameter.
 #: Parameters should be created using factories in :mod:`pmrf.parameters`,
 #: most of which are re-exported at root (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
-Param: TypeAlias = parax.AbstractVariable | Inexact[Array, "..."]
-
-#: The canonical type hint for a tunable parameter or fixed number in a model.
-#: For a fixed value, pass a float or numpy array.
-#: For a tunable value, pass a parameter e.g. :func:`pmrf.Unconstrained` or :func:`pmrf.Bounded`.
-Param: TypeAlias = Param | ArrayLike
+Param: TypeAlias = parax.AbstractVariable | ArrayLike
 
 
 from pmrf.parameters import (
@@ -66,8 +61,8 @@ from pmrf.utils import (
     Partial as Partial,
     InitVar as InitVar,
     field as field,
-    unfreeze as unfreeze,
     freeze as freeze,
+    unfreeze as unfreeze,
     replace as replace,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
@@ -125,8 +120,8 @@ __all__ = [
     "Initvar",
     "NetworkCollection",
     "field",
-    "unfreeze",
     "freeze",
+    "unfreeze",
     "replace",
     "unwrap",
     "unwrap_self",

@@ -122,7 +122,7 @@ We can perform vectorized sweeps using :func:`pmrf.sweep`. By default, this is d
 
 
 Grid Sweeps
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 If we instead want to evaluate the function across *every possible combination* of inputs, we can pass ``grid=True``. The output will be reshaped into an N-dimensional array corresponding to the swept dimensions. Let's use this to visualize the $S_{21}$ magnitude as a 2D surface across our component values:
 

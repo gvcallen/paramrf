@@ -27,9 +27,9 @@ from dataclasses import (
 )
 
 
-def unfreeze(value: Any):
+def freeze(value: Any):
     """
-    Fixes/freezes a parameter or entire model and returns the frozen model.
+    Freezes/fixes a parameter or entire model and returns the frozen model.
 
     This can be used to freeze models to make them non-optimizable,
     but should also be used as a field converter (using `prf.field(converter=prf.fix)`)
@@ -38,9 +38,9 @@ def unfreeze(value: Any):
     return prx.as_opaque(value)
 
 
-def freeze(value: Any):
+def unfreeze(value: Any):
     """
-    Frees/unfreezes a potentially frozen parameter or model and returns the unfrozen model.
+    Unfreezes/unfixes a potentially frozen parameter or model and returns the unfrozen model.
     """
     value = prx.as_free(value)
     if isinstance(value, prx.Static):
