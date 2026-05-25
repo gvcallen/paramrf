@@ -67,8 +67,6 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   plot_freq = prf.Frequency(1, 6, 101, 'GHz')
   model.plot_s_db(plot_freq, m=0, n=0, label='initial')
   result.model.plot_s_db(plot_freq, m=0, n=0, label='optimized')
-  
-  print(result.model.named_params())
 
 Next steps
 ----------
