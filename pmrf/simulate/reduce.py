@@ -55,20 +55,15 @@ def reduce(
         if not jnp.isscalar(z0):
             raise ValueError("Reduce currently only accepts scalar characteristic impedances")
         
-        # in_axes for batched_z0 is None, as it has no Frequency dimension
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None, None))
         solution = vmapped_solver(batched_S, batched_z0, rep)
-        
         return SimulateResult(
             solution=solution,
             z0=z0,
         )
-        
     elif isinstance(solver, AbstractAdmittanceReducer):
         rep = topology_to_nodal(topology)
         batched_Y_elements = topology.evaluate_admittance(frequency, layout='flattened')
-        
-        # batched_Y_elements is (F, N*N). The representation has no frequency axis.
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None))
         solution = vmapped_solver(batched_Y_elements, rep)
         
@@ -76,7 +71,6 @@ def reduce(
             solution=solution,
             z0=z0,
         )
-        
     else:
         raise TypeError(f"Unrecognized solver type: {type(solver)}")
     
@@ -97,8 +91,6 @@ def topology_to_ports(topology: Topology) -> PortRepresentation:
     """
     num_ports = sum(m.nports for m in topology.models)
     port_to_net_map = topology.connected_components()
-    
-    # Assumes circuit.port_idxs contains flat global port indices
     ext_idx = np.array(topology.port_indices or [], dtype=int)
     int_idx = np.setdiff1d(np.arange(num_ports), ext_idx)
     

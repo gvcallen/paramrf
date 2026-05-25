@@ -278,7 +278,7 @@ def param(
         
         if x is None:
             return None
-        elif prx.is_variable(x) and not prx.is_constant(x):
+        elif (prx.is_variable(x) or isinstance(x, jax.Array)) and not prx.is_constant(x):
             return as_variable_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
         return as_fixed_func(value=x, distribution=distribution, constraint=constraint, scale=scale)
 

@@ -22,11 +22,11 @@ def terminate(
     Parameters
     ----------
     model_from : Model
-        The upstream/source Model being terminated.
+        The source Model being terminated.
     model_into : Model
-        The downstream/load Model to terminate into.
+        The load Model to terminate into.
     frequency : Frequency
-        The frequency sweep over which to characterize the network.
+        The frequency of the results.
     solver : AbstractTerminator
         An instance of a termination algorithm (e.g., LinearFractionalTerminator or MobiusTerminator).
     z0 : ArrayLike, optional
@@ -58,22 +58,17 @@ def terminate(
         )
         
     if isinstance(solver, AbstractScatteringTerminator):
-            
         s_from = model_from.s(frequency, z0=z0)
         s_into = model_into.s(frequency, z0=z0)
-        
-        # Broadcast scalar z0 to local port shapes
         z0_from = jnp.broadcast_to(jnp.asarray(z0), (model_from.nports,))
         z0_into = jnp.broadcast_to(jnp.asarray(z0), (n_into,))
         
-        # Vectorize across the Frequency axis (axis 0 for S-matrices, None for static z0 arrays)
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None, 0, None))
         solution = vmapped_solver(s_from, z0_from, s_into, z0_into)
         
         return SimulateResult(solution=solution, z0=z0)
         
     elif isinstance(solver, AbstractTransferTerminator):
-        
         a_from = model_from.a(frequency)
         s_into = model_into.s(frequency, z0=z0)
         
@@ -83,6 +78,5 @@ def terminate(
         solution = vmapped_solver(a_from, s_into, z0_into)
         
         return SimulateResult(solution=solution, z0=z0)
-        
     else:
         raise TypeError(f"Unrecognized terminator type: {type(solver)}")

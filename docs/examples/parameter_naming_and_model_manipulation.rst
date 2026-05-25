@@ -49,9 +49,9 @@ You can pass a single parameter name, an iterable of parameter names, or a funct
 
   # Updating a single value via its string name
   rlc_R200 = rlc.at("myR.R").set(prf.Unconstrained(200.0))
-
+  
   # Updating multiple values simultaneously by passing a tuple of names
-  rlc_fixed = rlc.at(("myL_L_val", "C_global")).apply(lambda xs: prf.as_fixed(x) for x in xs)
+  rlc_fixed = rlc.at(("myL_L_val", "C_global")).apply(lambda xs: tuple(prf.as_fixed(x) for x in xs))
 
 Because the model's structure is not rigid, we can also swap entire sub-models. Since sub-models themselves aren't extracted by `.named_params()`, we use functional targets to replace them:
 
@@ -71,11 +71,11 @@ For example, to set the resistor's value to always be 100e12 times the capacitor
 
   # Using generated parameter names
   rlc_tied = rlc.tied(
-      target="myR_R",
-      source="myC_C_val",
+      target="myR.R",
+      source="C_global",
       tie_fn=lambda c: c * 100e12
   )
-
+  
   # Alternatively, using callables
   rlc_tied_func = rlc.tied(
       target=lambda m: m.res.R,

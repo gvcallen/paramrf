@@ -1,10 +1,10 @@
 """
-A module for simulating different circuits, for example general port reductions and cascades.
+A module for frequency-domain circuit simulation, for example interal port reductions and cascades.
 
 This is a lower-level module, and is used by the composite models in :mod:`pmrf.models`.
 
 It is likely only really convenient to use to test different algorithms,
-or to investigate convergenceor accuracy issues.
+or to investigate convergence or accuracy issues.
 """
 
 from pmrf.simulate.base import (

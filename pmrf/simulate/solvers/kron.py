@@ -11,24 +11,24 @@ class Kron(AbstractAdmittanceReducer):
 
     def run(
         self, 
-        y_matrices: jax.Array,
+        y_flattened: jax.Array,
         topology: NodalRepresentation, 
     ) -> AdmittanceResult:
         
-        # 1. Assemble Global Matrix via scatter-add
+        # Assemble Global Matrix via scatter-add
         Y_global = jnp.zeros(
             (topology.num_nodes, topology.num_nodes), 
-            dtype=y_matrices.dtype
+            dtype=y_flattened.dtype
         )
-        Y_global = Y_global.at[topology.r_idx, topology.c_idx].add(y_matrices)
+        Y_global = Y_global.at[topology.r_idx, topology.c_idx].add(y_flattened)
         
         if self.eps > 0:
             Y_global += self.eps * jnp.eye(topology.num_nodes, dtype=Y_global.dtype)
             
-        # 2. Sub-matrix Partitioning
+        # Sub-matrix Partitioning
         Y_ee = Y_global[jnp.ix_(topology.ext_idx, topology.ext_idx)]
         
-        # 3. Schur Complement
+        # Schur Complement
         if topology.int_idx.size > 0:
             Y_ei = Y_global[jnp.ix_(topology.ext_idx, topology.int_idx)]
             Y_ie = Y_global[jnp.ix_(topology.int_idx, topology.ext_idx)]

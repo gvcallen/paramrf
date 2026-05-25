@@ -63,7 +63,7 @@ The code below demonstrates this by extending the previous class, while constrai
        # def a(self, freq: prf.Frequency) -> jnp.ndarray:
            # <same as before>
 
-By passing ``as_variable=True``, ParamRF will enforce that the incoming value is an tunable parameter, even if a float is passed. Similarly, ``as_fixed=True`` can be used. By default, the parameters tunability (fixed or variable) is left unchanged, and the parameter is simply registered in the parameter hierarchy.
+By passing ``as_variable=True``, ParamRF will enforce that the incoming value is a tunable parameter even if a float is passed. Similarly, ``as_fixed=True`` can be used to fix any incoming parameters. However, these converters are entirely optionaly, and by default the parameter's "tunability" is left unchanged, which is the most common use-case (simply registering the value in the parameter hierarchy).
 
 Note that constraints will also always be enforced (even for unconstrained optimizers!), and will also automatically be intersected with any new constraints provided by the caller.
 
