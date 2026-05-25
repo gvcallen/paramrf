@@ -38,7 +38,6 @@ from pmrf.models.adapters.callable import (
 # Components
 from pmrf.models.components.ideal import (
     Load as Load,
-    Impedance as Impedance,
     Short as Short,
     Open as Open,
     Match as Match,
@@ -69,9 +68,8 @@ from pmrf.models.components.lumped import (
     Resistor as Resistor,
     Capacitor as Capacitor,
     Inductor as Inductor,
-    ShuntResistor as ShuntResistor,
-    ShuntCapacitor as ShuntCapacitor,
-    ShuntInductor as ShuntInductor,
+    Impedance as Impedance,
+    Admittance as Admittance,
     CapacitorQ as CapacitorQ,
     InductorQ as InductorQ,
 )

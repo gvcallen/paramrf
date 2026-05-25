@@ -8,6 +8,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.types import ArrayLike, Param
 from pmrf.parameters import param
+from pmrf.utils import error_if
 
 class Resistor(Model):
     """
@@ -167,133 +168,129 @@ class Inductor(Model):
         ]).transpose(2, 0, 1)
         
         return y
+    
 
-
-class ShuntResistor(Model):
+class Impedance(Model):
     """
-    A 2-port model of a shunt resistor shunting to ground.
+    A 2-port model of a generic series impedance (R + jX).
 
     Parameters
     ----------
     R : Param
         The resistance in Ohms.
+    X : Param
+        The reactance in Ohms.
     """
     #: Resistance in Ohms
     R: Param = param()
-
+    
+    #: Reactance in Ohms
+    X: Param = param()
+    
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        R = self.R
-        Y = 1.0 / R
-        
+        Z = self.R + 1j * self.X
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+
         if jnp.isscalar(z0):
             z_in = z_out = z0
         else:
-            z_in, z_out = z0[..., 0], z0[..., 1]
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
 
-        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
-        
-        denom = z_in + z_out + Y * z_in * z_out
-        
-        s11 = ((z_out - jnp.conj(z_in) - Y * jnp.conj(z_in) * z_out) / denom) * ones
-        s22 = ((z_in - jnp.conj(z_out) - Y * z_in * jnp.conj(z_out)) / denom) * ones
-        s21 = ((2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
-        s12 = s21
+        denom_c = Z + (z_in + z_out)
+        s_c11 = ((Z - jnp.conj(z_in) + z_out) / denom_c) * ones
+        s_c22 = ((Z + z_in - jnp.conj(z_out)) / denom_c) * ones
+        s_c12 = (2 * (z_in.real * z_out.real)**0.5 / denom_c) * ones
+        s_c21 = s_c12
 
         s = jnp.array([
-            [s11, s12],
-            [s21, s22]
+            [s_c11, s_c12],
+            [s_c21, s_c22]
         ]).transpose(2, 0, 1)
 
-        return s
-    
+        return s    
+
     def y(self, freq: Frequency) -> jnp.ndarray:
-        # Error checking implemented for Y-domain circuit solver attempts
-        raise ValueError("Cannot get the Y-matrix of a ShuntResistor, since it is infinite.")    
+        Z = self.R + 1j * self.X
+        
+        is_invalid = (jnp.abs(Z) == 0.0)
+        Z = error_if(
+            Z, 
+            jnp.any(is_invalid), 
+            "Y-matrix is singular (infinite admittance) for a 0-Ohm series short circuit."
+        )
+        
+        Y = 1.0 / Z
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+        
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
+        
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+        
+        return y
     
-    
-class ShuntCapacitor(Model):
+
+class Admittance(Model):
     """
-    A 2-port model of a shunt capacitor shunting to ground.
+    A 2-port model of a generic series admittance (G + jB).
 
     Parameters
     ----------
-    C : Param
-        The capacitance in Farads
+    G : Param
+        The conductance in Siemens.
+    B : Param
+        The susceptance in Siemens.
     """
-    #: Capacitance in Farads
-    C: Param = param()
-
+    #: Conductance in Siemens
+    G: Param = param()
+    
+    #: Susceptance in Siemens
+    B: Param = param()
+    
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        w = freq.w
-        C = self.C
-        Y = 1j * w * C
-        
+        Y = self.G + 1j * self.B
+        ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
+
         if jnp.isscalar(z0):
             z_in = z_out = z0
         else:
-            z_in, z_out = z0[..., 0], z0[..., 1]
-        
-        denom = z_in + z_out + Y * z_in * z_out
-        
-        s11 = (z_out - jnp.conj(z_in) - Y * jnp.conj(z_in) * z_out) / denom
-        s22 = (z_in - jnp.conj(z_out) - Y * z_in * jnp.conj(z_out)) / denom
-        s21 = (2.0 * (z_in.real * z_out.real)**0.5) / denom
-        s12 = s21
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
+
+        denom_c = 1.0 + Y * (z_in + z_out)
+        s_c11 = ((1.0 - Y * jnp.conj(z_in) + Y * z_out) / denom_c) * ones
+        s_c22 = ((1.0 + Y * z_in - Y * jnp.conj(z_out)) / denom_c) * ones
+        s_c12 = ((2.0 * (z_in.real * z_out.real)**0.5 * Y) / denom_c) * ones
+        s_c21 = s_c12
 
         s = jnp.array([
-            [s11, s12],
-            [s21, s22]
+            [s_c11, s_c12],
+            [s_c21, s_c22]
         ]).transpose(2, 0, 1)
 
-        return s                
+        return s    
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        # Error checking implemented for Y-domain circuit solver attempts
-        raise ValueError("Cannot get the Y-matrix of a ShuntCapacitor, since it is infinite.")
-
-
-class ShuntInductor(Model):
-    """
-    A 2-port model of a shunt inductor shunting to ground. 
-    Internally uses Z-formulation to prevent divide-by-zero errors at L=0 or DC.
-
-    Parameters
-    ----------
-    L : Param
-        The inductance in Henrys
-    """
-    #: Inductance in Henrys
-    L: Param = param()
-
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        w = freq.w
-        L = self.L
-        Z = 1j * w * L
-
-        if jnp.isscalar(z0):
-            z_in = z_out = z0
-        else:
-            z_in, z_out = z0[..., 0], z0[..., 1]
-
+        Y = self.G + 1j * self.B
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
-        denom = Z * (z_in + z_out) + z_in * z_out
+        y11 = Y * ones
+        y22 = Y * ones
+        y12 = -Y * ones
+        y21 = -Y * ones
         
-        s11 = ((Z * (z_out - jnp.conj(z_in)) - jnp.conj(z_in) * z_out) / denom) * ones
-        s22 = ((Z * (z_in - jnp.conj(z_out)) - z_in * jnp.conj(z_out)) / denom) * ones
-        s21 = ((Z * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
-        s12 = s21
-
-        s = jnp.array([
-            [s11, s12],
-            [s21, s22]
+        y = jnp.array([
+            [y11, y12],
+            [y21, y22]
         ]).transpose(2, 0, 1)
-
-        return s            
-
-    def y(self, freq: Frequency) -> jnp.ndarray:
-        # Error checking implemented for Y-domain circuit solver attempts
-        raise ValueError("Cannot get the Y-matrix of a ShuntInductor, since it is infinite.")    
+        
+        return y
 
     
 class InductorQ(Model):

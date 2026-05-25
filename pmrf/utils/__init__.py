@@ -27,3 +27,5 @@ from pmrf.utils.transforms import (
     sweep as sweep,
     derivative as derivative,
 )
+
+from equinox import error_if as error_if

@@ -5,7 +5,6 @@ from pmrf.frequency import Frequency
 from pmrf.models import (
     Short, Open, Match,
     Resistor, Capacitor, Inductor,
-    ShuntResistor, ShuntCapacitor, ShuntInductor,
     CapacitorQ, InductorQ
 )
 
@@ -41,24 +40,9 @@ def test_series_resistor(basic_freq):
     # S11 = R / (R + 2*Z0) = 50 / 150 = 1/3
     assert jnp.allclose(s[:, 0, 0], 1.0/3.0, atol=1e-5)
 
-def test_shunt_resistor(basic_freq):
-    """Test known RF limits for a shunt resistor."""
-    res = ShuntResistor(R=50.0)
-    s = res.s(basic_freq)
-    
-    assert s.shape == (5, 2, 2)
-    
-    # In a 50 ohm system, a 50 ohm shunt resistor yields:
-    # S21 = 2*R / (2*R + Z0) = 100 / 150 = 2/3
-    assert jnp.allclose(s[:, 1, 0], 2.0/3.0, atol=1e-5)
-    # S11 = -Z0 / (2*R + Z0) = -50 / 150 = -1/3
-    assert jnp.allclose(s[:, 0, 0], -1.0/3.0, atol=1e-5)
-
 @pytest.mark.parametrize("model_class, param_kwargs", [
     (Capacitor, {'C': 1e-12}),
     (Inductor, {'L': 1e-9}),
-    (ShuntCapacitor, {'C': 1e-12}),
-    (ShuntInductor, {'L': 1e-9}),
 ])
 def test_reactive_elements_execution(model_class, param_kwargs, basic_freq):
     """Ensure reactive lumped elements evaluate properly without shape or NaN errors."""
