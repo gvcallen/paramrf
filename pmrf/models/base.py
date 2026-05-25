@@ -938,7 +938,7 @@ def validate(tree):
                         f"Field '{f.name}' in '{node.__class__.__name__}' is a raw JAX array, "
                         f"meaning it is unclear whether this is a free or fixed parameter.\n\n"
                         f"To make your intention clear, you must either:\n"
-                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Variable`) for free variables, or a numpy array for fixed variables\n"
+                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Unconstrained`) for free variables, or a numpy array for fixed variables\n"
                         f"  2. Use a field specifier in the model class definition, e.g. `{f.name}: prf.Param = prf.param()` for automatic parameter conversion, "
                         f"or `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` combined with `prf.unwrap` to ensure the variable is not optimized.\n"
                         f"This restriction is enforced to allow compatibility with machine learning models from othe libraries."

@@ -58,8 +58,8 @@ import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 
 res = Resistor(50)
-ind = Inductor(prf.Variable(1.0, scale=1e-9))
-cap = Capacitor(prf.Variable(1.0, scale=1e-12))
+ind = Inductor(prf.Unconstrained(1.0, scale=1e-9))
+cap = Capacitor(prf.Unconstrained(1.0, scale=1e-12))
 model = res ** ind ** cap
 
 goal = prf.evaluators.Goal('s11_db', '<', -20)
