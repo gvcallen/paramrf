@@ -6,7 +6,7 @@ ParamRF allows you to easily optimize model parameters to meet a given design go
 Defining the Model
 ~~~~~~~~~~~~~~~~~~~
 
-When optimizing a model, instead of passing fixed floats, we pass *variable* parameters to indicate that they are free to be tuned by the optimizer. This can be done using constructors like :class:`pmrf.Unconstrained` or, more commonly, :class:`pmrf.Bounded`:
+When optimizing a model, instead of passing fixed floats, we pass *free* parameters to indicate that they are free to be tuned by the optimizer. This can be done using constructors like :class:`pmrf.Unconstrained` or, more commonly, :class:`pmrf.Bounded`:
 
 .. plot::
    :context: reset
