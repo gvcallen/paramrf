@@ -232,8 +232,6 @@ class BoxSectionCLCC(Model):
     This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
     and a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
 
-    The parameter `four_port` determines whether all four ports are exposed or not.
-
     Parameters
     ----------
     C1 : Param
