@@ -32,25 +32,16 @@ class PiSection(Model):
     #: Admittance of the series branch.
     Y3: Param = param()
 
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        # Broadcast scalar params to the required frequency array shape
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        # The native domain of a Pi-network
         ones = jnp.ones(freq.npoints, dtype=complex)
         Y1 = self.Y1 * ones
         Y2 = self.Y2 * ones
         Y3 = self.Y3 * ones
 
-        # Use machine epsilon to stably handle an open-circuit series branch (Y3 = 0)
-        # without needing lax.cond branches, maintaining JAX vectorization & stability.
-        Y3_safe = jnp.where(Y3 == 0.0, jnp.finfo(float).eps, Y3)
-
-        A = 1 + Y2 / Y3_safe
-        B = 1 / Y3_safe
-        C = Y1 + Y2 + (Y1 * Y2) / Y3_safe
-        D = 1 + Y1 / Y3_safe
-
         return jnp.array([
-            [A, B],
-            [C, D],
+            [Y1 + Y3,  -Y3],
+            [-Y3,      Y2 + Y3],
         ]).transpose(2, 0, 1)
 
 
@@ -124,24 +115,16 @@ class TSection(Model):
     #: Impedance of the shunt branch.
     Z3: Param = param()
 
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        # Broadcast scalar params
+    def z(self, freq: Frequency) -> jnp.ndarray:
+        # The native domain of a T-network
         ones = jnp.ones(freq.npoints, dtype=complex)
         Z1 = self.Z1 * ones
         Z2 = self.Z2 * ones
         Z3 = self.Z3 * ones
 
-        # Stably handle an ideal short-circuit to ground (Z3 = 0)
-        Z3_safe = jnp.where(Z3 == 0.0, jnp.finfo(float).eps, Z3)
-
-        A = 1 + Z1 / Z3_safe
-        B = Z1 + Z2 + (Z1 * Z2) / Z3_safe
-        C = 1 / Z3_safe
-        D = 1 + Z2 / Z3_safe
-
         return jnp.array([
-            [A, B],
-            [C, D],
+            [Z1 + Z3, Z3],
+            [Z3,      Z2 + Z3],
         ]).transpose(2, 0, 1)
 
 
@@ -181,33 +164,13 @@ class LSection(Model):
             [C, D],
         ]).transpose(2, 0, 1)
 
+
 class PiSectionCLC(Model):
     """
     A 2-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.
-
-    This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
-    and a second shunt capacitor (`C2`). It is a fundamental building block
-    for various filters and matching networks, and is also commonly used to
-    model the parasitic effects of physical components like SMD resistors.
-
-    Parameters
-    ----------
-    C1 : Param
-        The value of the first shunt capacitor in Farads.
-    L : Param
-        The value of the series inductor in Henrys.
-    C2 : Param
-        The value of the second shunt capacitor in Farads.
-        If True, treats the network as a 3-port device (where the ground reference is implicit or shared).
-        If False, treats it as a standard 2-port network.
     """
-    #: The value of the first shunt capacitor in Farads.
     C1: Param = param()
-    
-    #: The value of the series inductor in Henrys.
     L: Param = param()
-    
-    #: The value of the second shunt capacitor in Farads.
     C2: Param = param()
 
     def a(self, freq: Frequency) -> jnp.ndarray:
@@ -225,34 +188,14 @@ class PiSectionCLC(Model):
             [C, D],
         ]).transpose(2, 0, 1)
 
+
 class BoxSectionCLCC(Model):
     """
     A 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
-
-    This model consists of a shunt capacitor (`C1`), a series inductor (`L`),
-    and a second shunt capacitor (`C2`), and a bridging capacitor (`C3`).
-
-    Parameters
-    ----------
-    C1 : Param
-        First shunt capacitor.
-    L : Param
-        Series inductor.
-    C2 : Param
-        Second shunt capacitor.
-    C3 : Param
-        Bridging capacitor.
     """    
-    #: First shunt capacitor.
     C1: Param = param()
-    
-    #: Series inductor.
     L: Param = param()
-    
-    #: Second shunt capacitor.
     C2: Param = param()
-    
-    #: Bridging capacitor.
     C3: Param = param()
 
     def y(self, freq: Frequency) -> jnp.ndarray:
@@ -261,10 +204,9 @@ class BoxSectionCLCC(Model):
         Y2 = 1j * w * self.C2
         Y4 = 1j * w * self.C3
         
-        # Replaces lax.cond and magic numbers with jnp.where.
-        # Uses machine epsilon to represent the short stably, avoiding NaN in matrix inversions
-        L_safe = jnp.where(self.L == 0.0, jnp.finfo(float).eps, self.L)
-        Y3 = 1 / (1j * w * L_safe)
+        # We must divide by wL here to get admittance. 
+        # Safely generating inf prevents NaN propagation in JAX linear solvers if DC is hit.
+        Y3 = jnp.where(w * self.L == 0.0, jnp.inf + 0j, 1.0 / (1j * w * self.L))
         
         zero = jnp.zeros_like(Y1)
 
@@ -275,30 +217,13 @@ class BoxSectionCLCC(Model):
             [zero,          -Y2,            -Y4,            Y2 + Y4]
         ]).transpose(2, 0, 1)
     
+
 class TSectionLCL(Model):
     """
     A 2-port model of a Tee-network with an Inductor-Capacitor-Inductor topology.
-
-    This is the dual of the Pi-CLC network. It consists of a series inductor (`L1`),
-    a shunt capacitor (`C`), and a second series inductor (`L2`). It is often 
-    used for low-pass filtering and impedance matching.
-
-    Parameters
-    ----------
-    L1 : Param
-        The value of the first series inductor in Henrys.
-    C : Param
-        The value of the shunt capacitor in Farads.
-    L2 : Param
-        The value of the second series inductor in Henrys.
     """
-    #: The value of the first series inductor in Henrys.
     L1: Param = param()
-    
-    #: The value of the shunt capacitor in Farads.
     C: Param = param()
-    
-    #: The value of the second series inductor in Henrys.
     L2: Param = param()
 
     def a(self, freq: Frequency) -> jnp.ndarray:
@@ -316,24 +241,12 @@ class TSectionLCL(Model):
             [C_term, D],
         ]).transpose(2, 0, 1)
 
+
 class LSectionLC(Model):
     """
     A 2-port model of an L-section impedance matching network.
-    
-    This specific topology uses a series inductor (`L`) followed by a shunt 
-    capacitor (`C`), acting as a standard low-pass impedance transformer.
-
-    Parameters
-    ----------
-    L : Param
-        The value of the series inductor in Henrys.
-    C : Param
-        The value of the shunt capacitor in Farads.
     """
-    #: The value of the series inductor in Henrys.
     L: Param = param()
-    
-    #: The value of the shunt capacitor in Farads.
     C: Param = param()
 
     def a(self, freq: Frequency) -> jnp.ndarray:
