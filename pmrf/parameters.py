@@ -21,7 +21,7 @@ from pmrf.distributions import AbstractDistribution
 from pmrf.types import Param
 from pmrf.utils import unfreeze
 
-def apply_wrappers(value: Any, scale: float, fixed: bool, name: str | None) -> Param:
+def apply_wrappers(value: Any, scale: float = 1.0, fixed: bool = False, name: str | None = None) -> Param:
     value = prx.as_free(value)
     if scale != 1.0:
         scale_val = jnp.asarray(scale, dtype=float)
@@ -319,6 +319,7 @@ def Unconstrained(
     value: ArrayLike,
     *,
     scale: float = 1.0,
+    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
@@ -330,6 +331,8 @@ def Unconstrained(
         The base parameter value.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Wraps the parameter in a :class:`pmrf.Fixed` parameter.        
     name : str, optional
         A name for the parameter, by default None.
 
@@ -338,7 +341,8 @@ def Unconstrained(
     pmrf.Param
         An unconstrained parameter.
     """
-    return as_free(value, scale=scale, name=name)
+    p = as_free(value, scale=scale, name=name)
+    return apply_wrappers(p, fixed=fixed)
 
 
 def Constrained(
@@ -346,6 +350,7 @@ def Constrained(
     value: ArrayLike,
     *,
     scale: float = 1.0, 
+    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
@@ -361,6 +366,8 @@ def Constrained(
         The initial value of the parameter.
     scale : float, optional
         The scaling factor to apply, by default 1.0.
+    fixed : bool, optional
+        Wraps the parameter in a :class:`pmrf.Fixed` parameter.
     name : str, optional
         A name for the parameter, by default None.
 
@@ -369,7 +376,8 @@ def Constrained(
     pmrf.Param
         The constrained parameter.
     """
-    return as_free(value, constraint=constraint, scale=scale, name=name)
+    p = as_free(value, constraint=constraint, scale=scale, name=name)
+    return apply_wrappers(p, fixed=fixed)
 
 
 def Bounded(
@@ -378,6 +386,7 @@ def Bounded(
     *,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
+    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
@@ -396,16 +405,17 @@ def Bounded(
     scale : float, optional
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
-        Whether to freeze the parameter, by default False.
+        Wraps the parameter in a :class:`pmrf.Fixed` parameter.
     name : str, optional
-        A name for the parameter.       , by default None.
+        A name for the parameter, by default None.
 
     Returns
     -------
     pmrf.Param
         The bounded parameter.
     """
-    return as_free(value, constraint=Interval(lower, upper), scale=scale, name=name)
+    p = as_free(value, constraint=Interval(lower, upper), scale=scale, name=name)
+    return apply_wrappers(p, fixed=fixed)
 
 
 def Random(
@@ -414,6 +424,7 @@ def Random(
     constraint: Optional[AbstractConstraint] = None,
     value: Optional[ArrayLike] = None, 
     scale: float = 1.0, 
+    fixed: bool = False,
     name: Optional[str] = None,
 ) -> Param:
     """
@@ -437,9 +448,9 @@ def Random(
     scale : float, optional
         The scaling factor to apply, by default 1.0.
     fixed : bool, optional
-        Whether to freeze the parameter, by default False.
+        Wraps the parameter in a :class:`pmrf.Fixed` parameter.
     name : str, optional
-        A name for the parameter.       , by default None.
+        A name for the parameter, by default None.
 
     Returns
     -------
@@ -451,8 +462,8 @@ def Random(
     ValueError
         If `value` is None and the distribution does not implement `mean()`.
     """
-    return as_free(value, distribution=distribution, constraint=constraint, scale=scale, name=name)
-
+    p = as_free(value, distribution=distribution, constraint=constraint, scale=scale, name=name)
+    return apply_wrappers(p, fixed=fixed)
 
 __all__ = [
     "as_free",

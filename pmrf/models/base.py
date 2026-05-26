@@ -574,11 +574,11 @@ class Model(eqx.Module):
 
         # Convert via S parameters (Hub strategy)
         if primary_domain == 's':
-            return s2y(s, HUB_Z0)
+            return s2y(val, HUB_Z0)
         elif primary_domain == 'a':
-            s = a2y(val)
+            return a2y(val)
         elif primary_domain == 'z':
-            s = z2y(val)
+            return z2y(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y' is not implemented.")
 
