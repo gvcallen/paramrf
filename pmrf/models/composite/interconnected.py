@@ -9,7 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.models.components.ideal import Port
-from pmrf.topology import Topology
+from pmrf.simulate.topology import Topology
 from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, LinearFractionalTerminator, Redheffer, reduce, cascade, terminate
 
 EVAL_Z0 = 50.0
@@ -115,6 +115,14 @@ class Circuit(Model):
         # Assign the computed values
         self.circuit = models
         self.indexed_connections = indexed_connections
+
+    @property
+    def number_of_ports(self):
+        i = 0
+        for model in self.circuit:
+            if isinstance(model, Port):
+                i = i + 1
+        return i
         
     @property
     def topology(self) -> Topology:
@@ -207,6 +215,10 @@ class Cascade(Model):
                 merged.append(model)
         
         self.cascade = tuple(merged)
+
+    @property
+    def number_of_ports(self):
+        return self.cascade[0].number_of_ports
     
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0):
         return cascade(self.cascade, frequency, solver=self.solver, z0=z0).s
@@ -234,6 +246,10 @@ class Terminated(Model):
     
     #: The solver.
     solver: AbstractTerminator = field(default=LinearFractionalTerminator())
+
+    @property
+    def number_of_ports(self):
+        return self.terminated_from.number_of_ports - self.terminated_into.number_of_ports
     
     def __post_init__(self):
         if self.terminated_from.nports != 2*self.terminated_into.nports:

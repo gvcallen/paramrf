@@ -8,6 +8,7 @@ from jaxtyping import ArrayLike
 
 from pmrf.math import rsolve, nudge_diag
 from pmrf.utils.rf import fix_z0_shape
+from pmrf.rf.mna import MNAStamp
 
 ZERO = 1e-4
 
@@ -407,125 +408,373 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
 
     return s
 
-def y2z(y: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+def y2z(y: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert Admittance (Y) parameters to Impedance (Z) parameters.
-
-    Utilizes the S-parameter hub strategy (Y -> S -> Z).
+    Directly convert Admittance (Y) parameters to Impedance (Z) parameters.
 
     Parameters
     ----------
     y : jnp.ndarray
         The Admittance matrix with shape `(nfreqs, nports, nports)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The Impedance matrix with shape `(nfreqs, nports, nports)`.
     """
-    return s2z(y2s(y, z0=z0), z0=z0)
+    return jnp.linalg.inv(nudge_diag(y))
 
-def z2y(z: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+def z2y(z: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert Impedance (Z) parameters to Admittance (Y) parameters.
-
-    Utilizes the S-parameter hub strategy (Z -> S -> Y).
+    Directly convert Impedance (Z) parameters to Admittance (Y) parameters.
 
     Parameters
     ----------
     z : jnp.ndarray
         The Impedance matrix with shape `(nfreqs, nports, nports)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The Admittance matrix with shape `(nfreqs, nports, nports)`.
     """
-    return s2y(z2s(z, z0=z0), z0=z0)
+    return jnp.linalg.inv(nudge_diag(z))
 
-def a2y(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+def a2y(a: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert ABCD parameters to Admittance (Y) parameters.
-
-    Utilizes the S-parameter hub strategy (ABCD -> S -> Y).
+    Directly convert ABCD parameters to Admittance (Y) parameters.
 
     Parameters
     ----------
     a : jnp.ndarray
         The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The Admittance matrix with shape `(nfreqs, 2, 2)`.
     """
-    return s2y(a2s(a, z0=z0), z0=z0)
+    nfreqs, nports, _ = a.shape
+    if nports != 2:
+        raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-def y2a(y: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    A = a[:, 0, 0]
+    B = a[:, 0, 1]
+    C = a[:, 1, 0]
+    D = a[:, 1, 1]
+
+    denom = jnp.where(B == 0, 1e-15, B)
+
+    y = jnp.array([
+        [ D / denom,               -(A * D - B * C) / denom ],
+        [ -1.0 / denom,            A / denom                ],
+    ]).transpose(2, 0, 1)
+    
+    return y
+
+def y2a(y: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert Admittance (Y) parameters to ABCD parameters.
-
-    Utilizes the S-parameter hub strategy (Y -> S -> ABCD).
+    Directly convert Admittance (Y) parameters to ABCD parameters.
 
     Parameters
     ----------
     y : jnp.ndarray
         The Admittance matrix with shape `(nfreqs, 2, 2)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
     """
-    return s2a(y2s(y, z0=z0), z0=z0)
+    nfreqs, nports, _ = y.shape
+    if nports != 2:
+        raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-def a2z(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    y11 = y[:, 0, 0]
+    y12 = y[:, 0, 1]
+    y21 = y[:, 1, 0]
+    y22 = y[:, 1, 1]
+
+    denom = jnp.where(y21 == 0, 1e-15, y21)
+    delta_y = y11 * y22 - y12 * y21
+
+    a = jnp.array([
+        [ -y22 / denom,            -1.0 / denom ],
+        [ -delta_y / denom,        -y11 / denom ],
+    ]).transpose(2, 0, 1)
+
+    return a
+
+def a2z(a: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert ABCD parameters to Impedance (Z) parameters.
-
-    Utilizes the S-parameter hub strategy (ABCD -> S -> Z).
+    Directly convert ABCD parameters to Impedance (Z) parameters.
 
     Parameters
     ----------
     a : jnp.ndarray
         The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The Impedance matrix with shape `(nfreqs, 2, 2)`.
     """
-    return s2z(a2s(a, z0=z0), z0=z0)
+    nfreqs, nports, _ = a.shape
+    if nports != 2:
+        raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-def z2a(z: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
+    A = a[:, 0, 0]
+    B = a[:, 0, 1]
+    C = a[:, 1, 0]
+    D = a[:, 1, 1]
+
+    denom = jnp.where(C == 0, 1e-15, C)
+
+    z = jnp.array([
+        [ A / denom,               (A * D - B * C) / denom ],
+        [ 1.0 / denom,             D / denom               ],
+    ]).transpose(2, 0, 1)
+
+    return z
+
+def z2a(z: jnp.ndarray) -> jnp.ndarray:
     """
-    Convert Impedance (Z) parameters to ABCD parameters.
-
-    Utilizes the S-parameter hub strategy (Z -> S -> ABCD).
+    Directly convert Impedance (Z) parameters to ABCD parameters.
 
     Parameters
     ----------
     z : jnp.ndarray
         The Impedance matrix with shape `(nfreqs, 2, 2)`.
-    z0 : ArrayLike, optional, default=50
-        The intermediate characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
         The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
     """
-    return s2a(z2s(z, z0=z0), z0=z0)
+    nfreqs, nports, _ = z.shape
+    if nports != 2:
+        raise IndexError('ABCD parameters are defined for 2-port networks only')
+
+    z11 = z[:, 0, 0]
+    z12 = z[:, 0, 1]
+    z21 = z[:, 1, 0]
+    z22 = z[:, 1, 1]
+
+    denom = jnp.where(z21 == 0, 1e-15, z21)
+    delta_z = z11 * z22 - z12 * z21
+
+    a = jnp.array([
+        [ z11 / denom,             delta_z / denom ],
+        [ 1.0 / denom,             z22 / denom     ],
+    ]).transpose(2, 0, 1)
+
+    return a
+
+def y2mna(y: ArrayLike) -> MNAStamp:
+    """
+    Convert Y-parameters to a Modified Nodal Analysis (MNA) stamp.
+    
+    Since Y-parameters already represent a pure nodal formulation, 
+    this function generates a standard stamp with zero auxiliary variables.
+    
+    Parameters
+    ----------
+    y : ArrayLike
+        The Y-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
+        
+    Returns
+    -------
+    MNAStamp
+        The MNA representation containing Y, B, C, and D matrices.
+    """
+    y_arr = jnp.asarray(y)
+    
+    # Extract shape to handle both 2D and 3D inputs
+    shape = y_arr.shape
+    if len(shape) not in (2, 3):
+        raise ValueError(f"Y-parameters must be 2D or 3D. Got {len(shape)}D.")
+        
+    nports = shape[-1]
+    batch_shape = shape[:-2]
+    
+    # For pure Y-parameters, the number of auxiliary variables (K) is 0.
+    # JAX handles 0-dimension sizes cleanly.
+    B = jnp.zeros(batch_shape + (nports, 0), dtype=y_arr.dtype)
+    C = jnp.zeros(batch_shape + (0, nports), dtype=y_arr.dtype)
+    D = jnp.zeros(batch_shape + (0, 0), dtype=y_arr.dtype)
+    
+    return MNAStamp(Y=y_arr, B=B, C=C, D=D)
+
+
+def z2mna(z: ArrayLike) -> MNAStamp:
+    """
+    Convert Impedance (Z) parameters to a Modified Nodal Analysis (MNA) stamp.
+    
+    This formulation maps the port currents as the auxiliary variables, allowing 
+    raw Z-parameters to be stamped directly into the MNA system without requiring 
+    a potentially singular Z-to-Y matrix inversion.
+    
+    Parameters
+    ----------
+    z : ArrayLike
+        The Z-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
+        
+    Returns
+    -------
+    MNAStamp
+        The MNA representation containing Y, B, C, and D matrices.
+    """
+    z_arr = jnp.asarray(z)
+    
+    if z_arr.ndim not in (2, 3):
+        raise ValueError(f"Z-parameters must be 2D or 3D. Got {z_arr.ndim}D.")
+        
+    is_2d = (z_arr.ndim == 2)
+    if is_2d:
+        z_arr = jnp.expand_dims(z_arr, axis=0)
+
+    nfreqs, nports, _ = z_arr.shape
+    
+    # Broadcast an identity matrix across the frequency batch
+    I = jnp.eye(nports, dtype=z_arr.dtype)
+    I_b = jnp.tile(I, (nfreqs, 1, 1))
+    
+    # Direct Z-parameter MNA derivation
+    Y = jnp.zeros_like(z_arr)
+    B = I_b
+    C = I_b
+    D = -z_arr
+    
+    if is_2d:
+        Y = jnp.squeeze(Y, axis=0)
+        B = jnp.squeeze(B, axis=0)
+        C = jnp.squeeze(C, axis=0)
+        D = jnp.squeeze(D, axis=0)
+        
+    return MNAStamp(Y=Y, B=B, C=C, D=D)
+
+
+def a2mna(a: ArrayLike) -> MNAStamp:
+    """
+    Convert Transfer (ABCD) parameters to a Modified Nodal Analysis (MNA) stamp.
+    
+    This formulation maps the port currents as the auxiliary variables, 
+    avoiding potentially singular matrix inversions.
+    
+    Parameters
+    ----------
+    a : ArrayLike
+        The ABCD parameter matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
+        
+    Returns
+    -------
+    MNAStamp
+        The MNA representation containing Y, B, C, and D matrices.
+        
+    Raises
+    ------
+    IndexError
+        If the input is not a 2-port network.
+    """
+    a_arr = jnp.asarray(a)
+    
+    if a_arr.ndim not in (2, 3):
+        raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
+        
+    is_2d = (a_arr.ndim == 2)
+    if is_2d:
+        a_arr = jnp.expand_dims(a_arr, axis=0)
+
+    nfreqs, nports, _ = a_arr.shape
+    if nports != 2:
+        raise IndexError('ABCD parameters are defined for 2-port networks only')
+        
+    A = a_arr[:, 0, 0]
+    B = a_arr[:, 0, 1]
+    C = a_arr[:, 1, 0]
+    D = a_arr[:, 1, 1]
+
+    Y = jnp.zeros_like(a_arr)
+    I = jnp.eye(2, dtype=a_arr.dtype)
+    B_mat = jnp.tile(I, (nfreqs, 1, 1))
+
+    # Assemble C matrix: [[1, -A], [0, -C]]
+    C_mat = jnp.zeros_like(a_arr)
+    C_mat = C_mat.at[:, 0, 0].set(1.0)
+    C_mat = C_mat.at[:, 0, 1].set(-A)
+    C_mat = C_mat.at[:, 1, 0].set(0.0)
+    C_mat = C_mat.at[:, 1, 1].set(-C)
+
+    # Assemble D matrix: [[0, B], [1, D]]
+    D_mat = jnp.zeros_like(a_arr)
+    D_mat = D_mat.at[:, 0, 0].set(0.0)
+    D_mat = D_mat.at[:, 0, 1].set(B)
+    D_mat = D_mat.at[:, 1, 0].set(1.0)
+    D_mat = D_mat.at[:, 1, 1].set(D)
+
+    if is_2d:
+        Y = jnp.squeeze(Y, axis=0)
+        B_mat = jnp.squeeze(B_mat, axis=0)
+        C_mat = jnp.squeeze(C_mat, axis=0)
+        D_mat = jnp.squeeze(D_mat, axis=0)
+
+    return MNAStamp(Y=Y, B=B_mat, C=C_mat, D=D_mat)
+
+
+def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
+    """
+    Convert S-parameters to a Modified Nodal Analysis (MNA) stamp.
+    
+    This formulation maps the incident voltage waves as the auxiliary 
+    variables, allowing raw S-parameters to be stamped directly into 
+    the MNA system without any matrix inversions.
+    
+    Parameters
+    ----------
+    s : ArrayLike
+        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
+    z0 : ArrayLike
+        The characteristic impedance. Can be a scalar or an array broadcastable
+        to `(nfreqs, nports)`.
+        
+    Returns
+    -------
+    MNAStamp
+        The MNA representation containing Y, B, C, and D matrices.
+    """
+    s_arr = jnp.asarray(s)
+    
+    if s_arr.ndim not in (2, 3):
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
+        
+    is_2d = (s_arr.ndim == 2)
+    if is_2d:
+        s_arr = jnp.expand_dims(s_arr, axis=0)
+
+    nfreqs, nports, _ = s_arr.shape
+    z0_arr = fix_z0_shape(z0, nfreqs, nports)
+    
+    # Calculate Y0 and expand dims to broadcast across the columns of (I - S)
+    y0 = 1.0 / z0_arr
+    y0 = jnp.expand_dims(y0, axis=-1) 
+    
+    I = jnp.eye(nports, dtype=s_arr.dtype)
+    I_b = jnp.tile(I, (nfreqs, 1, 1))
+    
+    # Universal S-parameter MNA derivation
+    Y = jnp.zeros_like(s_arr)
+    B = y0 * (I_b - s_arr)
+    C = I_b
+    D = -(I_b + s_arr)
+    
+    # Restore original 2D shape if needed
+    if is_2d:
+        Y = jnp.squeeze(Y, axis=0)
+        B = jnp.squeeze(B, axis=0)
+        C = jnp.squeeze(C, axis=0)
+        D = jnp.squeeze(D, axis=0)
+        
+    return MNAStamp(Y=Y, B=B, C=C, D=D)
 
 def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """

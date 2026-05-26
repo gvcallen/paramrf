@@ -28,4 +28,6 @@ from pmrf.utils.transforms import (
     derivative as derivative,
 )
 
-from equinox import error_if as error_if
+from pmrf.utils.debug import (
+    error_if as error_if,
+)

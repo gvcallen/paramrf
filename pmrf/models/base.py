@@ -3,6 +3,7 @@ Base class for RF models.
 """
 
 from typing import Any, Callable, Self, TypeVar, Union
+from functools import cached_property
 import dataclasses
 
 import jax
@@ -12,12 +13,12 @@ import equinox as eqx
 import skrf
 import parax as prx
 
+from pmrf.rf.mna import MNAStamp
 from pmrf.utils.optix import focus, Lens
 from pmrf.parameters import Param
 from pmrf.frequency import Frequency
 from pmrf.rf import (
-    s2s, a2s, s2a, s2y, y2s, s2z, z2s, 
-    y2z, z2y, a2y, y2a, a2z, z2a, 
+    a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
 )
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
@@ -25,7 +26,7 @@ from pmrf.utils import field, unwrap, unwrap_self
 
 T = TypeVar('T')
 
-PRIMARY_DOMAINS = ('s', 'a', 'y', 'z')
+PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
 PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
 HUB_Z0 = 50.0 + 0.0j
 
@@ -64,6 +65,7 @@ class Model(eqx.Module):
     :meth:`a`                         ABCD parameter matrix.
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
+    :meth:`mna`                       Modified Nodal Analysis (MNA) stamp matrices.
     :meth:`build`                     Build the model. Can be overridden for advanced models.
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
     :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
@@ -181,7 +183,7 @@ class Model(eqx.Module):
 
     # ---- Introspection properties --------------------------------------------------------
     
-    @property
+    @cached_property
     def number_of_ports(self) -> int:
         """Number of ports.
 
@@ -189,11 +191,14 @@ class Model(eqx.Module):
         -------
         int
         """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().number_of_ports
+
         freq = Frequency(1, 2, 2)
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
 
-    @property
+    @cached_property
     def nports(self) -> int:
         """Alias of :attr:`number_of_ports`."""
         return self.number_of_ports
@@ -490,11 +495,11 @@ class Model(eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(freq, **kwargs)
 
-        # Return or Convert
+        # Return direct
         if primary_domain == 'a':
             return val
         
-        # Convert via S parameters (Hub strategy)
+        # Convert with priority s, z, y
         if primary_domain == 's':
             return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
@@ -529,11 +534,11 @@ class Model(eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(freq, **kwargs)
 
-        # Return or Convert
+        # Return direct
         if primary_domain == 'z':
             return val
 
-        # Convert via S parameters (Hub strategy)
+        # Convert with priority s, a, y
         if primary_domain == 's':
             return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
@@ -568,11 +573,11 @@ class Model(eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(freq, **kwargs)
 
-        # Return or Convert
+        # Return direct
         if primary_domain == 'y':
             return val
 
-        # Convert via S parameters (Hub strategy)
+        # Convert with priority s, a, z
         if primary_domain == 's':
             return s2y(val, HUB_Z0)
         elif primary_domain == 'a':
@@ -581,6 +586,43 @@ class Model(eqx.Module):
             return z2y(val)
         else:
             raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y' is not implemented.")
+        
+    @eqx.filter_jit
+    @unwrap_self
+    def mna(self, freq: Frequency) -> MNAStamp:
+        """
+        (experimental) Modified Nodal Analysis (MNA) stamp.
+
+        Can be overridden in sub-classes.
+        
+        If the model does not explicitly define an MNA stamp, this automatically 
+        delegates to the appropriate conversion utility (`s2mna`, `z2mna`, etc.). 
+        Explicitly defined Y-matrices are prioritized to maximize matrix sparsity, 
+        while other domains fall back to auxiliary variables to guarantee stability.
+        """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().mna(freq)
+
+        primary_domain = self.primary_domain
+        
+        if primary_domain == 'mna':
+            return self.primary_matrix(freq)
+            
+        # We prioritize y, z and a for sparsity, assuming the caller
+        # has created a numerically stable implementation.
+        if primary_domain == 'y' or is_overridden(type(self), Model, 'y'):
+            return y2mna(self.y(freq))
+        
+        if primary_domain == 'z' or is_overridden(type(self), Model, 'z'):
+            return z2mna(self.z(freq))
+        
+        if primary_domain == 'a' or is_overridden(type(self), Model, 'a'):
+            return a2mna(self.a(freq))
+        
+        if primary_domain == 's' or is_overridden(type(self), Model, 's'):
+            return s2mna(self.s(freq, z0=HUB_Z0), z0=HUB_Z0)
+            
+        return y2mna(self.y(freq))
 
     # ---- Magic methods and copying --------------------------------------------------
 
@@ -669,9 +711,11 @@ class Model(eqx.Module):
         methods like `.get()` and `.set()` to retrieve values
         or an updated model.
         
-        Warning: Note that updates are "surgical", so the value
-        is replaced as-is i.e. without any automatic converters.
-        When replacing parameters, ensure to pass in a fully
+        WARNING: All updates made by this method are "surgical".
+        In order words, values are replaced *as-is* without any converters
+        or verification applied (a new instance is still returned).
+        Any invariants must therefore be enforced or checked manually.
+        For example, when replacing parameters, ensure to pass in a fully
         constructed parameter and not a float.
         
         Examples

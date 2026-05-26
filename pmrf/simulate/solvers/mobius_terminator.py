@@ -1,9 +1,9 @@
 """pmrf/simulate/terminators.py"""
 
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.simulate.base import AbstractTransferTerminator, ScatteringResult
+from pmrf.utils import error_if
 
 class MobiusTerminator(AbstractTransferTerminator):
     def run(
@@ -14,9 +14,9 @@ class MobiusTerminator(AbstractTransferTerminator):
     ) -> ScatteringResult:
         
         # Enforce shape constraints
-        a_from = eqx.error_if(a_from, a_from.shape != (2, 2), f"MobiusTerminator requires a_from shape (2, 2), got {a_from.shape}")
-        s_into = eqx.error_if(s_into, s_into.shape != (1, 1), f"MobiusTerminator requires s_into shape (1, 1), got {s_into.shape}")
-        z0_into = eqx.error_if(z0_into, z0_into.shape != (1,), f"MobiusTerminator requires z0_into shape (1,), got {z0_into.shape}")
+        a_from = error_if(a_from, a_from.shape != (2, 2), f"MobiusTerminator requires a_from shape (2, 2), got {a_from.shape}")
+        s_into = error_if(s_into, s_into.shape != (1, 1), f"MobiusTerminator requires s_into shape (1, 1), got {s_into.shape}")
+        z0_into = error_if(z0_into, z0_into.shape != (1,), f"MobiusTerminator requires z0_into shape (1,), got {z0_into.shape}")
 
         # Terminated load reflection coefficient
         s11 = s_into[0, 0]
@@ -30,7 +30,7 @@ class MobiusTerminator(AbstractTransferTerminator):
         den = z0_val * (1 + s11) * (A + z0_val * C) + (B + D * z0_val) * (1 - s11)
         
         # Prevent silent division-by-zero NaNs during runtime
-        den = eqx.error_if(den, jnp.abs(den) == 0.0, "Singular matrix encountered in Möbius transformation (division by zero).")
+        den = error_if(den, jnp.abs(den) == 0.0, "Singular matrix encountered in Möbius transformation (division by zero).")
 
         s11_out = num / den        
         

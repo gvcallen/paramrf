@@ -19,7 +19,7 @@ import parax as prx
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.types import Param
-from pmrf.utils import unfreeze
+from pmrf.utils import unfreeze, error_if
 
 def apply_wrappers(value: Any, scale: float = 1.0, fixed: bool = False, name: str | None = None) -> Param:
     value = prx.as_free(value)
@@ -115,7 +115,7 @@ def as_free(
         raise ValueError("Currently, you cannot assign a new distribution to an existing variable.")
     if constraint is not None and value is not None:
         value_array = jnp.array(value)
-        eqx.error_if(
+        error_if(
             value_array,
             constraint.is_outside(value_array),
             f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
