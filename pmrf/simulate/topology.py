@@ -9,7 +9,8 @@ from pmrf.models.base import Model
 
 class Topology(eqx.Module):
     """
-    A higher-level model containing sub-models and their topological connections.
+    A higher-level model containing sub-models and their topological connections
+    for simulation data preparation.
 
     Attributes
     ----------
@@ -232,3 +233,63 @@ class Topology(eqx.Module):
         batched_Z_elements = jnp.concatenate(flat_Z_list, axis=1)
         
         return batched_Z_elements
+    
+    def evaluate_mna(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """
+        Evaluates the Modified Nodal Analysis (MNA) parameters for all models.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency points at which to evaluate the models.
+
+        Returns
+        -------
+        tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]
+            A tuple of 2D arrays containing the flattened (Y, B, C, D) elements 
+            suitable for COO sparse matrix scatter-add operations.
+        """
+        flat_Y, flat_B, flat_C, flat_D = [], [], [], []
+        offset = 0
+        
+        # Pre-compute the set of global indices that belong to markers for O(1) lookup
+        marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
+        
+        for m in self.models:
+            stamp = m.mna(freq)
+            
+            # If the model's global port offset is in the markers list, inject zeros
+            if offset in marker_indices:
+                Y = jnp.zeros_like(stamp.Y)
+                B = jnp.zeros_like(stamp.B)
+                C = jnp.zeros_like(stamp.C)
+                D = jnp.zeros_like(stamp.D)
+            else:
+                Y = stamp.Y
+                B = stamp.B
+                C = stamp.C
+                D = stamp.D
+                
+            Nf, n, _ = Y.shape
+            k = D.shape[1]
+            
+            flat_Y.append(Y.reshape(Nf, n * n))
+            if k > 0:
+                flat_B.append(B.reshape(Nf, n * k))
+                flat_C.append(C.reshape(Nf, k * n))
+                flat_D.append(D.reshape(Nf, k * k))
+                
+            offset += m.nports
+            
+        # Safely concatenate or return empty arrays if no elements exist
+        def _safe_concat(array_list):
+            if not array_list:
+                return jnp.zeros((freq.npoints, 0), dtype=jnp.complex128)
+            return jnp.concatenate(array_list, axis=1)
+            
+        batched_Y = _safe_concat(flat_Y)
+        batched_B = _safe_concat(flat_B)
+        batched_C = _safe_concat(flat_C)
+        batched_D = _safe_concat(flat_D)
+        
+        return batched_Y, batched_B, batched_C, batched_D

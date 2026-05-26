@@ -1,5 +1,3 @@
-"""pmrf/simulate/kron.py"""
-
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -7,6 +5,21 @@ import equinox as eqx
 from pmrf.simulate.base import AbstractAdmittanceReducer, NodalRepresentation, AdmittanceResult
 
 class Kron(AbstractAdmittanceReducer):
+    """
+    Y-domain Nodal admittance circuit solver using Kron reduction.
+
+    This method is very fast when working with pure, Y-domain components.
+
+    However, since Y-matrices are not defined for many ideal components, it cannot be used
+    in more complex circuits, where it may produce NaNs or large numerical instabilities.
+    In this case, a Modified Nodal Admittance (MNA) reduction must be performed using a
+    relevant solver.
+
+    Therefore, when using this solver, it is important to compare the output of this method with S-parameter methods
+    (such as :class:`pmrf.simulate.Hallbjorner) to ensure the output is stable for the range
+    of parameters in your model.
+    """
+
     eps: float = eqx.field(default=1e-12, static=True)
 
     def run(

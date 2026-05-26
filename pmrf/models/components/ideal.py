@@ -9,7 +9,7 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field
+from pmrf.utils import field, error_if
 from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike, Param
 from pmrf.parameters import param
@@ -37,25 +37,6 @@ class Load(Model):
             repeat(freq.npoints, 0)
         return s
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
-        gamma_arr = jnp.asarray(self.gamma)
-        
-        is_invalid = jnp.any(gamma_arr == -1.0)
-        
-        gamma_safe = eqx.error_if(
-            gamma_arr, 
-            is_invalid, 
-            "Y-matrix is singular and undefined for ideal short (-1.0) loads."
-        )
-        
-        y_val = (1.0 - gamma_safe) / (1.0 + gamma_safe)
-        
-        y = jnp.asarray(y_val).reshape(-1, 1, 1) * \
-            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
-            repeat(freq.npoints, 0)
-            
-        return y
-    
 
 class Short(Model):
     """

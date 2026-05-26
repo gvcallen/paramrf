@@ -27,6 +27,44 @@ class NodalRepresentation(eqx.Module):
     int_idx: np.ndarray
 
 
+class ModifiedNodalRepresentation(eqx.Module):
+    """
+    Static topological representation for Modified Nodal Analysis (MNA) assembly and reduction.
+    """
+    #: The total number of global nodes in the network, including the dummy ground node.
+    num_nodes: int = eqx.field(static=True)
+    
+    #: The total number of global auxiliary variables (e.g., branch currents, wave variables).
+    num_aux: int = eqx.field(static=True)
+
+    #: Global row indices mapping local Y elements (Node to Node) to the global MNA matrix.
+    y_r_idx: np.ndarray
+    #: Global column indices mapping local Y elements (Node to Node) to the global MNA matrix.
+    y_c_idx: np.ndarray
+
+    #: Global row indices mapping local B elements (Node to Aux) to the global MNA matrix.
+    b_r_idx: np.ndarray
+    #: Global column indices mapping local B elements (Node to Aux) to the global MNA matrix.
+    b_c_idx: np.ndarray
+
+    #: Global row indices mapping local C elements (Aux to Node) to the global MNA matrix.
+    c_r_idx: np.ndarray
+    #: Global column indices mapping local C elements (Aux to Node) to the global MNA matrix.
+    c_c_idx: np.ndarray
+
+    #: Global row indices mapping local D elements (Aux to Aux) to the global MNA matrix.
+    d_r_idx: np.ndarray
+    #: Global column indices mapping local D elements (Aux to Aux) to the global MNA matrix.
+    d_c_idx: np.ndarray
+
+    #: A 1D array of standard node indices designated as external (retained after reduction).
+    ext_idx: np.ndarray
+
+    #: A 1D array of standard node indices designated as internal (eliminated).
+    #: Note: All auxiliary variables are inherently considered internal and are eliminated.
+    int_idx: np.ndarray
+
+
 class PortRepresentation(eqx.Module):
     """
     Static topological representation for scattering parameter connection and reduction.
@@ -112,6 +150,42 @@ class AbstractAdmittanceReducer(eqx.Module):
         -------
         AdmittanceResult
             The fully reduced Y-parameter result.
+        """
+        raise NotImplementedError
+    
+
+class AbstractModifiedAdmittanceReducer(eqx.Module):
+    """Abstract base class for solvers that reduce arbitrary admittance using MNA."""
+    
+    @abstractmethod
+    def run(
+        self, 
+        y_flattened: jnp.ndarray,
+        b_flattened: jnp.ndarray,
+        c_flattened: jnp.ndarray,
+        d_flattened: jnp.ndarray,
+        topology: ModifiedNodalRepresentation, 
+    ) -> AdmittanceResult:
+        """
+        Executes the Modified Nodal Analysis reduction algorithm.
+
+        Parameters
+        ----------
+        y_flattened : jnp.ndarray
+            A 1D array of flattened Y-block elements.
+        b_flattened : jnp.ndarray
+            A 1D array of flattened B-block elements.
+        c_flattened : jnp.ndarray
+            A 1D array of flattened C-block elements.
+        d_flattened : jnp.ndarray
+            A 1D array of flattened D-block elements.
+        topology : MNARepresentation
+            The static map dictating the MNA assembly and partition logic.
+
+        Returns
+        -------
+        AdmittanceResult
+            The fully reduced external Y-parameter matrix.
         """
         raise NotImplementedError
     
@@ -261,6 +335,6 @@ class AbstractTransferTerminator(eqx.Module):
 
 
 # Type Aliases for solver categories
-AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer
+AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer | AbstractModifiedAdmittanceReducer
 AbstractCascader = AbstractScatteringCascader | AbstractTransferCascader
 AbstractTerminator = AbstractScatteringTerminator | AbstractTransferTerminator

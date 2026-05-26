@@ -27,7 +27,7 @@ except PackageNotFoundError:
 # Re-exports
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
-from pmrf.topology import Topology as Topology
+from pmrf.simulate.topology import Topology as Topology
 from pmrf.problem import Problem as Problem
 
 #: The canonical type hint for a float, or a numpy or JAX array.
