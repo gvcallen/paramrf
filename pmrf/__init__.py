@@ -12,7 +12,7 @@ import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
 import parax 
-from jaxtyping import Inexact, Array, ArrayLike
+from jaxtyping import ArrayLike
 from typing import TypeAlias
 
 # Environment Setup
@@ -27,7 +27,6 @@ except PackageNotFoundError:
 # Re-exports
 from pmrf.models import Model as Model
 from pmrf.frequency import Frequency as Frequency
-from pmrf.simulate.topology import Topology as Topology
 from pmrf.problem import Problem as Problem
 
 #: The canonical type hint for a float, or a numpy or JAX array.
@@ -59,6 +58,7 @@ from pmrf.network_collection import NetworkCollection as NetworkCollection
 
 from pmrf.utils import (
     Partial as Partial,
+    Bind as Bind,
     InitVar as InitVar,
     field as field,
     freeze as freeze,
@@ -91,6 +91,7 @@ from pmrf import (
     parameters as parameters,
     rf as rf,
     serialization as serialization,
+    simulate as simulate,
     viz as viz,
 )
 
@@ -117,6 +118,7 @@ __all__ = [
 
     # Utilities
     "Partial",
+    "Bind",
     "Initvar",
     "NetworkCollection",
     "field",
@@ -148,5 +150,6 @@ __all__ = [
     "parameters",
     "rf",
     "serialization",
+    "simulate",
     "viz",
 ]

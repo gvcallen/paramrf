@@ -7,6 +7,7 @@ Sometimes, it is more convenient or elegant to define a custom model that is not
   * Define a reusable component built from sub-models
   * Expose another model's parameters under different names/paths
   * Implement a specialized version of an existing model
+  * Add methods on top of your model e.g. for conversions/analysis
 
 In ParamRF, this is done by inheriting directly from :class:`~pmrf.Model` and overriding at least one of its core methods, namely :meth:`~pmrf.Model.s`, :meth:`~pmrf.Model.a`, :meth:`~pmrf.Model.y`, :meth:`~pmrf.Model.z`, :meth:`~pmrf.Model.build`, or :meth:`~pmrf.Model.primary_matrix`.
 

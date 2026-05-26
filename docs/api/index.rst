@@ -65,6 +65,7 @@ Utilities
 
    pmrf.NetworkCollection
    pmrf.Partial
+   pmrf.Bind
    pmrf.InitVar
    pmrf.load
    pmrf.save

@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Generic, TypeVar, Any
 
 import equinox as eqx
 import jax
@@ -144,3 +144,27 @@ def batched_tree_unflatten(
     ]
     
     return jax.tree.unflatten(treedef, restored_leaves)
+
+
+_Return = TypeVar("_Return")
+
+class Bind(eqx.Module, Generic[_Return]):
+    """Like `functools.partial`, but allows re-passing keyword arguments 
+    to override the originally bound keyword arguments.
+    """
+
+    func: Callable[..., _Return]
+    args: tuple[Any, ...]
+    keywords: dict[str, Any]
+
+    def __init__(self, func: Callable[..., _Return], /, *args: Any, **kwargs: Any):
+        self.func = func
+        self.args = args
+        self.keywords = kwargs
+
+    def __call__(self, *args: Any, **kwargs: Any) -> _Return:
+        # Merge dictionaries: Call-time kwargs overwrite init-time self.keywords
+        # If you are on Python 3.8 or older, use: {**self.keywords, **kwargs}
+        merged_kwargs = self.keywords | kwargs 
+        
+        return self.func(*self.args, *args, **merged_kwargs)    
