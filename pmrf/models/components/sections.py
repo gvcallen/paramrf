@@ -204,9 +204,11 @@ class BoxSectionCLCC(Model):
         Y2 = 1j * w * self.C2
         Y4 = 1j * w * self.C3
         
-        # We must divide by wL here to get admittance. 
-        # Safely generating inf prevents NaN propagation in JAX linear solvers if DC is hit.
-        Y3 = jnp.where(w * self.L == 0.0, jnp.inf + 0j, 1.0 / (1j * w * self.L))
+        # Revert to the epsilon hack. 
+        # A microscopic inductance keeps Y3 massive but strictly finite, 
+        # preventing inf * 0 = NaN errors during y2s matrix inversion.
+        L_safe = jnp.where(self.L == 0.0, jnp.finfo(float).eps, self.L)
+        Y3 = 1.0 / (1j * w * L_safe)
         
         zero = jnp.zeros_like(Y1)
 
