@@ -6,6 +6,7 @@ from copy import copy
 from typing import Callable, Any
 
 import jax
+from jax.flatten_util import ravel_pytree
 from jaxtyping import PyTree
 import equinox as eqx
 from tqdm.auto import tqdm
@@ -45,7 +46,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         **kwargs
     ) -> MinimizeResult:
         from jaxopt import ScipyBoundedMinimize as JaxOptScipyBoundedMinimize
-        
+
         pbar = None
         if self.show_progress:
             desc = f"SciPy {self.method}" if self.method is not None else "SciPy (default)"

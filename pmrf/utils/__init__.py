@@ -10,6 +10,7 @@ from pmrf.utils import type as type
 
 from pmrf.utils.tree import (
     Partial as Partial,
+    Bind as Bind,
     InitVar as InitVar,
     freeze as freeze,
     unfreeze as unfreeze,
@@ -18,9 +19,6 @@ from pmrf.utils.tree import (
     field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
-    is_constant as is_constant,
-    is_param as is_param,
-    is_model as is_model,    
 )
 
 from pmrf.utils.transforms import (

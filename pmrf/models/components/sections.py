@@ -5,8 +5,7 @@ import jax.numpy as jnp
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.types import Param
-from pmrf.parameters import param
+from pmrf.parameters import Param, param
 
 class PiSection(Model):
     """

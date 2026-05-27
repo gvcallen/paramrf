@@ -11,15 +11,12 @@ Core Primitives
 
    pmrf.Model
    pmrf.Frequency
-   pmrf.Unconstrained
    pmrf.Param
+   pmrf.Unconstrained
    pmrf.Fixed
    pmrf.Bounded
    pmrf.Constrained
    pmrf.Random
-   pmrf.param
-   pmrf.field
-
 
 
 Main Modules
@@ -65,7 +62,12 @@ Utilities
 
    pmrf.NetworkCollection
    pmrf.Partial
+   pmrf.Bind
    pmrf.InitVar
+   pmrf.is_param
+   pmrf.as_param
+   pmrf.param
+   pmrf.field
    pmrf.load
    pmrf.save
    pmrf.derivative
@@ -75,5 +77,3 @@ Utilities
    pmrf.replace
    pmrf.unwrap
    pmrf.unwrap_self
-   pmrf.as_fixed
-   pmrf.as_variable

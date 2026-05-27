@@ -9,10 +9,10 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
-from pmrf.parameters import param
 from pmrf.constraints import Positive, GreaterThan
 from pmrf.utils import field
-from pmrf.types import Param, ArrayLike
+from pmrf.types import ArrayLike
+from pmrf.parameters import Param, param
 
 class TransmissionLine(Model):
     r"""

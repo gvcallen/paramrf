@@ -6,8 +6,7 @@ import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models.adapters.base import AbstractSingleDomain
-from pmrf.types import Param
-from pmrf.parameters import param
+from pmrf.parameters import Param, param
 
 class PolynomialRatio(AbstractSingleDomain):
     """

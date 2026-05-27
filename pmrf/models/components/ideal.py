@@ -9,10 +9,10 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field, error_if
+from pmrf.utils import field
 from pmrf.rf import renormalize_s
-from pmrf.types import ArrayLike, Param
-from pmrf.parameters import param
+from pmrf.types import ArrayLike
+from pmrf.parameters import Param, param
 
 class Load(Model):
     """

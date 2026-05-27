@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Generic, TypeVar, Any
 
 import equinox as eqx
 import jax
@@ -16,8 +16,6 @@ from equinox import (
 from parax import (
     unwrap as unwrap,
     unwrap_self as unwrap_self,
-    is_constant as is_constant,
-    is_param as is_param,
 )
 
 
@@ -46,14 +44,6 @@ def unfreeze(value: Any):
     if isinstance(value, prx.Static):
         value = value.unwrap()
     return value
-
-
-def is_model(x: Any):
-    """
-    Returns if `x` is an instance of :class:`pmrf.Model`.
-    """
-    from pmrf.models import Model
-    return isinstance(x, Model)
 
 
 def extract_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:
@@ -144,3 +134,27 @@ def batched_tree_unflatten(
     ]
     
     return jax.tree.unflatten(treedef, restored_leaves)
+
+
+_Return = TypeVar("_Return")
+
+class Bind(eqx.Module, Generic[_Return]):
+    """Like `functools.partial`, but allows re-passing keyword arguments 
+    to override the originally bound keyword arguments.
+    """
+
+    func: Callable[..., _Return]
+    args: tuple[Any, ...]
+    keywords: dict[str, Any]
+
+    def __init__(self, func: Callable[..., _Return], /, *args: Any, **kwargs: Any):
+        self.func = func
+        self.args = args
+        self.keywords = kwargs
+
+    def __call__(self, *args: Any, **kwargs: Any) -> _Return:
+        # Merge dictionaries: Call-time kwargs overwrite init-time self.keywords
+        # If you are on Python 3.8 or older, use: {**self.keywords, **kwargs}
+        merged_kwargs = self.keywords | kwargs 
+        
+        return self.func(*self.args, *args, **merged_kwargs)    

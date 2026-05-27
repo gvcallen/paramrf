@@ -12,7 +12,7 @@ import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
 import parax 
-from jaxtyping import Inexact, Array, ArrayLike
+from jaxtyping import ArrayLike
 from typing import TypeAlias
 
 # Environment Setup
@@ -25,24 +25,21 @@ except PackageNotFoundError:
     pass
 
 # Re-exports
-from pmrf.models import Model as Model
+from pmrf.models import (
+    Model as Model,
+    is_model as is_model,
+)
 from pmrf.frequency import Frequency as Frequency
-from pmrf.simulate.topology import Topology as Topology
 from pmrf.problem import Problem as Problem
 
 #: The canonical type hint for a float, or a numpy or JAX array.
 ArrayLike: TypeAlias = ArrayLike
 
-#: The canonical type hint for a variable or fixed parameter.
-#: Parameters should be created using factories in :mod:`pmrf.parameters`,
-#: most of which are re-exported at root (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
-Param: TypeAlias = parax.AbstractVariable | ArrayLike
-
-
 from pmrf.parameters import (
+    Param as Param,
+    is_param as is_param,
+    as_param as as_param,
     param as param,
-    as_free as as_free,
-    as_fixed as as_fixed,
     Unconstrained as Unconstrained,
     Fixed as Fixed,
     Bounded as Bounded,
@@ -59,6 +56,7 @@ from pmrf.network_collection import NetworkCollection as NetworkCollection
 
 from pmrf.utils import (
     Partial as Partial,
+    Bind as Bind,
     InitVar as InitVar,
     field as field,
     freeze as freeze,
@@ -66,9 +64,6 @@ from pmrf.utils import (
     replace as replace,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
-    is_constant as is_constant,
-    is_param as is_param,
-    is_model as is_model,
     derivative as derivative,
     sweep as sweep,
 )
@@ -91,20 +86,23 @@ from pmrf import (
     parameters as parameters,
     rf as rf,
     serialization as serialization,
+    simulate as simulate,
     viz as viz,
 )
 
 __all__ = [
     # Core
     "Model",
+    "is_model",
     "Frequency",
     "Topology",
     "Problem",
 
+    # Parameters
     "Param",
+    "is_param",
+    "as_param",
     "param",
-    "as_free",
-    "as_fixed",
     "Unconstrained",
     "Fixed",
     "Bounded",
@@ -117,6 +115,7 @@ __all__ = [
 
     # Utilities
     "Partial",
+    "Bind",
     "Initvar",
     "NetworkCollection",
     "field",
@@ -125,9 +124,6 @@ __all__ = [
     "replace",
     "unwrap",
     "unwrap_self",
-    "is_constant",
-    "is_param",
-    "is_model",
     "derivative",
     "sweep",
     
@@ -148,5 +144,6 @@ __all__ = [
     "parameters",
     "rf",
     "serialization",
+    "simulate",
     "viz",
 ]

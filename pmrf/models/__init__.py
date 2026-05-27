@@ -7,6 +7,7 @@ Note that all models are re-exported under `pmrf.models`.
 """
 from pmrf.models.base import (
     Model as Model,
+    is_model as is_model,
     validate as validate,
 )
 

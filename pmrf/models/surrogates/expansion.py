@@ -5,8 +5,7 @@ An expansion of a set of basis functions.
 import jax.numpy as jnp
 
 from pmrf.models.adapters.base import AbstractSingleDiscreteDomain
-from pmrf.types import Param
-from pmrf.parameters import param
+from pmrf.parameters import Param, param
 
 class VectorExpansion(AbstractSingleDiscreteDomain):
     """
