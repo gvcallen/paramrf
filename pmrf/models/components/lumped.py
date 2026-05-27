@@ -6,8 +6,8 @@ import jax.numpy as jnp
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.types import ArrayLike, Param
-from pmrf.parameters import param
+from pmrf.types import ArrayLike
+from pmrf.parameters import Param, param
 
 class Resistor(Model):
     """

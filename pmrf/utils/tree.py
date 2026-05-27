@@ -16,8 +16,6 @@ from equinox import (
 from parax import (
     unwrap as unwrap,
     unwrap_self as unwrap_self,
-    is_constant as is_constant,
-    is_param as is_param,
 )
 
 
@@ -46,14 +44,6 @@ def unfreeze(value: Any):
     if isinstance(value, prx.Static):
         value = value.unwrap()
     return value
-
-
-def is_model(x: Any):
-    """
-    Returns if `x` is an instance of :class:`pmrf.Model`.
-    """
-    from pmrf.models import Model
-    return isinstance(x, Model)
 
 
 def extract_batch_axes(batched_tree: PyTree, template_tree: PyTree, *, is_leaf: Callable[[Any], bool] | None = None) -> PyTree:

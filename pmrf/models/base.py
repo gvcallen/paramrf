@@ -15,7 +15,7 @@ import parax as prx
 
 from pmrf.rf.mna import MNAStamp
 from pmrf.utils.optix import focus, Lens
-from pmrf.parameters import Param
+from pmrf.parameters import Param, is_param
 from pmrf.frequency import Frequency
 from pmrf.rf import (
     a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
@@ -956,6 +956,13 @@ class Model(eqx.Module):
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
     
+
+def is_model(x: Any):
+    """
+    Returns if `x` is an instance of :class:`pmrf.Model`.
+    """
+    return isinstance(x, Model)
+    
     
 def validate(tree):
     """
@@ -1014,8 +1021,6 @@ def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, igno
     str
         The name of the parameter or path.
     """
-    from pmrf.parameters import extract_name
-
     namespace = []
     current_obj = tree
     unnamed_path_parts = []
@@ -1045,8 +1050,8 @@ def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, igno
             
     param_name = None
     if not ignore_names:
-        if prx.is_param(current_obj):
-            param_name = extract_name(current_obj)
+        if is_param(current_obj):
+            param_name = current_obj.name
         
         if param_name is None and isinstance(current_obj, Model) and current_obj.name is not None:
             if namespace:
