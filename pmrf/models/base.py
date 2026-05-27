@@ -2,7 +2,7 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable, Self, TypeVar, Union
+from typing import Any, Callable, Self, TypeVar, Union, TypeGuard
 from functools import cached_property
 import dataclasses
 
@@ -233,7 +233,7 @@ class Model(eqx.Module):
         values : bool, default=True
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
-            pass `unwrap=False`.        
+            pass `unwrap=False`.
         keystr : bool, default=False
             Whether equivalent strings should be returned as opposed to full JAX paths.
             Defaults to False.
@@ -242,11 +242,11 @@ class Model(eqx.Module):
         """
         # Setup callables for filtering/flattening
         if not include_fixed:
-            filter_spec = lambda x: prx.is_param(x) and not prx.is_constant(x)
-            is_leaf = lambda x: prx.is_param(x) or prx.is_constant(x)
+            filter_spec = lambda x: is_param(x) and not x.fixed
+            is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen models
         else:
-            filter_spec = lambda x: prx.is_param(x)
-            is_leaf = lambda x: prx.is_param(x)
+            filter_spec = lambda x: is_param(x)
+            is_leaf = lambda x: is_param(x)
 
         # Get rid of any non-param leaves
         filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
@@ -957,7 +957,7 @@ class Model(eqx.Module):
         return ntwk.write_touchstone(filename, **skrf_kwargs)
     
 
-def is_model(x: Any):
+def is_model(x: Any) -> TypeGuard[Model]:
     """
     Returns if `x` is an instance of :class:`pmrf.Model`.
     """
