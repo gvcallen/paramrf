@@ -258,7 +258,8 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         pbar = None
         if self.show_progress:
             maxiter = scipy_options.get("maxiter", None)
-            pbar = tqdm(total=maxiter, desc=f"SciPy {method}")
+            desc = f"SciPy {method}" if method is not None else f"SciPy (default)"
+            pbar = tqdm(total=maxiter, desc=desc)
 
         def callback(*cb_args, **cb_kwargs):
             if pbar is not None:
