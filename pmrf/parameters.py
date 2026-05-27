@@ -342,17 +342,24 @@ def as_param(
     if prx.is_variable(value):
         if isinstance(value, prx.Fixed):
             fixed = True
+            value = value.raw_value
         else:
             fixed = False
+        
         if isinstance(value, prx.Random):
             distribution = value.distribution
-        if isinstance(value, prx.Constrained):
+        
+        if prx.is_constrained(value):
             constraints = [constraint] if constraint is not None else []
             if prx.is_constrained(value):
                 constraints.append(prx.unwrap(value.constraint))
             if len(constraints) != 0:
                 value = prx.variables.constrain_param(value, *constraints)
             constraint = value.constraint
+            
+        if not isinstance(value, prx.Random | prx.Constrained | prx.Real):
+            raise ValueError(f"Got unknown type in `as_param`: {value}")
+            
         value = jnp.asarray(value)
 
     # Intersect fixed properties

@@ -17,7 +17,7 @@ from scipy.optimize import minimize as scipy_minimize
 
 from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
-DEBUG_PRINT = False
+DEBUG = True
 
 # JaxOpt SciPy wrapper
 class ScipyMinimize(AbstractBoundedMinimizer):
@@ -71,7 +71,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             flat_upper, _ = ravel_pytree(upper_tree)
             scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))        
             
-            if DEBUG_PRINT:
+            if DEBUG:
                 print(f"scipy_bounds = {scipy_bounds}")
 
         def flat_fn(_flat_y):
@@ -85,7 +85,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             loss_float = float(loss)
             current_loss[0] = loss_float
             
-            if DEBUG_PRINT:
+            if DEBUG:
                 print(f"params = {x_np}, loss = {loss_float}")
                 
             return loss_float
@@ -208,7 +208,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             flat_upper, _ = ravel_pytree(upper_tree)
             scipy_bounds = list(zip(np.array(flat_lower), np.array(flat_upper)))        
             
-            if DEBUG_PRINT:
+            if DEBUG:
                 print(f"scipy_bounds = {scipy_bounds}")
 
         # Capture `args` via closure to prevent JIT tracing errors
@@ -231,12 +231,15 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             grad_np = np.asarray(grad, dtype=np.float64)
             current_loss[0] = loss_float
             
-            if DEBUG_PRINT:
+            if DEBUG:
                 print(f"params = {x_np}")
                 print(f"loss = {loss_float}, grad_np = {grad_np}")
                 
             if not nan_logged[0] and np.isnan(loss_float):
-                logging.warning(f"Loss value was NaN with parameters = {x_np}")
+                logging.warning(f"Loss value was NaN")
+                
+                if DEBUG:
+                    np.savetxt("nan_values.txt", x_np)
                 
                 nan_logged[0] = True
             
