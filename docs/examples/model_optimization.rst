@@ -58,8 +58,6 @@ The :func:`~pmrf.optimize.minimize` function returns an :class:`~pmrf.optimize.O
    optimized_lpf.plot_s_db(passband, m=0, n=0, label='optimized')
    plt.title('Initial vs. Optimized S11')
 
-For more complex designs, the :func:`~pmrf.optimize.minimize` function can accept a list of multiple goals, and you can apply masks to evaluate different features across different frequency bands. Custom loss functions can also be specified in :mod:`~pmrf.losses`.
-
-For even more complicated designs, :class:`~pmrf.evaluators.AbstractEvaluator` can be overridden directly.
+For more complex designs, the :func:`~pmrf.optimize.minimize` function can accept a list of multiple goals, and you can apply masks to evaluate different features across different frequency bands. For even more advanced optimization, custom losses can be specified, either using the built-in losses in :mod:`~pmrf.losses`; using a custom callable; or by creating a custom :class:`~pmrf.evaluators.AbstractEvaluator`. The last example is the most powerful, allowing the specification of arbitrary, tunable hyper-parameters.
 
 Note that ParamRF also provides convenience functions for fitting models directly to data in :func:`~pmrf.fitting`. See the tutorial for a detailed guide.

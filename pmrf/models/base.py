@@ -702,7 +702,7 @@ class Model(eqx.Module):
         self: Self, 
         where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
     ) -> Lens[Self, T]:
-        """(experimental) A functional interface for model manipulation.
+        """A functional interface for model manipulation.
         
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
         
@@ -739,7 +739,7 @@ class Model(eqx.Module):
         return focus(self).at(resolved_where)
     
     def map(self: Self, fn: Callable[[Any], Any], predicate: Callable | None = None) -> Self:
-        """(experimental) A functional interface for model mapping.
+        """A functional interface for model mapping.
         
         This is a wrapper around `jax.tree.map`.
         
@@ -761,7 +761,7 @@ class Model(eqx.Module):
             return fn(node)
 
         return jax.tree.map(_wrapped_fn, self, is_leaf=predicate)
-        
+           
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
         

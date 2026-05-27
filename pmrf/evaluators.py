@@ -133,7 +133,7 @@ class Feature(AbstractEvaluator):
 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return self.expression(model, frequency, **kwargs)
-  
+     
     
 class TargetLoss(AbstractEvaluator):
     """
@@ -155,12 +155,11 @@ class TargetLoss(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
 
     #: The fixed target data.
-    target: jnp.ndarray = field(converter=freeze)
+    target: np.ndarray = field(converter=np.asarray)
     
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
-    @unwrap_self
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
@@ -207,7 +206,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
     #: The observed data.
-    observed: jnp.ndarray = field(converter=freeze)
+    observed: np.ndarray = field(converter=np.asarray)
     
     #: The active likelihood function.
     likelihood: Callable[[jnp.ndarray | dist.AbstractDistribution], dist.AbstractDistribution]
@@ -240,7 +239,6 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
-    @unwrap_self
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
         # Get the distribution over obs_event and the actual observed event
@@ -361,7 +359,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     predictor: Callable[[Model, Frequency], jnp.ndarray]
     
     #: The observed data.
-    observed: jnp.ndarray = field(converter=freeze)
+    observed: np.ndarray = field(converter=np.asarray)
     
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
@@ -397,8 +395,6 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
                 
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        self = unwrap(self)
-        
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
@@ -530,7 +526,7 @@ class Goal(TargetLoss):
             Default is 'uniform_average'.
         """        
         predictor = Feature(feature) if isinstance(feature, str) else feature
-        target = jnp.asarray(target, dtype=float)
+        target = np.asarray(target, dtype=float)
         loss = HingeLoss(
             operator=operator,
             weight=weight,

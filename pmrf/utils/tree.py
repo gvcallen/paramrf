@@ -16,6 +16,7 @@ from equinox import (
 from parax import (
     unwrap as unwrap,
     unwrap_self as unwrap_self,
+    is_constant as is_constant,
 )
 
 
@@ -29,9 +30,9 @@ def freeze(value: Any):
     """
     Freezes/fixes a parameter or entire model and returns the frozen model.
 
-    This can be used to freeze models to make them non-optimizable,
-    but should also be used as a field converter (using `prf.field(converter=prf.fix)`)
-    when storing raw arrays within in a model.
+    This can be used to freeze objects to make them non-optimizable.
+    For example, it can be use as a field converter in custom models
+    using `prf.field(converter=prf.freeze)` to store raw JAX arrays.
     """
     return prx.as_opaque(value)
 
