@@ -19,6 +19,7 @@ from pmrf.utils.tree import (
     field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
+    is_constant as is_constant,
 )
 
 from pmrf.utils.transforms import (

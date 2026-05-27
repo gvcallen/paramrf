@@ -66,6 +66,7 @@ from pmrf.utils import (
     unwrap_self as unwrap_self,
     derivative as derivative,
     sweep as sweep,
+    is_constant as is_constant,
 )
 
 # Modules

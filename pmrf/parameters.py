@@ -8,7 +8,7 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Optional, Self, Union, Callable, TypeVar
+from typing import Any, Optional, Self, Union, Callable, TypeVar, TypeGuard
 
 import jax
 import jax.numpy as jnp
@@ -30,9 +30,9 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
     """
     The canonical parameter container for ParamRF.
 
-    Parameters should be created using factories in :mod:`pmrf.parameters`,
-    most of which are re-exported at root (e.g. :func:`pmrf.Unconstrained`,
-    :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
+    Parameters can be created by instantiating this class, or using factories
+    in :mod:`pmrf.parameters`, most of which are re-exported at root
+    (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
     
     Wraps a `Parax <https://gvcallen.github.io/parax>`_ variable,
     applying an optional scale, name and metadata.
@@ -241,6 +241,18 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
             return base_value * self.scale
         return base_value
 
+    @property
+    def unscaled_value(self) -> jax.Array:
+        """
+        Returns the original unscaled value.
+
+        Returns
+        -------
+        jax.Array
+            The computed array value.
+        """
+        return jnp.array(self.raw_value)
+
     def wrap(self, value: Array) -> Self:
         """
         Updates the internal state of the parameter using a physical value.
@@ -267,7 +279,7 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         return eqx.tree_at(lambda x: x.raw_value, self, new_raw_value)
     
 
-def is_param(x: Any):
+def is_param(x: Any) -> TypeGuard[Param]:
     """
     Returns if `x` is an instance of :class:`pmrf.Param`.
     """
@@ -330,17 +342,24 @@ def as_param(
     if prx.is_variable(value):
         if isinstance(value, prx.Fixed):
             fixed = True
+            value = value.raw_value
         else:
             fixed = False
+        
         if isinstance(value, prx.Random):
             distribution = value.distribution
-        if isinstance(value, prx.Constrained):
+        
+        if prx.is_constrained(value):
             constraints = [constraint] if constraint is not None else []
             if prx.is_constrained(value):
                 constraints.append(prx.unwrap(value.constraint))
             if len(constraints) != 0:
                 value = prx.variables.constrain_param(value, *constraints)
             constraint = value.constraint
+            
+        if not isinstance(value, prx.Random | prx.Constrained | prx.Real):
+            raise ValueError(f"Got unknown type in `as_param`: {value}")
+            
         value = jnp.asarray(value)
 
     # Intersect fixed properties
