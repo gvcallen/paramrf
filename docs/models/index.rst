@@ -25,7 +25,6 @@ Model Hierarchy
         * :class:`~pmrf.models.components.ideal.Attenuator`
         * :class:`~pmrf.models.components.ideal.DirectionalCoupler`
         * :class:`~pmrf.models.components.ideal.Ground`
-        * :class:`~pmrf.models.components.ideal.Impedance`
         * :class:`~pmrf.models.components.ideal.Isolator`
         * :class:`~pmrf.models.components.ideal.Load`
         * :class:`~pmrf.models.components.ideal.Match`
@@ -49,8 +48,10 @@ Model Hierarchy
             * :class:`~pmrf.models.components.lines.uniform.RLGCLine`
             * :class:`~pmrf.models.components.lines.uniform.TransmissionLine`
     * **lumped** (:mod:`~pmrf.models.components.lumped`)
+        * :class:`~pmrf.models.components.lumped.Admittance`
         * :class:`~pmrf.models.components.lumped.Capacitor`
         * :class:`~pmrf.models.components.lumped.CapacitorQ`
+        * :class:`~pmrf.models.components.lumped.Impedance`
         * :class:`~pmrf.models.components.lumped.Inductor`
         * :class:`~pmrf.models.components.lumped.InductorQ`
         * :class:`~pmrf.models.components.lumped.Resistor`
@@ -119,7 +120,6 @@ Model Hierarchy
    pmrf.models.components.ideal.Attenuator
    pmrf.models.components.ideal.DirectionalCoupler
    pmrf.models.components.ideal.Ground
-   pmrf.models.components.ideal.Impedance
    pmrf.models.components.ideal.Isolator
    pmrf.models.components.ideal.Load
    pmrf.models.components.ideal.Match
@@ -139,8 +139,10 @@ Model Hierarchy
    pmrf.models.components.lines.uniform.PhysicalLine
    pmrf.models.components.lines.uniform.RLGCLine
    pmrf.models.components.lines.uniform.TransmissionLine
+   pmrf.models.components.lumped.Admittance
    pmrf.models.components.lumped.Capacitor
    pmrf.models.components.lumped.CapacitorQ
+   pmrf.models.components.lumped.Impedance
    pmrf.models.components.lumped.Inductor
    pmrf.models.components.lumped.InductorQ
    pmrf.models.components.lumped.Resistor
