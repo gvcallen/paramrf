@@ -464,7 +464,7 @@ def Fixed(
     Parameters
     ----------
     value : ArrayLike
-        The parameter value to fix.
+        The initial unscaled parameter value.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
@@ -495,7 +495,7 @@ def Unconstrained(
     Parameters
     ----------
     value : ArrayLike
-        The base parameter value.
+        The initial unscaled parameter value.
     fixed : bool, optional
         Wraps the parameter in a :class:`pmrf.Fixed` parameter.
     name : str, optional
@@ -532,7 +532,7 @@ def Constrained(
     constraint : AbstractConstraint
         The constraint to apply to the parameter.
     value : ArrayLike
-        The initial value of the parameter.
+        The initial unscaled value of the parameter.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
@@ -573,7 +573,7 @@ def Bounded(
     upper : Any
         The upper bound of the interval.
     value : Optional[ArrayLike], optional
-        The initial value. If None, the midpoint of the bounds is used.
+        The initial unscaled value. If None, the midpoint of the bounds is used.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
@@ -618,7 +618,7 @@ def Random(
     constraint : Optional[AbstractConstraint], optional
         An optional constraint to apply.
     value : Optional[ArrayLike], optional
-        The initial value. If None, the distribution's mean is used.
+        The initial unscaled value. If None, the distribution's mean is used.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
