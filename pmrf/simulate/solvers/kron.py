@@ -4,7 +4,7 @@ import equinox as eqx
 
 from pmrf.simulate.base import AbstractAdmittanceReducer, NodalRepresentation, AdmittanceResult
 
-class Kron(AbstractAdmittanceReducer):
+class KronReducer(AbstractAdmittanceReducer):
     """
     Y-domain Nodal admittance circuit solver using Kron reduction.
 

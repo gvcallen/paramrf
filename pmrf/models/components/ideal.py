@@ -14,33 +14,36 @@ from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
 
+
 class Load(Model):
     """
     A class for ideal N-port loads defined by their reflection coefficient.
-
-    Parameters
-    ----------
-    gamma : Param
-        The reflection coefficient (e.g., 0.0 for match, 1.0 for open, -1.0 for short).
-    nports : int
-        The number of ports this load presents. Default is 1.
+    
+    The reflection coefficient is defined into a reference impedance `z0`.
     """
     #: The reflection coefficient
     gamma: Param = param()
+    
+    #: The reference impedance at which this gamma is defined
+    z0: Param = param(default=50.0)
     
     #: Number of ports
     nports: int = eqx.field(default=1, static=True)
     
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        s = jnp.asarray(self.gamma).reshape(-1, 1, 1) * \
-            jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
-            repeat(freq.npoints, 0)
-        return s
+        s_matrix = jnp.asarray(self.gamma).reshape(-1, 1, 1) * \
+                   jnp.eye(self.nports, dtype=jnp.complex128).reshape((-1, self.nports, self.nports)).\
+                   repeat(freq.npoints, 0)
+        
+        return renormalize_s(s_matrix, self.z0, z0)
 
 
 class Short(Model):
     """
     A standard ideal short circuit load (gamma = -1.0).
+    
+    This short does not have a reference impedance, since an ideal short circuit
+    has the same S-parameters irrespective of the reference impedance.
     
     Parameters
     ----------
@@ -50,13 +53,17 @@ class Short(Model):
     #: Number of ports
     nports: int = field(default=1, static=True)
 
-    def build(self) -> Model:
-        return Load(-1.0, nports=self.nports)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s_val = jnp.array(-1.0, dtype=jnp.complex128)
+        return jnp.eye(self.nports, dtype=jnp.complex128) * s_val * jnp.ones((freq.npoints, 1, 1))    
 
 
 class Open(Model):
     """
     A standard ideal open circuit load (gamma = 1.0).
+    
+    This open does not have a reference impedance, since an ideal short circuit
+    has the same S-parameters irrespective of the reference impedance.
     
     Parameters
     ----------
@@ -65,14 +72,18 @@ class Open(Model):
     """
     #: Number of ports
     nports: int = field(default=1, static=True)
-
-    def build(self) -> Model:
-        return Load(1.0, nports=self.nports)
+    
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s_val = jnp.array(1.0, dtype=jnp.complex128)
+        return jnp.eye(self.nports, dtype=jnp.complex128) * s_val * jnp.ones((freq.npoints, 1, 1))    
 
 
 class Match(Model):
     """
     A standard ideal matched circuit load (gamma = 0.0).
+    
+    This load does not have a reference impedance, and dynamically
+    matches the impedance at which the S-parameters are evaluated at.
     
     Parameters
     ----------
@@ -82,19 +93,25 @@ class Match(Model):
     #: Number of ports
     nports: int = field(default=1, static=True)
 
-    def build(self) -> Model:
-        return Load(0.0, nports=self.nports)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return jnp.zeros(
+            (freq.npoints, self.nports, self.nports), 
+            dtype=jnp.complex128
+        )
 
 
 class Port(Model):
     """
-    Represents a circuit port.
-
+    Represents a circuit port with a specific characteristic impedance.
+    
     This class serves as a placeholder or marker for external connections in a :class:`pmrf.models.Circuit` definition.
     Calling `build` returns a matched load model.
     """
+    #: Port characteristic impedance
+    z0: Param = param(default=50.0)
+
     def build(self) -> Model:
-        return Match()
+        return Load(gamma=0.0, z0=self.z0)
     
 
 class Ground(Model):
@@ -103,6 +120,9 @@ class Ground(Model):
 
     This class serves as a placeholder for a ground node in a :class:`pmrf.models.Circuit` definition.
     Calling `build` returns a short circuit model.
+    
+    The ground does not have a reference impedance, since an ideal ground circuit
+    has the same S-parameters irrespective of the reference impedance.
     """
     def build(self) -> Model:
         return Short()
@@ -112,7 +132,8 @@ class Transformer(Model):
     """
     (experimental) An ideal, lossless, frequency-independent 4-port 1:N transformer.
 
-    The S-parameters are constant across all frequencies.
+    The S-parameters are constant across all frequencies
+    and are independent of the characteristic impedance.
     
     Parameters
     ----------
@@ -143,7 +164,7 @@ class SourceConverter(Model):
     (experimental) An ideal 3-port source converter.
 
     This model represents a specific ideal component with a fixed, frequency-independent
-    3x3 scattering matrix.
+    3x3 scattering matrix that is independent of the characteristic impedance.
     """
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s_one = jnp.array([
@@ -201,6 +222,9 @@ class Splitter(Model):
     are tied to a single common voltage node. Because it is lossless and 
     reciprocal, it cannot be simultaneously matched at all ports (e.g., a 
     3-port Tee will have S11 = -1/3).
+    
+    This model does not have a reference impedance and dynamically
+    matches the evaluation characteristic impedance.
 
     Parameters
     ----------
@@ -229,6 +253,9 @@ class Tee(Model):
     (experimental) An ideal, lossless 3-port Tee junction.
 
     This is a convenience wrapper around a 3-port Splitter.
+    
+    This model does not have a reference impedance and dynamically
+    matches the evaluation characteristic impedance.
     """
     def build(self) -> Model:
         return Splitter(nports=3)

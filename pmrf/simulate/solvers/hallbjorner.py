@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from pmrf.simulate.base import AbstractScatteringReducer, PortRepresentation, ScatteringResult
 from pmrf.rf.conversions import s2s
 
-class Hallbjorner(AbstractScatteringReducer):
+class HallbjornerReducer(AbstractScatteringReducer):
     def run(
         self, 
         s_block_diagonal: jax.Array,  # Shape: (num_ports, num_ports)

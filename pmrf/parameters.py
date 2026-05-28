@@ -401,10 +401,12 @@ def param(
 
     This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
 
-    It is used to register the parameter within the model so that it is listed
+    It is used to register the parameter when a model is constructed, so it is listed
     under :meth:`pmrf.Model.named_params`. It can also be used to enforce
     constraints, scaling, bounds and variability within the model itself.
-
+    
+    This simply creates a `pmrf.field` with a `pmrf.as_param` converter.
+    
     Example
     --------
 

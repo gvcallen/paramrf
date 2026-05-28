@@ -16,16 +16,16 @@ def basic_freq():
 def test_ideal_loads(basic_freq):
     """Test 1-port ideal static loads (gamma representations)."""
     # Short circuit (Gamma = -1)
-    s_short = Short().build().s(basic_freq)
+    s_short = Short().s(basic_freq)
     assert s_short.shape == (5, 1, 1)
     assert jnp.allclose(s_short, -1.0 + 0.0j)
 
     # Open circuit (Gamma = +1)
-    s_open = Open().build().s(basic_freq)
+    s_open = Open().s(basic_freq)
     assert jnp.allclose(s_open, 1.0 + 0.0j)
 
     # Matched load (Gamma = 0)
-    s_match = Match().build().s(basic_freq)
+    s_match = Match().s(basic_freq)
     assert jnp.allclose(s_match, 0.0 + 0.0j)
 
 def test_series_resistor(basic_freq):

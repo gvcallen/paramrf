@@ -1,7 +1,7 @@
 Core Primitives
 ===============
 
-The core primitives in ParamRF are the :class:`pmrf.Model` and :class:`pmrf.Frequency` classes, which are constructed using :mod:`pmrf.parameters` and JAX arrays. :mod:`pmrf.evaluators` and other classes help bring the rest of the library together.
+The core primitives in ParamRF are the :class:`pmrf.Model`, :class:`pmrf.Frequency` and :class:`pmrf.Param` classes. Other classes, such as JAX arrays and :mod:`pmrf.evaluators`, help bring the rest of the library together.
 
 The Model
 ~~~~~~~~~
@@ -19,7 +19,7 @@ Frequency, Parameters, and jnp.ndarray
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The :class:`pmrf.Frequency` class defines the axis over which models are evaluated. Ultimately, this is a lightweight wrapper around a JAX array (commonly imported as :class:`jnp.ndarray`). Those unfamiliar with JAX can see either the :doc:`jax_overview` section or have a look at JAX's own `quickstart <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ guide. However, for those seeking a TLDR: the API is very similar to NumPy's :class:`np.ndarray`, with a few "rough edges", for example `control flow <https://docs.jax.dev/en/latest/control-flow.html>`_ is handled quite differently.
 
-All JAX arrays are treated as potential free parameters in ParamRF. However, in RF modeling, it is very common to want to specify parameter scaling, bounds, constraints or a prior probability distribution. To accomplish this, ParamRF exposes parameter array wrappers in :mod:`pmrf.parameters`. These parameters eagerly cast to a :class:`jnp.ndarray`, meaning that you can conveniently treat parameters as if they were regular arrays in your equations.
+All JAX arrays are treated as potential free parameters in ParamRF. However, in RF modeling, it is very common to want to specify parameter scaling, bounds, constraints or a prior probability distribution. To accomplish this, ParamRF exposes a parameter wrapper class :class:`pmrf.Param`. This class eagerly casts to a :class:`jnp.ndarray`, meaning that you can conveniently treat parameters as if they were regular arrays in your equations.
 
 Power users may want to have a look at the `Parax <https://github.com/gvcallen/parax>`_ and `distreqx <https://lockwo.github.io/distreqx/>`_ documentation, which ParamRF uses for parameters and constraints under the hood.
 

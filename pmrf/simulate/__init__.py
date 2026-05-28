@@ -27,17 +27,17 @@ from pmrf.simulate.terminate import terminate
 from pmrf.simulate.result import SimulateResult
 
 # Reducers
-from pmrf.simulate.solvers.hallbjorner import Hallbjorner
-from pmrf.simulate.solvers.kron import Kron
-from pmrf.simulate.solvers.modified_kron import ModifiedKron
+from pmrf.simulate.solvers.hallbjorner import HallbjornerReducer
+from pmrf.simulate.solvers.kron import KronReducer
+from pmrf.simulate.solvers.modified_kron import ModifiedKronReducer
 
 # Cascaders
-from pmrf.simulate.solvers.redheffer import Redheffer
-from pmrf.simulate.solvers.transfer_cascader import TransferCascader
+from pmrf.simulate.solvers.redheffer import RedhefferCascader
+from pmrf.simulate.solvers.transfer import TransferCascader
 
 # Terminators
-from pmrf.simulate.solvers.linear_fractional_terminator import LinearFractionalTerminator
-from pmrf.simulate.solvers.mobius_terminator import MobiusTerminator
+from pmrf.simulate.solvers.linear_fractional import LinearFractionalTerminator
+from pmrf.simulate.solvers.mobius import MobiusTerminator
 
 __all__ = [
     'ScatteringResult',
@@ -53,10 +53,10 @@ __all__ = [
     'PortRepresentation',
     'NodalRepresentation',
     'SimulateResult',
-    'Hallbjorner',
-    'Kron',
-    'ModifiedKron',
-    'Redheffer',
+    'HallbjornerReducer',
+    'KronReducer',
+    'ModifiedKronReducer',
+    'RedhefferCascader',
     'MobiusTerminator',
     'LinearFractionalTerminator',
     'TransferCascader',

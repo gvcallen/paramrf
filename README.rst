@@ -31,7 +31,7 @@ The library provides tools for frequency-domain simulation, optimization, fittin
 Features
 --------
 
-* **Declarative syntax**: Models can be composed and defined using a self-documenting, object-oriented syntax.
+* **Declarative syntax**: Models can be composed and defined using an intuitive, object-oriented syntax which feels similar to CAD circuit software.
 * **Hierarchical modeling**: By nesting models within models, it is easy to create deep, hierarchical structures.
 * **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available via *auto-differentiation*, enabling faster performance and new design opportunities.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
