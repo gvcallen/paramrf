@@ -10,7 +10,7 @@ from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.models.components.ideal import Port
 from pmrf.simulate.topology import Topology
-from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, Hallbjorner, LinearFractionalTerminator, Redheffer, reduce, cascade, terminate
+from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, HallbjornerReducer, LinearFractionalTerminator, RedhefferCascader, reduce, cascade, terminate
 
 EVAL_Z0 = 50.0
 
@@ -28,8 +28,11 @@ class Circuit(Model):
         A list representing the nodes of the circuit. Each node is a list of
         tuples, where each tuple contains a `Model` instance and the integer
         index of the port to connect to that node.
-    solver : AbstractReducer, default=Hallbjorner()
+    solver : AbstractReducer, default=HallbjornerReducer()
         The solver to use. Available solvers can be found in :mod:`pmrf.simulate`.
+    flatten: bool, default=True
+        (experimental) Flattens the connections into one large circuit if they contain sub-circuits.
+        Can improve performance for small circuits, but may reduce performance for large circuits.
 
     Examples
     --------
@@ -54,9 +57,11 @@ class Circuit(Model):
     >>> # Create the circuit model
     >>> pi_clc = Circuit(connections)
     """
-    
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
+    
+    #: Flattens the connections.
+    flatten: InitVar[bool] = field(default=True, static=True, kw_only=True)
     
     #: The models in the connections.
     circuit: list[Model] = field(default=None, kw_only=True)
@@ -65,22 +70,100 @@ class Circuit(Model):
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
     
     #: The circuit solver.
-    solver: AbstractReducer = field(default=Hallbjorner())
+    solver: AbstractReducer = field(default=HallbjornerReducer())
     
-    def __post_init__(self, connections):
+    @staticmethod
+    def _flatten_connections(connections):
+        """Flattens nested Circuit instances into base models using ID-based set operations."""
+        model_map = {}
+        
+        # Initialize nodes with integer IDs instead of instances to bypass JAX hashing limitations
+        nodes = []
+        for connection in connections:
+            node_set = set()
+            for model, port in connection:
+                model_map[id(model)] = model
+                node_set.add((id(model), port))
+            nodes.append(node_set)
+            
+        while True:
+            # Find a nested Circuit
+            sub_c_id = None
+            sub_c = None
+            for node in nodes:
+                for mid, _ in node:
+                    if isinstance(model_map[mid], Circuit):
+                        sub_c_id = mid
+                        sub_c = model_map[mid]
+                        break
+                if sub_c_id: break
+                
+            if not sub_c_id:
+                break # Hierarchy is completely flat
+                
+            # Extract internal layout of the sub-circuit
+            sub_ports = [m for m in sub_c.circuit if isinstance(m, Port)]
+            for p in sub_ports:
+                model_map[id(p)] = p
+                
+            # Replace the parent's reference to the sub-circuit with the internal Port ID
+            for node in nodes:
+                items_to_remove, items_to_add = [], []
+                for item in node:
+                    mid, port_idx = item
+                    if mid == sub_c_id:
+                        items_to_remove.append(item)
+                        items_to_add.append((id(sub_ports[port_idx]), 0))
+                
+                for item in items_to_remove: node.remove(item)
+                for item in items_to_add: node.add(item)
+                    
+            # Bring in all internal nodes from the sub-circuit
+            for idx_conn in sub_c.indexed_connections:
+                internal_node = set()
+                for m_idx, p_idx in idx_conn:
+                    m = sub_c.circuit[m_idx]
+                    model_map[id(m)] = m
+                    internal_node.add((id(m), p_idx))
+                nodes.append(internal_node)
+                
+            # Merge any intersecting nodes
+            merged_nodes = []
+            for node in nodes:
+                if not node: continue
+                intersecting = [m for m in merged_nodes if m.intersection(node)]
+                if intersecting:
+                    new_set = set.union(node, *intersecting)
+                    merged_nodes = [m for m in merged_nodes if m not in intersecting]
+                    merged_nodes.append(new_set)
+                else:
+                    merged_nodes.append(node)
+            nodes = merged_nodes
+            
+            # Drop the sub-circuit's dummy Ports entirely
+            sub_port_ids = {id(p) for p in sub_ports}
+            for node in nodes:
+                # Find elements whose model ID belongs to a dummy port
+                to_discard = [item for item in node if item[0] in sub_port_ids]
+                for item in to_discard:
+                    node.discard(item)
+                    
+            # Clean up empty sets
+            nodes = [n for n in nodes if n]
+
+        # Convert the sets back into lists, resolving the IDs back to the actual Model instances
+        return [[(model_map[mid], port) for mid, port in n] for n in nodes]
+
+    def __post_init__(self, connections: list, flatten: bool):
+        # Input validation
         if not isinstance(connections, list):
             raise TypeError("`connections` must be a list of lists (representing nodes).")
 
-        models = []
-        indexed_connections = []
-        id_to_index = {}
         seen_ports = set()
-
         for node_idx, connection in enumerate(connections):
             if not isinstance(connection, list):
                 raise TypeError(f"Node {node_idx} in `connections` must be a list of (Model, port_index) tuples.")
 
-            indexed_conn = []
             for item in connection:
                 if not isinstance(item, tuple) or len(item) != 2:
                     raise TypeError(f"Item {item} in node {node_idx} is invalid. Must be a tuple of (Model, port_index).")
@@ -92,6 +175,26 @@ class Circuit(Model):
                 if not isinstance(value, int):
                     raise TypeError(f"Expected an integer port index in node {node_idx}, got {type(value).__name__}.")
 
+                if value < 0 or value >= model.nports:
+                    raise ValueError(f"Port index {value} out of bounds for model of type {type(model)} (name = '{getattr(model, 'name', 'unnamed')}', nports={model.nports}).")
+                
+                port_signature = (id(model), value)
+                if port_signature in seen_ports:
+                    raise ValueError(f"Port {value} of model named '{getattr(model, 'name', 'unnamed')}' is connected multiple times. A port can only belong to one node.")
+                seen_ports.add(port_signature)
+
+        if flatten:
+            connections = self._flatten_connections(connections)
+
+        models = []
+        indexed_connections = []
+        id_to_index = {}
+        seen_ports = set()
+
+        for node_idx, connection in enumerate(connections):
+            indexed_conn = []
+            for item in connection:
+                model, value = item
                 model_id = id(model)
                 if model_id not in id_to_index:
                     id_to_index[model_id] = len(models)
@@ -99,13 +202,8 @@ class Circuit(Model):
                 
                 model_idx = id_to_index[model_id]
                 
-                if value < 0 or value >= model.nports:
-                    raise ValueError(f"Port index {value} out of bounds for model of type {type(model)} (name = '{getattr(model, 'name', 'unnamed')}', nports={model.nports}).")
-                
                 # Prevent the same port of the same model instance from being connected to multiple nodes
                 port_signature = (model_id, value)
-                if port_signature in seen_ports:
-                    raise ValueError(f"Port {value} of model named '{getattr(model, 'name', 'unnamed')}' is connected multiple times. A port can only belong to one node.")
                 seen_ports.add(port_signature)
 
                 indexed_conn.append((model_idx, value))
@@ -166,8 +264,10 @@ class Cascade(Model):
     ----------
     cascade : tuple[Model]
         The sequence of models in the cascade.
-    solver : AbstractCascader
+    solver : AbstractCascader, default=RedhefferCascader()
         The solver to use. Available solvers can be found in :mod:`pmrf.simulate`.
+    flatten: bool, default=True
+        (experimental) Flattens the cascade into one large cascade if they contain sub-cascades.
 
     Examples
     --------
@@ -195,26 +295,30 @@ class Cascade(Model):
     >>> print(f"Cascaded model has {rlc_series.nports} ports.")
     >>> print(f"S11 at first frequency point: {s_params[0,0,0]:.2f}")
     """
+    #: (experimental) Flatten the connections if they contain any sub-circuits
+    flatten: InitVar[bool] = field(default=True, static=True, kw_only=True)
+    
     #: The models.
     cascade: tuple[Model]
     
     #: The solver.
-    solver: AbstractCascader = field(default=Redheffer())
+    solver: AbstractCascader = field(default=RedhefferCascader())
     
-    def __post_init__(self):
+    def __post_init__(self, flatten: bool):
         for model in self.cascade:
             if model.nports % 2 != 0:
                 raise ValueError('All networks must be 2N-ports for Cascade')
             
-        merged = []
-        for model in self.cascade:
-            # Only extend if the user has not given it a name or metadata
-            if isinstance(model, Cascade) and model.name is None and model.metadata is None:
-                merged.extend(model.cascade)
-            else:
-                merged.append(model)
+        if flatten:
+            merged = []
+            for model in self.cascade:
+                # Only extend if the user has not given it a name or metadata
+                if isinstance(model, Cascade) and model.name is None and model.metadata is None:
+                    merged.extend(model.cascade)
+                else:
+                    merged.append(model)
+            self.cascade = tuple(merged)
         
-        self.cascade = tuple(merged)
 
     @property
     def number_of_ports(self):

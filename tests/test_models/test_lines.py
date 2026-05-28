@@ -21,7 +21,7 @@ def basic_freq():
 def test_phase_line(basic_freq):
     """Test ideal, lossless phase line limits."""
     # Create a 50-ohm line, 90 degrees at 5 GHz
-    line = PhaseLine(zc=50.0, theta=90.0, f0=5.0e9)
+    line = PhaseLine(z0=50.0, theta=90.0, f0=5.0e9)
     s = line.s(basic_freq)
     
     assert s.shape == (10, 2, 2)
@@ -34,7 +34,7 @@ def test_phase_line(basic_freq):
 
 def test_floating_line(basic_freq):
     """Test the wrapper that converts a 2-port to a 4-port floating line."""
-    base_line = PhaseLine(zc=50.0, theta=90.0, f0=5e9)
+    base_line = PhaseLine(z0=50.0, theta=90.0, f0=5e9)
     float_line = FloatingLine(floating=base_line)
     
     s = float_line.s(basic_freq)
