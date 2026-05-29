@@ -299,7 +299,7 @@ class Model(eqx.Module):
            or composite models.
         3. For fully nested naming, name all of your models and
            optionally your parameters.
-
+           
         Parameters
         ----------
         values : bool
@@ -711,6 +711,10 @@ class Model(eqx.Module):
         methods like `.get()` and `.set()` to retrieve values
         or an updated model.
         
+        Note that this method does not work directly on static values, like strings
+        or booleans. Do perform replacements on these values, this method
+        can be used in combination with :func:`pmrf.replace`.
+        
         WARNING: All updates made by this method are "surgical".
         In order words, values are replaced *as-is* without any converters
         or verification applied (a new instance is still returned).
@@ -846,6 +850,9 @@ class Model(eqx.Module):
         """Tie parameters or sub-models within this model together.
         
         See :class:`pmrf.models.composite.wrapped.Tied` for more details.
+        
+        Note that if a model is tied that has already been tied,
+        the target and source location/name refers to the original, untied model. 
 
         Examples
         --------
@@ -883,8 +890,13 @@ class Model(eqx.Module):
         """
         from pmrf.models import Tied
         
-        resolved_target = _resolve_target(self, target)
-        resolved_source = _resolve_target(self, source)
+        if isinstance(self, Tied):
+            tree = self.model
+        else:
+            tree = self
+        
+        resolved_target = _resolve_target(tree, target)
+        resolved_source = _resolve_target(tree, source)
         
         return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
     
@@ -1116,7 +1128,7 @@ def _make_getter(path: list[Any]) -> Callable[[Any], Any]:
         return curr
     return getter
 
-def _resolve_target(model: Any, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
+def _resolve_target(model: Model, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
     """Resolves callables, string names, or iterables of string names into a callable getter."""
     if callable(target):
         return target

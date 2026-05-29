@@ -45,7 +45,7 @@ class Tied(Model):
     >>> # The optimizer will now only see the Capacitor's C parameter.
     >>> # When evaluated, R will automatically track C.
     """
-    tied: prx.Tie
+    tie: prx.Tie
 
     def __init__(
         self, 
@@ -56,6 +56,9 @@ class Tied(Model):
     ):
         """
         Initialize the Tied model.
+        
+        Note that if a model is tied that has already been tied,
+        the target and source location callables refers to the original, untied model. 
 
         Parameters
         ----------
@@ -72,13 +75,16 @@ class Tied(Model):
             before injecting it into the target. Defaults to the identity 
             function (`lambda x: x`).
         """
-        base_tree = model.tied if isinstance(model, Tied) else model
-        self.tied = prx.Tie(
+        base_tree = model.tie if isinstance(model, Tied) else model
+        
+        new_tie = prx.Tie(
             tree=base_tree,
             target=target,
             source=source,
             tie_fn=tie_fn
         )
+        
+        self.tie = new_tie
 
     @unwrap_self
     def build(self) -> Model:
@@ -90,14 +96,14 @@ class Tied(Model):
         Model
             The unwrapped `parax.Tie` wrapper containing the resolved relationships.
         """
-        return self.tied
+        return self.tie
 
     @property
     def model(self) -> Model:
         """
         Returns the underlying model.
         """
-        return self.tied.tree
+        return self.tie.tree
     
 
 class Probabilistic(Model):
