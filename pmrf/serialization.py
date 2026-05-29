@@ -167,7 +167,7 @@ def _deserialize_generic(data: Any) -> Any:
             except ImportError:
                 pass
                 
-            # 2. Resiliency Fallback: If internal files moved, check public APIs
+            # Resiliency Fallback: If internal files moved, check public APIs
             if cls is None:
                 for ns in PUBLIC_NAMESPACES:
                     try:
@@ -183,9 +183,17 @@ def _deserialize_generic(data: Any) -> Any:
             
             instance = object.__new__(cls) 
             
-            for field_name, field_data in data["__state__"].items():
-                val = _deserialize_generic(field_data)
-                object.__setattr__(instance, field_name, val)
+            for field_name, field_def in getattr(cls, "__dataclass_fields__", {}).items():
+                if field_name in data["__state__"]:
+                    # The field was saved in the file; deserialize it
+                    val = _deserialize_generic(data["__state__"][field_name])
+                    object.__setattr__(instance, field_name, val)
+                else:
+                    # The field was skipped during save; restore its default
+                    if field_def.default is not dataclasses.MISSING:
+                        object.__setattr__(instance, field_name, field_def.default)
+                    elif field_def.default_factory is not dataclasses.MISSING:
+                        object.__setattr__(instance, field_name, field_def.default_factory())
                 
             return instance
 

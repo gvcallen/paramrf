@@ -17,7 +17,7 @@ from scipy.optimize import minimize as scipy_minimize
 
 from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
-DEBUG = False
+DEBUG = True
 
 # JaxOpt SciPy wrapper
 class ScipyMinimize(AbstractBoundedMinimizer):

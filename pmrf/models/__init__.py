@@ -63,6 +63,8 @@ from pmrf.models.components.lines import (
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
+    WheelerMicrostripSolver as WheelerMicrostripSolver,
+    TescheCoaxialSolver as TescheCoaxialSolver,
 )
 
 from pmrf.models.components.lumped import (

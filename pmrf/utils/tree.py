@@ -138,6 +138,36 @@ def batched_tree_unflatten(
     return jax.tree.unflatten(treedef, restored_leaves)
 
 
+def filtered_pathed_leaves(
+    tree: Any,
+    filter_spec,
+    is_leaf: Callable = None,
+    unwrap: bool = True,
+    keystr: bool = False,
+    separator: str | None = None,
+) -> list[tuple[Any, Any]]:
+    # Get rid of any non-param leaves
+    filtered_tree = eqx.filter(tree, filter_spec, is_leaf=is_leaf)
+    pathed, _ = jax.tree.flatten_with_path(filtered_tree, is_leaf=is_leaf)
+    
+    if unwrap or keystr:
+        for i in range(len(pathed)):
+            key, value = pathed[i]
+            
+            if keystr:
+                kwargs = {'separator': separator} if separator is not None else {}
+                key = jax.tree_util.keystr(key, **kwargs)
+            
+            if unwrap:
+                value = prx.unwrap(value)
+                if jnp.isscalar(value):
+                    value = float(value)
+            
+            pathed[i] = (key, value)
+            
+    return pathed
+
+
 _Return = TypeVar("_Return")
 
 class Bind(eqx.Module, Generic[_Return]):

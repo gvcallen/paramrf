@@ -15,7 +15,7 @@ import parax as prx
 
 from pmrf.rf.mna import MNAStamp
 from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import Pathgetter
+from pmrf.utils.tree import Pathgetter, filtered_pathed_leaves
 from pmrf.parameters import Param, is_param
 from pmrf.frequency import Frequency
 from pmrf.rf import (
@@ -214,6 +214,38 @@ class Model(eqx.Module):
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
+    def resolve_target(self, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
+        """Resolves callables, string names, or iterables of string names into a callable getter."""
+        if callable(target):
+            return target
+            
+        # Determine if target is a single string or an iterable of strings
+        is_single = isinstance(target, str)
+        if is_single:
+            names_to_find = [target]
+        elif isinstance(target, (list, tuple)) and all(isinstance(x, str) for x in target):
+            names_to_find = list(target)
+        else:
+            raise TypeError(
+                "Targets must be a callable, a string parameter name, "
+                "or a tuple/list of string parameter names."
+            )
+
+        # Build name -> path mapping using the model's pathed_params
+        pathed = self.pathed_params(include_fixed=True, values=False)
+        name_to_path = {}
+        for path, _ in pathed:
+            name = tree_path_to_name(self, path, namespace_separator=namespace_separator)
+            name_to_path[name] = path
+            
+        paths_to_get = []
+        for name in names_to_find:
+            if name not in name_to_path:
+                raise ValueError(f"Parameter name '{name}' not found in the model.")
+            paths_to_get.append(name_to_path[name])
+
+        return Pathgetter(*paths_to_get)
+    
     def pathed_params(
         self,
         values: bool = True,
@@ -228,9 +260,8 @@ class Model(eqx.Module):
         
         Parameters
         ----------
-        include_fixed : bool, default=False
-            Whether to include fixed parameters in the returned dictionary.
-            Defaults to False.
+        include_fixed : bool, default=True
+            Whether to include fixed and tied parameters in the returned dictionary.
         values : bool, default=True
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
@@ -245,30 +276,16 @@ class Model(eqx.Module):
         if not include_fixed:
             filter_spec = lambda x: is_param(x) and not x.fixed
             is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen models
+            model = self
         else:
+            # We need to resolve ties first so that they show up as parameters.
+            # We do this by unwrapping any tied nodes on self without cascading
+            model = prx.unwrap(self, only_if=lambda x: isinstance(x, prx.Tie), cascade=False)
+
             filter_spec = lambda x: is_param(x)
             is_leaf = lambda x: is_param(x)
 
-        # Get rid of any non-param leaves
-        filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
-        pathed, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
-        
-        if values or keystr:
-            for i in range(len(pathed)):
-                key, value = pathed[i]
-                
-                if keystr:
-                    kwargs = {'separator': separator} if separator is not None else {}
-                    key = jax.tree_util.keystr(key, **kwargs)
-                
-                if values:
-                    value = prx.unwrap(value)
-                    if jnp.isscalar(value):
-                        value = float(value)
-                
-                pathed[i] = (key, value)
-                
-        return pathed
+        return filtered_pathed_leaves(model, filter_spec, is_leaf=is_leaf, unwrap=values, keystr=keystr)
     
     def named_params(
         self,
@@ -307,9 +324,8 @@ class Model(eqx.Module):
             Unwraps the parameters into raw floats/arrays. Defaults to True.
             To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
             pass `unwrap=False`.
-        include_fixed : bool
-            Whether to include fixed parameters in the returned dictionary.
-            Defaults to False.
+        include_fixed : bool, default=True
+            Whether to include fixed and tied parameters in the returned dictionary.
         namespace_separator : str
             The separator to use to create a parameter namespace using model names.
         
@@ -320,12 +336,17 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        pathed = self.pathed_params(include_fixed=include_fixed, values=values)
+        if include_fixed:
+            model = prx.unwrap(self, only_if=lambda x: isinstance(x, prx.Tie), cascade=False)
+        else:
+            model = self
+        
+        pathed = model.pathed_params(include_fixed=include_fixed, values=values)
         
         # Detect collisions
         named = {}
         for path, leaf in pathed:
-            name = tree_path_to_name(self, path, namespace_separator=namespace_separator)
+            name = tree_path_to_name(model, path, namespace_separator=namespace_separator)
             if name in named:
                 raise ValueError(
                     f"Parameter name collision: '{name}'.\n\n"
@@ -701,7 +722,7 @@ class Model(eqx.Module):
     
     def at(
         self: Self, 
-        where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
+        target: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
     ) -> Lens[Self, T]:
         """A functional interface for model manipulation.
         
@@ -740,10 +761,10 @@ class Model(eqx.Module):
             A lens object focused on the root of the current instance.
 
         """
-        resolved_where = _resolve_target(self, where)
+        resolved_where = self.resolve_target(target)
         return focus(self).at(resolved_where)
     
-    def map(self: Self, fn: Callable[[Any], Any], predicate: Callable | None = None) -> Self:
+    def map(self: Self, fn: Callable[[Any], Any], is_target: Callable | None = None) -> Self:
         """A functional interface for model mapping.
         
         This is a wrapper around `jax.tree.map`.
@@ -756,16 +777,16 @@ class Model(eqx.Module):
         >>> from pmrf.models import Resistor, Capacitor
         >>> model = Resistor(R=50.0) ** Capacitor(C=1e-12)
         >>> # Scale all parameters in the model by a factor of 2
-        >>> scaled_model = model.map(lambda p: p * 2.0, is_leaf=prf.is_param)
+        >>> scaled_model = model.map(lambda p: p * 2.0, is_target=prf.is_param)
 
         Returns the mapped model.
         """
         def _wrapped_fn(node):
-            if not predicate(node):
+            if not is_target(node):
                 return node
             return fn(node)
 
-        return jax.tree.map(_wrapped_fn, self, is_leaf=predicate)
+        return jax.tree.map(_wrapped_fn, self, is_leaf=is_target)
            
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -892,12 +913,12 @@ class Model(eqx.Module):
         from pmrf.models import Tied
         
         if isinstance(self, Tied):
-            tree = self.model
+            model = self.model
         else:
-            tree = self
+            model = self
         
-        resolved_target = _resolve_target(tree, target)
-        resolved_source = _resolve_target(tree, source)
+        resolved_target = model.resolve_target(target)
+        resolved_source = model.resolve_target(source)
         
         return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
     
@@ -982,8 +1003,6 @@ def validate(tree):
     Recursively walks a PyTree and ensures no pmrf.Model instances contain 
     unprotected raw inexact arrays that optimizers might corrupt.
     """
-    import numpy as np
-    
     # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays
     nodes, _ = jax.tree_util.tree_flatten(
         tree, is_leaf=lambda x: isinstance(x, Model)
@@ -1107,68 +1126,3 @@ def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, igno
         name = final_name_part
             
     return name
-
-
-def _make_getter(path: list[Any]) -> Callable[[Any], Any]:
-    """Creates a callable that retrieves a value from a PyTree given its JAX path."""
-    def getter(tree):
-        curr = tree
-        for p in path:
-            if hasattr(p, "name"):
-                curr = getattr(curr, p.name)
-            elif hasattr(p, "idx"):
-                curr = curr[p.idx]
-            elif hasattr(p, "key"):
-                curr = curr[p.key]
-            else:
-                # Fallback for unexpected path elements
-                try:
-                    curr = getattr(curr, p)
-                except AttributeError:
-                    curr = curr[p]
-        return curr
-    return getter
-
-def _resolve_target(model: Model, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
-    """Resolves callables, string names, or iterables of string names into a callable getter."""
-    if callable(target):
-        return target
-        
-    # Determine if target is a single string or an iterable of strings
-    is_single = isinstance(target, str)
-    if is_single:
-        names_to_find = [target]
-    elif isinstance(target, (list, tuple)) and all(isinstance(x, str) for x in target):
-        names_to_find = list(target)
-    else:
-        raise TypeError(
-            "Targets must be a callable, a string parameter name, "
-            "or a tuple/list of string parameter names."
-        )
-
-    # Build name -> path mapping using the model's pathed_params
-    pathed = model.pathed_params(include_fixed=True, values=False)
-    name_to_path = {}
-    for path, _ in pathed:
-        name = tree_path_to_name(model, path, namespace_separator=namespace_separator)
-        name_to_path[name] = path
-        
-    paths_to_get = []
-    for name in names_to_find:
-        if name not in name_to_path:
-            raise ValueError(f"Parameter name '{name}' not found in the model.")
-        paths_to_get.append(name_to_path[name])
-
-    return Pathgetter(*paths_to_get)
-    
-    # getters = []
-    # for name in names_to_find:
-    #     if name not in name_to_path:
-    #         raise ValueError(f"Parameter name '{name}' not found in the model.")
-    #     getters.append(_make_getter(name_to_path[name]))
-        
-    # # Return a single element getter or a tuple getter depending on the input
-    # if is_single:
-    #     return getters[0]
-    # else:
-    #     return lambda m: tuple(g(m) for g in getters)
