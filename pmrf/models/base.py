@@ -15,6 +15,7 @@ import parax as prx
 
 from pmrf.rf.mna import MNAStamp
 from pmrf.utils.optix import focus, Lens
+from pmrf.utils.tree import Pathgetter
 from pmrf.parameters import Param, is_param
 from pmrf.frequency import Frequency
 from pmrf.rf import (
@@ -1152,14 +1153,22 @@ def _resolve_target(model: Model, target: Any, namespace_separator: str = '_') -
         name = tree_path_to_name(model, path, namespace_separator=namespace_separator)
         name_to_path[name] = path
         
-    getters = []
+    paths_to_get = []
     for name in names_to_find:
         if name not in name_to_path:
             raise ValueError(f"Parameter name '{name}' not found in the model.")
-        getters.append(_make_getter(name_to_path[name]))
+        paths_to_get.append(name_to_path[name])
+
+    return Pathgetter(*paths_to_get)
+    
+    # getters = []
+    # for name in names_to_find:
+    #     if name not in name_to_path:
+    #         raise ValueError(f"Parameter name '{name}' not found in the model.")
+    #     getters.append(_make_getter(name_to_path[name]))
         
-    # Return a single element getter or a tuple getter depending on the input
-    if is_single:
-        return getters[0]
-    else:
-        return lambda m: tuple(g(m) for g in getters)
+    # # Return a single element getter or a tuple getter depending on the input
+    # if is_single:
+    #     return getters[0]
+    # else:
+    #     return lambda m: tuple(g(m) for g in getters)

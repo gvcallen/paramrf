@@ -1,4 +1,5 @@
 from typing import Any, Callable, Generic, TypeVar, Any
+import operator
 
 import equinox as eqx
 import jax
@@ -140,7 +141,7 @@ def batched_tree_unflatten(
 _Return = TypeVar("_Return")
 
 class Bind(eqx.Module, Generic[_Return]):
-    """Like `functools.partial`, but allows re-passing keyword arguments 
+    """(experimental) Like `functools.partial`, but allows re-passing keyword arguments 
     to override the originally bound keyword arguments.
     """
 
@@ -159,3 +160,59 @@ class Bind(eqx.Module, Generic[_Return]):
         merged_kwargs = self.keywords | kwargs 
         
         return self.func(*self.args, *args, **merged_kwargs)    
+    
+
+class Attrgetter(eqx.Module):
+    """(experimental) Like `operator.attrgetter`, but registered as a PyTree.
+    Supports single attributes, multiple attributes, and dotted paths.
+    """
+    attrs: tuple[str, ...] = eqx.field(static=True)
+
+    def __init__(self, *attrs: str):
+        if not attrs:
+            raise TypeError("Attrgetter expected at least 1 argument, got 0")
+        self.attrs = attrs
+
+    def __call__(self, obj: Any) -> Any:
+        getter = operator.attrgetter(*self.attrs)
+        return getter(obj)
+    
+
+class Pathgetter(eqx.Module):
+    """(experimental) Retrieves values from a PyTree given JAX tree paths.
+    Supports single paths or multiple paths, symmetric to `Attrgetter`.
+    """
+    
+    # We store a tuple of tuples
+    paths: tuple[tuple[Any, ...], ...] = eqx.field(static=True)
+
+    def __init__(self, *paths: tuple[Any, ...] | list[Any]):
+        if not paths:
+            raise TypeError("Pathgetter expected at least 1 argument, got 0")
+        
+        # Cast every path to a tuple to guarantee strict hashability for JAX
+        self.paths = tuple(tuple(p) for p in paths)
+
+    def __call__(self, tree: Any) -> Any:
+        def _get_single_path(current_obj: Any, path: tuple[Any, ...]) -> Any:
+            for p in path:
+                if hasattr(p, "name"):     # Handles GetAttrKey
+                    current_obj = getattr(current_obj, p.name)
+                elif hasattr(p, "idx"):    # Handles SequenceKey
+                    current_obj = current_obj[p.idx]
+                elif hasattr(p, "key"):    # Handles DictKey
+                    current_obj = current_obj[p.key]
+                else:
+                    # Fallback for raw strings/ints in custom paths
+                    try:
+                        current_obj = getattr(current_obj, p)
+                    except AttributeError:
+                        current_obj = current_obj[p]
+            return current_obj
+
+        # Return a single value if only one path was requested
+        if len(self.paths) == 1:
+            return _get_single_path(tree, self.paths[0])
+        
+        # Return a tuple of values if multiple paths were requested
+        return tuple(_get_single_path(tree, path) for path in self.paths)

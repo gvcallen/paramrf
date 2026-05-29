@@ -58,6 +58,8 @@ from pmrf.utils import (
     Partial as Partial,
     Bind as Bind,
     InitVar as InitVar,
+    Attrgetter as Attrgetter,
+    Pathgetter as Pathgetter,
     field as field,
     freeze as freeze,
     unfreeze as unfreeze,
@@ -117,6 +119,8 @@ __all__ = [
     # Utilities
     "Partial",
     "Bind",
+    "Attrgetter",
+    "Pathgetter",
     "Initvar",
     "NetworkCollection",
     "field",
