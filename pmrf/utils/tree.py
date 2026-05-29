@@ -138,11 +138,11 @@ def batched_tree_unflatten(
     return jax.tree.unflatten(treedef, restored_leaves)
 
 
-def filtered_pathed_leaves(
+def filtered_tree_pathed_leaves(
     tree: Any,
-    filter_spec,
+    filter_spec: Any,
     is_leaf: Callable = None,
-    unwrap: bool = True,
+    unwrap_leaves: bool = False,
     keystr: bool = False,
     separator: str | None = None,
 ) -> list[tuple[Any, Any]]:
@@ -150,7 +150,7 @@ def filtered_pathed_leaves(
     filtered_tree = eqx.filter(tree, filter_spec, is_leaf=is_leaf)
     pathed, _ = jax.tree.flatten_with_path(filtered_tree, is_leaf=is_leaf)
     
-    if unwrap or keystr:
+    if unwrap_leaves or keystr:
         for i in range(len(pathed)):
             key, value = pathed[i]
             
@@ -158,7 +158,7 @@ def filtered_pathed_leaves(
                 kwargs = {'separator': separator} if separator is not None else {}
                 key = jax.tree_util.keystr(key, **kwargs)
             
-            if unwrap:
+            if unwrap_leaves:
                 value = prx.unwrap(value)
                 if jnp.isscalar(value):
                     value = float(value)
@@ -166,6 +166,145 @@ def filtered_pathed_leaves(
             pathed[i] = (key, value)
             
     return pathed
+
+
+def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, ignore_names: bool = False) -> str:
+    """
+    Converts a JAX-style path to an equivalent namespace string.
+
+    Any objects within the path that have a "name" property are used
+    to generate a namespace that shorten the path.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The base PyTree to extract the names from.
+    path : list[Any]
+        The JAX path to a node in the PyTree.
+    namespace_separator : str
+        A string separator to use when combining multiple named nodes in the 
+        PyTree together to create a new namespace.
+    ignore_names : bool, default=False
+        If True, ignores custom object names and generates the string 
+        based strictly on the structural path.
+    
+    Returns
+    -------
+    str
+        The derived name of the node or path.
+    """
+    namespace = []
+    current_obj = tree
+    unnamed_path_parts = []
+    
+    for key in path:
+        if hasattr(key, "name"):
+            attr = key.name
+            current_obj = getattr(current_obj, attr)
+            part_type = "attr"
+        elif hasattr(key, "idx"):
+            attr = key.idx
+            current_obj = current_obj[key.idx]
+            part_type = "idx"
+        elif hasattr(key, "key"):
+            attr = key.key
+            current_obj = current_obj[key.key]
+            part_type = "key"
+        else:
+            attr = key
+            part_type = "fallback"
+            
+        if not ignore_names and hasattr(current_obj, "name") and getattr(current_obj, "name") is not None:
+            namespace.append(current_obj.name)
+            unnamed_path_parts = []
+        else:
+            unnamed_path_parts.append((part_type, attr))
+            
+    param_name = None
+    if not ignore_names:
+        if hasattr(current_obj, "name") and getattr(current_obj, "name") is not None:
+            param_name = current_obj.name
+        
+        if param_name is not None and namespace and namespace[-1] == param_name:
+            namespace.pop()
+
+    if param_name is not None:
+        final_name_part = param_name
+        separator = namespace_separator
+    else:
+        formatted_parts = []
+        for i, (p_type, p_val) in enumerate(unnamed_path_parts):
+            if p_type == "attr":
+                if i == 0:
+                    formatted_parts.append(str(p_val))
+                else:
+                    formatted_parts.append(f".{p_val}")
+            elif p_type == "idx":
+                formatted_parts.append(f"[{p_val}]")
+            elif p_type == "key":
+                if isinstance(p_val, str):
+                    formatted_parts.append(f"['{p_val}']")
+                else:
+                    formatted_parts.append(f"[{p_val}]")
+            else:
+                formatted_parts.append(f"[{p_val}]")
+                
+        final_name_part = "".join(formatted_parts)
+        
+        if not final_name_part:
+            separator = ""
+        elif final_name_part.startswith("["):
+            separator = ""
+        else:
+            separator = "."
+            
+    if namespace:
+        prefix = namespace_separator.join(namespace)
+        name = f"{prefix}{separator}{final_name_part}"
+    else:
+        name = final_name_part
+            
+    return name
+
+
+def tree_resolve_target(target: Any, name_to_path: dict[str, list[Any]]) -> Callable[[Any], Any]:
+    """
+    Resolves callables, string names, or iterables of string names into a callable getter.
+    
+    Parameters
+    ----------
+    target : Any
+        A callable, string, or iterable of strings representing the target nodes.
+    name_to_path : dict[str, list[Any]]
+        A lookup dictionary mapping string names to JAX structural paths.
+        
+    Returns
+    -------
+    Callable
+        A getter (e.g., Pathgetter) that extracts the specified paths from a PyTree.
+    """
+    if callable(target):
+        return target
+        
+    # Determine if target is a single string or an iterable of strings
+    is_single = isinstance(target, str)
+    if is_single:
+        names_to_find = [target]
+    elif isinstance(target, (list, tuple)) and all(isinstance(x, str) for x in target):
+        names_to_find = list(target)
+    else:
+        raise TypeError(
+            "Targets must be a callable, a string parameter name, "
+            "or a tuple/list of string parameter names."
+        )
+        
+    paths_to_get = []
+    for name in names_to_find:
+        if name not in name_to_path:
+            raise ValueError(f"Target name '{name}' not found in the provided lookup.")
+        paths_to_get.append(name_to_path[name])
+
+    return Pathgetter(*paths_to_get)
 
 
 _Return = TypeVar("_Return")
