@@ -8,7 +8,7 @@ from pmrf.math import nudge_diag
 from pmrf.simulate.base import AbstractScatteringCascader, ScatteringResult
 
 
-class RedhefferCascader(AbstractScatteringCascader):
+class RedhefferScatteringCascader(AbstractScatteringCascader):
     eps: float = eqx.field(default=1e-12, static=True)
     
     def run(

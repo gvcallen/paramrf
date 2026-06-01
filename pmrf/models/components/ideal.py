@@ -165,6 +165,7 @@ class SourceConverter(Model):
 
     This model represents a specific ideal component with a fixed, frequency-independent
     3x3 scattering matrix that is independent of the characteristic impedance.
+
     """
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s_one = jnp.array([

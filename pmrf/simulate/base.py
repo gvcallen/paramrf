@@ -267,8 +267,8 @@ class AbstractScatteringCascader(eqx.Module):
         raise NotImplementedError
     
 
-class AbstractTransferCascader(eqx.Module):
-    """Abstract base class for solvers that cascade sequential networks in the Transfer domain."""
+class AbstractABCDCascader(eqx.Module):
+    """Abstract base class for solvers that cascade sequential networks in the ABCD domain."""
     
     @abstractmethod
     def run(
@@ -324,7 +324,7 @@ class AbstractScatteringTerminator(eqx.Module):
         raise NotImplementedError
 
 
-class AbstractTransferTerminator(eqx.Module):
+class AbstractABCDTerminator(eqx.Module):
     """Abstract base class for algorithms terminating Transfer parameters into S-parameters."""
     
     @abstractmethod
@@ -356,5 +356,5 @@ class AbstractTransferTerminator(eqx.Module):
 
 # Type Aliases for solver categories
 AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer | AbstractModifiedAdmittanceReducer
-AbstractCascader = AbstractScatteringCascader | AbstractTransferCascader
-AbstractTerminator = AbstractScatteringTerminator | AbstractTransferTerminator
+AbstractCascader = AbstractScatteringCascader | AbstractABCDCascader
+AbstractTerminator = AbstractScatteringTerminator | AbstractABCDTerminator

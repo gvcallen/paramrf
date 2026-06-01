@@ -40,8 +40,12 @@ class AbstractComponent(eqx.Module):
     models in :mod:`pmrf.models` and lower-level algorithms in e.g.
     :mod:`pmrf.simulate`.
     """
-    #: The number of ports the component has.
-    nports: eqx.AbstractVar[int]
+
+    @property
+    @abstractmethod
+    def nports(self) -> int:
+        """The number of ports the component has."""
+        raise NotImplementedError
 
     @abstractmethod
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:

@@ -5,7 +5,7 @@ import equinox as eqx
 
 from pmrf.simulate.base import AbstractScatteringReducer, PortRepresentation, ScatteringResult
 
-class SubnetworkGrowthReducer(AbstractScatteringReducer):
+class SequentialSchurScatteringReducer(AbstractScatteringReducer):
     """
     Iterative Sub-Network Growth (Port Elimination) algorithm in JAX.
     Connects internal ports in pairs, eliminating them algebraically.

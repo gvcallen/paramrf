@@ -14,10 +14,11 @@ from pmrf.simulate import (
     AbstractReducer, 
     AbstractCascader, 
     AbstractTerminator, 
-    HallbjornerReducer, 
-    SubnetworkGrowthReducer,    
-    LinearFractionalTerminator, 
-    RedhefferCascader, 
+    GlobalSchurScatteringReducer, 
+    SequentialSchurScatteringReducer,    
+    AnalyticScatteringTerminator, 
+    BlockSchurScatteringReducer,
+    RedhefferScatteringCascader, 
     reduce, 
     cascade, 
     terminate
@@ -81,7 +82,7 @@ class Circuit(Model):
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
     
     #: The circuit solver.
-    solver: AbstractReducer = field(default=HallbjornerReducer())
+    solver: AbstractReducer = field(default=GlobalSchurScatteringReducer())
     
     @staticmethod
     def _flatten_connections(connections):
@@ -263,6 +264,131 @@ class Circuit(Model):
         return reduce(self.topology, freq, self.solver).y
     
 
+class Parallel(Model):
+    """
+    Represents a parallel connection of two or more `Model` objects.
+
+    This container connects multiple models in parallel. Port `i` of every 
+    model is connected to port `i` of every other model, forming a single 
+    composite network with the same number of ports as the individual models.
+
+    All models must have the exact same number of ports.
+
+    Parameters
+    ----------
+    parallel : tuple[Model, ...]
+        The sequence of models in parallel.
+    solver : AbstractReducer, default=HierarchicalTreeReducer()
+        The solver to use. Defaults to the hierarchical tree solver, which is 
+        highly optimized for multi-port parallel merges.
+    flatten: bool, default=True
+        (experimental) Flattens nested Parallel instances into one large parallel group.
+
+    Examples
+    --------
+    Create a parallel RLC tank circuit by connecting a resistor, 
+    capacitor, and inductor in parallel:
+
+    >>> import pmrf as prf
+    >>> from pmrf.models import Resistor, Capacitor, Inductor, Parallel
+    >>> 
+    >>> res = Resistor(R=50.0)
+    >>> cap = Capacitor(C=1e-12)
+    >>> ind = Inductor(L=1e-9)
+    >>> 
+    >>> # The resulting model is a 2-port parallel RLC tank
+    >>> rlc_tank = Parallel((res, cap, ind))
+    """
+    #: Input models to be placed in parallel
+    parallel: InitVar[tuple[Model, ...]]
+    
+    #: Flatten the connections if they contain any sub-parallel groups
+    flatten: InitVar[bool] = field(default=True, static=True, kw_only=True)
+    
+    #: The deduplicated models stored in the state
+    models: tuple[Model, ...] = field(default=None, kw_only=True)
+    
+    #: The solver, defaulting to hierarchical block reduction
+    solver: AbstractReducer = field(default=BlockSchurScatteringReducer())
+    
+    #: The collated indices defining the internal parallel nodes
+    indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
+    
+    #: The explicitly ordered absolute indices of the external ports
+    port_index: list[int] = field(default=None, kw_only=True, static=True)
+
+    def __post_init__(self, parallel: tuple[Model, ...], flatten: bool):
+        if not parallel:
+            raise ValueError("Parallel requires at least one model.")
+            
+        n_ports = parallel[0].nports
+        for model in parallel:
+            if model.nports != n_ports:
+                raise ValueError(
+                    f"All models must have exactly {n_ports} ports for a Parallel connection. "
+                    f"Found a model with {model.nports} ports."
+                )
+
+        if flatten:
+            merged = []
+            for model in parallel:
+                if isinstance(model, Parallel) and getattr(model, 'name', None) is None and getattr(model, 'metadata', None) is None:
+                    merged.extend(model.models)
+                else:
+                    merged.append(model)
+            parallel = tuple(merged)
+
+        unique_models = []
+        id_to_index = {}
+        seen_ports = set()
+        
+        idx_conn = [[] for _ in range(n_ports)]
+
+        for model in parallel:
+            m_id = id(model)
+            if m_id not in id_to_index:
+                id_to_index[m_id] = len(unique_models)
+                unique_models.append(model)
+            
+            m_idx = id_to_index[m_id]
+
+            for p in range(n_ports):
+                port_signature = (m_id, p)
+                if port_signature in seen_ports:
+                    raise ValueError(
+                        f"Port {p} of model '{getattr(model, 'name', 'unnamed')}' is connected multiple times. "
+                        "Identical model instances cannot be connected in parallel."
+                    )
+                seen_ports.add(port_signature)
+                idx_conn[p].append((m_idx, p))
+
+        self.models = tuple(unique_models)
+        self.indexed_connections = idx_conn
+        
+        # Anchor the external ports to the absolute indices of the first unique model
+        self.port_index = list(range(n_ports))
+
+    @property
+    def number_of_ports(self):
+        return len(self.port_index)
+    
+    @property
+    def topology(self) -> Topology:
+        return Topology(
+            components=list(self.models), 
+            indexed_connections=self.indexed_connections, 
+            port_indices=self.port_index, 
+            ground_indices=[],
+            marker_indices=[],
+        )
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return reduce(self.topology, freq, self.solver, z0=z0).s
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        return reduce(self.topology, freq, self.solver).y
+    
+
 class Connected(Model):
     """
     (experimental) Represents a direct port-to-port connection between one or two models.
@@ -318,7 +444,7 @@ class Connected(Model):
     port_b: int = field(static=True)
 
     #: The circuit solver. Defaults to iterative port elimination.
-    solver: AbstractReducer = field(default=SubnetworkGrowthReducer())
+    solver: AbstractReducer = field(default=SequentialSchurScatteringReducer())
 
     #: The sequence of models forming this connection.
     models: tuple[Model, ...] = field(default=None, kw_only=True)
@@ -398,14 +524,13 @@ class Cascade(Model):
     Represents a cascade, or series connection, of two or more `Model` objects.
 
     This container connects multiple models end-to-end. The output port of
-    one model is connected to the input port of the next. This is mathematically
-    equivalent to chain-multiplying the ABCD-parameter matrices of the
-    constituent models.
+    one model is connected to the input port of the next.
 
-    The `Cascade` model automatically flattens any nested `Cascade` instances
-    to maintain a simple, linear chain of models. The number of ports of the
-    resulting `Cascade` network depends on the port count of the final model
-    in the chain.
+    All models must have 2N-many ports. Ports N to 2*N-1 of the first model
+    are connected to ports 0 to N-1 of the second, and so on.
+
+    Any nested `Cascade` instances are automatically flattened to maintain
+    a simple, linear chain of models.
 
     Parameters
     ----------
@@ -449,7 +574,7 @@ class Cascade(Model):
     cascade: tuple[Model]
     
     #: The solver.
-    solver: AbstractCascader = field(default=RedhefferCascader())
+    solver: AbstractCascader = field(default=RedhefferScatteringCascader())
     
     def __post_init__(self, flatten: bool):
         for model in self.cascade:
@@ -496,7 +621,7 @@ class Terminated(Model):
     terminated_into: Model
     
     #: The solver.
-    solver: AbstractTerminator = field(default=LinearFractionalTerminator())
+    solver: AbstractTerminator = field(default=AnalyticScatteringTerminator())
 
     @property
     def number_of_ports(self):

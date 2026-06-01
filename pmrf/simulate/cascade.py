@@ -5,7 +5,7 @@ from typing import Sequence
 
 from pmrf.frequency import Frequency
 from pmrf.base import AbstractComponent
-from pmrf.simulate.base import AbstractCascader, AbstractScatteringCascader, AbstractTransferCascader
+from pmrf.simulate.base import AbstractCascader, AbstractScatteringCascader, AbstractABCDCascader
 from pmrf.simulate.result import SimulateResult
 
 def cascade(
@@ -63,7 +63,7 @@ def cascade(
         
         return SimulateResult(solution=solution, z0=z0)
         
-    elif isinstance(solver, AbstractTransferCascader):
+    elif isinstance(solver, AbstractABCDCascader):
         
         # Directly stack the A-matrices from the component list
         batched_A = jnp.stack([m.a(frequency) for m in components]).transpose(1, 0, 2, 3)

@@ -8,7 +8,7 @@ from pmrf.simulate.base import (
     AdmittanceResult
 )
 
-class ModifiedKronReducer(AbstractModifiedAdmittanceReducer):
+class ModifiedNodalAdmittanceReducer(AbstractModifiedAdmittanceReducer):
     """
     Modified Nodal Analysis (MNA) circuit solver using Kron reduction.
 

@@ -6,7 +6,7 @@ from jaxtyping import ArrayLike
 
 from pmrf.frequency import Frequency
 from pmrf.base import AbstractComponent
-from pmrf.simulate.base import AbstractTerminator, AbstractScatteringTerminator, AbstractTransferTerminator
+from pmrf.simulate.base import AbstractTerminator, AbstractScatteringTerminator, AbstractABCDTerminator
 from pmrf.simulate.result import SimulateResult
 
 def terminate(
@@ -68,7 +68,7 @@ def terminate(
         
         return SimulateResult(solution=solution, z0=z0)
         
-    elif isinstance(solver, AbstractTransferTerminator):
+    elif isinstance(solver, AbstractABCDTerminator):
         a_from = component_from.a(frequency)
         s_into = component_into.s(frequency, z0=z0)
         

@@ -7,7 +7,7 @@ import numpy as np
 from pmrf.simulate.base import AbstractScatteringReducer, PortRepresentation, ScatteringResult
 from pmrf.rf.conversions import s2s
 
-class HallbjornerReducer(AbstractScatteringReducer):
+class GlobalSchurScatteringReducer(AbstractScatteringReducer):
     def run(
         self, 
         s_block_diagonal: jax.Array,  # Shape: (num_ports, num_ports) due to vmap

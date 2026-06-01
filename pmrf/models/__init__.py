@@ -96,6 +96,7 @@ from pmrf.models.components.sections import (
 from pmrf.models.composite.interconnected import (
     Circuit as Circuit,
     Connected as Connected,
+    Parallel as Parallel,
     Cascade as Cascade,
     Terminated as Terminated,
 )
