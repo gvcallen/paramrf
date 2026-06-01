@@ -4,30 +4,33 @@ import numpy as np
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models.base import Model
-
+from pmrf.base import AbstractComponent
 
 class Topology(eqx.Module):
     """
-    A higher-level model containing sub-models and their topological connections
+    A higher-level component containing sub-components and their topological connections
     for simulation data preparation.
 
     Attributes
     ----------
-    models : list[Model]
-        List of sub-models contained within this topology.
+    components : list[AbstractComponent]
+        List of sub-components contained within this topology.
     indexed_connections : list[list[tuple[int, int]]]
-        List of connection nets, where each net is a list of (model_index, port_index) tuples.
+        List of connection nets, where each net is a list of (component_index, port_index) tuples.
     port_indices : list[int]
         List of global port indices designated as external ports.
     ground_indices : list[int]
         List of global port indices designated as grounded connections.
+    marker_indices : list[int]
+        List of global port indices designated as purely topological markers (e.g. dummy components)
+        whose physical parameters should be zeroed out during matrix assembly.
     """
     
-    models: list[Model]
+    components: list[AbstractComponent]
     indexed_connections: list[list[tuple[int, int]]] = eqx.field(static=True)
     port_indices: list[int] = eqx.field(static=True)
     ground_indices: list[int] = eqx.field(static=True)
+    marker_indices: list[int] = eqx.field(static=True, default_factory=list)
     
     def connected_components(self) -> np.ndarray:
         """
@@ -38,10 +41,10 @@ class Topology(eqx.Module):
         np.ndarray
             A 1D array mapping each global port index to a contiguous, unique net ID.
         """
-        def get_global_port(models: list[Model], m_idx: int, p_idx: int) -> int:
-            return sum(m.nports for m in models[:m_idx]) + p_idx
+        def get_global_port(components: list[AbstractComponent], c_idx: int, p_idx: int) -> int:
+            return sum(c.nports for c in components[:c_idx]) + p_idx
 
-        num_ports = sum(m.nports for m in self.models)
+        num_ports = sum(c.nports for c in self.components)
         parent = list(range(num_ports))
         
         def find(i):
@@ -57,24 +60,23 @@ class Topology(eqx.Module):
         if self.indexed_connections:
             for cnx in self.indexed_connections:
                 if not cnx: continue
-                first = get_global_port(self.models, cnx[0][0], cnx[0][1])
-                for m_idx, p_idx in cnx[1:]:
-                    union(first, get_global_port(self.models, m_idx, p_idx))
+                first = get_global_port(self.components, cnx[0][0], cnx[0][1])
+                for c_idx, p_idx in cnx[1:]:
+                    union(first, get_global_port(self.components, c_idx, p_idx))
                     
         port_to_net = np.array([find(i) for i in range(num_ports)], dtype=int)
         
-        # Compress net IDs to contiguous integers (0 to num_unique_nets - 1)
         _, port_to_net_map = np.unique(port_to_net, return_inverse=True)
         return port_to_net_map
     
     def evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0, layout: str = 'block_diagonal') -> tuple[jnp.ndarray, jnp.ndarray]:
         """
-        Evaluates the scattering parameters for all contained models.
+        Evaluates the scattering parameters for all contained components.
 
         Parameters
         ----------
         freq : Frequency
-            The frequency points at which to evaluate the models.
+            The frequency points at which to evaluate the components.
         z0 : ArrayLike, optional
             The reference impedance for the S-parameters, by default 50.0.
         layout : {'block_diagonal', 'stacked'}, optional
@@ -84,7 +86,7 @@ class Topology(eqx.Module):
         -------
         tuple[jnp.ndarray, jnp.ndarray]
             A tuple containing:
-            - batched_S: The S-parameters of the models structured according to the specified layout.
+            - batched_S: The S-parameters of the components structured according to the specified layout.
             - batched_z0: The corresponding reference impedances broadcasted to match the layout.
 
         Raises
@@ -93,55 +95,50 @@ class Topology(eqx.Module):
             If an unsupported layout is provided.
         """
         if layout == 'block_diagonal':
-            S_blocks = [m.s(freq, z0=z0) for m in self.models]
+            S_blocks = [c.s(freq, z0=z0) for c in self.components]
             
             Nf = S_blocks[0].shape[0]
             num_ports = sum(S.shape[1] for S in S_blocks)
             dtype = S_blocks[0].dtype
             
-            # Assemble Block Diagonal Matrix
             batched_S = jnp.zeros((Nf, num_ports, num_ports), dtype=dtype)
             offset = 0
-            for S_m in S_blocks:
-                n = S_m.shape[1]
-                batched_S = batched_S.at[:, offset:offset+n, offset:offset+n].set(S_m)
+            for S_c in S_blocks:
+                n = S_c.shape[1]
+                batched_S = batched_S.at[:, offset:offset+n, offset:offset+n].set(S_c)
                 offset += n
                 
             batched_z0 = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
             return batched_S, batched_z0
             
         elif layout == 'stacked':
-            cascade_models = []
+            cascade_components = []
             offset = 0
-            marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
+            marker_set = set(self.marker_indices)
             
-            for m in self.models:
-                # Exclude topological markers from the cascade solver list
-                if m.nports > 1 and offset not in marker_indices:
-                    cascade_models.append(m)
-                offset += m.nports
+            for c in self.components:
+                if c.nports > 1 and offset not in marker_set:
+                    cascade_components.append(c)
+                offset += c.nports
             
-            # jnp.stack creates (N, F, m, m). 
-            # We transpose to (F, N, m, m) so Frequency is ALWAYS axis 0.
-            S_blocks = jnp.stack([m.s(freq, z0=z0) for m in cascade_models]).transpose(1, 0, 2, 3)
+            S_blocks = jnp.stack([c.s(freq, z0=z0) for c in cascade_components]).transpose(1, 0, 2, 3)
             
-            n_models = len(cascade_models)
-            m_ports = cascade_models[0].nports if n_models > 0 else 0
-            batched_z0 = jnp.broadcast_to(jnp.asarray(z0), (n_models, m_ports))
+            n_components = len(cascade_components)
+            c_ports = cascade_components[0].nports if n_components > 0 else 0
+            batched_z0 = jnp.broadcast_to(jnp.asarray(z0), (n_components, c_ports))
             
             return S_blocks, batched_z0
         else:
             raise ValueError(f"Unknown scattering layout: {layout}")
                     
-
     def evaluate_admittance(self, freq: Frequency, layout: str = 'flattened') -> jnp.ndarray:
         """
-        Evaluates the admittance parameters for all models and structures them for assembly.
+        Evaluates the admittance parameters for all components and structures them for assembly.
 
         Parameters
         ----------
         freq : Frequency
-            The frequency points at which to evaluate the models.
+            The frequency points at which to evaluate the components.
         layout : {'flattened'}, optional
             The structural layout of the returned Y-parameter tensor, by default 'flattened'.
 
@@ -161,19 +158,16 @@ class Topology(eqx.Module):
         
         Y_blocks = []
         offset = 0
+        marker_set = set(self.marker_indices)
         
-        # Pre-compute the set of global indices that belong to markers for O(1) lookup
-        marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
-        
-        for m in self.models:
-            # If the model's global port offset is in the markers list, inject zeros
-            if offset in marker_indices:
-                zeros = jnp.zeros((freq.npoints, m.nports, m.nports), dtype=jnp.complex128)
+        for c in self.components:
+            if offset in marker_set:
+                zeros = jnp.zeros((freq.npoints, c.nports, c.nports), dtype=jnp.complex128)
                 Y_blocks.append(zeros)
             else:
-                Y_blocks.append(m.y(freq))
+                Y_blocks.append(c.y(freq))
             
-            offset += m.nports
+            offset += c.nports
             
         flat_Y_list = []
         for Y in Y_blocks:
@@ -186,12 +180,12 @@ class Topology(eqx.Module):
 
     def evaluate_impedance(self, freq: Frequency, layout: str = 'flattened') -> jnp.ndarray:
         """
-        Evaluates the impedance parameters for all models and structures them for assembly.
+        Evaluates the impedance parameters for all components and structures them for assembly.
 
         Parameters
         ----------
         freq : Frequency
-            The frequency points at which to evaluate the models.
+            The frequency points at which to evaluate the components.
         layout : {'flattened'}, optional
             The structural layout of the returned Z-parameter tensor, by default 'flattened'.
 
@@ -211,19 +205,16 @@ class Topology(eqx.Module):
         
         Z_blocks = []
         offset = 0
+        marker_set = set(self.marker_indices)
         
-        # Pre-compute the set of global indices that belong to markers for O(1) lookup
-        marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
-        
-        for m in self.models:
-            # If the model's global port offset is in the markers list, inject zeros
-            if offset in marker_indices:
-                zeros = jnp.zeros((freq.npoints, m.nports, m.nports), dtype=jnp.complex128)
+        for c in self.components:
+            if offset in marker_set:
+                zeros = jnp.zeros((freq.npoints, c.nports, c.nports), dtype=jnp.complex128)
                 Z_blocks.append(zeros)
             else:
-                Z_blocks.append(m.z(freq))
+                Z_blocks.append(c.z(freq))
             
-            offset += m.nports
+            offset += c.nports
             
         flat_Z_list = []
         for Z in Z_blocks:
@@ -236,12 +227,12 @@ class Topology(eqx.Module):
     
     def evaluate_mna(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """
-        Evaluates the Modified Nodal Analysis (MNA) parameters for all models.
+        Evaluates the Modified Nodal Analysis (MNA) parameters for all components.
 
         Parameters
         ----------
         freq : Frequency
-            The frequency points at which to evaluate the models.
+            The frequency points at which to evaluate the components.
 
         Returns
         -------
@@ -251,15 +242,12 @@ class Topology(eqx.Module):
         """
         flat_Y, flat_B, flat_C, flat_D = [], [], [], []
         offset = 0
+        marker_set = set(self.marker_indices)
         
-        # Pre-compute the set of global indices that belong to markers for O(1) lookup
-        marker_indices = set((self.port_indices or []) + (self.ground_indices or []))
-        
-        for m in self.models:
-            stamp = m.mna(freq)
+        for c in self.components:
+            stamp = c.mna(freq)
             
-            # If the model's global port offset is in the markers list, inject zeros
-            if offset in marker_indices:
+            if offset in marker_set:
                 Y = jnp.zeros_like(stamp.Y)
                 B = jnp.zeros_like(stamp.B)
                 C = jnp.zeros_like(stamp.C)
@@ -279,9 +267,8 @@ class Topology(eqx.Module):
                 flat_C.append(C.reshape(Nf, k * n))
                 flat_D.append(D.reshape(Nf, k * k))
                 
-            offset += m.nports
+            offset += c.nports
             
-        # Safely concatenate or return empty arrays if no elements exist
         def _safe_concat(array_list):
             if not array_list:
                 return jnp.zeros((freq.npoints, 0), dtype=jnp.complex128)

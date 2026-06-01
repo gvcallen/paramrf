@@ -1,5 +1,3 @@
-"""pmrf/simulate/reduce.py"""
-
 from typing import TypeVar
 
 import jax
@@ -34,7 +32,7 @@ def reduce(
     Parameters
     ----------
     topology : TopologyT
-        The Topology containing sub-models and connections.
+        The Topology containing sub-components and connections.
     frequency : Frequency
         The frequency sweep over which to characterize the network.
     solver : AbstractReducer
@@ -83,7 +81,6 @@ def reduce(
         rep = topology_to_modified_nodal(topology)
         batched_Y, batched_B, batched_C, batched_D = topology.evaluate_mna(frequency)
         
-        # vmap over the 4 data arrays, but not the static topology map
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, 0, 0, 0, None))
         solution = vmapped_solver(batched_Y, batched_B, batched_C, batched_D, rep)
         
@@ -109,13 +106,12 @@ def topology_to_ports(topology: Topology) -> PortRepresentation:
     PortRepresentation
         The structural map defining external vs. internal ports and their nets.
     """
-    num_ports = sum(m.nports for m in topology.models)
+    num_ports = sum(c.nports for c in topology.components)
     port_to_net_map = topology.connected_components()
     ext_idx = np.array(topology.port_indices or [], dtype=int)
     int_idx = np.setdiff1d(np.arange(num_ports), ext_idx)
     
     return PortRepresentation(
-        num_ports=num_ports,
         ext_idx=ext_idx,
         int_idx=int_idx,
         port_to_net_map=port_to_net_map
@@ -140,12 +136,10 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
     port_to_net_map = topology.connected_components()
     unique_nets = np.unique(port_to_net_map)
     
-    # Identify which nets represent ground
     ground_nets = set()
     for p in (topology.ground_indices or []):
         ground_nets.add(port_to_net_map[p])
         
-    # Remap active nets to (0 ... V-1) and ground nets to a dummy node (V)
     num_active = 0
     remap = {}
     for net in unique_nets:
@@ -154,28 +148,25 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
             num_active += 1
             
     for net in ground_nets:
-        remap[net] = num_active # Dummy ground node at the end
+        remap[net] = num_active
         
     final_port_nodes = np.array([remap[net] for net in port_to_net_map], dtype=int)
     
-    # Build r_idx and c_idx by unrolling the local port matrices
     r_idx, c_idx = [], []
     offset = 0
-    for m in topology.models:
-        n = m.nports
+    for c in topology.components:
+        n = c.nports
         nodes = final_port_nodes[offset:offset+n]
         
-        # Vectorized meshgrid equivalent
         r_idx.extend(np.repeat(nodes, n))
         c_idx.extend(np.tile(nodes, n))
         
         offset += n
         
-    # Identify external and internal active nets
     ext_nets = set()
     for p in (topology.port_indices or []):
         net = final_port_nodes[p]
-        if net != num_active: # Exclude the dummy ground node
+        if net != num_active:
             ext_nets.add(net)
             
     ext_idx = np.array(sorted(list(ext_nets)), dtype=int)
@@ -183,7 +174,6 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
     int_idx = np.array(sorted(list(all_active - ext_nets)), dtype=int)
     
     return NodalRepresentation(
-        num_nodes=num_active + 1, # +1 creates the space for the dummy ground node
         r_idx=np.array(r_idx, dtype=int),
         c_idx=np.array(c_idx, dtype=int),
         ext_idx=ext_idx,
@@ -197,12 +187,10 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
     port_to_net_map = topology.connected_components()
     unique_nets = np.unique(port_to_net_map)
     
-    # Identify which nets represent ground
     ground_nets = set()
     for p in (topology.ground_indices or []):
         ground_nets.add(port_to_net_map[p])
         
-    # Remap active nets to (0 ... V-1) and ground nets to a dummy node (V)
     num_active = 0
     remap = {}
     for net in unique_nets:
@@ -211,7 +199,7 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
             num_active += 1
             
     for net in ground_nets:
-        remap[net] = num_active # Dummy ground node at the end
+        remap[net] = num_active
         
     final_port_nodes = np.array([remap[net] for net in port_to_net_map], dtype=int)
     
@@ -223,44 +211,37 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
     offset = 0
     aux_offset = 0
     
-    # Dummy frequency just to evaluate output shapes
     freq_dummy = Frequency(1, 2, 2)
     
-    for m in topology.models:
-        n = m.nports
+    for c in topology.components:
+        n = c.nports
         nodes = final_port_nodes[offset:offset+n]
         
-        # Evaluate the shape of the MNA stamp to determine K (num_aux)
-        stamp_shape = jax.eval_shape(lambda model=m: model.mna(freq_dummy))
+        stamp_shape = jax.eval_shape(lambda comp=c: comp.mna(freq_dummy))
         k = stamp_shape.D.shape[1]
         
         aux_nodes = np.arange(aux_offset, aux_offset + k)
         
-        # Y block (n x n)
         y_r_idx.extend(np.repeat(nodes, n))
         y_c_idx.extend(np.tile(nodes, n))
         
-        # B block (n x k)
         if k > 0:
             b_r_idx.extend(np.repeat(nodes, k))
             b_c_idx.extend(np.tile(aux_nodes, n))
             
-            # C block (k x n)
             c_r_idx.extend(np.repeat(aux_nodes, n))
             c_c_idx.extend(np.tile(nodes, k))
             
-            # D block (k x k)
             d_r_idx.extend(np.repeat(aux_nodes, k))
             d_c_idx.extend(np.tile(aux_nodes, k))
             
         offset += n
         aux_offset += k
         
-    # Identify external and internal active nets
     ext_nets = set()
     for p in (topology.port_indices or []):
         net = final_port_nodes[p]
-        if net != num_active: # Exclude the dummy ground node
+        if net != num_active:
             ext_nets.add(net)
             
     ext_idx = np.array(sorted(list(ext_nets)), dtype=int)
@@ -268,8 +249,6 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
     int_idx = np.array(sorted(list(all_active - ext_nets)), dtype=int)
     
     return ModifiedNodalRepresentation(
-        num_nodes=num_active + 1,
-        num_aux=aux_offset,
         y_r_idx=np.array(y_r_idx, dtype=int),
         y_c_idx=np.array(y_c_idx, dtype=int),
         b_r_idx=np.array(b_r_idx, dtype=int),
@@ -279,5 +258,6 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
         d_r_idx=np.array(d_r_idx, dtype=int),
         d_c_idx=np.array(d_c_idx, dtype=int),
         ext_idx=ext_idx,
-        int_idx=int_idx
+        int_idx=int_idx,
+        aux_idx=np.arange(aux_offset, dtype=int)
     )

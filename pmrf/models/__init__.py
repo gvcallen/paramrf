@@ -50,6 +50,7 @@ from pmrf.models.components.ideal import (
     Splitter as Splitter,
     Tee as Tee,
     Attenuator as Attenuator,
+    Amplifier as Amplifier,
     DirectionalCoupler as DirectionalCoupler,
 )
 
@@ -94,6 +95,7 @@ from pmrf.models.components.sections import (
 # Composite
 from pmrf.models.composite.interconnected import (
     Circuit as Circuit,
+    Connected as Connected,
     Cascade as Cascade,
     Terminated as Terminated,
 )

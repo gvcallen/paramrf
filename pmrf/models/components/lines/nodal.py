@@ -22,6 +22,10 @@ class FloatingLine(Model, Generic[T]):
     #: Inner transmission line model
     floating: T
 
+    def __post_init__(self):
+        if not isinstance(self.floating, TransmissionLine):
+            raise TypeError(f"FloatingLine can only be used to wrap TransmissionLine models. Got: {type(self.floating)}")
+
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line
         z0, gL = self.floating.zc_and_gammaL(frequency)

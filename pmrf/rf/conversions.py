@@ -8,7 +8,7 @@ from jaxtyping import ArrayLike
 
 from pmrf.math import rsolve, nudge_diag
 from pmrf.utils.rf import fix_z0_shape
-from pmrf.rf.mna import MNAStamp
+from pmrf.base import MNAStamp
 
 ZERO = 1e-4
 

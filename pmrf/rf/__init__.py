@@ -8,7 +8,7 @@ from pmrf.rf.conversions import (
     renormalize_s,
 )
 
-from pmrf.rf.mna import MNAStamp
+from pmrf.base import MNAStamp
 
 __all__ = [
     "s2s",

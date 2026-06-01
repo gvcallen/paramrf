@@ -5,13 +5,13 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from pmrf.frequency import Frequency
-from pmrf.models.base import Model
+from pmrf.base import AbstractComponent
 from pmrf.simulate.base import AbstractTerminator, AbstractScatteringTerminator, AbstractTransferTerminator
 from pmrf.simulate.result import SimulateResult
 
 def terminate(
-    model_from: Model,
-    model_into: Model,
+    component_from: AbstractComponent,
+    component_into: AbstractComponent,
     frequency: Frequency,
     solver: AbstractTerminator,
     z0: ArrayLike = 50.0,
@@ -21,10 +21,10 @@ def terminate(
 
     Parameters
     ----------
-    model_from : Model
-        The source Model being terminated.
-    model_into : Model
-        The load Model to terminate into.
+    component_from : AbstractComponent
+        The source component being terminated.
+    component_into : AbstractComponent
+        The load component to terminate into.
     frequency : Frequency
         The frequency of the results.
     solver : AbstractTerminator
@@ -49,18 +49,18 @@ def terminate(
     if not jnp.isscalar(z0):
         raise ValueError("Terminate currently only accepts scalar characteristic impedances.")
 
-    n_into = model_into.nports
+    n_into = component_into.nports
 
-    if model_from.nports != 2 * n_into:
+    if component_from.nports != 2 * n_into:
         raise ValueError(
             f"Termination requires a 2N-port terminating into an N-port. "
-            f"Got {model_from.nports} and {n_into}."
+            f"Got {component_from.nports} and {n_into}."
         )
         
     if isinstance(solver, AbstractScatteringTerminator):
-        s_from = model_from.s(frequency, z0=z0)
-        s_into = model_into.s(frequency, z0=z0)
-        z0_from = jnp.broadcast_to(jnp.asarray(z0), (model_from.nports,))
+        s_from = component_from.s(frequency, z0=z0)
+        s_into = component_into.s(frequency, z0=z0)
+        z0_from = jnp.broadcast_to(jnp.asarray(z0), (component_from.nports,))
         z0_into = jnp.broadcast_to(jnp.asarray(z0), (n_into,))
         
         vmapped_solver = jax.vmap(solver.run, in_axes=(0, None, 0, None))
@@ -69,8 +69,8 @@ def terminate(
         return SimulateResult(solution=solution, z0=z0)
         
     elif isinstance(solver, AbstractTransferTerminator):
-        a_from = model_from.a(frequency)
-        s_into = model_into.s(frequency, z0=z0)
+        a_from = component_from.a(frequency)
+        s_into = component_into.s(frequency, z0=z0)
         
         z0_into = jnp.broadcast_to(jnp.asarray(z0), (1,))
         

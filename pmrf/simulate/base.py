@@ -11,9 +11,6 @@ class NodalRepresentation(eqx.Module):
     """
     Static topological representation for nodal admittance assembly and reduction.
     """
-    #: The total number of global nodes in the network, including the dummy ground node.
-    num_nodes: int = eqx.field(static=True)
-
     #: A 1D array of global row indices mapping local elements to the global Nodal Admittance Matrix (NAM).
     r_idx: np.ndarray
 
@@ -26,17 +23,16 @@ class NodalRepresentation(eqx.Module):
     #: A 1D array of node indices designated as internal (eliminated via Schur complement).
     int_idx: np.ndarray
 
+    @property
+    def num_nodes(self) -> int:
+        """The total number of global nodes in the network, including the dummy ground node."""
+        return self.ext_idx.shape[0] + self.int_idx.shape[0]    
+
 
 class ModifiedNodalRepresentation(eqx.Module):
     """
     Static topological representation for Modified Nodal Analysis (MNA) assembly and reduction.
     """
-    #: The total number of global nodes in the network, including the dummy ground node.
-    num_nodes: int = eqx.field(static=True)
-    
-    #: The total number of global auxiliary variables (e.g., branch currents, wave variables).
-    num_aux: int = eqx.field(static=True)
-
     #: Global row indices mapping local Y elements (Node to Node) to the global MNA matrix.
     y_r_idx: np.ndarray
     #: Global column indices mapping local Y elements (Node to Node) to the global MNA matrix.
@@ -61,17 +57,26 @@ class ModifiedNodalRepresentation(eqx.Module):
     ext_idx: np.ndarray
 
     #: A 1D array of standard node indices designated as internal (eliminated).
-    #: Note: All auxiliary variables are inherently considered internal and are eliminated.
     int_idx: np.ndarray
+
+    #: A 1D array of auxiliary indices (inherently internal and eliminated).
+    aux_idx: np.ndarray 
+
+    @property
+    def num_nodes(self) -> int:
+        """The total number of global standard nodes in the network."""
+        return self.ext_idx.shape[0] + self.int_idx.shape[0]
+
+    @property
+    def num_aux(self) -> int:
+        """The total number of global auxiliary variables."""
+        return self.aux_idx.shape[0]
 
 
 class PortRepresentation(eqx.Module):
     """
     Static topological representation for scattering parameter connection and reduction.
     """
-    #: The total number of ports across all components in the topology.
-    num_ports: int = eqx.field(static=True)
-
     #: A 1D array of port indices designated as external (unconnected or specifically retained).
     ext_idx: np.ndarray
 
@@ -80,6 +85,11 @@ class PortRepresentation(eqx.Module):
 
     #: A 1D array of length `num_ports` mapping each port to the integer ID of its connected net.
     port_to_net_map: np.ndarray
+
+    @property
+    def num_ports(self) -> int:
+        """The total number of ports across all components in the topology."""
+        return self.port_to_net_map.shape[0]    
 
 
 class ScatteringResult(eqx.Module):
@@ -179,7 +189,7 @@ class AbstractModifiedAdmittanceReducer(eqx.Module):
             A 1D array of flattened C-block elements.
         d_flattened : jnp.ndarray
             A 1D array of flattened D-block elements.
-        topology : MNARepresentation
+        topology : ModifiedNodalRepresentation
             The static map dictating the MNA assembly and partition logic.
 
         Returns
@@ -203,14 +213,24 @@ class AbstractScatteringReducer(eqx.Module):
         """
         Executes the scattering reduction algorithm.
 
+        Note on Dangling Ports
+        ----------------------
+        Implementations MUST safely handle mathematically isolated external ports (where a port 
+        in `topology.ext_idx` is the ONLY port on its defined net). To prevent solvers from 
+        evaluating these as perfect open circuits (S=1.0), implementations should dynamically inject 
+        matched virtual VNA probes (e.g., padding the S-matrix with 0.0s and rewiring the indices) 
+        prior to solving.
+
         Parameters
         ----------
         s_block_diagonal : jnp.ndarray
-            The S-parameters assembled into a global block-diagonal matrix space.
+            A 2D array of shape (N_total, N_total) containing the uncoupled S-parameters 
+            of all components placed sequentially along the main diagonal. All off-diagonal 
+            elements are exactly zero.
         z0_ports : jnp.ndarray
-            The characteristic impedances for all global ports.
+            A 1D array of shape (N_total,) containing the characteristic impedances for all ports.
         topology : PortRepresentation
-            The static map dictating the port connections and partition logic.
+            The static map dictating the port connections, nets, and partition logic.
 
         Returns
         -------
@@ -235,9 +255,9 @@ class AbstractScatteringCascader(eqx.Module):
         Parameters
         ----------
         s_stacked : jnp.ndarray
-            A 3D tensor of shape (N_models, N_ports, N_ports) representing sequential networks.
+            A 3D array of shape (N_models, n_ports, n_ports) representing sequential networks.
         port_z0 : jnp.ndarray
-            A 2D tensor of shape (N_models, N_ports) representing sequential port impedances.
+            A 2D array of shape (N_models, n_ports) representing sequential port impedances.
 
         Returns
         -------
@@ -261,7 +281,7 @@ class AbstractTransferCascader(eqx.Module):
         Parameters
         ----------
         a_stacked : jnp.ndarray
-            A 3D tensor of shape (N_models, N_ports, N_ports) representing sequential networks.
+            A 3D array of shape (N_models, n_ports, n_ports) representing sequential networks.
 
         Returns
         -------

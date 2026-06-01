@@ -740,7 +740,7 @@ def tree_named_params(
     
     return named
 
-def tree_param_name_to_path(tree):
+def tree_param_names_to_path(tree):
     pathed = tree_pathed_params(tree, full_params=True)
     name_to_path = {}
     for path, _ in pathed:

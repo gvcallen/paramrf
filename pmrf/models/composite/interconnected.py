@@ -10,7 +10,18 @@ from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.models.components.ideal import Port
 from pmrf.simulate.topology import Topology
-from pmrf.simulate import AbstractReducer, AbstractCascader, AbstractTerminator, HallbjornerReducer, LinearFractionalTerminator, RedhefferCascader, reduce, cascade, terminate
+from pmrf.simulate import (
+    AbstractReducer, 
+    AbstractCascader, 
+    AbstractTerminator, 
+    HallbjornerReducer, 
+    SubnetworkGrowthReducer,    
+    LinearFractionalTerminator, 
+    RedhefferCascader, 
+    reduce, 
+    cascade, 
+    terminate
+)
 
 EVAL_Z0 = 50.0
 
@@ -224,24 +235,160 @@ class Circuit(Model):
         
     @property
     def topology(self) -> Topology:
-        port_idx = []
-        ground_idxs = []
+        port_indices = []
+        ground_indices = []
         offset = 0
         
         for model in self.circuit:
             if isinstance(model, Port):
                 for p in range(model.nports):
-                    port_idx.append(offset + p)
+                    port_indices.append(offset + p)
             elif isinstance(model, Ground):
                 for p in range(model.nports):
-                    ground_idxs.append(offset + p)
-            offset += model.nports        
+                    ground_indices.append(offset + p)
+            offset += model.nports
         
-        return Topology(self.circuit, self.indexed_connections, port_idx, ground_idxs)
+        return Topology(
+            components=self.circuit,
+            indexed_connections=self.indexed_connections,
+            port_indices=port_indices,
+            ground_indices=ground_indices,
+            marker_indices=port_indices,
+        )
         
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         return reduce(self.topology, freq, self.solver, z0=z0).s
     
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        return reduce(self.topology, freq, self.solver).y
+    
+
+class Connected(Model):
+    """
+    (experimental) Represents a direct port-to-port connection between one or two models.
+
+    This container connects exactly two ports together. It handles both standard 
+    connections (connecting port `a` on `model_a` to port `b` on `model_b`) and 
+    inner connections (closing a loop by connecting two ports on the same model instance).
+
+    The resultant external ports maintain the expected order: the unconnected ports 
+    of `model_a` followed by the unconnected ports of `model_b`.
+
+    Parameters
+    ----------
+    model_a : Model
+        The first model.
+    port_a : int
+        The integer index of the port on `model_a` to connect.
+    model_b : Model
+        The second model. If `model_a` and `model_b` are the exact same instance, 
+        an inner-connection is performed.
+    port_b : int
+        The integer index of the port on `model_b` to connect.
+    solver : AbstractReducer, default=SubnetworkGrowthReducer()
+        The solver to use. Defaults to :class:`pmrf.simulate.SubnetworkGrowthReducer`,
+        which is optimized for pairwise connections.
+
+    Examples
+    --------
+    Connect port 1 of a 2-port attenuator to port 0 of a 2-port amplifier:
+
+    >>> import pmrf as prf
+    >>> from pmrf.models import Attenuator, Amplifier, Connected
+    >>> 
+    >>> atten = Attenuator(loss=3.0)
+    >>> amp = Amplifier(gain=10.0)
+    >>> 
+    >>> # The resulting model will have 2 external ports (atten port 0, amp port 1)
+    >>> chain = Connected(atten, 1, amp, 0)
+    
+    Close a feedback loop by connecting port 2 to port 3 on a 4-port coupler:
+    
+    >>> coupler = DirectionalCoupler()
+    >>> feedback = Connected(coupler, 2, coupler, 3)
+    """
+    #: The first model.
+    model_a: InitVar[Model]
+    #: Port index on the first model.
+    port_a: int = field(static=True)
+    
+    #: The second model.
+    model_b: InitVar[Model]
+    #: Port index on the second model.
+    port_b: int = field(static=True)
+
+    #: The circuit solver. Defaults to iterative port elimination.
+    solver: AbstractReducer = field(default=SubnetworkGrowthReducer())
+
+    #: The sequence of models forming this connection.
+    models: tuple[Model, ...] = field(default=None, kw_only=True)
+    
+    #: The collated indices defining the single connection node.
+    indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
+    
+    #: The explicitly ordered indices of the remaining external ports.
+    port_index: list[int] = field(default=None, kw_only=True, static=True)
+    
+    #: Indicates if this is an inner connection.
+    is_inner: bool = field(default=False, kw_only=True, static=True)
+
+    def __post_init__(self, model_a: Model, model_b: Model):
+        # Input Validation
+        if self.port_a < 0 or self.port_a >= model_a.nports:
+            raise ValueError(
+                f"port_a index {self.port_a} out of bounds for model_a (nports={model_a.nports})."
+            )
+        if self.port_b < 0 or self.port_b >= model_b.nports:
+            raise ValueError(
+                f"port_b index {self.port_b} out of bounds for model_b (nports={model_b.nports})."
+            )
+
+        # Detect Inner Connection vs Standard Connection
+        if model_a is model_b:
+            if self.port_a == self.port_b:
+                raise ValueError("Cannot connect a port to itself.")
+            
+            # Store ONE instance to preserve weight-tying and architecture rules
+            self.models = (model_a,)
+            self.is_inner = True
+            self.indexed_connections = [[(0, self.port_a), (0, self.port_b)]]
+            
+            # Retain all remaining ports in their original order
+            self.port_index = [
+                p for p in range(model_a.nports) 
+                if p not in (self.port_a, self.port_b)
+            ]
+            
+        else:
+            # Store BOTH instances
+            self.models = (model_a, model_b)
+            self.is_inner = False
+            self.indexed_connections = [[(0, self.port_a), (1, self.port_b)]]
+            
+            # Retain ports of A, followed by ports of B
+            ports_a = [p for p in range(model_a.nports) if p != self.port_a]
+            offset = model_a.nports
+            ports_b = [offset + p for p in range(model_b.nports) if p != self.port_b]
+            
+            self.port_index = ports_a + ports_b
+
+    @property
+    def number_of_ports(self):
+        return len(self.port_index)
+
+    @property
+    def topology(self) -> Topology:
+        return Topology(
+            components=list(self.models), 
+            indexed_connections=self.indexed_connections, 
+            port_indices=self.port_index, 
+            ground_indices=[],
+            marker_indices=[],
+        )
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return reduce(self.topology, freq, self.solver, z0=z0).s
+
     def y(self, freq: Frequency) -> jnp.ndarray:
         return reduce(self.topology, freq, self.solver).y
     

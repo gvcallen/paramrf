@@ -11,7 +11,6 @@ jax_logger.addFilter(_SuppressJaxGpuWarning())
 import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
-import parax 
 from jaxtyping import ArrayLike
 from typing import TypeAlias
 
@@ -25,6 +24,8 @@ except PackageNotFoundError:
     pass
 
 # Re-exports
+from pmrf.base import AbstractComponent, MNAStamp
+
 from pmrf.models import (
     Model as Model,
     is_model as is_model,
@@ -94,7 +95,9 @@ from pmrf import (
 )
 
 __all__ = [
-    # Core
+    # Base/Core
+    "AbstractComponent",
+    "MNAStamp",
     "Model",
     "is_model",
     "Frequency",

@@ -30,6 +30,7 @@ from pmrf.simulate.result import SimulateResult
 from pmrf.simulate.solvers.hallbjorner import HallbjornerReducer
 from pmrf.simulate.solvers.kron import KronReducer
 from pmrf.simulate.solvers.modified_kron import ModifiedKronReducer
+from pmrf.simulate.solvers.subnetwork_growth import SubnetworkGrowthReducer
 
 # Cascaders
 from pmrf.simulate.solvers.redheffer import RedhefferCascader
@@ -56,6 +57,7 @@ __all__ = [
     'HallbjornerReducer',
     'KronReducer',
     'ModifiedKronReducer',
+    'SubnetworkGrowthReducer',
     'RedhefferCascader',
     'MobiusTerminator',
     'LinearFractionalTerminator',
