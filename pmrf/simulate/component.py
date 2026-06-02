@@ -6,30 +6,29 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 import equinox as eqx
 
-from pmrf.frequency import Frequency
 
 class MNAStamp(eqx.Module):
-    """Represents a batched MNA stamp for a component."""
+    """Represents an MNA stamp for a component."""
     
-    #: Nodal admittance matrix. Shape: (nf, n, n)
+    #: Nodal admittance matrix. Shape: (n, n)
     Y: jnp.ndarray  
     
-    #: Maps auxiliary variables to node currents. Shape: (nf, n, k)
+    #: Maps auxiliary variables to node currents. Shape: (n, k)
     B: jnp.ndarray  
     
-    #: Maps node voltages to auxiliary constraints. Shape: (nf, k, n)
+    #: Maps node voltages to auxiliary constraints. Shape: (k, n)
     C: jnp.ndarray  
     
-    #: Auxiliary variable relationships. Shape: (nf, k, k)
+    #: Auxiliary variable relationships. Shape: (k, k)
     D: jnp.ndarray  
     
     @property
     def num_ports(self) -> int:
-        return self.Y.shape[1]
+        return self.Y.shape[0]
         
     @property
     def num_aux(self) -> int:
-        return self.D.shape[1]
+        return self.D.shape[0]
     
 
 class AbstractComponent(eqx.Module):
@@ -48,26 +47,26 @@ class AbstractComponent(eqx.Module):
         raise NotImplementedError
 
     @abstractmethod
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        """Evaluates the Scattering parameters."""
+    def s_omega(self, w: ArrayLike, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        """Evaluates the Scattering parameters for a single angular frequency."""
         raise NotImplementedError
 
     @abstractmethod
-    def y(self, freq: Frequency) -> jnp.ndarray:
-        """Evaluates the Admittance parameters."""
+    def y_omega(self, w: ArrayLike) -> jnp.ndarray:
+        """Evaluates the Admittance parameters for a single angular frequency."""
         raise NotImplementedError
 
     @abstractmethod
-    def z(self, freq: Frequency) -> jnp.ndarray:
-        """Evaluates the Impedance parameters."""
+    def z_omega(self, w: ArrayLike) -> jnp.ndarray:
+        """Evaluates the Impedance parameters for a single angular frequency."""
         raise NotImplementedError
     
     @abstractmethod
-    def a(self, freq: Frequency) -> jnp.ndarray:
-        """Evaluates the Impedance parameters."""
+    def a_omega(self, w: ArrayLike) -> jnp.ndarray:
+        """Evaluates the ABCD parameters for a single angular frequency."""
         raise NotImplementedError
 
     @abstractmethod
-    def mna(self, freq: Frequency) -> MNAStamp:
-        """Evaluates the Modified Nodal Analysis matrices."""
+    def mna_omega(self, w: ArrayLike) -> MNAStamp:
+        """Evaluates the Modified Nodal Analysis matrices for a single angular frequency."""
         raise NotImplementedError

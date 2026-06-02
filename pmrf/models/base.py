@@ -426,19 +426,18 @@ class Model(AbstractComponent, eqx.Module):
         jnp.ndarray
             S-parameter matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build or omega variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().s(frequency, z0=z0)
-
-        # 1. Direct delegation to avoid conversions if omega is directly implemented
         if is_overridden(type(self), Model, 's_omega'):
             return jax.vmap(lambda w: self.s_omega(w, z0=z0))(frequency.w)
 
-        # 2. Fetch primary
+        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # 3. Return or Convert
+        # Return or Convert
         if primary_domain == 's':
             return val
         elif primary_domain == 'a':
@@ -467,21 +466,20 @@ class Model(AbstractComponent, eqx.Module):
         jnp.ndarray
             S-parameter matrix with shape ``(n, n)``.
         """
+        # Direct delegation to build or batched variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().s_omega(w, z0=z0)
-
-        # 1. Safely unbatch if only the vectorized version is explicitly implemented
         if is_overridden(type(self), Model, 's'):
             freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
             res = self.s(freq, z0=z0)
             return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
 
-        # 2. Fetch primary
+        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': z0} if primary_domain == 's' else {}
         val = self.primary_matrix_omega(w, **kwargs)
 
-        # 3. Return or Convert
+        # Return or Convert
         if primary_domain == 's':
             return val
         elif primary_domain == 'a':
@@ -510,9 +508,9 @@ class Model(AbstractComponent, eqx.Module):
         jnp.ndarray
             ABCD matrix with shape ``(nf, 2, 2)``.
         """        
+        # Direct delegation to build or omega variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().a(frequency)
-        
         if is_overridden(type(self), Model, 'a_omega'):
             return jax.vmap(self.a_omega)(frequency.w)
 
@@ -521,12 +519,10 @@ class Model(AbstractComponent, eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or Convert
         if primary_domain == 'a':
             return val
-        
-        # Convert with priority s, z, y
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
             return z2a(val)
@@ -564,8 +560,7 @@ class Model(AbstractComponent, eqx.Module):
 
         if primary_domain == 'a':
             return val
-        
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
             return z2a(val)
@@ -591,9 +586,9 @@ class Model(AbstractComponent, eqx.Module):
         jnp.ndarray
             Z matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build or omega variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().z(frequency)
-
         if is_overridden(type(self), Model, 'z_omega'):
             return jax.vmap(self.z_omega)(frequency.w)
 
@@ -602,12 +597,10 @@ class Model(AbstractComponent, eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or convert
         if primary_domain == 'z':
             return val
-
-        # Convert with priority s, a, y
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
             return a2z(val)
@@ -645,8 +638,7 @@ class Model(AbstractComponent, eqx.Module):
 
         if primary_domain == 'z':
             return val
-
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
             return a2z(val)
@@ -672,9 +664,9 @@ class Model(AbstractComponent, eqx.Module):
         jnp.ndarray
             Y matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build or omega variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().y(frequency)
-
         if is_overridden(type(self), Model, 'y_omega'):
             return jax.vmap(self.y_omega)(frequency.w)
 
@@ -683,12 +675,10 @@ class Model(AbstractComponent, eqx.Module):
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or convert
         if primary_domain == 'y':
             return val
-
-        # Convert with priority s, a, z
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2y(val, HUB_Z0)
         elif primary_domain == 'a':
             return a2y(val)
@@ -726,8 +716,7 @@ class Model(AbstractComponent, eqx.Module):
 
         if primary_domain == 'y':
             return val
-
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2y(val, HUB_Z0)
         elif primary_domain == 'a':
             return a2y(val)
@@ -749,9 +738,9 @@ class Model(AbstractComponent, eqx.Module):
         Explicitly defined Y-matrices are prioritized to maximize matrix sparsity, 
         while other domains fall back to auxiliary variables to guarantee stability.
         """
+        # Direct delegation to build or omega variant
         if is_overridden(type(self), Model, 'build'):
             return self.build().mna(frequency)
-
         if is_overridden(type(self), Model, 'mna_omega'):
             return jax.vmap(self.mna_omega)(frequency.w)
 
