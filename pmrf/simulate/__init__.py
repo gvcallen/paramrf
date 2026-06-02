@@ -2,23 +2,23 @@
 Frequency-domain circuit simulation, such as reductions and cascades.
 
 This is a lower-level module, and is used by the composite models in :mod:`pmrf.models`.
-
-It is likely only really convenient to use to test different algorithms,
-or to investigate convergence or accuracy issues.
 """
 
 from pmrf.simulate.base import (
     ScatteringResult,
     AdmittanceResult,
-    TransferResult,
+    ABCDResult,
     AbstractAdmittanceReducer,
+    AbstractMNAReducer,
     AbstractScatteringReducer,
+    AbstractScatteringCascader,
     AbstractABCDCascader,
     AbstractABCDTerminator,
     AbstractTerminator,
     AbstractReducer,
     AbstractCascader,
     NodalRepresentation,
+    MNARepresentation,
     PortRepresentation,
 )
 from pmrf.simulate.reduce import reduce
@@ -27,25 +27,30 @@ from pmrf.simulate.terminate import terminate
 from pmrf.simulate.result import SimulateResult
 
 # Reducers
-from pmrf.simulate.solvers.global_schur_scattering import GlobalSchurScatteringReducer
-from pmrf.simulate.solvers.subnetwork_growth import SequentialSchurScatteringReducer
-from pmrf.simulate.solvers.hierarchical_tree import BlockSchurScatteringReducer
-from pmrf.simulate.solvers.nodal import NodalAdmittanceReducer
-from pmrf.simulate.solvers.modified_nodal import ModifiedNodalAdmittanceReducer
+from pmrf.simulate.solvers.scattering import (
+    GlobalScatteringReducer,
+    SequentialScatteringReducer,
+    HierarchicalScatteringReducer,
+)
+from pmrf.simulate.solvers.nodal import (
+    GlobalNodalReducer,
+    GlobalMNAReducer,
+)
 
 # Cascaders
-from pmrf.simulate.solvers.redheffer import RedhefferScatteringCascader
-from pmrf.simulate.solvers.analytic import AnalyticABCDCascader
+from pmrf.simulate.solvers.scattering import SequentialScatteringCascader
+from pmrf.simulate.solvers.abcd import SequentialABCDCascader
 
 # Terminators
-from pmrf.simulate.solvers.analytic import AnalyticScatteringTerminator
-from pmrf.simulate.solvers.analytic import BilinearABCDTerminator
+from pmrf.simulate.solvers.scattering import ScatteringTerminator
+from pmrf.simulate.solvers.abcd import ABCDTerminator
 
 __all__ = [
     'ScatteringResult',
     'AdmittanceResult',
-    'TransferResult',
+    'ABCDResult',
     'AbstractAdmittanceReducer',
+    'AbstractMNAReducer',
     'AbstractScatteringReducer',
     'AbstractReducer',
     'AbstractCascader',
@@ -54,16 +59,18 @@ __all__ = [
     'terminate',
     'PortRepresentation',
     'NodalRepresentation',
+    'MNARepresentation',
     'SimulateResult',
-    'GlobalSchurScatteringReducer',
-    'NodalAdmittanceReducer',
-    'ModifiedNodalAdmittanceReducer',
-    'BlockSchurScatteringReducer',
-    'SequentialSchurScatteringReducer',
-    'RedhefferScatteringCascader',
-    'BilinearABCDTerminator',
-    'AnalyticScatteringTerminator',
-    'AnalyticABCDCascader',
+    'GlobalScatteringReducer',
+    'GlobalNodalReducer',
+    'GlobalMNAReducer',
+    'HierarchicalScatteringReducer',
+    'SequentialScatteringReducer',
+    'SequentialScatteringCascader',
+    'ABCDTerminator',
+    'ScatteringTerminator',
+    'SequentialABCDCascader',
+    'AbstractScatteringCascader',
     'AbstractABCDCascader',
     'AbstractABCDTerminator',
     'AbstractTerminator',

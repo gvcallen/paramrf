@@ -14,11 +14,11 @@ from pmrf.simulate import (
     AbstractReducer, 
     AbstractCascader, 
     AbstractTerminator, 
-    GlobalSchurScatteringReducer, 
-    SequentialSchurScatteringReducer,    
-    AnalyticScatteringTerminator, 
-    BlockSchurScatteringReducer,
-    RedhefferScatteringCascader, 
+    GlobalScatteringReducer, 
+    SequentialScatteringReducer,    
+    ScatteringTerminator, 
+    HierarchicalScatteringReducer,
+    SequentialScatteringCascader, 
     reduce, 
     cascade, 
     terminate
@@ -82,7 +82,7 @@ class Circuit(Model):
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
     
     #: The circuit solver.
-    solver: AbstractReducer = field(default=GlobalSchurScatteringReducer())
+    solver: AbstractReducer = field(default=GlobalScatteringReducer())
     
     @staticmethod
     def _flatten_connections(connections):
@@ -309,7 +309,7 @@ class Parallel(Model):
     models: tuple[Model, ...] = field(default=None, kw_only=True)
     
     #: The solver, defaulting to hierarchical block reduction
-    solver: AbstractReducer = field(default=BlockSchurScatteringReducer())
+    solver: AbstractReducer = field(default=HierarchicalScatteringReducer())
     
     #: The collated indices defining the internal parallel nodes
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
@@ -444,7 +444,7 @@ class Connected(Model):
     port_b: int = field(static=True)
 
     #: The circuit solver. Defaults to iterative port elimination.
-    solver: AbstractReducer = field(default=SequentialSchurScatteringReducer())
+    solver: AbstractReducer = field(default=SequentialScatteringReducer())
 
     #: The sequence of models forming this connection.
     models: tuple[Model, ...] = field(default=None, kw_only=True)
@@ -574,7 +574,7 @@ class Cascade(Model):
     cascade: tuple[Model]
     
     #: The solver.
-    solver: AbstractCascader = field(default=RedhefferScatteringCascader())
+    solver: AbstractCascader = field(default=SequentialScatteringCascader())
     
     def __post_init__(self, flatten: bool):
         for model in self.cascade:
@@ -621,7 +621,7 @@ class Terminated(Model):
     terminated_into: Model
     
     #: The solver.
-    solver: AbstractTerminator = field(default=AnalyticScatteringTerminator())
+    solver: AbstractTerminator = field(default=ScatteringTerminator())
 
     @property
     def number_of_ports(self):

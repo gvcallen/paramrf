@@ -24,8 +24,6 @@ except PackageNotFoundError:
     pass
 
 # Re-exports
-from pmrf.base import AbstractComponent, MNAStamp
-
 from pmrf.models import (
     Model as Model,
     is_model as is_model,
@@ -96,8 +94,6 @@ from pmrf import (
 
 __all__ = [
     # Base/Core
-    "AbstractComponent",
-    "MNAStamp",
     "Model",
     "is_model",
     "Frequency",

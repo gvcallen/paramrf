@@ -4,7 +4,7 @@ from jaxtyping import ArrayLike
 from typing import Sequence
 
 from pmrf.frequency import Frequency
-from pmrf.base import AbstractComponent
+from pmrf.simulate.component import AbstractComponent
 from pmrf.simulate.base import AbstractCascader, AbstractScatteringCascader, AbstractABCDCascader
 from pmrf.simulate.result import SimulateResult
 

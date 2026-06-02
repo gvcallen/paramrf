@@ -1,4 +1,4 @@
-"""General base and core classes"""
+"""Component base class for simulation"""
 
 from abc import abstractmethod
 

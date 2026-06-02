@@ -29,7 +29,7 @@ class NodalRepresentation(eqx.Module):
         return self.ext_idx.shape[0] + self.int_idx.shape[0]    
 
 
-class ModifiedNodalRepresentation(eqx.Module):
+class MNARepresentation(eqx.Module):
     """
     Static topological representation for Modified Nodal Analysis (MNA) assembly and reduction.
     """
@@ -123,11 +123,11 @@ class AdmittanceResult(eqx.Module):
     metrics: Any = None
 
 
-class TransferResult(eqx.Module):
+class ABCDResult(eqx.Module):
     """
-    Data container for the result of a transfer (ABCD) parameter simulation/reduction.
+    Data container for the result of a ABCD parameter simulation/reduction.
     """
-    #: The resulting Transfer (ABCD-parameter) matrix.
+    #: The resulting ABCD matrix.
     a: jnp.ndarray
     
     #: Indicates whether the solver completed successfully, by default True.
@@ -164,7 +164,7 @@ class AbstractAdmittanceReducer(eqx.Module):
         raise NotImplementedError
     
 
-class AbstractModifiedAdmittanceReducer(eqx.Module):
+class AbstractMNAReducer(eqx.Module):
     """Abstract base class for solvers that reduce arbitrary admittance using MNA."""
     
     @abstractmethod
@@ -174,7 +174,7 @@ class AbstractModifiedAdmittanceReducer(eqx.Module):
         b_flattened: jnp.ndarray,
         c_flattened: jnp.ndarray,
         d_flattened: jnp.ndarray,
-        topology: ModifiedNodalRepresentation, 
+        topology: MNARepresentation, 
     ) -> AdmittanceResult:
         """
         Executes the Modified Nodal Analysis reduction algorithm.
@@ -189,7 +189,7 @@ class AbstractModifiedAdmittanceReducer(eqx.Module):
             A 1D array of flattened C-block elements.
         d_flattened : jnp.ndarray
             A 1D array of flattened D-block elements.
-        topology : ModifiedNodalRepresentation
+        topology : MNARepresentation
             The static map dictating the MNA assembly and partition logic.
 
         Returns
@@ -274,9 +274,9 @@ class AbstractABCDCascader(eqx.Module):
     def run(
         self, 
         a_stacked: jnp.ndarray,
-    ) -> TransferResult:
+    ) -> ABCDResult:
         """
-        Executes the transfer parameter cascade algorithm.
+        Executes the ABCD parameter cascade algorithm.
 
         Parameters
         ----------
@@ -285,8 +285,8 @@ class AbstractABCDCascader(eqx.Module):
 
         Returns
         -------
-        TransferResult
-            The completely cascaded Transfer (ABCD) parameter result.
+        ABCDResult
+            The completely cascaded ABCD parameter result.
         """
         raise NotImplementedError
     
@@ -325,7 +325,7 @@ class AbstractScatteringTerminator(eqx.Module):
 
 
 class AbstractABCDTerminator(eqx.Module):
-    """Abstract base class for algorithms terminating Transfer parameters into S-parameters."""
+    """Abstract base class for algorithms terminating ABCD parameters into S-parameters."""
     
     @abstractmethod
     def run(
@@ -335,12 +335,12 @@ class AbstractABCDTerminator(eqx.Module):
         z0_into: jnp.ndarray
     ) -> ScatteringResult:
         """
-        Executes the transfer-to-scattering termination algorithm.
+        Executes the ABCD-to-scattering termination algorithm.
 
         Parameters
         ----------
         a_from : jnp.ndarray
-            The primary Transfer (ABCD) matrix being terminated.
+            The primary ABCD matrix being terminated.
         s_into : jnp.ndarray
             The load S-matrix.
         z0_into : jnp.ndarray
@@ -355,6 +355,6 @@ class AbstractABCDTerminator(eqx.Module):
 
 
 # Type Aliases for solver categories
-AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer | AbstractModifiedAdmittanceReducer
+AbstractReducer = AbstractAdmittanceReducer | AbstractScatteringReducer | AbstractMNAReducer
 AbstractCascader = AbstractScatteringCascader | AbstractABCDCascader
 AbstractTerminator = AbstractScatteringTerminator | AbstractABCDTerminator

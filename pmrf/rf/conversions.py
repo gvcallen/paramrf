@@ -8,7 +8,7 @@ from jaxtyping import ArrayLike
 
 from pmrf.math import rsolve, nudge_diag
 from pmrf.utils.rf import fix_z0_shape
-from pmrf.base import MNAStamp
+from pmrf.simulate.component import MNAStamp
 
 ZERO = 1e-4
 
@@ -26,7 +26,7 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
         The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike
         The characteristic impedance. Can be a scalar, or an array broadcastable
-        to `(nfreqs, nports)`.
+        to `(nports,)` or `(nfreqs, nports)`.
     s_def_new : str
         The target S-parameter definition. Options: 'power', 'traveling'.
     s_def_old : str
@@ -40,76 +40,69 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
     if s_def_new == s_def_old:
         return s
 
-    # Ensure it's a jnp array to safely check dimensions
     s_arr = jnp.asarray(s)
     
-    # Check dimensionality and standardize to 3D for internal computation
-    if s_arr.ndim not in (2, 3):
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(s2s, in_axes=(0, 0, None, None))(s_arr, z0_fixed, s_def_new, s_def_old)
+        
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+
+        all_real = jnp.isreal(z0_arr).all()
+        
+        def real_branch():
+            return s_arr
+        
+        def imag_branch():
+            # Calculate port voltages and currents using the old s_def.
+            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
+            diag_idx = jnp.arange(nports)
+            
+            if s_def_old == 'power':
+                F = F.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr.real)))
+                G = G.at[diag_idx, diag_idx].set(z0_arr)        
+                Id = jnp.eye(nports, dtype=complex)
+                v = F @ (G.conjugate() + G @ s_arr)
+                i = F @ (Id - s_arr)
+            elif s_def_old == 'traveling':
+                F = F.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
+                G = G.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr)))        
+                Id = jnp.eye(nports, dtype=complex)
+                v = F @ (Id + s_arr)
+                i = G @ (Id - s_arr)
+            else:
+                raise ValueError(f'Unknown s_def: {s_def_old}')
+
+            # Calculate a and b waves from the voltages and currents.
+            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
+            if s_def_new == 'power':
+                F = F.at[diag_idx, diag_idx].set(1.0 / (2.0 * jnp.sqrt(z0_arr.real)))
+                G = G.at[diag_idx, diag_idx].set(z0_arr)    
+                a = F @ (v + G @ i)
+                b = F @ (v - G.conjugate() @ i)
+            elif s_def_new == 'traveling':
+                F = F.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr)))
+                G = G.at[diag_idx, diag_idx].set(z0_arr) 
+                a = F @ (v + G @ i)
+                b = F @ (v - G @ i)
+            else:
+                raise ValueError(f'Unknown s_def: {s_def_new}')
+
+            # New S-parameter matrix from a and b waves.
+            s_new = jnp.zeros_like(s_arr)
+            for n in range(nports):
+                for m in range(nports):
+                    s_new = s_new.at[m, n].set(b[m, n] / a[n, n])
+
+            return s_new
+
+        return jax.lax.cond(all_real, real_branch, imag_branch)
+        
+    else:
         raise ValueError(f"S-parameters must be 2D (nports, nports) or 3D (nfreqs, nports, nports). Got {s_arr.ndim}D.")
-        
-    is_2d = (s_arr.ndim == 2)
-    if is_2d:
-        s_arr = jnp.expand_dims(s_arr, axis=0)
-
-    nfreqs, nports, _ = s_arr.shape
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-
-    all_real = jnp.isreal(z0).all()
-    
-    def real_branch():
-        return s_arr
-    
-    def imag_branch():
-        # Calculate port voltages and currents using the old s_def.
-        F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
-        diag_idx = jnp.arange(nports)
-        
-        if s_def_old == 'power':
-            F = F.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0.real)))
-            G = G.at[:, diag_idx, diag_idx].set(z0)        
-            Id = jnp.eye(nports, dtype=complex)
-            v = F @ (G.conjugate() + G @ s_arr)
-            i = F @ (Id - s_arr)
-        elif s_def_old == 'traveling':
-            F = F.at[:, diag_idx, diag_idx].set(jnp.sqrt(z0))
-            G = G.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0)))        
-            Id = jnp.eye(nports, dtype=complex)
-            v = F @ (Id + s_arr)
-            i = G @ (Id - s_arr)
-        else:
-            raise ValueError(f'Unknown s_def: {s_def_old}')
-
-        # Calculate a and b waves from the voltages and currents.
-        F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
-        if s_def_new == 'power':
-            F = F.at[:, diag_idx, diag_idx].set(1.0 / (2.0 * jnp.sqrt(z0.real)))
-            G = G.at[:, diag_idx, diag_idx].set(z0)    
-            a = F @ (v + G @ i)
-            b = F @ (v - G.conjugate() @ i)
-        elif s_def_new == 'traveling':
-            F = F.at[:, diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0)))
-            G = G.at[:, diag_idx, diag_idx].set(z0) 
-            a = F @ (v + G @ i)
-            b = F @ (v - G @ i)
-        else:
-            raise ValueError(f'Unknown s_def: {s_def_new}')
-
-        # New S-parameter matrix from a and b waves.
-        s_new = jnp.zeros_like(s_arr)
-        for n in range(nports):
-            for m in range(nports):
-                s_new = s_new.at[:, m, n].set(b[:, m, n] / a[:, n, n])
-
-        return s_new
-
-    # Execute the appropriate branch based on impedance characteristics
-    out = jax.lax.cond(all_real, real_branch, imag_branch)
-    
-    # Restore original 2D shape if needed
-    if is_2d:
-        out = jnp.squeeze(out, axis=0)
-        
-    return out
 
 def a2s(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     """
@@ -118,14 +111,14 @@ def a2s(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     Parameters
     ----------
     a : jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, 2, 2)`.
+        The S-parameter matrix with shape matching the input `a`.
 
     Raises
     ------
@@ -133,31 +126,41 @@ def a2s(a: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
         If the input is not a 2-port network.
     """
     # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
-    nfreqs, nports, nports = a.shape
+    a_arr = jnp.asarray(a)
+    
+    if a_arr.ndim == 3:
+        nfreqs, nports, _ = a_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(a2s, in_axes=(0, 0))(a_arr, z0_fixed)
+        
+    elif a_arr.ndim == 2:
+        nports = a_arr.shape[0]
+        if nports != 2:
+            raise IndexError('abcd parameters are defined for 2-ports networks only')
 
-    if nports != 2:
-        raise IndexError('abcd parameters are defined for 2-ports networks only')
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z01 = z0_arr[0]
+        z02 = z0_arr[1]
+        A = a_arr[0,0]
+        B = a_arr[0,1]
+        C = a_arr[1,0]
+        D = a_arr[1,1]
+        denom = A*z02 + B + C*z01*z02 + D*z01
 
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z01 = z0[:,0]
-    z02 = z0[:,1]
-    A = a[:,0,0]
-    B = a[:,0,1]
-    C = a[:,1,0]
-    D = a[:,1,1]
-    denom = A*z02 + B + C*z01*z02 + D*z01
-
-    s = jnp.array([
-        [
-            (A*z02 + B - C*z01.conj()*z02 - D*z01.conj() ) / denom,
-            (2*jnp.sqrt(z01.real * z02.real)) / denom,
-        ],
-        [
-            (2*(A*D - B*C)*jnp.sqrt(z01.real * z02.real)) / denom,
-            (-A*z02.conj() + B - C*z01*z02.conj() + D*z01) / denom,
-        ],
-    ]).transpose()
-    return s
+        s = jnp.array([
+            [
+                (A*z02 + B - C*z01.conj()*z02 - D*z01.conj() ) / denom,
+                (2*jnp.sqrt(z01.real * z02.real)) / denom,
+            ],
+            [
+                (2*(A*D - B*C)*jnp.sqrt(z01.real * z02.real)) / denom,
+                (-A*z02.conj() + B - C*z01*z02.conj() + D*z01) / denom,
+            ],
+        ]).transpose()
+        return s
+        
+    else:
+        raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
 
 def s2a(s: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     """
@@ -166,14 +169,14 @@ def s2a(s: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
     Parameters
     ----------
     s : jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, 2, 2)`.
+        The S-parameter matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
 
     Returns
     -------
     jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape matching the input `s`.
 
     Raises
     ------
@@ -181,26 +184,37 @@ def s2a(s: jnp.ndarray, z0: ArrayLike = 50) -> jnp.ndarray:
         If the input is not a 2-port network.
     """
     # Taken from scikit-rf. See the copyright notice in pmrf._frequency.py
-    nfreqs, nports, nports = s.shape
+    s_arr = jnp.asarray(s)
+    
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(s2a, in_axes=(0, 0))(s_arr, z0_fixed)
+        
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        if nports != 2:
+            raise IndexError('abcd parameters are defined for 2-ports networks only')
 
-    if nports != 2:
-        raise IndexError('abcd parameters are defined for 2-ports networks only')
-
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z01 = z0[:,0]
-    z02 = z0[:,1]
-    denom = (2*s[:,1,0]*jnp.sqrt(z01.real * z02.real))
-    a = jnp.array([
-        [
-            ((z01.conj() + s[:,0,0]*z01)*(1 - s[:,1,1]) + s[:,0,1]*s[:,1,0]*z01) / denom,
-            ((1 - s[:,0,0])*(1 - s[:,1,1]) - s[:,0,1]*s[:,1,0]) / denom,
-        ],
-        [
-            ((z01.conj() + s[:,0,0]*z01)*(z02.conj() + s[:,1,1]*z02) - s[:,0,1]*s[:,1,0]*z01*z02) / denom,
-            ((1 - s[:,0,0])*(z02.conj() + s[:,1,1]*z02) + s[:,0,1]*s[:,1,0]*z02) / denom,
-        ],
-    ]).transpose()
-    return a
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z01 = z0_arr[0]
+        z02 = z0_arr[1]
+        denom = (2*s_arr[1,0]*jnp.sqrt(z01.real * z02.real))
+        
+        a = jnp.array([
+            [
+                ((z01.conj() + s_arr[0,0]*z01)*(1 - s_arr[1,1]) + s_arr[0,1]*s_arr[1,0]*z01) / denom,
+                ((1 - s_arr[0,0])*(1 - s_arr[1,1]) - s_arr[0,1]*s_arr[1,0]) / denom,
+            ],
+            [
+                ((z01.conj() + s_arr[0,0]*z01)*(z02.conj() + s_arr[1,1]*z02) - s_arr[0,1]*s_arr[1,0]*z01*z02) / denom,
+                ((1 - s_arr[0,0])*(z02.conj() + s_arr[1,1]*z02) + s_arr[0,1]*s_arr[1,0]*z02) / denom,
+            ],
+        ]).transpose()
+        return a
+        
+    else:
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
 
 def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray:
     """
@@ -209,7 +223,7 @@ def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray
     Parameters
     ----------
     s : jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
@@ -218,50 +232,61 @@ def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray
     Returns
     -------
     jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+        The Admittance matrix with shape matching the input `s`.
     """
-    nfreqs, nports, _ = s.shape
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z0 = z0.astype(dtype=complex)
-    z0 = jnp.where(z0.real == 0, z0 + ZERO, z0)
-
-    s = jnp.array(s, dtype=complex)
-
-    # Creating Identity matrices of shape (nports,nports) for each nfreqs
-    Id = jnp.eye(nports, dtype=complex)[None, :, :]
-    Id = jnp.broadcast_to(Id, (nfreqs, nports, nports))
-
-    if s_def == 'power':
-        F, F_inv, G = jnp.zeros_like(s), jnp.zeros_like(s), jnp.zeros_like(s)
-        diag_idx = jnp.arange(nports)
+    s_arr = jnp.asarray(s)
+    
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(s2y, in_axes=(0, 0, None))(s_arr, z0_fixed, s_def)
         
-        # F_inv is the inverse of F: a diagonal matrix of 2 * sqrt(Re(Z0))
-        F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
-        F_inv = F_inv.at[:, diag_idx, diag_idx].set(2 * jnp.sqrt(z0.real))
-        G = G.at[:, diag_idx, diag_idx].set(z0)
-        
-        # Left-solve: X = A^-1 B  =>  jnp.linalg.solve(A, B)
-        # Y = F_inv @ (S @ G + G^*)^-1 @ (I - S) @ F
-        A = s @ G + jnp.conjugate(G)
-        B = Id - s
-        
-        y = F_inv @ jnp.linalg.solve(nudge_diag(A), B) @ F
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z0_arr = z0_arr.astype(dtype=complex)
+        z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
-    elif s_def == 'traveling':
-        # Creating diagonal matrices of 1 / sqrt(Z0)
-        inv_sqrtz0 = jnp.zeros_like(s)
-        jnp.einsum('ijj->ij', inv_sqrtz0)[...] = 1.0 / jnp.sqrt(z0)
-        
-        # Y = Z0^-1/2 @ (I + S)^-1 @ (I - S) @ Z0^-1/2
-        A = Id + s
-        B = Id - s
-        
-        y = inv_sqrtz0 @ jnp.linalg.solve(nudge_diag(A), B) @ inv_sqrtz0
+        s_arr = jnp.array(s_arr, dtype=complex)
 
+        # Creating Identity matrices of shape (nports,nports) for each nfreqs
+        Id = jnp.eye(nports, dtype=complex)
+
+        if s_def == 'power':
+            F, F_inv, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
+            diag_idx = jnp.arange(nports)
+            
+            # F_inv is the inverse of F: a diagonal matrix of 2 * sqrt(Re(Z0))
+            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            F_inv = F_inv.at[diag_idx, diag_idx].set(2 * jnp.sqrt(z0_arr.real))
+            G = G.at[diag_idx, diag_idx].set(z0_arr)
+            
+            # Left-solve: X = A^-1 B  =>  jnp.linalg.solve(A, B)
+            # Y = F_inv @ (S @ G + G^*)^-1 @ (I - S) @ F
+            A = s_arr @ G + jnp.conjugate(G)
+            B = Id - s_arr
+            
+            y = F_inv @ jnp.linalg.solve(nudge_diag(A), B) @ F
+
+        elif s_def == 'traveling':
+            # Creating diagonal matrices of 1 / sqrt(Z0)
+            inv_sqrtz0 = jnp.zeros_like(s_arr)
+            diag_idx = jnp.arange(nports)
+            inv_sqrtz0 = inv_sqrtz0.at[diag_idx, diag_idx].set(1.0 / jnp.sqrt(z0_arr))
+            
+            # Y = Z0^-1/2 @ (I + S)^-1 @ (I - S) @ Z0^-1/2
+            A = Id + s_arr
+            B = Id - s_arr
+            
+            y = inv_sqrtz0 @ jnp.linalg.solve(nudge_diag(A), B) @ inv_sqrtz0
+
+        else:
+            raise ValueError(f"Unknown s_def: {s_def}")
+
+        return y
+        
     else:
-        raise ValueError(f"Unknown s_def: {s_def}")
-
-    return y
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
 
 def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
@@ -270,7 +295,7 @@ def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Parameters
     ----------
     y : jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+        The Admittance matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
@@ -279,37 +304,48 @@ def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Returns
     -------
     jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+        The S-parameter matrix with shape matching the input `y`.
     """
-    nfreqs, nports, nports = y.shape
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z0 = z0.astype(dtype=complex)
-    z0 = jnp.where(z0.real == 0, z0 + ZERO, z0)
+    y_arr = jnp.asarray(y)
+    
+    if y_arr.ndim == 3:
+        nfreqs, nports, _ = y_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(y2s, in_axes=(0, 0, None))(y_arr, z0_fixed, s_def)
+        
+    elif y_arr.ndim == 2:
+        nports = y_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z0_arr = z0_arr.astype(dtype=complex)
+        z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
-    y = jnp.array(y, dtype=complex)
+        y_arr = jnp.array(y_arr, dtype=complex)
 
-    # The following is a vectorized version of a for loop for all frequencies.
-    # Creating Identity matrices of shape (nports,nports) for each nfreqs
-    Id = jnp.eye(nports, dtype=complex)[None, :, :]  # (1, nports, nports)
-    Id = jnp.broadcast_to(Id, (nfreqs, nports, nports))
+        # The following is a vectorized version of a for loop for all frequencies.
+        # Creating Identity matrices of shape (nports,nports) for each nfreqs
+        Id = jnp.eye(nports, dtype=complex)
 
-    if s_def == 'power':
-        # Creating diagonal matrices of shape (nports,nports) for each nfreqs
-        F, G = jnp.zeros_like(y), jnp.zeros_like(y)
-        diag_idx = jnp.arange(F.shape[1])
-        F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
-        G = G.at[:, diag_idx, diag_idx].set(z0)        
-        s = rsolve(F @ (Id + G @ y), F @ (Id - jnp.conjugate(G) @ y))
-    elif s_def == 'traveling':
-        # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-        # Creating diagonal matrices of shape (nports, nports) for each nfreqs
-        sqrtz0 = jnp.zeros_like(y)  # (nfreqs, nports, nports)
-        jnp.einsum('ijj->ij', sqrtz0)[...] = jnp.sqrt(z0)
-        s = rsolve(Id + sqrtz0 @ y @ sqrtz0, Id - sqrtz0 @ y @ sqrtz0)
+        if s_def == 'power':
+            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
+            F, G = jnp.zeros_like(y_arr), jnp.zeros_like(y_arr)
+            diag_idx = jnp.arange(nports)
+            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = G.at[diag_idx, diag_idx].set(z0_arr)        
+            s = rsolve(F @ (Id + G @ y_arr), F @ (Id - jnp.conjugate(G) @ y_arr))
+        elif s_def == 'traveling':
+            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
+            # Creating diagonal matrices of shape (nports, nports) for each nfreqs
+            sqrtz0 = jnp.zeros_like(y_arr)
+            diag_idx = jnp.arange(nports)
+            sqrtz0 = sqrtz0.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
+            s = rsolve(Id + sqrtz0 @ y_arr @ sqrtz0, Id - sqrtz0 @ y_arr @ sqrtz0)
+        else:
+            raise ValueError(f'Unknown s_def: {s_def}')
+
+        return s
+        
     else:
-        raise ValueError(f'Unknown s_def: {s_def}')
-
-    return s
+        raise ValueError(f"Y-parameters must be 2D or 3D. Got {y_arr.ndim}D.")
 
 def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
@@ -318,7 +354,7 @@ def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Parameters
     ----------
     s : jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
@@ -327,41 +363,50 @@ def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Returns
     -------
     jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+        The Impedance matrix with shape matching the input `s`.
     """
-    nfreqs, nports, nports = s.shape
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z0 = z0.astype(dtype=complex)
-    z0 = jnp.where(z0.real == 0, z0 + ZERO, z0)
+    s_arr = jnp.asarray(s)
+    
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(s2z, in_axes=(0, 0, None))(s_arr, z0_fixed, s_def)
+        
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z0_arr = z0_arr.astype(dtype=complex)
+        z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
-    s = jnp.array(s, dtype=complex)
+        s_arr = jnp.array(s_arr, dtype=complex)
 
-    # The following is a vectorized version of a for loop for all frequencies.
-    # # Creating Identity matrices of shape (nports,nports) for each nfreqs
-    Id = jnp.eye(nports, dtype=complex)[None, :, :]  # (1, nports, nports)
-    Id = jnp.broadcast_to(Id, (nfreqs, nports, nports))
+        # The following is a vectorized version of a for loop for all frequencies.
+        # # Creating Identity matrices of shape (nports,nports) for each nfreqs
+        Id = jnp.eye(nports, dtype=complex)
 
-    if s_def == 'power':
-        # Power-waves. Eq.(19) from [Kurokawa et al.]
-        # Creating diagonal matrices of shape (nports,nports) for each nfreqs
+        if s_def == 'power':
+            # Power-waves. Eq.(19) from [Kurokawa et al.]
+            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
 
-        F, G = jnp.zeros_like(s), jnp.zeros_like(s)
-        diag_idx = jnp.arange(F.shape[1])
-        F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
-        G = G.at[:, diag_idx, diag_idx].set(z0)        
-        # z = jnp.linalg.solve(nudge_eig((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
-        z = jnp.linalg.solve(nudge_diag((Id - s) @ F), (s @ G + jnp.conjugate(G)) @ F)
-    elif s_def == 'traveling':
-        # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-        # Creating diagonal matrices of shape (nports, nports) for each nfreqs
-        sqrtz0 = jnp.zeros_like(s)
-        diag_idx = jnp.arange(s.shape[1])
-        sqrtz0 = sqrtz0.at[:, diag_idx, diag_idx].set(jnp.sqrt(z0))
-        z = sqrtz0 @ jnp.linalg.solve(nudge_diag(Id - s), (Id + s) @ sqrtz0)        
+            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
+            diag_idx = jnp.arange(nports)
+            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = G.at[diag_idx, diag_idx].set(z0_arr)        
+            z = jnp.linalg.solve(nudge_diag((Id - s_arr) @ F), (s_arr @ G + jnp.conjugate(G)) @ F)
+        elif s_def == 'traveling':
+            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
+            # Creating diagonal matrices of shape (nports, nports) for each nfreqs
+            sqrtz0 = jnp.zeros_like(s_arr)
+            diag_idx = jnp.arange(nports)
+            sqrtz0 = sqrtz0.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
+            z = sqrtz0 @ jnp.linalg.solve(nudge_diag(Id - s_arr), (Id + s_arr) @ sqrtz0)        
+        else:
+            raise ValueError(f'Unknown s_def: {s_def}')
+
+        return z
+        
     else:
-        raise ValueError(f'Unknown s_def: {s_def}')
-
-    return z
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
 
 def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     """
@@ -370,7 +415,7 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Parameters
     ----------
     z : jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+        The Impedance matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike, optional, default=50
         The characteristic impedance.
     s_def : str, optional, default='power'
@@ -379,34 +424,45 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
     Returns
     -------
     jnp.ndarray
-        The S-parameter matrix with shape `(nfreqs, nports, nports)`.
+        The S-parameter matrix with shape matching the input `z`.
     """
-    nfreqs, nports, nports = z.shape
-    z0 = fix_z0_shape(z0, nfreqs, nports)
-    z0 = z0.astype(dtype=complex)
-    z0 = jnp.where(z0.real == 0, z0 + ZERO, z0)
-    z = jnp.array(z, dtype=complex)
+    z_arr = jnp.asarray(z)
+    
+    if z_arr.ndim == 3:
+        nfreqs, nports, _ = z_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(z2s, in_axes=(0, 0, None))(z_arr, z0_fixed, s_def)
+        
+    elif z_arr.ndim == 2:
+        nports = z_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        z0_arr = z0_arr.astype(dtype=complex)
+        z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
+        z_arr = jnp.array(z_arr, dtype=complex)
 
-    if s_def == 'power':
-        # Power-waves. Eq.(18) from [Kurokawa et al.3]
-        # Creating diagonal matrices of shape (nports,nports) for each nfreqs
-        F, G = jnp.zeros_like(z), jnp.zeros_like(z)
-        diag_idx = jnp.arange(F.shape[1])
-        F = F.at[:, diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0.real)))
-        G = G.at[:, diag_idx, diag_idx].set(z0)
-        s = rsolve(F @ (z + G), F @ (z - jnp.conjugate(G)))
-    elif s_def == 'traveling':
-        # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-        # Creating Identity matrices of shape (nports,nports) for each nfreqs
-        Id, sqrty0 = jnp.zeros_like(z), jnp.zeros_like(z) # (nfreqs, nports, nports)
-        diag_idx = jnp.arange(z.shape[1])
-        Id = Id.at[:, diag_idx, diag_idx].set(1.0)
-        sqrty0 = sqrty0.at[:, diag_idx, diag_idx].set(jnp.sqrt(1.0/z0))
-        s = rsolve(sqrty0 @ z @ sqrty0 + Id, sqrty0 @ z @ sqrty0 - Id)        
+        if s_def == 'power':
+            # Power-waves. Eq.(18) from [Kurokawa et al.3]
+            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
+            F, G = jnp.zeros_like(z_arr), jnp.zeros_like(z_arr)
+            diag_idx = jnp.arange(nports)
+            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = G.at[diag_idx, diag_idx].set(z0_arr)
+            s = rsolve(F @ (z_arr + G), F @ (z_arr - jnp.conjugate(G)))
+        elif s_def == 'traveling':
+            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
+            # Creating Identity matrices of shape (nports,nports) for each nfreqs
+            Id, sqrty0 = jnp.zeros_like(z_arr), jnp.zeros_like(z_arr)
+            diag_idx = jnp.arange(nports)
+            Id = Id.at[diag_idx, diag_idx].set(1.0)
+            sqrty0 = sqrty0.at[diag_idx, diag_idx].set(jnp.sqrt(1.0/z0_arr))
+            s = rsolve(sqrty0 @ z_arr @ sqrty0 + Id, sqrty0 @ z_arr @ sqrty0 - Id)        
+        else:
+            raise ValueError(f'Unknown s_def: {s_def}')
+
+        return s
+        
     else:
-        raise ValueError(f'Unknown s_def: {s_def}')
-
-    return s
+        raise ValueError(f"Z-parameters must be 2D or 3D. Got {z_arr.ndim}D.")
 
 def y2z(y: jnp.ndarray) -> jnp.ndarray:
     """
@@ -415,14 +471,21 @@ def y2z(y: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     y : jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+        The Admittance matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
 
     Returns
     -------
     jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+        The Impedance matrix with shape matching the input `y`.
     """
-    return jnp.linalg.inv(nudge_diag(y))
+    y_arr = jnp.asarray(y)
+    
+    if y_arr.ndim == 3:
+        return jax.vmap(y2z)(y_arr)
+    elif y_arr.ndim == 2:
+        return jnp.linalg.inv(nudge_diag(y_arr))
+    else:
+        raise ValueError(f"Y-parameters must be 2D or 3D. Got {y_arr.ndim}D.")
 
 def z2y(z: jnp.ndarray) -> jnp.ndarray:
     """
@@ -431,14 +494,21 @@ def z2y(z: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     z : jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, nports, nports)`.
+        The Impedance matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
 
     Returns
     -------
     jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, nports, nports)`.
+        The Admittance matrix with shape matching the input `z`.
     """
-    return jnp.linalg.inv(nudge_diag(z))
+    z_arr = jnp.asarray(z)
+    
+    if z_arr.ndim == 3:
+        return jax.vmap(z2y)(z_arr)
+    elif z_arr.ndim == 2:
+        return jnp.linalg.inv(nudge_diag(z_arr))
+    else:
+        raise ValueError(f"Z-parameters must be 2D or 3D. Got {z_arr.ndim}D.")
 
 def a2y(a: jnp.ndarray) -> jnp.ndarray:
     """
@@ -447,30 +517,37 @@ def a2y(a: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     a : jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
 
     Returns
     -------
     jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, 2, 2)`.
+        The Admittance matrix with shape matching the input `a`.
     """
-    nfreqs, nports, _ = a.shape
-    if nports != 2:
-        raise IndexError('ABCD parameters are defined for 2-port networks only')
-
-    A = a[:, 0, 0]
-    B = a[:, 0, 1]
-    C = a[:, 1, 0]
-    D = a[:, 1, 1]
-
-    denom = jnp.where(B == 0, 1e-15, B)
-
-    y = jnp.array([
-        [ D / denom,               -(A * D - B * C) / denom ],
-        [ -1.0 / denom,            A / denom                ],
-    ]).transpose(2, 0, 1)
+    a_arr = jnp.asarray(a)
     
-    return y
+    if a_arr.ndim == 3:
+        return jax.vmap(a2y)(a_arr)
+    elif a_arr.ndim == 2:
+        nports = a_arr.shape[0]
+        if nports != 2:
+            raise IndexError('ABCD parameters are defined for 2-port networks only')
+
+        A = a_arr[0, 0]
+        B = a_arr[0, 1]
+        C = a_arr[1, 0]
+        D = a_arr[1, 1]
+
+        denom = jnp.where(B == 0, 1e-15, B)
+
+        y = jnp.array([
+            [ D / denom,               -(A * D - B * C) / denom ],
+            [ -1.0 / denom,            A / denom                ],
+        ])
+        
+        return y
+    else:
+        raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
 
 def y2a(y: jnp.ndarray) -> jnp.ndarray:
     """
@@ -479,31 +556,38 @@ def y2a(y: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     y : jnp.ndarray
-        The Admittance matrix with shape `(nfreqs, 2, 2)`.
+        The Admittance matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
 
     Returns
     -------
     jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape matching the input `y`.
     """
-    nfreqs, nports, _ = y.shape
-    if nports != 2:
-        raise IndexError('ABCD parameters are defined for 2-port networks only')
+    y_arr = jnp.asarray(y)
+    
+    if y_arr.ndim == 3:
+        return jax.vmap(y2a)(y_arr)
+    elif y_arr.ndim == 2:
+        nports = y_arr.shape[0]
+        if nports != 2:
+            raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-    y11 = y[:, 0, 0]
-    y12 = y[:, 0, 1]
-    y21 = y[:, 1, 0]
-    y22 = y[:, 1, 1]
+        y11 = y_arr[0, 0]
+        y12 = y_arr[0, 1]
+        y21 = y_arr[1, 0]
+        y22 = y_arr[1, 1]
 
-    denom = jnp.where(y21 == 0, 1e-15, y21)
-    delta_y = y11 * y22 - y12 * y21
+        denom = jnp.where(y21 == 0, 1e-15, y21)
+        delta_y = y11 * y22 - y12 * y21
 
-    a = jnp.array([
-        [ -y22 / denom,            -1.0 / denom ],
-        [ -delta_y / denom,        -y11 / denom ],
-    ]).transpose(2, 0, 1)
+        a = jnp.array([
+            [ -y22 / denom,            -1.0 / denom ],
+            [ -delta_y / denom,        -y11 / denom ],
+        ])
 
-    return a
+        return a
+    else:
+        raise ValueError(f"Y-parameters must be 2D or 3D. Got {y_arr.ndim}D.")
 
 def a2z(a: jnp.ndarray) -> jnp.ndarray:
     """
@@ -512,30 +596,37 @@ def a2z(a: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     a : jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
 
     Returns
     -------
     jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, 2, 2)`.
+        The Impedance matrix with shape matching the input `a`.
     """
-    nfreqs, nports, _ = a.shape
-    if nports != 2:
-        raise IndexError('ABCD parameters are defined for 2-port networks only')
+    a_arr = jnp.asarray(a)
+    
+    if a_arr.ndim == 3:
+        return jax.vmap(a2z)(a_arr)
+    elif a_arr.ndim == 2:
+        nports = a_arr.shape[0]
+        if nports != 2:
+            raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-    A = a[:, 0, 0]
-    B = a[:, 0, 1]
-    C = a[:, 1, 0]
-    D = a[:, 1, 1]
+        A = a_arr[0, 0]
+        B = a_arr[0, 1]
+        C = a_arr[1, 0]
+        D = a_arr[1, 1]
 
-    denom = jnp.where(C == 0, 1e-15, C)
+        denom = jnp.where(C == 0, 1e-15, C)
 
-    z = jnp.array([
-        [ A / denom,               (A * D - B * C) / denom ],
-        [ 1.0 / denom,             D / denom               ],
-    ]).transpose(2, 0, 1)
+        z = jnp.array([
+            [ A / denom,               (A * D - B * C) / denom ],
+            [ 1.0 / denom,             D / denom               ],
+        ])
 
-    return z
+        return z
+    else:
+        raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
 
 def z2a(z: jnp.ndarray) -> jnp.ndarray:
     """
@@ -544,31 +635,38 @@ def z2a(z: jnp.ndarray) -> jnp.ndarray:
     Parameters
     ----------
     z : jnp.ndarray
-        The Impedance matrix with shape `(nfreqs, 2, 2)`.
+        The Impedance matrix with shape `(2, 2)` or `(nfreqs, 2, 2)`.
 
     Returns
     -------
     jnp.ndarray
-        The ABCD parameter matrix with shape `(nfreqs, 2, 2)`.
+        The ABCD parameter matrix with shape matching the input `z`.
     """
-    nfreqs, nports, _ = z.shape
-    if nports != 2:
-        raise IndexError('ABCD parameters are defined for 2-port networks only')
+    z_arr = jnp.asarray(z)
+    
+    if z_arr.ndim == 3:
+        return jax.vmap(z2a)(z_arr)
+    elif z_arr.ndim == 2:
+        nports = z_arr.shape[0]
+        if nports != 2:
+            raise IndexError('ABCD parameters are defined for 2-port networks only')
 
-    z11 = z[:, 0, 0]
-    z12 = z[:, 0, 1]
-    z21 = z[:, 1, 0]
-    z22 = z[:, 1, 1]
+        z11 = z_arr[0, 0]
+        z12 = z_arr[0, 1]
+        z21 = z_arr[1, 0]
+        z22 = z_arr[1, 1]
 
-    denom = jnp.where(z21 == 0, 1e-15, z21)
-    delta_z = z11 * z22 - z12 * z21
+        denom = jnp.where(z21 == 0, 1e-15, z21)
+        delta_z = z11 * z22 - z12 * z21
 
-    a = jnp.array([
-        [ z11 / denom,             delta_z / denom ],
-        [ 1.0 / denom,             z22 / denom     ],
-    ]).transpose(2, 0, 1)
+        a = jnp.array([
+            [ z11 / denom,             delta_z / denom ],
+            [ 1.0 / denom,             z22 / denom     ],
+        ])
 
-    return a
+        return a
+    else:
+        raise ValueError(f"Z-parameters must be 2D or 3D. Got {z_arr.ndim}D.")
 
 def y2mna(y: ArrayLike) -> MNAStamp:
     """
@@ -589,22 +687,20 @@ def y2mna(y: ArrayLike) -> MNAStamp:
     """
     y_arr = jnp.asarray(y)
     
-    # Extract shape to handle both 2D and 3D inputs
-    shape = y_arr.shape
-    if len(shape) not in (2, 3):
-        raise ValueError(f"Y-parameters must be 2D or 3D. Got {len(shape)}D.")
+    if y_arr.ndim == 3:
+        return jax.vmap(y2mna)(y_arr)
+    elif y_arr.ndim == 2:
+        nports = y_arr.shape[-1]
         
-    nports = shape[-1]
-    batch_shape = shape[:-2]
-    
-    # For pure Y-parameters, the number of auxiliary variables (K) is 0.
-    # JAX handles 0-dimension sizes cleanly.
-    B = jnp.zeros(batch_shape + (nports, 0), dtype=y_arr.dtype)
-    C = jnp.zeros(batch_shape + (0, nports), dtype=y_arr.dtype)
-    D = jnp.zeros(batch_shape + (0, 0), dtype=y_arr.dtype)
-    
-    return MNAStamp(Y=y_arr, B=B, C=C, D=D)
-
+        # For pure Y-parameters, the number of auxiliary variables (K) is 0.
+        # JAX handles 0-dimension sizes cleanly.
+        B = jnp.zeros((nports, 0), dtype=y_arr.dtype)
+        C = jnp.zeros((0, nports), dtype=y_arr.dtype)
+        D = jnp.zeros((0, 0), dtype=y_arr.dtype)
+        
+        return MNAStamp(Y=y_arr, B=B, C=C, D=D)
+    else:
+        raise ValueError(f"Y-parameters must be 2D or 3D. Got {y_arr.ndim}D.")
 
 def z2mna(z: ArrayLike) -> MNAStamp:
     """
@@ -626,33 +722,22 @@ def z2mna(z: ArrayLike) -> MNAStamp:
     """
     z_arr = jnp.asarray(z)
     
-    if z_arr.ndim not in (2, 3):
+    if z_arr.ndim == 3:
+        return jax.vmap(z2mna)(z_arr)
+    elif z_arr.ndim == 2:
+        nports = z_arr.shape[-1]
+        
+        I = jnp.eye(nports, dtype=z_arr.dtype)
+        
+        # Direct Z-parameter MNA derivation
+        Y = jnp.zeros_like(z_arr)
+        B = I
+        C = I
+        D = -z_arr
+        
+        return MNAStamp(Y=Y, B=B, C=C, D=D)
+    else:
         raise ValueError(f"Z-parameters must be 2D or 3D. Got {z_arr.ndim}D.")
-        
-    is_2d = (z_arr.ndim == 2)
-    if is_2d:
-        z_arr = jnp.expand_dims(z_arr, axis=0)
-
-    nfreqs, nports, _ = z_arr.shape
-    
-    # Broadcast an identity matrix across the frequency batch
-    I = jnp.eye(nports, dtype=z_arr.dtype)
-    I_b = jnp.tile(I, (nfreqs, 1, 1))
-    
-    # Direct Z-parameter MNA derivation
-    Y = jnp.zeros_like(z_arr)
-    B = I_b
-    C = I_b
-    D = -z_arr
-    
-    if is_2d:
-        Y = jnp.squeeze(Y, axis=0)
-        B = jnp.squeeze(B, axis=0)
-        C = jnp.squeeze(C, axis=0)
-        D = jnp.squeeze(D, axis=0)
-        
-    return MNAStamp(Y=Y, B=B, C=C, D=D)
-
 
 def a2mna(a: ArrayLike) -> MNAStamp:
     """
@@ -678,48 +763,39 @@ def a2mna(a: ArrayLike) -> MNAStamp:
     """
     a_arr = jnp.asarray(a)
     
-    if a_arr.ndim not in (2, 3):
+    if a_arr.ndim == 3:
+        return jax.vmap(a2mna)(a_arr)
+    elif a_arr.ndim == 2:
+        nports = a_arr.shape[0]
+        if nports != 2:
+            raise IndexError('ABCD parameters are defined for 2-port networks only')
+            
+        A = a_arr[0, 0]
+        B = a_arr[0, 1]
+        C = a_arr[1, 0]
+        D = a_arr[1, 1]
+
+        Y = jnp.zeros_like(a_arr)
+        I = jnp.eye(2, dtype=a_arr.dtype)
+        B_mat = I
+
+        # Assemble C matrix: [[1, -A], [0, -C]]
+        C_mat = jnp.zeros_like(a_arr)
+        C_mat = C_mat.at[0, 0].set(1.0)
+        C_mat = C_mat.at[0, 1].set(-A)
+        C_mat = C_mat.at[1, 0].set(0.0)
+        C_mat = C_mat.at[1, 1].set(-C)
+
+        # Assemble D matrix: [[0, B], [1, D]]
+        D_mat = jnp.zeros_like(a_arr)
+        D_mat = D_mat.at[0, 0].set(0.0)
+        D_mat = D_mat.at[0, 1].set(B)
+        D_mat = D_mat.at[1, 0].set(1.0)
+        D_mat = D_mat.at[1, 1].set(D)
+
+        return MNAStamp(Y=Y, B=B_mat, C=C_mat, D=D_mat)
+    else:
         raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
-        
-    is_2d = (a_arr.ndim == 2)
-    if is_2d:
-        a_arr = jnp.expand_dims(a_arr, axis=0)
-
-    nfreqs, nports, _ = a_arr.shape
-    if nports != 2:
-        raise IndexError('ABCD parameters are defined for 2-port networks only')
-        
-    A = a_arr[:, 0, 0]
-    B = a_arr[:, 0, 1]
-    C = a_arr[:, 1, 0]
-    D = a_arr[:, 1, 1]
-
-    Y = jnp.zeros_like(a_arr)
-    I = jnp.eye(2, dtype=a_arr.dtype)
-    B_mat = jnp.tile(I, (nfreqs, 1, 1))
-
-    # Assemble C matrix: [[1, -A], [0, -C]]
-    C_mat = jnp.zeros_like(a_arr)
-    C_mat = C_mat.at[:, 0, 0].set(1.0)
-    C_mat = C_mat.at[:, 0, 1].set(-A)
-    C_mat = C_mat.at[:, 1, 0].set(0.0)
-    C_mat = C_mat.at[:, 1, 1].set(-C)
-
-    # Assemble D matrix: [[0, B], [1, D]]
-    D_mat = jnp.zeros_like(a_arr)
-    D_mat = D_mat.at[:, 0, 0].set(0.0)
-    D_mat = D_mat.at[:, 0, 1].set(B)
-    D_mat = D_mat.at[:, 1, 0].set(1.0)
-    D_mat = D_mat.at[:, 1, 1].set(D)
-
-    if is_2d:
-        Y = jnp.squeeze(Y, axis=0)
-        B_mat = jnp.squeeze(B_mat, axis=0)
-        C_mat = jnp.squeeze(C_mat, axis=0)
-        D_mat = jnp.squeeze(D_mat, axis=0)
-
-    return MNAStamp(Y=Y, B=B_mat, C=C_mat, D=D_mat)
-
 
 def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
     """
@@ -735,7 +811,7 @@ def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
         The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z0 : ArrayLike
         The characteristic impedance. Can be a scalar or an array broadcastable
-        to `(nfreqs, nports)`.
+        to `(nports,)` or `(nfreqs, nports)`.
         
     Returns
     -------
@@ -744,37 +820,29 @@ def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
     """
     s_arr = jnp.asarray(s)
     
-    if s_arr.ndim not in (2, 3):
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(s2mna, in_axes=(0, 0))(s_arr, z0_fixed)
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        
+        # Calculate Y0 and expand dims to broadcast across the columns of (I - S)
+        y0 = 1.0 / z0_arr
+        y0 = jnp.expand_dims(y0, axis=-1) 
+        
+        I = jnp.eye(nports, dtype=s_arr.dtype)
+        
+        # Universal S-parameter MNA derivation
+        Y = jnp.zeros_like(s_arr)
+        B = y0 * (I - s_arr)
+        C = I
+        D = -(I + s_arr)
+        
+        return MNAStamp(Y=Y, B=B, C=C, D=D)
+    else:
         raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
-        
-    is_2d = (s_arr.ndim == 2)
-    if is_2d:
-        s_arr = jnp.expand_dims(s_arr, axis=0)
-
-    nfreqs, nports, _ = s_arr.shape
-    z0_arr = fix_z0_shape(z0, nfreqs, nports)
-    
-    # Calculate Y0 and expand dims to broadcast across the columns of (I - S)
-    y0 = 1.0 / z0_arr
-    y0 = jnp.expand_dims(y0, axis=-1) 
-    
-    I = jnp.eye(nports, dtype=s_arr.dtype)
-    I_b = jnp.tile(I, (nfreqs, 1, 1))
-    
-    # Universal S-parameter MNA derivation
-    Y = jnp.zeros_like(s_arr)
-    B = y0 * (I_b - s_arr)
-    C = I_b
-    D = -(I_b + s_arr)
-    
-    # Restore original 2D shape if needed
-    if is_2d:
-        Y = jnp.squeeze(Y, axis=0)
-        B = jnp.squeeze(B, axis=0)
-        C = jnp.squeeze(C, axis=0)
-        D = jnp.squeeze(D, axis=0)
-        
-    return MNAStamp(Y=Y, B=B, C=C, D=D)
 
 def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """
@@ -785,7 +853,7 @@ def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old=
     Parameters
     ----------
     s : jnp.ndarray
-        The input S-parameter matrix.
+        The input S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
     z_old : ArrayLike
         The original characteristic impedance.
     z_new : ArrayLike
@@ -802,27 +870,40 @@ def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old=
     jnp.ndarray
         The renormalized S-parameter matrix.
     """
-    z_old_arr = jnp.asarray(z_old)
-    z_new_arr = jnp.asarray(z_new)
+    s_arr = jnp.asarray(s)
     
-    defs_match = (s_def_old == s_def_new)
-    z_match = jnp.all(z_old_arr == z_new_arr)
-    is_matched = jnp.logical_and(defs_match, z_match)
-    
-    def _do_renorm():
-        if method == 'hub':
-            return z2s(s2z(s, z0=z_old_arr, s_def=s_def_old), z0=z_new_arr, s_def=s_def_new)
-        elif method == 'mobius':
-            s_renorm = renormalize_s_mobius(s, z_old_arr, z_new_arr, s_def=s_def_old)
-            s_redef = s2s(s_renorm, z_new_arr, s_def_new=s_def_new, s_def_old=s_def_old)
-            return s_redef
-        else:
-            raise ValueError(f"Unknown S renormalization method: {method}")
-            
-    def _identity():
-        return s
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z_old_fixed = fix_z0_shape(z_old, nfreqs, nports)
+        z_new_fixed = fix_z0_shape(z_new, nfreqs, nports)
+        return jax.vmap(renormalize_s, in_axes=(0, 0, 0, None, None, None))(s_arr, z_old_fixed, z_new_fixed, s_def_old, s_def_new, method)
         
-    return jax.lax.cond(is_matched, _identity, _do_renorm)
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z_old_arr = fix_z0_shape(z_old, 1, nports)[0]
+        z_new_arr = fix_z0_shape(z_new, 1, nports)[0]
+        
+        defs_match = (s_def_old == s_def_new)
+        z_match = jnp.all(z_old_arr == z_new_arr)
+        is_matched = jnp.logical_and(defs_match, z_match)
+        
+        def _do_renorm():
+            if method == 'hub':
+                return z2s(s2z(s_arr, z0=z_old_arr, s_def=s_def_old), z0=z_new_arr, s_def=s_def_new)
+            elif method == 'mobius':
+                s_renorm = renormalize_s_mobius(s_arr, z_old_arr, z_new_arr, s_def=s_def_old)
+                s_redef = s2s(s_renorm, z_new_arr, s_def_new=s_def_new, s_def_old=s_def_old)
+                return s_redef
+            else:
+                raise ValueError(f"Unknown S renormalization method: {method}")
+                
+        def _identity():
+            return s_arr
+            
+        return jax.lax.cond(is_matched, _identity, _do_renorm)
+        
+    else:
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
 
 def renormalize_s_mobius(
     s: jnp.ndarray,
@@ -830,22 +911,47 @@ def renormalize_s_mobius(
     z_new: ArrayLike,
     s_def: str = 'power',
 ) -> jnp.ndarray:
-    if s_def != 'traveling':
-        s = s2s(s, z_old, 'traveling', s_def)
+    """
+    Renormalize S-parameters using the mobius transform.
+    
+    Parameters
+    ----------
+    s : jnp.ndarray
+        The input S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
+    z_old : ArrayLike
+        The original characteristic impedance.
+    z_new : ArrayLike
+        The new characteristic impedance.
+    s_def : str, optional, default='power'
+        The S-parameter definition.
+        
+    Returns
+    -------
+    jnp.ndarray
+        The renormalized S-parameter matrix.
+    """
+    s_arr = jnp.asarray(s)
+    
+    if s_arr.ndim == 3:
+        nfreqs, nports, _ = s_arr.shape
+        z_old_fixed = fix_z0_shape(z_old, nfreqs, nports)
+        z_new_fixed = fix_z0_shape(z_new, nfreqs, nports)
+        return jax.vmap(renormalize_s_mobius, in_axes=(0, 0, 0, None))(s_arr, z_old_fixed, z_new_fixed, s_def)
+        
+    elif s_arr.ndim == 2:
+        nports = s_arr.shape[0]
+        z_old_arr = fix_z0_shape(z_old, 1, nports)[0]
+        z_new_arr = fix_z0_shape(z_new, 1, nports)[0]
 
-    nfreqs, nports, _ = s.shape
+        if s_def != 'traveling':
+            s_arr = s2s(s_arr, z_old_arr, 'traveling', s_def)
 
-    Z_A = fix_z0_shape(z_old, nfreqs, nports)
-    Z_B = fix_z0_shape(z_new, nfreqs, nports)
+        I = jnp.eye(nports, dtype=s_arr.dtype)
 
-    I = jnp.eye(nports, dtype=s.dtype)
+        gamma = (z_new_arr - z_old_arr) / (z_new_arr + z_old_arr)
 
-    def renorm_per_freq(s_f, z_a, z_b):
-
-        gamma = (z_b - z_a) / (z_b + z_a)
-
-        GammaS = gamma[:, None] * s_f
-        S_minus_G = s_f - jnp.diag(gamma)
+        GammaS = gamma[:, None] * s_arr
+        S_minus_G = s_arr - jnp.diag(gamma)
 
         # 1. Add numerical stabilization to prevent singular matrix inversion
         A = nudge_diag(I - GammaS) 
@@ -855,16 +961,15 @@ def renormalize_s_mobius(
         X = jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
 
         # 2. Apply the wave-amplitude scaling matrix M
-        M = (z_b + z_a) / (2 * jnp.sqrt(z_a * z_b))
+        M = (z_new_arr + z_old_arr) / (2 * jnp.sqrt(z_old_arr * z_new_arr))
         
         # M @ X @ M^-1 is mathematically equivalent to multiplying each X_ij by (M_i / M_j)
-        s_renorm_f = X * (M[:, None] / M[None, :])
+        s_renorm = X * (M[:, None] / M[None, :])
+
+        if s_def != 'traveling':
+            s_renorm = s2s(s_renorm, z_old_arr, s_def, 'traveling')
+
+        return s_renorm
         
-        return s_renorm_f
-
-    s_renorm = jax.vmap(renorm_per_freq)(s, Z_A, Z_B)
-
-    if s_def != 'traveling':
-        s_renorm = s2s(s_renorm, z_old, s_def, 'traveling')
-
-    return s_renorm
+    else:
+        raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")

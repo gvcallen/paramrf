@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from pmrf.frequency import Frequency
-from pmrf.base import AbstractComponent
+from pmrf.simulate.component import AbstractComponent
 from pmrf.simulate.base import AbstractTerminator, AbstractScatteringTerminator, AbstractABCDTerminator
 from pmrf.simulate.result import SimulateResult
 

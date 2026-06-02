@@ -13,7 +13,7 @@ import equinox as eqx
 import skrf
 import parax as prx
 
-from pmrf.base import MNAStamp, AbstractComponent
+from pmrf.simulate.component import MNAStamp, AbstractComponent
 from pmrf.utils.optix import focus, Lens
 from pmrf.utils.tree import tree_resolve_target
 from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
@@ -28,7 +28,8 @@ from pmrf.utils import field, unwrap, unwrap_self
 T = TypeVar('T')
 
 PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
-PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
+PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix') + tuple(f"{p}_omega" for p in PRIMARY_DOMAINS) + ('primary_matrix_omega',)
+PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
 
 
@@ -39,9 +40,15 @@ class Model(AbstractComponent, eqx.Module):
     Derived from this class to define your own, custom model.
 
     This class should not be instantiated directly. It is created internally in ParamRF when models are
-    built compositionally, or can be inherited from, in which case at least one of
-    :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`,
-    :meth:`pmrf.Model.build`, or :meth:`pmrf.Model.primary_matrix` should be overridden.
+    built compositionally, or can be inherited from. When inheriting, at least one primary matrix method or
+    :meth:`pmrf.Model.build` must be overridden. 
+
+    Users are strongly encouraged to implement the scalar omega-based versions 
+    (:meth:`pmrf.Model.s_omega`, :meth:`pmrf.Model.a_omega`, :meth:`pmrf.Model.y_omega`, 
+    :meth:`pmrf.Model.z_omega`, or :meth:`pmrf.Model.primary_matrix_omega`), which are automatically 
+    vectorized under the hood. Alternatively, the explicitly vectorized versions 
+    (:meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
+    or :meth:`pmrf.Model.primary_matrix`) can be overridden if custom batching logic is required.
 
     The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
@@ -63,13 +70,19 @@ class Model(AbstractComponent, eqx.Module):
     Method                            Description
     ================================= ====================================================================
     :meth:`s`                         Scattering (S) parameter matrix at impedance z0.
+    :meth:`s_omega`                   Scalar frequency version of :meth:`s`.
     :meth:`a`                         ABCD parameter matrix.
+    :meth:`a_omega`                   Scalar frequency version of :meth:`a`.
     :meth:`z`                         Impedance (Z) parameter matrix.
+    :meth:`z_omega`                   Scalar frequency version of :meth:`z`.
     :meth:`y`                         Admittance (Y) parameter matrix.
+    :meth:`y_omega`                   Scalar frequency version of :meth:`y`.
     :meth:`mna`                       Modified Nodal Analysis (MNA) stamp matrices.
-    :meth:`build`                     Build the model. Can be overridden for advanced models.
+    :meth:`mna_omega`                 Scalar frequency version of :meth:`mna`.
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
+    :meth:`primary_matrix_omega`      Scalar frequency version of :meth:`primary_matrix`.
     :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
+    :meth:`build`                     Build the model. Can be overridden for advanced models.
     ================================= ====================================================================
 
     **Helper Methods**
@@ -164,7 +177,7 @@ class Model(AbstractComponent, eqx.Module):
                 return func(matrix)
             return dynamic_method
             
-        for prop in PRIMARY_DOMAINS:
+        for prop in PLOT_DOMAINS:
             for suffix, lookup in CONVERSION_LOOKUP.items():
                 func = lookup[1]
                 
@@ -326,9 +339,38 @@ class Model(AbstractComponent, eqx.Module):
         NotImplementedError
             If no primary property is overridden.
         """      
-        primary_function = getattr(self, self.primary_domain)
-        return primary_function(freq, **kwargs)
-    
+        if is_overridden(type(self), Model, 'primary_matrix_omega'):
+            return jax.vmap(lambda w: self.primary_matrix_omega(w, **kwargs))(freq.w)
+
+        primary_domain = self.primary_domain
+        return getattr(self, primary_domain)(freq, **kwargs)
+
+    def primary_matrix_omega(self, w: float | jax.Array, **kwargs) -> jnp.ndarray:
+        """The primary matrix (e.g. ``s_omega``, ``a_omega`` etc.) for a single frequency w.
+
+        This method identifies the primary property and delegates to the associated `_omega` function.
+        If only the vectorized (batched) function is overridden by the class, it effectively "unbatches"
+        the result cleanly.
+
+        Parameters
+        ----------
+        w : float | jax.Array
+            Angular frequency scalar.
+        kwargs
+            Key-word arguments forwarded to the primary matrix function, such as z0.
+
+        Returns
+        -------
+        jnp.ndarray
+        """
+        if is_overridden(type(self), Model, 'primary_matrix'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.primary_matrix(freq, **kwargs)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+            
+        omega_domain = f"{self.primary_domain}_omega"
+        return getattr(self, omega_domain)(w, **kwargs)
+
     @property
     def primary_domain(self) -> str:
         """The primary domain (e.g. ``"s"``, ``"a"``) as a string.
@@ -353,16 +395,16 @@ class Model(AbstractComponent, eqx.Module):
             return self.build().primary_domain
         
         for property in prioritized:
-            if is_overridden(type(self), Model, property):
+            if is_overridden(type(self), Model, property) or is_overridden(type(self), Model, f"{property}_omega"):
                 return property
         for property in unprioritized:
-            if is_overridden(type(self), Model, property):
+            if is_overridden(type(self), Model, property) or is_overridden(type(self), Model, f"{property}_omega"):
                 return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} are overridden, which are the only ones supported currently")     
+        raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} or their _omega variants are overridden, which are the only ones supported")     
     
     @eqx.filter_jit
     @unwrap_self
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Scattering parameter matrix at port impedance z0.
 
         If a different parameter type (a, z, y) is primary, this converts it to S.
@@ -376,7 +418,7 @@ class Model(AbstractComponent, eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -385,14 +427,18 @@ class Model(AbstractComponent, eqx.Module):
             S-parameter matrix with shape ``(nf, n, n)``.
         """
         if is_overridden(type(self), Model, 'build'):
-            return self.build().s(freq, z0=z0)
+            return self.build().s(frequency, z0=z0)
 
-        # Fetch primary
+        # 1. Direct delegation to avoid conversions if omega is directly implemented
+        if is_overridden(type(self), Model, 's_omega'):
+            return jax.vmap(lambda w: self.s_omega(w, z0=z0))(frequency.w)
+
+        # 2. Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
-        # Return or Convert
+        # 3. Return or Convert
         if primary_domain == 's':
             return val
         elif primary_domain == 'a':
@@ -406,14 +452,57 @@ class Model(AbstractComponent, eqx.Module):
     
     @eqx.filter_jit
     @unwrap_self
-    def a(self, freq: Frequency) -> jnp.ndarray:
+    def s_omega(self, w: float | jax.Array, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        """Scattering parameter matrix at port impedance z0 for a single angular frequency.
+
+        Parameters
+        ----------
+        w : float | jax.Array
+            Scalar angular frequency.
+        z0 : ArrayLike
+            Port impedance.
+
+        Returns
+        -------
+        jnp.ndarray
+            S-parameter matrix with shape ``(n, n)``.
+        """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().s_omega(w, z0=z0)
+
+        # 1. Safely unbatch if only the vectorized version is explicitly implemented
+        if is_overridden(type(self), Model, 's'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.s(freq, z0=z0)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+
+        # 2. Fetch primary
+        primary_domain = self.primary_domain
+        kwargs = {'z0': z0} if primary_domain == 's' else {}
+        val = self.primary_matrix_omega(w, **kwargs)
+
+        # 3. Return or Convert
+        if primary_domain == 's':
+            return val
+        elif primary_domain == 'a':
+            return a2s(val, z0)
+        elif primary_domain == 'z':
+            return z2s(val, z0)
+        elif primary_domain == 'y':
+            return y2s(val, z0)
+        
+        raise NotImplementedError(f"Conversion from '{primary_domain}' to 's_omega' is not implemented.")
+
+    @eqx.filter_jit
+    @unwrap_self
+    def a(self, frequency: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
 
         If a different parameter type is primary, this converts it to A.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -422,12 +511,15 @@ class Model(AbstractComponent, eqx.Module):
             ABCD matrix with shape ``(nf, 2, 2)``.
         """        
         if is_overridden(type(self), Model, 'build'):
-            return self.build().a(freq)
+            return self.build().a(frequency)
         
+        if is_overridden(type(self), Model, 'a_omega'):
+            return jax.vmap(self.a_omega)(frequency.w)
+
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
         # Return direct
         if primary_domain == 'a':
@@ -445,14 +537,53 @@ class Model(AbstractComponent, eqx.Module):
 
     @eqx.filter_jit
     @unwrap_self
-    def z(self, freq: Frequency) -> jnp.ndarray:
+    def a_omega(self, w: float | jax.Array) -> jnp.ndarray:
+        """ABCD parameter matrix for a single angular frequency.
+
+        Parameters
+        ----------
+        w : float | jax.Array
+            Scalar angular frequency.
+
+        Returns
+        -------
+        jnp.ndarray
+            ABCD matrix with shape ``(2, 2)``.
+        """        
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().a_omega(w)
+        
+        if is_overridden(type(self), Model, 'a'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.a(freq)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix_omega(w, **kwargs)
+
+        if primary_domain == 'a':
+            return val
+        
+        if primary_domain == 's':
+            return s2a(val, z0=HUB_Z0)
+        elif primary_domain == 'z':
+            return z2a(val)
+        elif primary_domain == 'y':
+            return y2a(val)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'a_omega' is not implemented.")
+
+    @eqx.filter_jit
+    @unwrap_self
+    def z(self, frequency: Frequency) -> jnp.ndarray:
         """Impedance (Z) parameter matrix.
 
         If a different parameter type is primary, this converts it to Z.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -461,12 +592,15 @@ class Model(AbstractComponent, eqx.Module):
             Z matrix with shape ``(nf, n, n)``.
         """
         if is_overridden(type(self), Model, 'build'):
-            return self.build().z(freq)
+            return self.build().z(frequency)
+
+        if is_overridden(type(self), Model, 'z_omega'):
+            return jax.vmap(self.z_omega)(frequency.w)
 
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
         # Return direct
         if primary_domain == 'z':
@@ -484,14 +618,53 @@ class Model(AbstractComponent, eqx.Module):
 
     @eqx.filter_jit
     @unwrap_self
-    def y(self, freq: Frequency) -> jnp.ndarray:
+    def z_omega(self, w: float | jax.Array) -> jnp.ndarray:
+        """Impedance (Z) parameter matrix for a single angular frequency.
+
+        Parameters
+        ----------
+        w : float | jax.Array
+            Scalar angular frequency.
+
+        Returns
+        -------
+        jnp.ndarray
+            Z matrix with shape ``(n, n)``.
+        """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().z_omega(w)
+
+        if is_overridden(type(self), Model, 'z'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.z(freq)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix_omega(w, **kwargs)
+
+        if primary_domain == 'z':
+            return val
+
+        if primary_domain == 's':
+            return s2z(val, z0=HUB_Z0)
+        elif primary_domain == 'a':
+            return a2z(val)
+        elif primary_domain == 'y':
+            return y2z(val)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'z_omega' is not implemented.")
+
+    @eqx.filter_jit
+    @unwrap_self
+    def y(self, frequency: Frequency) -> jnp.ndarray:
         """Admittance (Y) parameter matrix.
 
         If a different parameter type is primary, this converts it to Y.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -500,12 +673,15 @@ class Model(AbstractComponent, eqx.Module):
             Y matrix with shape ``(nf, n, n)``.
         """
         if is_overridden(type(self), Model, 'build'):
-            return self.build().y(freq)
+            return self.build().y(frequency)
+
+        if is_overridden(type(self), Model, 'y_omega'):
+            return jax.vmap(self.y_omega)(frequency.w)
 
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
         # Return direct
         if primary_domain == 'y':
@@ -523,7 +699,46 @@ class Model(AbstractComponent, eqx.Module):
         
     @eqx.filter_jit
     @unwrap_self
-    def mna(self, freq: Frequency) -> MNAStamp:
+    def y_omega(self, w: float | jax.Array) -> jnp.ndarray:
+        """Admittance (Y) parameter matrix for a single angular frequency.
+
+        Parameters
+        ----------
+        w : float | jax.Array
+            Scalar angular frequency.
+
+        Returns
+        -------
+        jnp.ndarray
+            Y matrix with shape ``(n, n)``.
+        """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().y_omega(w)
+
+        if is_overridden(type(self), Model, 'y'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.y(freq)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+
+        primary_domain = self.primary_domain
+        kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
+        val = self.primary_matrix_omega(w, **kwargs)
+
+        if primary_domain == 'y':
+            return val
+
+        if primary_domain == 's':
+            return s2y(val, HUB_Z0)
+        elif primary_domain == 'a':
+            return a2y(val)
+        elif primary_domain == 'z':
+            return z2y(val)
+        else:
+            raise NotImplementedError(f"Conversion from '{primary_domain}' to 'y_omega' is not implemented.")
+        
+    @eqx.filter_jit
+    @unwrap_self
+    def mna(self, frequency: Frequency) -> MNAStamp:
         """
         (experimental) Modified Nodal Analysis (MNA) stamp.
 
@@ -535,29 +750,67 @@ class Model(AbstractComponent, eqx.Module):
         while other domains fall back to auxiliary variables to guarantee stability.
         """
         if is_overridden(type(self), Model, 'build'):
-            return self.build().mna(freq)
+            return self.build().mna(frequency)
+
+        if is_overridden(type(self), Model, 'mna_omega'):
+            return jax.vmap(self.mna_omega)(frequency.w)
 
         primary_domain = self.primary_domain
         
         if primary_domain == 'mna':
-            return self.primary_matrix(freq)
+            return self.primary_matrix(frequency)
             
         # We prioritize y, z and a for sparsity, assuming the caller
         # has created a numerically stable implementation.
-        if primary_domain == 'y' or is_overridden(type(self), Model, 'y'):
-            return y2mna(self.y(freq))
+        if primary_domain == 'y' or is_overridden(type(self), Model, 'y_omega') or is_overridden(type(self), Model, 'y'):
+            return y2mna(self.y(frequency))
         
-        if primary_domain == 'z' or is_overridden(type(self), Model, 'z'):
-            return z2mna(self.z(freq))
+        if primary_domain == 'z' or is_overridden(type(self), Model, 'z_omega') or is_overridden(type(self), Model, 'z'):
+            return z2mna(self.z(frequency))
         
-        if primary_domain == 'a' or is_overridden(type(self), Model, 'a'):
-            return a2mna(self.a(freq))
+        if primary_domain == 'a' or is_overridden(type(self), Model, 'a_omega') or is_overridden(type(self), Model, 'a'):
+            return a2mna(self.a(frequency))
         
-        if primary_domain == 's' or is_overridden(type(self), Model, 's'):
-            return s2mna(self.s(freq, z0=HUB_Z0), z0=HUB_Z0)
+        if primary_domain == 's' or is_overridden(type(self), Model, 's_omega') or is_overridden(type(self), Model, 's'):
+            return s2mna(self.s(frequency, z0=HUB_Z0), z0=HUB_Z0)
             
-        return y2mna(self.y(freq))
+        return y2mna(self.y(frequency))
 
+    @eqx.filter_jit
+    @unwrap_self
+    def mna_omega(self, w: float | jax.Array) -> MNAStamp:
+        """
+        (experimental) Modified Nodal Analysis (MNA) stamp for a single angular frequency.
+
+        Can be overridden in sub-classes.
+        """
+        if is_overridden(type(self), Model, 'build'):
+            return self.build().mna_omega(w)
+
+        if is_overridden(type(self), Model, 'mna'):
+            freq = Frequency.from_f(jnp.atleast_1d(w) / (2 * jnp.pi))
+            res = self.mna(freq)
+            return jax.tree.map(lambda x: x[0] if eqx.is_array(x) else x, res)
+
+        primary_domain = self.primary_domain
+        
+        if primary_domain == 'mna':
+            return self.primary_matrix_omega(w)
+            
+        if primary_domain == 'y' or is_overridden(type(self), Model, 'y_omega') or is_overridden(type(self), Model, 'y'):
+            return y2mna(self.y_omega(w))
+        
+        if primary_domain == 'z' or is_overridden(type(self), Model, 'z_omega') or is_overridden(type(self), Model, 'z'):
+            return z2mna(self.z_omega(w))
+        
+        if primary_domain == 'a' or is_overridden(type(self), Model, 'a_omega') or is_overridden(type(self), Model, 'a'):
+            return a2mna(self.a_omega(w))
+        
+        if primary_domain == 's' or is_overridden(type(self), Model, 's_omega') or is_overridden(type(self), Model, 's'):
+            return s2mna(self.s_omega(w, z0=HUB_Z0), z0=HUB_Z0)
+            
+        return y2mna(self.y_omega(w))
+    
     # ---- Magic methods and copying --------------------------------------------------
 
     def __repr__(self) -> str:
@@ -586,7 +839,7 @@ class Model(AbstractComponent, eqx.Module):
         is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
         
         # Replace JAX arrays with our custom formatter
-        unwrapped_clean = jax.tree_util.tree_map(
+        unwrapped_clean = jax.tree.map(
             lambda x: _RawFormatter(x) if is_array(x) else x,
             unwrapped,
             is_leaf=is_array

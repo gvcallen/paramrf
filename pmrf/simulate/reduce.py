@@ -10,11 +10,11 @@ from pmrf.simulate.topology import Topology
 from pmrf.simulate.base import (
     AbstractReducer, 
     AbstractAdmittanceReducer, 
-    AbstractModifiedAdmittanceReducer,
+    AbstractMNAReducer,
     AbstractScatteringReducer, 
     PortRepresentation, 
     NodalRepresentation,
-    ModifiedNodalRepresentation
+    MNARepresentation
 )
 from pmrf.simulate.result import SimulateResult
 
@@ -77,7 +77,7 @@ def reduce(
             solution=solution,
             z0=z0,
         )
-    elif isinstance(solver, AbstractModifiedAdmittanceReducer):
+    elif isinstance(solver, AbstractMNAReducer):
         rep = topology_to_modified_nodal(topology)
         batched_Y, batched_B, batched_C, batched_D = topology.evaluate_mna(frequency)
         
@@ -180,7 +180,7 @@ def topology_to_nodal(topology: Topology) -> NodalRepresentation:
         int_idx=int_idx
     )
 
-def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentation:
+def topology_to_modified_nodal(topology: Topology) -> MNARepresentation:
     """
     Generates the static MNA topological representation.
     """
@@ -248,7 +248,7 @@ def topology_to_modified_nodal(topology: Topology) -> ModifiedNodalRepresentatio
     all_active = set(range(num_active))
     int_idx = np.array(sorted(list(all_active - ext_nets)), dtype=int)
     
-    return ModifiedNodalRepresentation(
+    return MNARepresentation(
         y_r_idx=np.array(y_r_idx, dtype=int),
         y_c_idx=np.array(y_c_idx, dtype=int),
         b_r_idx=np.array(b_r_idx, dtype=int),
