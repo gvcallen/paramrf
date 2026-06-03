@@ -129,40 +129,6 @@ class Topology(eqx.Module):
             
             return S_blocks, batched_z0
         
-        elif layout == 'flattened':
-            S_blocks = []
-            offset = 0
-            marker_set = set(self.marker_indices)
-            r_idx, c_idx = [], []
-            
-            for c in self.components:
-                n = c.nports
-                if offset in marker_set:
-                    zeros = jnp.zeros((freq.npoints, n, n), dtype=jnp.complex128)
-                    S_blocks.append(zeros)
-                else:
-                    S_blocks.append(c.s(freq, z0=z0))
-                
-                # Calculate the global indices for this block
-                nodes = np.arange(offset, offset + n)
-                r_idx.extend(np.repeat(nodes, n))
-                c_idx.extend(np.tile(nodes, n))
-                
-                offset += n
-                
-            flat_S_list = []
-            for S in S_blocks:
-                Nf, n, _ = S.shape
-                flat_S_list.append(S.reshape(Nf, n * n))
-                
-            batched_S_elements = jnp.concatenate(flat_S_list, axis=1)
-            batched_z0 = jnp.broadcast_to(jnp.asarray(z0), (offset,))
-            
-            # For sparse assembly, we must return the topology indices alongside the data
-            indices = jnp.array(np.stack([r_idx, c_idx], axis=-1))
-            
-            return batched_S_elements, batched_z0, indices
-            
         else:
             raise ValueError(f"Unknown scattering layout: {layout}")
                     

@@ -1,11 +1,9 @@
 """pmrf/simulate/solvers/nodal.py"""
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 import lineax as lx
-from jax.experimental import sparse
 
 from pmrf.simulate.base import (
     AbstractAdmittanceReducer, 
@@ -27,9 +25,6 @@ class GlobalNodalReducer(AbstractAdmittanceReducer):
     #: Numerical regularization (equivalent to adding GMIN to ground) to prevent singular matrices.
     eps: float = eqx.field(default=1e-12, static=True)
     
-    #: Uses BCOO sparse assembly before converting to dense. Faster for massive networks.
-    use_sparse: bool = eqx.field(default=False, static=True)
-    
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
         default=lx.AutoLinearSolver(well_posed=False), static=True
@@ -43,17 +38,8 @@ class GlobalNodalReducer(AbstractAdmittanceReducer):
         
         N = topology.num_nodes
         
-        # --- Assemble Global Matrix ---
-        if self.use_sparse:
-            # Trace-time filter to drop out-of-bounds ground indices
-            valid = (topology.r_idx < N) & (topology.c_idx < N)
-            
-            # Static slice of dynamic array is natively supported by JAX
-            indices = jnp.stack([topology.r_idx[valid], topology.c_idx[valid]], axis=-1)
-            Y_global = sparse.BCOO((y_flattened[valid], indices), shape=(N, N)).todense()
-        else:
-            Y_global = jnp.zeros((N, N), dtype=y_flattened.dtype)
-            Y_global = Y_global.at[topology.r_idx, topology.c_idx].add(y_flattened, mode='drop')
+        Y_global = jnp.zeros((N, N), dtype=y_flattened.dtype)
+        Y_global = Y_global.at[topology.r_idx, topology.c_idx].add(y_flattened, mode='drop')
         
         # Apply standard GMIN regularization to the entire diagonal
         if self.eps > 0:
@@ -95,9 +81,6 @@ class GlobalMNAReducer(AbstractMNAReducer):
     #: Numerical regularization to prevent singular matrices on floating nodes/aux variables.
     eps: float = eqx.field(default=1e-12, static=True)
     
-    #: Uses BCOO sparse assembly before converting to dense. Faster for massive networks.
-    use_sparse: bool = eqx.field(default=False, static=True)
-    
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
         default=lx.AutoLinearSolver(well_posed=False), static=True
@@ -115,37 +98,17 @@ class GlobalMNAReducer(AbstractMNAReducer):
         N = topology.num_nodes
         K = topology.num_aux
 
-        # --- Assemble the four global sub-blocks ---
-        if self.use_sparse:
-            # Trace-time filters for ground nodes (N is ground for standard nodes)
-            val_y = (topology.y_r_idx < N) & (topology.y_c_idx < N)
-            val_b = (topology.b_r_idx < N)
-            val_c = (topology.c_c_idx < N)
-            # D block maps aux-to-aux, never connects to standard ground
-
-            idx_y = jnp.stack([topology.y_r_idx[val_y], topology.y_c_idx[val_y]], axis=-1)
-            Y_g = sparse.BCOO((y_flattened[val_y], idx_y), shape=(N, N)).todense()
-            
-            idx_b = jnp.stack([topology.b_r_idx[val_b], topology.b_c_idx[val_b]], axis=-1)
-            B_g = sparse.BCOO((b_flattened[val_b], idx_b), shape=(N, K)).todense()
-            
-            idx_c = jnp.stack([topology.c_r_idx[val_c], topology.c_c_idx[val_c]], axis=-1)
-            C_g = sparse.BCOO((c_flattened[val_c], idx_c), shape=(K, N)).todense()
-            
-            idx_d = jnp.stack([topology.d_r_idx, topology.d_c_idx], axis=-1)
-            D_g = sparse.BCOO((d_flattened, idx_d), shape=(K, K)).todense()
-        else:
-            Y_g = jnp.zeros((N, N), dtype=y_flattened.dtype)
-            Y_g = Y_g.at[topology.y_r_idx, topology.y_c_idx].add(y_flattened, mode='drop')
-            
-            B_g = jnp.zeros((N, K), dtype=b_flattened.dtype)
-            B_g = B_g.at[topology.b_r_idx, topology.b_c_idx].add(b_flattened, mode='drop')
-            
-            C_g = jnp.zeros((K, N), dtype=c_flattened.dtype)
-            C_g = C_g.at[topology.c_r_idx, topology.c_c_idx].add(c_flattened, mode='drop')
-            
-            D_g = jnp.zeros((K, K), dtype=d_flattened.dtype)
-            D_g = D_g.at[topology.d_r_idx, topology.d_c_idx].add(d_flattened, mode='drop')
+        Y_g = jnp.zeros((N, N), dtype=y_flattened.dtype)
+        Y_g = Y_g.at[topology.y_r_idx, topology.y_c_idx].add(y_flattened, mode='drop')
+        
+        B_g = jnp.zeros((N, K), dtype=b_flattened.dtype)
+        B_g = B_g.at[topology.b_r_idx, topology.b_c_idx].add(b_flattened, mode='drop')
+        
+        C_g = jnp.zeros((K, N), dtype=c_flattened.dtype)
+        C_g = C_g.at[topology.c_r_idx, topology.c_c_idx].add(c_flattened, mode='drop')
+        
+        D_g = jnp.zeros((K, K), dtype=d_flattened.dtype)
+        D_g = D_g.at[topology.d_r_idx, topology.d_c_idx].add(d_flattened, mode='drop')
 
         # Snap the blocks together into the unified MNA matrix
         M_global = jnp.block([

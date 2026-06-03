@@ -5,8 +5,10 @@ In ParamRF, models can contain other models, referred to as *composite* models. 
 
 Before we do this, it is useful to note the following two rules when creating custom models:
 
-* **Models are immutable.** If you want to change the *structure* of a model given an existing one, create a method named something like ``.with_structure`` that returns a new model.
-* **You should never store state that can be derived.** All member variables should be treated as the core "dumb data" to be passed through mathematical functions.
+* **Models are immutable.** If you want to change the *structure* of a model given an existing one, either implement your model in such a way that it can be "replaced" with relevant changes specified using :meth:`pmrf.replace`, or create a helper method named something like ``.with_structure`` that returns a new model.
+* **Only store state required to reconstruct the model.** Avoid storing values that can be trivially derived from other fields. Only store configuration parameters that are required to preserve the model's structure when creating modified copies.
+
+The above rules help prevent subtle bugs when performing advanced model manipulation.
 
 Defining a Multi-Stage Filter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -43,7 +45,7 @@ When building composite models, it is often desirable to initialize a model base
                components.append(self.capacitors[i + 1])
            return Cascade(components)
 
-We override :meth:`~pmrf.Model.build` instead of one of the matrix methods to return the model directly. Note also how we use :type:`pmrf.InitVar` and :func:`pmrf.field`. This prevents us from having to manually define an ``__init__`` method with redundant fields, and also represents good practice for separation of configuration from state.
+We override :meth:`~pmrf.Model.build` to return the model directly. Note also how we use :type:`pmrf.InitVar` and :func:`pmrf.field`. This prevents us from having to manually define an ``__init__`` method with additional stored fields, and also helps separate construction-time parameters from the persistent state required to represent the model. As a rule of thumb, :type:`pmrf.InitVar` should be used for all values that are only needed during construction and are not needed again when the model is copied, and regular fields should be used otherwise. Note that using regular fields, you should generally pass ``static=True`` to :func:`pmrf.field`.
 
 Evaluating the Response
 ~~~~~~~~~~~~~~~~~~~~~~~

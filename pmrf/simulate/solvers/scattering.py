@@ -77,7 +77,6 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
         
         # --- Sparse vs Dense Assembly of the Connection Matrix (X) ---
         if self.use_sparse:
-            # Trace-time index calculation
             unique_nets, net_inv = np.unique(net_map_np, return_inverse=True)
             r_idx_list, c_idx_list = [], []
             for net_id in unique_nets:
@@ -89,7 +88,6 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
             r_idx = jnp.array(np.concatenate(r_idx_list))
             c_idx = jnp.array(np.concatenate(c_idx_list))
             
-            # JIT-time sparse assembly
             y0 = 1.0 / z0_ports
             y0_sum_per_net = jax.ops.segment_sum(y0, jnp.array(net_inv), num_segments=len(unique_nets))
             y0_sum_flat = y0_sum_per_net[jnp.array(net_inv)[r_idx]]
@@ -100,7 +98,6 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
             indices = jnp.stack([r_idx, c_idx], axis=-1)
             X = sparse.BCOO((val, indices), shape=(N, N)).todense()
         else:
-            # Dense broadcasting
             mask = jnp.array(net_map_np[:, None] == net_map_np[None, :], dtype=s_block_diagonal.dtype)
             y0 = 1.0 / z0_ports
             y0_sum = jnp.dot(mask, y0) 
@@ -121,7 +118,6 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
         T_D_reg = T_D + self.eps * jnp.eye(T_D.shape[0], dtype=T_D.dtype)
         operator_D = lx.MatrixLinearOperator(T_D_reg)
         
-        # vmap required to solve 2D matrix systems (AX = B) natively in lineax
         tmp_mat = jax.vmap(
             lambda b: lx.linear_solve(operator_D, b, self.linear_solver).value,
             in_axes=1, out_axes=1
@@ -146,13 +142,23 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
 
 class HierarchicalScatteringReducer(AbstractScatteringReducer):
     """
-    Hierarchical Tree (Block Diakoptics) solver for S-parameters.
+    Hierarchical S-parameter reduction solver.
     
-    Eliminates internal nets in chunked multi-port clusters. Minimizes sequential 
-    JAX unroll depth while keeping the maximum matrix inversion size bounded.
+    Operates sequentially by applying a generalized block Schur complement 
+    (sub-network growth) to each internal net.
+    
+    Unlike the Global solver which requires a single massive matrix inversion, 
+    this solver sequentially reduces networks block-by-block. This avoids huge 
+    sparse matrices and scales significantly better for highly cascaded or 
+    chain-like network topologies.
     """
-    max_pairs_per_stage: int = eqx.field(default=4, static=True)
+    #: Numerical regularization to prevent singular matrix division.
     eps: float = eqx.field(default=1e-12, static=True)
+    
+    #: The lineax solver to use for the local block inversions.
+    linear_solver: lx.AbstractLinearSolver = eqx.field(
+        default=lx.AutoLinearSolver(well_posed=False), static=True
+    )
 
     def run(
         self, 
@@ -161,137 +167,83 @@ class HierarchicalScatteringReducer(AbstractScatteringReducer):
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
-        S_curr, z0_curr, active_ext_idx, active_int_idx = self._inject_virtual_probes(
-            s_block_diagonal, z0_ports, topology
-        )
-        
-        pairs = self._extract_pairs(active_int_idx, topology.port_to_net_map)
-        
-        if pairs:
-            k_idx = jnp.array([p[0] for p in pairs])
-            l_idx = jnp.array([p[1] for p in pairs])
-            z0_diff = jnp.abs(z0_curr[k_idx] - z0_curr[l_idx])
-            mismatch_detected = jnp.any(z0_diff > 1e-6)
-            
-            S_curr = eqx.error_if(
-                S_curr,
-                mismatch_detected,
-                "HierarchicalScatteringReducer requires connected ports to have identical reference impedances."
-            )
-
-        stages = [
-            pairs[i : i + self.max_pairs_per_stage] 
-            for i in range(0, len(pairs), self.max_pairs_per_stage)
-        ]
-        
-        active_global_idx = list(range(S_curr.shape[0]))
-        
-        for stage_pairs in stages:
-            elim_ports_global = [p for pair in stage_pairs for p in pair]
-            
-            elim_rel_idx = [active_global_idx.index(p) for p in elim_ports_global]
-            keep_rel_idx = [i for i in range(len(active_global_idx)) if i not in elim_rel_idx]
-            
-            S_curr = self._multi_port_schur(
-                S_curr, jnp.array(keep_rel_idx), jnp.array(elim_rel_idx)
-            )
-            active_global_idx = [active_global_idx[i] for i in keep_rel_idx]
-
-        final_ext_rel_idx = [active_global_idx.index(p) for p in active_ext_idx]
-        
-        S_ext = S_curr[jnp.ix_(final_ext_rel_idx, final_ext_rel_idx)]
-        z0_ext = z0_curr[active_ext_idx]
-        
-        return ScatteringResult(s=S_ext, z0=z0_ext)
-
-    def _multi_port_schur(self, S: jax.Array, keep_idx: jax.Array, elim_idx: jax.Array) -> jax.Array:
-        S_ee = S[jnp.ix_(keep_idx, keep_idx)]
-        S_ei = S[jnp.ix_(keep_idx, elim_idx)]
-        S_ie = S[jnp.ix_(elim_idx, keep_idx)]
-        S_ii = S[jnp.ix_(elim_idx, elim_idx)]
-        
-        K = elim_idx.shape[0]
-        
-        row = jnp.arange(K)
-        col = row + jnp.where(row % 2 == 0, 1, -1)
-        Gamma = jnp.zeros((K, K), dtype=S.dtype).at[row, col].set(1.0)
-        
-        M = jnp.eye(K, dtype=S.dtype) - S_ii @ Gamma
-        if self.eps > 0:
-            M += self.eps * jnp.eye(K, dtype=S.dtype)
-            
-        X = jax.scipy.linalg.solve(M, S_ie, assume_a="gen")
-        S_new = S_ee + S_ei @ Gamma @ X
-        
-        return S_new
-
-    @staticmethod
-    def _inject_virtual_probes(
-        s_matrix: jax.Array, z0: jax.Array, topology: PortRepresentation
-    ) -> Tuple[jax.Array, jax.Array, np.ndarray, np.ndarray]:
         ext_idx_np = np.array(topology.ext_idx)
+        int_idx_np = np.array(topology.int_idx)
         net_map_np = np.array(topology.port_to_net_map)
         
-        net_counts = np.bincount(net_map_np)
-        ext_net_counts = net_counts[net_map_np[ext_idx_np]]
+        # Convert initial disconnected blocks to traveling waves
+        S = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
         
-        dangling_mask = ext_net_counts == 1
-        num_dangling = np.sum(dangling_mask)
-        
-        if num_dangling == 0:
-            return s_matrix, z0, ext_idx_np, np.array(topology.int_idx)
-            
-        N_orig = s_matrix.shape[-1]
-        
-        pad_width = ((0, num_dangling), (0, num_dangling))
-        s_padded = jnp.pad(s_matrix, pad_width, mode='constant')
-        
-        dangling_ext_indices = ext_idx_np[dangling_mask]
-        z0_padded = jnp.concatenate([z0, z0[dangling_ext_indices]])
-        
-        new_port_indices = np.arange(N_orig, N_orig + num_dangling)
-        ext_idx_np[dangling_mask] = new_port_indices
-        int_idx_np = np.concatenate([topology.int_idx, dangling_ext_indices])
-        
-        return s_padded, z0_padded, ext_idx_np, int_idx_np
+        # Find all unique internal nets (nets that contain internal ports to be eliminated)
+        int_net_ids = np.unique(net_map_np[int_idx_np])
 
-    @staticmethod
-    def _extract_pairs(int_idx: np.ndarray, port_to_net_map: np.ndarray) -> List[Tuple[int, int]]:
-        int_ports = int_idx.tolist()
-        net_map = np.array(port_to_net_map)
-        
-        pairs = []
-        visited = set()
-        
-        for p in int_ports:
-            if p in visited:
+        # Sequentially fold each internal net into the global S-matrix
+        # Because the topology arrays are evaluated as static NumPy arrays, 
+        # JAX will cleanly unroll this loop during tracing/JIT.
+        for net_id in int_net_ids:
+            
+            # Find all ports participating in this specific net
+            idx_list = np.where(net_map_np == net_id)[0]
+            
+            # Skip if there's nothing to connect (e.g., a dangling unconnected port)
+            if len(idx_list) < 2:
                 continue
                 
-            net_id = net_map[p]
-            connected_ports = [x for x in int_ports if net_map[x] == net_id]
+            idx = jnp.array(idx_list)
             
-            if len(connected_ports) != 2:
-                raise ValueError(
-                    f"HierarchicalScatteringReducer requires pairs of ports. "
-                    f"Net {net_id} has {len(connected_ports)} ports connected."
-                )
-                
-            pairs.append(tuple(connected_ports))
-            visited.update(connected_ports)
+            # Calculate the ideal connection matrix (X_local) for this net.
+            # This natively handles differing Z0 impedances (mismatches) and 
+            # generalizes scikit-rf's 2-port connection to N-port nodes.
+            y0_local = 1.0 / z0_ports[idx]
+            y0_sum = jnp.sum(y0_local)
+            y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
+            X_local = (2.0 * y0_sqrt_prod) / y0_sum - jnp.eye(len(idx_list), dtype=S.dtype)
             
-        return pairs
+            # Extract the sub-blocks of the current global S-matrix
+            S_II = S[jnp.ix_(idx, idx)]
+            S_All_I = S[:, idx]
+            S_I_All = S[idx, :]
+            
+            # Formulate the local Schur complement denominator (I - X * S_II)
+            M = jnp.eye(len(idx_list), dtype=S.dtype) - X_local @ S_II
+            M_reg = M + self.eps * jnp.eye(len(idx_list), dtype=S.dtype)
+            operator_M = lx.MatrixLinearOperator(M_reg)
+            
+            # Solve the local system. 
+            # We vmap over the columns of (X_local @ S_I_All) to solve for all ports.
+            rhs = X_local @ S_I_All
+            W = jax.vmap(
+                lambda b: lx.linear_solve(operator_M, b, self.linear_solver).value,
+                in_axes=1, out_axes=1
+            )(rhs)
+            
+            # Apply the sub-network growth update to the entire S-matrix
+            S = S + S_All_I @ W
+
+        # Once all internal nets have been folded sequentially, the external 
+        # ports hold the fully reduced network parameters.
+        S_ext_trav = S[jnp.ix_(ext_idx_np, ext_idx_np)]
+        z0_ext = z0_ports[ext_idx_np]
+        
+        # Convert back to standard power waves
+        S_ext_power = s2s(S_ext_trav, z0_ext, 'power', 'traveling')
+        
+        return ScatteringResult(s=S_ext_power, z0=z0_ext)
 
 
 class SequentialScatteringReducer(AbstractScatteringReducer):
     """
-    Sequential net-elimination solver for S-parameters.
+    Sequential S-parameter reduction solver (Matrix Contraction).
     
-    Eliminates entire nets sequentially. Ideal for smaller arbitrary networks. 
-    Natively supports multi-port (T-junction) nets and impedance steps via 
-    internal conversion to traveling waves.
+    Physically contracts the S-matrix at each step by dropping eliminated 
+    internal ports. This perfectly mirrors the classic Redheffer Star Product 
+    and subnetwork growth algorithms. 
     """
     eps: float = eqx.field(default=1e-12, static=True)
-    
+    linear_solver: lx.AbstractLinearSolver = eqx.field(
+        default=lx.AutoLinearSolver(well_posed=False), static=True
+    )
+
     def run(
         self, 
         s_block_diagonal: jax.Array, 
@@ -299,62 +251,83 @@ class SequentialScatteringReducer(AbstractScatteringReducer):
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
-        S_trav = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
-        nets_to_eliminate = self._extract_nets(topology)
+        ext_idx_np = np.array(topology.ext_idx)
+        int_idx_np = np.array(topology.int_idx)
+        net_map_np = np.array(topology.port_to_net_map)
         
-        S_current = S_trav
-        z0_current = z0_ports
-        active_indices = list(range(topology.num_ports))
+        # --- Initialization ---
+        # Note: No virtual probe padding needed for Sequential/Hierarchical solvers!
+        S = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
         
-        for net_global_ports in nets_to_eliminate:
-            net_curr_idx = [active_indices.index(p) for p in net_global_ports]
-            S_current, z0_current = self._net_eliminate(S_current, z0_current, net_curr_idx)
-            active_indices = [p for p in active_indices if p not in net_global_ports]
-
-        S_ext_power = s2s(S_current, z0_current, 'power', 'traveling')
+        active_ports = list(range(S.shape[-1]))
+        ext_idx_set = set(ext_idx_np.tolist())
         
-        return ScatteringResult(s=S_ext_power, z0=z0_current)
-
-    @staticmethod
-    def _extract_nets(topology: PortRepresentation) -> list[list[int]]:
-        int_ports = topology.int_idx.tolist()
-        net_map = np.array(topology.port_to_net_map)
+        # Only iterate over nets that actually contain internal ports to be eliminated
+        int_net_ids = np.unique(net_map_np[int_idx_np])
         
-        nets = {}
-        for p in int_ports:
-            net_id = net_map[p]
-            if net_id not in nets:
-                nets[net_id] = []
-            nets[net_id].append(p)
+        # --- Sequential Network Contraction ---
+        for net_id in int_net_ids:
+            net_ports = np.where(net_map_np == net_id)[0]
             
-        return list(nets.values())
+            # Skip unconnected ports
+            if len(net_ports) < 2:
+                continue
+                
+            local_idx = [active_ports.index(p) for p in net_ports]
+            idx_jnp = jnp.array(local_idx)
+            
+            # 1. Compute the local connection matrix X for the net
+            y0_local = 1.0 / z0_ports[net_ports]
+            y0_sum = jnp.sum(y0_local)
 
-    def _net_eliminate(self, S: jax.Array, z0: jax.Array, k_idx: list[int]) -> tuple[jax.Array, jax.Array]:
-        K = jnp.array(k_idx)
-        N = S.shape[0]
+            y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
+            X_local = (2.0 * y0_sqrt_prod) / y0_sum - jnp.eye(len(net_ports), dtype=S.dtype)
+            
+            # 2. Extract sub-blocks from the CURRENT shrinking S-matrix
+            S_II = S[jnp.ix_(idx_jnp, idx_jnp)]
+            S_All_I = S[:, idx_jnp]
+            S_I_All = S[idx_jnp, :]
+            
+            # 3. Solve the local wave interactions
+            M = jnp.eye(len(net_ports), dtype=S.dtype) - X_local @ S_II
+            M_reg = M + self.eps * jnp.eye(len(net_ports), dtype=S.dtype)
+            
+            operator_M = lx.MatrixLinearOperator(M_reg)
+            rhs = X_local @ S_I_All
+            W = jax.vmap(
+                lambda b: lx.linear_solve(operator_M, b, self.linear_solver).value,
+                in_axes=1, out_axes=1
+            )(rhs)
+            
+            # 4. Apply the generalized Redheffer update to the full matrix
+            S = S + S_All_I @ W
+            
+            # 5. SHRINK THE MATRIX: Drop the strictly internal ports of this net
+            elim_ports = [p for p in net_ports if p not in ext_idx_set]
+            if not elim_ports:
+                continue
+                
+            elim_local_idx = [active_ports.index(p) for p in elim_ports]
+            keep_local_idx = [i for i in range(len(active_ports)) if i not in elim_local_idx]
+            
+            keep_jnp = jnp.array(keep_local_idx)
+            
+            # Physically reallocate the JAX array to a smaller dimension
+            S = S[jnp.ix_(keep_jnp, keep_jnp)]
+            
+            # Update the Python tracking list
+            active_ports = [active_ports[i] for i in keep_local_idx]
+
+        # --- Final Cleanup ---
+        final_ordering = [active_ports.index(p) for p in ext_idx_np]
+        final_idx_jnp = jnp.array(final_ordering)
         
-        E = jnp.array([i for i in range(N) if i not in k_idx])
+        S_ext_trav = S[jnp.ix_(final_idx_jnp, final_idx_jnp)]
+        z0_ext = z0_ports[ext_idx_np]
         
-        y0 = 1.0 / z0[K]
-        y0_sum = jnp.sum(y0)
-        y0_sqrt = jnp.sqrt(y0)
+        S_ext_power = s2s(S_ext_trav, z0_ext, 'power', 'traveling')
         
-        Gamma = (2.0 / y0_sum) * jnp.outer(y0_sqrt, y0_sqrt) - jnp.eye(len(K))
-        
-        S_KK = S[jnp.ix_(K, K)]
-        S_EE = S[jnp.ix_(E, E)]
-        S_KE = S[jnp.ix_(K, E)]
-        S_EK = S[jnp.ix_(E, K)]
-        
-        A = jnp.eye(len(K), dtype=S.dtype) - Gamma @ S_KK
-        A_reg = A + self.eps * jnp.eye(len(K), dtype=S.dtype)
-        
-        M = jax.scipy.linalg.solve(A_reg, Gamma, assume_a="gen")
-        
-        S_reduced = S_EE + S_EK @ M @ S_KE
-        z0_reduced = z0[E]
-        
-        return S_reduced, z0_reduced
+        return ScatteringResult(s=S_ext_power, z0=z0_ext)
 
 
 class SequentialScatteringCascader(AbstractScatteringCascader):
@@ -363,6 +336,7 @@ class SequentialScatteringCascader(AbstractScatteringCascader):
     
     Executes a memory-efficient `lax.scan` over sequential components.
     Provides unmatched speed for simple chains (e.g., sliced transmission lines).
+    Connecting ports must share the same reference impedance.
     """
     eps: float = eqx.field(default=1e-12, static=True)
     
@@ -398,6 +372,15 @@ class SequentialScatteringCascader(AbstractScatteringCascader):
     ):
         nports = Smat_A.shape[0]
         N = nports // 2
+        
+        # Verify no un-renormalized impedance step exists between the stages
+        mismatch_detected = jnp.any(jnp.abs(z0_A[N:] - z0_B[:N]) > 1e-6)
+        Smat_A = eqx.error_if(
+            Smat_A, 
+            mismatch_detected, 
+            "SequentialScatteringCascader requires matching reference impedances between connected ports. "
+            "Renormalize stages or use a Reducer solver for arbitrary impedance steps."
+        )
 
         z0_cas = jnp.concatenate((z0_A[:N], z0_B[N:]), axis=0)
 
@@ -446,21 +429,24 @@ class ScatteringTerminator(AbstractScatteringTerminator):
         z0_into: jnp.ndarray,
     ) -> ScatteringResult:
         
-        N = s_into.shape[0]
+        # FIXED: Slice by the number of surviving ports, not terminated ports.
+        P = s_from.shape[0]      # Total ports in the original matrix
+        M = s_into.shape[0]      # Ports being terminated
+        K = P - M                # Surviving ports
         
-        S11 = s_from[:N, :N]
-        S12 = s_from[:N, N:]
-        S21 = s_from[N:, :N]
-        S22 = s_from[N:, N:]
+        S11 = s_from[:K, :K]
+        S12 = s_from[:K, K:]
+        S21 = s_from[K:, :K]
+        S22 = s_from[K:, K:]
         
-        z0_out = z0_from[N:]
+        z0_out = z0_from[K:]
         
         def apply_renorm(operand):
             S_L, z_old, z_new = operand
             
             g = (z_new - z_old) / (z_new + jnp.conj(z_old))
             G = jnp.diag(g)
-            I = jnp.eye(N, dtype=S_L.dtype)
+            I = jnp.eye(M, dtype=S_L.dtype)
             
             I_minus_G = I - G
             
@@ -482,11 +468,11 @@ class ScatteringTerminator(AbstractScatteringTerminator):
             (s_into, z0_into, z0_out)
         )
 
-        I = jnp.eye(N, dtype=s_from.dtype)
+        I = jnp.eye(M, dtype=s_from.dtype)
         diff = I - S22 @ S_L_matched
         X = jnp.linalg.solve(diff, S21)
         
         S_term = S11 + S12 @ S_L_matched @ X
-        z0_term = z0_from[:N]
+        z0_term = z0_from[:K]
         
         return ScatteringResult(s=S_term, z0=z0_term)

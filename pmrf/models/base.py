@@ -641,12 +641,12 @@ class Model(AbstractComponent, eqx.Module):
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
         
         Pass in a callable, a string parameter name, or a tuple of names that 
-        returns the attributes you would like to retrieve/modify. Then, use
+        returns the values you would like to retrieve/modify. Then, use
         methods like `.get()` and `.set()` to retrieve values
         or an updated model.
         
         Note that this method does not work directly on static values, like strings
-        or booleans. Do perform replacements on these values, this method
+        or booleans. To perform replacements on these values, this method
         can be used in combination with :func:`pmrf.replace`.
         
         WARNING: All updates made by this method are "surgical".
