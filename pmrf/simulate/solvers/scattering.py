@@ -1,7 +1,5 @@
 """pmrf/simulate/solvers/scattering.py"""
 
-from typing import List, Tuple
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -30,9 +28,6 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
     """
     #: Numerical regularization to prevent singular matrix division during lossless resonance.
     eps: float = eqx.field(default=1e-12, static=True)
-    
-    #: Uses BCOO sparse assembly for the connection matrix to save memory on massive meshes.
-    use_sparse: bool = eqx.field(default=False, static=True)
     
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
@@ -76,33 +71,11 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
         S_trav = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
         
         # --- Sparse vs Dense Assembly of the Connection Matrix (X) ---
-        if self.use_sparse:
-            unique_nets, net_inv = np.unique(net_map_np, return_inverse=True)
-            r_idx_list, c_idx_list = [], []
-            for net_id in unique_nets:
-                ports = np.where(net_map_np == net_id)[0]
-                r_grid, c_grid = np.meshgrid(ports, ports, indexing='ij')
-                r_idx_list.append(r_grid.flatten())
-                c_idx_list.append(c_grid.flatten())
-                
-            r_idx = jnp.array(np.concatenate(r_idx_list))
-            c_idx = jnp.array(np.concatenate(c_idx_list))
-            
-            y0 = 1.0 / z0_ports
-            y0_sum_per_net = jax.ops.segment_sum(y0, jnp.array(net_inv), num_segments=len(unique_nets))
-            y0_sum_flat = y0_sum_per_net[jnp.array(net_inv)[r_idx]]
-            
-            val = (2.0 * jnp.sqrt(y0[r_idx] * y0[c_idx])) / y0_sum_flat
-            val = jnp.where(r_idx == c_idx, val - 1.0, val)
-            
-            indices = jnp.stack([r_idx, c_idx], axis=-1)
-            X = sparse.BCOO((val, indices), shape=(N, N)).todense()
-        else:
-            mask = jnp.array(net_map_np[:, None] == net_map_np[None, :], dtype=s_block_diagonal.dtype)
-            y0 = 1.0 / z0_ports
-            y0_sum = jnp.dot(mask, y0) 
-            y0_sqrt_prod = jnp.sqrt(y0[:, None] * y0[None, :])
-            X = mask * ((2.0 * y0_sqrt_prod) / y0_sum[:, None] - jnp.eye(N, dtype=s_block_diagonal.dtype))
+        mask = jnp.array(net_map_np[:, None] == net_map_np[None, :], dtype=s_block_diagonal.dtype)
+        y0 = 1.0 / z0_ports
+        y0_sum = jnp.dot(mask, y0) 
+        y0_sqrt_prod = jnp.sqrt(y0[:, None] * y0[None, :])
+        X = mask * ((2.0 * y0_sqrt_prod) / y0_sum[:, None] - jnp.eye(N, dtype=s_block_diagonal.dtype))
         
         T = jnp.eye(N, dtype=s_block_diagonal.dtype) - S_trav @ X
         
@@ -429,7 +402,7 @@ class ScatteringTerminator(AbstractScatteringTerminator):
         z0_into: jnp.ndarray,
     ) -> ScatteringResult:
         
-        # FIXED: Slice by the number of surviving ports, not terminated ports.
+        # Slice by the number of surviving ports, not terminated ports.
         P = s_from.shape[0]      # Total ports in the original matrix
         M = s_into.shape[0]      # Ports being terminated
         K = P - M                # Surviving ports
