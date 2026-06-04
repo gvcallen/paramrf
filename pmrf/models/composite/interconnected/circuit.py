@@ -10,6 +10,8 @@ from functools import cached_property
 from pmrf.models.base import Model
 from pmrf.models.components.ideal import Port, Ground
 from pmrf.frequency import Frequency
+from collections import defaultdict
+from pmrf.utils.type import is_overridden
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y
@@ -31,136 +33,74 @@ from pmrf.models.composite.interconnected.solvers.scattering import (
     HierarchicalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,
 )
+from pmrf.models.composite.interconnected.cascade import Cascade
 
 EVAL_Z0 = 50.0
 
 class Circuit(Model):
     """
-    Represents an arbitrary interconnection of multiple `Model` objects.
+    Represents an arbitrary interconnection of multiple models.
 
     This container connects multiple models together based on a specified list
     of nodes. Each node connects one or more ports of the constituent models 
     to form a composite network.
+
+    Parameters
+    ----------
+    connections : list[list[tuple[Model, int]]]
+        A list representing the nodes of the circuit. Each node is a list of
+        tuples, where each tuple contains a model and the integer
+        index of the port to connect to that node.
+    flatten: bool, default=True
+        Flattens sub-circuits and sub-cascades to perform a single solve.
+        Defaults to True.
+    solver : AbstractCircuitSolver, default=GlobalScatteringCircuitSolver()
+        The circuit solver to use. Available solvers can be found in :mod:`pmrf.models`.
+
+    Examples
+    --------
+    Create a two-port PI-CLC network. External nodes are defined using `Port`, 
+    and common nodes using `Ground`.
+
+    >>> import pmrf as prf
+    >>> from pmrf.models import Capacitor, Inductor, Circuit, Port, Ground
+    >>> 
+    >>> # Instantiate the elements, ports, and ground
+    >>> C1, C2 = Capacitor(C=2e-12), Capacitor(C=1.5e-12)
+    >>> L = Inductor(L=3e-9)
+    >>> p0, p1, ground = Port(), Port(), Ground()
+    >>> 
+    >>> # Create the connections list
+    >>> connections = [
+    ...     [(p0, 0), (C1, 1), (L, 1)],         # Node 0 -> Port 1
+    ...     [(p1, 0), (C2, 1), (L, 0)],         # Node 1 -> Port 2
+    ...     [(ground, 0), (C1, 0), (C2, 0)],    # Node 2 -> Ground
+    ... ]
+    >>> 
+    >>> # Create the circuit model
+    >>> pi_clc = Circuit(connections)
     """
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
+
+    #: Flatten sub-circuits.
+    flatten: bool = field(default=False, kw_only=True, static=True)
     
-    #: Flattens the connections.
-    flatten: InitVar[bool] = field(default=True, static=True, kw_only=True)
+    #: The circuit solver.
+    solver: AbstractCircuitSolver = field(default_factory=GlobalScatteringCircuitSolver, kw_only=True)
     
     #: The models in the connections.
     circuit: list[Model] = field(default=None, kw_only=True)
 
     #: The collated indices of the connections.
     indexed_connections: list[list[tuple[int, int]]] = field(default=None, kw_only=True, static=True)
-    
-    #: The circuit solver. (Requires default solver injected or specified at instantiation)
-    solver: AbstractCircuitSolver = field(default_factory=GlobalScatteringCircuitSolver, kw_only=True)
-    
-    @staticmethod
-    def _flatten_connections(connections):
-        """Flattens nested Circuit and Cascade instances into base models."""
-        model_map = {}
-        nodes = []
-        for connection in connections:
-            node_set = set()
-            for model, port in connection:
-                model_map[id(model)] = model
-                node_set.add((id(model), port))
-            nodes.append(node_set)
-            
-        while True:
-            sub_c_id = None
-            sub_c = None
-            for node in nodes:
-                for mid, _ in node:
-                    cls_name = model_map[mid].__class__.__name__
-                    if cls_name in ('Circuit', 'Cascade'):
-                        sub_c_id = mid
-                        sub_c = model_map[mid]
-                        break
-                if sub_c_id: break
-                
-            if not sub_c_id:
-                break 
-                
-            if sub_c.__class__.__name__ == 'Circuit':
-                sub_ports = [m for m in sub_c.circuit if isinstance(m, Port)]
-                for p in sub_ports:
-                    model_map[id(p)] = p
-                    
-                for node in nodes:
-                    items_to_remove, items_to_add = [], []
-                    for item in node:
-                        mid, port_idx = item
-                        if mid == sub_c_id:
-                            items_to_remove.append(item)
-                            items_to_add.append((id(sub_ports[port_idx]), 0))
-                    for item in items_to_remove: node.remove(item)
-                    for item in items_to_add: node.add(item)
-                        
-                for idx_conn in sub_c.indexed_connections:
-                    internal_node = set()
-                    for m_idx, p_idx in idx_conn:
-                        m = sub_c.circuit[m_idx]
-                        model_map[id(m)] = m
-                        internal_node.add((id(m), p_idx))
-                    nodes.append(internal_node)
 
-            elif sub_c.__class__.__name__ == 'Cascade':
-                sub_models = sub_c.cascade
-                for m in sub_models:
-                    model_map[id(m)] = m
-                    
-                n_half = sub_models[0].nports // 2
-                
-                for node in nodes:
-                    items_to_remove, items_to_add = [], []
-                    for item in node:
-                        mid, port_idx = item
-                        if mid == sub_c_id:
-                            items_to_remove.append(item)
-                            if port_idx < n_half:
-                                items_to_add.append((id(sub_models[0]), port_idx))
-                            else:
-                                items_to_add.append((id(sub_models[-1]), port_idx))
-                                
-                    for item in items_to_remove: node.remove(item)
-                    for item in items_to_add: node.add(item)
-                    
-                for k in range(len(sub_models) - 1):
-                    m_left, m_right = sub_models[k], sub_models[k+1]
-                    for i in range(n_half):
-                        internal_node = {
-                            (id(m_left), n_half + i), 
-                            (id(m_right), i)
-                        }
-                        nodes.append(internal_node)
-
-            merged_nodes = []
-            for node in nodes:
-                if not node: continue
-                intersecting = [m for m in merged_nodes if m.intersection(node)]
-                if intersecting:
-                    new_set = set.union(node, *intersecting)
-                    merged_nodes = [m for m in merged_nodes if m not in intersecting]
-                    merged_nodes.append(new_set)
-                else:
-                    merged_nodes.append(node)
-            nodes = merged_nodes
-            
-            if sub_c.__class__.__name__ == 'Circuit':
-                sub_port_ids = {id(p) for p in sub_ports}
-                for node in nodes:
-                    to_discard = [item for item in node if item[0] in sub_port_ids]
-                    for item in to_discard:
-                        node.discard(item)
-                        
-            nodes = [n for n in nodes if n]
-
-        return [[(model_map[mid], port) for mid, port in n] for n in nodes]
-
-    def __post_init__(self, connections: list, flatten: bool):
+    def __post_init__(self, connections: list):
+        """
+        Validates the input connections and extracts the unique components 
+        and indexed network mapping. The user's schematic hierarchy is 
+        preserved immutably.
+        """
         if not isinstance(connections, list):
             raise TypeError("`connections` must be a list of lists (representing nodes).")
 
@@ -186,9 +126,6 @@ class Circuit(Model):
                     raise ValueError(f"Port {value} of model '{getattr(model, 'name', 'unnamed')}' is connected multiple times.")
                 seen_ports.add(port_signature)
 
-        if flatten:
-            connections = self._flatten_connections(connections)
-
         models = []
         indexed_connections = []
         id_to_index = {}
@@ -211,39 +148,29 @@ class Circuit(Model):
         self.indexed_connections = indexed_connections
 
     @property
-    def number_of_ports(self):
+    def number_of_ports(self) -> int:
+        """Computes the number of external ports exposed by this circuit."""
         return sum(1 for model in self.circuit if isinstance(model, Port))
+
+    @cached_property
+    def flattened(self) -> 'Circuit':
+        """
+        Returns a newly compiled Circuit instance where all sub-circuits, 
+        cascades, and builder models have been fully unwrapped into a flat netlist.
+        """
+        if not self.flatten:
+            return self
+
+        conns = [[(self.circuit[midx], pidx) for midx, pidx in node] for node in self.indexed_connections]
+        flat_conns = flatten_hierarchy(conns)
+        return Circuit(connections=flat_conns, solver=self.solver)
 
     # --- TOPOLOGY REPRESENTATIONS ---
 
     @cached_property
     def port_representation(self) -> PortRepresentation:
         """Generates the static topological map for scattering connection and reduction."""
-        def get_global_port(components: list[Model], c_idx: int, p_idx: int) -> int:
-            return sum(c.nports for c in components[:c_idx]) + p_idx
-
-        num_ports = sum(c.nports for c in self.circuit)
-        parent = list(range(num_ports))
-        
-        def find(i):
-            if parent[i] == i: return i
-            parent[i] = find(parent[i])
-            return parent[i]
-            
-        def union(i, j):
-            root_i, root_j = find(i), find(j)
-            if root_i != root_j:
-                parent[root_i] = root_j
-
-        if self.indexed_connections:
-            for cnx in self.indexed_connections:
-                if not cnx: continue
-                first = get_global_port(self.circuit, cnx[0][0], cnx[0][1])
-                for c_idx, p_idx in cnx[1:]:
-                    union(first, get_global_port(self.circuit, c_idx, p_idx))
-                    
-        port_to_net = np.array([find(i) for i in range(num_ports)], dtype=int)
-        _, port_to_net_map = np.unique(port_to_net, return_inverse=True)
+        port_to_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
 
         ext_idx, int_idx = [], []
         offset = 0
@@ -311,9 +238,6 @@ class Circuit(Model):
         aux_count = 0
         offset_port = 0
         for model in self.circuit:
-            # We assume model.mna() returns a stamp where D.shape[1] defines aux count.
-            # Here we just peek at the shape dynamically, or default to 0 if not MNA capable.
-            # To remain static, we assume properties or a static peek into the model:
             k = getattr(model, 'mna_aux_count', 0) 
             n = model.nports
             
@@ -354,6 +278,7 @@ class Circuit(Model):
     # --- DATA EVALUATION ---
 
     def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray]:
+        """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
         S_blocks = [c.s(freq, z0=z0) for c in self.circuit]
         Nf = S_blocks[0].shape[0]
         num_ports = sum(S.shape[1] for S in S_blocks)
@@ -370,6 +295,7 @@ class Circuit(Model):
         return batched_S, z0_ports
 
     def _evaluate_admittance(self, freq: Frequency) -> jnp.ndarray:
+        """Evaluates and flattens the admittance matrices of all contained components."""
         Y_blocks = [c.y(freq) for c in self.circuit]
         flat_Y_list = []
         for Y in Y_blocks:
@@ -378,6 +304,7 @@ class Circuit(Model):
         return jnp.concatenate(flat_Y_list, axis=1)
 
     def _evaluate_mna(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Evaluates and flattens the MNA stamps of all contained components."""
         flat_Y, flat_B, flat_C, flat_D = [], [], [], []
         
         for c in self.circuit:
@@ -400,26 +327,29 @@ class Circuit(Model):
     # --- SIMULATION & CONVERSION ---
 
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0):
-        """Dispatches data prep and solving across the active vmapped solver interface."""
-        if isinstance(self.solver, AbstractScatteringCircuitSolver):
-            s_bdiag, z0_ports = self._evaluate_scattering(freq, z0)
-            run_vmap = jax.vmap(self.solver.run, in_axes=(0, None, None))
-            return run_vmap(s_bdiag, z0_ports, self.port_representation)
+        """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist."""
+        flat = self.flattened
+        
+        if isinstance(flat.solver, AbstractScatteringCircuitSolver):
+            s_bdiag, z0_ports = flat._evaluate_scattering(freq, z0)
+            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, None, None))
+            return run_vmap(s_bdiag, z0_ports, flat.port_representation)
             
-        elif isinstance(self.solver, AbstractAdmittanceCircuitSolver):
-            y_flat = self._evaluate_admittance(freq)
-            run_vmap = jax.vmap(self.solver.run, in_axes=(0, None))
-            return run_vmap(y_flat, self.nodal_representation)
+        elif isinstance(flat.solver, AbstractAdmittanceCircuitSolver):
+            y_flat = flat._evaluate_admittance(freq)
+            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, None))
+            return run_vmap(y_flat, flat.nodal_representation)
             
-        elif isinstance(self.solver, AbstractMNACircuitSolver):
-            y_flat, b_flat, c_flat, d_flat = self._evaluate_mna(freq)
-            run_vmap = jax.vmap(self.solver.run, in_axes=(0, 0, 0, 0, None))
-            return run_vmap(y_flat, b_flat, c_flat, d_flat, self.mna_representation)
+        elif isinstance(flat.solver, AbstractMNACircuitSolver):
+            y_flat, b_flat, c_flat, d_flat = flat._evaluate_mna(freq)
+            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, 0, 0, 0, None))
+            return run_vmap(y_flat, b_flat, c_flat, d_flat, flat.mna_representation)
             
         else:
-            raise TypeError(f"Unrecognized solver type: {type(self.solver)}")
+            raise TypeError(f"Unrecognized solver type: {type(flat.solver)}")
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        """Evaluates the composite scattering parameters of the circuit."""
         result = self._solve(freq, z0)
         if isinstance(result, ScatteringResult):
             return result.s
@@ -429,6 +359,7 @@ class Circuit(Model):
             raise ValueError(f"Got unknown circuit solver result type: {result}")
 
     def y(self, freq: Frequency) -> jnp.ndarray:
+        """Evaluates the composite admittance parameters of the circuit."""
         result = self._solve(freq)
         if isinstance(result, ScatteringResult):
             return s2y(result.s, z0=result.z0)
@@ -439,6 +370,17 @@ class Circuit(Model):
 
     @classmethod
     def from_chain(cls, models: tuple[Model, ...], **kwargs):
+        """
+        Creates a flattened Circuit from a chain of models connected in cascade.
+        The final model may act as a termination by having N ports instead of 2N ports.
+        
+        Parameters
+        ----------
+        models : tuple[Model, ...]
+            The sequence of models to connect end-to-end.
+        **kwargs
+            Additional keyword arguments to pass to the Circuit constructor.
+        """
         if not models:
             raise ValueError("A chain requires at least one model.")
 
@@ -476,7 +418,7 @@ class Circuit(Model):
         return cls(connections=connections, **kwargs)
     
     @classmethod
-    def from_connected(
+    def from_connection(
         cls, 
         model_a: Model, 
         port_a: int, 
@@ -581,7 +523,6 @@ class Circuit(Model):
         >>> rlc_tank = Circuit.from_parallel((res, cap, ind))
         """
         if solver is None:
-            # Assuming you imported HierarchicalScatteringCircuitSolver
             solver = HierarchicalScatteringCircuitSolver()
 
         if not models:
@@ -605,3 +546,183 @@ class Circuit(Model):
             connections.append(node)
 
         return cls(connections=connections, solver=solver, **kwargs)
+
+
+# -----------------------------------------------------------------------------
+# Graph Algorithms
+# -----------------------------------------------------------------------------
+
+def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[tuple[Model, int]]]:
+    """
+    Flattens nested Circuit, Cascade, and Builder instances into base models.
+    """
+    parent = {}
+    
+    def find(x):
+        if parent.setdefault(x, x) == x:
+            return x
+        # Path compression
+        parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        root_x = find(x)
+        root_y = find(y)
+        if root_x != root_y:
+            parent[root_x] = root_y
+
+    model_map = {}
+    top_level_model_ids = set()
+    model_discovery_order = {}
+
+    def register_model(m: Model) -> int:
+        """Tracks discovery order so external ports stay perfectly aligned."""
+        m_id = id(m)
+        if m_id not in model_discovery_order:
+            model_discovery_order[m_id] = len(model_discovery_order)
+        model_map[m_id] = m
+        return m_id
+
+    # Use a list of IDs instead of a set of Model objects to avoid JAX tracer hashing issues
+    models_to_expand = []
+    
+    # Register all top-level elements and connect their defined nets
+    for node in connections:
+        if not node: 
+            continue
+        first_port = None
+        for m, p in node:
+            m_id = register_model(m)
+            top_level_model_ids.add(m_id)
+            models_to_expand.append(m_id)
+            
+            if first_port is None:
+                first_port = (m_id, p)
+            union(first_port, (m_id, p))
+
+    expanded = set()
+
+    # Iteratively expand the hierarchy using our unified node graph
+    while models_to_expand:
+        m_id = models_to_expand.pop()
+        m = model_map[m_id]
+        
+        if m_id in expanded:
+            continue
+        expanded.add(m_id)
+
+        # Check for build() override safely, but NEVER unwrap Port or Ground markers.
+        if isinstance(m, (Port, Ground)):
+            overridden = False
+        else:
+            overridden = is_overridden(m.__class__, Model, 'build')
+
+        if isinstance(m, Cascade):
+            built_model = Circuit.from_chain(tuple(m.cascade))
+            built_id = register_model(built_model)
+            models_to_expand.append(built_id)
+            # Map external ports of the Cascade to the generated Circuit
+            for p in range(m.nports):
+                union((m_id, p), (built_id, p))
+
+        elif overridden:
+            built_model = m.build()
+            built_id = register_model(built_model)
+            models_to_expand.append(built_id)
+            # Map external ports of the builder to the unwrapped geometry
+            for p in range(m.nports):
+                union((m_id, p), (built_id, p))
+
+        elif isinstance(m, Circuit):
+            # Extract inner sub-circuit ports retaining insertion order
+            internal_ports = [comp for comp in m.circuit if isinstance(comp, Port)]
+            sub_conns = [[(m.circuit[midx], pidx) for midx, pidx in n] for n in m.indexed_connections]
+            
+            # Map outer ports of the sub-circuit directly to internal interface Ports
+            for p in range(m.nports):
+                if p < len(internal_ports):
+                    internal_port_id = register_model(internal_ports[p])
+                    union((m_id, p), (internal_port_id, 0))
+
+            for node in sub_conns:
+                if not node: 
+                    continue
+                first_port = None
+                for sub_m, sub_p in node:
+                    sub_m_id = register_model(sub_m)
+                    models_to_expand.append(sub_m_id)
+                    
+                    if first_port is None:
+                        first_port = (sub_m_id, sub_p)
+                    union(first_port, (sub_m_id, sub_p))
+
+    # Group interconnected components and drop virtual/intermediate objects
+    groups = defaultdict(list)
+
+    for key in parent.keys():
+        m_id, p = key
+        m = model_map[m_id]
+
+        if isinstance(m, (Port, Ground)):
+            overridden = False
+        else:
+            overridden = is_overridden(m.__class__, Model, 'build')
+
+        # Virtual models act as transparent mapping interfaces; do not add them to the netlist
+        is_virtual = False
+        if isinstance(m, Circuit):
+            is_virtual = True
+        elif hasattr(m, 'cascade') and m.cascade is not None:
+            is_virtual = True
+        elif overridden:
+            is_virtual = True
+        elif isinstance(m, Port) and m_id not in top_level_model_ids:
+            is_virtual = True
+
+        if not is_virtual:
+            root = find(key)
+            groups[root].append((m, p))
+
+    # Construct final deterministic connections list
+    valid_groups = []
+    for root, group in groups.items():
+        if len(group) > 0:
+            # Sort each group internally to preserve insertion order evaluation
+            group.sort(key=lambda x: (model_discovery_order[id(x[0])], x[1]))
+            valid_groups.append(group)
+            
+    # Sort outer nodes to respect standard solver MNA matrix mapping
+    valid_groups.sort(key=lambda g: (model_discovery_order[id(g[0][0])], g[0][1]))
+
+    return valid_groups
+
+
+def compute_unique_nets(components: list[Model], indexed_connections: list[list[tuple[int, int]]]) -> np.ndarray:
+    """Groups connected ports into unique nets using a Disjoint Set (Union-Find) algorithm."""
+    def get_global_port(comps: list[Model], c_idx: int, p_idx: int) -> int:
+        return sum(c.nports for c in comps[:c_idx]) + p_idx
+
+    num_ports = sum(c.nports for c in components)
+    parent = list(range(num_ports))
+    
+    def find(i):
+        if parent[i] == i: return i
+        parent[i] = find(parent[i])
+        return parent[i]
+        
+    def union(i, j):
+        root_i, root_j = find(i), find(j)
+        if root_i != root_j:
+            parent[root_i] = root_j
+
+    if indexed_connections:
+        for cnx in indexed_connections:
+            if not cnx: continue
+            first = get_global_port(components, cnx[0][0], cnx[0][1])
+            for c_idx, p_idx in cnx[1:]:
+                union(first, get_global_port(components, c_idx, p_idx))
+                
+    port_to_net = np.array([find(i) for i in range(num_ports)], dtype=int)
+    _, port_to_net_map = np.unique(port_to_net, return_inverse=True)
+    
+    return port_to_net_map
