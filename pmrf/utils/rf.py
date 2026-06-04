@@ -29,13 +29,14 @@ def fix_z0_shape(z0: ArrayLike, nfreqs: int, nports: int, nnetworks: int = 1) ->
     jnp.ndarray
         The broadcasted impedance array. Shape is `(nfreqs, nports)` 
         if `nnetworks == 1`, otherwise `(nnetworks, nfreqs, nports)`.
+        The returned array will always be complex.
 
     Raises
     ------
     IndexError
         If `z0` has an incompatible shape.
     """
-    z0_arr = jnp.asarray(z0)
+    z0_arr = jnp.asarray(z0).astype(complex)
     shape = z0_arr.shape
     target_shape_3d = (nnetworks, nfreqs, nports)
     
@@ -70,6 +71,6 @@ def fix_z0_shape(z0: ArrayLike, nfreqs: int, nports: int, nnetworks: int = 1) ->
         
     # Return 2D array for backward compatibility if nnetworks == 1
     if nnetworks == 1:
-        return res[0].copy()
+        return res[0].copy().astype(complex)
     
-    return res.copy()
+    return res.copy().astype(complex)

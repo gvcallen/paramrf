@@ -39,7 +39,7 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
             Id = jnp.eye(nports, dtype=complex)
             
             if s_def_old == 'power':
-                F = jnp.diag(1.0 / jnp.sqrt(z0_arr.real))
+                F = jnp.diag((1.0 / jnp.sqrt(z0_arr.real)).astype(complex))
                 G = jnp.diag(z0_arr)
                 v = F @ (G.conjugate() + G @ s_arr)
                 i = F @ (Id - s_arr)
@@ -52,7 +52,7 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
                 raise ValueError(f'Unknown s_def: {s_def_old}')
 
             if s_def_new == 'power':
-                F = jnp.diag(1.0 / (2.0 * jnp.sqrt(z0_arr.real)))
+                F = jnp.diag(1.0 / (2.0 * jnp.sqrt(z0_arr.real)).astype(complex))
                 G = jnp.diag(z0_arr)
                 a = F @ (v + G @ i)
                 b = F @ (v - G.conjugate() @ i)
@@ -218,8 +218,8 @@ def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            F_inv = jnp.diag(2 * jnp.sqrt(z0_arr.real))
-            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            F_inv = jnp.diag(2 * jnp.sqrt(z0_arr.real).astype(complex))
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)).astype(complex))
             G = jnp.diag(z0_arr)
             
             A = s_arr @ G + jnp.conjugate(G)
@@ -278,7 +278,7 @@ def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real))).astype(complex)
             G = jnp.diag(z0_arr)        
             s = rsolve(F @ (Id + G @ y_arr), F @ (Id - jnp.conjugate(G) @ y_arr))
         elif s_def == 'traveling':
@@ -327,7 +327,7 @@ def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)).astype(complex))
             G = jnp.diag(z0_arr)        
             z = jnp.linalg.solve(nudge_diag((Id - s_arr) @ F), (s_arr @ G + jnp.conjugate(G)) @ F)
         elif s_def == 'traveling':
@@ -374,7 +374,7 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         z_arr = jnp.array(z_arr, dtype=complex)
 
         if s_def == 'power':
-            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)).astype(complex))
             G = jnp.diag(z0_arr)
             s = rsolve(F @ (z_arr + G), F @ (z_arr - jnp.conjugate(G)))
         elif s_def == 'traveling':

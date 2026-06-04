@@ -27,7 +27,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True)
     use_grad: bool | None = eqx.field(static=True, default=None)
-    use_hess: bool | None = eqx.field(static=True, default=None)
+    # use_hess: bool | None = eqx.field(static=True, default=None)
 
     def run(
         self, 
@@ -42,7 +42,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         method = self.method
         tol = self.tol
         use_grad = self.use_grad
-        use_hess = self.use_hess
+        use_hess = False
 
         if use_grad is None:
             gradient_free_methods = {'nelder-mead', 'powell', 'cobyla'}
