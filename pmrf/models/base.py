@@ -300,8 +300,14 @@ class Model(eqx.Module):
         Expands this model into its internal graph representation for circuit flattening.
 
         This method is used by graph algorithms (like the solver in `Circuit.flattened`) 
-        to unpack composite models, routing wrappers, and nested hierarchies into a 
-        single flat netlist, allowing global matrix solves where desired.
+        to unpack composite models, wrappers, and nested hierarchies into a 
+        single flat netlist. This allows global matrix solves to be used, where desired.
+
+        Note that `expand` is automatically implemented if :meth:`pmrf.Model.build` is overridden
+        and the built model also implements expand. This means that most user-classes
+        do NOT need to manually implement this method, and it is mainly intended for
+        built-in composite models in ParamRF to override e.g. :class:`pmrf.models.Cascade`
+        or :class:`pmrf.models.Renumbered`.
 
         Returns
         -------

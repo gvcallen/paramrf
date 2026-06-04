@@ -11,7 +11,6 @@ from pmrf.models.base import Model
 from pmrf.models.components.ideal import Port, Ground
 from pmrf.frequency import Frequency
 from collections import defaultdict
-from pmrf.utils.type import is_overridden
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y
@@ -33,8 +32,6 @@ from pmrf.models.composite.interconnected.solvers.scattering import (
     HierarchicalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,
 )
-from pmrf.models.composite.interconnected.cascade import Cascade
-from pmrf.models.composite.transformed import Renumbered
 
 EVAL_Z0 = 50.0
 
@@ -623,7 +620,7 @@ def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[t
 
     models_to_expand = []
     
-    # 1. Register top-level elements
+    # Register top-level elements
     for node in connections:
         if not node: continue
         first_port = None
@@ -636,7 +633,7 @@ def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[t
 
     expanded_models = set()
 
-    # 2. Polymorphic Expansion
+    # Model Expansion
     while models_to_expand:
         m_id = models_to_expand.pop()
         if m_id in expanded_models: 
@@ -666,7 +663,7 @@ def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[t
                     if first_port is None: first_port = (sub_m_id, sub_p)
                     union(first_port, (sub_m_id, sub_p))
 
-    # 3. Group interconnected components and drop virtual interfaces
+    # Group interconnected components and drop virtual interfaces
     groups = defaultdict(list)
     for key in parent.keys():
         m_id, p = key
