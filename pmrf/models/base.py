@@ -28,7 +28,7 @@ from pmrf.utils import field, unwrap, unwrap_self
 T = TypeVar('T')
 
 PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
-PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
+PRIMARY_METHODS = PRIMARY_DOMAINS + ('primary_matrix',)
 PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
     

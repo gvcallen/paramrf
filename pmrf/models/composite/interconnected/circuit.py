@@ -3,6 +3,7 @@ Composite models that physically connect ports of other models.
 """
 import jax
 import jax.numpy as jnp
+from jax.scipy.linalg import block_diag
 import numpy as np
 from dataclasses import InitVar
 from functools import cached_property
@@ -82,7 +83,7 @@ class Circuit(Model):
     connections: InitVar[list[list[tuple[Model, int]]]] = None
 
     #: Flatten sub-circuits.
-    flatten: bool = field(default=True, kw_only=True, static=True)
+    flatten: bool = field(default=False, kw_only=True, static=True)
     
     #: The circuit solver.
     solver: AbstractCircuitSolver = field(default_factory=GlobalScatteringCircuitSolver, kw_only=True)
@@ -161,7 +162,6 @@ class Circuit(Model):
         """Computes the number of external ports exposed by this circuit."""
         return sum(1 for model in self.circuit if isinstance(model, Port))
 
-    @cached_property
     def flattened(self) -> 'Circuit':
         """
         Returns a newly compiled Circuit instance where all sub-circuits, 
@@ -169,7 +169,7 @@ class Circuit(Model):
         """
         conns = [[(self.circuit[midx], pidx) for midx, pidx in node] for node in self.indexed_connections]
         flat_conns = flatten_hierarchy(conns)
-        return Circuit(connections=flat_conns, solver=self.solver)
+        return Circuit(connections=flat_conns, solver=self.solver, flatten=False)
 
     # --- TOPOLOGY REPRESENTATIONS ---
 
@@ -213,7 +213,7 @@ class Circuit(Model):
         unique_ext_nets = np.unique(port_to_net_map[port_rep.ext_idx])
         unique_int_nets = np.setdiff1d(np.unique(port_to_net_map), unique_ext_nets)
 
-        # Drop ground nodes (assumed to be nets belonging to a Ground component)
+        # Drop ground nodes
         ground_nets = set()
         offset = 0
         for model in self.circuit:
@@ -221,17 +221,30 @@ class Circuit(Model):
                 ground_nets.update(port_to_net_map[offset:offset+model.nports])
             offset += model.nports
             
-        unique_ext_nets = np.array([n for n in unique_ext_nets if n not in ground_nets], dtype=int)
-        unique_int_nets = np.array([n for n in unique_int_nets if n not in ground_nets], dtype=int)
+        unique_all_nets = np.unique(port_to_net_map)
+        active_nets = np.array([n for n in unique_all_nets if n not in ground_nets], dtype=int)
+        
+        # Create mapping: active nodes -> 0..N-1. Ground nodes -> N (to be safely dropped)
+        N_active = len(active_nets)
+        mapping = np.full(np.max(unique_all_nets) + 1, N_active, dtype=int)
+        mapping[active_nets] = np.arange(N_active)
+        
+        # Remap local rows/cols
+        r_idx_mapped = mapping[np.concatenate(r_idx).astype(int)]
+        c_idx_mapped = mapping[np.concatenate(c_idx).astype(int)]
+        
+        unique_ext_nets = np.unique(port_to_net_map[port_rep.ext_idx])
+        ext_active = np.array([n for n in unique_ext_nets if n not in ground_nets], dtype=int)
+        int_active = np.setdiff1d(active_nets, ext_active)
 
         return NodalRepresentation(
-            r_idx=np.concatenate(r_idx).astype(int),
-            c_idx=np.concatenate(c_idx).astype(int),
-            ext_idx=unique_ext_nets,
-            int_idx=unique_int_nets
+            r_idx=r_idx_mapped,
+            c_idx=c_idx_mapped,
+            ext_idx=mapping[ext_active],   # mapped external indices
+            int_idx=mapping[int_active]    # mapped internal indices
         )
 
-    @cached_property
+    @property
     def mna_representation(self) -> MNARepresentation:
         """Generates the static topological map for MNA assembly and reduction."""
         nodal = self.nodal_representation
@@ -242,14 +255,17 @@ class Circuit(Model):
         d_r_idx, d_c_idx = [], []
         
         aux_count = 0
-        offset_port = 0
+        offset_y = 0  # Tracks the index in the flattened n*n nodal arrays
+        
         for model in self.circuit:
             k = getattr(model, 'mna_aux_count', 0) 
             n = model.nports
             
             if k > 0:
-                nets = self.port_representation.port_to_net_map[offset_port:offset_port+n]
-                aux_nets = np.arange(aux_count, aux_count + k) + np.max(self.port_representation.port_to_net_map) + 1
+                # Extract the 1D mapped port array from the 2D flattened nodal indices.
+                # r_idx has n*n elements for this model. Taking every n-th element yields the unique nets.
+                nets = nodal.r_idx[offset_y : offset_y + n*n][::n]
+                aux_nets = np.arange(aux_count, aux_count + k) 
                 
                 BR, BC = np.meshgrid(nets, aux_nets, indexing='ij')
                 CR, CC = np.meshgrid(aux_nets, nets, indexing='ij')
@@ -263,10 +279,11 @@ class Circuit(Model):
                 d_c_idx.append(DC.flatten())
                 
             aux_count += k
-            offset_port += n
+            offset_y += n * n  # Step by n^2 to stay aligned with the Nodal Y-matrix
             
-        aux_start_idx = np.max(self.port_representation.port_to_net_map) + 1 if aux_count > 0 else 0
-        aux_idx = np.arange(aux_start_idx, aux_start_idx + aux_count)
+        # The auxiliary variables sit right after the standard Nodal nodes
+        N = nodal.num_nodes
+        aux_idx = np.arange(N, N + aux_count)
 
         def _safe_cat(lst):
             return np.concatenate(lst).astype(int) if lst else np.array([], dtype=int)
@@ -285,18 +302,16 @@ class Circuit(Model):
 
     def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
-        S_blocks = [c.s(freq, z0=z0) for c in self.circuit]
-        Nf = S_blocks[0].shape[0]
-        num_ports = sum(S.shape[1] for S in S_blocks)
-        dtype = S_blocks[0].dtype
+        # This list comprehension will still unroll (explained below)
+        S_blocks = [c.s(freq, z0=z0) for c in self.circuit] 
         
-        batched_S = jnp.zeros((Nf, num_ports, num_ports), dtype=dtype)
-        offset = 0
-        for S_c in S_blocks:
-            n = S_c.shape[1]
-            batched_S = batched_S.at[:, offset:offset+n, offset:offset+n].set(S_c)
-            offset += n
-            
+        # Elegantly map block_diag over the frequency axis (axis 0 of each S_block)
+        batched_S = jax.vmap(block_diag)(*S_blocks)
+        
+        # Calculate ports and formats based on the new batched_S matrix
+        num_ports = batched_S.shape[-1]
+        dtype = batched_S.dtype
+        
         z0_ports = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
         return batched_S, z0_ports
 
@@ -335,7 +350,7 @@ class Circuit(Model):
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0):
         """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist."""
         if self.flatten:
-            flat = self.flattened
+            flat = self.flattened()
         else:
             flat = self
         

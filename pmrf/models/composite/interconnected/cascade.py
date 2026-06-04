@@ -61,33 +61,23 @@ class Cascade(Model):
     # Calculate the S-parameters of the cascaded network
     >>> s_params = rlc_series.s(freq)
     """
-    #: (experimental) Flatten the connections if they contain any sub-circuits
-    flatten: InitVar[bool] = field(default=True, static=True, kw_only=True)
-    
     #: The models.
     cascade: tuple[Model, ...]
     
+    #: (experimental) Flatten the connections if they contain any sub-circuits
+    flatten: bool = field(default=True, static=True, kw_only=True)
+    
     #: The cascade reduction algorithm method.
-    method: Literal['s', 'a'] = field(default='s', kw_only=True)
+    method: Literal['s', 'a'] = field(default='s', kw_only=True, static=True)
     
     #: Epsilon for matrix singularity nudging in scattering cascade.
     eps: float = field(default=1e-12, static=True, kw_only=True)
 
-    def __post_init__(self, flatten: bool):
+    def __post_init__(self):
         for model in self.cascade:
             if model.nports % 2 != 0:
                 raise ValueError('All networks must be 2N-ports for Cascade')
             
-        if flatten:
-            merged = []
-            for model in self.cascade:
-                # Only extend if the user has not given it a name or metadata
-                if isinstance(model, Cascade) and model.name is None and model.metadata is None:
-                    merged.extend(model.cascade)
-                else:
-                    merged.append(model)
-            self.cascade = tuple(merged)
-
     def expand(self):
         from pmrf.models.composite.interconnected.circuit import Circuit
         
@@ -98,6 +88,17 @@ class Cascade(Model):
     @property
     def number_of_ports(self):
         return self.cascade[0].number_of_ports
+    
+    def flattened(self) -> 'Cascade':
+        merged = []
+        for model in self.cascade:
+            # Only extend if the user has not given it a name or metadata
+            if isinstance(model, Cascade) and model.name is None and model.metadata is None:
+                merged.extend(model.cascade)
+            else:
+                merged.append(model)
+
+        return Cascade(merged, method=self.method, eps=self.eps, flatten=False)
 
     # --- DATA EVALUATION ---
 
@@ -197,15 +198,20 @@ class Cascade(Model):
 
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         """Dispatches data prep and solving across the active vmapped mathematical method."""
-        if self.method == 's':
-            s_blocks, z0_blocks = self._evaluate_scattering(freq, z0)
-            run_vmap = jax.vmap(self._cascade_scattering, in_axes=(0, 0))
+        if self.flatten:
+            flat = self
+        else:
+            flat = self.flattened()
+
+        if flat.method == 's':
+            s_blocks, z0_blocks = flat._evaluate_scattering(freq, z0)
+            run_vmap = jax.vmap(flat._cascade_scattering, in_axes=(0, 0))
             s_cas, z0_cas = run_vmap(s_blocks, z0_blocks)
             return s_cas, z0_cas, 's'
             
-        elif self.method == 'a':
-            a_blocks = self._evaluate_abcd(freq)
-            run_vmap = jax.vmap(self._cascade_abcd, in_axes=(0,))
+        elif flat.method == 'a':
+            a_blocks = flat._evaluate_abcd(freq)
+            run_vmap = jax.vmap(flat._cascade_abcd, in_axes=(0,))
             a_cas = run_vmap(a_blocks)
             return a_cas, None, 'a'
             

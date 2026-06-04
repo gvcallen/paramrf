@@ -122,11 +122,12 @@ def test_cascade_flattening():
     R3 = Resistor(30.0)
     
     nested = Cascade([R1, Cascade([R2, R3])])
+    flattened = nested.flattened()
     
-    # The models tuple should be flattened to just (R1, R2, R3)
-    assert len(nested.cascade) == 3
-    assert nested.cascade[0] is R1
-    assert nested.cascade[2] is R3
+    # The flattened models tuple should be flattened to just (R1, R2, R3)
+    assert len(flattened.cascade) == 3
+    assert flattened.cascade[0] is R1
+    assert flattened.cascade[2] is R3
     
 
 # ---------------------------------------------------------
@@ -198,7 +199,7 @@ def test_circuit_flatten_hierarchy(basic_freq):
     assert not jnp.any(jnp.isnan(s))
 
     # --- Verify the flattened graph topography ---
-    flat_circ = top_circ.flattened
+    flat_circ = top_circ.flattened()
     flat_models = flat_circ.circuit
 
     # The flattened circuit should contain NO Circuit or Cascade wrapper objects.
