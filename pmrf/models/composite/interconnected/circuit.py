@@ -16,7 +16,6 @@ from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y
 
-# Unified interfaces imported from base
 from pmrf.models.composite.interconnected.base import (
     AbstractCircuitSolver,
     AbstractScatteringCircuitSolver,
@@ -256,9 +255,11 @@ class Circuit(Model):
         
         aux_count = 0
         offset_y = 0  # Tracks the index in the flattened n*n nodal arrays
+        freq_dummy = Frequency(1, 2, 2)
         
         for model in self.circuit:
-            k = getattr(model, 'mna_aux_count', 0) 
+            stamp_shape = jax.eval_shape(lambda m=model: m.mna(freq_dummy))
+            k = stamp_shape.D.shape[1]
             n = model.nports
             
             if k > 0:
@@ -302,22 +303,24 @@ class Circuit(Model):
 
     def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
-        # This list comprehension will still unroll (explained below)
         S_blocks = [c.s(freq, z0=z0) for c in self.circuit] 
         
-        # Elegantly map block_diag over the frequency axis (axis 0 of each S_block)
         batched_S = jax.vmap(block_diag)(*S_blocks)
-        
-        # Calculate ports and formats based on the new batched_S matrix
         num_ports = batched_S.shape[-1]
         dtype = batched_S.dtype
-        
         z0_ports = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
+
         return batched_S, z0_ports
 
     def _evaluate_admittance(self, freq: Frequency) -> jnp.ndarray:
         """Evaluates and flattens the admittance matrices of all contained components."""
-        Y_blocks = [c.y(freq) for c in self.circuit]
+        Y_blocks = []
+        for c in self.circuit:
+            if isinstance(c, Port):
+                Y_blocks.append(jnp.zeros((freq.npoints, c.nports, c.nports), dtype=jnp.complex128))
+            else:
+                Y_blocks.append(c.y(freq))
+                
         flat_Y_list = []
         for Y in Y_blocks:
             Nf, n, _ = Y.shape
@@ -330,7 +333,15 @@ class Circuit(Model):
         
         for c in self.circuit:
             stamp = c.mna(freq)
-            Y, B, C, D = stamp.Y, stamp.B, stamp.C, stamp.D
+            # FIX: Zero out virtual topological markers (Ports)
+            if isinstance(c, Port):
+                Y = jnp.zeros_like(stamp.Y)
+                B = jnp.zeros_like(stamp.B)
+                C = jnp.zeros_like(stamp.C)
+                D = jnp.zeros_like(stamp.D)
+            else:
+                Y, B, C, D = stamp.Y, stamp.B, stamp.C, stamp.D
+                
             Nf, n, _ = Y.shape
             k = D.shape[1]
             

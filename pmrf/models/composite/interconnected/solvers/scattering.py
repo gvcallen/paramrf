@@ -13,8 +13,6 @@ from pmrf.models.composite.interconnected.base import (
 )
 
 from pmrf.rf.conversions import s2s
-from pmrf.math import nudge_diag
-
 
 class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
@@ -66,9 +64,10 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             int_idx_np = np.array(topology.int_idx)
             
         N = net_map_np.shape[0]
+
         S_trav = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
         
-        # --- Sparse vs Dense Assembly of the Connection Matrix (X) ---
+        # Connection Matrix (X)
         mask = jnp.array(net_map_np[:, None] == net_map_np[None, :], dtype=s_block_diagonal.dtype)
         y0 = 1.0 / z0_ports
         y0_sum = jnp.dot(mask, y0) 
@@ -85,7 +84,7 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         X_A = X[jnp.ix_(ext_idx_np, ext_idx_np)]
         X_B = X[jnp.ix_(ext_idx_np, int_idx_np)]
         
-        # --- Schur Complement via lineax ---
+        # Schur Complement
         T_D_reg = T_D + self.eps * jnp.eye(T_D.shape[0], dtype=T_D.dtype)
         operator_D = lx.MatrixLinearOperator(T_D_reg)
         
@@ -106,6 +105,7 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         )(numerator.T).T
         
         z0_ext = z0_ports[ext_idx_np]
+
         S_ext_power = s2s(S_ext_trav, z0_ext, 'power', 'traveling')
         
         return ScatteringResult(s=S_ext_power, z0=z0_ext)
@@ -149,10 +149,7 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         int_net_ids = np.unique(net_map_np[int_idx_np])
 
         # Sequentially fold each internal net into the global S-matrix
-        # Because the topology arrays are evaluated as static NumPy arrays, 
-        # JAX will cleanly unroll this loop during tracing/JIT.
         for net_id in int_net_ids:
-            
             # Find all ports participating in this specific net
             idx_list = np.where(net_map_np == net_id)[0]
             
@@ -163,8 +160,6 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             idx = jnp.array(idx_list)
             
             # Calculate the ideal connection matrix (X_local) for this net.
-            # This natively handles differing Z0 impedances (mismatches) and 
-            # generalizes scikit-rf's 2-port connection to N-port nodes.
             y0_local = 1.0 / z0_ports[idx]
             y0_sum = jnp.sum(y0_local)
             y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
@@ -221,13 +216,10 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         z0_ports: jax.Array, 
         topology: PortRepresentation, 
     ) -> ScatteringResult:
-        
         ext_idx_np = np.array(topology.ext_idx)
         int_idx_np = np.array(topology.int_idx)
         net_map_np = np.array(topology.port_to_net_map)
         
-        # --- Initialization ---
-        # Note: No virtual probe padding needed for Sequential/Hierarchical solvers!
         S = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
         
         active_ports = list(range(S.shape[-1]))
@@ -236,7 +228,6 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         # Only iterate over nets that actually contain internal ports to be eliminated
         int_net_ids = np.unique(net_map_np[int_idx_np])
         
-        # --- Sequential Network Contraction ---
         for net_id in int_net_ids:
             net_ports = np.where(net_map_np == net_id)[0]
             
@@ -247,19 +238,19 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             local_idx = [active_ports.index(p) for p in net_ports]
             idx_jnp = jnp.array(local_idx)
             
-            # 1. Compute the local connection matrix X for the net
+            # Compute the local connection matrix X for the net
             y0_local = 1.0 / z0_ports[net_ports]
             y0_sum = jnp.sum(y0_local)
 
             y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
             X_local = (2.0 * y0_sqrt_prod) / y0_sum - jnp.eye(len(net_ports), dtype=S.dtype)
             
-            # 2. Extract sub-blocks from the CURRENT shrinking S-matrix
+            # Extract sub-blocks from the CURRENT shrinking S-matrix
             S_II = S[jnp.ix_(idx_jnp, idx_jnp)]
             S_All_I = S[:, idx_jnp]
             S_I_All = S[idx_jnp, :]
             
-            # 3. Solve the local wave interactions
+            # Solve the local wave interactions
             M = jnp.eye(len(net_ports), dtype=S.dtype) - X_local @ S_II
             M_reg = M + self.eps * jnp.eye(len(net_ports), dtype=S.dtype)
             
@@ -270,10 +261,10 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
                 in_axes=1, out_axes=1
             )(rhs)
             
-            # 4. Apply the generalized Redheffer update to the full matrix
+            # Apply the generalized Redheffer update to the full matrix
             S = S + S_All_I @ W
             
-            # 5. SHRINK THE MATRIX: Drop the strictly internal ports of this net
+            # Drop the strictly internal ports of this net
             elim_ports = [p for p in net_ports if p not in ext_idx_set]
             if not elim_ports:
                 continue
@@ -289,7 +280,6 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             # Update the Python tracking list
             active_ports = [active_ports[i] for i in keep_local_idx]
 
-        # --- Final Cleanup ---
         final_ordering = [active_ports.index(p) for p in ext_idx_np]
         final_idx_jnp = jnp.array(final_ordering)
         

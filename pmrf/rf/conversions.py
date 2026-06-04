@@ -15,27 +15,6 @@ ZERO = 1e-4
 def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
     """
     Convert S-parameters between different definitions (e.g., Power waves vs Traveling waves).
-
-    This function handles the conversion logic defined by `s_def_old` to `s_def_new`.
-    It supports complex characteristic impedances and accepts both single-frequency
-    (2D) and multi-frequency (3D) S-parameter matrices.
-
-    Parameters
-    ----------
-    s : ArrayLike
-        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
-    z0 : ArrayLike
-        The characteristic impedance. Can be a scalar, or an array broadcastable
-        to `(nports,)` or `(nfreqs, nports)`.
-    s_def_new : str
-        The target S-parameter definition. Options: 'power', 'traveling'.
-    s_def_old : str
-        The source S-parameter definition. Options: 'power', 'traveling'.
-
-    Returns
-    -------
-    jnp.ndarray
-        The converted S-parameter matrix matching the shape of the input `s`.
     """
     if s_def_new == s_def_old:
         return s
@@ -57,47 +36,35 @@ def s2s(s: ArrayLike, z0: ArrayLike, s_def_new: str, s_def_old: str):
             return s_arr
         
         def imag_branch():
-            # Calculate port voltages and currents using the old s_def.
-            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
-            diag_idx = jnp.arange(nports)
+            Id = jnp.eye(nports, dtype=complex)
             
             if s_def_old == 'power':
-                F = F.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr.real)))
-                G = G.at[diag_idx, diag_idx].set(z0_arr)        
-                Id = jnp.eye(nports, dtype=complex)
+                F = jnp.diag(1.0 / jnp.sqrt(z0_arr.real))
+                G = jnp.diag(z0_arr)
                 v = F @ (G.conjugate() + G @ s_arr)
                 i = F @ (Id - s_arr)
             elif s_def_old == 'traveling':
-                F = F.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
-                G = G.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr)))        
-                Id = jnp.eye(nports, dtype=complex)
+                F = jnp.diag(jnp.sqrt(z0_arr))
+                G = jnp.diag(1.0 / jnp.sqrt(z0_arr))
                 v = F @ (Id + s_arr)
                 i = G @ (Id - s_arr)
             else:
                 raise ValueError(f'Unknown s_def: {s_def_old}')
 
-            # Calculate a and b waves from the voltages and currents.
-            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
             if s_def_new == 'power':
-                F = F.at[diag_idx, diag_idx].set(1.0 / (2.0 * jnp.sqrt(z0_arr.real)))
-                G = G.at[diag_idx, diag_idx].set(z0_arr)    
+                F = jnp.diag(1.0 / (2.0 * jnp.sqrt(z0_arr.real)))
+                G = jnp.diag(z0_arr)
                 a = F @ (v + G @ i)
                 b = F @ (v - G.conjugate() @ i)
             elif s_def_new == 'traveling':
-                F = F.at[diag_idx, diag_idx].set(1.0 / (jnp.sqrt(z0_arr)))
-                G = G.at[diag_idx, diag_idx].set(z0_arr) 
+                F = jnp.diag(1.0 / jnp.sqrt(z0_arr))
+                G = jnp.diag(z0_arr)
                 a = F @ (v + G @ i)
                 b = F @ (v - G @ i)
             else:
                 raise ValueError(f'Unknown s_def: {s_def_new}')
 
-            # New S-parameter matrix from a and b waves.
-            s_new = jnp.zeros_like(s_arr)
-            for n in range(nports):
-                for m in range(nports):
-                    s_new = s_new.at[m, n].set(b[m, n] / a[n, n])
-
-            return s_new
+            return b / jnp.diag(a)
 
         return jax.lax.cond(all_real, real_branch, imag_branch)
         
@@ -248,33 +215,21 @@ def s2y(s: jnp.ndarray, z0: ArrayLike = 50, s_def: str = 'power') -> jnp.ndarray
         z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
         s_arr = jnp.array(s_arr, dtype=complex)
-
-        # Creating Identity matrices of shape (nports,nports) for each nfreqs
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            F, F_inv, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
-            diag_idx = jnp.arange(nports)
+            F_inv = jnp.diag(2 * jnp.sqrt(z0_arr.real))
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = jnp.diag(z0_arr)
             
-            # F_inv is the inverse of F: a diagonal matrix of 2 * sqrt(Re(Z0))
-            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
-            F_inv = F_inv.at[diag_idx, diag_idx].set(2 * jnp.sqrt(z0_arr.real))
-            G = G.at[diag_idx, diag_idx].set(z0_arr)
-            
-            # Left-solve: X = A^-1 B  =>  jnp.linalg.solve(A, B)
-            # Y = F_inv @ (S @ G + G^*)^-1 @ (I - S) @ F
             A = s_arr @ G + jnp.conjugate(G)
             B = Id - s_arr
             
             y = F_inv @ jnp.linalg.solve(nudge_diag(A), B) @ F
 
         elif s_def == 'traveling':
-            # Creating diagonal matrices of 1 / sqrt(Z0)
-            inv_sqrtz0 = jnp.zeros_like(s_arr)
-            diag_idx = jnp.arange(nports)
-            inv_sqrtz0 = inv_sqrtz0.at[diag_idx, diag_idx].set(1.0 / jnp.sqrt(z0_arr))
+            inv_sqrtz0 = jnp.diag(1.0 / jnp.sqrt(z0_arr))
             
-            # Y = Z0^-1/2 @ (I + S)^-1 @ (I - S) @ Z0^-1/2
             A = Id + s_arr
             B = Id - s_arr
             
@@ -320,24 +275,14 @@ def y2s(y: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
         y_arr = jnp.array(y_arr, dtype=complex)
-
-        # The following is a vectorized version of a for loop for all frequencies.
-        # Creating Identity matrices of shape (nports,nports) for each nfreqs
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
-            F, G = jnp.zeros_like(y_arr), jnp.zeros_like(y_arr)
-            diag_idx = jnp.arange(nports)
-            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
-            G = G.at[diag_idx, diag_idx].set(z0_arr)        
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = jnp.diag(z0_arr)        
             s = rsolve(F @ (Id + G @ y_arr), F @ (Id - jnp.conjugate(G) @ y_arr))
         elif s_def == 'traveling':
-            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-            # Creating diagonal matrices of shape (nports, nports) for each nfreqs
-            sqrtz0 = jnp.zeros_like(y_arr)
-            diag_idx = jnp.arange(nports)
-            sqrtz0 = sqrtz0.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
+            sqrtz0 = jnp.diag(jnp.sqrt(z0_arr))
             s = rsolve(Id + sqrtz0 @ y_arr @ sqrtz0, Id - sqrtz0 @ y_arr @ sqrtz0)
         else:
             raise ValueError(f'Unknown s_def: {s_def}')
@@ -379,26 +324,14 @@ def s2z(s: jnp.ndarray, z0: ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         z0_arr = jnp.where(z0_arr.real == 0, z0_arr + ZERO, z0_arr)
 
         s_arr = jnp.array(s_arr, dtype=complex)
-
-        # The following is a vectorized version of a for loop for all frequencies.
-        # # Creating Identity matrices of shape (nports,nports) for each nfreqs
         Id = jnp.eye(nports, dtype=complex)
 
         if s_def == 'power':
-            # Power-waves. Eq.(19) from [Kurokawa et al.]
-            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
-
-            F, G = jnp.zeros_like(s_arr), jnp.zeros_like(s_arr)
-            diag_idx = jnp.arange(nports)
-            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
-            G = G.at[diag_idx, diag_idx].set(z0_arr)        
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = jnp.diag(z0_arr)        
             z = jnp.linalg.solve(nudge_diag((Id - s_arr) @ F), (s_arr @ G + jnp.conjugate(G)) @ F)
         elif s_def == 'traveling':
-            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-            # Creating diagonal matrices of shape (nports, nports) for each nfreqs
-            sqrtz0 = jnp.zeros_like(s_arr)
-            diag_idx = jnp.arange(nports)
-            sqrtz0 = sqrtz0.at[diag_idx, diag_idx].set(jnp.sqrt(z0_arr))
+            sqrtz0 = jnp.diag(jnp.sqrt(z0_arr))
             z = sqrtz0 @ jnp.linalg.solve(nudge_diag(Id - s_arr), (Id + s_arr) @ sqrtz0)        
         else:
             raise ValueError(f'Unknown s_def: {s_def}')
@@ -441,20 +374,12 @@ def z2s(z: ArrayLike, z0:ArrayLike = 50, s_def = 'power') -> jnp.ndarray:
         z_arr = jnp.array(z_arr, dtype=complex)
 
         if s_def == 'power':
-            # Power-waves. Eq.(18) from [Kurokawa et al.3]
-            # Creating diagonal matrices of shape (nports,nports) for each nfreqs
-            F, G = jnp.zeros_like(z_arr), jnp.zeros_like(z_arr)
-            diag_idx = jnp.arange(nports)
-            F = F.at[diag_idx, diag_idx].set(1.0 / (2 * jnp.sqrt(z0_arr.real)))
-            G = G.at[diag_idx, diag_idx].set(z0_arr)
+            F = jnp.diag(1.0 / (2 * jnp.sqrt(z0_arr.real)))
+            G = jnp.diag(z0_arr)
             s = rsolve(F @ (z_arr + G), F @ (z_arr - jnp.conjugate(G)))
         elif s_def == 'traveling':
-            # Traveling-waves definition. Cf.Wikipedia "Impedance parameters" page.
-            # Creating Identity matrices of shape (nports,nports) for each nfreqs
-            Id, sqrty0 = jnp.zeros_like(z_arr), jnp.zeros_like(z_arr)
-            diag_idx = jnp.arange(nports)
-            Id = Id.at[diag_idx, diag_idx].set(1.0)
-            sqrty0 = sqrty0.at[diag_idx, diag_idx].set(jnp.sqrt(1.0/z0_arr))
+            Id = jnp.eye(nports, dtype=complex)
+            sqrty0 = jnp.diag(jnp.sqrt(1.0/z0_arr))
             s = rsolve(sqrty0 @ z_arr @ sqrty0 + Id, sqrty0 @ z_arr @ sqrty0 - Id)        
         else:
             raise ValueError(f'Unknown s_def: {s_def}')
@@ -953,14 +878,14 @@ def renormalize_s_mobius(
         GammaS = gamma[:, None] * s_arr
         S_minus_G = s_arr - jnp.diag(gamma)
 
-        # 1. Add numerical stabilization to prevent singular matrix inversion
+        # Add numerical stabilization to prevent singular matrix inversion
         A = nudge_diag(I - GammaS) 
         B = S_minus_G
 
         # Solve X A = B => X = (S - Gamma) @ (I - Gamma S)^-1
         X = jnp.linalg.solve(A.T.conj(), B.T.conj()).T.conj()
 
-        # 2. Apply the wave-amplitude scaling matrix M
+        # Apply the wave-amplitude scaling matrix M
         M = (z_new_arr + z_old_arr) / (2 * jnp.sqrt(z_old_arr * z_new_arr))
         
         # M @ X @ M^-1 is mathematically equivalent to multiplying each X_ij by (M_i / M_j)

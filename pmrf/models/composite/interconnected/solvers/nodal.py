@@ -45,10 +45,10 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
         if self.eps > 0:
             Y_global += self.eps * jnp.eye(N, dtype=Y_global.dtype)
             
-        # --- Sub-matrix Partitioning ---
+        # Sub-matrix Partitioning
         Y_ee = Y_global[jnp.ix_(topology.ext_idx, topology.ext_idx)]
         
-        # --- Schur Complement Reduction via lineax ---
+        # Schur Complement Reduction
         if topology.int_idx.size > 0:
             Y_ei = Y_global[jnp.ix_(topology.ext_idx, topology.int_idx)]
             Y_ie = Y_global[jnp.ix_(topology.int_idx, topology.ext_idx)]
