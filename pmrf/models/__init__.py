@@ -1,5 +1,5 @@
 """
-RF models, components, surrogates, and adapters.
+RF models, components, surrogates, and adapters, and their solvers.
 
 This module contains various components, surrogate models, composite building models, and model adapters.
 
@@ -95,8 +95,6 @@ from pmrf.models.components.sections import (
 # Composite
 from pmrf.models.composite.interconnected import (
     Circuit as Circuit,
-    Connected as Connected,
-    Parallel as Parallel,
     Cascade as Cascade,
     Terminated as Terminated,
 )

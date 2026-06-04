@@ -5,20 +5,18 @@ import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
 import lineax as lx
-from jax.experimental import sparse
 
-from pmrf.simulate.base import (
-    AbstractScatteringCascader, 
-    AbstractScatteringReducer, 
-    PortRepresentation, 
-    ScatteringResult, 
-    AbstractScatteringTerminator
+from pmrf.models.composite.interconnected.base import (
+    AbstractScatteringCircuitSolver,
+    PortRepresentation,
+    ScatteringResult,
 )
+
 from pmrf.rf.conversions import s2s
 from pmrf.math import nudge_diag
 
 
-class GlobalScatteringReducer(AbstractScatteringReducer):
+class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     Global S-parameter reduction solver.
     
@@ -113,7 +111,7 @@ class GlobalScatteringReducer(AbstractScatteringReducer):
         return ScatteringResult(s=S_ext_power, z0=z0_ext)
 
 
-class HierarchicalScatteringReducer(AbstractScatteringReducer):
+class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     Hierarchical S-parameter reduction solver.
     
@@ -204,7 +202,7 @@ class HierarchicalScatteringReducer(AbstractScatteringReducer):
         return ScatteringResult(s=S_ext_power, z0=z0_ext)
 
 
-class SequentialScatteringReducer(AbstractScatteringReducer):
+class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     Sequential S-parameter reduction solver (Matrix Contraction).
     
@@ -301,151 +299,3 @@ class SequentialScatteringReducer(AbstractScatteringReducer):
         S_ext_power = s2s(S_ext_trav, z0_ext, 'power', 'traveling')
         
         return ScatteringResult(s=S_ext_power, z0=z0_ext)
-
-
-class SequentialScatteringCascader(AbstractScatteringCascader):
-    """
-    Strict left-to-right 1D S-parameter cascader.
-    
-    Executes a memory-efficient `lax.scan` over sequential components.
-    Provides unmatched speed for simple chains (e.g., sliced transmission lines).
-    Connecting ports must share the same reference impedance.
-    """
-    eps: float = eqx.field(default=1e-12, static=True)
-    
-    def run(
-        self, 
-        s_stacked: jnp.ndarray,
-        port_z0: jnp.ndarray,
-    ) -> ScatteringResult:
-        
-        if s_stacked.shape[0] == 1:
-            return ScatteringResult(s=s_stacked[0], z0=port_z0[0])
-
-        def scan_fn(carry, x):
-            S_acc, z0_acc = carry
-            S_i, z0_i = x
-            S_next, z0_next = self.cascade_two(S_acc, z0_acc, S_i, z0_i)
-            return (S_next, z0_next), None
-
-        (S_cas, z0_cas), _ = jax.lax.scan(
-            scan_fn, 
-            init=(s_stacked[0], port_z0[0]), 
-            xs=(s_stacked[1:], port_z0[1:])
-        )
-        
-        return ScatteringResult(s=S_cas, z0=z0_cas)
-        
-    def cascade_two(
-        self,
-        Smat_A: jnp.ndarray,
-        z0_A: jnp.ndarray,
-        Smat_B: jnp.ndarray,
-        z0_B: jnp.ndarray,
-    ):
-        nports = Smat_A.shape[0]
-        N = nports // 2
-        
-        # Verify no un-renormalized impedance step exists between the stages
-        mismatch_detected = jnp.any(jnp.abs(z0_A[N:] - z0_B[:N]) > 1e-6)
-        Smat_A = eqx.error_if(
-            Smat_A, 
-            mismatch_detected, 
-            "SequentialScatteringCascader requires matching reference impedances between connected ports. "
-            "Renormalize stages or use a Reducer solver for arbitrary impedance steps."
-        )
-
-        z0_cas = jnp.concatenate((z0_A[:N], z0_B[N:]), axis=0)
-
-        A11 = Smat_A[:N, :N]
-        A12 = Smat_A[:N, N:]
-        A21 = Smat_A[N:, :N]
-        A22 = Smat_A[N:, N:]
-
-        B11 = Smat_B[:N, :N]
-        B12 = Smat_B[:N, N:]
-        B21 = Smat_B[N:, :N]
-        B22 = Smat_B[N:, N:]
-
-        I = jnp.eye(N, dtype=Smat_A.dtype)
-
-        M = nudge_diag(I - B11 @ A22, eps=self.eps)
-        N_mat = nudge_diag(I - A22 @ B11, eps=self.eps)
-        
-        X = jnp.linalg.solve(M, I)
-        Y = jnp.linalg.solve(N_mat, I)
-
-        S11 = A11 + A12 @ X @ B11 @ A21
-        S12 = A12 @ X @ B12
-        S21 = B21 @ Y @ A21
-        S22 = B22 + B21 @ Y @ A22 @ B12
-
-        top = jnp.concatenate((S11, S12), axis=1)
-        bottom = jnp.concatenate((S21, S22), axis=1)
-        S_cas = jnp.concatenate((top, bottom), axis=0)
-
-        return S_cas, z0_cas
-    
-
-class ScatteringTerminator(AbstractScatteringTerminator):
-    """
-    Exact boundary condition substitution for S-parameters.
-    
-    Mathematically collapses an active network by terminating a subset 
-    of its ports with a known load S-matrix.
-    """
-    def run(
-        self, 
-        s_from: jnp.ndarray,
-        z0_from: jnp.ndarray,
-        s_into: jnp.ndarray,
-        z0_into: jnp.ndarray,
-    ) -> ScatteringResult:
-        
-        # Slice by the number of surviving ports, not terminated ports.
-        P = s_from.shape[0]      # Total ports in the original matrix
-        M = s_into.shape[0]      # Ports being terminated
-        K = P - M                # Surviving ports
-        
-        S11 = s_from[:K, :K]
-        S12 = s_from[:K, K:]
-        S21 = s_from[K:, :K]
-        S22 = s_from[K:, K:]
-        
-        z0_out = z0_from[K:]
-        
-        def apply_renorm(operand):
-            S_L, z_old, z_new = operand
-            
-            g = (z_new - z_old) / (z_new + jnp.conj(z_old))
-            G = jnp.diag(g)
-            I = jnp.eye(M, dtype=S_L.dtype)
-            
-            I_minus_G = I - G
-            
-            X = jnp.linalg.solve(I_minus_G, S_L - G)          
-            Z = jnp.linalg.solve(I - G @ S_L, I_minus_G)      
-            
-            return X @ Z
-
-        def skip_renorm(operand):
-            S_L, _, _ = operand
-            return S_L
-
-        needs_renorm = jnp.logical_not(jnp.allclose(z0_out, z0_into))
-        
-        S_L_matched = jax.lax.cond(
-            needs_renorm,
-            apply_renorm,
-            skip_renorm,
-            (s_into, z0_into, z0_out)
-        )
-
-        I = jnp.eye(M, dtype=s_from.dtype)
-        diff = I - S22 @ S_L_matched
-        X = jnp.linalg.solve(diff, S21)
-        
-        S_term = S11 + S12 @ S_L_matched @ X
-        z0_term = z0_from[:K]
-        
-        return ScatteringResult(s=S_term, z0=z0_term)

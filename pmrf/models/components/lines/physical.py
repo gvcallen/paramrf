@@ -9,8 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.constraints import Positive, GreaterThan
 from pmrf.utils import field
 from pmrf.parameters import Param, param, as_param
-from pmrf.models.components.lines.base import RLGCLine
-
+from pmrf.models.components.lines.base import RLGCLine, RLGCResult
 
 # -----------------------------------------------------------------------------
 # Solvers
@@ -18,7 +17,7 @@ from pmrf.models.components.lines.base import RLGCLine
 
 class AbstractCoaxialSolver(eqx.Module):
     """Abstract base solver for coaxial line RLGC parameters."""
-    def __call__(self, freq: Frequency, din, dout, epr, mur, tand, rho) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def run(self, freq: Frequency, din, dout, epr, mur, tand, rho) -> RLGCResult:
         raise NotImplementedError
 
 
@@ -35,7 +34,7 @@ class TescheCoaxialSolver(AbstractCoaxialSolver):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines 
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def __call__(self, freq: Frequency, din, dout, epr, mur, tand, rho) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def run(self, freq: Frequency, din, dout, epr, mur, tand, rho) -> RLGCResult:
         eps = epsilon_0 * epr * (1 - 1j * tand)
         mu = mu_0 * mur
         w = freq.w
@@ -62,12 +61,12 @@ class TescheCoaxialSolver(AbstractCoaxialSolver):
         G = G_diel
         R = R_skin
         
-        return R, L, G, C
+        return RLGCResult(R=R, L=L, G=G, C=C)
 
 
 class AbstractMicrostripSolver(eqx.Module):
     """Abstract base solver for microstrip line RLGC parameters."""
-    def __call__(self, freq: Frequency, w, h, epr, tand, rho) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def run(self, freq: Frequency, w, h, epr, tand, rho) -> RLGCResult:
         raise NotImplementedError
 
 
@@ -80,7 +79,7 @@ class WheelerMicrostripSolver(AbstractMicrostripSolver):
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane. 
     IEEE Transactions on Microwave Theory and Techniques.
     """
-    def __call__(self, freq: Frequency, w, h, epr, tand, rho) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def run(self, freq: Frequency, w, h, epr, tand, rho) -> RLGCResult:
         W, H = w, h
         u = W / H
 
@@ -97,7 +96,7 @@ class WheelerMicrostripSolver(AbstractMicrostripSolver):
         R = (1 / W) * jnp.sqrt(2 * mu_0 * rho) * jnp.sqrt(freq.w)
         G = (1 / (Za * c)) * (epr * (epe - 1) / (epr - 1)) * tand * freq.w
         
-        return R, L, G, C
+        return RLGCResult(R=R, L=L, G=G, C=C)
 
 # -----------------------------------------------------------------------------
 # Lines
@@ -167,7 +166,7 @@ class PhysicalLine(RLGCLine):
     #: Dielectric loss tangent
     tand: Param = param(default=0.0, constraint=Positive())
 
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def rlgc(self, freq: Frequency) -> RLGCResult:
         f = freq.f
         sqrt_epr = jnp.sqrt(self.epr)
         A_dB = self.A * jnp.sqrt(f / self.fA)
@@ -186,7 +185,7 @@ class PhysicalLine(RLGCLine):
         G = G_val * ones
         C = C_val * ones
         
-        return R, L, G, C    
+        return RLGCResult(R=R, L=L, G=G, C=C)
     
 
 class DatasheetLine(RLGCLine):
@@ -256,7 +255,7 @@ class DatasheetLine(RLGCLine):
     #: Loss coefficients normalization flag
     loss_coeffs_normalized: bool = field(default=False, static=True)
 
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def rlgc(self, freq: Frequency) -> RLGCResult:
         w = freq.w
         zn, k1, k2, vf = self.zn, self.k1, self.k2, self.vf
 
@@ -280,7 +279,7 @@ class DatasheetLine(RLGCLine):
         L = (zn / (vf * c)) * jnp.ones_like(w)
         C = (1.0 / (zn * vf * c)) * jnp.ones_like(w)
         
-        return R, L, G, C
+        return RLGCResult(R=R, L=L, G=G, C=C)
     
 
 class CoaxialLine(RLGCLine):
@@ -359,8 +358,8 @@ class CoaxialLine(RLGCLine):
     #: The underlying physics solver
     solver: AbstractCoaxialSolver = field(default_factory=TescheCoaxialSolver)
 
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:        
-        return self.solver(freq, self.din, self.dout, self.epr, self.mur, self.tand, self.rho)
+    def rlgc(self, freq: Frequency) -> RLGCResult:
+        return self.solver.run(freq, self.din, self.dout, self.epr, self.mur, self.tand, self.rho)
     
     
 class MicrostripLine(RLGCLine):
@@ -443,5 +442,5 @@ class MicrostripLine(RLGCLine):
         if self.t is not None:
             raise ValueError("Thickness not yet supported in `MicrostripLine`")
 
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        return self.solver(freq, self.w, self.h, self.epr, self.tand, self.rho)
+    def rlgc(self, freq: Frequency) -> RLGCResult:
+        return self.solver.run(freq, self.w, self.h, self.epr, self.tand, self.rho)

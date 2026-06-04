@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import numpy as np
 
 # Adjust imports based on your project structure
-from pmrf.simulate.base import NodalRepresentation, MNARepresentation
-from pmrf.simulate.solvers.nodal import GlobalNodalReducer, GlobalMNAReducer
+from pmrf.models.composite.interconnected.base import NodalRepresentation, MNARepresentation
+from pmrf.models.composite.interconnected.solvers.nodal import GlobalNodalCircuitSolver, GlobalMNACircuitSolver
 
 
 def test_global_nodal_reducer_series_admittances():
@@ -19,7 +19,7 @@ def test_global_nodal_reducer_series_admittances():
     Two 2.0 Siemens admittances in series should reduce to a single 1.0 Siemens 
     equivalent admittance between Node 0 and Node 2.
     """
-    solver = GlobalNodalReducer()
+    solver = GlobalNodalCircuitSolver()
     
     # Assembly values: Y1, -Y1, -Y1, Y1, Y2, -Y2, -Y2, Y2
     y_vals = jnp.array([2.0, -2.0, -2.0, 2.0, 2.0, -2.0, -2.0, 2.0], dtype=jnp.complex128)
@@ -55,7 +55,7 @@ def test_global_mna_reducer_aux_resistor():
     
     Branch Equation: V_0 - V_1 - R * I_aux = 0
     """
-    solver = GlobalMNAReducer()
+    solver = GlobalMNACircuitSolver()
     
     # Standard Y block is completely empty.
     y_vals = jnp.array([], dtype=jnp.complex128)
@@ -113,7 +113,7 @@ def test_global_mna_reducer_mixed_chain():
     Total series resistance: 0.5 Ohms (Y1) + 0.5 Ohms (MNA_R) = 1.0 Ohms.
     Expected equivalent admittance is 1.0 S between Node 0 and Node 2.
     """
-    solver = GlobalMNAReducer()
+    solver = GlobalMNACircuitSolver()
     
     # Y Block: 2.0 S admittance between Node 0 and Node 1
     y_vals = jnp.array([2.0, -2.0, -2.0, 2.0], dtype=jnp.complex128)

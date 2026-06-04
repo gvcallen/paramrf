@@ -27,6 +27,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True)
     use_grad: bool | None = eqx.field(static=True, default=None)
+    use_hess: bool | None = eqx.field(static=True, default=None)
 
     def run(
         self, 
@@ -41,6 +42,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         method = self.method
         tol = self.tol
         use_grad = self.use_grad
+        use_hess = self.use_hess
 
         if use_grad is None:
             gradient_free_methods = {'nelder-mead', 'powell', 'cobyla'}
@@ -48,6 +50,13 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 use_grad = False
             else:
                 use_grad = True
+
+        if use_hess is None:
+            hessian_methods = {'newton-cg', 'dogleg', 'trust-ncg', 'trust-krylov', 'trust-exact', 'trust-constr'}
+            if method is not None and (method.lower() in hessian_methods):
+                use_hess = True
+            else:
+                use_hess = False
 
         if 'max_iter' in options:
             raise ValueError("Cannot pass `max_iter` in SciPy options")
@@ -106,6 +115,14 @@ class ScipyMinimize(AbstractBoundedMinimizer):
 
         obj_func = objective_with_grad if use_grad else objective_no_grad
 
+        if use_hess:
+            hessian_fn = jax.jit(jax.hessian(flat_fn))
+            def objective_hess(x_np):
+                return np.asarray(hessian_fn(jnp.array(x_np)), dtype=np.float64)
+            hess_arg = objective_hess
+        else:
+            hess_arg = None
+
         pbar = None
         if self.show_progress:
             maxiter = scipy_options.get("maxiter", None)
@@ -122,6 +139,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 obj_func, 
                 np.array(flat_y, dtype=np.float64), 
                 jac=use_grad, 
+                hess=hess_arg,
                 method=method,
                 tol=tol,
                 bounds=scipy_bounds,  

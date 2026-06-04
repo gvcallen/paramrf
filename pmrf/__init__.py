@@ -88,7 +88,6 @@ from pmrf import (
     parameters as parameters,
     rf as rf,
     serialization as serialization,
-    simulate as simulate,
     viz as viz,
 )
 
@@ -148,6 +147,5 @@ __all__ = [
     "parameters",
     "rf",
     "serialization",
-    "simulate",
     "viz",
 ]

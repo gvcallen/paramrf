@@ -13,13 +13,13 @@ import equinox as eqx
 import skrf
 import parax as prx
 
-from pmrf.simulate.component import MNAStamp, AbstractComponent
 from pmrf.utils.optix import focus, Lens
 from pmrf.utils.tree import tree_resolve_target
 from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
 from pmrf.frequency import Frequency
 from pmrf.rf import (
     a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
+    MNAStamp,
 )
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
@@ -31,9 +31,9 @@ PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
 PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
 PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
+    
 
-
-class Model(AbstractComponent, eqx.Module):
+class Model(eqx.Module):
     """
     Base class for RF models.
 

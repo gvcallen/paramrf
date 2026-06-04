@@ -5,15 +5,15 @@ import jax.numpy as jnp
 import equinox as eqx
 import lineax as lx
 
-from pmrf.simulate.base import (
-    AbstractAdmittanceReducer, 
-    AbstractMNAReducer, 
+from pmrf.models.composite.interconnected.base import (
+    AbstractAdmittanceCircuitSolver,
+    AbstractMNACircuitSolver,
     NodalRepresentation, 
     MNARepresentation,
     AdmittanceResult
 )
 
-class GlobalNodalReducer(AbstractAdmittanceReducer):
+class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
     """
     Global Y-domain Nodal Admittance circuit solver.
 
@@ -69,7 +69,7 @@ class GlobalNodalReducer(AbstractAdmittanceReducer):
         return AdmittanceResult(y=y_reduced)
 
 
-class GlobalMNAReducer(AbstractMNAReducer):
+class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
     """
     Global Modified Nodal Analysis (MNA) circuit solver.
 

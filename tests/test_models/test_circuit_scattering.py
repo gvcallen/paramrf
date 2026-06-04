@@ -6,71 +6,18 @@ import jax.numpy as jnp
 import numpy as np
 
 # Adjust imports based on your project structure
-from pmrf.simulate.solvers.scattering import (
-    SequentialScatteringCascader,
-    ScatteringTerminator,
-    GlobalScatteringReducer,
-    SequentialScatteringReducer,
-    HierarchicalScatteringReducer
+from pmrf.models.composite.interconnected.solvers.scattering import (
+    GlobalScatteringCircuitSolver,
+    SequentialScatteringCircuitSolver,
+    HierarchicalScatteringCircuitSolver,
+    PortRepresentation,
 )
-from pmrf.simulate.base import PortRepresentation
-
-
-def test_sequential_cascader_matched_attenuators():
-    """
-    Cascade two ideal 2-port attenuators (S11=S22=0, S21=S12=0.5).
-    Result should be a single attenuator with S21=S12=0.25.
-    """
-    solver = SequentialScatteringCascader()
-    
-    S_ideal = jnp.array([[0.0, 0.5], 
-                         [0.5, 0.0]], dtype=jnp.complex128)
-    z0_ideal = jnp.array([50.0, 50.0])
-    
-    s_stacked = jnp.stack([S_ideal, S_ideal])
-    z0_stacked = jnp.stack([z0_ideal, z0_ideal])
-    
-    result = solver.run(s_stacked, z0_stacked)
-    
-    expected_s = jnp.array([[0.0, 0.25], 
-                            [0.25, 0.0]], dtype=jnp.complex128)
-    
-    np.testing.assert_allclose(result.s, expected_s, atol=1e-7)
-    np.testing.assert_allclose(result.z0, z0_ideal, atol=1e-7)
-
-
-def test_scattering_terminator_dimension_fix():
-    """
-    Terminate a 3-port network with a 1-port load.
-    Ensures slicing uses surviving ports (K).
-    """
-    solver = ScatteringTerminator()
-    
-    S_3port = jnp.array([
-        [0.1, 0.2, 0.3],
-        [0.2, 0.1, 0.4],
-        [0.3, 0.4, 0.1]
-    ], dtype=jnp.complex128)
-    z0_3port = jnp.array([50.0, 50.0, 50.0])
-    
-    S_load = jnp.array([[0.0]], dtype=jnp.complex128)
-    z0_load = jnp.array([50.0])
-    
-    result = solver.run(S_3port, z0_3port, S_load, z0_load)
-    
-    expected_s = jnp.array([
-        [0.1, 0.2],
-        [0.2, 0.1]
-    ], dtype=jnp.complex128)
-    
-    assert result.s.shape == (2, 2)
-    np.testing.assert_allclose(result.s, expected_s, atol=1e-7)
 
 
 @pytest.mark.parametrize("SolverClass", [
-    GlobalScatteringReducer, 
-    SequentialScatteringReducer, 
-    HierarchicalScatteringReducer
+    GlobalScatteringCircuitSolver, 
+    SequentialScatteringCircuitSolver, 
+    HierarchicalScatteringCircuitSolver
 ])
 def test_reducers_simple_connection(SolverClass):
     """
@@ -105,7 +52,7 @@ def test_hierarchical_reducer_complex_chain():
     """
     Tests HierarchicalScatteringReducer with 5 internal nets (pairs).
     """
-    solver = HierarchicalScatteringReducer()
+    solver = HierarchicalScatteringCircuitSolver()
 
     # 6 components, each a 2-port with S11=S22=0, S21=S12=0.5
     S_block = jnp.array([[0.0, 0.5], [0.5, 0.0]], dtype=jnp.complex128)
@@ -142,9 +89,9 @@ def test_hierarchical_reducer_complex_chain():
     np.testing.assert_allclose(result.z0, jnp.array([50.0, 50.0]), atol=1e-7)
 
 @pytest.mark.parametrize("SolverClass", [
-    GlobalScatteringReducer, 
-    HierarchicalScatteringReducer,
-    SequentialScatteringReducer
+    GlobalScatteringCircuitSolver, 
+    HierarchicalScatteringCircuitSolver,
+    SequentialScatteringCircuitSolver
 ])
 def test_star_junction_3port(SolverClass):
     """
@@ -191,9 +138,9 @@ def test_star_junction_3port(SolverClass):
 
 
 @pytest.mark.parametrize("SolverClass", [
-    GlobalScatteringReducer, 
-    HierarchicalScatteringReducer,
-    SequentialScatteringReducer
+    GlobalScatteringCircuitSolver, 
+    HierarchicalScatteringCircuitSolver,
+    SequentialScatteringCircuitSolver
 ])
 def test_impedance_step_mismatch(SolverClass):
     """
@@ -264,9 +211,9 @@ def test_solver_parity_complex_ring():
         ])
     )
     
-    res_global = GlobalScatteringReducer().run(s_bd, z0_ports, topology)
-    res_hier = HierarchicalScatteringReducer().run(s_bd, z0_ports, topology)
-    res_seq = SequentialScatteringReducer().run(s_bd, z0_ports, topology)
+    res_global = GlobalScatteringCircuitSolver().run(s_bd, z0_ports, topology)
+    res_hier = HierarchicalScatteringCircuitSolver().run(s_bd, z0_ports, topology)
+    res_seq = SequentialScatteringCircuitSolver().run(s_bd, z0_ports, topology)
     
     # Now that the system is well-conditioned, they will match perfectly
     np.testing.assert_allclose(res_hier.s, res_global.s, atol=1e-7)
