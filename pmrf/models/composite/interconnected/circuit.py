@@ -85,7 +85,7 @@ class Circuit(Model):
     connections: InitVar[list[list[tuple[Model, int]]]] = None
 
     #: Flatten sub-circuits.
-    flatten: bool = field(default=False, kw_only=True, static=True)
+    flatten: bool = field(default=True, kw_only=True, static=True)
     
     #: The circuit solver.
     solver: AbstractCircuitSolver = field(default_factory=GlobalScatteringCircuitSolver, kw_only=True)
@@ -170,9 +170,6 @@ class Circuit(Model):
         Returns a newly compiled Circuit instance where all sub-circuits, 
         cascades, and builder models have been fully unwrapped into a flat netlist.
         """
-        if not self.flatten:
-            return self
-
         conns = [[(self.circuit[midx], pidx) for midx, pidx in node] for node in self.indexed_connections]
         flat_conns = flatten_hierarchy(conns)
         return Circuit(connections=flat_conns, solver=self.solver)
@@ -340,7 +337,10 @@ class Circuit(Model):
 
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0):
         """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist."""
-        flat = self.flattened
+        if self.flatten:
+            flat = self.flattened
+        else:
+            flat = self
         
         if isinstance(flat.solver, AbstractScatteringCircuitSolver):
             s_bdiag, z0_ports = flat._evaluate_scattering(freq, z0)
