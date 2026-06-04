@@ -344,11 +344,7 @@ class Model(eqx.Module):
         ...     return port_mapping, internal_connections
         """
         if is_overridden(self.__class__, Model, 'build'):
-            built_model = self.build()
-            
-            if built_model.expand() is not None:
-                port_map = [(built_model, p) for p in range(self.nports)]
-                return port_map, []
+            return self.build().expand()
                 
         return None
     
