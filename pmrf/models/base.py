@@ -71,6 +71,7 @@ class Model(eqx.Module):
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
     :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
     :meth:`build`                     Build the model. Can be overridden for advanced models.
+    :meth:`expand`                    Expands the model's topology. Used for circuit model flattening.
     ================================= ====================================================================
 
     **Helper Methods**
@@ -273,8 +274,6 @@ class Model(eqx.Module):
     
     # ---- Core API -------------------------------------------------------------
     
-    @eqx.filter_jit
-    @unwrap_self
     def build(self) -> 'Model':
         """Build the model.
 
@@ -295,6 +294,57 @@ class Model(eqx.Module):
             a compositional representation.
         """     
         raise NotImplementedError
+    
+    def expand(self) -> tuple[list[tuple['Model', int]], list[list[tuple['Model', int]]]] | None:
+        """
+        Expands this model into its internal graph representation for circuit flattening.
+
+        This method is used by graph algorithms (like the solver in `Circuit.flattened`) 
+        to unpack composite models, routing wrappers, and nested hierarchies into a 
+        single flat netlist, allowing global matrix solves where desired.
+
+        Returns
+        -------
+        tuple or None
+            If the model is a composite or routing container, it returns a tuple of:
+            - `port_mapping`: A list of length `nports` mapping each external port index 
+              of this model to an internal `(Model, port_index)` tuple.
+            - `internal_connections`: A list of sub-nodes (connections) to add to the 
+              netlist. Each node is a list of `(Model, port_index)` tuples.
+            
+            If the model is a fundamental leaf component, it returns `None`.
+
+        Examples
+        --------
+        Imagine a custom 2-port model that internally connects an Inductor and Capacitor 
+        in series. When asked to expand, it exposes the inner components and their wiring:
+
+        >>> def expand(self):
+        ...     # 1. Grab internal components
+        ...     L, C = self.inductor, self.capacitor
+        ...     
+        ...     # 2. Map our external ports to the internal components
+        ...     port_mapping = [
+        ...         (L, 0),  # External port 0 maps to Inductor port 0
+        ...         (C, 1)   # External port 1 maps to Capacitor port 1
+        ...     ]
+        ...     
+        ...     # 3. Define the internal connections (the netlist)
+        ...     # Connect Inductor port 1 to Capacitor port 0
+        ...     internal_connections = [
+        ...         [(L, 1), (C, 0)]
+        ...     ]
+        ...     
+        ...     return port_mapping, internal_connections
+        """
+        if is_overridden(self.__class__, Model, 'build'):
+            built_model = self.build()
+            
+            if built_model.expand() is not None:
+                port_map = [(built_model, p) for p in range(self.nports)]
+                return port_map, []
+                
+        return None
     
     def primary_matrix(self, freq: Frequency, **kwargs) -> jnp.ndarray:
         """The primary matrix (e.g. ``s``, ``a`` etc.) as a function of frequency.

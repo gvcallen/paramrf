@@ -34,6 +34,7 @@ from pmrf.models.composite.interconnected.solvers.scattering import (
     SequentialScatteringCircuitSolver,
 )
 from pmrf.models.composite.interconnected.cascade import Cascade
+from pmrf.models.composite.transformed import Renumbered
 
 EVAL_Z0 = 50.0
 
@@ -146,6 +147,17 @@ class Circuit(Model):
             
         self.circuit = models
         self.indexed_connections = indexed_connections
+
+    def expand(self):
+        internal_ports = [comp for comp in self.circuit if isinstance(comp, Port)]
+        
+        port_map = []
+        for p in range(self.nports):
+            if p < len(internal_ports):
+                port_map.append((internal_ports[p], 0))
+                
+        sub_conns = [[(self.circuit[midx], pidx) for midx, pidx in n] for n in self.indexed_connections]
+        return port_map, sub_conns
 
     @property
     def number_of_ports(self) -> int:
@@ -552,151 +564,6 @@ class Circuit(Model):
 # Graph Algorithms
 # -----------------------------------------------------------------------------
 
-def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[tuple[Model, int]]]:
-    """
-    Flattens nested Circuit, Cascade, and Builder instances into base models.
-    """
-    parent = {}
-    
-    def find(x):
-        if parent.setdefault(x, x) == x:
-            return x
-        # Path compression
-        parent[x] = find(parent[x])
-        return parent[x]
-
-    def union(x, y):
-        root_x = find(x)
-        root_y = find(y)
-        if root_x != root_y:
-            parent[root_x] = root_y
-
-    model_map = {}
-    top_level_model_ids = set()
-    model_discovery_order = {}
-
-    def register_model(m: Model) -> int:
-        """Tracks discovery order so external ports stay perfectly aligned."""
-        m_id = id(m)
-        if m_id not in model_discovery_order:
-            model_discovery_order[m_id] = len(model_discovery_order)
-        model_map[m_id] = m
-        return m_id
-
-    # Use a list of IDs instead of a set of Model objects to avoid JAX tracer hashing issues
-    models_to_expand = []
-    
-    # Register all top-level elements and connect their defined nets
-    for node in connections:
-        if not node: 
-            continue
-        first_port = None
-        for m, p in node:
-            m_id = register_model(m)
-            top_level_model_ids.add(m_id)
-            models_to_expand.append(m_id)
-            
-            if first_port is None:
-                first_port = (m_id, p)
-            union(first_port, (m_id, p))
-
-    expanded = set()
-
-    # Iteratively expand the hierarchy using our unified node graph
-    while models_to_expand:
-        m_id = models_to_expand.pop()
-        m = model_map[m_id]
-        
-        if m_id in expanded:
-            continue
-        expanded.add(m_id)
-
-        # Check for build() override safely, but NEVER unwrap Port or Ground markers.
-        if isinstance(m, (Port, Ground)):
-            overridden = False
-        else:
-            overridden = is_overridden(m.__class__, Model, 'build')
-
-        if isinstance(m, Cascade):
-            built_model = Circuit.from_chain(tuple(m.cascade))
-            built_id = register_model(built_model)
-            models_to_expand.append(built_id)
-            # Map external ports of the Cascade to the generated Circuit
-            for p in range(m.nports):
-                union((m_id, p), (built_id, p))
-
-        elif overridden:
-            built_model = m.build()
-            built_id = register_model(built_model)
-            models_to_expand.append(built_id)
-            # Map external ports of the builder to the unwrapped geometry
-            for p in range(m.nports):
-                union((m_id, p), (built_id, p))
-
-        elif isinstance(m, Circuit):
-            # Extract inner sub-circuit ports retaining insertion order
-            internal_ports = [comp for comp in m.circuit if isinstance(comp, Port)]
-            sub_conns = [[(m.circuit[midx], pidx) for midx, pidx in n] for n in m.indexed_connections]
-            
-            # Map outer ports of the sub-circuit directly to internal interface Ports
-            for p in range(m.nports):
-                if p < len(internal_ports):
-                    internal_port_id = register_model(internal_ports[p])
-                    union((m_id, p), (internal_port_id, 0))
-
-            for node in sub_conns:
-                if not node: 
-                    continue
-                first_port = None
-                for sub_m, sub_p in node:
-                    sub_m_id = register_model(sub_m)
-                    models_to_expand.append(sub_m_id)
-                    
-                    if first_port is None:
-                        first_port = (sub_m_id, sub_p)
-                    union(first_port, (sub_m_id, sub_p))
-
-    # Group interconnected components and drop virtual/intermediate objects
-    groups = defaultdict(list)
-
-    for key in parent.keys():
-        m_id, p = key
-        m = model_map[m_id]
-
-        if isinstance(m, (Port, Ground)):
-            overridden = False
-        else:
-            overridden = is_overridden(m.__class__, Model, 'build')
-
-        # Virtual models act as transparent mapping interfaces; do not add them to the netlist
-        is_virtual = False
-        if isinstance(m, Circuit):
-            is_virtual = True
-        elif hasattr(m, 'cascade') and m.cascade is not None:
-            is_virtual = True
-        elif overridden:
-            is_virtual = True
-        elif isinstance(m, Port) and m_id not in top_level_model_ids:
-            is_virtual = True
-
-        if not is_virtual:
-            root = find(key)
-            groups[root].append((m, p))
-
-    # Construct final deterministic connections list
-    valid_groups = []
-    for root, group in groups.items():
-        if len(group) > 0:
-            # Sort each group internally to preserve insertion order evaluation
-            group.sort(key=lambda x: (model_discovery_order[id(x[0])], x[1]))
-            valid_groups.append(group)
-            
-    # Sort outer nodes to respect standard solver MNA matrix mapping
-    valid_groups.sort(key=lambda g: (model_discovery_order[id(g[0][0])], g[0][1]))
-
-    return valid_groups
-
-
 def compute_unique_nets(components: list[Model], indexed_connections: list[list[tuple[int, int]]]) -> np.ndarray:
     """Groups connected ports into unique nets using a Disjoint Set (Union-Find) algorithm."""
     def get_global_port(comps: list[Model], c_idx: int, p_idx: int) -> int:
@@ -726,3 +593,99 @@ def compute_unique_nets(components: list[Model], indexed_connections: list[list[
     _, port_to_net_map = np.unique(port_to_net, return_inverse=True)
     
     return port_to_net_map
+
+
+def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[tuple[Model, int]]]:
+    """
+    Flattens any composite model hierarchy into base leaf models.
+    """
+    parent = {}
+    
+    def find(x):
+        if parent.setdefault(x, x) == x: return x
+        parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        root_x, root_y = find(x), find(y)
+        if root_x != root_y: parent[root_x] = root_y
+
+    model_map = {}
+    top_level_model_ids = set()
+    model_discovery_order = {}
+
+    def register_model(m: Model) -> int:
+        m_id = id(m)
+        if m_id not in model_discovery_order:
+            model_discovery_order[m_id] = len(model_discovery_order)
+        model_map[m_id] = m
+        return m_id
+
+    models_to_expand = []
+    
+    # 1. Register top-level elements
+    for node in connections:
+        if not node: continue
+        first_port = None
+        for m, p in node:
+            m_id = register_model(m)
+            top_level_model_ids.add(m_id)
+            models_to_expand.append(m_id)
+            if first_port is None: first_port = (m_id, p)
+            union(first_port, (m_id, p))
+
+    expanded_models = set()
+
+    # 2. Polymorphic Expansion
+    while models_to_expand:
+        m_id = models_to_expand.pop()
+        if m_id in expanded_models: 
+            continue
+            
+        m = model_map[m_id]
+        
+        topology_data = m.expand() 
+        
+        if topology_data is not None:
+            expanded_models.add(m_id)
+            port_map, sub_conns = topology_data
+            
+            # Map outer ports to inner mapped models
+            for ext_p, (inner_m, inner_p) in enumerate(port_map):
+                inner_id = register_model(inner_m)
+                models_to_expand.append(inner_id)
+                union((m_id, ext_p), (inner_id, inner_p))
+                
+            # Connect internal sub-circuits
+            for node in sub_conns:
+                if not node: continue
+                first_port = None
+                for sub_m, sub_p in node:
+                    sub_m_id = register_model(sub_m)
+                    models_to_expand.append(sub_m_id)
+                    if first_port is None: first_port = (sub_m_id, sub_p)
+                    union(first_port, (sub_m_id, sub_p))
+
+    # 3. Group interconnected components and drop virtual interfaces
+    groups = defaultdict(list)
+    for key in parent.keys():
+        m_id, p = key
+        m = model_map[m_id]
+        
+        # A model is virtual if it was successfully expanded, OR if it's an internal boundary Port
+        is_virtual = (m_id in expanded_models) or (isinstance(m, Port) and m_id not in top_level_model_ids)
+        
+        if not is_virtual:
+            root = find(key)
+            groups[root].append((m, p))
+
+    # 4. Construct final deterministic connections
+    valid_groups = []
+    for root, group in groups.items():
+        if len(group) > 0:
+            group.sort(key=lambda x: (model_discovery_order[id(x[0])], x[1]))
+            valid_groups.append(group)
+            
+    valid_groups.sort(key=lambda g: (model_discovery_order[id(g[0][0])], g[0][1]))
+
+    return valid_groups

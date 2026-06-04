@@ -87,6 +87,13 @@ class Cascade(Model):
                 else:
                     merged.append(model)
             self.cascade = tuple(merged)
+
+    def expand(self):
+        from pmrf.models.composite.interconnected.circuit import Circuit
+        
+        built = Circuit.from_chain(self.cascade)
+        port_map = [(built, p) for p in range(self.nports)]
+        return port_map, []
             
     @property
     def number_of_ports(self):
