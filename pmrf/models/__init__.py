@@ -55,7 +55,7 @@ from pmrf.models.components.ideal import (
 )
 
 from pmrf.models.components.lines.base import (
-    AbstractTransmissionLine as AbstractTransmissionLine,
+    AbstractUniformTransmissionLine as AbstractUniformTransmissionLine,
     AbstractRLGCLine as AbstractRLGCLine
 )
 
