@@ -1,3 +1,7 @@
+"""
+Models that modify the nodal behaviour of other transmission lines.
+"""
+
 from typing import Generic, TypeVar
 import jax.numpy as jnp
 

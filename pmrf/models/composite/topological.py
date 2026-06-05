@@ -1,3 +1,8 @@
+"""
+Models that combine other models in a specific topology.
+"""
+
+
 import jax.numpy as jnp
 
 from pmrf.models import Model
