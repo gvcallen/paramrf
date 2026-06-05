@@ -81,7 +81,7 @@ class TescheCoaxialSolver(AbstractCoaxialSolver):
 
 class AbstractMicrostripSolver(eqx.Module):
     """Abstract base solver for microstrip line RLGC parameters."""
-    def run(self, freq: Frequency, w, h, epr, tand, rho) -> RLGCResult:
+    def run(self, freq: Frequency, w, h, epr, tand, rho, t) -> RLGCResult:
         raise NotImplementedError
 
 
@@ -111,7 +111,10 @@ class WheelerMicrostripSolver(AbstractMicrostripSolver):
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane. 
     IEEE Transactions on Microwave Theory and Techniques.
     """
-    def run(self, freq: Frequency, w, h, epr, tand, rho) -> RLGCResult:
+    def run(self, freq: Frequency, w, h, epr, tand, rho, t) -> RLGCResult:
+        if t is not None:
+            raise ValueError("Wheeler microstrip approximation does not support finite thickness")
+
         W, H = w, h
         u = W / H
 
@@ -389,7 +392,15 @@ class CoaxialLine(AbstractRLGCLine):
     solver: AbstractCoaxialSolver = field(default_factory=TescheCoaxialSolver)
 
     def rlgc(self, freq: Frequency) -> RLGCResult:
-        return self.solver.run(freq, self.din, self.dout, self.epr, self.mur, self.tand, self.rho)
+        return self.solver.run(
+            freq,
+            din=self.din,
+            dout=self.dout,
+            epr=self.epr,
+            mur=self.mur,
+            tand=self.tand,
+            rho=self.rho,
+        )
     
     
 class MicrostripLine(AbstractRLGCLine):
@@ -458,4 +469,12 @@ class MicrostripLine(AbstractRLGCLine):
             raise ValueError("Thickness not yet supported in `MicrostripLine`")
 
     def rlgc(self, freq: Frequency) -> RLGCResult:
-        return self.solver.run(freq, self.w, self.h, self.epr, self.tand, self.rho)
+        return self.solver.run(
+            freq,
+            w=self.w,
+            h=self.h,
+            epr=self.epr,
+            tand=self.tand,
+            rho=self.rho,
+            t=self.t
+        )
