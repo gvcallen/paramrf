@@ -41,11 +41,11 @@ In general, ParamRF follows a tiered API in order to isolate the JAX and solver 
 ### The Module Split
 Higher-level methods (fitting, optimization etc.) should be available to the user with minimal imports. However, these routines should build on top of "glue" helpers so that power users can pass additional arguments (such as custom evaluators in `pmrf.evaluators`) to customize the algorithm.
 
-* **Core Primitives** (`pmrf.Model`, `pmrf.Frequency`, `pmrf.Param`). These are the core primitives in the library. They represent the foundational classes and functions that both users and library routines will interact with.
-* **Lower-level Routines** (`pmrf.math`, `pmrf.rf`). The functions implement either simple computations or highly-specialized numerical algorithms. They should all operate directly on JAX arrays (i.e. not PyTrees).
-* **RF Models and Solvers** (`pmrf.models`). These are the main, built-in RF models in the library. These have been separated into an organizational structure (e.g. lumped components, surrogates etc.) and new models should align with this structure. If a model's forward pass has many different possible approachs (for example different models for a coaxial line or different circuit solvers) then separate "solvers" should be created alongside the model as classes that implement an abstract interface. See `pmrf.models.CoaxialLine` and `pmrf.models.Circuit` for a simple and complex example respectively.
-* **General Algorithms** (`pmrf.optimize` and `pmrf.infer`). These are a combination of functional entry points and wrappers around external libraries. They refer to parametric, model-agnostic algorithms. Refer to `pmrf.optimize.base` and `pmrf.optimize.minimize` for a good example.
-* **Toolkits** (`pmrf.evaluators`, `pmrf.losses`, `pmrf.likelihoods`, `pmrf.discrepancy_models`, `pmrf.noise_models`, `pmrf.covariance_models`). These are the concrete "glue" components that provide users with a toolkit to mix-and-match together in order to solve their problem, mostly for power users.
+* **Core Primitives** (`pmrf.Model`, `pmrf.Frequency`, `pmrf.Param`). These are the library's core primitives. They represent the foundational classes and functions that both users and library routines will interact with.
+* **Lower-level Routines** (`pmrf.math`, `pmrf.rf`). These functions implement simple, standard formulae. They should operate directly on JAX arrays or very simple PyTree structures.
+* **RF Models** (`pmrf.models`). These are the main, built-in RF models in the library. They have been separated into an deep organizational structure (e.g. lumped components, surrogates etc.). If a model's forward pass has many different possible implementations (for example, different models for a coaxial line, or different circuit solver algorithms) then separate "solvers" classes should be created alongside the model which implement some abstract interface (referred to as the "strategy" pattern, described below). See `pmrf.models.CoaxialLine` and `pmrf.models.Circuit` for simple and complex examples, respectively.
+* **General Algorithms** (`pmrf.optimize` and `pmrf.infer`). These are a combination of functional entry points and wrappers around external libraries. They refer to parametric, model-agnostic algorithms. These modules should be structured in a tiered manner to decouple the Equinox/JAX logic from the RF/model logic. Refer to `pmrf.optimize.base` and `pmrf.optimize.minimize` for a good example.
+* **Toolkits** (`pmrf.evaluators`, `pmrf.losses`, `pmrf.likelihoods`, `pmrf.discrepancy_models`, `pmrf.noise_models`, `pmrf.covariance_models`). These are the concrete "glue" components that provide users with a toolkit to mix-and-match together, mostly for power users.
 * **Routers** (`pmrf.fitting`) This is an example of a high-level convenience API specifically for fitting models to measured data. Functions here, like `fit`, `fit_minimize` or `fit_sample`, essentially act as "routers", converting different data formats (e.g. `skrf.Network`) and user specs into code that other modules in the library can understand.
 
 ### Abstract Classes and the Strategy Pattern
@@ -55,21 +55,21 @@ ParamRF makes heavy use of the strategy pattern. Instead of using strings to def
 Note that some classes with abstract methods get the Abstract prefix in their name, while others do not (for example `pmrf.Model` and `pmrf.models.TransmissionLine` vs `pmrf.models.AbstractDiscrete` and`pmrf.optimize.AbstractMinimizer`). Although this may feel inconsistent at first, it actually follows a strict convention:
 
 * **Domain Entities (Nouns) drop the prefix**. Generally, this refers to specific models. For example, since a Model or a transmission line is an RF "thing", it does not get the prefix.
-* **Mechanisms and Strategies (Actors/Verbs) get the prefix**. Generally, this refers to software engineering helpers. Since these classes represent software mechanisms and helpers, and not necessarily well-known RF concepts, they get the prefix.
+* **Mechanisms and Strategies (Actors/Verbs) get the prefix**. Generally, this refers to software engineering classes. Since these represent software mechanisms and helpers, and not necessarily well-known RF concepts, they get the prefix.
 
-This helps the models that users actually interact with feel "light" (e.g. a function that accepts a transmission line) while "warning" users that anything with an "abstract" prefix is a more implementation-specific or "advanced" feature. 
+This helps the models that users actually interact with in their scripts feel "light" (e.g. a function that accepts a transmission line) while "warning" users that anything with an "abstract" prefix is a more "advanced" feature. 
 
 ### Naming Conventions
 
-Some brief naming conventions over and above those already discussed:
+Alongside those already mentioned, ParamRF follows structured naming conventions:
 
-* Anything that simulates a problem or maps inputs to outputs is a "solver" and should be named as such.
-* Parameter names should avoid underscores where possible, grouping similar concepts into single string-names such as "lengthscale" or "epr" instead of "length_scale" or "ep_r".
-* Class names should be as specific as possible, though can be shortened if the concept is ubiquitous within the namespace it lives in. For example, the many of the optimizers are just named e.g. NelderMead, whereas simulation solvers that often just use a specific mathematical method to simulate a circuit get specific names e.g. RedhefferCascader.
+* Anything that simulates a problem, or maps inputs to outputs, is a "solver", and should be referred to as such. If a specific type of a solver has a well-defined name, e.g. an "optimizer", this name can be used for the class name, but user-facing variables should still be called "solver".
+* Parameter names should avoid underscores where possible, grouping similar concepts into single string-names such as "lengthscale" or "epr" (instead of "length_scale" or "ep_r").
+* Class names should be as specific as possible, though can be shortened if the concept is ubiquitous within the namespace it lives in. For example, many of the optimizers are just named e.g. NelderMead, whereas simulation solvers which have no ubiqitous domain name or author are defined based on their behaviour e.g. GlobalScatteringCircuitSolver.
 
 ## JAX and Equinox "Gotchas"
 
-* **Immutability:** `Model` classes inherit from `equinox.Module`. They are therefore immutable and classes are structured around this.
+* **Immutability:** `Model` classes (and dummy structures) inherit from `equinox.Module`. They are therefore immutable and classes are structured around this.
 * **Pure Functions:** JAX requires functions to be pure (no side effects) to be compiled with `@jax.jit`. Make sure to use the `jax.lax` module where possible.
 * **Vmapping:** The decision was made that user-facing functions should not have to be vmapped (e.g. Model.s), however any internal solvers and algorithms should be writting without vectorization and later "vmapped" using JAX. For example, the circuit simulation algorithms. However, this decision was made later in the library's implementation, and may not yet be fully implemented throughout.
 * **Shapes and Types:** The library uses (nfreq, nports, nports) throughout RF functions, but swaps to nfreq on the last axis for statistical functions. This enables easy batching using `jax.vmap`.
