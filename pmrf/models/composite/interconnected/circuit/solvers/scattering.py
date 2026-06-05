@@ -7,7 +7,7 @@ import equinox as eqx
 import lineax as lx
 from typing import Tuple
 
-from pmrf.models.composite.interconnected.base import (
+from pmrf.models.composite.interconnected.circuit.base import (
     AbstractScatteringCircuitSolver,
     PortRepresentation,
     ScatteringResult,

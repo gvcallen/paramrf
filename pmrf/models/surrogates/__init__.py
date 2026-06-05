@@ -9,3 +9,5 @@ __all__ = [
     "expansion",
     "rational",
 ]
+
+__sphinx_group__ = True

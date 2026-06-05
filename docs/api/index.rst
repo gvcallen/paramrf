@@ -30,7 +30,6 @@ Main Modules
    pmrf.optimize
    pmrf.infer
    pmrf.fitting
-   pmrf.simulate
 
 Other Modules
 -------------

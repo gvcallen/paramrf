@@ -16,7 +16,7 @@ from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y
 
-from pmrf.models.composite.interconnected.base import (
+from pmrf.models.composite.interconnected.circuit.base import (
     AbstractCircuitSolver,
     AbstractScatteringCircuitSolver,
     AbstractAdmittanceCircuitSolver,
@@ -27,7 +27,7 @@ from pmrf.models.composite.interconnected.base import (
     ScatteringResult,
     AdmittanceResult,
 )
-from pmrf.models.composite.interconnected.solvers.scattering import (
+from pmrf.models.composite.interconnected.circuit.solvers.scattering import (
     GlobalScatteringCircuitSolver,
     HierarchicalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,

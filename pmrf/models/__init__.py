@@ -54,20 +54,29 @@ from pmrf.models.components.ideal import (
     DirectionalCoupler as DirectionalCoupler,
 )
 
-from pmrf.models.components.lines import (
+from pmrf.models.components.lines.base import (
     TransmissionLine as TransmissionLine,
+    RLGCLine as RLGCLine
+)
+
+from pmrf.models.components.lines.nodal import (
     FloatingLine as FloatingLine,
-    RLGCLine as RLGCLine,
+)
+
+from pmrf.models.components.lines.ideal import (
     PhaseLine as PhaseLine,
     ConstantRLGCLine as ConstantRLGCLine,
+)
+
+from pmrf.models.components.lines.physical import (
     PhysicalLine as PhysicalLine,
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
-    MicrostripLine as MicrostripLine,
-    AbstractMicrostripSolver as AbstractMicrostripSolver,
-    AbstractCoaxialSolver as AbstractCoaxialSolver,
-    WheelerMicrostripSolver as WheelerMicrostripSolver,
     TescheCoaxialSolver as TescheCoaxialSolver,
+    MicrostripLine as MicrostripLine,
+    WheelerMicrostripSolver as WheelerMicrostripSolver,
+    AbstractCoaxialSolver as AbstractCoaxialSolver,
+    AbstractMicrostripSolver as AbstractMicrostripSolver,
 )
 
 from pmrf.models.components.lumped import (
@@ -96,7 +105,7 @@ from pmrf.models.components.sections import (
 
 
 # Composite
-from pmrf.models.composite.interconnected.base import (
+from pmrf.models.composite.interconnected.circuit.base import (
     AbstractCircuitSolver as AbstractCircuitSolver,
     AbstractScatteringCircuitSolver as AbstractScatteringCircuitSolver,
     AbstractAdmittanceCircuitSolver as AbstractAdmittanceCircuitSolver,
@@ -108,18 +117,18 @@ from pmrf.models.composite.interconnected.base import (
     MNARepresentation as MNARepresentation,
 )
 
-from pmrf.models.composite.interconnected.solvers.scattering import (
+from pmrf.models.composite.interconnected.circuit.solvers.scattering import (
     GlobalScatteringCircuitSolver as GlobalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver as SequentialScatteringCircuitSolver,
     HierarchicalScatteringCircuitSolver as HierarchicalScatteringCircuitSolver,
 )
 
-from pmrf.models.composite.interconnected.solvers.nodal import (
+from pmrf.models.composite.interconnected.circuit.solvers.nodal import (
     GlobalMNACircuitSolver as GlobalMNACircuitSolver,
     GlobalNodalCircuitSolver as GlobalNodalCircuitSolver,
 )
 
-from pmrf.models.composite.interconnected.circuit import Circuit as Circuit
+from pmrf.models.composite.interconnected.circuit.circuit import Circuit as Circuit
 from pmrf.models.composite.interconnected.cascade import Cascade as Cascade
 from pmrf.models.composite.interconnected.terminated import Terminated as Terminated
 

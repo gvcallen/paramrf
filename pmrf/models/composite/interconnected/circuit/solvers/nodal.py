@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import lineax as lx
 
-from pmrf.models.composite.interconnected.base import (
+from pmrf.models.composite.interconnected.circuit.base import (
     AbstractAdmittanceCircuitSolver,
     AbstractMNACircuitSolver,
     NodalRepresentation, 

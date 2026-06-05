@@ -15,3 +15,5 @@ __all__ = [
     "static",
     "callable",
 ]
+
+__sphinx_group__ = True

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 
 # Adjust imports based on your project structure
-from pmrf.models.composite.interconnected.solvers.scattering import (
+from pmrf.models import (
     GlobalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,
     HierarchicalScatteringCircuitSolver,

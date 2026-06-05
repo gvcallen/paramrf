@@ -79,7 +79,7 @@ class Cascade(Model):
                 raise ValueError('All networks must be 2N-ports for Cascade')
             
     def expand(self):
-        from pmrf.models.composite.interconnected.circuit import Circuit
+        from pmrf.models import Circuit
         
         built = Circuit.from_chain(self.cascade)
         port_map = [(built, p) for p in range(self.nports)]

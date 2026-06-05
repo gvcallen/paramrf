@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import numpy as np
 
 # Adjust imports based on your project structure
-from pmrf.models.composite.interconnected.base import NodalRepresentation, MNARepresentation
-from pmrf.models.composite.interconnected.solvers.nodal import GlobalNodalCircuitSolver, GlobalMNACircuitSolver
+from pmrf.models import NodalRepresentation, MNARepresentation
+from pmrf.models import GlobalNodalCircuitSolver, GlobalMNACircuitSolver
 
 
 def test_global_nodal_reducer_series_admittances():
