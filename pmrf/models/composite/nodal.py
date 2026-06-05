@@ -72,8 +72,8 @@ class GroundExposed(Model):
     exposed : Model
         The inner N-port model whose ground is to be exposed.
 
-    Reference
-    ----------------------
+    Mathematical Formulation
+    ------------------------
     Uses the Indefinite Admittance Matrix (IAM) transformation. Because the sum of 
     currents entering a subcircuit must be zero, the exposed global node is calculated 
     so that the rows and columns of the expanded Y-matrix sum to zero.
@@ -105,8 +105,8 @@ class Shunt(Model):
     shunt : Model
         The 1-port model to be connected in shunt.
 
-    Reference
-    ----------------------
+    Mathematical Formulation
+    ------------------------
     Maps the reflection coefficient ($\Gamma$ or $S_{11}$) of a 1-port component 
     into a 2-port transmission matrix. Avoids division by zero (e.g., ideal opens/shorts) 
     by directly calculating $S_{11}$ and $S_{21}$ using $S_{11, 2port} = (\Gamma - 1) / (\Gamma + 3)$.
@@ -156,8 +156,8 @@ class CoupledOnePorts(Model):
         For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
         diagonals, and is positive semi-definite. 
 
-    Reference
-    ---------
+    Mathematical Formulation
+    ------------------------
     Creates an N-port model where the off-diagonal interactions are defined 
     by the mutual admittance relation: 
     $$Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}}$$
@@ -270,8 +270,8 @@ class CoupledTwoPorts(Model):
         For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
         diagonals, and is positive semi-definite. 
 
-    Reference
-    ---------
+    Mathematical Formulation
+    ------------------------
     Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
     component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
     and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
