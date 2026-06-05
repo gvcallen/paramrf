@@ -181,13 +181,13 @@ Running this script on a standard modern CPU yields results similar to the follo
     =======================================================
     FORWARD PASS EXECUTION TIMES (2001 Points)
     =======================================================
-    scikit-rf (Baseline)           |   20.799 ms | 1.00x
+    scikit-rf (Baseline)           |   25.343 ms | 1.00x
     -------------------------------------------------------
-    ParamRF Scattering Solver      |    6.458 ms | 3.22x
-    ParamRF MNA Solver             |    3.139 ms | 6.63x
+    ParamRF Scattering Solver      |    4.823 ms | 5.25x
+    ParamRF MNA Solver             |    2.979 ms | 8.51x
     =======================================================
 
-By vectorizing the linear matrix solutions and bypassing the Python interpreter via JIT compilation, ParamRF's MNA solver evaluates nearly 7x faster 
+By vectorizing the linear matrix solutions and bypassing the Python interpreter via JIT compilation, ParamRF's MNA solver evaluates nearly 9x faster, while the scattering solver evaluates 5x faster (which is most similar to the scattering algorithm in scikit-rf's Circuit).
 
 The Autodiff Advantage
 ----------------------
