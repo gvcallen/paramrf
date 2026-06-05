@@ -218,3 +218,103 @@ def test_solver_parity_complex_ring():
     # Now that the system is well-conditioned, they will match perfectly
     np.testing.assert_allclose(res_hier.s, res_global.s, atol=1e-7)
     np.testing.assert_allclose(res_seq.s, res_global.s, atol=1e-7)
+
+
+@pytest.mark.parametrize("SolverClass", [
+    GlobalScatteringCircuitSolver, 
+    HierarchicalScatteringCircuitSolver,
+    SequentialScatteringCircuitSolver
+])
+def test_dangling_ext_with_internal_termination(SolverClass):
+    """
+    Tests a 1-port external boundary coupled with an internal termination.
+    This explicitly validates the virtual probe injection on a single 
+    dangling port while an internal net gets heavily reduced.
+    """
+    solver = SolverClass()
+
+    # Component 1: Attenuator (3dB / 0.5 voltage transmission)
+    S_att = jnp.array([[0.0, 0.5], 
+                       [0.5, 0.0]], dtype=jnp.complex128)
+    
+    # Component 2: Short circuit (-1 reflection)
+    S_short = jnp.array([[-1.0]], dtype=jnp.complex128)
+
+    s_bd = jax.scipy.linalg.block_diag(S_att, S_short)
+    z0_ports = jnp.array([50.0, 50.0, 50.0])
+
+    # Topology:
+    # Attenuator: Port 0 (ext), Port 1 (int)
+    # Short: Port 2 (int)
+    # Net 0: Port 0 (Dangling External, Count = 1)
+    # Net 1: Port 1, Port 2 (Internal connection, Count = 2)
+    topology = PortRepresentation(
+        ext_idx=np.array([0]),
+        int_idx=np.array([1, 2]),
+        port_to_net_map=np.array([0, 1, 1])
+    )
+
+    result = solver.run(s_bd, z0_ports, topology)
+
+    # Signal enters Port 0 -> drops by 0.5 -> hits short (-1.0) -> drops by 0.5 returning.
+    # Expected S11 = 0.5 * -1.0 * 0.5 = -0.25
+    expected_s = jnp.array([[-0.25]], dtype=jnp.complex128)
+
+    np.testing.assert_allclose(result.s, expected_s, atol=1e-7)
+    np.testing.assert_allclose(result.z0, jnp.array([50.0]), atol=1e-7)
+
+
+@pytest.mark.parametrize("SolverClass", [
+    GlobalScatteringCircuitSolver, 
+    SequentialScatteringCircuitSolver, 
+    HierarchicalScatteringCircuitSolver
+])
+def test_multiple_dangling_ext_branches(SolverClass):
+    """
+    Tests a network with multiple dangling external ports and multiple 
+    internal nets, mimicking the complex branching of higher-level circuits.
+    Ensures that multiple padding operations don't misalign indices.
+    """
+    solver = SolverClass()
+
+    # Component 1: 3-Port Star Junction
+    S_star = jnp.array([
+        [-1/3,  2/3,  2/3],
+        [ 2/3, -1/3,  2/3],
+        [ 2/3,  2/3, -1/3]
+    ], dtype=jnp.complex128)
+
+    # Components 2 & 3: Ideal, transparent delay-less lines
+    S_line = jnp.array([[0.0, 1.0], [1.0, 0.0]], dtype=jnp.complex128)
+
+    s_bd = jax.scipy.linalg.block_diag(S_star, S_line, S_line)
+    
+    # 7 total local ports
+    z0_ports = jnp.full(7, 50.0)
+
+    # Topology:
+    # Star: Port 0 (Ext), Port 1 (Int), Port 2 (Int)
+    # Line 1: Port 3 (Int), Port 4 (Ext)
+    # Line 2: Port 5 (Int), Port 6 (Ext)
+    topology = PortRepresentation(
+        ext_idx=np.array([0, 4, 6]),
+        int_idx=np.array([1, 2, 3, 5]),
+        port_to_net_map=np.array([
+            0,  # P0 -> Net 0 (Dangling Ext)
+            1,  # P1 -> Net 1 (Int)
+            2,  # P2 -> Net 2 (Int)
+            1,  # P3 -> Net 1 (Int)
+            3,  # P4 -> Net 3 (Dangling Ext)
+            2,  # P5 -> Net 2 (Int)
+            4   # P6 -> Net 4 (Dangling Ext)
+        ])
+    )
+
+    result = solver.run(s_bd, z0_ports, topology)
+
+    # Because the lines are transparent, the final 3-port reduced network 
+    # should mathematically collapse to behave exactly like the original star junction.
+    expected_s = S_star
+
+    np.testing.assert_allclose(result.s, expected_s, atol=1e-7)
+    np.testing.assert_allclose(result.z0, jnp.array([50.0, 50.0, 50.0]), atol=1e-7)
