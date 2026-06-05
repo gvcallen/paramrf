@@ -332,7 +332,7 @@ class CoaxialLine(AbstractRLGCLine):
     r"""
     Coaxial line defined directly by its physical geometry and material properties. 
     
-    Uses :class:`pmrf.models.TescheCoaxialSolver` as the default mathematical formulation.
+    Uses :class:`TescheCoaxialSolver` as the default mathematical formulation.
 
     Example
     --------
@@ -407,7 +407,7 @@ class MicrostripLine(AbstractRLGCLine):
     r"""
     Microstrip line defined by standard geometric and material properties.
     
-    Uses :class:`pmrf.models.WheelerMicrostripSolver` for the default mathematical formulation.
+    Uses :class:`WheelerMicrostripSolver` for the default mathematical formulation.
     
     Example
     --------
