@@ -193,6 +193,6 @@ The Autodiff Advantage
 ----------------------
 While a 5-10x speedup on the forward pass is significant, the true performance gain of ParamRF is realized during gradient-based optimization (the *backward pass*). 
 
-In traditional libraries, calculating the gradient for an $N$-parameter circuit requires Finite Differences (FD), meaning the circuit must be simulated $N+1$ times per iteration. For a 50-parameter model, this means a single gradient step in ``scikit-rf`` would take over **1.3 seconds** (``51 * 26.7 ms``). 
+In traditional libraries, calculating the gradient for an $N$-parameter circuit requires Finite Differences (FD), meaning the circuit must be simulated $N+1$ times per iteration. For a 50-parameter model, this means a single gradient step in ``scikit-rf`` would take **1.3 seconds** (``51 * 25.3 ms``). 
 
-In ParamRF, because the entire circuit math is traced, calling ``jax.value_and_grad`` yields the exact analytic gradients for all 50 parameters simultaneously in a single, compiled backward pass—often executing in **less than 15 ms**. This results in a massive speedup (often 40x to 100x) when optimizing complex circuits.
+In ParamRF, because the entire circuit math is traced, calling ``jax.value_and_grad`` yields the exact analytic gradients for all 50 parameters simultaneously in a single, compiled backward pass—often executing in **less than 10 ms**. This results in a massive speedup (often 40x to 100x) when optimizing complex circuits.
