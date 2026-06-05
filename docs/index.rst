@@ -11,5 +11,5 @@
    tutorials/index
    models/index
    api/index
-   skrf_comparison
+   skrf_comparison/index
    license
