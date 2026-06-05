@@ -28,7 +28,7 @@ class AbstractTransmissionLine(Model):
     Provides the fundamental equations to construct S-parameters 
     based on frequency-dependent characteristic impedance ($Z_c$) 
     and total complex electrical length ($\gamma L$). Derived classes 
-    must implement the `z0_gammaL` method.
+    must implement the `zc_and_gammaL` method.
 
     **Mathematical Formulation**
 
