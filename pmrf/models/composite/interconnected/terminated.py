@@ -46,7 +46,21 @@ class Terminated(Model):
     @property
     def number_of_ports(self):
         return self.terminated_from.number_of_ports - self.terminated_into.number_of_ports
-    
+
+    def expand(self):
+        P = self.terminated_from.nports
+        M = self.terminated_into.nports
+        K = P - M
+
+        port_mapping = [(self.terminated_from, i) for i in range(K)]
+
+        internal_connections = [
+            [(self.terminated_from, K + i), (self.terminated_into, i)]
+            for i in range(M)
+        ]
+
+        return port_mapping, internal_connections        
+
     # --- TERMINATION ALGORITHMS (Single Frequency Point) ---
 
     def _terminate_two_s(

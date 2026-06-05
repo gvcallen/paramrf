@@ -139,7 +139,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 obj_func, 
                 np.array(flat_y, dtype=np.float64), 
                 jac=use_grad, 
-                hess=hess_arg,
+                # hess=hess_arg,
                 method=method,
                 tol=tol,
                 bounds=scipy_bounds,  
