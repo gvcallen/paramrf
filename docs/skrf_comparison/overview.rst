@@ -1,4 +1,4 @@
-scikit-rf Comparison
+Overview
 =====================
 **ParamRF** is designed to complement **scikit-rf** and not replace it, offering a fundamentally different approach to RF modeling. A very brief summary of the differences, strengths and weakness of the libraries is presented below.
 
