@@ -67,16 +67,17 @@ class GroundExposed(Model):
     The original signal ports remain at indices 0 to N-1.
     The new exposed ground port is at index N.
 
+    **Mathematical Formulation**
+
+    Uses the Indefinite Admittance Matrix (IAM) transformation. Because the sum of 
+    currents entering a subcircuit must be zero, the exposed global node is calculated 
+    so that the rows and columns of the expanded Y-matrix sum to zero.
+    
     Parameters
     ----------
     exposed : Model
         The inner N-port model whose ground is to be exposed.
 
-    Mathematical Formulation
-    ------------------------
-    Uses the Indefinite Admittance Matrix (IAM) transformation. Because the sum of 
-    currents entering a subcircuit must be zero, the exposed global node is calculated 
-    so that the rows and columns of the expanded Y-matrix sum to zero.
     """
     #: The inner N-port model to be wrapped.
     exposed: Model
@@ -142,6 +143,12 @@ class CoupledOnePorts(Model):
     r"""
     (experimental) Wraps N 1-port models (e.g. inductors) and couples them via a given K-matrix.
     
+    **Mathematical Formulation**
+    
+    Creates an N-port model where the off-diagonal interactions are defined 
+    by the mutual admittance relation: 
+    $$Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}}$$
+    
     Parameters
     ----------
     coupled : list[Model]
@@ -155,12 +162,6 @@ class CoupledOnePorts(Model):
         For 'coefficients', must be a list of tuples (model_i, model_j, k_factor).
         For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
         diagonals, and is positive semi-definite. 
-
-    Mathematical Formulation
-    ------------------------
-    Creates an N-port model where the off-diagonal interactions are defined 
-    by the mutual admittance relation: 
-    $$Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}}$$
     """
     #: The sequence of 1-port models to couple.
     coupled: list['Model']
@@ -256,6 +257,13 @@ class CoupledTwoPorts(Model):
     Returns a 2N-port model where Model 1 occupies ports (0, 1), 
     Model 2 occupies ports (2, 3), and so on.
 
+    **Mathematical Formulation**
+
+    Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
+    component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
+    and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
+    $$Y_{nodal} = A Z_b^{-1} A^T$$    
+
     Parameters
     ----------
     coupled : list[Model]
@@ -270,12 +278,6 @@ class CoupledTwoPorts(Model):
         For 'matrix', must be an NxN coupling matrix which is symmetric, has 1.0 on the 
         diagonals, and is positive semi-definite. 
 
-    Mathematical Formulation
-    ------------------------
-    Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
-    component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
-    and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
-    $$Y_{nodal} = A Z_b^{-1} A^T$$
     """
     #: The sequence of 2-port series models to couple.
     coupled: list['Model']

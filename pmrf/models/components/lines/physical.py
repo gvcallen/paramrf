@@ -87,10 +87,7 @@ class AbstractMicrostripSolver(eqx.Module):
 
 class WheelerMicrostripSolver(AbstractMicrostripSolver):
     r"""
-    Standard Wheeler approximations solver for microstrip line RLGC parameters.
-
-    Relies on standard Wheeler approximations. Note that configurations where 
-    height > width (h > w) are not yet supported.
+    Analytical solver for microstrip line RLGC parameters using the standard Wheeler approximations.
 
     **Mathematical Formulation**
 
