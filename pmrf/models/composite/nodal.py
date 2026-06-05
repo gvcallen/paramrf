@@ -160,7 +160,7 @@ class CoupledOnePorts(Model):
     ---------
     Creates an N-port model where the off-diagonal interactions are defined 
     by the mutual admittance relation: 
-    $$ Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}} $$
+    $$Y_{ij} = k_{ij} \sqrt{Y_{ii} Y_{jj}}$$
     """
     #: The sequence of 1-port models to couple.
     coupled: list['Model']
@@ -275,7 +275,7 @@ class CoupledTwoPorts(Model):
     Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
     component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
     and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
-    $$ Y_{nodal} = A Z_b^{-1} A^T $$
+    $$Y_{nodal} = A Z_b^{-1} A^T$$
     """
     #: The sequence of 2-port series models to couple.
     coupled: list['Model']
