@@ -22,7 +22,7 @@ class AbstractCoaxialSolver(eqx.Module):
 
 
 class TescheCoaxialSolver(AbstractCoaxialSolver):
-    """
+    r"""
     Analytical solver for coaxial line RLGC parameters using the Tesche high-frequency approximation.
 
     **Mathematical Formulation**
@@ -86,7 +86,7 @@ class AbstractMicrostripSolver(eqx.Module):
 
 
 class WheelerMicrostripSolver(AbstractMicrostripSolver):
-    """
+    r"""
     Standard Wheeler approximations solver for microstrip line RLGC parameters.
 
     Relies on standard Wheeler approximations. Note that configurations where 
