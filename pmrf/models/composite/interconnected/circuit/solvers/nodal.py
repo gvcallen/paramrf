@@ -27,7 +27,7 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
     
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=False), static=True
+        default=lx.AutoLinearSolver(well_posed=None), static=True
     )
 
     def run(
@@ -83,7 +83,7 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
     
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=False), static=True
+        default=lx.AutoLinearSolver(well_posed=None), static=True
     )
 
     def run(

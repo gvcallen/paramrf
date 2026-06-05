@@ -30,7 +30,7 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     
     #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=False), static=True
+        default=lx.AutoLinearSolver(well_posed=None), static=True
     )
 
     def run(
@@ -72,7 +72,7 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     eps: float = eqx.field(default=1e-12, static=True)
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=False), static=True
+        default=lx.AutoLinearSolver(well_posed=None), static=True
     )
 
     def run(
@@ -149,7 +149,7 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     eps: float = eqx.field(default=1e-12, static=True)
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=False), static=True
+        default=lx.AutoLinearSolver(well_posed=None), static=True
     )
 
     def run(
