@@ -689,10 +689,10 @@ def tree_pathed_params(
     """
     # Setup callables for filtering/flattening
     if free_only:
-        filter_spec = lambda x: is_param(x) and not x.fixed
+        filter_spec = lambda x: is_param(x) and not x.fixed or isinstance(x, jax.Array)
         is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen sub-trees
     else:
-        filter_spec = lambda x: is_param(x)
+        filter_spec = lambda x: is_param(x) or isinstance(x, jax.Array)
         is_leaf = lambda x: is_param(x)
 
     return filtered_tree_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
