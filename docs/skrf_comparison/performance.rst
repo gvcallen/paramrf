@@ -191,7 +191,7 @@ By vectorizing the linear matrix solutions and bypassing the Python interpreter 
 
 The Autodiff Advantage
 ----------------------
-While a 6x speedup on the forward pass is significant, the true performance gain of ParamRF is realized during gradient-based optimization (the *backward pass*). 
+While a 5-10x speedup on the forward pass is significant, the true performance gain of ParamRF is realized during gradient-based optimization (the *backward pass*). 
 
 In traditional libraries, calculating the gradient for an $N$-parameter circuit requires Finite Differences (FD), meaning the circuit must be simulated $N+1$ times per iteration. For a 50-parameter model, this means a single gradient step in ``scikit-rf`` would take over **1.3 seconds** (``51 * 26.7 ms``). 
 
