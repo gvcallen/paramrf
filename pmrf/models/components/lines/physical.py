@@ -9,7 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.constraints import Positive, GreaterThan
 from pmrf.utils import field
 from pmrf.parameters import Param, param, as_param
-from pmrf.models.components.lines.base import RLGCLine, RLGCResult
+from pmrf.models.components.lines.base import AbstractRLGCLine, RLGCResult
 
 # -----------------------------------------------------------------------------
 # Solvers
@@ -102,7 +102,7 @@ class WheelerMicrostripSolver(AbstractMicrostripSolver):
 # Lines
 # -----------------------------------------------------------------------------
     
-class PhysicalLine(RLGCLine):
+class PhysicalLine(AbstractRLGCLine):
     r"""
     Transmission line defined by nominal characteristic impedance, relative permittivity, 
     conductor attenuation, and dielectric loss tangent.
@@ -188,7 +188,7 @@ class PhysicalLine(RLGCLine):
         return RLGCResult(R=R, L=L, G=G, C=C)
     
 
-class DatasheetLine(RLGCLine):
+class DatasheetLine(AbstractRLGCLine):
     r"""
     Transmission line defined by common datasheet parameters (nominal impedance
     and velocity/loss factors). Includes skin effect (`k1`) and 
@@ -282,7 +282,7 @@ class DatasheetLine(RLGCLine):
         return RLGCResult(R=R, L=L, G=G, C=C)
     
 
-class CoaxialLine(RLGCLine):
+class CoaxialLine(AbstractRLGCLine):
     r"""
     Coaxial line defined directly by its physical geometry and material properties. 
     
@@ -362,7 +362,7 @@ class CoaxialLine(RLGCLine):
         return self.solver.run(freq, self.din, self.dout, self.epr, self.mur, self.tand, self.rho)
     
     
-class MicrostripLine(RLGCLine):
+class MicrostripLine(AbstractRLGCLine):
     r"""
     Microstrip line defined by standard geometric and material properties.
     

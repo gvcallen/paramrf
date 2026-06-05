@@ -50,14 +50,7 @@ Higher-level methods (fitting, optimization etc.) should be available to the use
 
 ### Abstract Classes and the Strategy Pattern
 
-ParamRF makes heavy use of the strategy pattern. Instead of using strings to define the behaviour of functions, classes are used that implement some interface. This allows the library to be extended by end-users, and makes testing and enhancements easier. Equinox makes this pattern very easy. For example, as mentioned above, solvers are *base* classes that contain parameters and implement a relevant interface.
-
-Note that some classes with abstract methods get the Abstract prefix in their name, while others do not (for example `pmrf.Model` and `pmrf.models.TransmissionLine` vs `pmrf.models.AbstractDiscrete` and`pmrf.optimize.AbstractMinimizer`). Although this may feel inconsistent at first, it actually follows a strict convention:
-
-* **Domain Entities (Nouns) drop the prefix**. Generally, this refers to specific models. For example, since a Model or a transmission line is an RF "thing", it does not get the prefix.
-* **Mechanisms and Strategies (Actors/Verbs) get the prefix**. Generally, this refers to software engineering classes. Since these represent software mechanisms and helpers, and not necessarily well-known RF concepts, they get the prefix.
-
-This helps the models that users actually interact with in their scripts feel "light" (e.g. a function that accepts a transmission line) while "warning" users that anything with an "abstract" prefix is a more "advanced" feature. 
+ParamRF makes heavy use of the strategy pattern. Instead of using strings to define the behaviour of functions, classes are used that implement some interface. This allows the library to be extended by end-users, and makes testing and enhancements easier. Equinox makes this pattern very easy. For example, as mentioned above, solvers are *base* classes that contain parameters and implement a relevant interface. Such abstract base classes should have the "Abstract" prefix to make it clear that they define some *interface* as opposed to a concrete implementation.
 
 ### Naming Conventions
 

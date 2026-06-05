@@ -41,7 +41,7 @@ def _host_side_batched_lookup(dynamic_vals, freq, static_model, leaf_shapes):
     return np.stack(results)
 
 
-class Host(AbstractSingleDomain):
+class AbstractHost(AbstractSingleDomain):
     """
     An abstract base class for models where computation occurs on the Host (CPU/Python)
     rather than the Device (XLA/GPU).
@@ -92,4 +92,4 @@ class Host(AbstractSingleDomain):
         # (even those that weren't mapped) get the batch dimension added. 
         return jax.pure_callback(cb, result_shape, dynamic, freq, vmap_method='broadcast_all')
     
-__all__ = ['Host']
+__all__ = ['AbstractHost']

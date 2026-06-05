@@ -7,7 +7,7 @@ import numpy as np
 from pmrf import Frequency, Param, param
 from pmrf.models import (
     AbstractDiscrete, AbstractSingleDomain,
-    Host, ContinuousCallable, SkrfNetwork
+    AbstractHost, ContinuousCallable, SkrfNetwork
 )
 from pmrf.network_collection import NetworkCollection
 from pmrf.types import ArrayLike
@@ -72,7 +72,7 @@ def test_single_property_routing(fine_freq):
 # Host Model Tests
 # ---------------------------------------------------------
 
-class DummyHostModel(Host):
+class DummyHostModel(AbstractHost):
     """A dummy host model representing an external simulator."""
     val: Param = param(default=10.0, as_free=True)
     

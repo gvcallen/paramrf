@@ -21,7 +21,7 @@ class RLGCResult(eqx.Module):
     C: jnp.ndarray
 
 
-class TransmissionLine(Model):
+class AbstractTransmissionLine(Model):
     r"""
     Abstract base class for all uniform transmission line models.
 
@@ -130,7 +130,7 @@ class TransmissionLine(Model):
         return y
 
 
-class RLGCLine(TransmissionLine):
+class AbstractRLGCLine(AbstractTransmissionLine):
     r"""
     Abstract base class for a transmission line defined by its per-unit-length
     RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.

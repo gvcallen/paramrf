@@ -19,7 +19,7 @@ from pmrf.models.adapters.base import (
 )
 
 from pmrf.models.adapters.bridge import (
-    Host as Host
+    AbstractHost as AbstractHost
 )
 
 from pmrf.models.adapters.static import (
@@ -55,8 +55,8 @@ from pmrf.models.components.ideal import (
 )
 
 from pmrf.models.components.lines.base import (
-    TransmissionLine as TransmissionLine,
-    RLGCLine as RLGCLine
+    AbstractTransmissionLine as AbstractTransmissionLine,
+    AbstractRLGCLine as AbstractRLGCLine
 )
 
 from pmrf.models.components.lines.nodal import (
