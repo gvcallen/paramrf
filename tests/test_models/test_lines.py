@@ -6,7 +6,7 @@ from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf.models import (
     PhaseLine, 
-    ConstantRLGCLine, 
+    RLGCLine, 
     PhysicalLine, 
     DatasheetLine, 
     CoaxialLine, 
@@ -46,7 +46,7 @@ def test_floating_line(basic_freq):
 def test_constant_rlgc_line(basic_freq):
     """Test a basic transmission line evaluated from per-unit-length components."""
     # Lossless 50 ohm line (L=250nH, C=100pF -> Zc = sqrt(L/C) = 50)
-    line = ConstantRLGCLine(R=0.0, G=0.0, L=250e-9, C=100e-12, length=0.1)
+    line = RLGCLine(R=0.0, G=0.0, L=250e-9, C=100e-12, length=0.1)
     s = line.s(basic_freq)
     
     assert s.shape == (10, 2, 2)

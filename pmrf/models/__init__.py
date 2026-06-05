@@ -55,7 +55,8 @@ from pmrf.models.components.ideal import (
 )
 
 from pmrf.models.components.lines.base import (
-    AbstractUniformTransmissionLine as AbstractUniformTransmissionLine,
+    TransmissionLine as TransmissionLine,
+    AbstractUniformLine as AbstractUniformLine,
     AbstractRLGCLine as AbstractRLGCLine
 )
 
@@ -65,7 +66,7 @@ from pmrf.models.components.lines.nodal import (
 
 from pmrf.models.components.lines.ideal import (
     PhaseLine as PhaseLine,
-    ConstantRLGCLine as ConstantRLGCLine,
+    RLGCLine as RLGCLine,
 )
 
 from pmrf.models.components.lines.physical import (

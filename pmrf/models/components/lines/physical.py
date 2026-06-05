@@ -24,6 +24,21 @@ class AbstractCoaxialSolver(eqx.Module):
 class TescheCoaxialSolver(AbstractCoaxialSolver):
     """
     Analytical solver for coaxial line RLGC parameters using the Tesche high-frequency approximation.
+
+    **Mathematical Formulation**
+
+    Ideal non-dispersive components ($L'$ and $C'$) and dielectric loss ($G$) are given by:
+    $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)$$
+    $$C' = \frac{2\pi \varepsilon_0 \varepsilon_r}{\ln(b/a)}$$
+    $$G_{diel} = \frac{2\pi \omega \varepsilon_0 \varepsilon_r \tan\delta}{\ln(b/a)}$$
+
+    The internal surface impedance defining frequency-dependent skin resistance ($R_{skin}$) 
+    and skin inductance ($L_{skin}$) is governed by:
+    $$R_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\omega\mu}{2\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\omega\mu}{2\sigma_b}}$$
+    $$L_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\mu}{2\omega\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\mu}{2\omega\sigma_b}}$$
+
+    Where $a$ is the inner radius, $b$ is the outer radius, and $\sigma$ is the conductor conductivity ($1/\rho$).
+    The total per-unit-length inductance is $L = L' + L_{skin}$.    
     
     References
     ----------
@@ -73,6 +88,23 @@ class AbstractMicrostripSolver(eqx.Module):
 class WheelerMicrostripSolver(AbstractMicrostripSolver):
     """
     Standard Wheeler approximations solver for microstrip line RLGC parameters.
+
+    Relies on standard Wheeler approximations. Note that configurations where 
+    height > width (h > w) are not yet supported.
+
+    **Mathematical Formulation**
+
+    With ratio $u = \frac{W}{H}$, the effective relative permittivity ($\varepsilon_e$) 
+    and ideal impedance terms ($Z_a, Z_e$) are:
+    $$\varepsilon_e = \frac{\varepsilon_r + 1}{2} + \frac{\varepsilon_r - 1}{2} \frac{1}{\sqrt{1 + 12/u}}$$
+    $$Z_a = \frac{120\pi}{u + 1.393 + 0.667 \ln(u + 1.444)}$$
+    $$Z_e = \frac{Z_a}{\sqrt{\varepsilon_e}}$$
+
+    Which provide the per-unit-length components:
+    $$L = \frac{Z_e \sqrt{\varepsilon_e}}{c}$$
+    $$C = \frac{\sqrt{\varepsilon_e}}{Z_e c}$$
+    $$R = \frac{1}{W} \sqrt{2 \mu_0 \rho \omega}$$
+    $$G = \frac{1}{Z_a c} \frac{\varepsilon_r (\varepsilon_e - 1)}{\varepsilon_r - 1} \tan\delta \cdot \omega$$    
     
     References
     ----------
@@ -83,14 +115,25 @@ class WheelerMicrostripSolver(AbstractMicrostripSolver):
         W, H = w, h
         u = W / H
 
-        t1 = ((epr + 1) / 2)
-        t2 = ((epr - 1) / 2)
+        # Shared base terms
+        t1 = (epr + 1) / 2
+        t2 = (epr - 1) / 2
         t3 = 1 / jnp.sqrt(1 + 12 / u)
-        epe = (t1 + t2*t3) * jnp.ones(freq.npoints)
+
+        # Piecewise effective permittivity (epe)
+        epe_le1 = t1 + t2 * (t3 + 0.04 * (1 - u)**2)
+        epe_gt1 = t1 + t2 * t3
+        epe = jnp.where(u <= 1.0, epe_le1, epe_gt1) * jnp.ones(freq.npoints)
         
-        Za = (120 * jnp.pi) / (u + 1.393 + 0.667 * jnp.log(u + 1.444))
+        # Piecewise characteristic impedance in air (Za)
+        Za_le1 = 60 * jnp.log(8 / u + 0.25 * u)
+        Za_gt1 = (120 * jnp.pi) / (u + 1.393 + 0.667 * jnp.log(u + 1.444))
+        Za = jnp.where(u <= 1.0, Za_le1, Za_gt1)
+
+        # Effective impedance
         Ze = Za / jnp.sqrt(epe)
 
+        # Per-unit-length components
         L = (Ze * jnp.sqrt(epe)) / c
         C = (jnp.sqrt(epe)) / (Ze * c)
         R = (1 / W) * jnp.sqrt(2 * mu_0 * rho) * jnp.sqrt(freq.w)
@@ -286,20 +329,7 @@ class CoaxialLine(AbstractRLGCLine):
     r"""
     Coaxial line defined directly by its physical geometry and material properties. 
     
-    **Mathematical Formulation**
-
-    Ideal non-dispersive components ($L'$ and $C'$) and dielectric loss ($G$) are given by:
-    $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)$$
-    $$C' = \frac{2\pi \varepsilon_0 \varepsilon_r}{\ln(b/a)}$$
-    $$G_{diel} = \frac{2\pi \omega \varepsilon_0 \varepsilon_r \tan\delta}{\ln(b/a)}$$
-
-    The internal surface impedance defining frequency-dependent skin resistance ($R_{skin}$) 
-    and skin inductance ($L_{skin}$) is governed by:
-    $$R_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\omega\mu}{2\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\omega\mu}{2\sigma_b}}$$
-    $$L_{skin} = \frac{1}{2\pi a} \sqrt{\frac{\mu}{2\omega\sigma_a}} + \frac{1}{2\pi b} \sqrt{\frac{\mu}{2\omega\sigma_b}}$$
-
-    Where $a$ is the inner radius, $b$ is the outer radius, and $\sigma$ is the conductor conductivity ($1/\rho$).
-    The total per-unit-length inductance is $L = L' + L_{skin}$.
+    Uses :class:`pmrf.models.TescheCoaxialSolver` as the default mathematical formulation.
 
     Example
     --------
@@ -366,23 +396,8 @@ class MicrostripLine(AbstractRLGCLine):
     r"""
     Microstrip line defined by standard geometric and material properties.
     
-    Relies on standard Wheeler approximations. Note that configurations where 
-    height > width (h > w) are not yet supported.
-
-    **Mathematical Formulation**
-
-    With ratio $u = \frac{W}{H}$, the effective relative permittivity ($\varepsilon_e$) 
-    and ideal impedance terms ($Z_a, Z_e$) are:
-    $$\varepsilon_e = \frac{\varepsilon_r + 1}{2} + \frac{\varepsilon_r - 1}{2} \frac{1}{\sqrt{1 + 12/u}}$$
-    $$Z_a = \frac{120\pi}{u + 1.393 + 0.667 \ln(u + 1.444)}$$
-    $$Z_e = \frac{Z_a}{\sqrt{\varepsilon_e}}$$
-
-    Which provide the per-unit-length components:
-    $$L = \frac{Z_e \sqrt{\varepsilon_e}}{c}$$
-    $$C = \frac{\sqrt{\varepsilon_e}}{Z_e c}$$
-    $$R = \frac{1}{W} \sqrt{2 \mu_0 \rho \omega}$$
-    $$G = \frac{1}{Z_a c} \frac{\varepsilon_r (\varepsilon_e - 1)}{\varepsilon_r - 1} \tan\delta \cdot \omega$$
-
+    Uses :class:`pmrf.models.WheelerMicrostripSolver` for the default mathematical formulation.
+    
     Example
     --------
     .. code-block:: python
@@ -415,7 +430,7 @@ class MicrostripLine(AbstractRLGCLine):
     rho : Param, default=0.0
         Resistivity of the conductor trace and ground plane in Ohm-meters.
     solver : AbstractMicrostripSolver
-        The underlying numerical solver used to compute RLGC parameters. Defaults to .
+        The underlying numerical solver used to compute RLGC parameters. Defaults to WheelerMicrostripSolver.
     """
     #: Width of the microstrip trace
     w: Param = param(default=3e-3, constraint=Positive())

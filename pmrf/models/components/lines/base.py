@@ -21,7 +21,17 @@ class RLGCResult(eqx.Module):
     C: jnp.ndarray
 
 
-class AbstractUniformTransmissionLine(Model):
+class TransmissionLine(Model):
+    """
+    Abstract base interface for transmission lines.
+
+    Used purely as a marker. Has no specific implementation requirements,
+    hence no Abstract prefix.
+    """
+    pass
+
+
+class AbstractUniformLine(TransmissionLine):
     r"""
     Abstract base class for all uniform transmission line models.
 
@@ -61,7 +71,7 @@ class AbstractUniformTransmissionLine(Model):
         r"""
         Calculates the characteristic impedance ($Z_c$).
         
-        This just calls :meth:`pmrf.models.TransmissionLine.zc_and_gammaL`.
+        This just calls :meth:`pmrf.models.AbstractUniformLine.zc_and_gammaL`.
 
         Parameters
         ----------
@@ -79,7 +89,7 @@ class AbstractUniformTransmissionLine(Model):
         r"""
         Calculates the complex electrical length ($\gamma L$).
         
-        This just calls :meth:`pmrf.models.TransmissionLine.zc_and_gammaL`.
+        This just calls :meth:`pmrf.models.AbstractUniformLine.zc_and_gammaL`.
 
         Parameters
         ----------
@@ -130,7 +140,7 @@ class AbstractUniformTransmissionLine(Model):
         return y
 
 
-class AbstractRLGCLine(AbstractUniformTransmissionLine):
+class AbstractRLGCLine(AbstractUniformLine):
     r"""
     Abstract base class for a transmission line defined by its per-unit-length
     RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.
@@ -178,8 +188,8 @@ class AbstractRLGCLine(AbstractUniformTransmissionLine):
 
         R, L, G, C = rlgc.R, rlgc.L, rlgc.G, rlgc.C
         
-        z0 = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
+        zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
         gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
         gammaL = gamma*self.length
         
-        return z0, gammaL  
+        return zc, gammaL  

@@ -49,6 +49,9 @@ class Model(eqx.Module):
     field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`.
     For more details in parameter definitions, see :mod:`pmrf.parameters`.
 
+    Note that this class is not marked as "abstract" since it should be treated more like a mix-in
+    than an ABC class with specific methods to implement.
+
     Usage
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models

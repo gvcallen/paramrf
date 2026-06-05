@@ -7,10 +7,10 @@ from pmrf.frequency import Frequency
 from pmrf.constraints import Positive
 from pmrf.utils import field
 from pmrf.parameters import Param, param
-from pmrf.models.components.lines.base import AbstractUniformTransmissionLine, AbstractRLGCLine, RLGCResult
+from pmrf.models.components.lines.base import AbstractUniformLine, AbstractRLGCLine, RLGCResult
 
 
-class PhaseLine(AbstractUniformTransmissionLine):
+class PhaseLine(AbstractUniformLine):
     r"""
     Ideal, lossless, and dispersionless transmission line defined by 
     electrical length at a reference frequency. Characteristic impedance 
@@ -56,19 +56,19 @@ class PhaseLine(AbstractUniformTransmissionLine):
     #: Reference frequency
     f0: float = field(static=True, kw_only=True)
 
-    def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
-        z0 = self.z0 * jnp.ones(frequency.npoints, dtype=complex)
+    def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
+        zc = self.z0 * jnp.ones(frequency.npoints, dtype=complex)
         theta_rad = self.theta * jnp.pi / 180.0
         w0 = 2 * jnp.pi * self.f0
         beta_L = theta_rad * (frequency.w / w0)
         gammaL = 1j * beta_L
         
-        return z0, gammaL
+        return zc, gammaL
 
 
-class ConstantRLGCLine(AbstractRLGCLine):
+class RLGCLine(AbstractRLGCLine):
     r"""
-    Transmission line with constant, frequency-independent RLGC parameters.
+    Transmission line with specified RLGC parameters.
 
     **Mathematical Formulation**
 

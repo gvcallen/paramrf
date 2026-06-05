@@ -9,9 +9,9 @@ from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike
-from pmrf.models.components.lines.base import AbstractUniformTransmissionLine
+from pmrf.models.components.lines.base import AbstractUniformLine
 
-T = TypeVar('T', bound=AbstractUniformTransmissionLine)
+T = TypeVar('T', bound=AbstractUniformLine)
 
 class FloatingLine(Model, Generic[T]):
     """
@@ -27,7 +27,7 @@ class FloatingLine(Model, Generic[T]):
     floating: T
 
     def __post_init__(self):
-        if not isinstance(self.floating, AbstractUniformTransmissionLine):
+        if not isinstance(self.floating, AbstractUniformLine):
             raise TypeError(f"FloatingLine can only be used to wrap TransmissionLine models. Got: {type(self.floating)}")
 
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
