@@ -7,7 +7,7 @@ from pmrf.frequency import Frequency
 from pmrf.constraints import Positive
 from pmrf.utils import field
 from pmrf.parameters import Param, param
-from pmrf.models.components.lines.base import TransmissionLine, RLGCLine
+from pmrf.models.components.lines.base import TransmissionLine, RLGCLine, RLGCResult
 
 
 class PhaseLine(TransmissionLine):
@@ -116,7 +116,9 @@ class ConstantRLGCLine(RLGCLine):
     #: Capacitance in Farads/m
     C: Param = param(default=90e-12, constraint=Positive())
 
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def rlgc(self, freq: Frequency) -> RLGCResult:
         ones = jnp.ones(freq.npoints)
-        return self.R * ones, self.L * ones, self.G * ones, self.C * ones
+        R, L, G, C = self.R * ones, self.L * ones, self.G * ones, self.C * ones
+
+        return RLGCResult(R=R, L=L, G=G, C=C)
     

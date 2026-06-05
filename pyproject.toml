@@ -14,6 +14,7 @@ dependencies = [
     "equinox",
     "distreqx",
     "optimistix",
+    "lineax",
     "jaxopt",
     "numpy",
     "scipy",

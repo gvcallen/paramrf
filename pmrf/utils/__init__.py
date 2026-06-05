@@ -11,6 +11,8 @@ from pmrf.utils import type as type
 from pmrf.utils.tree import (
     Partial as Partial,
     Bind as Bind,
+    Attrgetter as Attrgetter,
+    Pathgetter as Pathgetter,
     InitVar as InitVar,
     freeze as freeze,
     unfreeze as unfreeze,

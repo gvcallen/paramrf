@@ -1,6 +1,4 @@
-"""
-Lines that modify the nodal environment of other lines (floating, coupling)
-"""
+from typing import Generic, TypeVar
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
@@ -9,7 +7,9 @@ from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike
 from pmrf.models.components.lines.base import TransmissionLine
 
-class FloatingLine(Model):
+T = TypeVar('T', bound=TransmissionLine)
+
+class FloatingLine(Model, Generic[T]):
     """
     A wrapper that converts a 2-port single-ended transmission line 
     into a 4-port floating line with an explicit return path.
@@ -20,7 +20,11 @@ class FloatingLine(Model):
         The inner transmission line model to be wrapped.
     """
     #: Inner transmission line model
-    floating: TransmissionLine
+    floating: T
+
+    def __post_init__(self):
+        if not isinstance(self.floating, TransmissionLine):
+            raise TypeError(f"FloatingLine can only be used to wrap TransmissionLine models. Got: {type(self.floating)}")
 
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line
@@ -59,4 +63,3 @@ class FloatingLine(Model):
         ]).transpose(2, 0, 1)
         
         return y
-    

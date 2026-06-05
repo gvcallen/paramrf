@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 class MNAStamp(eqx.Module):
-    """Represents a batched MNA stamp for a component."""
+    """Represents an MNA stamp."""
     
     #: Nodal admittance matrix. Shape: (nf, n, n)
     Y: jnp.ndarray  

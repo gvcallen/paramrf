@@ -63,6 +63,7 @@ Utilities
    pmrf.NetworkCollection
    pmrf.Partial
    pmrf.Bind
+   pmrf.Attrgetter
    pmrf.InitVar
    pmrf.is_param
    pmrf.as_param

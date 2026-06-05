@@ -21,6 +21,7 @@ from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.utils import error_if, field
 from pmrf.utils.optix import focus, Lens
+from pmrf.utils.tree import filtered_tree_pathed_leaves, tree_path_to_name
 
 
 T = TypeVar('T')
@@ -660,6 +661,93 @@ def Random(
         If `value` is None and the distribution does not implement `mean()`.
     """
     return Param(value=value, distribution=distribution, constraint=constraint, scale=scale, name=name, fixed=fixed, metadata=metadata)
+
+
+def tree_pathed_params(
+    tree,
+    full_params: bool = False,
+    free_only: bool = False,
+    keystr: bool = False,
+    separator: str | None = None,
+) -> list[tuple[Any, float | jnp.ndarray | Param]]:
+    """
+    Returns the parameters as a list of tuples alongside their paths.
+    
+    The paths represent JAX tree paths.
+    
+    Parameters
+    ----------
+    full_params : bool, default=True
+        Returns the full parameter objects as opposed to their resultant floats/array values.
+    free_only : bool, default=False
+        Returns only free parameters.
+    keystr : bool, default=False
+        Whether equivalent strings should be returned as opposed to full JAX paths.
+        Defaults to False.
+    separator : str, optional
+        The separator to use if `keystr` is True.
+    """
+    # Setup callables for filtering/flattening
+    if free_only:
+        filter_spec = lambda x: is_param(x) and not x.fixed
+        is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen sub-trees
+    else:
+        filter_spec = lambda x: is_param(x)
+        is_leaf = lambda x: is_param(x)
+
+    return filtered_tree_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
+
+
+def tree_named_params(
+    tree,
+    full_params: bool = False,
+    free_only: bool = False,
+    namespace_separator: str = '_',
+) -> dict[str, float | jnp.ndarray | Param]:
+    """
+    Returns a named dictionary of parameters in a tree.
+        
+    Parameters
+    ----------
+    full_params : bool, default=True
+        Returns the full parameter objects as opposed to their resultant floats/array values.
+    free_only : bool, default=False
+        Returns only free parameters.
+    namespace_separator : str
+        The separator to use to create a parameter namespace using model names.
+    
+    Returns
+    -------
+    dict[str, Any]
+        A dictionary mapping string paths (e.g., '.ind.value') to their 
+        corresponding JAX arrays or parameter objects.
+        
+    """
+    pathed = tree_pathed_params(tree, free_only=free_only, full_params=full_params)
+    
+    # Detect collisions
+    named = {}
+    for path, leaf in pathed:
+        name = tree_path_to_name(tree, path, namespace_separator=namespace_separator)
+        if name in named:
+            raise ValueError(
+                f"Parameter name collision: '{name}'.\n\n"
+                f"Multiple paths resolved to the same name during flattening. "
+                f"To fix this, either assign unique names directly to the parameters, "
+                f"or give their parent models distinct names to create unique prefixes."
+            )
+        named[name] = leaf
+    
+    return named
+
+def tree_param_names_to_path(tree):
+    pathed = tree_pathed_params(tree, full_params=True)
+    name_to_path = {}
+    for path, _ in pathed:
+        name = tree_path_to_name(tree, path, namespace_separator='_')
+        name_to_path[name] = path    
+
+    return name_to_path
 
 
 __all__ = [

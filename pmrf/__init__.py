@@ -11,7 +11,6 @@ jax_logger.addFilter(_SuppressJaxGpuWarning())
 import logging
 import jax
 from importlib.metadata import version as _version, PackageNotFoundError
-import parax 
 from jaxtyping import ArrayLike
 from typing import TypeAlias
 
@@ -58,6 +57,8 @@ from pmrf.utils import (
     Partial as Partial,
     Bind as Bind,
     InitVar as InitVar,
+    Attrgetter as Attrgetter,
+    Pathgetter as Pathgetter,
     field as field,
     freeze as freeze,
     unfreeze as unfreeze,
@@ -87,12 +88,11 @@ from pmrf import (
     parameters as parameters,
     rf as rf,
     serialization as serialization,
-    simulate as simulate,
     viz as viz,
 )
 
 __all__ = [
-    # Core
+    # Base/Core
     "Model",
     "is_model",
     "Frequency",
@@ -117,6 +117,8 @@ __all__ = [
     # Utilities
     "Partial",
     "Bind",
+    "Attrgetter",
+    "Pathgetter",
     "Initvar",
     "NetworkCollection",
     "field",
@@ -145,6 +147,5 @@ __all__ = [
     "parameters",
     "rf",
     "serialization",
-    "simulate",
     "viz",
 ]

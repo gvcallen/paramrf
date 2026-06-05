@@ -13,12 +13,13 @@ import equinox as eqx
 import skrf
 import parax as prx
 
-from pmrf.rf.mna import MNAStamp
 from pmrf.utils.optix import focus, Lens
-from pmrf.parameters import Param, is_param
+from pmrf.utils.tree import tree_resolve_target
+from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
 from pmrf.frequency import Frequency
 from pmrf.rf import (
     a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
+    MNAStamp,
 )
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
@@ -27,9 +28,10 @@ from pmrf.utils import field, unwrap, unwrap_self
 T = TypeVar('T')
 
 PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
-PRIMARY_METHODS = PRIMARY_DOMAINS + ('build', 'primary_matrix')
+PRIMARY_METHODS = PRIMARY_DOMAINS + ('primary_matrix',)
+PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
-
+    
 
 class Model(eqx.Module):
     """
@@ -38,9 +40,9 @@ class Model(eqx.Module):
     Derived from this class to define your own, custom model.
 
     This class should not be instantiated directly. It is created internally in ParamRF when models are
-    built compositionally, or can be inherited from, in which case at least one of
-    :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`,
-    :meth:`pmrf.Model.build`, or :meth:`pmrf.Model.primary_matrix` should be overridden.
+    built compositionally, or can be inherited from. When inheriting, at least one primary matrix method,
+    such as or :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
+    :meth:`pmrf.Model.primary_matrix`, or :meth:`pmrf.Model.build`, must be overridden. 
 
     The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
@@ -66,9 +68,10 @@ class Model(eqx.Module):
     :meth:`z`                         Impedance (Z) parameter matrix.
     :meth:`y`                         Admittance (Y) parameter matrix.
     :meth:`mna`                       Modified Nodal Analysis (MNA) stamp matrices.
-    :meth:`build`                     Build the model. Can be overridden for advanced models.
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
     :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
+    :meth:`build`                     Build the model. Can be overridden for advanced models.
+    :meth:`expand`                    Expands the model's topology. Used for circuit model flattening.
     ================================= ====================================================================
 
     **Helper Methods**
@@ -163,7 +166,7 @@ class Model(eqx.Module):
                 return func(matrix)
             return dynamic_method
             
-        for prop in PRIMARY_DOMAINS:
+        for prop in PLOT_DOMAINS:
             for suffix, lookup in CONVERSION_LOOKUP.items():
                 func = lookup[1]
                 
@@ -213,68 +216,12 @@ class Model(eqx.Module):
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
-    def pathed_params(
-        self,
-        values: bool = True,
-        include_fixed: bool = True,
-        keystr: bool = False,
-        separator: str | None = None,
-    ) -> list[tuple[Any, Param]]:
-        """
-        Returns the parameters as a list of tuples alongside their paths.
-        
-        The paths represent JAX tree paths.
-        
-        Parameters
-        ----------
-        include_fixed : bool, default=False
-            Whether to include fixed parameters in the returned dictionary.
-            Defaults to False.
-        values : bool, default=True
-            Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
-            pass `unwrap=False`.
-        keystr : bool, default=False
-            Whether equivalent strings should be returned as opposed to full JAX paths.
-            Defaults to False.
-        separator : str, optional
-            The separator to use if `keystr` is True.
-        """
-        # Setup callables for filtering/flattening
-        if not include_fixed:
-            filter_spec = lambda x: is_param(x) and not x.fixed
-            is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen models
-        else:
-            filter_spec = lambda x: is_param(x)
-            is_leaf = lambda x: is_param(x)
-
-        # Get rid of any non-param leaves
-        filtered_self = eqx.filter(self, filter_spec, is_leaf=is_leaf)
-        pathed, _ = jax.tree.flatten_with_path(filtered_self, is_leaf=is_leaf)
-        
-        if values or keystr:
-            for i in range(len(pathed)):
-                key, value = pathed[i]
-                
-                if keystr:
-                    kwargs = {'separator': separator} if separator is not None else {}
-                    key = jax.tree_util.keystr(key, **kwargs)
-                
-                if values:
-                    value = prx.unwrap(value)
-                    if jnp.isscalar(value):
-                        value = float(value)
-                
-                pathed[i] = (key, value)
-                
-        return pathed
-    
     def named_params(
         self,
-        values: bool = True,
-        include_fixed: bool = True,
+        full_params: bool = False,
+        free_only: bool = False,
         namespace_separator: str = '_',
-    ) -> dict[str, Param]:
+    ) -> dict[str, float | jnp.ndarray | Param]:
         """
         Returns a named dictionary of parameters in the model.
 
@@ -299,16 +246,13 @@ class Model(eqx.Module):
            or composite models.
         3. For fully nested naming, name all of your models and
            optionally your parameters.
-
+           
         Parameters
         ----------
-        values : bool
-            Unwraps the parameters into raw floats/arrays. Defaults to True.
-            To inspect or modify internal parameter states (e.g. distributions, fixed etc.)
-            pass `unwrap=False`.
-        include_fixed : bool
-            Whether to include fixed parameters in the returned dictionary.
-            Defaults to False.
+        full_params : bool, default=True
+            Returns the full parameter objects as opposed to their resultant floats/array values.
+        free_only : bool, default=False
+            Returns only free parameters.
         namespace_separator : str
             The separator to use to create a parameter namespace using model names.
         
@@ -319,27 +263,17 @@ class Model(eqx.Module):
             corresponding JAX arrays or parameter objects.
             
         """
-        pathed = self.pathed_params(include_fixed=include_fixed, values=values)
-        
-        # Detect collisions
-        named = {}
-        for path, leaf in pathed:
-            name = tree_path_to_name(self, path, namespace_separator=namespace_separator)
-            if name in named:
-                raise ValueError(
-                    f"Parameter name collision: '{name}'.\n\n"
-                    f"Multiple paths resolved to the same name during flattening. "
-                    f"To fix this, either assign unique names directly to the parameters, "
-                    f"or give their parent models distinct names to create unique prefixes."
-                )
-            named[name] = leaf
-        
-        return named
+        if free_only:
+            model = self
+        else:
+            # We need to resolve ties first so that they show up as parameters.
+            # We do this by unwrapping any tied nodes on self without cascading
+            model = prx.unwrap(self, only_if=lambda x: isinstance(x, prx.Tie), cascade=False)        
+
+        return tree_named_params(model, full_params=full_params, free_only=free_only, namespace_separator=namespace_separator)
     
     # ---- Core API -------------------------------------------------------------
     
-    @eqx.filter_jit
-    @unwrap_self
     def build(self) -> 'Model':
         """Build the model.
 
@@ -360,6 +294,59 @@ class Model(eqx.Module):
             a compositional representation.
         """     
         raise NotImplementedError
+    
+    def expand(self) -> tuple[list[tuple['Model', int]], list[list[tuple['Model', int]]]] | None:
+        """
+        Expands this model into its internal graph representation for circuit flattening.
+
+        This method is used by graph algorithms (like the solver in `Circuit.flattened`) 
+        to unpack composite models, wrappers, and nested hierarchies into a 
+        single flat netlist. This allows global matrix solves to be used, where desired.
+
+        Note that `expand` is automatically implemented if :meth:`pmrf.Model.build` is overridden
+        and the built model also implements expand. This means that most user-classes
+        do NOT need to manually implement this method, and it is mainly intended for
+        built-in composite models in ParamRF to override e.g. :class:`pmrf.models.Cascade`
+        or :class:`pmrf.models.Renumbered`.
+
+        Returns
+        -------
+        tuple or None
+            If the model is a composite or routing container, it returns a tuple of:
+            - `port_mapping`: A list of length `nports` mapping each external port index 
+              of this model to an internal `(Model, port_index)` tuple.
+            - `internal_connections`: A list of sub-nodes (connections) to add to the 
+              netlist. Each node is a list of `(Model, port_index)` tuples.
+            
+            If the model is a fundamental leaf component, it returns `None`.
+
+        Examples
+        --------
+        Imagine a custom 2-port model that internally connects an Inductor and Capacitor 
+        in series. When asked to expand, it exposes the inner components and their wiring:
+
+        >>> def expand(self):
+        ...     # 1. Grab internal components
+        ...     L, C = self.inductor, self.capacitor
+        ...     
+        ...     # 2. Map our external ports to the internal components
+        ...     port_mapping = [
+        ...         (L, 0),  # External port 0 maps to Inductor port 0
+        ...         (C, 1)   # External port 1 maps to Capacitor port 1
+        ...     ]
+        ...     
+        ...     # 3. Define the internal connections (the netlist)
+        ...     # Connect Inductor port 1 to Capacitor port 0
+        ...     internal_connections = [
+        ...         [(L, 1), (C, 0)]
+        ...     ]
+        ...     
+        ...     return port_mapping, internal_connections
+        """
+        if is_overridden(self.__class__, Model, 'build'):
+            return self.build().expand()
+                
+        return None
     
     def primary_matrix(self, freq: Frequency, **kwargs) -> jnp.ndarray:
         """The primary matrix (e.g. ``s``, ``a`` etc.) as a function of frequency.
@@ -392,9 +379,9 @@ class Model(eqx.Module):
         NotImplementedError
             If no primary property is overridden.
         """      
-        primary_function = getattr(self, self.primary_domain)
-        return primary_function(freq, **kwargs)
-    
+        primary_domain = self.primary_domain
+        return getattr(self, primary_domain)(freq, **kwargs)
+
     @property
     def primary_domain(self) -> str:
         """The primary domain (e.g. ``"s"``, ``"a"``) as a string.
@@ -424,11 +411,11 @@ class Model(eqx.Module):
         for property in unprioritized:
             if is_overridden(type(self), Model, property):
                 return property
-        raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} are overridden, which are the only ones supported currently")     
+        raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} are overridden, which are the only ones supported")     
     
     @eqx.filter_jit
     @unwrap_self
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Scattering parameter matrix at port impedance z0.
 
         If a different parameter type (a, z, y) is primary, this converts it to S.
@@ -442,7 +429,7 @@ class Model(eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -450,13 +437,14 @@ class Model(eqx.Module):
         jnp.ndarray
             S-parameter matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
-            return self.build().s(freq, z0=z0)
+            return self.build().s(frequency, z0=z0)
 
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
         # Return or Convert
         if primary_domain == 's':
@@ -472,14 +460,14 @@ class Model(eqx.Module):
     
     @eqx.filter_jit
     @unwrap_self
-    def a(self, freq: Frequency) -> jnp.ndarray:
+    def a(self, frequency: Frequency) -> jnp.ndarray:
         """ABCD parameter matrix.
 
         If a different parameter type is primary, this converts it to A.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -487,20 +475,19 @@ class Model(eqx.Module):
         jnp.ndarray
             ABCD matrix with shape ``(nf, 2, 2)``.
         """        
+        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
-            return self.build().a(freq)
-        
+            return self.build().a(frequency)
+
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or Convert
         if primary_domain == 'a':
             return val
-        
-        # Convert with priority s, z, y
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2a(val, z0=HUB_Z0)
         elif primary_domain == 'z':
             return z2a(val)
@@ -511,14 +498,14 @@ class Model(eqx.Module):
 
     @eqx.filter_jit
     @unwrap_self
-    def z(self, freq: Frequency) -> jnp.ndarray:
+    def z(self, frequency: Frequency) -> jnp.ndarray:
         """Impedance (Z) parameter matrix.
 
         If a different parameter type is primary, this converts it to Z.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -526,20 +513,19 @@ class Model(eqx.Module):
         jnp.ndarray
             Z matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
-            return self.build().z(freq)
+            return self.build().z(frequency)
 
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or convert
         if primary_domain == 'z':
             return val
-
-        # Convert with priority s, a, y
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2z(val, z0=HUB_Z0)
         elif primary_domain == 'a':
             return a2z(val)
@@ -550,14 +536,14 @@ class Model(eqx.Module):
 
     @eqx.filter_jit
     @unwrap_self
-    def y(self, freq: Frequency) -> jnp.ndarray:
+    def y(self, frequency: Frequency) -> jnp.ndarray:
         """Admittance (Y) parameter matrix.
 
         If a different parameter type is primary, this converts it to Y.
 
         Parameters
         ----------
-        freq : Frequency
+        frequency : Frequency
             Frequency grid.
 
         Returns
@@ -565,20 +551,19 @@ class Model(eqx.Module):
         jnp.ndarray
             Y matrix with shape ``(nf, n, n)``.
         """
+        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
-            return self.build().y(freq)
+            return self.build().y(frequency)
 
         # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
-        val = self.primary_matrix(freq, **kwargs)
+        val = self.primary_matrix(frequency, **kwargs)
 
-        # Return direct
+        # Return or convert
         if primary_domain == 'y':
             return val
-
-        # Convert with priority s, a, z
-        if primary_domain == 's':
+        elif primary_domain == 's':
             return s2y(val, HUB_Z0)
         elif primary_domain == 'a':
             return a2y(val)
@@ -589,7 +574,7 @@ class Model(eqx.Module):
         
     @eqx.filter_jit
     @unwrap_self
-    def mna(self, freq: Frequency) -> MNAStamp:
+    def mna(self, frequency: Frequency) -> MNAStamp:
         """
         (experimental) Modified Nodal Analysis (MNA) stamp.
 
@@ -600,30 +585,31 @@ class Model(eqx.Module):
         Explicitly defined Y-matrices are prioritized to maximize matrix sparsity, 
         while other domains fall back to auxiliary variables to guarantee stability.
         """
+        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
-            return self.build().mna(freq)
+            return self.build().mna(frequency)
 
         primary_domain = self.primary_domain
         
         if primary_domain == 'mna':
-            return self.primary_matrix(freq)
+            return self.primary_matrix(frequency)
             
         # We prioritize y, z and a for sparsity, assuming the caller
         # has created a numerically stable implementation.
         if primary_domain == 'y' or is_overridden(type(self), Model, 'y'):
-            return y2mna(self.y(freq))
+            return y2mna(self.y(frequency))
         
         if primary_domain == 'z' or is_overridden(type(self), Model, 'z'):
-            return z2mna(self.z(freq))
+            return z2mna(self.z(frequency))
         
         if primary_domain == 'a' or is_overridden(type(self), Model, 'a'):
-            return a2mna(self.a(freq))
+            return a2mna(self.a(frequency))
         
         if primary_domain == 's' or is_overridden(type(self), Model, 's'):
-            return s2mna(self.s(freq, z0=HUB_Z0), z0=HUB_Z0)
+            return s2mna(self.s(frequency, z0=HUB_Z0), z0=HUB_Z0)
             
-        return y2mna(self.y(freq))
-
+        return y2mna(self.y(frequency))
+    
     # ---- Magic methods and copying --------------------------------------------------
 
     def __repr__(self) -> str:
@@ -652,7 +638,7 @@ class Model(eqx.Module):
         is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
         
         # Replace JAX arrays with our custom formatter
-        unwrapped_clean = jax.tree_util.tree_map(
+        unwrapped_clean = jax.tree.map(
             lambda x: _RawFormatter(x) if is_array(x) else x,
             unwrapped,
             is_leaf=is_array
@@ -700,16 +686,20 @@ class Model(eqx.Module):
     
     def at(
         self: Self, 
-        where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
+        target: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
     ) -> Lens[Self, T]:
         """A functional interface for model manipulation.
         
         This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
         
         Pass in a callable, a string parameter name, or a tuple of names that 
-        returns the attributes you would like to retrieve/modify. Then, use
+        returns the values you would like to retrieve/modify. Then, use
         methods like `.get()` and `.set()` to retrieve values
         or an updated model.
+        
+        Note that this method does not work directly on static values, like strings
+        or booleans. To perform replacements on these values, this method
+        can be used in combination with :func:`pmrf.replace`.
         
         WARNING: All updates made by this method are "surgical".
         In order words, values are replaced *as-is* without any converters
@@ -735,10 +725,15 @@ class Model(eqx.Module):
             A lens object focused on the root of the current instance.
 
         """
-        resolved_where = _resolve_target(self, where)
+        try:
+            name_to_path = tree_param_names_to_path(self)
+            resolved_where = tree_resolve_target(target, name_to_path)
+        except Exception as e:
+            raise ValueError(f"Could not resolve parameter name: {e}")
+        
         return focus(self).at(resolved_where)
     
-    def map(self: Self, fn: Callable[[Any], Any], predicate: Callable | None = None) -> Self:
+    def map(self: Self, fn: Callable[[Any], Any], is_target: Callable | None = None) -> Self:
         """A functional interface for model mapping.
         
         This is a wrapper around `jax.tree.map`.
@@ -751,16 +746,16 @@ class Model(eqx.Module):
         >>> from pmrf.models import Resistor, Capacitor
         >>> model = Resistor(R=50.0) ** Capacitor(C=1e-12)
         >>> # Scale all parameters in the model by a factor of 2
-        >>> scaled_model = model.map(lambda p: p * 2.0, is_leaf=prf.is_param)
+        >>> scaled_model = model.map(lambda p: p * 2.0, is_target=prf.is_param)
 
         Returns the mapped model.
         """
         def _wrapped_fn(node):
-            if not predicate(node):
+            if not is_target(node):
                 return node
             return fn(node)
 
-        return jax.tree.map(_wrapped_fn, self, is_leaf=predicate)
+        return jax.tree.map(_wrapped_fn, self, is_leaf=is_target)
            
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
@@ -846,6 +841,9 @@ class Model(eqx.Module):
         """Tie parameters or sub-models within this model together.
         
         See :class:`pmrf.models.composite.wrapped.Tied` for more details.
+        
+        Note that if a model is tied that has already been tied,
+        the target and source location/name refers to the original, untied model. 
 
         Examples
         --------
@@ -883,8 +881,14 @@ class Model(eqx.Module):
         """
         from pmrf.models import Tied
         
-        resolved_target = _resolve_target(self, target)
-        resolved_source = _resolve_target(self, source)
+        if isinstance(self, Tied):
+            model = self.model
+        else:
+            model = self
+        
+        name_to_path = tree_param_names_to_path(model)
+        resolved_target = tree_resolve_target(target, name_to_path)
+        resolved_source = tree_resolve_target(source, name_to_path)
         
         return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
     
@@ -969,10 +973,8 @@ def validate(tree):
     Recursively walks a PyTree and ensures no pmrf.Model instances contain 
     unprotected raw inexact arrays that optimizers might corrupt.
     """
-    import numpy as np
-    
     # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays
-    nodes, _ = jax.tree_util.tree_flatten(
+    nodes, _ = jax.tree.flatten(
         tree, is_leaf=lambda x: isinstance(x, Model)
     )
     
@@ -997,157 +999,3 @@ def validate(tree):
                 
                 # Recurse into submodels
                 validate(val)
-
-
-def tree_path_to_name(tree: Any, path: list[Any], namespace_separator: str, ignore_names: bool = False) -> str:
-    """
-    Converts a JAX-style path to an equivalent parameter or model name.
-
-    Parameters
-    ----------
-    tree : PyTree
-        The base PyTree to extract the names of.
-    path : list[Any]
-        The JAX path to a node in the PyTree.
-    namespace_separator : str
-        A string separator to use when combing multiple nodes in the PyTree
-        together to create a new namespace.
-    ignore_names : bool, default=False
-        If True, ignores custom Model/Parameter names and generates the string 
-        based strictly on the structural path.
-    
-    Returns
-    -------
-    str
-        The name of the parameter or path.
-    """
-    namespace = []
-    current_obj = tree
-    unnamed_path_parts = []
-    
-    for key in path:
-        if hasattr(key, "name"):
-            attr = key.name
-            current_obj = getattr(current_obj, attr)
-            part_type = "attr"
-        elif hasattr(key, "idx"):
-            attr = key.idx
-            current_obj = current_obj[key.idx]
-            part_type = "idx"
-        elif hasattr(key, "key"):
-            attr = key.key
-            current_obj = current_obj[key.key]
-            part_type = "key"
-        else:
-            attr = key
-            part_type = "fallback"
-            
-        if not ignore_names and isinstance(current_obj, Model) and current_obj.name is not None:
-            namespace.append(current_obj.name)
-            unnamed_path_parts = []
-        else:
-            unnamed_path_parts.append((part_type, attr))
-            
-    param_name = None
-    if not ignore_names:
-        if is_param(current_obj):
-            param_name = current_obj.name
-        
-        if param_name is None and isinstance(current_obj, Model) and current_obj.name is not None:
-            if namespace:
-                param_name = namespace.pop()
-
-    if param_name is not None:
-        final_name_part = param_name
-        separator = namespace_separator
-    else:
-        formatted_parts = []
-        for i, (p_type, p_val) in enumerate(unnamed_path_parts):
-            if p_type == "attr":
-                if i == 0:
-                    formatted_parts.append(str(p_val))
-                else:
-                    formatted_parts.append(f".{p_val}")
-            elif p_type == "idx":
-                formatted_parts.append(f"[{p_val}]")
-            elif p_type == "key":
-                if isinstance(p_val, str):
-                    formatted_parts.append(f"['{p_val}']")
-                else:
-                    formatted_parts.append(f"[{p_val}]")
-            else:
-                formatted_parts.append(f"[{p_val}]")
-                
-        final_name_part = "".join(formatted_parts)
-        
-        if not final_name_part:
-            separator = ""
-        elif final_name_part.startswith("["):
-            separator = ""
-        else:
-            separator = "."
-            
-    if namespace:
-        prefix = namespace_separator.join(namespace)
-        name = f"{prefix}{separator}{final_name_part}"
-    else:
-        name = final_name_part
-            
-    return name
-
-
-def _make_getter(path: list[Any]) -> Callable[[Any], Any]:
-    """Creates a callable that retrieves a value from a PyTree given its JAX path."""
-    def getter(tree):
-        curr = tree
-        for p in path:
-            if hasattr(p, "name"):
-                curr = getattr(curr, p.name)
-            elif hasattr(p, "idx"):
-                curr = curr[p.idx]
-            elif hasattr(p, "key"):
-                curr = curr[p.key]
-            else:
-                # Fallback for unexpected path elements
-                try:
-                    curr = getattr(curr, p)
-                except AttributeError:
-                    curr = curr[p]
-        return curr
-    return getter
-
-def _resolve_target(model: Any, target: Any, namespace_separator: str = '_') -> Callable[[Any], Any]:
-    """Resolves callables, string names, or iterables of string names into a callable getter."""
-    if callable(target):
-        return target
-        
-    # Determine if target is a single string or an iterable of strings
-    is_single = isinstance(target, str)
-    if is_single:
-        names_to_find = [target]
-    elif isinstance(target, (list, tuple)) and all(isinstance(x, str) for x in target):
-        names_to_find = list(target)
-    else:
-        raise TypeError(
-            "Targets must be a callable, a string parameter name, "
-            "or a tuple/list of string parameter names."
-        )
-
-    # Build name -> path mapping using the model's pathed_params
-    pathed = model.pathed_params(include_fixed=True, values=False)
-    name_to_path = {}
-    for path, _ in pathed:
-        name = tree_path_to_name(model, path, namespace_separator=namespace_separator)
-        name_to_path[name] = path
-        
-    getters = []
-    for name in names_to_find:
-        if name not in name_to_path:
-            raise ValueError(f"Parameter name '{name}' not found in the model.")
-        getters.append(_make_getter(name_to_path[name]))
-        
-    # Return a single element getter or a tuple getter depending on the input
-    if is_single:
-        return getters[0]
-    else:
-        return lambda m: tuple(g(m) for g in getters)

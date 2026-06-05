@@ -88,15 +88,14 @@ def test_target_resolution_errors():
     r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
     # Test non-existent string name
-    with pytest.raises(ValueError, match="not found in the model"):
+    with pytest.raises(ValueError, match="not resolve parameter name"):
         r.at("nonexistent_param")
         
-    # Test invalid type (e.g., an integer instead of a string/callable)
-    with pytest.raises(TypeError, match="must be a callable"):
+    with pytest.raises(ValueError, match="not resolve parameter name"):
         r.at(123)
         
     # Test that tied checks both target and source
-    with pytest.raises(ValueError, match="not found in the model"):
+    with pytest.raises(ValueError, match="not found in the provided lookup"):
         r.tied(target="custom_R", source="nonexistent_param")
 
 def test_at_nested_namespace():

@@ -42,6 +42,16 @@ class Renumbered(Model):
         
         if len(self.from_ports) != len(self.to_ports):
             raise ValueError("from_ports and to_ports must have the same length for Renumbered")
+        
+    def expand(self):
+        port_map = []
+        for p in range(self.nports):
+            if p in self.to_ports:
+                idx = self.to_ports.index(p)
+                port_map.append((self.model, self.from_ports[idx]))
+            else:
+                port_map.append((self.model, p))
+        return port_map, []
 
     def renumber(self, p: jnp.ndarray) -> jnp.ndarray:
         """

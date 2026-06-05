@@ -3,16 +3,23 @@ Uniform transmission lines (RLGC, coaxial, microstrip)
 """
 from abc import abstractmethod
 
-from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
-from pmrf.constraints import Positive, GreaterThan
-from pmrf.utils import field
+from pmrf.constraints import Positive
 from pmrf.types import ArrayLike
-from pmrf.parameters import Param, param, as_param
+from pmrf.parameters import Param, param
+
+
+class RLGCResult(eqx.Module):
+    R: jnp.ndarray
+    L: jnp.ndarray
+    G: jnp.ndarray
+    C: jnp.ndarray
+
 
 class TransmissionLine(Model):
     r"""
@@ -82,7 +89,7 @@ class TransmissionLine(Model):
         Returns
         -------
         jnp.ndarray
-            The characteristic impedance ($Z_c$)
+            The complex electrical length ($\gamma L$)
         """
         return self.zc_and_gammaL(frequency)[1]
 
@@ -148,7 +155,7 @@ class RLGCLine(TransmissionLine):
     length: Param = param(constraint=Positive())
 
     @abstractmethod
-    def rlgc(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def rlgc(self, freq: Frequency) -> RLGCResult:
         r"""
         Calculates the frequency-dependent RLGC parameters.
 
@@ -159,14 +166,18 @@ class RLGCLine(TransmissionLine):
 
         Returns
         -------
-        tuple
+        RLGCResult
             The R, L, G, and C parameter vectors.
         """
         raise NotImplementedError("'rlgc' must be implemented in the derived class")       
 
-    def zc_and_gammaL(self, frequency: Frequency) -> jnp.ndarray:
+    def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
         w = frequency.w
-        R, L, G, C = self.rlgc(frequency)
+        
+        rlgc = self.rlgc(frequency)
+
+        R, L, G, C = rlgc.R, rlgc.L, rlgc.G, rlgc.C
+        
         z0 = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
         gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
         gammaL = gamma*self.length

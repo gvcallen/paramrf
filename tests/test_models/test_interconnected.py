@@ -3,7 +3,7 @@ import pytest
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.models import Resistor, Short, Port, Circuit, Cascade, Terminated
+from pmrf.models import Resistor, Short, Port, Circuit, Cascade, Terminated, Capacitor, Inductor
 
 @pytest.fixture
 def basic_freq():
@@ -122,11 +122,12 @@ def test_cascade_flattening():
     R3 = Resistor(30.0)
     
     nested = Cascade([R1, Cascade([R2, R3])])
+    flattened = nested.flattened()
     
-    # The models tuple should be flattened to just (R1, R2, R3)
-    assert len(nested.cascade) == 3
-    assert nested.cascade[0] is R1
-    assert nested.cascade[2] is R3
+    # The flattened models tuple should be flattened to just (R1, R2, R3)
+    assert len(flattened.cascade) == 3
+    assert flattened.cascade[0] is R1
+    assert flattened.cascade[2] is R3
     
 
 # ---------------------------------------------------------
@@ -153,3 +154,65 @@ def test_terminated_invalid_port_ratios():
     # Cannot terminate a 2-port in a 2-port directly with this class
     with pytest.raises(ValueError, match="Terminated only supports terminating 2N port networks in a 1N port"):
         Terminated(terminated_from=R1, terminated_into=R2)
+
+
+def test_circuit_flatten_hierarchy(basic_freq):
+    """
+    Ensure nested Circuits and Cascades are perfectly flattened into a 
+    single-level netlist of base components, dropping virtual interfaces.
+    """
+    # Base leaf components
+    R1 = Resistor(10.0)
+    R2 = Resistor(20.0)
+    C1 = Capacitor(1e-12)
+    L1 = Inductor(1e-9)
+
+    # Create a Sub-circuit (R1 and R2 in series)
+    sub_p0 = Port()
+    sub_p1 = Port()
+    sub_connections = [
+        [(sub_p0, 0), (R1, 0)],
+        [(R1, 1), (R2, 0)],
+        [(sub_p1, 0), (R2, 1)]
+    ]
+    sub_circ = Circuit(sub_connections) # 2-port sub-circuit
+
+    # Create a Sub-cascade (C1 and L1 in series)
+    # Note: we disable automatic flatten on init so the graph algorithm has to do it.
+    sub_casc = Cascade([C1, L1], flatten=False) # 2-port cascade
+
+    # Top-level circuit connecting sub_circ -> sub_casc
+    top_p0 = Port()
+    top_p1 = Port()
+    top_connections = [
+        [(top_p0, 0), (sub_circ, 0)],
+        [(sub_circ, 1), (sub_casc, 0)],
+        [(sub_casc, 1), (top_p1, 0)]
+    ]
+    top_circ = Circuit(top_connections)
+
+    # Evaluate S-parameters (this internally triggers self.flattened)
+    s = top_circ.s(basic_freq)
+
+    # Check that the numerical solve succeeds and exposes exactly 2 ports
+    assert s.shape == (5, 2, 2)
+    assert not jnp.any(jnp.isnan(s))
+
+    # --- Verify the flattened graph topography ---
+    flat_circ = top_circ.flattened()
+    flat_models = flat_circ.circuit
+
+    # The flattened circuit should contain NO Circuit or Cascade wrapper objects.
+    for m in flat_models:
+        assert not isinstance(m, (Circuit, Cascade)), f"Flattening failed, found wrapper container: {type(m)}"
+
+    # It should contain exactly 6 leaf items: the 2 top-level ports + 4 internal components
+    assert len(flat_models) == 6
+    
+    # Verify the exact objects survived
+    assert top_p0 in flat_models
+    assert top_p1 in flat_models
+    assert R1 in flat_models
+    assert R2 in flat_models
+    assert C1 in flat_models
+    assert L1 in flat_models

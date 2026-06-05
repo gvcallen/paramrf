@@ -1,5 +1,5 @@
 """
-RF models, components, surrogates, and adapters.
+RF models, components, surrogates, and adapters, and their solvers.
 
 This module contains various components, surrogate models, composite building models, and model adapters.
 
@@ -50,6 +50,7 @@ from pmrf.models.components.ideal import (
     Splitter as Splitter,
     Tee as Tee,
     Attenuator as Attenuator,
+    Amplifier as Amplifier,
     DirectionalCoupler as DirectionalCoupler,
 )
 
@@ -63,6 +64,8 @@ from pmrf.models.components.lines import (
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
+    WheelerMicrostripSolver as WheelerMicrostripSolver,
+    TescheCoaxialSolver as TescheCoaxialSolver,
 )
 
 from pmrf.models.components.lumped import (
@@ -89,12 +92,35 @@ from pmrf.models.components.sections import (
     LSectionLC as LSectionLC,
 )
 
+
 # Composite
-from pmrf.models.composite.interconnected import (
-    Circuit as Circuit,
-    Cascade as Cascade,
-    Terminated as Terminated,
+from pmrf.models.composite.interconnected.base import (
+    AbstractCircuitSolver as AbstractCircuitSolver,
+    AbstractScatteringCircuitSolver as AbstractScatteringCircuitSolver,
+    AbstractAdmittanceCircuitSolver as AbstractAdmittanceCircuitSolver,
+    AbstractMNACircuitSolver as AbstractMNACircuitSolver,
+    ScatteringResult as ScatteringResult,
+    AdmittanceResult as AdmittanceResult,
+    PortRepresentation as PortRepresentation,
+    NodalRepresentation as NodalRepresentation,
+    MNARepresentation as MNARepresentation,
 )
+
+from pmrf.models.composite.interconnected.solvers.scattering import (
+    GlobalScatteringCircuitSolver as GlobalScatteringCircuitSolver,
+    SequentialScatteringCircuitSolver as SequentialScatteringCircuitSolver,
+    HierarchicalScatteringCircuitSolver as HierarchicalScatteringCircuitSolver,
+)
+
+from pmrf.models.composite.interconnected.solvers.nodal import (
+    GlobalMNACircuitSolver as GlobalMNACircuitSolver,
+    GlobalNodalCircuitSolver as GlobalNodalCircuitSolver,
+)
+
+from pmrf.models.composite.interconnected.circuit import Circuit as Circuit
+from pmrf.models.composite.interconnected.cascade import Cascade as Cascade
+from pmrf.models.composite.interconnected.terminated import Terminated as Terminated
+
 
 from pmrf.models.composite.transformed import (
     Renumbered as Renumbered,

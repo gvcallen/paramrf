@@ -48,45 +48,50 @@ class BoxSection(Model):
     """
     A 4-port model of a general Box-network.
 
+    Port layout
+    -----------
+
+        Port 0 ----- Port 2
+           |            |
+          Y1           Y2
+           |            |
+        Port 1 ----- Port 3
+
+              Y3 (top)
+              Y4 (bottom)
+
     Parameters
     ----------
     Y1 : Param
-        Admittance of the first shunt branch (Port 1 to Port 3).
+        Admittance of the left branch (Port 0 to Port 1).
     Y2 : Param
-        Admittance of the second shunt branch (Port 2 to Port 4).
+        Admittance of the right branch (Port 2 to Port 3).
     Y3 : Param
-        Admittance of the series branch (Port 1 to Port 2).
+        Admittance of the top branch (Port 0 to Port 2).
     Y4 : Param
-        Admittance of the bridging branch (Port 3 to Port 4).
+        Admittance of the bottom branch (Port 1 to Port 3).
     """
-    #: Admittance of the first shunt branch.
+
     Y1: Param = param()
-    
-    #: Admittance of the second shunt branch.
     Y2: Param = param()
-    
-    #: Admittance of the series branch.
     Y3: Param = param()
-    
-    #: Admittance of the bridging branch.
     Y4: Param = param()
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        # Broadcast scalar params to frequency arrays
         ones = jnp.ones(freq.npoints, dtype=complex)
+
         Y1 = self.Y1 * ones
         Y2 = self.Y2 * ones
         Y3 = self.Y3 * ones
         Y4 = self.Y4 * ones
-        
+
         zero = jnp.zeros_like(Y1)
 
-        # Because Box uses native admittances for a y-matrix, no divisions are required.
         return jnp.array([
-            [Y1 + Y3,   -Y3,        -Y1,        zero],
-            [-Y3,       Y2 + Y3,    zero,       -Y2],
-            [-Y1,       zero,       Y1 + Y4,    -Y4],
-            [zero,      -Y2,        -Y4,        Y2 + Y4]
+            [Y1 + Y3,    -Y1,         -Y3,         zero],
+            [-Y1,        Y1 + Y4,     zero,        -Y4],
+            [-Y3,        zero,        Y2 + Y3,     -Y2],
+            [zero,       -Y4,         -Y2,         Y2 + Y4],
         ]).transpose(2, 0, 1)
 
 
@@ -190,8 +195,22 @@ class PiSectionCLC(Model):
 
 class BoxSectionCLCC(Model):
     """
-    A 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.
-    """    
+    A 4-port model of a Box-network with a
+    Capacitor-Inductor-Capacitor-Capacitor topology.
+
+    Port layout
+    -----------
+
+        Port 0 ----- Port 2
+           |            |
+          C1           C2
+           |            |
+        Port 1 ----- Port 3
+
+          L (top)
+          C3 (bottom)
+    """
+
     C1: Param = param()
     L: Param = param()
     C2: Param = param()
@@ -199,23 +218,23 @@ class BoxSectionCLCC(Model):
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         w = freq.w
+
         Y1 = 1j * w * self.C1
         Y2 = 1j * w * self.C2
         Y4 = 1j * w * self.C3
-        
-        # Revert to the epsilon hack. 
-        # A microscopic inductance keeps Y3 massive but strictly finite, 
+
+        # A microscopic inductance keeps Y3 massive but strictly finite,
         # preventing inf * 0 = NaN errors during y2s matrix inversion.
         L_safe = jnp.where(self.L == 0.0, jnp.finfo(float).eps, self.L)
         Y3 = 1.0 / (1j * w * L_safe)
-        
+
         zero = jnp.zeros_like(Y1)
 
         return jnp.array([
-            [Y1 + Y3,       -Y3,            -Y1,            zero],
-            [-Y3,           Y2 + Y3,        zero,           -Y2],
-            [-Y1,           zero,           Y1 + Y4,        -Y4],
-            [zero,          -Y2,            -Y4,            Y2 + Y4]
+            [Y1 + Y3,    -Y1,         -Y3,         zero],
+            [-Y1,        Y1 + Y4,     zero,        -Y4],
+            [-Y3,        zero,        Y2 + Y3,     -Y2],
+            [zero,       -Y4,         -Y2,         Y2 + Y4],
         ]).transpose(2, 0, 1)
     
 

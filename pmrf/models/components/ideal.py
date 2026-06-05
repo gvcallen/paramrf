@@ -165,6 +165,7 @@ class SourceConverter(Model):
 
     This model represents a specific ideal component with a fixed, frequency-independent
     3x3 scattering matrix that is independent of the characteristic impedance.
+
     """
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         s_one = jnp.array([
@@ -288,6 +289,42 @@ class Attenuator(Model):
         s_mat = jnp.array([
             [zeros, s21],
             [s21, zeros],
+        ]).transpose(2, 0, 1)
+        
+        return renormalize_s(s_mat, self.z0, z0, 'power', 'power')
+    
+
+class Amplifier(Model):
+    """
+    (experimental) An ideal, matched, unilateral 2-port amplifier.
+    
+    Unlike an attenuator, an ideal amplifier provides unilateral forward 
+    gain (S21) with perfect reverse isolation (S12 = 0).
+
+    Parameters
+    ----------
+    gain : Param
+        The forward gain in dB (a positive value indicates gain).
+    z0 : ArrayLike, default=50.0
+        The intrinsic characteristic impedance for which the amplifier 
+        was designed.
+    """
+    #: The forward gain in dB.
+    gain: Param = param()
+    
+    #: The intrinsic characteristic impedance of the physical device.
+    z0: np.ndarray = field(default=50.0, converter=np.asarray, kw_only=True)
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        s21_lin = 10.0 ** (self.gain / 20.0)
+        
+        s21 = s21_lin * jnp.ones(freq.npoints, dtype=complex)
+        zeros = jnp.zeros(freq.npoints, dtype=complex)
+
+        # Note the structural difference from the reciprocal attenuator
+        s_mat = jnp.array([
+            [zeros, zeros],
+            [s21,   zeros],
         ]).transpose(2, 0, 1)
         
         return renormalize_s(s_mat, self.z0, z0, 'power', 'power')
