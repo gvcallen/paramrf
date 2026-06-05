@@ -259,10 +259,26 @@ class CoupledTwoPorts(Model):
 
     **Mathematical Formulation**
 
-    Uses Modified Nodal Analysis (MNA). Extracts the branch impedance ($Z_b$) for each 
-    component, creates a mutually coupled branch matrix $Z_{ij} = k_{ij} \sqrt{Z_{ii} Z_{jj}}$, 
-    and translates it to a $2N \times 2N$ nodal admittance matrix using an incidence matrix ($A$):
-    $$Y_{nodal} = A Z_b^{-1} A^T$$    
+    The coupling is evaluated by performing a Pi-network decomposition on each 
+    2-port model. First, the admittance matrix ($Y$) of each 2-port is decomposed 
+    into a series branch and two shunt branches to ground:
+    
+    - Series admittance: $Y_{series} = -Y_{12}$
+    - Port 1 shunt: $Y_{p1} = Y_{11} + Y_{12}$
+    - Port 2 shunt: $Y_{p2} = Y_{22} + Y_{21}$
+
+    The series branches are converted to impedances ($Z_{series} = 1 / Y_{series}$) 
+    to form the branch impedance matrix ($Z_b$). A mutually coupled branch matrix is 
+    then constructed, where the mutual impedance between branches $i$ and $j$ is calculated 
+    using the reactive parts of the branches: 
+    $$Z_{ij} = j k_{ij} \sqrt{\Im(Z_{ii}) \Im(Z_{jj})}$$
+    
+    Using Modified Nodal Analysis (MNA) with an incidence matrix ($A$), this coupled 
+    series branch matrix is translated to a $2N \times 2N$ nodal admittance matrix:
+    $$Y_{nodal} = A Z_b^{-1} A^T$$
+
+    Finally, the uncoupled shunt parasitics ($Y_{p1}, Y_{p2}$) are added back onto 
+    the diagonal elements corresponding to the individual port nodes to complete the network.
 
     Parameters
     ----------
