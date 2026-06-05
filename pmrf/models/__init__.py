@@ -64,6 +64,8 @@ from pmrf.models.components.lines import (
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
+    AbstractMicrostripSolver as AbstractMicrostripSolver,
+    AbstractCoaxialSolver as AbstractCoaxialSolver,
     WheelerMicrostripSolver as WheelerMicrostripSolver,
     TescheCoaxialSolver as TescheCoaxialSolver,
 )

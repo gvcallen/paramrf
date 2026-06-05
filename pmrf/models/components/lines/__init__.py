@@ -22,6 +22,8 @@ from pmrf.models.components.lines.physical import (
     TescheCoaxialSolver as TescheCoaxialSolver,
     MicrostripLine as MicrostripLine,
     WheelerMicrostripSolver as WheelerMicrostripSolver,
+    AbstractCoaxialSolver as AbstractCoaxialSolver,
+    AbstractMicrostripSolver as AbstractMicrostripSolver,
 )
 
 # from pmrf.models.components.lines.nonuniform import ProfiledLine as ProfiledLine
@@ -38,4 +40,6 @@ __all__ = [
     "MicrostripLine",
     "TescheCoaxialSolver",
     "WheelerMicrostripSolver",
+    "AbstractCoaxialSolver",
+    "AbstractMicrostripSolver",
 ]

@@ -33,8 +33,8 @@ Features
 
 * **Declarative**: Models can be composed and defined using an intuitive, object-oriented syntax which feels similar to CAD circuit software.
 * **Hierarchical**: By nesting models within models, it is easy to create deep, hierarchical structures.
-* **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available via *auto-differentiation*, enabling faster performance and new design opportunities.
-* **Parameter-driven**: Parameters are first-class citizens, allowing the easy definition and propagation of constraints and distributions through models
+* **Differentiable**: Since the library is built on ``jax`` (as opposed to ``numpy``), derivatives are available via *auto-differentiation*, enabling faster optimization and new design opportunities.
+* **Parameter-driven**: Parameters are first-class citizens, allowing the easy definition and propagation of constraints/distributions through models.
 * **Hardware flexible**: Functions are compiled just-in-time (JIT), reducing overhead and allowing computation on high-performance hardware (CPU, GPU, TPU).
 * **Extensible**: Power users can easily add additional models and algorithms by extending the library's built-in classes and interfaces.
 
