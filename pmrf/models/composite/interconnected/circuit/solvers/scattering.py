@@ -87,17 +87,17 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         N_act = s_block_diagonal.shape[-1]
         N_ext = len(topology.ext_net_ids)
         
-        # 1. Statically inject the VNA probes (S=0)
+        # Statically inject the VNA probes (S=0)
         pad_width = ((0, N_ext), (0, N_ext))
         s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
         
         z0 = jnp.concatenate([z0_ports, z0_ext])
         
-        # 3. Wire the active topology and the VNA probes together
+        # Wire the active topology and the VNA probes together
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         ext_idx_np = np.arange(N_act, N_act + N_ext)
         
-        # 4. Map the nets
+        # Map the nets
         all_net_ids = np.unique(net_map_np)
         ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
@@ -170,13 +170,13 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         N_act = s_block_diagonal.shape[-1]
         N_ext = len(topology.ext_net_ids)
         
-        # 1. Statically inject the VNA probes (S=0)
+        # Statically inject the VNA probes (S=0)
         pad_width = ((0, N_ext), (0, N_ext))
         s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
         
         z0 = jnp.concatenate([z0_ports, z0_ext])
         
-        # 3. Wire the active topology and the VNA probes together
+        # Wire the active topology and the VNA probes together
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         ext_idx_np = np.arange(N_act, N_act + N_ext)
         
