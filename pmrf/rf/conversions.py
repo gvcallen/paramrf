@@ -722,13 +722,14 @@ def a2mna(a: ArrayLike) -> MNAStamp:
     else:
         raise ValueError(f"ABCD parameters must be 2D or 3D. Got {a_arr.ndim}D.")
 
-def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
+def s2mna(s: ArrayLike, z0: ArrayLike, s_def: str = 'power') -> MNAStamp:
     """
     Convert S-parameters to a Modified Nodal Analysis (MNA) stamp.
     
-    This formulation maps the incident voltage waves as the auxiliary 
+    This formulation maps the incident waves as the auxiliary 
     variables, allowing raw S-parameters to be stamped directly into 
-    the MNA system without any matrix inversions.
+    the MNA system without any matrix inversions. Natively supports both
+    traveling and power wave definitions.
     
     Parameters
     ----------
@@ -737,6 +738,9 @@ def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
     z0 : ArrayLike
         The characteristic impedance. Can be a scalar or an array broadcastable
         to `(nports,)` or `(nfreqs, nports)`.
+    s_def : str, optional
+        The wave definition used for the S-parameters. Options are 'traveling' 
+        (pseudo-voltage) or 'power' (Kurokawa). Default is 'traveling'.
         
     Returns
     -------
@@ -748,22 +752,29 @@ def s2mna(s: ArrayLike, z0: ArrayLike) -> MNAStamp:
     if s_arr.ndim == 3:
         nfreqs, nports, _ = s_arr.shape
         z0_fixed = fix_z0_shape(z0, nfreqs, nports)
-        return jax.vmap(s2mna, in_axes=(0, 0))(s_arr, z0_fixed)
+        return jax.vmap(s2mna, in_axes=(0, 0, None))(s_arr, z0_fixed, s_def)
+        
     elif s_arr.ndim == 2:
         nports = s_arr.shape[0]
         z0_arr = fix_z0_shape(z0, 1, nports)[0]
         
-        # Calculate Y0 and expand dims to broadcast across the columns of (I - S)
-        y0 = 1.0 / z0_arr
-        y0 = jnp.expand_dims(y0, axis=-1) 
-        
         I = jnp.eye(nports, dtype=s_arr.dtype)
-        
-        # Universal S-parameter MNA derivation
         Y = jnp.zeros_like(s_arr)
-        B = y0 * (I - s_arr)
         C = I
-        D = -(I + s_arr)
+        
+        if s_def.lower() == 'traveling':
+            pre_B = jnp.expand_dims(1.0 / z0_arr, axis=-1)
+            pre_D = 1.0
+            
+        elif s_def.lower() == 'power':
+            pre_B = jnp.expand_dims(1.0 / jnp.sqrt(z0_arr), axis=-1)
+            pre_D = jnp.expand_dims(jnp.sqrt(z0_arr), axis=-1)
+            
+        else:
+            raise ValueError(f"s_def must be 'traveling' or 'power'. Got: '{s_def}'")
+        
+        B = pre_B * (I - s_arr)
+        D = -(pre_D * (I + s_arr))
         
         return MNAStamp(Y=Y, B=B, C=C, D=D)
     else:
