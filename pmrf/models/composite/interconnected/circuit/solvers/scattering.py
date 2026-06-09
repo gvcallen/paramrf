@@ -15,7 +15,6 @@ from pmrf.models.composite.interconnected.circuit.base import (
 
 from pmrf.rf.conversions import s2s
 
-
 class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
     Global S-parameter reduction solver.
