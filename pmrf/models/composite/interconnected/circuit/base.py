@@ -69,25 +69,19 @@ class MNARepresentation(eqx.Module):
     def num_aux(self) -> int:
         """The total number of global auxiliary variables."""
         return self.aux_idx.shape[0]
-
-
+ 
+    
 class PortRepresentation(eqx.Module):
-    """
-    Static topological representation for scattering parameter connection and reduction.
-    """
-    #: A 1D array of port indices designated as external (unconnected or specifically retained).
-    ext_idx: np.ndarray
-
-    #: A 1D array of port indices designated as internal (connected to other ports).
-    int_idx: np.ndarray
-
-    #: A 1D array of length `num_ports` mapping each port to the integer ID of its connected net.
+    #: Array mapping each active device port to a net ID
     port_to_net_map: np.ndarray
+
+    #: Ordered array of net IDs that act as external ports
+    ext_net_ids: np.ndarray
 
     @property
     def num_ports(self) -> int:
         """The total number of ports across all components in the topology."""
-        return self.port_to_net_map.shape[0]    
+        return self.port_to_net_map.shape[0]        
 
 
 class ScatteringResult(eqx.Module):

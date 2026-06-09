@@ -104,7 +104,10 @@ class Port(Model):
     """
     Represents a circuit port with a specific characteristic impedance.
     
-    This class serves as a placeholder or marker for external connections in a :class:`pmrf.models.Circuit` definition.
+    This class serves as a placeholder or marker for external connections
+    in a :class:`pmrf.models.Circuit` definition, though can also be used
+    as a simple tagged load in other types of models.
+    
     Calling `build` returns a matched load model.
     """
     #: Port characteristic impedance

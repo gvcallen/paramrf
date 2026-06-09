@@ -14,7 +14,7 @@ from pmrf.frequency import Frequency
 from collections import defaultdict
 from pmrf.utils import field
 from pmrf.types import ArrayLike
-from pmrf.rf import y2s, s2y
+from pmrf.rf import y2s, s2y, renormalize_s
 
 from pmrf.models.composite.interconnected.circuit.base import (
     AbstractCircuitSolver,
@@ -175,72 +175,77 @@ class Circuit(Model):
     @cached_property
     def port_representation(self) -> PortRepresentation:
         """Generates the static topological map for scattering connection and reduction."""
-        port_to_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
+        global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
 
-        ext_idx, int_idx = [], []
+        ext_net_ids = []
+        
         offset = 0
         for model in self.circuit:
-            for p in range(model.nports):
-                if isinstance(model, Port):
-                    ext_idx.append(offset + p)
-                else:
-                    int_idx.append(offset + p)
+            if isinstance(model, Port):
+                ext_net_ids.append(global_net_map[offset])
             offset += model.nports
 
+        active_net_map = []
+        offset = 0
+        for model in self.circuit:
+            n = model.nports
+            if not isinstance(model, Port):
+                active_net_map.extend(global_net_map[offset : offset + n])
+            offset += n
+
         return PortRepresentation(
-            ext_idx=np.array(ext_idx, dtype=int),
-            int_idx=np.array(int_idx, dtype=int),
-            port_to_net_map=port_to_net_map
+            ext_net_ids=np.array(ext_net_ids, dtype=int),
+            port_to_net_map=np.array(active_net_map, dtype=int)
         )
         
     @cached_property
     def nodal_representation(self) -> NodalRepresentation:
         """Generates the static topological map for nodal admittance assembly and reduction."""
-        port_rep = self.port_representation
-        port_to_net_map = port_rep.port_to_net_map
+        global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
+        
+        ground_nets = set()
+        ext_nets = set()
+        offset = 0
+        for model in self.circuit:
+            nets = global_net_map[offset : offset + model.nports]
+            if isinstance(model, Ground):
+                ground_nets.update(nets)
+            elif isinstance(model, Port):
+                ext_nets.update(nets)
+            offset += model.nports
+            
+        unique_all_nets = np.unique(global_net_map)
+        active_nets = np.array([n for n in unique_all_nets if n not in ground_nets], dtype=int)
+        
+        N_active = len(active_nets)
+        mapping = np.full(np.max(unique_all_nets) + 1, N_active, dtype=int)
+        mapping[active_nets] = np.arange(N_active)
         
         r_idx, c_idx = [], []
         offset = 0
         for model in self.circuit:
             n = model.nports
-            nets = port_to_net_map[offset:offset+n]
-            R, C = np.meshgrid(nets, nets, indexing='ij')
-            r_idx.append(R.flatten())
-            c_idx.append(C.flatten())
+            if not isinstance(model, (Port, Ground)):
+                nets = global_net_map[offset : offset + n]
+                R, C = np.meshgrid(nets, nets, indexing='ij')
+                r_idx.append(R.flatten())
+                c_idx.append(C.flatten())
             offset += n
             
-        unique_ext_nets = np.unique(port_to_net_map[port_rep.ext_idx])
-        unique_int_nets = np.setdiff1d(np.unique(port_to_net_map), unique_ext_nets)
-
-        # Drop ground nodes
-        ground_nets = set()
-        offset = 0
-        for model in self.circuit:
-            if isinstance(model, Ground):
-                ground_nets.update(port_to_net_map[offset:offset+model.nports])
-            offset += model.nports
+        def _safe_cat(lst):
+            return np.concatenate(lst).astype(int) if lst else np.array([], dtype=int)
             
-        unique_all_nets = np.unique(port_to_net_map)
-        active_nets = np.array([n for n in unique_all_nets if n not in ground_nets], dtype=int)
+        r_idx_mapped = mapping[_safe_cat(r_idx)]
+        c_idx_mapped = mapping[_safe_cat(c_idx)]
         
-        # Create mapping: active nodes -> 0..N-1. Ground nodes -> N (to be safely dropped)
-        N_active = len(active_nets)
-        mapping = np.full(np.max(unique_all_nets) + 1, N_active, dtype=int)
-        mapping[active_nets] = np.arange(N_active)
-        
-        # Remap local rows/cols
-        r_idx_mapped = mapping[np.concatenate(r_idx).astype(int)]
-        c_idx_mapped = mapping[np.concatenate(c_idx).astype(int)]
-        
-        unique_ext_nets = np.unique(port_to_net_map[port_rep.ext_idx])
-        ext_active = np.array([n for n in unique_ext_nets if n not in ground_nets], dtype=int)
+        ext_active = np.array([n for n in ext_nets if n not in ground_nets], dtype=int)
         int_active = np.setdiff1d(active_nets, ext_active)
 
         return NodalRepresentation(
             r_idx=r_idx_mapped,
             c_idx=c_idx_mapped,
-            ext_idx=mapping[ext_active],   # mapped external indices
-            int_idx=mapping[int_active]    # mapped internal indices
+            ext_idx=mapping[ext_active],
+            int_idx=mapping[int_active]
         )
 
     @property
@@ -257,7 +262,8 @@ class Circuit(Model):
         offset_y = 0  # Tracks the index in the flattened n*n nodal arrays
         freq_dummy = Frequency(1, 2, 2)
         
-        for model in self.circuit:
+        nodal_components = [m for m in self.circuit if not isinstance(m, (Port, Ground))]
+        for model in nodal_components:
             stamp_shape = jax.eval_shape(lambda m=model: m.mna(freq_dummy))
             k = stamp_shape.D.shape[1]
             n = model.nports
@@ -301,47 +307,50 @@ class Circuit(Model):
 
     # --- DATA EVALUATION ---
 
-    def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
-        S_blocks = [c.s(freq, z0=z0) for c in self.circuit] 
+        scattering_components = [c for c in self.circuit if not isinstance(c, Port)]
+        S_blocks = [c.s(freq, z0=z0) for c in scattering_components] 
         
-        batched_S = jax.vmap(block_diag)(*S_blocks)
+        if S_blocks:
+            batched_S = jax.vmap(block_diag)(*S_blocks)
+        else:
+            batched_S = jnp.zeros((freq.npoints, 0, 0), dtype=jnp.complex128)
+            
         num_ports = batched_S.shape[-1]
         dtype = batched_S.dtype
         z0_ports = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
 
-        return batched_S, z0_ports
+        # Dynamically extract the specific z0 constraints of the external ports
+        ext_z0_list = [jnp.asarray(getattr(c, 'z0', EVAL_Z0), dtype=dtype) for c in self.circuit if isinstance(c, Port)]
+        z0_ext = jnp.stack(ext_z0_list) if ext_z0_list else jnp.zeros((0,), dtype=dtype)
+
+        return batched_S, z0_ports, z0_ext
 
     def _evaluate_admittance(self, freq: Frequency) -> jnp.ndarray:
         """Evaluates and flattens the admittance matrices of all contained components."""
-        Y_blocks = []
-        for c in self.circuit:
-            if isinstance(c, Port):
-                Y_blocks.append(jnp.zeros((freq.npoints, c.nports, c.nports), dtype=jnp.complex128))
-            else:
-                Y_blocks.append(c.y(freq))
-                
+        nodal_components = [c for c in self.circuit if not isinstance(c, (Port, Ground))]
+        Y_blocks = [c.y(freq) for c in nodal_components]
+            
         flat_Y_list = []
         for Y in Y_blocks:
             Nf, n, _ = Y.shape
             flat_Y_list.append(Y.reshape(Nf, n * n))
-        return jnp.concatenate(flat_Y_list, axis=1)
+            
+        if flat_Y_list:
+            return jnp.concatenate(flat_Y_list, axis=1)
+        else:
+            return jnp.zeros((freq.npoints, 0), dtype=jnp.complex128)
 
     def _evaluate_mna(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Evaluates and flattens the MNA stamps of all contained components."""
         flat_Y, flat_B, flat_C, flat_D = [], [], [], []
         
-        for c in self.circuit:
+        nodal_components = [c for c in self.circuit if not isinstance(c, (Port, Ground))]
+        for c in nodal_components:
             stamp = c.mna(freq)
-            # FIX: Zero out virtual topological markers (Ports)
-            if isinstance(c, Port):
-                Y = jnp.zeros_like(stamp.Y)
-                B = jnp.zeros_like(stamp.B)
-                C = jnp.zeros_like(stamp.C)
-                D = jnp.zeros_like(stamp.D)
-            else:
-                Y, B, C, D = stamp.Y, stamp.B, stamp.C, stamp.D
-                
+            Y, B, C, D = stamp.Y, stamp.B, stamp.C, stamp.D
+            
             Nf, n, _ = Y.shape
             k = D.shape[1]
             
@@ -366,9 +375,9 @@ class Circuit(Model):
             flat = self
         
         if isinstance(flat.solver, AbstractScatteringCircuitSolver):
-            s_bdiag, z0_ports = flat._evaluate_scattering(freq, z0)
-            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, None, None))
-            return run_vmap(s_bdiag, z0_ports, flat.port_representation)
+            s_bdiag, z0_ports, z0_ext = flat._evaluate_scattering(freq, z0)
+            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, None, None, None))
+            return run_vmap(s_bdiag, z0_ports, z0_ext, flat.port_representation)
             
         elif isinstance(flat.solver, AbstractAdmittanceCircuitSolver):
             y_flat = flat._evaluate_admittance(freq)
@@ -386,8 +395,10 @@ class Circuit(Model):
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Evaluates the composite scattering parameters of the circuit."""
         result = self._solve(freq, z0)
+        
         if isinstance(result, ScatteringResult):
-            return result.s
+            # Renormalize from native port z0 to the requested measurement z0
+            return renormalize_s(result.s, z_old=result.z0, z_new=z0)
         elif isinstance(result, AdmittanceResult):
             return y2s(result.y, z0=z0)
         else:

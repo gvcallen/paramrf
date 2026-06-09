@@ -31,30 +31,32 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     linear_solver: lx.AbstractLinearSolver = eqx.field(
         default=lx.AutoLinearSolver(well_posed=None), static=True
     )
-
-    def run(
-        self, 
-        s_block_diagonal: jax.Array, 
-        z0_ports: jax.Array, 
-        topology: PortRepresentation, 
-    ) -> ScatteringResult:
+    
+    def run(self, s_block_diagonal: jax.Array, z0_ports: jax.Array, z0_ext: jax.Array, topology: PortRepresentation) -> ScatteringResult:
+        N_act = s_block_diagonal.shape[-1]
+        N_ext = len(topology.ext_net_ids)
         
-        s_bd, z0, ext_idx_np, int_idx_np, net_map_np = inject_virtual_probes(
-            s_block_diagonal, z0_ports, 
-            np.array(topology.ext_idx), 
-            np.array(topology.int_idx), 
-            np.array(topology.port_to_net_map)
-        )
-
+        # Statically inject the VNA probes (S=0)
+        pad_width = ((0, N_ext), (0, N_ext))
+        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
+        
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        
+        # Wire the active topology and the VNA probes together
+        # The active ports use port_to_net_map. The VNA probes connect to ext_net_ids.
+        net_map = jnp.concatenate([topology.port_to_net_map, topology.ext_net_ids])
+        
+        # The external indices are simply the newly added probes at the end of the array
+        ext_idx = jnp.arange(N_act, N_act + N_ext)
+        
+        # Standard Hallbjörner generalized wave reduction
         S_trav = s2s(s_bd, z0, 'traveling', 'power')
-        X = build_connection_matrix(net_map_np, z0, S_trav.dtype)
+        X = build_connection_matrix(net_map, z0, S_trav.dtype)
+        T = jnp.eye(net_map.shape[0], dtype=S_trav.dtype) - S_trav @ X
         
-        T = jnp.eye(net_map_np.shape[0], dtype=S_trav.dtype) - S_trav @ X
+        S_ext_trav = reduce_to_external(T, X, ext_idx, self.eps, self.linear_solver)
         
-        S_ext_trav = reduce_to_external(T, X, jnp.array(ext_idx_np), self.eps, self.linear_solver)
-        
-        z0_ext = z0[ext_idx_np]
-        return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
+        return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)    
 
 
 class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
@@ -78,18 +80,26 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         self, 
         s_block_diagonal: jax.Array, 
         z0_ports: jax.Array, 
+        z0_ext: jax.Array,
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
-        s_bd, z0, ext_idx_np, _, net_map_np = inject_virtual_probes(
-            s_block_diagonal, z0_ports, 
-            np.array(topology.ext_idx), 
-            np.array(topology.int_idx), 
-            np.array(topology.port_to_net_map)
-        )
+        N_act = s_block_diagonal.shape[-1]
+        N_ext = len(topology.ext_net_ids)
         
+        # 1. Statically inject the VNA probes (S=0)
+        pad_width = ((0, N_ext), (0, N_ext))
+        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
+        
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        
+        # 3. Wire the active topology and the VNA probes together
+        net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
+        ext_idx_np = np.arange(N_act, N_act + N_ext)
+        
+        # 4. Map the nets
         all_net_ids = np.unique(net_map_np)
-        ext_net_ids = np.unique(net_map_np[ext_idx_np])
+        ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
 
         S = s2s(s_bd, z0, 'traveling', 'power')
@@ -128,7 +138,6 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         
         S_ext_trav = reduce_to_external(T, X, jnp.array(ext_idx_np), self.eps, self.linear_solver)
         
-        z0_ext = z0[ext_idx_np]
         return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
 
 
@@ -144,7 +153,6 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
 
     Best suited for long chain-like/separated networks,
     though consider using an explicit Cascade if possible.
-    
     """
     eps: float = eqx.field(default=1e-12, static=True)
     linear_solver: lx.AbstractLinearSolver = eqx.field(
@@ -155,21 +163,28 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         self, 
         s_block_diagonal: jax.Array, 
         z0_ports: jax.Array, 
+        z0_ext: jax.Array,
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
-        s_bd, z0, ext_idx_np, _, net_map_np = inject_virtual_probes(
-            s_block_diagonal, z0_ports, 
-            np.array(topology.ext_idx), 
-            np.array(topology.int_idx), 
-            np.array(topology.port_to_net_map)
-        )
+        N_act = s_block_diagonal.shape[-1]
+        N_ext = len(topology.ext_net_ids)
+        
+        # 1. Statically inject the VNA probes (S=0)
+        pad_width = ((0, N_ext), (0, N_ext))
+        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
+        
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        
+        # 3. Wire the active topology and the VNA probes together
+        net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
+        ext_idx_np = np.arange(N_act, N_act + N_ext)
         
         S = s2s(s_bd, z0, 'traveling', 'power')
         active_ports = list(range(S.shape[-1]))
         
         all_net_ids = np.unique(net_map_np)
-        ext_net_ids = np.unique(net_map_np[ext_idx_np])
+        ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
         
         # Sequentially contract purely internal nets
@@ -221,39 +236,7 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         
         S_ext_trav = reduce_to_external(T, X, local_ext_idx, self.eps, self.linear_solver)
         
-        z0_ext = z0[ext_idx_np]
         return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
-    
-
-def inject_virtual_probes(
-    s_block_diagonal: jax.Array, 
-    z0_ports: jax.Array, 
-    ext_idx: np.ndarray, 
-    int_idx: np.ndarray, 
-    net_map: np.ndarray
-) -> Tuple[jax.Array, jax.Array, np.ndarray, np.ndarray, np.ndarray]:
-    """Handles dangling external ports by injecting virtual matched probes."""
-    net_counts = np.bincount(net_map)
-    ext_net_counts = net_counts[net_map[ext_idx]]
-    
-    dangling_mask = ext_net_counts == 1
-    num_dangling = np.sum(dangling_mask)
-    
-    if num_dangling > 0:
-        N_orig = s_block_diagonal.shape[-1]
-        pad_width = ((0, num_dangling), (0, num_dangling))
-        s_block_diagonal = jnp.pad(s_block_diagonal, pad_width, mode='constant')
-        
-        dangling_ext_indices = ext_idx[dangling_mask]
-        z0_new = z0_ports[dangling_ext_indices]
-        z0_ports = jnp.concatenate([z0_ports, z0_new])
-        
-        new_port_indices = np.arange(N_orig, N_orig + num_dangling)
-        net_map = np.concatenate([net_map, net_map[dangling_ext_indices]])
-        int_idx = np.concatenate([int_idx, dangling_ext_indices])
-        ext_idx[dangling_mask] = new_port_indices
-        
-    return s_block_diagonal, z0_ports, ext_idx, int_idx, net_map
 
 
 def build_connection_matrix(

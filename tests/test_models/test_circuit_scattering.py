@@ -33,13 +33,13 @@ def test_reducers_simple_connection(SolverClass):
     z0_ports = jnp.array([50.0, 50.0, 50.0, 50.0])
     
     # Topology: Port 0 (ext), Port 1 (int) -> connected to -> Port 2 (int), Port 3 (ext)
+    z0_ext = jnp.array([50.0, 50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 3]),
-        int_idx=np.array([1, 2]),
-        port_to_net_map=np.array([0, 1, 1, 2])
+        port_to_net_map=np.array([0, 1, 1, 2]),
+        ext_net_ids=np.array([0, 2])
     )
             
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
     
     expected_s = jnp.array([[0.0, 0.25], 
                             [0.25, 0.0]], dtype=jnp.complex128)
@@ -62,9 +62,8 @@ def test_hierarchical_reducer_complex_chain():
     # 12 total ports. Chain connection.
     # Ext: Port 0 and 11
     # Int: Ports 1-10 paired up sequentially
+    z0_ext = jnp.array([50.0, 50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 11]),
-        int_idx=np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
         port_to_net_map=np.array([
             0,        # Port 0 -> Net 0 (ext)
             1, 1,     # Port 1, 2 -> Net 1
@@ -73,10 +72,11 @@ def test_hierarchical_reducer_complex_chain():
             4, 4,     # Port 7, 8 -> Net 4
             5, 5,     # Port 9, 10 -> Net 5
             6         # Port 11 -> Net 6 (ext)
-        ])
+        ]),
+        ext_net_ids=np.array([0, 6])
     )
 
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
 
     # Total transmission = 0.5 ^ 6 = 0.015625
     expected_s = jnp.array([
@@ -111,9 +111,8 @@ def test_star_junction_3port(SolverClass):
     # Line 2: Port 2 (Int), Port 3 (Ext 1)
     # Line 3: Port 4 (Int), Port 5 (Ext 2)
     # Internal ports 1, 2, and 4 all meet at Net 1.
+    z0_ext = jnp.array([50.0, 50.0, 50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 3, 5]),
-        int_idx=np.array([1, 2, 4]),
         port_to_net_map=np.array([
             0,  # Port 0 -> Net 0
             1,  # Port 1 -> Net 1 (Star Center)
@@ -121,10 +120,11 @@ def test_star_junction_3port(SolverClass):
             2,  # Port 3 -> Net 2
             1,  # Port 4 -> Net 1 (Star Center)
             3   # Port 5 -> Net 3
-        ])
+        ]),
+        ext_net_ids=np.array([0, 2, 3])
     )
     
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
     
     # For three equal admittance lines meeting at a node, the reflection 
     # coefficient at the junction is -1/3, and transmission is 2/3.
@@ -158,13 +158,13 @@ def test_impedance_step_mismatch(SolverClass):
     z0_ports = jnp.array([50.0, 50.0, 75.0, 75.0])
     
     # Connect Port 1 to Port 2
+    z0_ext = jnp.array([50.0, 75.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 3]),
-        int_idx=np.array([1, 2]),
-        port_to_net_map=np.array([0, 1, 1, 2])
+        port_to_net_map=np.array([0, 1, 1, 2]),
+        ext_net_ids=np.array([0, 2])
     )
     
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
     
     # Gamma = (75 - 50) / (75 + 50) = 25 / 125 = 0.2
     # Transmission = sqrt(1 - Gamma^2) (for power waves)
@@ -196,9 +196,8 @@ def test_solver_parity_complex_ring():
     # Node B (Int)  : Port 1, Port 2
     # Node C (Ext 2): Port 3, Port 4
     # Node D (Int)  : Port 5, Port 6
+    z0_ext = jnp.array([50.0, 50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 3]),  # Probing Node A and Node C
-        int_idx=np.array([1, 2, 4, 5, 6, 7]),
         port_to_net_map=np.array([
             0,  # P0 -> Node A (Ext)
             1,  # P1 -> Node B
@@ -208,12 +207,13 @@ def test_solver_parity_complex_ring():
             3,  # P5 -> Node D
             3,  # P6 -> Node D
             0   # P7 -> Node A (Ext)
-        ])
+        ]),
+        ext_net_ids=np.array([0, 2])  # Probing Node A and Node C
     )
     
-    res_global = GlobalScatteringCircuitSolver().run(s_bd, z0_ports, topology)
-    res_hier = HierarchicalScatteringCircuitSolver().run(s_bd, z0_ports, topology)
-    res_seq = SequentialScatteringCircuitSolver().run(s_bd, z0_ports, topology)
+    res_global = GlobalScatteringCircuitSolver().run(s_bd, z0_ports, z0_ext, topology)
+    res_hier = HierarchicalScatteringCircuitSolver().run(s_bd, z0_ports, z0_ext, topology)
+    res_seq = SequentialScatteringCircuitSolver().run(s_bd, z0_ports, z0_ext, topology)
     
     # Now that the system is well-conditioned, they will match perfectly
     np.testing.assert_allclose(res_hier.s, res_global.s, atol=1e-7)
@@ -248,13 +248,13 @@ def test_dangling_ext_with_internal_termination(SolverClass):
     # Short: Port 2 (int)
     # Net 0: Port 0 (Dangling External, Count = 1)
     # Net 1: Port 1, Port 2 (Internal connection, Count = 2)
+    z0_ext = jnp.array([50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0]),
-        int_idx=np.array([1, 2]),
-        port_to_net_map=np.array([0, 1, 1])
+        port_to_net_map=np.array([0, 1, 1]),
+        ext_net_ids=np.array([0])
     )
 
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
 
     # Signal enters Port 0 -> drops by 0.5 -> hits short (-1.0) -> drops by 0.5 returning.
     # Expected S11 = 0.5 * -1.0 * 0.5 = -0.25
@@ -296,9 +296,8 @@ def test_multiple_dangling_ext_branches(SolverClass):
     # Star: Port 0 (Ext), Port 1 (Int), Port 2 (Int)
     # Line 1: Port 3 (Int), Port 4 (Ext)
     # Line 2: Port 5 (Int), Port 6 (Ext)
+    z0_ext = jnp.array([50.0, 50.0, 50.0])
     topology = PortRepresentation(
-        ext_idx=np.array([0, 4, 6]),
-        int_idx=np.array([1, 2, 3, 5]),
         port_to_net_map=np.array([
             0,  # P0 -> Net 0 (Dangling Ext)
             1,  # P1 -> Net 1 (Int)
@@ -307,10 +306,11 @@ def test_multiple_dangling_ext_branches(SolverClass):
             3,  # P4 -> Net 3 (Dangling Ext)
             2,  # P5 -> Net 2 (Int)
             4   # P6 -> Net 4 (Dangling Ext)
-        ])
+        ]),
+        ext_net_ids=np.array([0, 3, 4])
     )
 
-    result = solver.run(s_bd, z0_ports, topology)
+    result = solver.run(s_bd, z0_ports, z0_ext, topology)
 
     # Because the lines are transparent, the final 3-port reduced network 
     # should mathematically collapse to behave exactly like the original star junction.
