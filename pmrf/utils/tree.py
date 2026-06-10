@@ -1,5 +1,6 @@
 from typing import Any, Callable, Generic, TypeVar, Any
 import operator
+import functools
 
 import equinox as eqx
 import jax
@@ -9,7 +10,6 @@ from jaxtyping import PyTree, Float, Array
 import parax as prx
 
 from equinox import (
-    Partial as Partial,
     field as field,
     combine as combine,
 )
@@ -308,27 +308,64 @@ def tree_resolve_target(target: Any, name_to_path: dict[str, list[Any]]) -> Call
 
 
 _Return = TypeVar("_Return")
+  
+    
+class Partial(eqx.Module, Generic[_Return]):
+    """(experimental) Like `functools.partial`, but JAX-compatible.
+    
+    This implementation flattens nested partials and prioritizes newer
+    keyword arguments, mirroring the behavior of `functools.partial`.
 
-class Bind(eqx.Module, Generic[_Return]):
-    """(experimental) Like `functools.partial`, but allows re-passing keyword arguments 
-    to override the originally bound keyword arguments.
+    Parameters
+    ----------
+    func : Callable[..., _Return]
+        The callable to partially apply.
+    *args : Any
+        Positional arguments to bind.
+    **kwargs : Any
+        Keyword arguments to bind.
+
+    Attributes
+    ----------
+    func : Callable[..., _Return]
+        The unwrapped underlying callable.
+    args : tuple[Any, ...]
+        The bound positional arguments.
+    keywords : dict[str, Any]
+        The bound keyword arguments.
     """
-
+    
     func: Callable[..., _Return]
     args: tuple[Any, ...]
     keywords: dict[str, Any]
 
     def __init__(self, func: Callable[..., _Return], /, *args: Any, **kwargs: Any):
-        self.func = func
-        self.args = args
-        self.keywords = kwargs
+        if isinstance(func, (Partial, functools.partial)):
+            self.func = func.func
+            self.args = func.args + args
+            self.keywords = {**func.keywords, **kwargs}
+        else:
+            self.func = func
+            self.args = args
+            self.keywords = kwargs
 
     def __call__(self, *args: Any, **kwargs: Any) -> _Return:
-        # Merge dictionaries: Call-time kwargs overwrite init-time self.keywords
-        # If you are on Python 3.8 or older, use: {**self.keywords, **kwargs}
-        merged_kwargs = self.keywords | kwargs 
-        
-        return self.func(*self.args, *args, **merged_kwargs)    
+        """
+        Invoke the wrapped callable with bound and newly supplied arguments.
+
+        Parameters
+        ----------
+        *args : Any
+            Additional positional arguments to append.
+        **kwargs : Any
+            Additional keyword arguments. These override any bound keywords.
+
+        Returns
+        -------
+        _Return
+            The result of the wrapped callable.
+        """
+        return self.func(*self.args, *args, **self.keywords, **kwargs)
     
 
 class Attrgetter(eqx.Module):

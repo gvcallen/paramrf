@@ -55,7 +55,6 @@ from pmrf.network_collection import NetworkCollection as NetworkCollection
 
 from pmrf.utils import (
     Partial as Partial,
-    Bind as Bind,
     InitVar as InitVar,
     Attrgetter as Attrgetter,
     Pathgetter as Pathgetter,
@@ -116,7 +115,6 @@ __all__ = [
 
     # Utilities
     "Partial",
-    "Bind",
     "Attrgetter",
     "Pathgetter",
     "Initvar",
