@@ -32,7 +32,7 @@ class FloatingLine(Model, Generic[T]):
 
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line
-        z0, gL = self.floating.zc_and_gammaL(frequency)
+        zc, gL = self.floating.zc_and_gammaL(frequency)
         
         # Apply the coupled/floating traveling-wave math
         denom = -1 + 9 * jnp.exp(2 * gL)
@@ -49,15 +49,15 @@ class FloatingLine(Model, Generic[T]):
         ]).transpose(2, 0, 1)
 
         # Renormalize the 4-port matrix
-        return renormalize_s(s, z0, z0, 'traveling', 'power')
+        return renormalize_s(s, zc, z0, 'traveling', 'power')
 
     def y(self, frequency: Frequency) -> jnp.ndarray:
         # Extract the physical wave parameters from the inner line
-        z0, gL = self.floating.zc_and_gammaL(frequency)
+        zc, gL = self.floating.zc_and_gammaL(frequency)
         
         # Floating lines act as standard 2-port models with explicit ungrounded ports
-        y11_2p = jnp.where(gL == 0, jnp.inf + 0j, 1.0 / (z0 * jnp.tanh(gL)))
-        y12_2p = jnp.where(gL == 0, -jnp.inf + 0j, -1.0 / (z0 * jnp.sinh(gL)))
+        y11_2p = jnp.where(gL == 0, jnp.inf + 0j, 1.0 / (zc * jnp.tanh(gL)))
+        y12_2p = jnp.where(gL == 0, -jnp.inf + 0j, -1.0 / (zc * jnp.sinh(gL)))
         
         y = jnp.array([
             [ y11_2p, -y11_2p,  y12_2p, -y12_2p],
