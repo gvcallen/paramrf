@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
 import lineax as lx
-from typing import Tuple
+from typing import Tuple, Optional
 
 from pmrf.models.composite.interconnected.circuit.base import (
     AbstractScatteringCircuitSolver,
@@ -14,6 +14,7 @@ from pmrf.models.composite.interconnected.circuit.base import (
 )
 
 from pmrf.rf.conversions import s2s
+
 
 class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     """
@@ -32,15 +33,20 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         default=lx.AutoLinearSolver(well_posed=None), static=True
     )
     
-    def run(self, s_block_diagonal: jax.Array, z0_ports: jax.Array, z0_ext: jax.Array, topology: PortRepresentation) -> ScatteringResult:
+    def run(
+        self, 
+        s_block_diagonal: jax.Array, 
+        z0_ports: Optional[jax.Array], 
+        z0_ext: Optional[jax.Array], 
+        topology: PortRepresentation
+    ) -> ScatteringResult:
+        
         N_act = s_block_diagonal.shape[-1]
         N_ext = len(topology.ext_net_ids)
         
         # Statically inject the VNA probes (S=0)
         pad_width = ((0, N_ext), (0, N_ext))
         s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
-        
-        z0 = jnp.concatenate([z0_ports, z0_ext])
         
         # Wire the active topology and the VNA probes together
         # The active ports use port_to_net_map. The VNA probes connect to ext_net_ids.
@@ -49,14 +55,25 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         # The external indices are simply the newly added probes at the end of the array
         ext_idx = jnp.arange(N_act, N_act + N_ext)
         
+        if z0_ports is None:
+            # OPTIMIZED UNIFORM IMPEDANCE PATH: No generalized wave conversions needed
+            z0 = None
+            S_trav = s_bd
+        else:
+            # GENERALIZED IMPEDANCE PATH
+            z0 = jnp.concatenate([z0_ports, z0_ext])
+            S_trav = s2s(s_bd, z0, 'traveling', 'power')
+
         # Standard Hallbjörner generalized wave reduction
-        S_trav = s2s(s_bd, z0, 'traveling', 'power')
         X = build_connection_matrix(net_map, z0, S_trav.dtype)
         T = jnp.eye(net_map.shape[0], dtype=S_trav.dtype) - S_trav @ X
         
         S_ext_trav = reduce_to_external(T, X, ext_idx, self.eps, self.linear_solver)
         
-        return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)    
+        if z0_ports is None:
+            return ScatteringResult(s=S_ext_trav, z0=z0_ext)
+        else:
+            return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
 
 
 class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
@@ -79,8 +96,8 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     def run(
         self, 
         s_block_diagonal: jax.Array, 
-        z0_ports: jax.Array, 
-        z0_ext: jax.Array,
+        z0_ports: Optional[jax.Array], 
+        z0_ext: Optional[jax.Array],
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
@@ -91,8 +108,6 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         pad_width = ((0, N_ext), (0, N_ext))
         s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
         
-        z0 = jnp.concatenate([z0_ports, z0_ext])
-        
         # Wire the active topology and the VNA probes together
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         ext_idx_np = np.arange(N_act, N_act + N_ext)
@@ -102,7 +117,14 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
 
-        S = s2s(s_bd, z0, 'traveling', 'power')
+        if z0_ports is None:
+            # OPTIMIZED UNIFORM IMPEDANCE PATH
+            z0 = None
+            S = s_bd
+        else:
+            # GENERALIZED IMPEDANCE PATH
+            z0 = jnp.concatenate([z0_ports, z0_ext])
+            S = s2s(s_bd, z0, 'traveling', 'power')
 
         # Sequentially fold purely internal nets
         for net_id in pure_int_net_ids:
@@ -111,7 +133,8 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
                 continue
                 
             idx = jnp.array(idx_list)
-            X_local = build_local_connection_matrix(z0[idx], S.dtype)
+            z0_local = z0[idx] if z0 is not None else None
+            X_local = build_local_connection_matrix(len(idx_list), z0_local, S.dtype)
             
             S_II = S[jnp.ix_(idx, idx)]
             S_All_I = S[:, idx]
@@ -138,7 +161,10 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         
         S_ext_trav = reduce_to_external(T, X, jnp.array(ext_idx_np), self.eps, self.linear_solver)
         
-        return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
+        if z0_ports is None:
+            return ScatteringResult(s=S_ext_trav, z0=z0_ext)
+        else:
+            return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
 
 
 class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
@@ -162,8 +188,8 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     def run(
         self, 
         s_block_diagonal: jax.Array, 
-        z0_ports: jax.Array, 
-        z0_ext: jax.Array,
+        z0_ports: Optional[jax.Array], 
+        z0_ext: Optional[jax.Array],
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
@@ -174,13 +200,19 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         pad_width = ((0, N_ext), (0, N_ext))
         s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
         
-        z0 = jnp.concatenate([z0_ports, z0_ext])
-        
         # Wire the active topology and the VNA probes together
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         ext_idx_np = np.arange(N_act, N_act + N_ext)
         
-        S = s2s(s_bd, z0, 'traveling', 'power')
+        if z0_ports is None:
+            # OPTIMIZED UNIFORM IMPEDANCE PATH
+            z0 = None
+            S = s_bd
+        else:
+            # GENERALIZED IMPEDANCE PATH
+            z0 = jnp.concatenate([z0_ports, z0_ext])
+            S = s2s(s_bd, z0, 'traveling', 'power')
+
         active_ports = list(range(S.shape[-1]))
         
         all_net_ids = np.unique(net_map_np)
@@ -196,7 +228,8 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             local_idx = [active_ports.index(p) for p in net_ports]
             idx_jnp = jnp.array(local_idx)
             
-            X_local = build_local_connection_matrix(z0[net_ports], S.dtype)
+            z0_local = z0[net_ports] if z0 is not None else None
+            X_local = build_local_connection_matrix(len(net_ports), z0_local, S.dtype)
             
             S_II = S[jnp.ix_(idx_jnp, idx_jnp)]
             S_All_I = S[:, idx_jnp]
@@ -224,7 +257,7 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         # Resolve mixed nets on the remaining contracted matrix
         active_global_idx = np.array(active_ports)
         rem_net_map = net_map_np[active_global_idx]
-        rem_z0 = z0[active_global_idx]
+        rem_z0 = z0[active_global_idx] if z0 is not None else None
         
         mask_filter = np.isin(rem_net_map, ext_net_ids)
         X = build_connection_matrix(rem_net_map, rem_z0, S.dtype, mask_filter=mask_filter)
@@ -236,37 +269,59 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         
         S_ext_trav = reduce_to_external(T, X, local_ext_idx, self.eps, self.linear_solver)
         
-        return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
+        if z0_ports is None:
+            return ScatteringResult(s=S_ext_trav, z0=z0_ext)
+        else:
+            return ScatteringResult(s=s2s(S_ext_trav, z0_ext, 'power', 'traveling'), z0=z0_ext)
 
 
 def build_connection_matrix(
     net_map: np.ndarray, 
-    z0_ports: jax.Array, 
+    z0: Optional[jax.Array], 
     dtype: jnp.dtype, 
     mask_filter: np.ndarray = None
 ) -> jax.Array:
-    """Builds the generalized wave connection matrix (X) for the provided nets."""
+    """
+    Builds the generalized wave connection matrix (X) for the provided nets.
+    If z0 is None, it uses the optimized topological formulation:
+    $$ X_{ij} = \\frac{2}{n} - \\delta_{ij} $$
+    """
     N = net_map.shape[0]
     mask = jnp.array(net_map[:, None] == net_map[None, :], dtype=dtype)
     
     if mask_filter is not None:
         mask = mask * mask_filter[:, None]
         
-    y0 = 1.0 / z0_ports
-    y0_sum = jnp.dot(mask, y0)
-    y0_sum = jnp.where(y0_sum == 0, 1.0, y0_sum) # Prevent division by zero
-    
-    y0_sqrt_prod = jnp.sqrt(y0[:, None] * y0[None, :])
-    X = mask * ((2.0 * y0_sqrt_prod) / y0_sum[:, None] - jnp.eye(N, dtype=dtype))
+    if z0 is None:
+        # Uniform impedance topology-only generation
+        n_ports = jnp.sum(mask, axis=1)
+        n_ports = jnp.where(n_ports == 0, 1.0, n_ports) # Prevent division by zero
+        X = mask * (2.0 / n_ports[:, None] - jnp.eye(N, dtype=dtype))
+    else:
+        # Generalized impedance generation
+        y0 = 1.0 / z0
+        y0_sum = jnp.dot(mask, y0)
+        y0_sum = jnp.where(y0_sum == 0, 1.0, y0_sum) # Prevent division by zero
+        
+        y0_sqrt_prod = jnp.sqrt(y0[:, None] * y0[None, :])
+        X = mask * ((2.0 * y0_sqrt_prod) / y0_sum[:, None] - jnp.eye(N, dtype=dtype))
+        
     return X
 
 
-def build_local_connection_matrix(z0_local: jax.Array, dtype: jnp.dtype) -> jax.Array:
+def build_local_connection_matrix(
+    n_ports: int, 
+    z0_local: Optional[jax.Array], 
+    dtype: jnp.dtype
+) -> jax.Array:
     """Builds the connection matrix (X) for an isolated subset of ports."""
-    y0_local = 1.0 / z0_local
-    y0_sum = jnp.sum(y0_local)
-    y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
-    return (2.0 * y0_sqrt_prod) / y0_sum - jnp.eye(z0_local.shape[0], dtype=dtype)
+    if z0_local is None:
+        return (2.0 / n_ports) * jnp.ones((n_ports, n_ports), dtype=dtype) - jnp.eye(n_ports, dtype=dtype)
+    else:
+        y0_local = 1.0 / z0_local
+        y0_sum = jnp.sum(y0_local)
+        y0_sqrt_prod = jnp.sqrt(y0_local[:, None] * y0_local[None, :])
+        return (2.0 * y0_sqrt_prod) / y0_sum - jnp.eye(n_ports, dtype=dtype)
 
 
 def reduce_to_external(
