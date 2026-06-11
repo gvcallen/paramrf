@@ -1,17 +1,19 @@
 """
 Composite models that physically connect ports of other models.
 """
+from functools import cached_property
+from typing import Optional
+from collections import defaultdict
+
 import jax
 import jax.numpy as jnp
 from jax.scipy.linalg import block_diag
 import numpy as np
 from dataclasses import InitVar
-from functools import cached_property
 
 from pmrf.models.base import Model
 from pmrf.models.components.ideal import Port, Ground
 from pmrf.frequency import Frequency
-from collections import defaultdict
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y, renormalize_s
@@ -322,7 +324,7 @@ class Circuit(Model):
         z0_ports = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
 
         # Dynamically extract the specific z0 constraints of the external ports
-        ext_z0_list = [jnp.asarray(getattr(c, 'z0', EVAL_Z0), dtype=dtype) for c in self.circuit if isinstance(c, Port)]
+        ext_z0_list = [jnp.asarray(c.z0, dtype=dtype) for c in self.circuit if isinstance(c, Port)]
         z0_ext = jnp.stack(ext_z0_list) if ext_z0_list else jnp.zeros((0,), dtype=dtype)
 
         return batched_S, z0_ports, z0_ext

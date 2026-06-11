@@ -40,7 +40,6 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         z0_ext: Optional[jax.Array], 
         topology: PortRepresentation
     ) -> ScatteringResult:
-        
         N_act = s_block_diagonal.shape[-1]
         N_ext = len(topology.ext_net_ids)
         
@@ -55,14 +54,8 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         # The external indices are simply the newly added probes at the end of the array
         ext_idx = jnp.arange(N_act, N_act + N_ext)
         
-        if z0_ports is None:
-            # OPTIMIZED UNIFORM IMPEDANCE PATH: No generalized wave conversions needed
-            z0 = None
-            S_trav = s_bd
-        else:
-            # GENERALIZED IMPEDANCE PATH
-            z0 = jnp.concatenate([z0_ports, z0_ext])
-            S_trav = s2s(s_bd, z0, 'traveling', 'power')
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        S_trav = s2s(s_bd, z0, 'traveling', 'power')
 
         # Standard Hallbjörner generalized wave reduction
         X = build_connection_matrix(net_map, z0, S_trav.dtype)
@@ -117,14 +110,8 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
 
-        if z0_ports is None:
-            # OPTIMIZED UNIFORM IMPEDANCE PATH
-            z0 = None
-            S = s_bd
-        else:
-            # GENERALIZED IMPEDANCE PATH
-            z0 = jnp.concatenate([z0_ports, z0_ext])
-            S = s2s(s_bd, z0, 'traveling', 'power')
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        S = s2s(s_bd, z0, 'traveling', 'power')
 
         # Sequentially fold purely internal nets
         for net_id in pure_int_net_ids:
@@ -204,14 +191,8 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         ext_idx_np = np.arange(N_act, N_act + N_ext)
         
-        if z0_ports is None:
-            # OPTIMIZED UNIFORM IMPEDANCE PATH
-            z0 = None
-            S = s_bd
-        else:
-            # GENERALIZED IMPEDANCE PATH
-            z0 = jnp.concatenate([z0_ports, z0_ext])
-            S = s2s(s_bd, z0, 'traveling', 'power')
+        z0 = jnp.concatenate([z0_ports, z0_ext])
+        S = s2s(s_bd, z0, 'traveling', 'power')
 
         active_ports = list(range(S.shape[-1]))
         
