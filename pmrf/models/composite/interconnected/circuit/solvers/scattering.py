@@ -41,27 +41,21 @@ class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         topology: PortRepresentation
     ) -> ScatteringResult:
         N_act = s_block_diagonal.shape[-1]
-        N_ext = len(topology.ext_net_ids)
         
-        # Statically inject the VNA probes (S=0)
-        pad_width = ((0, N_ext), (0, N_ext))
-        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
-        
-        # Wire the active topology and the VNA probes together
-        # The active ports use port_to_net_map. The VNA probes connect to ext_net_ids.
+        # Wire the active topology and the external nodes together
         net_map = jnp.concatenate([topology.port_to_net_map, topology.ext_net_ids])
         
-        # The external indices are simply the newly added probes at the end of the array
-        ext_idx = jnp.arange(N_act, N_act + N_ext)
-        
-        z0 = jnp.concatenate([z0_ports, z0_ext])
-        S_trav = s2s(s_bd, z0, 'traveling', 'power')
+        if z0_ports is not None:
+            z0 = jnp.concatenate([z0_ports, z0_ext])
+            C_i = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
+        else:
+            z0 = None
+            C_i = s_block_diagonal
 
-        # Standard Hallbjörner generalized wave reduction
-        X = build_connection_matrix(net_map, z0, S_trav.dtype)
-        T = jnp.eye(net_map.shape[0], dtype=S_trav.dtype) - S_trav @ X
+        # Standard Hallbjörner generalized wave reduction (Eq. 8)
+        X = build_connection_matrix(net_map, z0, C_i.dtype)
         
-        S_ext_trav = reduce_to_external(T, X, ext_idx, self.eps, self.linear_solver)
+        S_ext_trav = reduce_to_external(C_i, X, N_act, self.eps, self.linear_solver)
         
         if z0_ports is None:
             return ScatteringResult(s=S_ext_trav, z0=z0_ext)
@@ -95,32 +89,29 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
     ) -> ScatteringResult:
         
         N_act = s_block_diagonal.shape[-1]
-        N_ext = len(topology.ext_net_ids)
         
-        # Statically inject the VNA probes (S=0)
-        pad_width = ((0, N_ext), (0, N_ext))
-        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
-        
-        # Wire the active topology and the VNA probes together
         net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
-        ext_idx_np = np.arange(N_act, N_act + N_ext)
         
         # Map the nets
         all_net_ids = np.unique(net_map_np)
         ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
 
-        z0 = jnp.concatenate([z0_ports, z0_ext])
-        S = s2s(s_bd, z0, 'traveling', 'power')
+        if z0_ports is not None:
+            z0 = jnp.concatenate([z0_ports, z0_ext])
+            S = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
+        else:
+            z0 = None
+            S = s_block_diagonal
 
         # Sequentially fold purely internal nets
         for net_id in pure_int_net_ids:
-            idx_list = np.where(net_map_np == net_id)[0]
+            idx_list = np.where(topology.port_to_net_map == net_id)[0]
             if len(idx_list) < 2:
                 continue
                 
             idx = jnp.array(idx_list)
-            z0_local = z0[idx] if z0 is not None else None
+            z0_local = z0_ports[idx] if z0_ports is not None else None
             X_local = build_local_connection_matrix(len(idx_list), z0_local, S.dtype)
             
             S_II = S[jnp.ix_(idx, idx)]
@@ -144,9 +135,7 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         mask_filter = np.isin(net_map_np, ext_net_ids)
         X = build_connection_matrix(net_map_np, z0, S.dtype, mask_filter=mask_filter)
         
-        T = jnp.eye(net_map_np.shape[0], dtype=S.dtype) - S @ X
-        
-        S_ext_trav = reduce_to_external(T, X, jnp.array(ext_idx_np), self.eps, self.linear_solver)
+        S_ext_trav = reduce_to_external(S, X, N_act, self.eps, self.linear_solver)
         
         if z0_ports is None:
             return ScatteringResult(s=S_ext_trav, z0=z0_ext)
@@ -180,36 +169,28 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
         topology: PortRepresentation, 
     ) -> ScatteringResult:
         
-        N_act = s_block_diagonal.shape[-1]
-        N_ext = len(topology.ext_net_ids)
-        
-        # Statically inject the VNA probes (S=0)
-        pad_width = ((0, N_ext), (0, N_ext))
-        s_bd = jnp.pad(s_block_diagonal, pad_width, mode='constant')
-        
-        # Wire the active topology and the VNA probes together
-        net_map_np = np.concatenate([topology.port_to_net_map, topology.ext_net_ids])
-        ext_idx_np = np.arange(N_act, N_act + N_ext)
-        
-        z0 = jnp.concatenate([z0_ports, z0_ext])
-        S = s2s(s_bd, z0, 'traveling', 'power')
+        if z0_ports is not None:
+            S = s2s(s_block_diagonal, z0_ports, 'traveling', 'power')
+        else:
+            S = s_block_diagonal
 
         active_ports = list(range(S.shape[-1]))
         
-        all_net_ids = np.unique(net_map_np)
+        net_map_act = topology.port_to_net_map
+        all_net_ids = np.unique(net_map_act)
         ext_net_ids = np.unique(topology.ext_net_ids)
         pure_int_net_ids = np.setdiff1d(all_net_ids, ext_net_ids)
         
         # Sequentially contract purely internal nets
         for net_id in pure_int_net_ids:
-            net_ports = np.where(net_map_np == net_id)[0]
+            net_ports = np.where(net_map_act == net_id)[0]
             if len(net_ports) < 2:
                 continue
                 
             local_idx = [active_ports.index(p) for p in net_ports]
             idx_jnp = jnp.array(local_idx)
             
-            z0_local = z0[net_ports] if z0 is not None else None
+            z0_local = z0_ports[net_ports] if z0_ports is not None else None
             X_local = build_local_connection_matrix(len(net_ports), z0_local, S.dtype)
             
             S_II = S[jnp.ix_(idx_jnp, idx_jnp)]
@@ -235,20 +216,23 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             S = S[jnp.ix_(keep_jnp, keep_jnp)]
             active_ports = [active_ports[i] for i in keep_local_idx]
 
-        # Resolve mixed nets on the remaining contracted matrix
+        # Final Schur complement for the contracted matrix
         active_global_idx = np.array(active_ports)
-        rem_net_map = net_map_np[active_global_idx]
-        rem_z0 = z0[active_global_idx] if z0 is not None else None
+        rem_net_map = net_map_act[active_global_idx]
+        rem_z0 = z0_ports[active_global_idx] if z0_ports is not None else None
         
-        mask_filter = np.isin(rem_net_map, ext_net_ids)
-        X = build_connection_matrix(rem_net_map, rem_z0, S.dtype, mask_filter=mask_filter)
+        final_net_map = np.concatenate([rem_net_map, topology.ext_net_ids])
         
-        T = jnp.eye(len(active_ports), dtype=S.dtype) - S @ X
+        if rem_z0 is not None:
+            final_z0 = jnp.concatenate([rem_z0, z0_ext])
+        else:
+            final_z0 = None
+            
+        # No mask filter needed, all remaining nodes in the contracted matrix touch an external port
+        X = build_connection_matrix(final_net_map, final_z0, S.dtype)
         
-        # Map global ext_idx to the local indices of the currently contracted matrix
-        local_ext_idx = jnp.array([active_ports.index(p) for p in ext_idx_np])
-        
-        S_ext_trav = reduce_to_external(T, X, local_ext_idx, self.eps, self.linear_solver)
+        N_rem = len(active_ports)
+        S_ext_trav = reduce_to_external(S, X, N_rem, self.eps, self.linear_solver)
         
         if z0_ports is None:
             return ScatteringResult(s=S_ext_trav, z0=z0_ext)
@@ -263,7 +247,7 @@ def build_connection_matrix(
     mask_filter: np.ndarray = None
 ) -> jax.Array:
     """
-    Builds the generalized wave connection matrix (X) for the provided nets.
+    Builds the generalized wave connection matrix (X) for the provided nets (Eq. 8).
     If z0 is None, it uses the optimized topological formulation:
     $$ X_{ij} = \\frac{2}{n} - \\delta_{ij} $$
     """
@@ -306,32 +290,44 @@ def build_local_connection_matrix(
 
 
 def reduce_to_external(
-    T: jax.Array, 
+    C_i: jax.Array, 
     X: jax.Array, 
-    ext_idx: jax.Array, 
+    N_act: int, 
     eps: float, 
     linear_solver: lx.AbstractLinearSolver
 ) -> jax.Array:
     """
-    Unified global reduction. 
-    Bypasses block Schur partitions by solving the external excitation globally.
+    Unified global reduction using the block Schur complement (Eq. 10).
+    Bypasses padding probes by partitioning the system natively into 
+    internal and external boundaries.
+    
+    S_reduced = X_ee + X_ei * C_i * (I - X_ii * C_i)^-1 * X_ie
     """
-    N = T.shape[0]
-    N_ext = len(ext_idx)
+    N_ext = X.shape[0] - N_act
     
-    # Form the excitation matrix (Identity for ext ports, zeros for int ports)
-    E = jnp.zeros((N, N_ext), dtype=T.dtype)
-    E = E.at[ext_idx, :].set(jnp.eye(N_ext, dtype=T.dtype))
+    int_idx = jnp.arange(N_act)
+    ext_idx = jnp.arange(N_act, N_act + N_ext)
     
-    T_reg = T + eps * jnp.eye(N, dtype=T.dtype)
-    operator_T = lx.MatrixLinearOperator(T_reg)
+    # Partition X into ee, ei, ie, ii blocks (Eq. 9)
+    X_ee = X[jnp.ix_(ext_idx, ext_idx)]
+    X_ei = X[jnp.ix_(ext_idx, int_idx)]
+    X_ie = X[jnp.ix_(int_idx, ext_idx)]
+    X_ii = X[jnp.ix_(int_idx, int_idx)]
     
-    # Single unified linear solve
+    # Formulate linear system matrix A = (I - X_ii @ C_i)
+    I_ii = jnp.eye(N_act, dtype=C_i.dtype)
+    A = I_ii - X_ii @ C_i
+    
+    # Apply Tikhonov regularization for resonant singularities
+    A_reg = A + eps * I_ii
+    operator_A = lx.MatrixLinearOperator(A_reg)
+    
+    # Solve for Y = (I - X_ii @ C_i)^-1 @ X_ie
+    # This replaces explicit matrix inversion with a batched linear solve
     Y = jax.vmap(
-        lambda b: lx.linear_solve(operator_T, b, linear_solver).value,
+        lambda b: lx.linear_solve(operator_A, b, linear_solver).value,
         in_axes=1, out_axes=1
-    )(E)
+    )(X_ie)
     
-    # S_ext is precisely the external rows of X multiplied by the global solution
-    X_ext = X[ext_idx, :]
-    return X_ext @ Y
+    # Compute reduced external S-parameters (Eq. 10)
+    return X_ee + X_ei @ C_i @ Y
