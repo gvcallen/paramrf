@@ -53,7 +53,7 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
             Y_ei = Y_global[jnp.ix_(topology.ext_idx, topology.int_idx)]
             Y_ie = Y_global[jnp.ix_(topology.int_idx, topology.ext_idx)]
             Y_ii = Y_global[jnp.ix_(topology.int_idx, topology.int_idx)]
-            
+
             operator_ii = lx.MatrixLinearOperator(Y_ii)
             
             # vmap over columns (axis=1) of Y_ie
