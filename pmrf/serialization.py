@@ -30,6 +30,42 @@ def _get_public_module(cls: type) -> str:
                 return ns
     return cls.__module__
 
+def _get_jsonpickle(for_serialization: bool = True):
+    """
+    Centralized loader for jsonpickle.
+    Attempts to import jsonpickle and register useful extensions (like pandas/numpy)
+    to ensure robust fallback serialization for complex internal objects.
+    """
+    try:
+        import jsonpickle
+    except ImportError:
+        if for_serialization:
+            raise TypeError(
+                "Cannot serialize the current object.\n"
+                "Ensure all custom classes are wrapped in `eqx.Module`, or install "
+                "`jsonpickle` (`pip install jsonpickle`) to enable automatic fallback serialization."
+            )
+        else:
+            raise ImportError(
+                "This model contains a node serialized with `jsonpickle`, but the library "
+                "is not currently installed. Please run `pip install jsonpickle` to load this file."
+            )
+            
+    # Register pandas and numpy handlers safely if the libraries exist
+    try:
+        import jsonpickle.ext.numpy as jsonpickle_np
+        jsonpickle_np.register_handlers()
+    except ImportError:
+        pass
+
+    try:
+        import jsonpickle.ext.pandas as jsonpickle_pd
+        jsonpickle_pd.register_handlers()
+    except ImportError:
+        pass
+
+    return jsonpickle
+
 def _serialize_generic(node: Any) -> Any:
     """Recursively converts any PyTree/Equinox node into a JSON-serializable dict.
     Falls back to jsonpickle for unregistered or non-standard objects if installed.
@@ -104,16 +140,9 @@ def _serialize_generic(node: Any) -> Any:
     if isinstance(node, (list, tuple)):
         return [_serialize_generic(x) for x in node]
         
-    # Fallback: jsonpickle for arbitrary objects
-    try:
-        import jsonpickle
-    except ImportError:
-        raise TypeError(
-            f"Cannot serialize object of type {type(node)}.\n"
-            "Ensure all custom classes are wrapped in `eqx.Module`, or install "
-            "`jsonpickle` (`pip install jsonpickle`) to enable automatic fallback serialization."
-        )
-
+    # Fallback: jsonpickle for arbitrary objects (Centralized)
+    jsonpickle = _get_jsonpickle(for_serialization=True)
+    
     try:
         pickled_string = jsonpickle.encode(node)
         return {
@@ -197,16 +226,9 @@ def _deserialize_generic(data: Any) -> Any:
                 
             return instance
 
-        # Rebuild jsonpickle fallback
+        # Rebuild jsonpickle fallback (Centralized)
         if node_type == "__jsonpickle__":
-            try:
-                import jsonpickle
-            except ImportError:
-                raise ImportError(
-                    "This model contains a node serialized with `jsonpickle`, but the library "
-                    "is not currently installed. Please run `pip install jsonpickle` to load this file."
-                )
-            
+            jsonpickle = _get_jsonpickle(for_serialization=False)
             pickled_string = json.dumps(data["__payload__"])
             return jsonpickle.decode(pickled_string)
             

@@ -54,7 +54,7 @@ def sample(
     options : dict
         Additional options passed to the underlying solver backend.
     max_steps : int | None, default=None
-        The maximum number of sampling steps to take. Defaults to None i.e. no limit.
+        The maximum number of sampling steps to take. Defaults to None which does not pass the argument.
     **kwargs
         Additional runtime arguments forwarded to the solver backend.
     Returns
@@ -73,13 +73,15 @@ def sample(
         key = generate_key()
         
     validate(problem)
+    
+    if max_steps is not None:
+        kwargs['max_steps'] = max_steps
         
     batched_problem, results = run_sampler(
         loglikelihood_fn=lambda p, _args: p(),
         model=problem,
         solver=solver,
         key=key,
-        max_steps=max_steps,
         **kwargs
     )
 

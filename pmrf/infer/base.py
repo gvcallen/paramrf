@@ -240,6 +240,9 @@ def run_sampler(
     tuple
         A tuple of `(batched_model, sample_results)`.
     """
+    if max_steps is not None:
+        kwargs['max_steps'] = max_steps
+    
     # Filtering/unwrapping
     is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
     is_leaf = prx.probability.is_leaf
@@ -282,20 +285,22 @@ def run_sampler(
         batched_unconstrained_params = None
         if batched_params is not None:
             batched_unconstrained_params = eqx.filter_vmap(bijector_to_constrained.inverse)(batched_params)
-
+        
         # Run the sampler
         if isinstance(solver, AbstractJointSampler):
             results = solver.run(
                 logposterior_fn=_logposterior_fn,
                 y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
+                init_samples=batched_unconstrained_params,
+                **kwargs
             )
         else:
             results = solver.run(
                 loglikelihood_fn=_loglikelihood_fn,
                 logprior_fn=_logprior_fn,
                 y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params, max_steps=max_steps, **kwargs
+                init_samples=batched_unconstrained_params,
+                **kwargs
             )
         
         # Post-process back to original parameter space and re-wrap
@@ -330,7 +335,8 @@ def run_sampler(
             loglikelihood_fn=_loglikelihood_fn,
             prior_transform_fn=_cube_to_params,
             u0=cube_params, args=args, key=key,
-            init_cube_samples=batched_cube_params, max_steps=max_steps, **kwargs
+            init_cube_samples=batched_cube_params,
+            **kwargs
         )
 
         batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)

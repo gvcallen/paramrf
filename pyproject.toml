@@ -20,6 +20,7 @@ dependencies = [
     "scipy",
     "scikit-rf",
     "tqdm",
+    "jax-tqdm",
 ]
 
 [project.optional-dependencies]

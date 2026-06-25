@@ -29,7 +29,7 @@ class NUTS(AbstractJointSampler):
     Wrapper around :class:`blackjax.nuts`.
     
     Automatically handles Stan-style window adaptation for the diagonal 
-    inverse mass matrix and step size.
+    or dense inverse mass matrix and step size.
 
     Parameters
     ----------
@@ -37,9 +37,15 @@ class NUTS(AbstractJointSampler):
         Number of warmup steps for window adaptation.
     target_acceptance_rate : float, default=0.8
         Target acceptance rate for step size adaptation.
+    dense_mass : bool, default=False
+        If True, estimates a dense mass matrix instead of a diagonal one.
+    show_progress : bool, default=True
+        If True, shows progress bars during warmup and sampling loops.
     """
     num_warmup: int = eqx.field(static=True, default=1000)
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
+    dense_mass: bool = eqx.field(static=True, default=False)
+    show_progress: bool = eqx.field(static=True, default=True)
 
     def run(
         self,
@@ -66,15 +72,25 @@ class NUTS(AbstractJointSampler):
             blackjax.nuts, 
             logprob_fn, 
             target_acceptance_rate=self.target_acceptance_rate,
-            **kwargs
+            progress_bar=self.show_progress,
+            is_mass_matrix_diagonal=not self.dense_mass,
         )
         (last_state, parameters), _ = adapt.run(warmup_key, y0, num_steps=self.num_warmup)
 
-        # Build the kernel and loop
+        # Build the kernel and loop step function
         kernel = blackjax.nuts(logprob_fn, **parameters).step
+        
         def step_fn(state, rng_key):
             state, info = kernel(rng_key, state)
             return state, (state, info)
+
+        # Apply progress bar wrapper conditionally based on show_progress flag
+        if self.show_progress:
+            try:
+                from jax_tqdm import scan_tqdm
+                step_fn = scan_tqdm(max_steps)(step_fn)
+            except ImportError:
+                logging.warning("`jax_tqdm` package not found. Running sampling without progress bar.")
 
         logging.info(f"Running BlackJAX NUTS sampling ({max_steps} steps)...")
         keys = jax.random.split(sample_key, max_steps)

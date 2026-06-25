@@ -1,4 +1,23 @@
 import logging
+import warnings
+import os
+
+# Stop thread contention between vmap and CPU backend multithreading
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
+try:
+    from threadpoolctl import threadpool_limits
+    # Dynamically clamp any running BLAS/OpenMP libraries to 1 thread
+    threadpool_limits(limits=1, user_api='blas')
+    threadpool_limits(limits=1, user_api='openmp')
+except ImportError:
+    warnings.warn(
+        "The 'threadpoolctl' package is not installed. If you experience "
+        "hanging or CPU thrashing during circuit evaluations, ensure you "
+        "import pmrf BEFORE importing jax or numpy, or install threadpoolctl"
+    )
 
 # Supress the JAX gpu warning
 class _SuppressJaxGpuWarning(logging.Filter):

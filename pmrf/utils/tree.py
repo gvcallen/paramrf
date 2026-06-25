@@ -1,11 +1,13 @@
 from typing import Any, Callable, Generic, TypeVar, Any
 import operator
 import functools
+from functools import reduce
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Float, Array
+from jax.scipy.linalg import block_diag
 
 import parax as prx
 
@@ -305,6 +307,19 @@ def tree_resolve_target(target: Any, name_to_path: dict[str, list[Any]]) -> Call
         paths_to_get.append(name_to_path[name])
 
     return Pathgetter(*paths_to_get)
+
+
+def tree_block_diag(matrices):
+    """Recursively block-diagonalizes a list of matrices to avoid XLA compilation cliffs."""
+    if len(matrices) == 1:
+        return matrices[0]
+    if len(matrices) == 2:
+        return block_diag(matrices[0], matrices[1])
+    
+    mid = len(matrices) // 2
+    left = tree_block_diag(matrices[:mid])
+    right = tree_block_diag(matrices[mid:])
+    return block_diag(left, right)
 
 
 _Return = TypeVar("_Return")

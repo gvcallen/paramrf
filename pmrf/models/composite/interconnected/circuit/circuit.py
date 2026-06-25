@@ -307,8 +307,6 @@ class Circuit(Model):
             aux_idx=aux_idx
         )
 
-    # --- DATA EVALUATION ---
-
     def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
         scattering_components = [c for c in self.circuit if not isinstance(c, Port)]
