@@ -31,92 +31,94 @@ class PolyChord(AbstractHypercubeSampler):
     JIT-compiles the likelihood and prior transforms for performance, and bridges JAX operations 
     with PolyChord's host-based MPI sampling routines.
 
+    All parameters default to None, deferring to PolyChord's internal defaults.
+
     Parameters
     ----------
+    nlive : int | None
+        The number of live points (PolyChord default: 25 * ndims).
     num_repeats : int | None
-        The length of the slice sampling chain to generate a new live point. 
-        If `None`, dynamically defaults to `5 * ndims`.
-    nprior : int
-        The number of prior samples to draw before clustering begins (default: -1).
-    nfail : int
-        The number of failed slice sampling steps before giving up (default: -1).
-    do_clustering : bool
-        Whether to use k-means clustering to handle multimodal posteriors (default: True).
-    feedback : int
-        The level of output written to stdout. 0=none, 1=standard, 2=detailed (default: 1).
-    precision_criterion : float
-        The stopping criterion based on the estimated evidence precision (default: 1e-3).
-    logzero : float
-        The numerical value used to represent log(0) (default: -1e30).
-    boost_posterior : float
-        Boost the number of live points near the peak to improve posterior samples (default: 0.0).
-    posteriors : bool
-        Whether to produce standard posterior output files (default: True).
-    equals : bool
-        Whether to output equally weighted posterior samples (default: True).
-    cluster_posteriors : bool
-        Whether to produce posterior output files for individual clusters (default: True).
-    write_resume : bool
-        Whether to continuously write resume files during the run (default: True).
-    write_paramnames : bool
-        Whether to generate a `.paramnames` file for post-processing tools (default: False).
-    read_resume : bool
-        Whether to attempt resuming from a previous partially completed run (default: True).
-    write_stats : bool
-        Whether to write run statistics to a `.stats` file (default: True).
-    write_live : bool
-        Whether to dump the current live points to disk (default: True).
-    write_dead : bool
-        Whether to record the dead points (the core nested sampling output) to disk (default: True).
-    write_prior : bool
-        Whether to write prior samples to disk (default: True).
-    maximise : bool
-        Whether to perform a maximization phase to find the exact MAP estimate (default: False).
-    compression_factor : float
-        The compression factor used for slice sampling (default: np.exp(-1.0)).
-    synchronous : bool
-        Whether to run MPI operations synchronously (default: True).
-    base_dir : str
-        The base directory path where all output files will be saved (default: "chains").
-    file_root : str
-        The root naming convention for all generated output files (default: "test").
-    cluster_dir : str
-        The directory name for cluster-specific outputs (default: "clusters").
-    seed : int
-        Random seed for the sampler. Uses time if set to -1 (default: -1).
-    nlives : dict
+        The length of the slice sampling chain (PolyChord default: 5 * ndims).
+    nprior : int | None
+        The number of prior samples to draw before clustering begins.
+    nfail : int | None
+        The number of failed slice sampling steps before giving up.
+    do_clustering : bool | None
+        Whether to use k-means clustering to handle multimodal posteriors.
+    feedback : int | None
+        The level of output written to stdout. 0=none, 1=standard, 2=detailed.
+    precision_criterion : float | None
+        The stopping criterion based on the estimated evidence precision.
+    logzero : float | None
+        The numerical value used to represent log(0).
+    boost_posterior : float | None
+        Boost the number of live points near the peak to improve posterior samples.
+    posteriors : bool | None
+        Whether to produce standard posterior output files.
+    equals : bool | None
+        Whether to output equally weighted posterior samples.
+    cluster_posteriors : bool | None
+        Whether to produce posterior output files for individual clusters.
+    write_resume : bool | None
+        Whether to continuously write resume files during the run.
+    write_paramnames : bool | None
+        Whether to generate a `.paramnames` file for post-processing tools.
+    read_resume : bool | None
+        Whether to attempt resuming from a previous partially completed run.
+    write_stats : bool | None
+        Whether to write run statistics to a `.stats` file.
+    write_live : bool | None
+        Whether to dump the current live points to disk.
+    write_dead : bool | None
+        Whether to record the dead points (the core nested sampling output) to disk.
+    write_prior : bool | None
+        Whether to write prior samples to disk.
+    maximise : bool | None
+        Whether to perform a maximization phase to find the exact MAP estimate.
+    compression_factor : float | None
+        The compression factor used for slice sampling.
+    synchronous : bool | None
+        Whether to run MPI operations synchronously.
+    base_dir : str | None
+        The base directory path where all output files will be saved.
+    file_root : str | None
+        The root naming convention for all generated output files.
+    cluster_dir : str | None
+        The directory name for cluster-specific outputs.
+    seed : int | None
+        Random seed for the sampler. Uses time if set to -1.
+    nlives : dict | None
         A dictionary mapping log-likelihood contours to the number of live points.
-    paramnames : list of tuple
+    paramnames : list of tuple | None
         A list of parameter names and LaTeX formatted names, e.g., `[("p1", r"\theta_1")]`.
-        Must match the flatten dimension of `y0`.
     """
-    nlive: int = -1
+    nlive: int | None = None
     num_repeats: int | None = None
-    nprior: int = -1
-    nfail: int = -1
-    do_clustering: bool = True
-    feedback: int = 1
-    precision_criterion: float = 1e-3
-    logzero: float = -1e30
-    boost_posterior: float = 0.0
-    posteriors: bool = True
-    equals: bool = True
-    cluster_posteriors: bool = True
-    write_resume: bool = True
-    write_paramnames: bool = False
-    read_resume: bool = True
-    write_stats: bool = True
-    write_live: bool = True
-    write_dead: bool = True
-    write_prior: bool = True
-    maximise: bool = False
-    compression_factor: float = np.exp(-1.0)
-    synchronous: bool = True
-    base_dir: str = "chains"
-    file_root: str = "test"
-    cluster_dir: str = "clusters"
-    seed: int = -1
-    nlives: Dict[float, int] = eqx.field(static=True, default_factory=dict)
+    nprior: int | None = None
+    nfail: int | None = None
+    do_clustering: bool | None = None
+    feedback: int | None = None
+    precision_criterion: float | None = None
+    logzero: float | None = None
+    boost_posterior: float | None = None
+    posteriors: bool | None = None
+    equals: bool | None = None
+    cluster_posteriors: bool | None = None
+    write_resume: bool | None = None
+    write_paramnames: bool | None = None
+    read_resume: bool | None = None
+    write_stats: bool | None = None
+    write_live: bool | None = None
+    write_dead: bool | None = None
+    write_prior: bool | None = None
+    maximise: bool | None = None
+    compression_factor: float | None = None
+    synchronous: bool | None = None
+    base_dir: str | None = None
+    file_root: str | None = None
+    cluster_dir: str | None = None
+    seed: int | None = None
+    nlives: Dict[float, int] | None = eqx.field(static=True, default=None)
     paramnames: list[tuple[str, str]] | None = None
 
     @property
@@ -140,46 +142,25 @@ class PolyChord(AbstractHypercubeSampler):
         # 1. DERIVE GEOMETRY FROM y0
         flat_y0_cube, cube_reconstruct_fn = jax.flatten_util.ravel_pytree(u0)
         ndims = flat_y0_cube.size
-
-        max_ndead = max_steps if max_steps is not None else -1
         
-        # Combine options
+        # Combine options: dynamically build kwargs without None values
+        pc_settings = [
+            'nlive', 'num_repeats', 'nprior', 'nfail', 'do_clustering',
+            'feedback', 'precision_criterion', 'logzero', 'boost_posterior',
+            'posteriors', 'equals', 'cluster_posteriors', 'write_resume',
+            'write_paramnames', 'read_resume', 'write_stats', 'write_live',
+            'write_dead', 'write_prior', 'maximise', 'compression_factor',
+            'synchronous', 'base_dir', 'file_root', 'cluster_dir', 'seed',
+            'nlives', 'paramnames'
+        ]
+        
         base_kwargs = {
-            'nlive': self.nlive,
-            'num_repeats': self.num_repeats if self.num_repeats is not None else ndims * 5,
-            'nprior': self.nprior,
-            'nfail': self.nfail,
-            'do_clustering': self.do_clustering,
-            'feedback': self.feedback,
-            'precision_criterion': self.precision_criterion,
-            'logzero': self.logzero,
-            'max_ndead': max_ndead,
-            'boost_posterior': self.boost_posterior,
-            'posteriors': self.posteriors,
-            'equals': self.equals,
-            'cluster_posteriors': self.cluster_posteriors,
-            'write_resume': self.write_resume,
-            'write_paramnames': self.write_paramnames,
-            'read_resume': self.read_resume,
-            'write_stats': self.write_stats,
-            'write_live': self.write_live,
-            'write_dead': self.write_dead,
-            'write_prior': self.write_prior,
-            'maximise': self.maximise,
-            'compression_factor': self.compression_factor,
-            'synchronous': self.synchronous,
-            'base_dir': self.base_dir,
-            'file_root': self.file_root,
-            'cluster_dir': self.cluster_dir,
-            'seed': self.seed,
-            'nlives': self.nlives,
-            'paramnames': self.paramnames,
+            k: getattr(self, k) for k in pc_settings if getattr(self, k) is not None
         }
-        
-        unknown_options = kwargs.keys() - base_kwargs.keys() - {'nlive'}
-        if unknown_options:
-            raise ValueError(f"PolyChord sample got unknown options: {unknown_options}")
-        
+
+        if max_steps is not None:
+            base_kwargs['max_ndead'] = max_steps
+            
         if init_cube_samples is not None:
             flatten_single = lambda x: jax.flatten_util.ravel_pytree(x)[0]
             cube_samples = jax.vmap(flatten_single)(init_cube_samples)
@@ -228,7 +209,7 @@ class PolyChord(AbstractHypercubeSampler):
             norm_weights = weights / jnp.sum(weights)
         
             H = jnp.sum(norm_weights * loglikes) - logevidence
-            actual_nlive = base_kwargs['nlive'] if base_kwargs['nlive'] > 0 else ndims * 25
+            actual_nlive = base_kwargs.get('nlive', ndims * 25)
             logevidence_error = jnp.array((np.sqrt(max(H, 0.0) / actual_nlive)))
         except:
             logevidence = None
