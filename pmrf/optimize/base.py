@@ -164,7 +164,7 @@ def run_minimizer(
     is_bounded = isinstance(solver, AbstractBoundedMinimizer)
     if use_bounds is not None:
         is_bounded = is_bounded and use_bounds
-    
+
     # Extract base values and partition based on solver type
     if is_bounded:
         is_dynamic = lambda x: prx.bounds.is_dynamic(x) and not isinstance(x, np.ndarray)

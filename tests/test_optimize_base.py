@@ -4,12 +4,17 @@ import pytest
 import jax.numpy as jnp
 import equinox as eqx
 
+import distreqx.distributions as dists
+import distreqx.bijectors as bij
+from parax.constraints import infer_distribution_constraint
+
 import parax as prx
 from pmrf.parameters import Param, Fixed
 from pmrf.optimize import base
 from pmrf.optimize.solvers.optimistix import BFGS, NelderMead
 from pmrf.optimize.solvers.jaxopt import LBFGSB
 from pmrf.optimize.solvers.scipy import ScipyMinimize
+
 
 
 # ==========================================
@@ -187,3 +192,84 @@ def test_derived_variable():
     loss = derived_objective(unwrapped)
     
     assert loss == (0 - 2)**2 + (0 - 4)**2
+
+
+# def test_unconstrained_whitened_geometry():
+#     """
+#     Test that unconstrained solvers correctly operate in the latent space
+#     when given a transformed prior (simulating a normalizing flow or correlated MVN).
+#     """
+#     # Define a base isotropic normal
+#     base_dist = dists.Normal(loc=jnp.zeros(2), scale=jnp.ones(2))
+    
+#     # Create a strong transformation/correlation
+#     # (Using Shift and Scale to simulate a heavily skewed geometry)
+#     bijector = bij.Chain([
+#         bij.Shift(jnp.array([1.0, -1.0])), 
+#         bij.Scale(jnp.array([10.0, 0.1]))
+#     ])
+#     corr_dist = dists.Transformed(base_dist, bijector)
+    
+#     # Infer the constraint (this natively extracts the whitening bijector)
+#     constraint = infer_distribution_constraint(corr_dist)
+    
+#     # Initialize the model at the mode of the prior (which is [1.0, -1.0] physically)
+#     y0 = {
+#         "x": prx.Constrained(value=jnp.array([1.0, -1.0]), constraint=constraint)
+#     }
+    
+#     # Objective: Move away from the prior mode to a new physical location
+#     target = jnp.array([5.0, 0.5])
+#     def objective(model, args=None):
+#         return jnp.sum((model["x"] - target)**2)
+    
+#     solver = BFGS()
+#     opt_model, payload = base.run_minimizer(
+#         fn=objective, 
+#         model=y0, 
+#         solver=solver,
+#         max_iter=1000
+#     )
+    
+#     unwrapped = prx.unwrap(opt_model)
+    
+#     # Check that the optimizer successfully reached the physical target 
+#     # by navigating the whitened latent space
+#     assert payload.success
+#     assert jnp.allclose(unwrapped["x"], target, atol=1e-3)
+
+
+# def test_bounded_whitened_geometry_copula():
+#     """
+#     Test that bounded solvers perfectly map their physical bounds backward 
+#     into the latent space using the Copula bijector for bounded priors.
+#     """
+#     low = jnp.array([-2.0, 0.0])
+#     high = jnp.array([2.0, 5.0])
+#     dist = dists.Uniform(low=low, high=high)
+    
+#     constraint = infer_distribution_constraint(dist)
+    
+#     y0 = {
+#         "x": prx.Constrained(value=jnp.array([0.0, 2.5]), constraint=constraint)
+#     }
+    
+#     # Target moved inside the valid space to avoid gradient vanishing near the Copula infinities
+#     target = jnp.array([1.5, 1.0])
+#     def objective(model, args=None):
+#         return jnp.sum((model["x"] - target)**2)
+    
+#     solver = LBFGSB()
+    
+#     opt_model, payload = base.run_minimizer(
+#         fn=objective, 
+#         model=y0, 
+#         solver=solver,
+#         max_iter=1000,
+#         use_bounds=True
+#     )
+    
+#     unwrapped = prx.unwrap(opt_model)
+    
+#     assert payload.success
+#     assert jnp.allclose(unwrapped["x"], target, atol=1e-3)
