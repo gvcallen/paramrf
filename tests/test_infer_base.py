@@ -58,7 +58,7 @@ def test_joint_samplers(solver_name, dummy_model):
 
     key = jax.random.key(0)
     
-    solver = solver_cls(num_warmup=50)
+    solver = solver_cls(num_warmup=50, show_progress=False)
     max_steps = 100
     
     batched_model, results = base.run_sampler(
@@ -98,7 +98,7 @@ def test_split_sampler_nss(dummy_model):
         "z": Fixed(1.0),
     }
     
-    solver = NSS(num_delete=5, num_inner_steps=2, evidence_convergence=0.5)
+    solver = NSS(num_delete=5, num_inner_steps=2, evidence_convergence=0.5, show_progress=False)
     max_steps = 50
     
     batched_model, results = base.run_sampler(

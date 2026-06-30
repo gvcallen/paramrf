@@ -122,10 +122,13 @@ class HMC(AbstractJointSampler):
         Target acceptance rate for step size adaptation.
     num_integration_steps : int, default=30
         Number of integration steps per transition.
+    show_progress : bool, default=True
+        If True, shows progress bars during warmup and sampling loops.
     """
     num_warmup: int = eqx.field(static=True, default=1000)
     target_acceptance_rate: float = eqx.field(static=True, default=0.8)
     num_integration_steps: int = eqx.field(static=True, default=30)
+    show_progress: bool = eqx.field(static=True, default=True)
 
     def run(
         self,
@@ -136,31 +139,41 @@ class HMC(AbstractJointSampler):
         init_samples: Optional[PyTree] = None,
         max_steps: int | None = 1000,
         **kwargs,
-    ) -> tuple[SampleResult, PyTree]:
+    ) -> SampleResult:
         if max_steps is None:
             raise ValueError("BlackJAX requires a static `max_steps` integer for jax.lax.scan.")
         if init_samples is not None:
-            raise ValueError("BlackJAX `NUTS` does not yet support initial samples.")        
+            raise ValueError("BlackJAX `HMC` does not yet support initial samples.")        
 
         def logprob_fn(x):
             return logposterior_fn(x, args)
 
-        # Rest of code is similar to NUTS above
         warmup_key, sample_key = jax.random.split(key)
         logging.info(f"Running BlackJAX HMC warmup ({self.num_warmup} steps)...")
+        
         adapt = blackjax.window_adaptation(
             blackjax.hmc, 
             logprob_fn, 
             target_acceptance_rate=self.target_acceptance_rate,
             num_integration_steps=self.num_integration_steps,
+            progress_bar=self.show_progress,
             **kwargs
         )
         (last_state, parameters), _ = adapt.run(warmup_key, y0, num_steps=self.num_warmup)
 
         kernel = blackjax.hmc(logprob_fn, **parameters).step
+        
         def step_fn(state, rng_key):
             state, info = kernel(rng_key, state)
             return state, (state, info)
+
+        # Apply progress bar wrapper conditionally based on show_progress flag
+        if self.show_progress:
+            try:
+                from jax_tqdm import scan_tqdm
+                step_fn = scan_tqdm(max_steps)(step_fn)
+            except ImportError:
+                logging.warning("`jax_tqdm` package not found. Running sampling without progress bar.")
 
         logging.info(f"Running BlackJAX HMC sampling ({max_steps} steps)...")
         keys = jax.random.split(sample_key, max_steps)
@@ -195,11 +208,14 @@ class NSS(AbstractSplitSampler):
     block_size : int, optional
         The number of steps to execute on-device per block before checking convergence.
         Defaults to 100.
+    show_progress : bool, default=True
+        If True, shows a progress bar tracking the accumulated dead points.
     """
     num_delete: int | None = eqx.field(static=True, default=None)
     num_inner_steps: int | None = eqx.field(static=True, default=None)
     evidence_convergence: float = eqx.field(static=True, default=1e-3)
     block_size: int | None = eqx.field(static=True, default=100)
+    show_progress: bool = eqx.field(static=True, default=True)
 
     def run(
         self,
@@ -257,7 +273,7 @@ class NSS(AbstractSplitSampler):
         rng_key = key
         
         logging.info(f"Running NSS (block_size={block_size}, max_steps={max_steps})...")
-        with tqdm.tqdm(desc="Dead points", unit=" dead points") as pbar:
+        with tqdm.tqdm(desc="Dead points", unit=" dead points", disable=not self.show_progress) as pbar:
             while True:
                 converged = (state.logZ_live - state.logZ) < logZ_convergence
                 budget_reached = (max_steps is not None) and (steps_taken >= max_steps)
