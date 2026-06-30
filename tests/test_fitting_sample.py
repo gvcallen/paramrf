@@ -51,7 +51,7 @@ def starting_model():
 
 def test_fit_sample_skrf_synthetic_data(starting_model, target_network, truth_model):
     key = jax.random.key(0)
-    solver = NUTS(num_warmup=50)
+    solver = NUTS(num_warmup=50, show_progress=False)
 
     num_steps = 100
 
@@ -82,7 +82,7 @@ def test_fit_sample_raw_ndarray(truth_model, starting_model, fit_freq):
     # Extract raw S-parameter array
     target_s = np.array(truth_model.s(fit_freq))
     key = jax.random.key(0)
-    solver = NUTS(num_warmup=5)
+    solver = NUTS(num_warmup=5, show_progress=False)
 
     # Must pass frequency explicitly when using raw arrays
     results = fit_sample(
@@ -107,7 +107,7 @@ def test_fit_sample_specific_feature(truth_model, starting_model, fit_freq):
     s21_mag_target = Feature('s21_mag')(truth_model, fit_freq)
     
     key = jax.random.key(42)
-    solver = NUTS(num_warmup=5)
+    solver = NUTS(num_warmup=5, show_progress=False)
 
     # Pass the string alias into the fit wrapper
     results = fit_sample(

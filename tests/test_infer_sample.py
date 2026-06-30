@@ -48,7 +48,7 @@ def test_sample_wrapper_basic(infer_model, basic_freq):
     key = jax.random.key(0)
     
     # Configure a fast NUTS execution
-    solver = NUTS(num_warmup=10)
+    solver = NUTS(num_warmup=10, show_progress=False)
     
     result = sample(
         loglikelihood=simple_ll,
@@ -74,7 +74,7 @@ def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
     """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
     key = jax.random.key(0)
     
-    solver = NUTS(num_warmup=5)
+    solver = NUTS(num_warmup=5, show_progress=False)
     
     result = sample(
         loglikelihood=[simple_ll, penalty_ll],
