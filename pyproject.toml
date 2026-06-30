@@ -1,6 +1,6 @@
 [project]
 name = "paramrf"
-version = "0.29.2"
+version = "0.29.3"
 description = "Parametric radio frequency modeling"
 readme = "README.rst"
 authors = [
@@ -8,6 +8,7 @@ authors = [
 ]
 dependencies = [
     "parax",
+    "threadpoolctl",
     "eqxpress",
     "jax",
     "jaxtyping",
