@@ -29,7 +29,7 @@ ParamRF is an open-source Python framework for the efficient, parametric modelin
 
 The use of radio frequency circuit models is central to fields such as high-frequency electronics, power systems, and semiconductor design. A core engineering requirement in these domains is the creation of parametric circuit models that must be optimized to satisfy specific design goals or fit to measured data for calibration purposes. ParamRF addresses this need by providing researchers and RF engineers with a flexible, programmatic Python framework to easily compose, differentiate, and optimize these circuits.
 
-# Statement of the Field
+# State of the Field
 
 Currently, researchers and RF engineers often rely on commercial, GUI-driven tools. While powerful, these tools typically lack a flexible programmatic interface, making it difficult to define custom error functions, automate routines, or integrate with modern statistical solvers. Conversely, standard script-based approaches (often built on libraries like NumPy) can introduce significant overhead due to interpreter context switching and dynamic memory allocation. Further, they lack the ability to compute exact analytical gradients, forcing optimizers to rely on slower and approximate numerical differentiation.
 
