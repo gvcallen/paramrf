@@ -27,13 +27,15 @@ ParamRF is an open-source Python framework for the efficient, parametric modelin
 
 # Statement of Need
 
-The use of radio frequency circuit models is central to fields such as high-frequency electronics, power systems, and semiconductor design. A core engineering requirement in these domains is the creation of parametric circuit models that must be optimized to satisfy specific design goals or fit to measured data for calibration purposes.
+The use of radio frequency circuit models is central to fields such as high-frequency electronics, power systems, and semiconductor design. A core engineering requirement in these domains is the creation of parametric circuit models that must be optimized to satisfy specific design goals or fit to measured data for calibration purposes. ParamRF addresses this need by providing researchers and RF engineers with a flexible, programmatic Python framework to easily compose, differentiate, and optimize these circuits.
+
+# Statement of the Field
 
 Currently, researchers and RF engineers often rely on commercial, GUI-driven tools. While powerful, these tools typically lack a flexible programmatic interface, making it difficult to define custom error functions, automate routines, or integrate with modern statistical solvers. Conversely, standard script-based approaches (often built on libraries like NumPy) can introduce significant overhead due to interpreter context switching and dynamic memory allocation. Further, they lack the ability to compute exact analytical gradients, forcing optimizers to rely on slower and approximate numerical differentiation.
 
-Within the open-source community, `scikit-rf` [@scikit-rf] serves as an industry standard for microwave network creation and analysis. However, its primary design is data-driven, storing S-parameter matrices and frequency arrays directly. ParamRF is designed to complement and not replace `scikit-rf` by filling the gap for parameter-focused optimization. It provides an architecture where the core primitives are parametric models as opposed to matrix data containers, allowing the easy creation of complex hierarchical circuits which can be compiled, differentiated and optimized. This approach is not only more intuitive, but also provides a foundation for new circuit design opportunities. Models can also optionally be converted to static `scikit-rf` networks after simulation in ParamRF, providing integration with the rest of the Python RF ecosystem.
+Within the open-source community, `scikit-rf` [@scikit-rf] serves as an industry standard for microwave and RF network creation and analysis. However, its primary design is data-driven, storing S-parameter matrices and frequency arrays directly. ParamRF is designed to complement and not replace `scikit-rf` by filling the gap for parameter-focused optimization. It provides an architecture where the core primitives are parametric models as opposed to matrix data containers, allowing the easy creation of complex hierarchical circuits which can be compiled, differentiated and optimized. This approach is not only more intuitive and efficient for optimization purposes, but also provides a foundation for new circuit design opportunities. Models can also optionally be converted to static `scikit-rf` networks after simulation in ParamRF, providing integration with the rest of the Python RF ecosystem.
 
-# Architecture and Features
+# Software Design
 
 ParamRF uses a unique approach to circuit modeling via a functional programming paradigm within an object-oriented syntax:
 
