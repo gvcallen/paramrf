@@ -175,11 +175,12 @@ def run_minimizer(
     physical_params = prx.unwrap(dynamic, only_if=prx.is_constrained)
 
     # Configure the spatial projection and bounds based on the solver type
+    leafwise_constraint = prx.constraints.tree_leafwise_constraint(dynamic)
     if is_bounded:
-        bijector = prx.constraints.tree_leafwise_constraint(dynamic).base_bijector
-        bounds = prx.constraints.tree_leafwise_constraint(dynamic).base_bounds
+        bijector = leafwise_constraint.base_bijector
+        bounds = leafwise_constraint.base_bounds
     else:
-        bijector = prx.constraints.tree_leafwise_constraint(dynamic).bijector
+        bijector = leafwise_constraint.bijector
         bounds = None
 
     # Map the physical starting parameters into the solver's operational space
