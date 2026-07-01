@@ -194,82 +194,149 @@ def test_derived_variable():
     assert loss == (0 - 2)**2 + (0 - 4)**2
 
 
-# def test_unconstrained_whitened_geometry():
-#     """
-#     Test that unconstrained solvers correctly operate in the latent space
-#     when given a transformed prior (simulating a normalizing flow or correlated MVN).
-#     """
-#     # Define a base isotropic normal
-#     base_dist = dists.Normal(loc=jnp.zeros(2), scale=jnp.ones(2))
+def test_unconstrained_solver_with_univariate_constraint():
+    """
+    Test that an unconstrained solver (BFGS) respects univariate constraints
+    by projecting through the Parax bijector API.
+    """
+    # Objective: Minimize (x - 2)^2. Global minimum is at x=2.
+    def objective(model, args=None):
+        return (model["x"] - 2.0)**2
     
-#     # Create a strong transformation/correlation
-#     # (Using Shift and Scale to simulate a heavily skewed geometry)
-#     bijector = bij.Chain([
-#         bij.Shift(jnp.array([1.0, -1.0])), 
-#         bij.Scale(jnp.array([10.0, 0.1]))
-#     ])
-#     corr_dist = dists.Transformed(base_dist, bijector)
+    # Since the global minimum is 2, the constrained minimum should rest exactly at 5.0
+    from parax.constraints import GreaterThan
     
-#     # Infer the constraint (this natively extracts the whitening bijector)
-#     constraint = infer_distribution_constraint(corr_dist)
+    y0 = {
+        "x": prx.Constrained(
+            value=jnp.array(8.0), # Start in valid space
+            constraint=GreaterThan(5.0) 
+        )
+    }
     
-#     # Initialize the model at the mode of the prior (which is [1.0, -1.0] physically)
-#     y0 = {
-#         "x": prx.Constrained(value=jnp.array([1.0, -1.0]), constraint=constraint)
-#     }
+    solver = BFGS()
     
-#     # Objective: Move away from the prior mode to a new physical location
-#     target = jnp.array([5.0, 0.5])
-#     def objective(model, args=None):
-#         return jnp.sum((model["x"] - target)**2)
-    
-#     solver = BFGS()
-#     opt_model, payload = base.run_minimizer(
-#         fn=objective, 
-#         model=y0, 
-#         solver=solver,
-#         max_iter=1000
-#     )
-    
-#     unwrapped = prx.unwrap(opt_model)
-    
-#     # Check that the optimizer successfully reached the physical target 
-#     # by navigating the whitened latent space
-#     assert payload.success
-#     assert jnp.allclose(unwrapped["x"], target, atol=1e-3)
+    opt_model, payload = base.run_minimizer(
+        fn=objective, 
+        model=y0, 
+        solver=solver,
+        max_iter=1000
+    )
+    assert payload.success
+    assert isinstance(opt_model["x"], prx.Constrained)
 
+    # The solver should hit the constraint boundary and stop at 5.0
+    unwrapped = prx.unwrap(opt_model)
+    assert jnp.allclose(unwrapped["x"], 5.0, atol=1e-3)
 
-# def test_bounded_whitened_geometry_copula():
-#     """
-#     Test that bounded solvers perfectly map their physical bounds backward 
-#     into the latent space using the Copula bijector for bounded priors.
-#     """
-#     low = jnp.array([-2.0, 0.0])
-#     high = jnp.array([2.0, 5.0])
-#     dist = dists.Uniform(low=low, high=high)
+def test_unconstrained_whitened_geometry_correlated_starved():
+    """
+    Test that unconstrained solvers correctly operate in the latent space.
     
-#     constraint = infer_distribution_constraint(dist)
+    Because the problem is perfectly whitened by the bijector, BFGS should
+    solve this extremely ill-conditioned physical problem in just a few iterations.
+    """
+    # 1. Define a violently correlated Cholesky factor (Condition number ~ 10,000)
+    L = jnp.array([
+        [    1.0, 0.0],
+        [10000.0, 1.0] 
+    ])
     
-#     y0 = {
-#         "x": prx.Constrained(value=jnp.array([0.0, 2.5]), constraint=constraint)
-#     }
+    bijector = bij.Chain([
+        bij.Shift(jnp.array([1.0, -1.0])), 
+        bij.TriangularLinear(matrix=L) 
+    ])
     
-#     # Target moved inside the valid space to avoid gradient vanishing near the Copula infinities
-#     target = jnp.array([1.5, 1.0])
-#     def objective(model, args=None):
-#         return jnp.sum((model["x"] - target)**2)
+    # 2. Construct the unconstrained constraint 
+    base_constraint = prx.constraints.RealLine(shape=(2,))
+    constraint = prx.constraints.Transformed(constraint=base_constraint, bijector=bijector)
     
-#     solver = LBFGSB()
+    # 3. Define Targets
+    target_latent = jnp.array([5.0, 5.0])
+    target_physical = bijector.forward(target_latent)
     
-#     opt_model, payload = base.run_minimizer(
-#         fn=objective, 
-#         model=y0, 
-#         solver=solver,
-#         max_iter=1000,
-#         use_bounds=True
-#     )
+    y0_latent = jnp.array([-5.0, -5.0])
+    y0_physical = bijector.forward(y0_latent)
     
-#     unwrapped = prx.unwrap(opt_model)
+    y0 = {
+        "x": prx.Constrained(value=y0_physical, constraint=constraint)
+    }
     
-#     assert payload.success
-#     assert jnp.allclose(unwrapped["x"], target, atol=1e-3)
+    # 4. Objective: Perfect sphere in LATENT space. 
+    def objective(model, args=None):
+        z = bijector.inverse(model["x"])
+        return jnp.sum((z - target_latent)**2)
+    
+    solver = BFGS()
+    opt_model, payload = base.run_minimizer(
+        fn=objective, 
+        model=y0, 
+        solver=solver,
+        # Starve the optimizer. If it operates in physical space, it fails.
+        # If the latent projection works, it finishes in < 5 iterations.
+        max_iter=15 
+    )
+    
+    unwrapped = prx.unwrap(opt_model)
+    
+    # BFGS should easily pass this because of the latent projection
+    assert payload.success
+    assert jnp.allclose(unwrapped["x"], target_physical, atol=1e-2)
+
+def test_bounded_whitened_geometry_correlated_starved():
+    """
+    Test that bounded solvers correctly operate in the latent space.
+    
+    CURRENTLY EXPECTED TO FAIL: The physical solver requires hundreds of 
+    iterations to navigate the ill-conditioned ridge. A properly whitened 
+    latent solver requires < 5 iterations.
+    """
+    # 1. Define a violently correlated Cholesky factor (Condition number ~ 10,000)
+    L = jnp.array([
+        [    1.0, 0.0],
+        [10000.0, 1.0] 
+    ])
+    
+    bijector = bij.Chain([
+        bij.Shift(jnp.array([1.0, -1.0])), 
+        bij.TriangularLinear(matrix=L) 
+    ])
+    
+    # 2. Construct the bounded constraint 
+    base_constraint = prx.constraints.Interval(
+        lower=jnp.array([-100.0, -100.0]),
+        upper=jnp.array([ 100.0,  100.0])
+    )
+    constraint = prx.constraints.Transformed(constraint=base_constraint, bijector=bijector)
+    
+    # 3. Define Targets
+    target_latent = jnp.array([5.0, 5.0])
+    target_physical = bijector.forward(target_latent)
+    
+    y0_latent = jnp.array([-5.0, -5.0])
+    y0_physical = bijector.forward(y0_latent)
+    
+    y0 = {
+        "x": prx.Constrained(value=y0_physical, constraint=constraint)
+    }
+    
+    # 4. Objective: Perfect sphere in LATENT space. 
+    def objective(model, args=None):
+        z = bijector.inverse(model["x"])
+        return jnp.sum((z - target_latent)**2)
+    
+    solver = LBFGSB()
+    opt_model, payload = base.run_minimizer(
+        fn=objective, 
+        model=y0, 
+        solver=solver,
+        # Starve the optimizer. A whitened space solves this in ~3 iterations.
+        # The physical space will require way more than 15.
+        max_iter=15, 
+        use_bounds=True
+    )
+    
+    unwrapped = prx.unwrap(opt_model)
+    
+    # L-BFGS-B will hit the max_iter wall in physical space and fail
+    assert payload.success
+    assert jnp.allclose(unwrapped["x"], target_physical, atol=1e-2)

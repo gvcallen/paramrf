@@ -47,7 +47,7 @@ class OptimistixMinimise(AbstractUnconstrainedMinimizer):
             **kwargs
         )
 
-        is_optx_success = (result.state == optx.RESULTS.successful)
+        is_optx_success = (result.result == optx.RESULTS.successful)
         f_val = fn(result.value, args)
         f_converged = jnp.less_equal(jnp.abs(f_val), self.fatol)
         success = is_optx_success | f_converged

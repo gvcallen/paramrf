@@ -264,7 +264,7 @@ def run_sampler(
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
         # Extraction
         unconstrained_prior = prx.probability.tree_unconstrained_distribution(dynamic)
-        bijector_to_constrained = prx.constraints.tree_leafwise_bijector(dynamic)
+        bijector_to_constrained = prx.constraints.tree_leafwise_constraint(dynamic).bijector
 
         # Internal functions
         def _logprior_fn(unconstrained_params: PyTree, _args: Any) -> Scalar:

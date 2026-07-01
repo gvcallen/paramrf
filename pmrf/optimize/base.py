@@ -131,27 +131,29 @@ def run_minimizer(
     """
     Optimizes a general PyTree potentially containing Parax parameters.
 
-    The solver can be any solver of type :type:`pmrf.optimize.AbstractMinimizer`.
+    The solver can be any solver of type `pmrf.optimize.AbstractMinimizer`.
 
-    Performs Equinox partitioning and Parax unwrrapping/extraction,
-    as well as delegation to the relevant solver interface.
+    Performs Equinox partitioning and Parax unwrapping/extraction,
+    as well as delegation to the relevant solver interface. Bounded solvers
+    are automatically routed to operate within the orthogonal base bounds 
+    of the parameter constraints, protecting them from spatial correlations.
 
-    Note that all Parax unwrappables (such a Parax variables)
+    Note that all Parax unwrappables (such as Parax variables)
     MUST be re-wrappable for this interface.
 
     Parameters
     ----------
     fn : callable
-        The likelihood function taking `(unwrapped_y0, args)`.
+        The objective function taking `(unwrapped_y0, args)`.
     model : PyTree
         The initial parameter guess / model state.
     solver : AbstractMinimizer
-        The instantiated sampler to run.
-    args : Any
-        Args to pass to `fn`.
-    max_iter: int, optional
-        Maximum number of iterations.
-    use_bounds: int, optional
+        The instantiated optimizer to run.
+    args : Any, optional
+        Args to pass to `fn`. Defaults to None.
+    max_iter : int, optional
+        Maximum number of iterations. Defaults to 1024.
+    use_bounds : bool, optional
         Whether bounds should be used. Defaults to True only if the solver is bounded.
     **kwargs
         Runtime arguments forwarded to the solver backend.
@@ -165,42 +167,46 @@ def run_minimizer(
     if use_bounds is not None:
         is_bounded = is_bounded and use_bounds
 
-    # Extract base values and partition based on solver type
-    if is_bounded:
-        is_dynamic = lambda x: prx.bounds.is_dynamic(x) and not isinstance(x, np.ndarray)
-        is_leaf = prx.bounds.is_leaf
-        
-        dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
-        
-        params = prx.unwrap(dynamic, only_if=prx.is_bounded)
-        bounds = prx.bounds.tree_bounds(dynamic)
-    else:
-        is_dynamic = lambda x: eqx.is_inexact_array(x) and not isinstance(x, np.ndarray)
-        is_leaf = prx.is_constant
-        
-        params, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
+    # Unified Equinox partitioning using the constraints API
+    is_dynamic = lambda x: prx.constraints.is_dynamic(x) and not isinstance(x, np.ndarray)
+    is_leaf = prx.constraints.is_leaf
+    
+    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
+    physical_params = prx.unwrap(dynamic, only_if=prx.is_constrained)
 
-    # Define the unified objective wrapper for the solver
+    # Configure the spatial projection and bounds based on the solver type
+    if is_bounded:
+        bijector = prx.constraints.tree_leafwise_constraint(dynamic).base_bijector
+        bounds = prx.constraints.tree_leafwise_constraint(dynamic).base_bounds
+    else:
+        bijector = prx.constraints.tree_leafwise_constraint(dynamic).bijector
+        bounds = None
+
+    # Map the physical starting parameters into the solver's operational space
+    solver_params = bijector.inverse(physical_params)
+
+    # The objective always projects the solver's parameters forward to physical space
     def objective(p: PyTree, args: Any) -> Scalar:
-        unwrapped_model = prx.unwrap(eqx.combine(p, static, is_leaf=is_leaf))
+        physical_p = bijector.forward(p)
+        unwrapped_model = prx.unwrap(eqx.combine(physical_p, static, is_leaf=is_leaf))
         return fn(unwrapped_model, args)
 
-    # Run the correct solver execution and reconstruct the final model
+    # Execute the backend solver
     if is_bounded:
         result = solver.run(
-            fn=objective, y0=params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
+            fn=objective, y0=solver_params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
         )
-        # Re-wrap into unbounded domain
-        opt_dynamic = prx.wrap(dynamic, result.y, only_if=prx.is_bounded)
-        opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
     else:
         result = solver.run(
-            fn=objective, y0=params, args=args, max_iter=max_iter, **kwargs
+            fn=objective, y0=solver_params, args=args, max_iter=max_iter, **kwargs
         )
-        # No need to re-wrap because `params` was never unwrapped
-        opt_model = eqx.combine(result.y, static, is_leaf=is_leaf)
+
+    # Re-wrap the optimized parameters into the constrained physical domain
+    opt_physical = bijector.forward(result.y)
+    opt_dynamic = prx.wrap(dynamic, opt_physical, only_if=prx.is_constrained)
+    opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
         
     if not result.success:
-        warnings.warn("Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.")
+        warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")
 
     return opt_model, result
