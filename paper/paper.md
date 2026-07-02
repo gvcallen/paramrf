@@ -57,8 +57,6 @@ Finally, ParamRF significantly lowers the barrier to entry for sensitivity-drive
 
 The following snippet demonstrates ParamRF's syntax and optimization API. A standard RLC (resistor-capacitor-inductor) circuit is first composed using operator overloading. Then, an $S_{11}$ reflection design goal is defined, as well as the target frequency passband over which it should be met. Finally, the goal is minimized, and the initial and optimized models are plotted against each other over a wider frequency range.
 
-\newpage
-
 ```python
 import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
