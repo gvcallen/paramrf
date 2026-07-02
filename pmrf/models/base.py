@@ -15,7 +15,7 @@ import skrf
 import parax as prx
 
 from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import tree_resolve_target
+from pmrf.utils.tree import resolve_target
 from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
 from pmrf.frequency import Frequency
 from pmrf.rf import (
@@ -728,7 +728,7 @@ class Model(eqx.Module):
         """
         try:
             name_to_path = tree_param_names_to_path(self)
-            resolved_where = tree_resolve_target(target, name_to_path)
+            resolved_where = resolve_target(target, name_to_path)
         except Exception as e:
             raise ValueError(f"Could not resolve parameter name: {e}")
         
@@ -888,8 +888,8 @@ class Model(eqx.Module):
             model = self
         
         name_to_path = tree_param_names_to_path(model)
-        resolved_target = tree_resolve_target(target, name_to_path)
-        resolved_source = tree_resolve_target(source, name_to_path)
+        resolved_target = resolve_target(target, name_to_path)
+        resolved_source = resolve_target(source, name_to_path)
         
         return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
     

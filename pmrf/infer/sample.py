@@ -12,7 +12,7 @@ from pmrf.problem import Problem
 from pmrf.infer.base import AbstractSampler, run_sampler
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
-from pmrf.utils.tree import extract_batch_axes
+from pmrf.utils.tree import batch_axes
 
 ModelT = TypeVar('ModelT', bound=Model)
 
@@ -86,7 +86,7 @@ def sample(
     )
 
     # Extract MAP/MLE parameters using the best evaluated function value
-    problem_batch_axes = extract_batch_axes(batched_problem, problem)
+    problem_batch_axes = batch_axes(batched_problem, problem)
     best_idx = jnp.argmax(results.fn_values)
 
     def extract_best(leaf, axis):

@@ -16,11 +16,14 @@ from pmrf.utils.tree import (
     freeze as freeze,
     unfreeze as unfreeze,
     replace as replace,
+    partition as partition,
     combine as combine,
     field as field,
     unwrap as unwrap,
     unwrap_self as unwrap_self,
     is_constant as is_constant,
+    batch_axes as batch_axes,
+    batch_mask as batch_mask,
 )
 
 from pmrf.utils.transforms import (

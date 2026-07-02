@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Callable, Any, Tuple, TypeVarTuple
 
-from pmrf.utils.tree import unwrap, extract_batch_axes
+from pmrf.utils.tree import unwrap, batch_axes
 
 # Define a variadic type variable to capture the exact types of *args
 Ts = TypeVarTuple("Ts")
@@ -139,7 +139,7 @@ def sweep(
             raise ValueError(f"Expected {len(args)} templates to match arguments, got {len(templates)}.")
         
         # Extract batch axes dynamically and execute
-        in_axes = tuple(extract_batch_axes(arg, temp) for arg, temp in zip(args, templates))
+        in_axes = tuple(batch_axes(arg, temp) for arg, temp in zip(args, templates))
         return eqx.filter_vmap(eval_fn, in_axes=in_axes)(*args)
 
     # ---------------------------------------------------------

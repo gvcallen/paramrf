@@ -67,6 +67,10 @@ Utilities
    pmrf.is_param
    pmrf.as_param
    pmrf.param
+   pmrf.partition
+   pmrf.combine
+   pmrf.batch_axes
+   pmrf.batch_mask
    pmrf.field
    pmrf.load
    pmrf.save

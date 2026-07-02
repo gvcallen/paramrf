@@ -21,7 +21,7 @@ from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.utils import error_if, field
 from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import filtered_tree_pathed_leaves, tree_path_to_name
+from pmrf.utils.tree import filtered_pathed_leaves, path_to_name
 
 
 T = TypeVar('T')
@@ -695,7 +695,7 @@ def tree_pathed_params(
         filter_spec = lambda x: is_param(x) or isinstance(x, jax.Array)
         is_leaf = lambda x: is_param(x)
 
-    return filtered_tree_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
+    return filtered_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
 
 
 def tree_named_params(
@@ -728,7 +728,7 @@ def tree_named_params(
     # Detect collisions
     named = {}
     for path, leaf in pathed:
-        name = tree_path_to_name(tree, path, namespace_separator=namespace_separator)
+        name = path_to_name(tree, path, namespace_separator=namespace_separator)
         if name in named:
             raise ValueError(
                 f"Parameter name collision: '{name}'.\n\n"
@@ -744,7 +744,7 @@ def tree_param_names_to_path(tree):
     pathed = tree_pathed_params(tree, full_params=True)
     name_to_path = {}
     for path, _ in pathed:
-        name = tree_path_to_name(tree, path, namespace_separator='_')
+        name = path_to_name(tree, path, namespace_separator='_')
         name_to_path[name] = path    
 
     return name_to_path
