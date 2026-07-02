@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Callable, Any, Tuple, TypeVarTuple
 
-from pmrf.utils.tree import unwrap
+from pmrf.utils.tree import unwrap, extract_batch_axes
 
 # Define a variadic type variable to capture the exact types of *args
 Ts = TypeVarTuple("Ts")
@@ -94,7 +94,8 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts) -> Tuple[*Ts]:
 def sweep(
     eval_fn: Callable[..., Any], 
     *args: Any, 
-    grid: bool = False
+    grid: bool = False,
+    template: Any = None
 ) -> Any:
     """
     Vectorizes a function over the given input arguments.
@@ -107,48 +108,43 @@ def sweep(
     eval_fn : Callable
         The function to run the sweep over.
     *args : Any
-        The arguments to evaluate. Can be raw arrays or full Models.
+        The arguments to evaluate. Can be raw arrays or full PyTree Models.
     grid : bool, default=False
         If False, performs a standard parallel sweep (zip-like) over the leading 
-        dimension of all dynamic arrays in `args`. All swept arrays must have the 
-        same leading dimension size.
-        If True, computes the cartesian product (meshgrid) of the arguments, 
-        evaluating the function at every possible combination of inputs.
+        dimension of all dynamic arrays in `args`.
+        If True, computes the cartesian product (meshgrid) of the arguments.
+    template : Any, optional
+        An unbatched PyTree (or tuple of PyTrees mirroring `*args`) used as a 
+        structural template to automatically extract batch axes. Required when 
+        sweeping over complex, pre-batched PyTrees (like Bayesian samples).
+        Cannot be used concurrently with `grid=True`.
 
     Returns
     -------
     Any
-        The batched output of `eval_fn`. If `grid=True`, the output shape will 
-        reflect the dimensional sizes of all swept inputs appended together.
-
-    Examples
-    --------
-    Sweep component values to evaluate network responses across parameter spaces:
-
-    >>> import jax.numpy as jnp
-    >>> import pmrf as prf
-    >>> from pmrf.models import ShuntCapacitor, Inductor
-    >>>
-    >>> freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
-    >>> c_vals = jnp.linspace(1e-12, 5e-12, 10)
-    >>> l_vals = jnp.linspace(1e-9, 5e-9, 10)
-    >>>
-    >>> def eval_s21(c, l):
-    ...     model = ShuntCapacitor(C=c) ** Inductor(L=l)
-    ...     return model.s_mag(freq)[0, 1, 0]
-    ...
-    >>> # Standard parallel sweep (evaluates pairs index-by-index)
-    >>> out_parallel = sweep(eval_s21, c_vals, l_vals)
-    >>> out_parallel.shape
-    (10,)
-    >>>
-    >>> # Grid sweep (computes the full Cartesian product)
-    >>> out_grid = sweep(eval_s21, c_vals, l_vals, grid=True)
-    >>> out_grid.shape
-    (10, 10)
+        The batched output of `eval_fn`.
     """
     args = unwrap(args)
 
+    # ---------------------------------------------------------
+    # MODE 1: Pre-Batched PyTrees (e.g. Bayesian Samples)
+    # ---------------------------------------------------------
+    if template is not None:
+        if grid:
+            raise ValueError("`grid=True` is not supported when `template` is provided.")
+        
+        # Normalize template to a tuple matching *args
+        templates = template if isinstance(template, tuple) else (template,)
+        if len(templates) != len(args):
+            raise ValueError(f"Expected {len(args)} templates to match arguments, got {len(templates)}.")
+        
+        # Extract batch axes dynamically and execute
+        in_axes = tuple(extract_batch_axes(arg, temp) for arg, temp in zip(args, templates))
+        return eqx.filter_vmap(eval_fn, in_axes=in_axes)(*args)
+
+    # ---------------------------------------------------------
+    # MODE 2: Standard Parallel Array Sweeps
+    # ---------------------------------------------------------
     if not grid:
         dynamic, static = eqx.partition(args, is_jax_array)
         def _wrapper(dyn):
@@ -156,21 +152,22 @@ def sweep(
             return eval_fn(*args_tuple)
         return jax.vmap(_wrapper)(dynamic)
 
-    # Determine the size of the leading dimension
+    # ---------------------------------------------------------
+    # MODE 3: Cartesian Grid Array Sweeps
+    # ---------------------------------------------------------
     sizes = []
     for arg in args:
         dyn, _ = eqx.partition(arg, is_jax_array)
         leaves = jax.tree.leaves(dyn)
         if leaves:
             sizes.append(leaves[0].shape[0])
+            
     if not sizes:
         return eval_fn(*args)
 
-    # Create a grid of indices using 'ij' (matrix)
     mesh_indices = jnp.meshgrid(*[jnp.arange(s) for s in sizes], indexing="ij")
     flat_indices = [m.flatten() for m in mesh_indices]
 
-    # Gather the flattened combinations
     flat_args = []
     idx_counter = 0
     for arg in args:
@@ -184,19 +181,16 @@ def sweep(
         else:
             flat_args.append(arg)
 
-    # Run native vmap over the flattened 1D combinations and reshape
     flat_dyn, flat_stat = eqx.partition(tuple(flat_args), is_jax_array)
     def _flat_wrapper(dyn):
         args_tuple = eqx.combine(dyn, flat_stat)
         return eval_fn(*args_tuple)
+    
     flat_out = jax.vmap(_flat_wrapper)(flat_dyn)
-
     grid_shape = tuple(sizes)
 
     def _reshape_to_grid(x):
-        if is_jax_array(x):
-            return x.reshape(grid_shape + x.shape[1:])
-        return x
+        return x.reshape(grid_shape + x.shape[1:]) if is_jax_array(x) else x
 
     out_dynamic, out_static = eqx.partition(flat_out, is_jax_array)
     out_dynamic_reshaped = jax.tree.map(_reshape_to_grid, out_dynamic)

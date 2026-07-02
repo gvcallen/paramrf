@@ -6,6 +6,7 @@ from typing import Any, Callable, Self, TypeVar, Union, TypeGuard
 from functools import cached_property
 import dataclasses
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
@@ -619,36 +620,33 @@ class Model(eqx.Module):
         """String representation of the Model."""
         import numpy as np
         import jax
+        import equinox as eqx
 
+        # Attempt to unwrap. Catch ANY exception (TypeError, AttributeError, etc.)
+        # that might occur if the tree contains non-numeric axis specs instead of values.
+        try:
+            tree_to_format = unwrap(self)
+        except Exception:
+            # Bail out early and just print the raw structure using Equinox
+            return eqx.tree_pformat(self, short_arrays=False)
+
+        # Format standard JAX/Numpy arrays cleanly
         class _RawFormatter:
-            """Wrapper to print arrays cleanly with rounded float values."""
             def __init__(self, val):
                 self.val = np.asarray(val)
                 
             def __repr__(self):
-                # precision=4 limits decimal places
-                # suppress_small=True formats numbers very close to zero as 0
-                return np.array2string(
-                    self.val, 
-                    separator=', ', 
-                    precision=4, 
-                )
+                return np.array2string(self.val, separator=', ', precision=4)
 
-        # Unwrap the model to resolve variables
-        unwrapped = unwrap(self)
+        is_array = lambda x: isinstance(x, (jax.Array, np.ndarray))
         
-        # Identify JAX arrays
-        is_array = lambda x: isinstance(x, (jax.Array, jnp.ndarray))
-        
-        # Replace JAX arrays with our custom formatter
-        unwrapped_clean = jax.tree.map(
+        tree_clean = jax.tree.map(
             lambda x: _RawFormatter(x) if is_array(x) else x,
-            unwrapped,
+            tree_to_format,
             is_leaf=is_array
         )
 
-        # Use Equinox's formatter, displaying full internal arrays instead of generic shape labels
-        return eqx.tree_pformat(unwrapped_clean, short_arrays=False)
+        return eqx.tree_pformat(tree_clean, short_arrays=False)
 
     def __str__(self) -> str:
         return repr(self)    

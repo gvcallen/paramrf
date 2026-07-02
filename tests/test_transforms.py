@@ -1,3 +1,7 @@
+import pytest
+
+import jax
+import equinox as eqx
 import jax.numpy as jnp
 
 import pmrf as prf
@@ -82,3 +86,62 @@ def test_sweep_grid_shape():
     # The static string is ignored in sizing, and the three dynamic arrays 
     # should create a 3D tensor of shape (10, 5, 3)
     assert out.shape == (10, 5, 3)
+
+class MockBatchedModel(eqx.Module):
+    """A minimal PyTree to simulate batched Bayesian outputs."""
+    param: jax.Array
+    static_name: str
+
+def test_sweep_with_template():
+    """
+    Verifies that sweep successfully maps over a batched PyTree when 
+    provided with a structural unbatched template.
+    """
+    # Create an unbatched template
+    template_model = MockBatchedModel(param=jnp.array(1.0), static_name="fixed")
+    
+    # Create a batched version (e.g., 5 samples from a posterior)
+    batched_model = MockBatchedModel(param=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), static_name="fixed")
+    
+    def eval_fn(model):
+        return model.param * 2.0
+        
+    # Execute sweep using the template
+    out = prf.sweep(eval_fn, batched_model, template=template_model)
+    
+    assert out.shape == (5,)
+    assert jnp.allclose(out, jnp.array([2.0, 4.0, 6.0, 8.0, 10.0]))
+
+def test_sweep_multiple_templates():
+    """
+    Verifies that sweep can handle multiple arguments requiring templates.
+    """
+    t1 = MockBatchedModel(param=jnp.array(1.0), static_name="a")
+    t2 = MockBatchedModel(param=jnp.array(1.0), static_name="b")
+    
+    b1 = MockBatchedModel(param=jnp.array([1.0, 2.0]), static_name="a")
+    b2 = MockBatchedModel(param=jnp.array([10.0, 20.0]), static_name="b")
+    
+    def eval_fn(m1, m2):
+        return m1.param + m2.param
+        
+    # Sweep over both batched models
+    out = prf.sweep(eval_fn, b1, b2, template=(t1, t2))
+    
+    assert out.shape == (2,)
+    assert jnp.allclose(out, jnp.array([11.0, 22.0]))
+
+def test_sweep_template_validation_errors():
+    """
+    Verifies that sweep catches misconfigurations when using templates.
+    """
+    t1 = MockBatchedModel(param=jnp.array(1.0), static_name="a")
+    b1 = MockBatchedModel(param=jnp.ones(5), static_name="a")
+    
+    # Using grid=True with template should fail
+    with pytest.raises(ValueError, match="`grid=True` is not supported"):
+        prf.sweep(lambda x: x, b1, grid=True, template=t1)
+        
+    # Passing the wrong number of templates should fail
+    with pytest.raises(ValueError, match="Expected 2 templates"):
+        prf.sweep(lambda x, y: x, b1, b1, template=t1) # Passing 2 args but only 1 template
