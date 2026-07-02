@@ -15,26 +15,26 @@ class PolynomialRatio(AbstractSingleDomain):
 
     Parameters
     ----------
-    a : Param
+    A : Param
         Numerator coefficients. The first dimension is the polynomial degree.
         Shape can be (degree,), (degree, N, N), etc. 
         Coefficients are in increasing order of degree (index 0 is constant term).
-    b : Param
+    B : Param
         Denominator coefficients. The first dimension is the polynomial degree.
         Shape can be (degree,), (degree, N, N), etc.
         Coefficients are in increasing order of degree.
     """
     #: Numerator coefficients
-    a: Param = None
+    A: Param = param()
     
     #: Denominator coefficients
-    b: Param = None
+    B: Param = param()
 
     def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
-        a = jnp.atleast_1d(self.a)
-        b = jnp.atleast_1d(self.b)
+        a = jnp.atleast_1d(self.A)
+        b = jnp.atleast_1d(self.B)
         
         deg_a = a.shape[0]
         deg_b = b.shape[0]
@@ -64,18 +64,18 @@ class PoleResidue(AbstractSingleDomain):
     residues : Param
         The residues of the system. 
         Shape: (num_poles,) for scalars, or (num_poles, N, N) for port matrices.
-    d : Param
+    D : Param
         Optional direct feedthrough matrix (constant term D). 
         Shape: () or (N, N).
     """
     #: The poles of the system
-    poles: Param = param(default=None)
+    poles: Param = param()
     
     #: The residues of the system
-    residues: Param = param(default=None)
+    residues: Param = param()
     
     #: Optional direct feedthrough matrix
-    d: Param = param(default=None)
+    D: Param = param(default=None)
 
     def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
@@ -83,7 +83,7 @@ class PoleResidue(AbstractSingleDomain):
         p = jnp.atleast_1d(self.poles)
         r = jnp.atleast_1d(self.residues)
         
-        d_val = jnp.asarray(self.d) if self.d is not None else 0.0
+        d_val = jnp.asarray(self.D) if self.D is not None else 0.0
         denom = s_cpx[:, None] - p[None, :] 
         inv_denom = 1.0 / denom
         H = jnp.tensordot(inv_denom, r, axes=(1, 0)) + d_val
@@ -101,35 +101,35 @@ class StateSpace(AbstractSingleDomain):
 
     Parameters
     ----------
-    a : Param
+    A : Param
         State matrix (A). Shape: (state_dim, state_dim)
-    b : Param
+    B : Param
         Input matrix (B). Shape: (state_dim, N)
-    c : Param
+    C : Param
         Output matrix (C). Shape: (N, state_dim)
-    d : Param
+    D : Param
         Feedthrough matrix (D). Shape: (N, N)
     """
     #: State matrix (A)
-    a: Param = None
+    A: Param = param()
     
     #: Input matrix (B)
-    b: Param = None
+    B: Param = param()
     
     #: Output matrix (C)
-    c: Param = None
+    C: Param = param()
     
     #: Feedthrough matrix (D)
-    d: Param = None
+    D: Param = param()
 
     def primary_matrix(self, freq: Frequency) -> jnp.ndarray:
         s_cpx = 1j * freq.w
         
-        A = jnp.atleast_2d(self.a)
-        B = jnp.atleast_2d(self.b)
-        C = jnp.atleast_2d(self.c)
+        A = jnp.atleast_2d(self.A)
+        B = jnp.atleast_2d(self.B)
+        C = jnp.atleast_2d(self.C)
         
-        D = jnp.atleast_2d(self.d) if self.d is not None else 0.0
+        D = jnp.atleast_2d(self.D) if self.D is not None else 0.0
         
         state_dim = A.shape[0]
         F = s_cpx.shape[0]
