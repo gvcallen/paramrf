@@ -8,7 +8,8 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field
+from pmrf.utils import field, batch_mask, partition, combine
+from pmrf.utils.random import compress_samples
 
 
 ModelT = TypeVar('ModelT', bound=Model)
@@ -52,6 +53,29 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #: The underlying metrics returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
     metrics: Any = field(default=None)
+
+    def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> ModelT:
+        """
+        Compresses the sampled model to its approximate channel capacity (entropy) 
+        using stochastic rounding, yielding equally weighted samples.
+        
+        Args:
+            key: A JAX PRNGKey for resolving fractional probabilities.
+            
+        Returns:
+            The compressed sampled model with the self structure as `self.sampled_model`.
+        """
+        sampled_model, best_model = self.sampled_model, self.best_model
+        weights = self.weights
+
+        mask = batch_mask(sampled_model, best_model)
+        samples, static = partition(sampled_model, mask)
+
+        padded_samples, num_valid = compress_samples(samples, weights, key, **kwargs)
+        compressed_samples = jax.tree.map(lambda leaf: leaf[:num_valid], padded_samples)
+
+        return combine(compressed_samples, static)
+
        
     # Old functions that allowed exporting directly to external inference formats
     # such as arxiv etc. but relied on the old Parax API. Should potentially
