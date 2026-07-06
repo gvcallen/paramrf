@@ -12,6 +12,7 @@ import json
 import dataclasses
 
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import equinox as eqx
 from jaxtyping import PyTree
 
@@ -82,7 +83,19 @@ def _serialize_generic(node: Any) -> Any:
             "__imag__": node.imag
         }
         
-    # Dynamic Nodes: Equinox Modules (Dataclasses)
+    # Intercept PyTreeDef objects before jsonpickle to prevent JAX C++ pickling errors
+    if isinstance(node, jtu.PyTreeDef):
+        # Create a dummy tree with `None` replacing all active arrays/leaves
+        dummy_leaves = [None] * node.num_leaves
+        dummy_tree = jtu.tree_unflatten(node, dummy_leaves)
+        
+        return {
+            "__type__": "__pytreedef__",
+            "__dummy_tree__": _serialize_generic(dummy_tree)
+        }
+        
+    # 1. Dynamic Nodes: Equinox Modules (Dataclasses)
+    # Always processed first so Equinox modules are serialized by state, not reference.
     if hasattr(node, "__dataclass_fields__"):
         state = {}
         for field_name, field in node.__dataclass_fields__.items():
@@ -113,6 +126,31 @@ def _serialize_generic(node: Any) -> Any:
             "__class__": cls.__name__,
             "__state__": state
         }
+        
+    # 2. Base Case: Callables and Function Wrappers
+    # Functions, classes, and JAX trace objects (e.g., custom_jvp) should be serialized by reference.
+    # To ensure it's a valid global reference (and not a stateful instance), we dynamically verify it resolves.
+    if callable(node) and hasattr(node, "__module__") and hasattr(node, "__name__"):
+        node_name = getattr(node, "__qualname__", node.__name__)
+        if "<lambda>" not in node_name:
+            try:
+                # Verify the object is globally resolvable from its module
+                mod = sys.modules.get(node.__module__)
+                if mod is None:
+                    mod = importlib.import_module(node.__module__)
+                
+                resolved_obj = mod
+                for part in node_name.split("."):
+                    resolved_obj = getattr(resolved_obj, part)
+                
+                # If it successfully resolves without error, it is safe to serialize by reference
+                return {
+                    "__type__": "__callable__",
+                    "__module__": node.__module__,
+                    "__name__": node_name
+                }
+            except Exception:
+                pass  # Dynamic, local, or unresolvable callable; safely fall through
         
     # Base Case: Pure Arrays (jax.Array, np.ndarray, etc.)
     if eqx.is_array_like(node):
@@ -166,6 +204,34 @@ def _deserialize_generic(data: Any) -> Any:
         
     if isinstance(data, dict):
         node_type = data.get("__type__")
+        
+        # Rebuild Callables and Functions
+        if node_type == "__callable__":
+            module_name = data["__module__"] or "builtins"
+            name = data["__name__"]
+            
+            def _get_obj(mod_name):
+                mod = importlib.import_module(mod_name)
+                obj = mod
+                for part in name.split("."):
+                    obj = getattr(obj, part)
+                return obj
+
+            try:
+                return _get_obj(module_name)
+            except Exception:
+                # Resiliency Fallback
+                for ns in PUBLIC_NAMESPACES:
+                    try:
+                        return _get_obj(ns)
+                    except Exception:
+                        continue
+                raise ImportError(f"Could not reconstruct callable '{module_name}.{name}'.")
+        
+        # Rebuild the PyTreeDef from the dummy tree
+        if node_type == "__pytreedef__":
+            dummy_tree = _deserialize_generic(data["__dummy_tree__"])
+            return jtu.tree_structure(dummy_tree)
         
         # Rebuild native complex number
         if node_type == "__complex__":

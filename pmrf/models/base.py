@@ -25,6 +25,7 @@ from pmrf.rf import (
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
+from pmrf.distributions import AbstractDistribution
 
 T = TypeVar('T')
 

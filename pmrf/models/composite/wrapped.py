@@ -162,21 +162,75 @@ class Probabilistic(Model):
         ----------
         model : Model
             The base model to wrap.
-        distribution : AbstractDistribution
-            The probability distribution to associate with the target.
-            Must have the same JAX PyTree structure as `model`.
+        distribution : AbstractDistribution or tuple of AbstractDistribution
+            The probability distribution(s) to associate with the target(s).
         target : callable, optional
-            A callable (lens) extracting the parameter to make probabilistic 
-            (e.g., `lambda m: m.R`). Defaults to the identity function, meaning
-            the distribution applies to the entire model.
-        constraint : AbstractConstraint, optional
-            An optional constraint for the distribution.
-            Must have the same JAX PyTree structure as `model`.
-            If None, it is inferred from the distribution.
+            A callable (lens) extracting the parameter(s) to make probabilistic 
+            (e.g., `lambda m: m.R` or `lambda m: (m.R, m.C)`). Defaults to the 
+            identity function.
+        constraint : AbstractConstraint or tuple of AbstractConstraint, optional
+            Optional constraint(s) for the distribution(s).
         """
-        target_val = target(model)
-        prob_node = prx.Probabilize(distribution, target_val, constraint=constraint)
-        self.probabilistic = eqx.tree_at(target, model, prob_node)
+        target_vals = target(model)
+
+        # Handle the case where multiple targets are returned as a tuple
+        if isinstance(target_vals, tuple):
+            if not isinstance(distribution, tuple) or len(distribution) != len(target_vals):
+                raise ValueError(
+                    "If 'target' returns a tuple, 'distribution' must be a tuple "
+                    "of the exact same length."
+                )
+            
+            # Normalize constraints to an iterable of the correct length
+            if constraint is None:
+                constraint_tup = (None,) * len(target_vals)
+            elif not isinstance(constraint, tuple) or len(constraint) != len(target_vals):
+                raise ValueError(
+                    "If 'target' returns a tuple, 'constraint' must be None or a "
+                    "tuple of the exact same length."
+                )
+            else:
+                constraint_tup = constraint
+
+            # Generate a Probabilize node for each target item
+            prob_nodes = tuple(
+                prx.Probabilize(dist, val, constraint=cons)
+                for dist, val, cons in zip(distribution, target_vals, constraint_tup)
+            )
+            self.probabilistic = eqx.tree_at(target, model, prob_nodes)
+
+        # Handle the standard single-target case
+        else:
+            if isinstance(distribution, tuple):
+                raise ValueError(
+                    "Provided a tuple of distributions, but 'target' returned a single node."
+                )
+            if isinstance(constraint, tuple):
+                raise ValueError(
+                    "Provided a tuple of constraints, but 'target' returned a single node."
+                )
+
+            prob_node = prx.Probabilize(distribution, target_vals, constraint=constraint)
+            self.probabilistic = eqx.tree_at(target, model, prob_node)
+
+    @property
+    def model(self) -> Model:
+        """
+        Returns the underlying model (or the probabilistic wrapper if applied to the root).
+        """
+        return self.probabilistic
+    
+    @unwrap_self
+    def build(self) -> Model:
+        """
+        Evaluate and return the underlying probabilistic model structure.
+
+        Returns
+        -------
+        Model
+            The updated model containing the `parax.Probabilize` node(s).
+        """
+        return self.probabilistic
 
     @property
     def model(self) -> Model:
