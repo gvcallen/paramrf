@@ -112,7 +112,7 @@ class Probabilistic(Model):
 
     This provides the ability to associate a probability distribution
     with a model or one of its sub-models/parameters after the model
-    was create.
+    was created.
 
     This is a useful for advanced use-cases where you want to attach a distribution
     to an entire model (perhaps overriding previous distributions on lower levels),
