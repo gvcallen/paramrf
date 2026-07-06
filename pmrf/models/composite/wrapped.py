@@ -231,22 +231,3 @@ class Probabilistic(Model):
             The updated model containing the `parax.Probabilize` node(s).
         """
         return self.probabilistic
-
-    @property
-    def model(self) -> Model:
-        """
-        Returns the underlying model (or the probabilistic wrapper if applied to the root).
-        """
-        return self.probabilistic
-    
-    @unwrap_self
-    def build(self) -> Model:
-        """
-        Evaluate and return the underlying probabilistic model structure.
-
-        Returns
-        -------
-        Model
-            The updated model containing the `parax.Probabilize` node.
-        """
-        return self.probabilistic

@@ -5,6 +5,7 @@ import functools
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jaxtyping import PyTree, Float, Array
 from jax.scipy.linalg import block_diag
 
@@ -451,6 +452,17 @@ def tree_block_diag(matrices):
     left = tree_block_diag(matrices[:mid])
     right = tree_block_diag(matrices[mid:])
     return block_diag(left, right)
+
+
+def log_prob(tree: PyTree):
+    is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
+    is_leaf = prx.probability.is_leaf
+    
+    dynamic, static = eqx.partition(tree, is_dynamic, is_leaf=is_leaf)
+    params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
+    joint_prior = prx.probability.tree_joint_distribution(dynamic)
+    
+    return joint_prior.log_prob(params)
 
 
 _Return = TypeVar("_Return")

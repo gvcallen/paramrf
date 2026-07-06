@@ -8,6 +8,7 @@ from abc import abstractmethod
 
 import numpy as np
 import equinox as eqx
+import parax as prx
 import jax
 import jax.numpy as jnp
 import distreqx.distributions as dist
@@ -18,6 +19,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.utils import freeze, field, unwrap, unwrap_self
+from pmrf.utils.tree import log_prob
 
 class AbstractEvaluator(eqx.Module):
     """
@@ -459,11 +461,11 @@ class NegativeLogPosterior(AbstractEvaluator):
     Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
     that is useful for performing Maximum A Posteriori (MAP) estimation.
     
-    The model prior is assumed to be attached to the passed in model.
-    The log priors are for the RF model, likelihood, and discrepancy model
-    are all calculated individually and the summed. Each prior is calculated
-    by passing the module's grouped parameters into their grouped distribution's
-    `log_prob` method.
+    The prior is assumed to be attached to the model and the log prior
+    probability is evaluated over the model's current parameters.
+    This can be done either by specifying the distributions of individual
+    parameters using :class:`pmrf.parameters.Random`, or by attaching
+    joint probability distributions using :class:`pmrf.models.Probabilistic`.
 
     Parameters
     ----------
@@ -474,11 +476,9 @@ class NegativeLogPosterior(AbstractEvaluator):
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
     
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        raise Exception("NegativeLogPosterior is currently unavailable")
-
         nll = -self.mll(model, frequency, **kwargs)
-        nlps = [-log_prob(mod) for mod in [model, self.mll]]
-        return nll + jnp.sum(jnp.array(nlps))
+        nlps = jnp.array([-log_prob(mod) for mod in [model, self.mll]])
+        return nll + jnp.sum(nlps)
 
 
 class Goal(TargetLoss):
