@@ -20,7 +20,6 @@ def minimize(
     frequency: Frequency,
     solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
-    search_space: str | None = None,
     **kwargs,
 ) -> OptimizeResult[ModelT]:
     """
@@ -48,8 +47,6 @@ def minimize(
         See :mod:`pmrf.optimize` for available solvers.
     max_iter : int
         The maximum number of iterations to take.
-    search_space : str, optional
-        The optimization search space. Currently ignored, provided for future compatibility.
     **kwargs
         Additional arguments to forward to `parax.optimize.minimize`.
 
@@ -58,9 +55,6 @@ def minimize(
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
     """
-    if search_space != None:
-        raise ValueError('Only the default search space is currently supported')
-    
     if isinstance(objective, list):
         objective = ex.Sum([c if isinstance(c, eqx.Module) else prx.Static(ex.Lambda(c)) for c in objective])
     else:
