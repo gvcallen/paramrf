@@ -254,6 +254,34 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         """
         return jnp.array(self.raw_value)
 
+    @property
+    def raw_leaf(self) -> jax.Array | None:
+        """
+        Returns this parameter's single remaining raw/whitened array leaf,
+        without relying on the internal structure of the wrapped Parax
+        variable (e.g. `Random`, `Fixed`). Intended for use after masking or
+        partitioning has already reduced this parameter's own metadata (its
+        distribution, constraint, etc.) to None, leaving only its own raw
+        value behind.
+
+        Returns
+        -------
+        jax.Array | None
+            The one remaining leaf, or None if none remain (e.g. this
+            parameter was masked out entirely).
+
+        Raises
+        ------
+        ValueError
+            If more than one leaf remains, e.g. called before masking.
+        """
+        leaves = jax.tree_util.tree_leaves(self)
+        if len(leaves) == 0:
+            return None
+        if len(leaves) != 1:
+            raise ValueError(f"Expected at most one remaining leaf, got {len(leaves)}: {leaves}")
+        return leaves[0]
+
     def wrap(self, value: Array) -> Self:
         """
         Updates the internal state of the parameter using a physical value.
@@ -687,13 +715,17 @@ def tree_pathed_params(
     separator : str, optional
         The separator to use if `keystr` is True.
     """
-    # Setup callables for filtering/flattening
+    # Setup callables for filtering/flattening.
+    # We also need to stop at parax's opaque/protected boundaries (e.g. `parax.Probabilize`),
+    # via `prx.constraints.is_leaf` (which also covers frozen sub-trees via `prx.is_constant`).
+    # Otherwise this recurses into e.g. a normalizing-flow prior's internals (its own trainable
+    # weights, and the frozen reconstruction data), surfacing them as spurious named parameters.
     if free_only:
         filter_spec = lambda x: is_param(x) and not x.fixed or isinstance(x, jax.Array)
-        is_leaf = lambda x: is_param(x) or prx.is_constant(x) # we also need to stop at frozen sub-trees
+        is_leaf = lambda x: is_param(x) or prx.constraints.is_leaf(x)
     else:
         filter_spec = lambda x: is_param(x) or isinstance(x, jax.Array)
-        is_leaf = lambda x: is_param(x)
+        is_leaf = lambda x: is_param(x) or prx.constraints.is_leaf(x)
 
     return filtered_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
 

@@ -661,14 +661,14 @@ class Model(eqx.Module):
         """
         if name.startswith('plot_'):
             def plotter(freq: Frequency, *args, **kwargs):
-                # 1. Convert to scikit-rf Network at the specified frequency
+                # Convert to scikit-rf Network at the specified frequency
                 ntwk = self.to_skrf(freq)
                 
-                # 2. Check if the generated Network actually supports this plot type
+                # Check if the generated Network actually supports this plot type
                 if not hasattr(ntwk, name):
                     raise AttributeError(f"scikit-rf Network object has no attribute '{name}'")
                 
-                # 3. Call the scikit-rf plot method with remaining args (e.g. labels, colors)
+                # Call the scikit-rf plot method with remaining args (e.g. labels, colors)
                 return getattr(ntwk, name)(*args, **kwargs)
             return plotter
             
@@ -972,13 +972,18 @@ def is_model(x: Any) -> TypeGuard[Model]:
     
 def validate(tree):
     """
-    Recursively walks a PyTree and ensures no pmrf.Model instances contain 
+    Recursively walks a PyTree and ensures no pmrf.Model instances contain
     unprotected raw inexact arrays that optimizers might corrupt.
     """
-    # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays
-    nodes, _ = jax.tree.flatten(
-        tree, is_leaf=lambda x: isinstance(x, Model)
-    )
+    # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays.
+    # Also stop at parax's opaque/protected boundaries (e.g. `parax.Probabilize`), matching
+    # the convention used everywhere else (`parax.constraints.is_leaf`/`probability.is_leaf`).
+    # Otherwise this recurses into e.g. a normalizing-flow prior's frozen reconstruction
+    # data, which legitimately contains raw, already-unwrapped arrays inside Model instances.
+    def _is_leaf(x):
+        return isinstance(x, Model) or prx.constraints.is_leaf(x)
+
+    nodes, _ = jax.tree.flatten(tree, is_leaf=_is_leaf)
     
     for node in nodes:
         if isinstance(node, Model):

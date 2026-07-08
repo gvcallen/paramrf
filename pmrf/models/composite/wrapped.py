@@ -10,7 +10,16 @@ from distreqx.distributions import AbstractDistribution
 from pmrf.models.base import Model
 from pmrf.utils import unwrap_self
 
-class Tied(Model):
+
+def _make_probabilistic_node(distribution, value, *, constraint, static):
+    """A `parax.Probabilize` node, `parax.Combine`-wrapped with `static` if given."""
+    node = prx.Probabilize(distribution, value, constraint=constraint)
+    if static is not None:
+        node = prx.Combine(node, static)
+    return node
+
+
+class Tied(Model, prx.AbstractUnwrappable):
     """
     A composite model that links or 'ties' fields within a sub-model together.
 
@@ -46,6 +55,10 @@ class Tied(Model):
     >>> # When evaluated, R will automatically track C.
     """
     tie: prx.Tie
+
+    def unwrap(self) -> Model:
+        """Implements `parax.AbstractUnwrappable` so nested `Tied` nodes fully collapse too."""
+        return self.tie
 
     def __init__(
         self, 
@@ -106,7 +119,7 @@ class Tied(Model):
         return self.tie.tree
     
 
-class Probabilistic(Model):
+class Probabilistic(Model, prx.AbstractUnwrappable):
     """
     (experimental) A wrapper to make an existing model probabilistic.
 
@@ -121,7 +134,7 @@ class Probabilistic(Model):
 
     Attributes
     ----------
-    probabilistic : Model | parax.Probabilize
+    probabilistic : Model | parax.Probabilize | parax.Combine
         The updated structure containing the `parax.Probabilize` node.
 
     Examples
@@ -146,14 +159,19 @@ class Probabilistic(Model):
     ...     distribution=dist_tree,
     ... )
     """
-    probabilistic: prx.Probabilize | Model
+    probabilistic: prx.Probabilize | prx.Combine | Model
+
+    def unwrap(self) -> Model:
+        """Implements `parax.AbstractUnwrappable` so nested `Probabilistic` nodes fully collapse too."""
+        return self.probabilistic
 
     def __init__(
-        self, 
-        model: Model, 
+        self,
+        model: Model,
         distribution: AbstractDistribution,
         target: Callable[[Any], Any] = lambda m: m,
         constraint: AbstractConstraint | None = None,
+        static: Any = None,
     ):
         """
         Initialize the Probabilistic model.
@@ -165,11 +183,18 @@ class Probabilistic(Model):
         distribution : AbstractDistribution or tuple of AbstractDistribution
             The probability distribution(s) to associate with the target(s).
         target : callable, optional
-            A callable (lens) extracting the parameter(s) to make probabilistic 
-            (e.g., `lambda m: m.R` or `lambda m: (m.R, m.C)`). Defaults to the 
+            A callable (lens) extracting the parameter(s) to make probabilistic
+            (e.g., `lambda m: m.R` or `lambda m: (m.R, m.C)`). Defaults to the
             identity function.
         constraint : AbstractConstraint or tuple of AbstractConstraint, optional
             Optional constraint(s) for the distribution(s).
+        static : Any or tuple of Any, optional
+            A pytree structurally complementary to `target`'s value (`None` at every
+            leaf the target owns), left untouched and recombined via `parax.Combine`.
+            Use this when `target` only covers part of a model (e.g. the leaves a
+            trained flow was fit on) and the rest should keep its own existing
+            parameters/priors as-is, rather than needing the distribution to cover
+            the whole model.
         """
         target_vals = target(model)
 
@@ -180,8 +205,8 @@ class Probabilistic(Model):
                     "If 'target' returns a tuple, 'distribution' must be a tuple "
                     "of the exact same length."
                 )
-            
-            # Normalize constraints to an iterable of the correct length
+
+            # Normalize constraints/static to an iterable of the correct length
             if constraint is None:
                 constraint_tup = (None,) * len(target_vals)
             elif not isinstance(constraint, tuple) or len(constraint) != len(target_vals):
@@ -192,10 +217,20 @@ class Probabilistic(Model):
             else:
                 constraint_tup = constraint
 
-            # Generate a Probabilize node for each target item
+            if static is None:
+                static_tup = (None,) * len(target_vals)
+            elif not isinstance(static, tuple) or len(static) != len(target_vals):
+                raise ValueError(
+                    "If 'target' returns a tuple, 'static' must be None or a "
+                    "tuple of the exact same length."
+                )
+            else:
+                static_tup = static
+
+            # Generate a Probabilize (optionally Combine-wrapped) node for each target item
             prob_nodes = tuple(
-                prx.Probabilize(dist, val, constraint=cons)
-                for dist, val, cons in zip(distribution, target_vals, constraint_tup)
+                _make_probabilistic_node(dist, val, constraint=cons, static=stat)
+                for dist, val, cons, stat in zip(distribution, target_vals, constraint_tup, static_tup)
             )
             self.probabilistic = eqx.tree_at(target, model, prob_nodes)
 
@@ -210,7 +245,7 @@ class Probabilistic(Model):
                     "Provided a tuple of constraints, but 'target' returned a single node."
                 )
 
-            prob_node = prx.Probabilize(distribution, target_vals, constraint=constraint)
+            prob_node = _make_probabilistic_node(distribution, target_vals, constraint=constraint, static=static)
             self.probabilistic = eqx.tree_at(target, model, prob_node)
 
     @property

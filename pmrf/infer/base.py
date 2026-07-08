@@ -250,7 +250,8 @@ def run_sampler(
     params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
 
     try:
-        eqx.combine(params, static, is_leaf=is_leaf)
+        # Static before params as per pmrf/optimize/base.py
+        eqx.combine(static, params, is_leaf=is_leaf)
     except Exception as e:
         raise Exception(f"Error re-combining params and static. Error: {e}")
     
@@ -272,7 +273,7 @@ def run_sampler(
 
         def _loglikelihood_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
             params = bijector_to_constrained.forward(unconstrained_params)
-            y_unwrapped = prx.unwrap(eqx.combine(params, static, is_leaf=is_leaf))
+            y_unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
             return loglikelihood_fn(y_unwrapped, args)
 
         def _logposterior_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
@@ -306,7 +307,7 @@ def run_sampler(
         # Post-process back to original parameter space and re-wrap
         batched_params_unwrapped = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
         batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
-        return eqx.combine(batched_params, static, is_leaf=is_leaf), results
+        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
 
     elif isinstance(solver, AbstractHypercubeSampler):
         # Extraction
@@ -322,7 +323,7 @@ def run_sampler(
             return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
         
         def _loglikelihood_fn(params: PyTree, args: Any):
-            unwrapped = prx.unwrap(eqx.combine(params, static, is_leaf=is_leaf))
+            unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
             return loglikelihood_fn(unwrapped, args)
         
         # Space conversions
@@ -340,7 +341,7 @@ def run_sampler(
         )
 
         batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)
-        return eqx.combine(batched_params, static, is_leaf=is_leaf), results
+        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

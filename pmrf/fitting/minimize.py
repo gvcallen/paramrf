@@ -140,7 +140,10 @@ def fit_minimize(
             loss = RMSELoss()
         else:
             if noise is None:
-                noise = Random(Uniform(0.0, 0.1))
+                # Lower bound kept strictly positive: at noise=0 the Gaussian likelihood
+                # becomes infinitely peaked, producing huge gradients that can drive other
+                # parameters to their own bounds within a couple of solver steps.
+                noise = Random(Uniform(1e-6, 0.1))
             likelihood = GaussianLikelihood(noise)
 
     if inference == 'frequentist' and loss is not None:
