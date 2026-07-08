@@ -187,11 +187,7 @@ def run_minimizer(
     solver_params = bijector.inverse(physical_params)
 
     # The objective always projects the solver's parameters forward to physical space.
-    # `static` is passed first here so it drives `eqx.combine`'s structural matching:
-    # `bijector.forward` can return a plain, structured pytree at an `is_leaf` boundary
-    # (e.g. a whole `parax.Probabilize`-wrapped submodel), which no longer looks like a
-    # leaf itself -- but `static`'s shape (with a single `None` there) never changes, so
-    # combining with it first still stops at the right position regardless.
+    # `static` is passed first here so it drives `eqx.combine`'s structural matching
     def objective(p: PyTree, args: Any) -> Scalar:
         physical_p = bijector.forward(p)
         unwrapped_model = prx.unwrap(eqx.combine(static, physical_p, is_leaf=is_leaf))
