@@ -17,6 +17,7 @@ import equinox as eqx
 import parax as prx
 from parax.annotation import AbstractAnnotated
 
+from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution
 from pmrf.utils import error_if, field
@@ -226,6 +227,23 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         if prx.is_bounded(self.raw_value):
             return self.raw_value.bounds
         return None
+
+    @property
+    def bijector(self) -> AbstractBijector | None:
+        """
+        The bijector mapping the raw value to the scaled physical value.
+
+        Returns
+        -------
+        AbstractBijector | None
+            The bijector if a constraint exists, otherwise None.
+        """
+        if self.constraint is None:
+            return None
+        inner = prx.as_unwrapped(self.constraint).bijector
+        if self.scale != 1.0:
+            return Chain([ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(self.scale)), inner])
+        return inner
 
     @property
     def value(self) -> jax.Array:
