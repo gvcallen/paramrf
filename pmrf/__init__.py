@@ -94,6 +94,7 @@ from pmrf.utils import (
 
 # Modules
 from pmrf import (
+    bijectors as bijectors,
     constraints as constraints,
     covariance_kernels as covariance_kernels,
     discrepancy_models as discrepancy_models,

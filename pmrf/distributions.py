@@ -3,8 +3,9 @@ Probability distribution classes and factories.
 
 Can be used for random parameters in :mod:`pmrf.parameters`.
 
-Re-exports from the `distreqx <https://lockwo.github.io/distreqx>`_ library,
-as well as additional utilities.
+These are (mostly) re-exports from the `distreqx <https://lockwo.github.io/distreqx>`_ library,
+with the goal of the covering the most common applications. For more advanced use-cases,
+simply use `distreqx` directly instead.
 """
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
@@ -14,6 +15,7 @@ from distreqx.distributions import (
     Normal as Normal,
     Uniform as Uniform,
     Gamma as Gamma,
+    Transformed as Transformed,
 )
 
 from parax.probability import truncate_distribution as truncate
@@ -74,6 +76,7 @@ __all__ = [
     "Normal",
     "Uniform",
     "Gamma",
+    "Transformed",
     "CenteredUniform",
     "RelativeNormal",
     "RelativeTruncatedNormal",
