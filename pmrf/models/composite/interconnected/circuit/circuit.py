@@ -30,9 +30,12 @@ from pmrf.models.composite.interconnected.circuit.base import (
     AdmittanceResult,
 )
 from pmrf.models.composite.interconnected.circuit.solvers.scattering import (
-    GlobalScatteringCircuitSolver,
     HierarchicalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,
+)
+
+from pmrf.models.composite.interconnected.circuit.solvers.nodal import (
+    GlobalMNACircuitSolver,
 )
 
 EVAL_Z0 = 50.0
@@ -87,7 +90,7 @@ class Circuit(Model):
     flatten: bool = field(default=False, kw_only=True, static=True)
     
     #: The circuit solver.
-    solver: AbstractCircuitSolver = field(default_factory=GlobalScatteringCircuitSolver, kw_only=True)
+    solver: AbstractCircuitSolver = field(default_factory=GlobalMNACircuitSolver, kw_only=True)
     
     #: The models in the connections.
     circuit: list[Model] = field(default=None, kw_only=True)
