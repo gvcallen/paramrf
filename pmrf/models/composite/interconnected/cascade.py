@@ -12,7 +12,9 @@ from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.math import nudge_diag
 from pmrf.types import ArrayLike
-from pmrf.rf import a2s, s2a
+from pmrf.rf import a2s, s2a, a2mna, s2mna, MNAStamp
+
+HUB_Z0 = 50.0 + 0.0j
 
 EVAL_Z0 = 50.0
 
@@ -231,3 +233,12 @@ class Cascade(Model):
             return s2a(mat, z0=mat_z0)
         elif domain == 'a':
             return mat
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        """
+        Overrides the generic `Model.mna()` fallback, which prefers `.a()`
+        over `.s()` whenever both are overridden.
+        """
+        if self.nports <= 2:
+            return a2mna(self.a(freq))
+        return s2mna(self.s(freq, z0=HUB_Z0), z0=HUB_Z0)

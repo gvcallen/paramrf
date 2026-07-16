@@ -107,9 +107,9 @@ class Tied(Model, prx.AbstractUnwrappable):
         Returns
         -------
         Model
-            The unwrapped `parax.Tie` wrapper containing the resolved relationships.
+            The fully-resolved model with all ties applied.
         """
-        return self.tie
+        return self
 
     @property
     def model(self) -> Model:
