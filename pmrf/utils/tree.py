@@ -529,7 +529,8 @@ class Partial(eqx.Module, Generic[_Return]):
         _Return
             The result of the wrapped callable.
         """
-        return self.func(*self.args, *args, **self.keywords, **kwargs)
+        merged_keywords = {**self.keywords, **kwargs}
+        return self.func(*self.args, *args, **merged_keywords)
     
 
 class Attrgetter(eqx.Module):
