@@ -12,6 +12,10 @@ Core Primitives
    pmrf.Model
    pmrf.Frequency
    pmrf.Param
+   pmrf.Problem
+   pmrf.AbstractTerm
+   pmrf.BoundEvaluator
+   pmrf.NegativeLogPrior
    pmrf.Unconstrained
    pmrf.Fixed
    pmrf.Bounded
@@ -43,6 +47,7 @@ Other Modules
    pmrf.discrepancy_models
    pmrf.distributions
    pmrf.evaluators
+   pmrf.terms
    pmrf.likelihoods
    pmrf.losses
    pmrf.math

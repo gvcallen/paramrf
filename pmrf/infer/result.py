@@ -8,6 +8,7 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
+from pmrf.terms import TermFn
 from pmrf.utils import field, batch_mask, partition, combine
 from pmrf.utils.random import compress_samples
 
@@ -25,16 +26,17 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #: The maximum likelihood or maximum a posterior of the RF model.
     best_model: ModelT
 
-    #: The maximum likelihood or maximum a posterior of the log-likelihood model.
-    best_loglikelihood: Callable[[ModelT, Frequency], jnp.ndarray]
-    
+    #: The maximum likelihood or maximum a posterior of the terms summed to form
+    #: the log-likelihood.
+    best_loglikelihood: tuple[TermFn, ...]
+
     #: A batched model containing the sampled RF model.
     #: Only populated for Bayesian sampling algorithms.
     sampled_model: ModelT = None
 
-    #: A batched model containing the sampled log-likelihood model.
+    #: Batched terms containing the sampled log-likelihood models.
     #: Only populated for Bayesian sampling algorithms.
-    sampled_loglikelihood: Callable | eqx.Module = None
+    sampled_loglikelihood: tuple[TermFn, ...] = None
 
     #: The function values related to each sample for Bayesian sampling.
     #: Typically, this contains the log likelihood or log posterior values.

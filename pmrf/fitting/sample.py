@@ -15,11 +15,11 @@ except ImportError:
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.models import SkrfNetwork
-from pmrf.evaluators import Feature, MarginalLogLikelihood, GibbsMarginalLogLikelihood
+from pmrf.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.infer import sample, AbstractSampler
 from pmrf.fitting.result import FitResult
+from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.parameters import Param, Random
 from pmrf.distributions import Uniform
 
@@ -108,47 +108,40 @@ def fit_sample(
         raise ValueError("Cannot pass `noise` when using a `loss` function for Generalized Bayesian Inference.")
 
     # Resolve the features and data
-    if not isinstance(features, Callable):
-        features = Feature(features)
-    if isinstance(data, skrf.Network | NetworkCollection):
-        if frequency is None:
-            if isinstance(data, skrf.Network):
-                frequency = Frequency.from_skrf(data.frequency)
-            else:
-                frequency = Frequency.from_skrf(data.common_frequency())
-        observed = features(SkrfNetwork(data), frequency)
-    else:
-        observed = data
-        
+    datasets = resolve_datasets(features, data, frequency)
+
     # Resolve the likelihood or loss model
     if loss is None and likelihood is None:
         if noise is None:
             noise = Random(Uniform(0.0, 0.1))
         likelihood = GaussianLikelihood(noise=noise)
-    
-    if likelihood is not None:
-        loglikelihood = MarginalLogLikelihood(
-            predictor=features, 
-            observed=observed, 
-            likelihood=likelihood, 
-            discrepancy=discrepancy
-        )
-    else:
-        temperature = temperature if temperature is not None else 1.0
-        loglikelihood = GibbsMarginalLogLikelihood(
-            predictor=features, 
-            observed=observed, 
-            loss=loss, 
-            discrepancy=discrepancy, 
-            temperature=temperature
-        )
+
+    loglikelihood = []
+    for dataset in datasets:
+        if likelihood is not None:
+            evaluator = MarginalLogLikelihood(
+                predictor=dataset.predictor,
+                observed=dataset.target,
+                likelihood=likelihood,
+                discrepancy=discrepancy
+            )
+        else:
+            temperature = temperature if temperature is not None else 1.0
+            evaluator = GibbsMarginalLogLikelihood(
+                predictor=dataset.predictor,
+                observed=dataset.target,
+                loss=loss,
+                discrepancy=discrepancy,
+                temperature=temperature
+            )
+        loglikelihood.append((evaluator, dataset.frequency))
 
     if solver is not None:
         kwargs['solver'] = solver
-    infer_result = sample(loglikelihood, model, frequency, **kwargs)
+    infer_result = sample(loglikelihood, model, **kwargs)
 
     return FitResult(
         data=data,
-        frequency=frequency,
+        frequency=union_frequency(datasets),
         solution=infer_result,
     )

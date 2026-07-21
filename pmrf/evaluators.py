@@ -474,7 +474,7 @@ class NegativeLogPosterior(AbstractEvaluator):
     """
     #: The underlying MLL instance.
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
-    
+
     def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
         nll = -self.mll(model, frequency, **kwargs)
         nlps = jnp.array([-log_prob(mod) for mod in [model, self.mll]])
@@ -543,6 +543,8 @@ __all__ = [
     'TargetLoss',
     'MarginalLogLikelihood',
     'GibbsMarginalLogLikelihood',
+    'NegativeLogLikelihood',
+    'NegativeLogPosterior',
     'Goal',
     'EvaluatorFn',
     'EvaluatorLike',

@@ -178,12 +178,15 @@ def fit_joint(
     **kwargs,
 ) -> FitResult:
     """
-    (experimental) Jointly fits all sub-modules of a circuit using the same features with either 
+    Jointly fits all sub-modules of a circuit using the same features with either
     optimization or sampling.
-    
+
     This function processes the entire network collection at once. It uses
-    the networks' names as prefixes for the features to fit, mapping the 
+    the networks' names as prefixes for the features to fit, mapping the
     global model parameters to the entire dataset in a single solve.
+
+    Each network is fitted on its own frequency axis, so collections spanning
+    different bands are fitted without being resampled onto a common grid.
 
     Parameters
     ----------
@@ -200,27 +203,8 @@ def fit_joint(
         A single result object containing the globally fitted model and backend 
         solution results. (The updated model can be accessed via `result.model`).
     """
-    # Ensure all network names are unique so the solver doesn't overwrite features
-    names = [ntwk.name for ntwk in data]
-    if len(names) != len(set(names)):
-        raise ValueError(
-            "Multiple networks with the same name found in `data`. "
-            "Names must be unique for joint fitting."
-        )
-
-    features = kwargs.pop('features', 's')
-    joint_features = []
-    
-    for ntwk in data:
-        name = ntwk.name
-        if isinstance(features, str):
-            joint_features.append(f"{name}.{features}")
-        else:
-            joint_features.extend([f"{name}.{feature}" for feature in features])
-
     return fit(
         model=model,
         data=data,
-        features=joint_features,
         **kwargs,
     )

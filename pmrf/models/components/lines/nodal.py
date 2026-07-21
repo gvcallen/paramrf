@@ -18,6 +18,9 @@ class FloatingLine(Model, Generic[T]):
     A wrapper that converts a 2-port single-ended transmission line 
     into a 4-port floating line with an explicit return path.
 
+    Port indices 0 and 1 form a terminal pair, as well as indices 2 and 3,
+    with indices 0 and 2 the ``positive'' connection.
+
     Parameters
     ----------
     floating : TransmissionLine

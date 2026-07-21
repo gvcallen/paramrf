@@ -1,14 +1,12 @@
-from typing import Callable, TypeVar
+from typing import Sequence, TypeVar
 
 import jax
 import jax.numpy as jnp
-import equinox as eqx
-import eqxpress as ex
-import parax as prx
 
 from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
 from pmrf.problem import Problem
+from pmrf.terms import TermLike, as_terms
 from pmrf.infer.base import AbstractSampler, run_sampler
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
@@ -17,10 +15,10 @@ from pmrf.utils.tree import batch_axes
 ModelT = TypeVar('ModelT', bound=Model)
 
 def sample(
-    loglikelihood: Callable[[ModelT, Frequency], jnp.ndarray] | list[Callable],
+    loglikelihood: TermLike | Sequence[TermLike],
     model: ModelT,
-    frequency: Frequency,
-    solver: AbstractSampler,
+    frequency: Frequency | None = None,
+    solver: AbstractSampler = None,
     *,
     key: jnp.ndarray | None = None,
     max_steps: int | None = None,
@@ -37,14 +35,20 @@ def sample(
 
     Parameters
     ----------
-    loglikelihood : Callable[[Model, Frequency], jnp.ndarray] | list[Callable],
+    loglikelihood : TermLike | Sequence[TermLike]
         The log likelihood function to sample. Can be a function or a callable PyTree
-        with optional parameters. If a list of log likelihoods is provided,
+        with optional parameters. If a sequence of log likelihoods is provided,
         they are automatically summed.
+
+        Each may instead be a ``(loglikelihood, frequency)`` pair, or a
+        :class:`pmrf.Term`, binding it to its own frequency sweep rather than the
+        shared one. This allows a single parameter set to be sampled against
+        several datasets on their own grids at once.
     model : Model
         The RF model containing the parameters to be sample.
-    frequency : Frequency
-        The frequency sweep over which the log likelihood should be evaluated.
+    frequency : Frequency | None, default=None
+        The frequency sweep over which the log likelihood should be evaluated. May be
+        omitted only if every log likelihood already carries its own frequency.
     solver : pmrf.infer.AbstractSampler
         The sampler to use (e.g., MCMC, Nested Sampling, etc.).
         See :mod:`pmrf.infer` for available solvers.
@@ -62,13 +66,11 @@ def sample(
     InferResult
         A structured result containing the sampled model and solver statistics.
     """
-    if isinstance(loglikelihood, list):
-        loglikelihood = ex.Sum([c if isinstance(c, eqx.Module) else prx.Static(ex.Lambda(c)) for c in loglikelihood])
-    else:
-        loglikelihood = loglikelihood if isinstance(loglikelihood, eqx.Module) else prx.Static(ex.Lambda(loglikelihood))
-    
-    problem = Problem(model=model, frequency=frequency, evaluator=loglikelihood)
-    
+    if solver is None:
+        raise ValueError("A sampler must be passed to `solver`. See `pmrf.infer` for available solvers.")
+
+    problem = Problem(model=model, terms=as_terms(loglikelihood, frequency))
+
     if key is None:
         key = generate_key()
         
@@ -95,14 +97,11 @@ def sample(
         return jnp.take(leaf, best_idx, axis=axis)
     best_problem = jax.tree.map(extract_best, batched_problem, problem_batch_axes)
     
-    best_model = best_problem.model
-    best_loglikelihood = best_problem.evaluator
-
     return InferResult(
-        best_model=best_model,
-        best_loglikelihood=best_loglikelihood,
+        best_model=best_problem.model,
+        best_loglikelihood=best_problem.terms,
         sampled_model=batched_problem.model,
-        sampled_loglikelihood=batched_problem.evaluator,
+        sampled_loglikelihood=batched_problem.terms,
         fn_values=results.fn_values,
         weights=results.weights,
         metrics=results.metrics,

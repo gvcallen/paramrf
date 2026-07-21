@@ -4,6 +4,7 @@ import jax.numpy as jnp
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
+from pmrf.terms import TermFn
 
 
 ModelT = TypeVar('ModelT', bound=Model)
@@ -16,10 +17,9 @@ class OptimizeResult(eqx.Module, Generic[ModelT]):
     #: The RF model holding the final optimized parameters.
     model: ModelT
 
-    #: The objective function (e.g., :class:`pmrf.evaluators.TargetLoss`)
-    #: used to calculate the objective during optimization. If the objective was a module
-    #: with hyper-parameters, then this contains the optimized objective model.
-    objective: Callable[[ModelT, Frequency], jnp.ndarray]
+    #: The terms that were summed to form the objective during optimization. If a term's
+    #: evaluator was a module with hyper-parameters, then this contains the optimized evaluator.
+    objective: tuple[TermFn, ...]
 
     #: Whether the optimizer converged.
     success: bool

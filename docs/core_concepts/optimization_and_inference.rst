@@ -3,6 +3,34 @@ Optimization and Inference
 
 ParamRF provides a higher-level interface for model optimization and inference. Models can be optimized using :mod:`pmrf.optimize.minimize`, sampled for statistical inference using :mod:`pmrf.infer.sample`, or fit to measured data using the high-level routines in :mod:`pmrf.fitting`.
 
+Multiple Objectives
+~~~~~~~~~~~~~~~~~~~
+
+Both :func:`pmrf.optimize.minimize` and :func:`pmrf.infer.sample` accept a list of objectives, which are summed together. By default, each objective is evaluated over the frequency sweep passed alongside them:
+
+.. code-block:: python
+
+   result = minimize([match_goal, isolation_goal], model, passband)
+
+An objective can also be paired with its own frequency sweep. This allows a single set of model parameters to be optimized over several bands at once, which is useful when different measurements cover different frequency ranges, or when a design goal only applies within a certain band:
+
+.. code-block:: python
+
+   result = minimize([
+       (prf.evaluators.Goal('s11_db', '<', -20), prf.Frequency(50, 130, 101, 'MHz')),
+       (prf.evaluators.Goal('s21_db', '>', -1), prf.Frequency(10, 500, 401, 'MHz')),
+   ], model)
+
+To weight the objectives against one another, the pairing can be created explicitly using :class:`pmrf.BoundEvaluator`. Any callable that accepts only a model, such as a penalty on the parameters that requires no frequency, can also be summed in directly:
+
+.. code-block:: python
+
+   result = minimize([
+       prf.BoundEvaluator(s11_goal, passband, weight=2.0),
+       prf.BoundEvaluator(s21_goal, wideband),
+       lambda model: 1e-3 * jnp.sum(model.L ** 2),
+   ], model)
+
 JAX vs CPU
 ~~~~~~~~~~
 

@@ -58,6 +58,19 @@ The :func:`~pmrf.optimize.minimize` function returns an :class:`~pmrf.optimize.O
    optimized_lpf.plot_s_db(passband, m=0, n=0, label='optimized')
    plt.title('Initial vs. Optimized S11')
 
-For more complex designs, the :func:`~pmrf.optimize.minimize` function can accept a list of multiple goals, and you can apply masks to evaluate different features across different frequency bands. For even more advanced optimization, custom losses can be specified, either using the built-in losses in :mod:`~pmrf.losses`; using a custom callable; or by creating a custom :class:`~pmrf.evaluators.AbstractEvaluator`. The last example is the most powerful, allowing the specification of arbitrary, tunable hyper-parameters.
+For more complex designs, the :func:`~pmrf.optimize.minimize` function can accept a list of multiple goals. Each goal can also be paired with its own :class:`~pmrf.Frequency`, which allows different features to be evaluated over different bands. For example, we can add a stopband rejection goal alongside our passband matching goal:
+
+.. plot::
+   :context:
+   :include-source:
+
+   stopband = prf.Frequency(1, 2, 101, 'GHz')
+
+   result = minimize([
+       (Goal('s11_db', '<', -20), passband),
+       (Goal('s21_db', '<', -40), stopband),
+   ], lpf, solver=ScipyMinimize(method='L-BFGS-B'))
+
+See the :doc:`/core_concepts/optimization_and_inference` page for how to weight such goals against one another. For even more advanced optimization, custom losses can be specified, either using the built-in losses in :mod:`~pmrf.losses`; using a custom callable; or by creating a custom :class:`~pmrf.evaluators.AbstractEvaluator`. The last example is the most powerful, allowing the specification of arbitrary, tunable hyper-parameters.
 
 Note that ParamRF also provides convenience functions for fitting models directly to data in :func:`~pmrf.fitting`. See the tutorial for a detailed guide.

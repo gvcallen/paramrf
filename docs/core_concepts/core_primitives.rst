@@ -30,4 +30,10 @@ The Evaluator and other classes
 
 Evaluators are created automatically when fitting routines are called, such as :func:`~pmrf.optimize.minimize` or :func:`~pmrf.infer.sample`. For example, specifying ``'s21_db'`` as a fitting feature for :func:`~pmrf.fitting.fit` creates a :class:`~pmrf.evaluators.Feature` evaluator, whilst specifying a loss or likelihood function creates a :class:`~pmrf.evaluators.TargetLoss` or :class:`~pmrf.evaluators.MarginalLogLikelihood` evaluator respectively.
 
+Since an evaluator takes frequency *as input*, the same evaluator can be re-used over different sweeps. For example, an evaluator can be fitted over a coarse sweep of measured data, and then plotted over a much finer one.
+
+When a model is solved, an evaluator is paired with the sweep it should be evaluated over using :class:`pmrf.BoundEvaluator`, which optionally also accepts a relative weight. The result is a *term*, which is any callable that takes a model and returns a result. A :class:`pmrf.Problem` is then simply a model together with the terms to be summed over it.
+
+Terms that do not require a frequency, such as a penalty on the model's parameters, can be written as a plain function of the model. The built-in terms, such as :class:`pmrf.NegativeLogPrior`, inherit from :class:`pmrf.AbstractTerm`, but this is a convenience and not a requirement. In most cases these classes do not need to be created manually, as :func:`~pmrf.optimize.minimize` and :func:`~pmrf.infer.sample` create them automatically.
+
 Other core class interfaces include those in :class:`~pmrf.losses`, :class:`~pmrf.likelihoods`, :class:`~pmrf.discrepancy_models` and :class:`~pmrf.noise_models`. These help glue the rest of the library together, as well as enable more advanced features such as hyperparameter-based optimization and Gaussian process discrepancy modeling. See the :doc:`../tutorials/index` section for more information.

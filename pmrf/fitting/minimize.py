@@ -12,8 +12,9 @@ import distreqx.distributions as dist
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.models import SkrfNetwork
-from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
+from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
+from pmrf.terms import NegativeLogPrior
+from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
 from pmrf.parameters import Random
@@ -122,17 +123,7 @@ def fit_minimize(
         raise ValueError("Discrepancy models can only be passed if `likelihood` is passed or `inference` is 'bayesian'`")
     
     # Resolve data and features
-    if not isinstance(features, Callable):
-        features = Feature(features)
-    if isinstance(data, skrf.Network | NetworkCollection):
-        if frequency is None:
-            if isinstance(data, skrf.Network):
-                frequency = Frequency.from_skrf(data.frequency)
-            else:
-                frequency = Frequency.from_skrf(data.common_frequency())
-        target = features(SkrfNetwork(data), frequency)
-    else:
-        target = data
+    datasets = resolve_datasets(features, data, frequency)
 
     # Resolve defaults e.g. loss vs MLE vs MAP optimization
     if loss is None and likelihood is None:
@@ -146,27 +137,37 @@ def fit_minimize(
                 noise = Random(Uniform(1e-6, 0.1))
             likelihood = GaussianLikelihood(noise)
 
-    if inference == 'frequentist' and loss is not None:
-        objective = TargetLoss(predictor=features, target=target, loss=loss)
-    else:
-        if likelihood is not None:
-            mll = MarginalLogLikelihood(predictor=features, observed=target, likelihood=likelihood, discrepancy=discrepancy)
+    # A single dataset keeps the posterior whole; several share one prior term, so that
+    # the parameters they have in common are penalized once rather than once each.
+    split_prior = inference == 'bayesian' and len(datasets) > 1
+
+    objective = []
+    for dataset in datasets:
+        if inference == 'frequentist' and loss is not None:
+            evaluator = TargetLoss(predictor=dataset.predictor, target=dataset.target, loss=loss)
         else:
-            temperature = temperature if temperature is not None else 1.0
-            mll = GibbsMarginalLogLikelihood(predictor=features, observed=target, loss=loss, discrepancy=discrepancy, temperature=temperature)
-        if inference == 'frequentist':
-            objective = NegativeLogLikelihood(mll)
-        else:
-            objective = NegativeLogPosterior(mll)
+            if likelihood is not None:
+                mll = MarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, likelihood=likelihood, discrepancy=discrepancy)
+            else:
+                temperature = temperature if temperature is not None else 1.0
+                mll = GibbsMarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, loss=loss, discrepancy=discrepancy, temperature=temperature)
+            if inference == 'frequentist' or split_prior:
+                evaluator = NegativeLogLikelihood(mll)
+            else:
+                evaluator = NegativeLogPosterior(mll)
+        objective.append((evaluator, dataset.frequency))
+
+    if split_prior:
+        objective.append(NegativeLogPrior())
 
     # Run the optimizer
     if solver is not None:
         kwargs['solver'] = solver
-        
-    optimize_result = minimize(objective, model, frequency, **kwargs)
+
+    optimize_result = minimize(objective, model, **kwargs)
 
     return FitResult(
         data=data,
-        frequency=frequency,
+        frequency=union_frequency(datasets),
         solution=optimize_result,
     )
