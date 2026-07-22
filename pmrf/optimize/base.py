@@ -5,6 +5,7 @@ import warnings
 from typing import Any, Callable, TypeAlias
 import abc
 
+import jax
 import numpy as np
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
@@ -172,6 +173,11 @@ def run_minimizer(
     is_leaf = prx.constraints.is_leaf
     
     dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
+    if not jax.tree.leaves(dynamic):
+        raise ValueError(
+            "Nothing to optimize: the tree has no free parameters. Every parameter is "
+            "either fixed or a plain value."
+        )
     physical_params = prx.unwrap(dynamic, only_if=prx.is_constrained)
 
     # Configure the spatial projection and bounds based on the solver type

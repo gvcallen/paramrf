@@ -841,7 +841,10 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
         lambda d, value: d.log_prob(value) if prx.is_distribution(d) else jnp.asarray(0.0),
         distributions, tree, is_leaf=is_scored,
     )
-    return sum(jax.tree.leaves(log_probs))
+    # An array-valued parameter scores one density per element, so each leaf is reduced
+    # before summing; otherwise the result is a vector and the objective stops being
+    # scalar.
+    return sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
 
 
 def tree_pathed_params(
