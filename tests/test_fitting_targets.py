@@ -389,3 +389,39 @@ def test_named_params_sees_past_a_probabilistic_wrapper():
 
     # wide.val is inside the wrapper and legitimately opaque; the rest must be found.
     assert len(wrapped.named_params()) == len(base.named_params()) - 1
+
+
+def test_prior_is_finite_for_a_scaled_parameter(wide_band):
+    """
+    A prior is authored in the parameter's raw space, not its scaled one.
+
+    Evaluating it against the scaled value puts it far outside its support, giving an
+    infinite log prior and a MAP objective that never moves. Earlier MAP tests all
+    used scale=1, the one case where this is invisible.
+    """
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
+
+    # Authored over mm, held in metres: the reported failure.
+    scaled = prf.Random(prf.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
+
+    log_prior = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
+    assert jnp.isfinite(log_prior)
+
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+    assert jnp.isfinite(PriorPenalized(SummedTerms(model=model, terms=(term,)))())
+
+def test_scaled_parameter_still_moves_under_map(wide_band):
+    """An infinite prior leaves the optimizer at its starting point."""
+    from pmrf.fitting.minimize import fit_minimize
+
+    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5e-3, name='wide')
+    scaled = prf.Random(prf.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
+
+    result = fit_minimize(model, NetworkCollection([ntwk]),
+                          solver=prf.optimize.ScipyMinimize(), inference='bayesian', max_iter=200)
+
+    assert not jnp.allclose(prf.unwrap(result.model.wide.val), prf.unwrap(model.wide.val))

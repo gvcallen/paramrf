@@ -19,7 +19,7 @@ from parax.annotation import AbstractAnnotated
 
 from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
-from pmrf.distributions import AbstractDistribution
+from pmrf.distributions import AbstractDistribution, Transformed
 from pmrf.utils import error_if, field
 from pmrf.utils.optix import focus, Lens
 from pmrf.utils.tree import filtered_pathed_leaves, path_to_name
@@ -229,9 +229,13 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         return None
 
     @property
-    def bijector(self) -> AbstractBijector | None:
+    def raw_to_constrained_bijector(self) -> AbstractBijector | None:
         """
-        The bijector mapping the raw value to the scaled physical value.
+        The bijector mapping the raw value to the constrained value.
+
+        The raw value is the latent one held in `raw_value`, which Parax refers to as
+        the unconstrained space. It is called raw here to avoid confusion with
+        :func:`pmrf.Unconstrained`, which creates a parameter without bounds.
 
         Returns
         -------
@@ -240,10 +244,46 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         """
         if self.constraint is None:
             return None
-        inner = prx.as_unwrapped(self.constraint).bijector
-        if self.scale != 1.0:
-            return Chain([ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(self.scale)), inner])
-        return inner
+        return prx.as_unwrapped(self.constraint).bijector
+
+    @property
+    def constrained_to_physical_bijector(self) -> AbstractBijector | None:
+        """
+        The bijector mapping the constrained value to the scaled physical value.
+
+        This is the parameter's scale. Distributions and bounds are authored in the
+        constrained space, so this is the step needed to compare them against a value
+        that has been unwrapped.
+
+        Returns
+        -------
+        AbstractBijector | None
+            The bijector if the parameter is scaled, otherwise None.
+        """
+        if self.scale == 1.0:
+            return None
+        return ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(self.scale))
+
+    @property
+    def bijector(self) -> AbstractBijector | None:
+        """
+        The full bijector mapping the raw value to the scaled physical value.
+
+        Composes :attr:`raw_to_constrained_bijector` with
+        :attr:`constrained_to_physical_bijector`.
+
+        Returns
+        -------
+        AbstractBijector | None
+            The bijector if a constraint exists, otherwise None.
+        """
+        raw_to_constrained = self.raw_to_constrained_bijector
+        if raw_to_constrained is None:
+            return None
+        constrained_to_physical = self.constrained_to_physical_bijector
+        if constrained_to_physical is None:
+            return raw_to_constrained
+        return Chain([constrained_to_physical, raw_to_constrained])
 
     @property
     def value(self) -> jax.Array:
@@ -736,9 +776,22 @@ def node_distribution(node) -> AbstractDistribution | None:
 
     Covers both a :class:`Param`'s own distribution and a joint distribution attached
     over a sub-tree, such as by :class:`pmrf.models.Probabilistic`.
+
+    A parameter's distribution is authored in its raw, unscaled space, whereas an
+    unwrapped tree holds scaled values, so the scale is folded into the distribution
+    here. Its Jacobian is constant and so cannot move the mode.
     """
-    if is_param(node) or prx.is_probabilistic(node):
-        return node.distribution
+    if is_param(node):
+        distribution = node.distribution
+        if distribution is None:
+            return None
+        distribution = prx.as_unwrapped(distribution)
+        to_physical = node.constrained_to_physical_bijector
+        if to_physical is not None:
+            distribution = Transformed(distribution, to_physical)
+        return distribution
+    if prx.is_probabilistic(node):
+        return prx.as_unwrapped(node.distribution)
     return None
 
 
@@ -761,7 +814,7 @@ def tree_param_distributions(tree) -> Any:
         if distribution is not None:
             # Covers the whole sub-tree it unwraps to, so a distribution attached
             # higher up overrides any below it.
-            return prx.as_unwrapped(distribution)
+            return distribution
         if prx.is_unwrappable(node):
             # The node vanishes on unwrapping, so mirror what it leaves behind.
             return build(node.unwrap())
