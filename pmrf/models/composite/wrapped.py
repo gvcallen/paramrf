@@ -13,6 +13,17 @@ from pmrf.utils import unwrap_self
 
 def _make_probabilistic_node(distribution, value, *, constraint, static):
     """A `parax.Probabilize` node, `parax.Combine`-wrapped with `static` if given."""
+    from pmrf.distributions import Transformed
+    from pmrf.parameters import is_param
+
+    # A parameter's distribution is authored in its constrained space, but Parax keeps
+    # only the physical value here and drops the parameter, taking its scale with it.
+    # Fold the scale in now, while it can still be read.
+    if is_param(value):
+        to_physical = value.constrained_to_physical_bijector
+        if to_physical is not None:
+            distribution = Transformed(prx.as_unwrapped(distribution), to_physical)
+
     node = prx.Probabilize(distribution, value, constraint=constraint)
     if static is not None:
         node = prx.Combine(node, static)

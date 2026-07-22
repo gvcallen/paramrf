@@ -94,6 +94,12 @@ def fit_minimize(
         See :mod:`pmrf.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
         Only allowed if `likelihood` is passed and/or `inference` is 'bayesian'.
+
+        When `data` is a collection, each network is fitted by its own likelihood, so
+        each receives its own copy of this noise, free to take a different value and
+        carrying its own prior. This suits datasets of differing quality, which is the
+        common case for a collection. To share one noise across them, pass a
+        `likelihood` built around a single parameter instead.
     discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | dist.AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.

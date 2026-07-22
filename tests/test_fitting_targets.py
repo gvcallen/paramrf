@@ -425,3 +425,33 @@ def test_scaled_parameter_still_moves_under_map(wide_band):
                           solver=prf.optimize.ScipyMinimize(), inference='bayesian', max_iter=200)
 
     assert not jnp.allclose(prf.unwrap(result.model.wide.val), prf.unwrap(model.wide.val))
+
+
+def test_probabilistic_folds_the_scale_of_its_target():
+    """
+    Attaching a distribution to a scaled parameter must not lose the scale.
+
+    Parax keeps only the physical value and drops the parameter, so a distribution
+    authored in the parameter's constrained space would be evaluated against a scaled
+    value. For a non-uniform prior that is not a constant offset: it lands far into
+    the tail, where the density is nearly flat and exerts almost no gradient.
+    """
+    from pmrf.models import Probabilistic, Resistor
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+
+    prior = lambda: prf.distributions.Normal(75.0, 5.0)
+    log_prior = lambda m: tree_param_log_prob(tree_param_distributions(m), prf.unwrap(m))
+
+    scored = {}
+    for value in (75.0, 60.0):
+        # Authored over mm, held in metres.
+        plain = Resistor(prf.Random(prior(), value=value, scale=1e-3))
+        wrapped = Probabilistic(model=plain, distribution=prior(), target=lambda m: m.R)
+        scored[value] = (log_prior(plain), log_prior(wrapped))
+        assert jnp.allclose(prf.unwrap(wrapped).R, value * 1e-3)
+
+    for direct, via_wrapper in scored.values():
+        assert jnp.allclose(direct, via_wrapper, atol=1e-4)
+
+    # The prior must still discriminate: at the mean it is higher than 3 sigma away.
+    assert scored[75.0][1] > scored[60.0][1] + 1.0
