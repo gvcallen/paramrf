@@ -71,6 +71,11 @@ def sample(
         raise ValueError("A sampler must be passed to `solver`. See `pmrf.infer` for available solvers.")
 
     if isinstance(loglikelihood, AbstractProblem):
+        if model is not None or frequency is not None:
+            raise ValueError(
+                "`model` and `frequency` are already bound into the problem passed as "
+                "`loglikelihood`, so they cannot be passed alongside it."
+            )
         problem = loglikelihood
     else:
         problem = SummedTerms(model=model, terms=as_terms(loglikelihood, frequency))

@@ -62,6 +62,11 @@ def minimize(
     """
     # Create the combined problem
     if isinstance(objective, AbstractProblem):
+        if model is not None or frequency is not None:
+            raise ValueError(
+                "`model` and `frequency` are already bound into the problem passed as "
+                "`objective`, so they cannot be passed alongside it."
+            )
         problem = objective
     else:
         problem = SummedTerms(model=model, terms=as_terms(objective, frequency))

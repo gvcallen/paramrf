@@ -66,6 +66,10 @@ class SummedTerms(AbstractProblem):
     #: The terms summed to produce the result.
     terms: tuple[TermFn, ...] = field(converter=tuple)
 
+    def __post_init__(self):
+        if not self.terms:
+            raise ValueError("A problem must have at least one term to sum.")
+
     def __call__(self, *args, **kwargs) -> jnp.ndarray:
         model = unwrap(self.model)
         results = [unwrap(term)(model, *args, **kwargs) for term in self.terms]
@@ -103,6 +107,11 @@ class PriorPenalized(AbstractProblem):
     distributions: Any = field(converter=freeze, init=False)
 
     def __post_init__(self):
+        if isinstance(self.problem, PriorPenalized):
+            raise ValueError(
+                "This problem is already prior-penalized. Penalizing it again would "
+                "count every prior twice."
+            )
         self.distributions = tree_param_distributions(self.problem)
 
     @property

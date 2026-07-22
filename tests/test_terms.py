@@ -169,3 +169,31 @@ def test_optimize_result_objective_for_single_term(model, low_band):
 
     assert len(result.objective) == 1
     assert isinstance(result.objective[0].evaluator, prf.evaluators.Goal)
+
+# ---------------------------------------------------------
+# Misuse should say what is wrong
+# ---------------------------------------------------------
+
+def test_problem_rejects_empty_terms(model):
+    from pmrf.problems import SummedTerms
+
+    with pytest.raises(ValueError, match="at least one term"):
+        SummedTerms(model=model, terms=())
+
+def test_prior_penalized_rejects_double_wrapping(model, low_band):
+    """Penalizing twice would count every prior twice."""
+    from pmrf.problems import SummedTerms, PriorPenalized
+
+    problem = PriorPenalized(SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(0.0), low_band),)))
+
+    with pytest.raises(ValueError, match="already prior-penalized"):
+        PriorPenalized(problem)
+
+def test_minimize_rejects_a_problem_alongside_a_model(model, low_band):
+    """The problem already binds them, so passing both is ambiguous."""
+    from pmrf.problems import SummedTerms
+
+    problem = SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(0.0), low_band),))
+
+    with pytest.raises(ValueError, match="already bound into the problem"):
+        minimize(problem, model=model)
