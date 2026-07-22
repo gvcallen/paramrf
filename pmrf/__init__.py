@@ -48,12 +48,6 @@ from pmrf.models import (
     is_model as is_model,
 )
 from pmrf.frequency import Frequency as Frequency
-from pmrf.problem import Problem as Problem
-from pmrf.terms import (
-    AbstractTerm as AbstractTerm,
-    BoundEvaluator as BoundEvaluator,
-    NegativeLogPrior as NegativeLogPrior,
-)
 
 #: The canonical type hint for a float, or a numpy or JAX array.
 ArrayLike: TypeAlias = ArrayLike
@@ -125,10 +119,6 @@ __all__ = [
     "is_model",
     "Frequency",
     "Topology",
-    "Problem",
-    "AbstractTerm",
-    "BoundEvaluator",
-    "NegativeLogPrior",
 
     # Parameters
     "Param",

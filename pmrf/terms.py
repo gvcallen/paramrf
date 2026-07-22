@@ -14,14 +14,13 @@ from pmrf.models.base import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
 from pmrf.utils import freeze, field, unwrap
-from pmrf.utils.tree import log_prob
 
 
 class AbstractTerm(eqx.Module):
     """
     Abstract base class for callables that evaluate a model.
 
-    Terms are the summands of a :class:`pmrf.Problem`. An evaluator takes both a model
+    Terms are the summands of a :class:`pmrf.SummedTerms`. An evaluator takes both a model
     and a frequency, whereas a term takes only a model, having already resolved the
     frequency that it needs.
 
@@ -61,7 +60,7 @@ class BoundEvaluator(AbstractTerm):
 
     Evaluators take frequency as input, meaning the same evaluator can be re-used over
     different sweeps. Binding one to a particular sweep creates a term, which can then
-    be summed by a :class:`pmrf.Problem`. Several evaluators can therefore be bound to
+    be summed by a :class:`pmrf.SummedTerms`. Several evaluators can therefore be bound to
     different sweeps and solved together, allowing a single set of model parameters to
     be fitted over multiple bands at once.
 
@@ -85,25 +84,6 @@ class BoundEvaluator(AbstractTerm):
 
     def __call__(self, model: Model, **kwargs) -> jnp.ndarray:
         return self.weight * unwrap(self.evaluator)(model, unwrap(self.frequency), **kwargs)
-
-
-class NegativeLogPrior(AbstractTerm):
-    """
-    Computes the negative of the log of the prior on a model's parameters.
-
-    This is a term and not an evaluator, since it depends only on the parameters and
-    therefore has no frequency sweep to be evaluated over. When summed alongside a
-    likelihood for each dataset, it penalizes the shared parameters once, as opposed
-    to once per dataset.
-
-    The prior is assumed to be attached to the model and the log prior probability
-    is evaluated over the model's current parameters. This can be done either by
-    specifying the distributions of individual parameters using
-    :class:`pmrf.parameters.Random`, or by attaching joint probability distributions
-    using :class:`pmrf.models.Probabilistic`.
-    """
-    def __call__(self, model: Model, **kwargs) -> jnp.ndarray:
-        return -log_prob(model)
 
 
 def as_terms(objective: TermLike | Sequence[TermLike], frequency: Frequency | None = None) -> tuple[TermFn, ...]:
@@ -161,7 +141,6 @@ def _as_evaluator(fn: Callable) -> Callable:
 __all__ = [
     'AbstractTerm',
     'BoundEvaluator',
-    'NegativeLogPrior',
     'TermFn',
     'TermLike',
     'as_terms',

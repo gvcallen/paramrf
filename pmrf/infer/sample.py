@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
-from pmrf.problem import Problem
+from pmrf.problems import AbstractProblem, SummedTerms
 from pmrf.terms import TermLike, as_terms
 from pmrf.infer.base import AbstractSampler, run_sampler
 from pmrf.infer.result import InferResult
@@ -16,7 +16,7 @@ ModelT = TypeVar('ModelT', bound=Model)
 
 def sample(
     loglikelihood: TermLike | Sequence[TermLike],
-    model: ModelT,
+    model: ModelT | None = None,
     frequency: Frequency | None = None,
     solver: AbstractSampler = None,
     *,
@@ -35,8 +35,8 @@ def sample(
 
     Parameters
     ----------
-    loglikelihood : TermLike | Sequence[TermLike]
-        The log likelihood function to sample. Can be a function or a callable PyTree
+    loglikelihood : TermLike | Sequence[TermLike] | pmrf.AbstractProblem
+        An already-built problem, or the log likelihood function to sample. Can be a function or a callable PyTree
         with optional parameters. If a sequence of log likelihoods is provided,
         they are automatically summed.
 
@@ -44,8 +44,9 @@ def sample(
         :class:`pmrf.Term`, binding it to its own frequency sweep rather than the
         shared one. This allows a single parameter set to be sampled against
         several datasets on their own grids at once.
-    model : Model
-        The RF model containing the parameters to be sample.
+    model : Model | None, default=None
+        The RF model containing the parameters to be sampled. Omitted when an
+        already-built problem is passed.
     frequency : Frequency | None, default=None
         The frequency sweep over which the log likelihood should be evaluated. May be
         omitted only if every log likelihood already carries its own frequency.
@@ -69,7 +70,10 @@ def sample(
     if solver is None:
         raise ValueError("A sampler must be passed to `solver`. See `pmrf.infer` for available solvers.")
 
-    problem = Problem(model=model, terms=as_terms(loglikelihood, frequency))
+    if isinstance(loglikelihood, AbstractProblem):
+        problem = loglikelihood
+    else:
+        problem = SummedTerms(model=model, terms=as_terms(loglikelihood, frequency))
 
     if key is None:
         key = generate_key()
@@ -98,10 +102,8 @@ def sample(
     best_problem = jax.tree.map(extract_best, batched_problem, problem_batch_axes)
     
     return InferResult(
-        best_model=best_problem.model,
-        best_loglikelihood=best_problem.terms,
-        sampled_model=batched_problem.model,
-        sampled_loglikelihood=batched_problem.terms,
+        best_problem=best_problem,
+        sampled_problem=batched_problem,
         fn_values=results.fn_values,
         weights=results.weights,
         metrics=results.metrics,

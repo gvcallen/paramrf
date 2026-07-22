@@ -18,12 +18,14 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.utils import freeze, field, unwrap, unwrap_self
-from pmrf.utils.tree import log_prob
+from pmrf.utils import field, unwrap, unwrap_self
 
 class AbstractEvaluator(eqx.Module):
     """
     Abstract base class for callables that evaluate a model over frequency.
+
+    Note that an evaluator should only depend on the model's parameter values,
+    any not any additional metadata (bounds, distributions etc.).
     """
     @abstractmethod
     def __call__(self, model: Model, freq: Frequency, **kwargs) -> jnp.ndarray:
@@ -453,34 +455,6 @@ class NegativeLogLikelihood(AbstractEvaluator):
         return -self.mll(model, frequency, **kwargs)
 
 
-class NegativeLogPosterior(AbstractEvaluator):
-    """
-    (experimental) Computes the negative of the log of the probability of observed data,
-    plus the negative of the log of the prior on the parameters.
-    
-    Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
-    that is useful for performing Maximum A Posteriori (MAP) estimation.
-    
-    The prior is assumed to be attached to the model and the log prior
-    probability is evaluated over the model's current parameters.
-    This can be done either by specifying the distributions of individual
-    parameters using :class:`pmrf.parameters.Random`, or by attaching
-    joint probability distributions using :class:`pmrf.models.Probabilistic`.
-
-    Parameters
-    ----------
-    mll
-        The underlying marginal log likelihood.
-    """
-    #: The underlying MLL instance.
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
-
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        nll = -self.mll(model, frequency, **kwargs)
-        nlps = jnp.array([-log_prob(mod) for mod in [model, self.mll]])
-        return nll + jnp.sum(nlps)
-
-
 class Goal(TargetLoss):
     """
     Computes a design goal using a hinge-based loss evaluator.
@@ -544,7 +518,6 @@ __all__ = [
     'MarginalLogLikelihood',
     'GibbsMarginalLogLikelihood',
     'NegativeLogLikelihood',
-    'NegativeLogPosterior',
     'Goal',
     'EvaluatorFn',
     'EvaluatorLike',

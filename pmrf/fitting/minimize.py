@@ -12,8 +12,9 @@ import distreqx.distributions as dist
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood, NegativeLogPosterior
-from pmrf.terms import NegativeLogPrior
+from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood
+from pmrf.problems import SummedTerms, PriorPenalized
+from pmrf.terms import as_terms
 from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.losses import RMSELoss
@@ -80,7 +81,7 @@ def fit_minimize(
         A likelihood model representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
         Used to internally create a :class:`pmrf.evaluators.NegativeLogLikelihood`
-        or :class:`pmrf.evaluators.NegativeLogPosterior` evaluator.
+        evaluator.
         Mutually exclusive with `loss`. If neither `loss` nor `likelihood` is passed,
         :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
@@ -137,10 +138,6 @@ def fit_minimize(
                 noise = Random(Uniform(1e-6, 0.1))
             likelihood = GaussianLikelihood(noise)
 
-    # A single dataset keeps the posterior whole; several share one prior term, so that
-    # the parameters they have in common are penalized once rather than once each.
-    split_prior = inference == 'bayesian' and len(datasets) > 1
-
     objective = []
     for dataset in datasets:
         if inference == 'frequentist' and loss is not None:
@@ -151,20 +148,17 @@ def fit_minimize(
             else:
                 temperature = temperature if temperature is not None else 1.0
                 mll = GibbsMarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, loss=loss, discrepancy=discrepancy, temperature=temperature)
-            if inference == 'frequentist' or split_prior:
-                evaluator = NegativeLogLikelihood(mll)
-            else:
-                evaluator = NegativeLogPosterior(mll)
+            evaluator = NegativeLogLikelihood(mll)
         objective.append((evaluator, dataset.frequency))
-
-    if split_prior:
-        objective.append(NegativeLogPrior())
 
     # Run the optimizer
     if solver is not None:
         kwargs['solver'] = solver
 
-    optimize_result = minimize(objective, model, **kwargs)
+    problem = SummedTerms(model=model, terms=as_terms(objective))
+    if inference == 'bayesian':
+        problem = PriorPenalized(problem)
+    optimize_result = minimize(problem, **kwargs)
 
     return FitResult(
         data=data,

@@ -8,6 +8,7 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
+from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn
 from pmrf.utils import field, batch_mask, partition, combine
 from pmrf.utils.random import compress_samples
@@ -23,20 +24,12 @@ class InferResult(eqx.Module, Generic[ModelT]):
     Contains the resultant maximum likelihood/maximum a posterior estimates,
     as well as the samples, function values and weights for nested sampling runs.
     """
-    #: The maximum likelihood or maximum a posterior of the RF model.
-    best_model: ModelT
+    #: The maximum likelihood or maximum a posterior of the problem.
+    best_problem: AbstractProblem
 
-    #: The maximum likelihood or maximum a posterior of the terms summed to form
-    #: the log-likelihood.
-    best_loglikelihood: tuple[TermFn, ...]
-
-    #: A batched model containing the sampled RF model.
+    #: A batched problem containing the samples.
     #: Only populated for Bayesian sampling algorithms.
-    sampled_model: ModelT = None
-
-    #: Batched terms containing the sampled log-likelihood models.
-    #: Only populated for Bayesian sampling algorithms.
-    sampled_loglikelihood: tuple[TermFn, ...] = None
+    sampled_problem: AbstractProblem = None
 
     #: The function values related to each sample for Bayesian sampling.
     #: Typically, this contains the log likelihood or log posterior values.
@@ -55,6 +48,34 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #: The underlying metrics returned by the solver, if any.
     #: May be a stripped-down version of the original results object.
     metrics: Any = field(default=None)
+
+    @property
+    def best_model(self) -> ModelT:
+        """
+        The maximum likelihood or maximum a posterior of the RF model.
+        """
+        return self.best_problem.model
+
+    @property
+    def best_loglikelihood(self) -> tuple[TermFn, ...]:
+        """
+        The maximum likelihood or maximum a posterior of the summed terms.
+        """
+        return problem_terms(self.best_problem, 'best_loglikelihood')
+
+    @property
+    def sampled_model(self) -> ModelT:
+        """
+        A batched model containing the sampled RF model.
+        """
+        return self.sampled_problem.model
+
+    @property
+    def sampled_loglikelihood(self) -> tuple[TermFn, ...]:
+        """
+        Batched terms containing the sampled log-likelihood models.
+        """
+        return problem_terms(self.sampled_problem, 'sampled_loglikelihood')
 
     def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> ModelT:
         """

@@ -4,8 +4,8 @@ import jax.numpy as jnp
 import pmrf as prf
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.problem import Problem
-from pmrf.terms import AbstractTerm, BoundEvaluator, NegativeLogPrior, as_terms
+from pmrf.problems import SummedTerms
+from pmrf.terms import AbstractTerm, BoundEvaluator, as_terms
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers.scipy import ScipyMinimize
 
@@ -37,7 +37,7 @@ def model():
     return BandModel(val=1.0)
 
 # ---------------------------------------------------------
-# `BoundEvaluator`, `NegativeLogPrior` and `Problem`
+# `BoundEvaluator` and `SummedTerms`
 # ---------------------------------------------------------
 
 def test_term_binds_its_own_frequency(model, low_band, high_band):
@@ -56,14 +56,14 @@ def test_term_weight_scales_contribution(model, low_band):
 def test_problem_sums_terms_across_grids(model, low_band, high_band):
     """The defining capability: one parameter set, terms on different grids."""
     npoints = lambda m, f: jnp.asarray(float(f.npoints))
-    problem = Problem(model=model, terms=(BoundEvaluator(npoints, low_band), BoundEvaluator(npoints, high_band)))
+    problem = SummedTerms(model=model, terms=(BoundEvaluator(npoints, low_band), BoundEvaluator(npoints, high_band)))
 
     assert problem() == 30.0
 
 def test_problem_frequency_free_term(model, low_band):
     """A pure parameter penalty is a term needing no frequency at all."""
     penalty = lambda m: jnp.sum(m.val ** 2)
-    problem = Problem(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(1.0), low_band), penalty))
+    problem = SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(1.0), low_band), penalty))
 
     assert problem() == 2.0
 
@@ -73,7 +73,7 @@ def test_problem_frequency_stays_out_of_the_parameter_set(model, low_band):
     import jax
     import parax as prx
 
-    problem = Problem(model=model, terms=(BoundEvaluator(lambda m, f: jnp.sum(m.val), low_band),))
+    problem = SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.sum(m.val), low_band),))
     dynamic, _ = eqx.partition(problem, prx.constraints.is_dynamic, is_leaf=prx.constraints.is_leaf)
     leaves = jax.tree.leaves(prx.unwrap(dynamic, only_if=prx.is_constrained))
 
@@ -117,7 +117,6 @@ def test_as_terms_accepts_a_plain_callable_as_a_term(low_band):
 
 def test_builtin_terms_share_the_abstract_base():
     assert issubclass(BoundEvaluator, AbstractTerm)
-    assert issubclass(NegativeLogPrior, AbstractTerm)
 
 def test_as_terms_passes_through_explicit_terms(low_band):
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), low_band, weight=3.0)
@@ -151,8 +150,8 @@ def test_minimize_weight_biases_the_solution(model, low_band, high_band):
     toward = lambda target: (lambda m, f: jnp.sum((m.s(f) - target) ** 2).real)
 
     result = minimize([
-        prf.BoundEvaluator(toward(0.0), low_band, weight=1.0),
-        prf.BoundEvaluator(toward(10.0), high_band, weight=1e-6),
+        BoundEvaluator(toward(0.0), low_band, weight=1.0),
+        BoundEvaluator(toward(10.0), high_band, weight=1e-6),
     ], model, solver=ScipyMinimize())
 
     assert prf.unwrap(result.model.val) < 1.0

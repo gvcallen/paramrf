@@ -1,5 +1,7 @@
 import pytest
 import numpy as np
+import jax
+import parax as prx
 import jax.numpy as jnp
 
 import pmrf as prf
@@ -145,58 +147,245 @@ def test_fit_joint_reports_the_full_span(starting_model, heterogeneous):
 
 
 # ---------------------------------------------------------
-# Shared priors across datasets
+# Priors
 # ---------------------------------------------------------
 
-def test_negative_log_prior_penalizes_the_model(wide_band):
-    from pmrf.terms import NegativeLogPrior
-    from pmrf.distributions import Uniform
+def test_map_problem_penalizes_the_prior(wide_band):
+    """PriorPenalized is SummedTerms plus the negative log prior of its parameters."""
+    import distreqx.distributions as dist
     from pmrf.parameters import Random
-    from pmrf.utils.tree import log_prob
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
 
     model = CompositeModel(
-        wide=SubModel(val=Random(Uniform(0.0, 10.0), value=3.0)),
-        narrow=SubModel(val=Random(Uniform(0.0, 10.0), value=7.0)),
+        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=Fixed(7.0)),
     )
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+    expected = -dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0))
 
-    assert jnp.allclose(NegativeLogPrior()(model), -log_prob(model), atol=1e-6)
+    assert jnp.allclose(SummedTerms(model=model, terms=(term,))(), 0.0, atol=1e-6)
+    assert jnp.allclose(PriorPenalized(SummedTerms(model=model, terms=(term,)))(), expected, atol=1e-6)
 
-def test_negative_log_prior_takes_no_frequency(wide_band):
-    """It is a term, not an evaluator: it is called with the model alone."""
-    import inspect
-    from pmrf.terms import NegativeLogPrior
+def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
+    """A prior on a term's own hyper-parameter is counted alongside the model's."""
+    import distreqx.distributions as dist
+    from pmrf.parameters import Random, Param
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import AbstractTerm
 
-    parameters = inspect.signature(NegativeLogPrior.__call__).parameters
+    class NoisyTerm(AbstractTerm):
+        sigma: Param
+        def __call__(self, model, **kwargs):
+            return jnp.asarray(0.0)
 
-    assert 'frequency' not in parameters
-    assert list(parameters) == ['self', 'model', 'kwargs']
+    model = CompositeModel(
+        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=Fixed(7.0)),
+    )
+    sigma = Random(dist.Normal(jnp.array(0.1), jnp.array(0.05)), value=0.1)
+    model_prior = -dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0))
+    noise_prior = -dist.Normal(jnp.array(0.1), jnp.array(0.05)).log_prob(jnp.array(0.1))
 
-def test_multi_dataset_map_splits_the_prior_into_its_own_term(starting_model, heterogeneous):
-    """Several datasets: a likelihood each, plus exactly one shared prior term."""
+    with_hyper = PriorPenalized(SummedTerms(model=model, terms=(NoisyTerm(sigma=sigma),)))
+
+    assert jnp.allclose(with_hyper(), model_prior + noise_prior, atol=1e-5)
+
+def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
+    """The bound distributions must not be seen as free parameters."""
+    import distreqx.distributions as dist
+    import equinox as eqx, jax, parax as prx
+    from pmrf.parameters import Random
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
+
+    model = CompositeModel(
+        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=Fixed(7.0)),
+    )
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+    count = lambda p: len(jax.tree.leaves(prx.unwrap(
+        eqx.partition(p, prx.constraints.is_dynamic, is_leaf=prx.constraints.is_leaf)[0],
+        only_if=prx.is_constrained)))
+
+    assert count(PriorPenalized(SummedTerms(model=model, terms=(term,)))) == count(SummedTerms(model=model, terms=(term,)))
+
+def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
+    """The regression: a tight prior must move the estimate away from the MLE."""
+    import distreqx.distributions as dist
+    from pmrf.parameters import Random
     from pmrf.fitting.minimize import fit_minimize
-    from pmrf.evaluators import NegativeLogLikelihood, NegativeLogPosterior
-    from pmrf.terms import NegativeLogPrior
 
-    result = fit_minimize(
-        starting_model, heterogeneous,
-        solver=prf.optimize.ScipyMinimize(), inference='bayesian',
-    )
-    terms = [t.evaluator if hasattr(t, 'evaluator') else t for t in result.solution.objective]
+    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5.0, name='wide')
+    collection = NetworkCollection([ntwk])
 
-    assert sum(isinstance(t, NegativeLogLikelihood) for t in terms) == 2
-    assert sum(isinstance(t, NegativeLogPrior) for t in terms) == 1
-    assert not any(isinstance(t, NegativeLogPosterior) for t in terms)
+    def fit(prior_std):
+        model = CompositeModel(
+            wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(prior_std)), value=3.0)),
+            narrow=SubModel(val=Fixed(7.0)),
+        )
+        result = fit_minimize(model, collection, solver=prf.optimize.ScipyMinimize(),
+                              inference='bayesian', max_iter=400)
+        return float(prf.unwrap(result.model.wide.val))
 
-def test_single_dataset_map_keeps_the_posterior_whole(starting_model, wide_band):
-    """One dataset needs no split, so the posterior evaluator is used as before."""
+    flat, tight = fit(100.0), fit(0.01)
+
+    assert jnp.allclose(flat, 5.0, atol=1e-2)      # data wins
+    assert tight < 2.0                              # prior wins
+
+def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
+    import distreqx.distributions as dist
+    from pmrf.parameters import Random
     from pmrf.fitting.minimize import fit_minimize
-    from pmrf.evaluators import NegativeLogPosterior
 
-    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 3.0, name='wide')
-    result = fit_minimize(
-        starting_model, NetworkCollection([ntwk]),
-        solver=prf.optimize.ScipyMinimize(), inference='bayesian',
+    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5.0, name='wide')
+    model = CompositeModel(
+        wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(0.01)), value=3.0)),
+        narrow=SubModel(val=Fixed(7.0)),
+    )
+    result = fit_minimize(model, NetworkCollection([ntwk]),
+                          solver=prf.optimize.ScipyMinimize(), max_iter=400)
+
+    assert jnp.allclose(float(prf.unwrap(result.model.wide.val)), 5.0, atol=1e-2)
+
+
+# ---------------------------------------------------------
+# Correlated priors attached over a sub-tree
+# ---------------------------------------------------------
+
+def _correlated(a=3.0, b=7.0):
+    """A model a joint prior can be attached across two of its parameters."""
+    return CompositeModel(wide=SubModel(val=prf.Unconstrained(a)),
+                          narrow=SubModel(val=prf.Unconstrained(b)))
+
+
+def test_probabilistic_single_target_prior_is_found(wide_band):
+    """A distribution attached after construction must be picked up."""
+    import distreqx.distributions as dist
+    from pmrf.models import Probabilistic
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+
+    base = _correlated()
+    model = Probabilistic(model=base, distribution=prf.distributions.Normal(3.0, 1.0),
+                          target=lambda m: m.wide.val)
+
+    expected = float(dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0)))
+    scored = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
+
+    assert jnp.allclose(scored, expected, atol=1e-6)
+
+def test_correlated_joint_prior_over_a_subtree(wide_band):
+    """A joint is scored over the whole sub-tree at once, preserving correlations."""
+    import equinox as eqx
+    from pmrf.models import Probabilistic
+    from pmrf.distributions import Joint
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+
+    base = _correlated()
+    import equinox as eqx
+    sub = base.wide
+    dist_tree = eqx.tree_at(lambda m: m.val, sub, prf.distributions.Normal(3.0, 1.0))
+    joint = Joint(dist_tree)
+    model = Probabilistic(model=base, distribution=joint, target=lambda m: m.wide)
+
+    dists = tree_param_distributions(model)
+    found = [d for d in jax.tree.leaves(dists, is_leaf=prx.is_distribution) if prx.is_distribution(d)]
+
+    # One joint covering both parameters, not two independent marginals.
+    assert len(found) == 1
+    assert jnp.allclose(
+        tree_param_log_prob(dists, prf.unwrap(model)),
+        joint.log_prob(prf.unwrap(base.wide)),
+        atol=1e-6,
     )
 
-    assert len(result.solution.objective) == 1
-    assert isinstance(result.solution.objective[0].evaluator, NegativeLogPosterior)
+def test_map_problem_uses_a_correlated_prior(wide_band):
+    """End to end: PriorPenalized must apply an attached joint, not ignore it."""
+    import equinox as eqx
+    from pmrf.models import Probabilistic
+    from pmrf.distributions import Joint
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
+
+    base = _correlated()
+    import equinox as eqx
+    dist_tree = eqx.tree_at(lambda m: m.val, base.wide, prf.distributions.Normal(3.0, 1.0))
+    joint = Joint(dist_tree)
+    model = Probabilistic(model=base, distribution=joint, target=lambda m: m.wide)
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+
+    mle = SummedTerms(model=model, terms=(term,))
+    mapp = PriorPenalized(SummedTerms(model=model, terms=(term,)))
+
+    assert jnp.allclose(mle(), 0.0, atol=1e-6)
+    assert jnp.allclose(mapp(), -joint.log_prob(prf.unwrap(base.wide)), atol=1e-6)
+    assert not jnp.allclose(mapp(), mle(), atol=1e-6)
+
+def test_correlated_prior_moves_a_fit(wide_band):
+    """A tight joint prior must pull the fit away from the data's answer."""
+    import equinox as eqx
+    from pmrf.models import Probabilistic
+    from pmrf.distributions import Joint
+    from pmrf.fitting.minimize import fit_minimize
+
+    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 10.0, name='wide')
+
+    def fit(scale):
+        base = _correlated(1.0, 1.0)
+        import equinox as eqx
+        dist_tree = eqx.tree_at(lambda m: m.val, base.wide, prf.distributions.Normal(1.0, scale))
+        model = Probabilistic(model=base, distribution=Joint(dist_tree), target=lambda m: m.wide)
+        result = fit_minimize(model, NetworkCollection([ntwk]),
+                              solver=prf.optimize.ScipyMinimize(),
+                              inference='bayesian', max_iter=400)
+        m = prf.unwrap(result.model)
+        return float(prf.unwrap(m.wide.val))
+
+    assert jnp.allclose(fit(100.0), 10.0, atol=1e-1)   # data wins
+    assert fit(0.01) < 5.0                             # prior wins
+
+
+def test_map_prior_survives_pytree_round_trips(wide_band):
+    """
+    The captured distributions must not be rebuilt from an already-unwrapped tree.
+
+    They are set in `__post_init__`, which JAX must not re-run when rebuilding the
+    problem. If it did they would come back empty and the prior would silently stop
+    applying, giving MLE results labelled as MAP.
+    """
+    import equinox as eqx
+    import distreqx.distributions as dist
+    from pmrf.parameters import Random
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
+
+    model = CompositeModel(
+        wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(0.1)), value=3.0)),
+        narrow=SubModel(val=Fixed(7.0)),
+    )
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+    problem = PriorPenalized(SummedTerms(model=model, terms=(term,)))
+    contribution = lambda p: p() - p.inner()
+
+    direct = contribution(problem)
+    leaves, treedef = jax.tree_util.tree_flatten(problem)
+    rebuilt = contribution(jax.tree_util.tree_unflatten(treedef, leaves))
+    dynamic, static = eqx.partition(problem, eqx.is_inexact_array)
+    recombined = contribution(eqx.combine(dynamic, static))
+
+    # A zero prior would make the equalities pass while the feature is broken.
+    assert not jnp.allclose(direct, 0.0)
+    assert jnp.allclose(rebuilt, direct)
+    assert jnp.allclose(recombined, direct)
+
+
+def test_named_params_sees_past_a_probabilistic_wrapper():
+    """Parameter traversal must not stop at a wrapper, hiding the parameters beyond it."""
+    from pmrf.models import Probabilistic
+
+    base = _correlated()
+    wrapped = Probabilistic(model=base, distribution=prf.distributions.Normal(3.0, 1.0),
+                            target=lambda m: m.wide.val)
+
+    # wide.val is inside the wrapper and legitimately opaque; the rest must be found.
+    assert len(wrapped.named_params()) == len(base.named_params()) - 1

@@ -709,6 +709,88 @@ def Random(
     return Param(value=value, distribution=distribution, constraint=constraint, scale=scale, name=name, fixed=fixed, metadata=metadata)
 
 
+def is_leaf(x: Any) -> bool:
+    """
+    Returns if `x` is a boundary for parameter traversal.
+
+    Traversing into a parameter would split it into its raw value and metadata. Also
+    stops at Parax's opaque nodes via `parax.constraints.is_leaf`, but not at other
+    Parax wrappables, so that parameters nested inside them are still found.
+    """
+    return is_param(x) or prx.constraints.is_leaf(x)
+
+
+def _unwraps_to_leaf(x: Any) -> bool:
+    """
+    Returns if `x` is a node :func:`parax.unwrap` collapses.
+
+    Broader than :func:`is_leaf`, which stops only at parameters. Stopping here gives
+    a traversal matching the shape of the unwrapped tree.
+    """
+    return prx.is_unwrappable(x) or prx.constraints.is_leaf(x)
+
+
+def node_distribution(node) -> AbstractDistribution | None:
+    """
+    Returns the prior distribution attached to a node, if any.
+
+    Covers both a :class:`Param`'s own distribution and a joint distribution attached
+    over a sub-tree, such as by :class:`pmrf.models.Probabilistic`.
+    """
+    if is_param(node) or prx.is_probabilistic(node):
+        return node.distribution
+    return None
+
+
+def tree_param_distributions(tree) -> Any:
+    """
+    Extracts the prior distributions of a tree's parameters.
+
+    The result mirrors the tree once unwrapped, holding each distribution in place of
+    the parameter it belongs to and `None` where there is no prior. Distributions are
+    metadata and are stripped by unwrapping, so this allows them to be extracted while
+    a tree is still wrapped and evaluated against its values afterwards.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to extract from. Must still be wrapped.
+    """
+    def build(node):
+        distribution = node_distribution(node)
+        if distribution is not None:
+            # Covers the whole sub-tree it unwraps to, so a distribution attached
+            # higher up overrides any below it.
+            return prx.as_unwrapped(distribution)
+        if prx.is_unwrappable(node):
+            # The node vanishes on unwrapping, so mirror what it leaves behind.
+            return build(node.unwrap())
+        if jax.tree_util.all_leaves([node]):
+            return None
+        return jax.tree.map(build, node, is_leaf=lambda x: x is not node and _unwraps_to_leaf(x))
+
+    return build(tree)
+
+
+def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
+    """
+    Evaluates extracted prior distributions against an unwrapped tree's values.
+
+    Parameters
+    ----------
+    distributions : PyTree
+        The distributions from :func:`tree_param_distributions`.
+    tree : PyTree
+        The unwrapped tree to evaluate at.
+    """
+    is_scored = lambda x: x is None or prx.is_distribution(x)
+    log_probs = jax.tree.map(
+        lambda d, value: d.log_prob(value) if prx.is_distribution(d) else jnp.asarray(0.0),
+        distributions, tree, is_leaf=is_scored,
+    )
+    return sum(jax.tree.leaves(log_probs))
+
+
 def tree_pathed_params(
     tree,
     full_params: bool = False,
@@ -740,10 +822,8 @@ def tree_pathed_params(
     # weights, and the frozen reconstruction data), surfacing them as spurious named parameters.
     if free_only:
         filter_spec = lambda x: is_param(x) and not x.fixed or isinstance(x, jax.Array)
-        is_leaf = lambda x: is_param(x) or prx.constraints.is_leaf(x)
     else:
         filter_spec = lambda x: is_param(x) or isinstance(x, jax.Array)
-        is_leaf = lambda x: is_param(x) or prx.constraints.is_leaf(x)
 
     return filtered_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
 

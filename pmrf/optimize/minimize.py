@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from pmrf.models import Model, validate
 from pmrf.frequency import Frequency
-from pmrf.problem import Problem
+from pmrf.problems import AbstractProblem, SummedTerms
 from pmrf.terms import TermLike, as_terms
 from pmrf.optimize.base import AbstractMinimizer, run_minimizer
 from pmrf.optimize.result import OptimizeResult
@@ -14,7 +14,7 @@ ModelT = TypeVar('ModelT', bound=Model)
 
 def minimize(
     objective: TermLike | Sequence[TermLike],
-    model: ModelT,
+    model: ModelT | None = None,
     frequency: Frequency | None = None,
     solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
@@ -27,8 +27,8 @@ def minimize(
 
     Parameters
     ----------
-    objective : TermLike | Sequence[TermLike]
-        The objective function to minimize. Can be a function or a callable PyTree
+    objective : TermLike | Sequence[TermLike] | pmrf.AbstractProblem
+        An already-built problem, or the objective function to minimize. Can be a function or a callable PyTree
         with optional parameters. If a sequence of objectives is provided,
         they are automatically summed. See :meth:`pmrf.evaluators.Goal`
         for an easy way to define goal-based objectives.
@@ -37,8 +37,9 @@ def minimize(
         :class:`pmrf.Term`, binding it to its own frequency sweep rather than the
         shared one. This allows a single parameter set to be optimized against
         several bands at once.
-    model : Model
-        The RF model containing the parameters to be optimized.
+    model : Model | None, default=None
+        The RF model containing the parameters to be optimized. Omitted when an
+        already-built problem is passed.
         If the parameters contain bounds and the optimizer supports bounds, these bounds
         are used in a bounded optimization. Otherwise, the bounds are enforced
         via space transformations (bijectors). If the parameters do not contain bounds,
@@ -60,7 +61,10 @@ def minimize(
         A structured result containing the fitted model and solver statistics.
     """
     # Create the combined problem
-    problem = Problem(model=model, terms=as_terms(objective, frequency))
+    if isinstance(objective, AbstractProblem):
+        problem = objective
+    else:
+        problem = SummedTerms(model=model, terms=as_terms(objective, frequency))
 
     validate(problem)
     
@@ -75,8 +79,7 @@ def minimize(
     
     # Return the results
     results = OptimizeResult(
-        model=opt_problem.model,
-        objective=opt_problem.terms,
+        problem=opt_problem,
         success=result.success,
         metrics=result.metrics,
     )

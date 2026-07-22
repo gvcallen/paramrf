@@ -21,7 +21,7 @@ An objective can also be paired with its own frequency sweep. This allows a sing
        (prf.evaluators.Goal('s21_db', '>', -1), prf.Frequency(10, 500, 401, 'MHz')),
    ], model)
 
-To weight the objectives against one another, the pairing can be created explicitly using :class:`pmrf.BoundEvaluator`. Any callable that accepts only a model, such as a penalty on the parameters that requires no frequency, can also be summed in directly:
+To weight the objectives against one another, the pairing can be created explicitly using :class:`pmrf.terms.BoundEvaluator`. Any callable that accepts only a model, such as a penalty on the parameters that requires no frequency, can also be summed in directly:
 
 .. code-block:: python
 
