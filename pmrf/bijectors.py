@@ -9,32 +9,57 @@ from distreqx.bijectors import (
     AbstractBijector as AbstractBijector,
     Chain as Chain,
     DiagLinear as DiagLinear,
-    Exp as Exp,
-    Identity as Identity,
-    Inverse as Inverse,
-    Leafwise as Leafwise,
     ScalarAffine as ScalarAffine,
-    Scale as Scale,
-    Shift as Shift,
     Sigmoid as Sigmoid,
     Softplus as Softplus,
     Tanh as Tanh,
     TriangularLinear as TriangularLinear,
 )
 
+
 __all__ = [
     'AbstractBijector',
     'Chain',
     'DiagLinear',
-    'Exp',
-    'Identity',
-    'Inverse',
-    'Leafwise',
     'ScalarAffine',
-    'Scale',
-    'Shift',
     'Sigmoid',
     'Softplus',
     'Tanh',
     'TriangularLinear',
 ]
+
+try:
+    from distreqx.bijectors import Exp as Exp
+    __all__.append('Exp')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Identity as Identity
+    __all__.append('Identity')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Inverse as Inverse
+    __all__.append('Inverse')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Leafwise as Leafwise
+    __all__.append('Leafwise')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Scale as Scale
+    __all__.append('Scale')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Shift as Shift
+    __all__.append('Shift')
+except:
+    pass
