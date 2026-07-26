@@ -11,7 +11,6 @@ from distreqx.bijectors import (
     DiagLinear as DiagLinear,
     ScalarAffine as ScalarAffine,
     Sigmoid as Sigmoid,
-    Softplus as Softplus,
     Tanh as Tanh,
     TriangularLinear as TriangularLinear,
 )
@@ -61,5 +60,11 @@ except:
 try:
     from distreqx.bijectors import Shift as Shift
     __all__.append('Shift')
+except:
+    pass
+
+try:
+    from distreqx.bijectors import Softplus as Softplus
+    __all__.append('Softplus')
 except:
     pass
