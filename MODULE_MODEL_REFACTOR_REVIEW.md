@@ -133,6 +133,8 @@ expected `Model.build()` deprecation warnings from legacy test models.
   wrappers, and the `Wrapped` adapter.
 - Scanned the documentation for stale `Model.at/map/named_params`, old wrapper
   paths, and `build()` recommendations.
+- Replaced the removed composite-model example with an executable, plotted
+  example that jointly fits two RF arrangements from one shared non-RF `Module`.
 
 ## Files changed
 
