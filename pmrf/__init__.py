@@ -47,6 +47,7 @@ from pmrf.models import (
     Model as Model,
     is_model as is_model,
 )
+from pmrf.module import Module as Module, is_module as is_module
 from pmrf.frequency import Frequency as Frequency
 
 #: The canonical type hint for a float, or a numpy or JAX array.
@@ -117,6 +118,8 @@ __all__ = [
     # Base/Core
     "Model",
     "is_model",
+    "Module",
+    "is_module",
     "Frequency",
     "Topology",
 

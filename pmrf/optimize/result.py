@@ -2,16 +2,16 @@ from typing import Callable, Any, TypeVar, Generic
 import equinox as eqx
 import jax.numpy as jnp
 
-from pmrf.models import Model
+from pmrf.module import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn
 
 
-ModelT = TypeVar('ModelT', bound=Model)
+ModuleT = TypeVar('ModuleT', bound=Module)
 
 
-class OptimizeResult(eqx.Module, Generic[ModelT]):
+class OptimizeResult(eqx.Module, Generic[ModuleT]):
     """
     The result of an optimization run.
     """
@@ -27,7 +27,7 @@ class OptimizeResult(eqx.Module, Generic[ModelT]):
     metrics: Any = None
 
     @property
-    def model(self) -> ModelT:
+    def model(self) -> ModuleT:
         """
         The RF model holding the final optimized parameters.
         """

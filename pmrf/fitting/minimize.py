@@ -9,7 +9,7 @@ except ImportError:
 import numpy as np
 import distreqx.distributions as dist
 
-from pmrf.models import Model
+from pmrf.module import Module
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood
@@ -25,10 +25,10 @@ from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param
 
-ModelT = TypeVar('ModelT', bound=Model)
+ModuleT = TypeVar('ModuleT', bound=Module)
 
 def fit_minimize(
-    model: ModelT,
+    model: ModuleT,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractMinimizer | None = None,
@@ -41,17 +41,17 @@ def fit_minimize(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,
-) -> FitResult[ModelT]:
+) -> FitResult[ModuleT]:
     """
-    Fits an RF model to measured data using non-linear optimization.
+    Fits a parameter-aware module to measured data using non-linear optimization.
 
     This high-level function handles data formatting (e.g., extracting arrays 
     from the scikit-rf Networks) and forwards to :func:`pmrf.optimize.minimize`.
     
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : Module
+        The parameter-aware module to fit.
     data :np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection
         The data to fit to. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.

@@ -2,9 +2,9 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable, Self, TypeVar, Union, TypeGuard
+from typing import Any, Callable, TypeVar, Union, TypeGuard
 from functools import cached_property
-import dataclasses
+import warnings
 
 import numpy as np
 import jax
@@ -14,9 +14,8 @@ import equinox as eqx
 import skrf
 import parax as prx
 
-from pmrf.utils.optix import focus, Lens
 from pmrf.utils.tree import resolve_target
-from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
+from pmrf.parameters import tree_param_names_to_path
 from pmrf.frequency import Frequency
 from pmrf.rf import (
     a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
@@ -26,6 +25,7 @@ from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
 from pmrf.distributions import AbstractDistribution
+from pmrf.module import Module, validate
 
 T = TypeVar('T')
 
@@ -35,7 +35,7 @@ PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
     
 
-class Model(eqx.Module):
+class Model(Module):
     """
     Base class for RF models.
 
@@ -44,7 +44,8 @@ class Model(eqx.Module):
     This class should not be instantiated directly. It is created internally in ParamRF when models are
     built compositionally, or can be inherited from. When inheriting, at least one primary matrix method,
     such as or :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
-    :meth:`pmrf.Model.primary_matrix`, or :meth:`pmrf.Model.build`, must be overridden. 
+    or :meth:`pmrf.Model.primary_matrix`, must be overridden. Legacy classes may still
+    override :meth:`pmrf.Model.build`, but that interface is deprecated.
 
     The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
@@ -149,12 +150,6 @@ class Model(eqx.Module):
                 return self.res ** self.ind ** self.cap.terminated()
             
     """
-    #: A name for the model.
-    name: str | None = field(default=None, kw_only=True, static=True)
-
-    #: Arbitrary metadata to store alongside the model.
-    metadata: Any = field(default=None, kw_only=True, static=True)
-    
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -189,6 +184,21 @@ class Model(eqx.Module):
                     m_mn._pmrf_auto = True
                     setattr(cls, func_name_mn, m_mn)
 
+    def __getattribute__(self, name: str):
+        attribute = super().__getattribute__(name)
+        if name == 'build' and is_overridden(type(self), Model, 'build'):
+            def deprecated_build(*args, **kwargs):
+                warnings.warn(
+                    "Model.build() is deprecated. Use a pmrf.Module to hold "
+                    "parameters and models, with explicit methods returning RF models.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                return attribute(*args, **kwargs)
+
+            return deprecated_build
+        return attribute
+
     # ---- Introspection properties --------------------------------------------------------
     
     @cached_property
@@ -221,68 +231,14 @@ class Model(eqx.Module):
         """
         return [(y, x) for x in range(self.nports) for y in range(self.nports)]
     
-    def named_params(
-        self,
-        full_params: bool = False,
-        free_only: bool = False,
-        namespace_separator: str = '_',
-    ) -> dict[str, float | jnp.ndarray | Param]:
-        """
-        Returns a named dictionary of parameters in the model.
-
-        Parameters and models can be given names upon construction.
-        The naming convention is as follows:
-        
-        1. If no names are present in the path of a parameter, its Python 
-           path is used.
-        2. If there are any named models in the path of a parameter, the path 
-           up until the left of that model is collapsed, forming a namespace prefix.
-           If multiple models in the path have names, they are joined
-           using the supplied namespace separator.
-        3. If the parameter itself is named, its path to the left is collapsed, 
-           either to the root or to the first named model.
-
-        This enables you to choose your own naming convention:
-
-        1. For flat parameter names across your entire root model,
-           name all your parameters but none of your models.
-        2. For flat model names across your entire root model,
-           name all your leaf models but none of your parameters
-           or composite models.
-        3. For fully nested naming, name all of your models and
-           optionally your parameters.
-           
-        Parameters
-        ----------
-        full_params : bool, default=True
-            Returns the full parameter objects as opposed to their resultant floats/array values.
-        free_only : bool, default=False
-            Returns only free parameters.
-        namespace_separator : str
-            The separator to use to create a parameter namespace using model names.
-        
-        Returns
-        -------
-        dict[str, Any]
-            A dictionary mapping string paths (e.g., '.ind.value') to their 
-            corresponding JAX arrays or parameter objects.
-            
-        """
-        if free_only:
-            model = self
-        else:
-            # We need to resolve ties first so that they show up as parameters.
-            # We do this by unwrapping any tied nodes on self without cascading
-            model = prx.unwrap(self, only_if=lambda x: isinstance(x, prx.Tie), cascade=False)        
-
-        return tree_named_params(model, full_params=full_params, free_only=free_only, namespace_separator=namespace_separator)
-    
     # ---- Core API -------------------------------------------------------------
     
     def build(self) -> 'Model':
-        """Build the model.
+        """Build the model (deprecated).
 
-        This function can be over-ridden by sub-classes.
+        Use a :class:`pmrf.Module` with an explicit, domain-specific method that
+        returns an RF model or circuit instead. This method remains temporarily
+        available for compatibility with existing composite model classes.
 
         It is useful to define advanced models that are built
         using several sub-models or parameters, as opposed to
@@ -617,41 +573,6 @@ class Model(eqx.Module):
     
     # ---- Magic methods and copying --------------------------------------------------
 
-    def __repr__(self) -> str:
-        """String representation of the Model."""
-        import numpy as np
-        import jax
-        import equinox as eqx
-
-        # Attempt to unwrap. Catch ANY exception (TypeError, AttributeError, etc.)
-        # that might occur if the tree contains non-numeric axis specs instead of values.
-        try:
-            tree_to_format = unwrap(self)
-        except Exception:
-            # Bail out early and just print the raw structure using Equinox
-            return eqx.tree_pformat(self, short_arrays=False)
-
-        # Format standard JAX/Numpy arrays cleanly
-        class _RawFormatter:
-            def __init__(self, val):
-                self.val = np.asarray(val)
-                
-            def __repr__(self):
-                return np.array2string(self.val, separator=', ', precision=4)
-
-        is_array = lambda x: isinstance(x, (jax.Array, np.ndarray))
-        
-        tree_clean = jax.tree.map(
-            lambda x: _RawFormatter(x) if is_array(x) else x,
-            tree_to_format,
-            is_leaf=is_array
-        )
-
-        return eqx.tree_pformat(tree_clean, short_arrays=False)
-
-    def __str__(self) -> str:
-        return repr(self)    
-
     def __getattr__(self, name: str):
         """
         Dynamic dispatch for scikit-rf plotting methods.
@@ -686,79 +607,6 @@ class Model(eqx.Module):
         """Termination operator `@`."""        
         return self.terminated(other)
     
-    def at(
-        self: Self, 
-        target: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
-    ) -> Lens[Self, T]:
-        """A functional interface for model manipulation.
-        
-        This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
-        
-        Pass in a callable, a string parameter name, or a tuple of names that 
-        returns the values you would like to retrieve/modify. Then, use
-        methods like `.get()` and `.set()` to retrieve values
-        or an updated model.
-        
-        Note that this method does not work directly on static values, like strings
-        or booleans. To perform replacements on these values, this method
-        can be used in combination with :func:`pmrf.replace`.
-        
-        WARNING: All updates made by this method are "surgical".
-        In order words, values are replaced *as-is* without any converters
-        or verification applied (a new instance is still returned).
-        Any invariants must therefore be enforced or checked manually.
-        For example, when replacing parameters, ensure to pass in a fully
-        constructed parameter and not a float.
-        
-        Examples
-        --------
-        >>> import pmrf as prf
-        >>> from pmrf.models import Resistor
-        >>> model = Resistor(R=50.0, name="res")
-        >>> # Retrieve a value using the lens with a parameter name
-        >>> model.at("res.R").get()
-        50.0
-        >>> # Return a new model instance with the updated value
-        >>> updated_model = model.at("res.R").set(100.0)
-
-        Returns
-        -------
-        Lens
-            A lens object focused on the root of the current instance.
-
-        """
-        try:
-            name_to_path = tree_param_names_to_path(self)
-            resolved_where = resolve_target(target, name_to_path)
-        except Exception as e:
-            raise ValueError(f"Could not resolve parameter name: {e}")
-        
-        return focus(self).at(resolved_where)
-    
-    def map(self: Self, fn: Callable[[Any], Any], is_target: Callable | None = None) -> Self:
-        """A functional interface for model mapping.
-        
-        This is a wrapper around `jax.tree.map`.
-        
-        To map parameters, pass `is_target=prf.is_param`.
-        
-        Examples
-        --------
-        >>> import pmrf as prf
-        >>> from pmrf.models import Resistor, Capacitor
-        >>> model = Resistor(R=50.0) ** Capacitor(C=1e-12)
-        >>> # Scale all parameters in the model by a factor of 2
-        >>> scaled_model = model.map(lambda p: p * 2.0, is_target=prf.is_param)
-
-        Returns the mapped model.
-        """
-        def _wrapped_fn(node):
-            if not is_target(node):
-                return node
-            return fn(node)
-
-        return jax.tree.map(_wrapped_fn, self, is_leaf=is_target)
-           
     def cascaded(self, other, **kwargs) -> 'Model':
         """Cascade this model with another, returning a new model.
         
@@ -968,41 +816,3 @@ def is_model(x: Any) -> TypeGuard[Model]:
     Returns if `x` is an instance of :class:`pmrf.Model`.
     """
     return isinstance(x, Model)
-    
-    
-def validate(tree):
-    """
-    Recursively walks a PyTree and ensures no pmrf.Model instances contain
-    unprotected raw inexact arrays that optimizers might corrupt.
-    """
-    # Treat our models as leaves so JAX doesn't instantly unpack them into raw arrays.
-    # Also stop at parax's opaque/protected boundaries (e.g. `parax.Probabilize`), matching
-    # the convention used everywhere else (`parax.constraints.is_leaf`/`probability.is_leaf`).
-    # Otherwise this recurses into e.g. a normalizing-flow prior's frozen reconstruction
-    # data, which legitimately contains raw, already-unwrapped arrays inside Model instances.
-    def _is_leaf(x):
-        return isinstance(x, Model) or prx.constraints.is_leaf(x)
-
-    nodes, _ = jax.tree.flatten(tree, is_leaf=_is_leaf)
-    
-    for node in nodes:
-        if isinstance(node, Model):
-            for f in dataclasses.fields(node):
-                val = getattr(node, f.name)
-                
-                is_array = isinstance(val, jnp.ndarray)
-                is_static = f.metadata.get("static", False)
-                
-                if is_array and not is_static and jnp.issubdtype(val.dtype, jnp.inexact):
-                    raise TypeError(
-                        f"Field '{f.name}' in '{node.__class__.__name__}' is a raw JAX array, "
-                        f"meaning it is unclear whether this is a free or fixed parameter.\n\n"
-                        f"To make your intention clear, you must either:\n"
-                        f"  1. Use a factory in `pmrf.parameters` (e.g. `prf.Unconstrained`) for free variables, or a numpy array for fixed variables\n"
-                        f"  2. Use a field specifier in the model class definition, e.g. `{f.name}: prf.Param = prf.param()` for automatic parameter conversion, "
-                        f"or `{f.name}: jnp.ndarray = prf.field(converter=prf.freeze)` combined with `prf.unwrap` to ensure the variable is not optimized.\n"
-                        f"This restriction is enforced to allow compatibility with machine learning models from othe libraries."
-                    )
-                
-                # Recurse into submodels
-                validate(val)

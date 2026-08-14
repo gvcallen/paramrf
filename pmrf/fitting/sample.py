@@ -12,7 +12,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.models import Model
+from pmrf.module import Module
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood
@@ -23,10 +23,10 @@ from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.parameters import Param, Random
 from pmrf.distributions import Uniform
 
-ModelT = TypeVar('ModelT', bound=Model)
+ModuleT = TypeVar('ModuleT', bound=Module)
 
 def fit_sample(
-    model: ModelT,
+    model: ModuleT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractSampler | None = None,
@@ -38,7 +38,7 @@ def fit_sample(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], AbstractDistribution] | None = None,
     temperature: float = None,
     **kwargs,
-) -> FitResult[ModelT]:
+) -> FitResult[ModuleT]:
     """
     Conditions an RF model on measured data using Bayesian sampling.
     
@@ -47,8 +47,8 @@ def fit_sample(
 
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : Module
+        The parameter-aware module to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The data to condition on. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.

@@ -28,13 +28,10 @@ Let's define a custom RLC composite model with explicit names to demonstrate how
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor, Short
 
-  class RLC(prf.Model):
+  class RLC(prf.Module):
       res: Resistor = Resistor(R=100.0, name="myR")
       ind: Inductor = Inductor(L=prf.Unconstrained(2.0, scale=1e-9, name="L_val"), name="myL")
       cap: Capacitor = Capacitor(C=prf.Unconstrained(1.0, scale=1e-12, name="C_global"))
-
-      def build(self) -> prf.Model:
-          return self.res ** self.ind ** self.cap
 
   rlc = RLC()
 

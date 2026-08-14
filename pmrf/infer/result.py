@@ -6,7 +6,7 @@ import jax
 import numpy as np
 import equinox as eqx
 
-from pmrf.models import Model
+from pmrf.module import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn
@@ -14,10 +14,10 @@ from pmrf.utils import field, batch_mask, partition, combine
 from pmrf.utils.random import compress_samples
 
 
-ModelT = TypeVar('ModelT', bound=Model)
+ModuleT = TypeVar('ModuleT', bound=Module)
 
 
-class InferResult(eqx.Module, Generic[ModelT]):
+class InferResult(eqx.Module, Generic[ModuleT]):
     """
     The result of an inference run.
 
@@ -50,7 +50,7 @@ class InferResult(eqx.Module, Generic[ModelT]):
     metrics: Any = field(default=None)
 
     @property
-    def best_model(self) -> ModelT:
+    def best_model(self) -> ModuleT:
         """
         The maximum likelihood or maximum a posterior of the RF model.
         """
@@ -64,7 +64,7 @@ class InferResult(eqx.Module, Generic[ModelT]):
         return problem_terms(self.best_problem, 'best_loglikelihood')
 
     @property
-    def sampled_model(self) -> ModelT:
+    def sampled_model(self) -> ModuleT:
         """
         A batched model containing the sampled RF model.
         """
@@ -77,11 +77,11 @@ class InferResult(eqx.Module, Generic[ModelT]):
         """
         return problem_terms(self.sampled_problem, 'sampled_loglikelihood')
 
-    def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> ModelT:
+    def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> ModuleT:
         """
         Compresses the sampled model to its approximate channel capacity (entropy) 
         using stochastic rounding, yielding equally weighted samples.
-        
+
         Args:
             key: A JAX PRNGKey for resolving fractional probabilities.
             
@@ -208,4 +208,3 @@ class InferResult(eqx.Module, Generic[ModelT]):
     #             logL=logL, 
     #             weights=weights
     #         )
-        

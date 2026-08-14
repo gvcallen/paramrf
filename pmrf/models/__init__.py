@@ -10,6 +10,7 @@ from pmrf.models.base import (
     is_model as is_model,
     validate as validate,
 )
+from pmrf.module import Module as Module, is_module as is_module
 
 # Adapters
 from pmrf.models.adapters.base import (

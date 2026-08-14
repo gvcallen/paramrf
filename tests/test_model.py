@@ -63,7 +63,13 @@ def test_primary_domain_resolution(model_s, model_z, model_comp):
     assert model_s.primary_domain == 's'
     assert model_z.primary_domain == 'z'
     # Compositional models should inherit the primary property of what they build
-    assert model_comp.primary_domain == 's'
+    with pytest.warns(FutureWarning, match=r"Model\.build\(\) is deprecated"):
+        assert model_comp.primary_domain == 's'
+
+
+def test_build_is_deprecated(model_comp):
+    with pytest.warns(FutureWarning, match=r"Model\.build\(\) is deprecated"):
+        assert isinstance(model_comp.build(), DummyModelS)
 
 def test_primary_matrix_execution(model_s, basic_freq):
     """Test that calling .primary_matrix() routes to the correct evaluation method."""
