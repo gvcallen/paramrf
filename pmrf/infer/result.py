@@ -6,7 +6,7 @@ import jax
 import numpy as np
 import equinox as eqx
 
-from pmrf.module import Module
+from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn

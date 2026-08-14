@@ -10,6 +10,7 @@ Core Primitives
    :toctree: generated/
 
    pmrf.Model
+   pmrf.Module
    pmrf.Frequency
    pmrf.Param
    pmrf.Unconstrained
@@ -27,6 +28,7 @@ Main Modules
    :recursive:
 
    pmrf.models
+   pmrf.modules
    pmrf.optimize
    pmrf.infer
    pmrf.fitting

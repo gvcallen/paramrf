@@ -37,7 +37,7 @@ Let's define a capacitor from first principles using its ABCD parameters:
 
 By inheriting from :class:`~pmrf.Model`, ``Capacitor`` becomes both a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_ and a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_! For those familiar with dataclasses, this means that any standard dataclass syntax applies.
 
-Note that :class:`~pmrf.Param` is a merely a field *type-hint*, and does not enforce that the resulting field is actually a parameter and is registered as such. To ensure that the caller's value is register as either a fixed or variable parameter so that it is returned by :meth:`pmrf.Model.named_params`, and to also specify parameter *constraints* and additional features, we can use a *field specifier*.
+Note that :class:`~pmrf.Param` is merely a field *type-hint*, and does not enforce that the resulting field is registered as a parameter. To convert caller values into fixed or variable parameters returned by :meth:`pmrf.Module.named_params`, and to specify constraints and related metadata, use a field specifier.
 
 Adding a Field Specifier
 ^^^^^^^^^^^^^^^^^^^^^^^^

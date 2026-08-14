@@ -14,8 +14,6 @@ import equinox as eqx
 import skrf
 import parax as prx
 
-from pmrf.utils.tree import resolve_target
-from pmrf.parameters import tree_param_names_to_path
 from pmrf.frequency import Frequency
 from pmrf.rf import (
     a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
@@ -25,7 +23,7 @@ from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
 from pmrf.distributions import AbstractDistribution
-from pmrf.module import Module, validate
+from pmrf.modules.base import Module, validate
 
 T = TypeVar('T')
 
@@ -690,7 +688,7 @@ class Model(Module):
     ) -> 'Model':
         """Tie parameters or sub-models within this model together.
         
-        See :class:`pmrf.models.composite.wrapped.Tied` for more details.
+        See :class:`pmrf.modules.Tied` and :class:`pmrf.models.Wrapped`.
         
         Note that if a model is tied that has already been tied,
         the target and source location/name refers to the original, untied model. 
@@ -729,18 +727,16 @@ class Model(Module):
         -------
         Model
         """
-        from pmrf.models import Tied
-        
-        if isinstance(self, Tied):
-            model = self.model
-        else:
-            model = self
-        
-        name_to_path = tree_param_names_to_path(model)
-        resolved_target = resolve_target(target, name_to_path)
-        resolved_source = resolve_target(source, name_to_path)
-        
-        return Tied(self, target=resolved_target, source=resolved_source, tie_fn=tie_fn, **kwargs)
+        from pmrf.models import Wrapped
+
+        module = self.module if isinstance(self, Wrapped) else self
+        tied = Module.tied(
+            module,
+            target=target,
+            source=source,
+            tie_fn=tie_fn,
+        )
+        return Wrapped(module=tied, **kwargs)
     
     # ---- File and conversion utilities  --------------------------------------------------            
     

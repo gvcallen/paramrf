@@ -6,7 +6,7 @@ from operator import attrgetter
 import jax.numpy as jnp
 import skrf
 
-from pmrf.module import Module
+from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.evaluators import EvaluatorLike
 from pmrf.optimize import is_minimizer, OptimizeResult, ScipyMinimize, AbstractMinimizer

@@ -3,7 +3,7 @@ from typing import Sequence, TypeVar
 import jax
 import jax.numpy as jnp
 
-from pmrf.module import Module, validate
+from pmrf.modules.base import Module, validate
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, SummedTerms
 from pmrf.terms import TermLike, as_terms

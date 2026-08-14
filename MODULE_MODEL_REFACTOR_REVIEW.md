@@ -35,7 +35,7 @@ equinox.Module
 - port introspection
 - S, A, Y, Z, and MNA response dispatch
 - RF composition and transformations
-- RF-specific tied-model compatibility
+- the `Wrapped` adapter for modules that unwrap to RF models
 - scikit-rf conversion, plotting, and Touchstone export
 
 The generic implementations were physically removed from `Model`; they are not
@@ -61,9 +61,13 @@ class Experiment(pmrf.Module):
     circuit: pmrf.Model
 ```
 
-Generic module ties use Parax unwrapping and remove the derived target from the
-free parameter set. Existing `Model.tied()` behavior remains available so tied
-RF models continue to expose RF methods directly.
+Generic `Tied` and `Probabilistic` wrappers live under `pmrf.modules`. Calling
+`.tied()` on an RF model returns `Wrapped(Tied(model))`, preserving the RF
+interface without making the parameter wrapper RF-aware.
+
+`pmrf.models.Wrapped` is a minimal adapter model. It unwraps its contained module
+and delegates only RF-specific properties and methods: port count, primary
+domain/matrix, S/A/Y/Z/MNA evaluation, and topology expansion.
 
 ## `Model.build()` deprecation
 
@@ -101,13 +105,15 @@ New tests cover:
 - `Model` inheriting from `Module`
 - module parameter naming and optics
 - generic module ties and free-parameter reporting
+- tied and probabilistic RF modules evaluated through `Wrapped`
+- RF composition and wrapper stacking through `Wrapped`
 - fitting a non-RF `Module` using a callable predictor
 - direct and implicit `Model.build()` warnings
 
 Final test result:
 
 ```text
-262 passed, 32 warnings in 258.14s
+265 passed, 32 warnings in 131.95s
 ```
 
 The warnings comprise existing Equinox and convergence warnings plus the new
@@ -123,12 +129,19 @@ expected `Model.build()` deprecation warnings from legacy test models.
 - Removed `build()` from the recommended custom RF response methods.
 - Updated the Parax unwrapping discussion to refer to modules and RF response
   methods.
+- Updated the API index and core-primitives documentation for `Module`, generic
+  wrappers, and the `Wrapped` adapter.
+- Scanned the documentation for stale `Model.at/map/named_params`, old wrapper
+  paths, and `build()` recommendations.
 
 ## Files changed
 
 Core implementation:
 
-- `pmrf/module.py` (new)
+- `pmrf/modules/base.py` (new)
+- `pmrf/modules/wrapped.py` (new)
+- `pmrf/models/adapters/wrapped.py` (new)
+- `pmrf/modules/__init__.py` (new)
 - `pmrf/models/base.py`
 - `pmrf/__init__.py`
 - `pmrf/models/__init__.py`

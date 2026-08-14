@@ -2,7 +2,7 @@ from typing import Callable, Any, TypeVar, Generic
 import equinox as eqx
 import jax.numpy as jnp
 
-from pmrf.module import Module
+from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn

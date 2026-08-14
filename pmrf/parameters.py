@@ -775,7 +775,7 @@ def node_distribution(node) -> AbstractDistribution | None:
     Returns the prior distribution attached to a node, if any.
 
     Covers both a :class:`Param`'s own distribution and a joint distribution attached
-    over a sub-tree, such as by :class:`pmrf.models.Probabilistic`.
+    over a sub-tree, such as by :class:`pmrf.modules.Probabilistic`.
 
     A parameter's distribution is authored in its raw, unscaled space, whereas an
     unwrapped tree holds scaled values, so the scale is folded into the distribution

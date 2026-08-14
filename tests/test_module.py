@@ -2,6 +2,8 @@ import jax.numpy as jnp
 
 import pmrf as prf
 from pmrf.fitting import fit_minimize
+from pmrf.models import Capacitor, Resistor, Wrapped
+from pmrf.modules import Tied
 
 
 class GainModule(prf.Module):
@@ -34,6 +36,54 @@ def test_module_parameters_can_be_tied():
     resolved = prf.unwrap(tied)
     assert jnp.allclose(resolved.second, 3 * resolved.first)
     assert set(tied.named_params(free_only=True)) == {"first"}
+
+
+def test_tied_model_preserves_rf_interface():
+    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
+    model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
+        C=prf.Unconstrained(1e-12)
+    )
+    tied = model.tied(
+        target=lambda item: item.cascade[0].R,
+        source=lambda item: item.cascade[1].C,
+        tie_fn=lambda value: value * 50e12,
+    )
+
+    assert isinstance(tied, Wrapped)
+    assert isinstance(tied.module, Tied)
+    assert jnp.allclose(tied.s(frequency), prf.unwrap(tied.module).s(frequency))
+    assert isinstance(tied ** model, prf.models.Cascade)
+
+
+def test_tied_model_stacking_keeps_one_rf_wrapper():
+    model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
+        C=prf.Unconstrained(1e-12)
+    )
+    once = model.tied(
+        target=lambda item: item.cascade[0].R,
+        source=lambda item: item.cascade[1].C,
+    )
+    twice = once.tied(
+        target=lambda item: item.cascade[0].R,
+        source=lambda item: item.cascade[1].C,
+    )
+
+    assert isinstance(twice, Wrapped)
+    assert isinstance(twice.module, Tied)
+    assert not isinstance(twice.module.module, Wrapped)
+
+
+def test_wrapped_probabilistic_model_preserves_rf_interface():
+    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
+    model = Resistor(R=prf.Unconstrained(50.0))
+    probabilistic = prf.modules.Probabilistic(
+        module=model,
+        distribution=prf.distributions.Normal(50.0, 1.0),
+        target=lambda item: item.R,
+    )
+    wrapped = Wrapped(module=probabilistic)
+
+    assert jnp.allclose(wrapped.s(frequency), prf.unwrap(probabilistic).s(frequency))
 
 
 def test_fit_minimize_accepts_module():

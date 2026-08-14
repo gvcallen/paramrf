@@ -7,13 +7,14 @@ This includes scikit-rf Networks, EM simulation software, and generic Equinox mo
 """
 
 from pmrf.models.adapters import base
-from pmrf.models.adapters import bridge, static, callable
+from pmrf.models.adapters import bridge, static, callable, wrapped
 
 __all__ = [
     "base",
     "bridge",
     "static",
     "callable",
+    "wrapped",
 ]
 
 __sphinx_group__ = True

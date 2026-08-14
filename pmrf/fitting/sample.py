@@ -12,7 +12,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.module import Module
+from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood

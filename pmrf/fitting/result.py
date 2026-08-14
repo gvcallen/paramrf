@@ -2,7 +2,7 @@ from typing import Any, Generic, TypeVar
 
 import equinox as eqx
 
-from pmrf.module import Module
+from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult

@@ -10,7 +10,7 @@ from pmrf.models.base import (
     is_model as is_model,
     validate as validate,
 )
-from pmrf.module import Module as Module, is_module as is_module
+from pmrf.modules.base import Module as Module, is_module as is_module
 
 # Adapters
 from pmrf.models.adapters.base import (
@@ -155,10 +155,12 @@ from pmrf.models.composite.topological import (
     LTopology as LTopology,
 )
 
-from pmrf.models.composite.wrapped import (
-    Tied as Tied,
-    Probabilistic as Probabilistic,
+from pmrf.models.adapters.wrapped import (
+    Wrapped as Wrapped,
 )
+
+# Compatibility re-exports. Parameter-aware wrappers live under ``pmrf.modules``.
+from pmrf.modules import Tied as Tied, Probabilistic as Probabilistic
 
 # Surrogates
 from pmrf.models.surrogates.expansion import (

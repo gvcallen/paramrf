@@ -184,49 +184,18 @@ class Module(eqx.Module):
         Module
             A wrapped module with the relationship applied during unwrapping.
         """
-        module = self.module if isinstance(self, _TiedModule) else self
+        from pmrf.modules import Tied
+
+        module = self.module if isinstance(self, Tied) else self
         name_to_path = tree_param_names_to_path(module)
         resolved_target = resolve_target(target, name_to_path)
         resolved_source = resolve_target(source, name_to_path)
-        return _TiedModule(
+        return Tied(
             self,
             target=resolved_target,
             source=resolved_source,
             tie_fn=tie_fn,
         )
-
-
-class _TiedModule(Module, prx.AbstractUnwrappable):
-    """Generic Parax tie wrapper returned by :meth:`Module.tied`."""
-
-    tie: prx.Tie
-
-    def __init__(self, module, target, source, tie_fn):
-        base_tree = module.tie if isinstance(module, _TiedModule) else module
-        self.tie = prx.Tie(base_tree, target, source, tie_fn)
-
-    def unwrap(self) -> Module:
-        return self.tie
-
-    def named_params(
-        self,
-        full_params: bool = False,
-        free_only: bool = False,
-        namespace_separator: str = "_",
-    ) -> dict[str, float | jnp.ndarray | Param]:
-        """Return names relative to the wrapped module rather than the wrapper."""
-        module = self.tie.tree if free_only else prx.unwrap(self)
-        return tree_named_params(
-            module,
-            full_params=full_params,
-            free_only=free_only,
-            namespace_separator=namespace_separator,
-        )
-
-    @property
-    def module(self) -> Module:
-        """The underlying untied module tree."""
-        return self.tie.tree
 
 
 def is_module(x: Any) -> TypeGuard[Module]:
