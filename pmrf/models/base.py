@@ -132,21 +132,6 @@ class Model(Module):
                     [Y1 + Y2 + Y1*Y2/Y3, 1 + Y1 / Y3],
                 ]).transpose(2, 0, 1)
 
-    An ``RLC`` model built using cascading and with parameters specified:
-
-    .. code-block:: python
-
-        import pmrf as prf
-        from pmrf.models import Resistor, Capacitor, Inductor
-
-        class RLC(prf.Model):
-            res: Resistor = Resistor(prf.Bounded(9.0, 11.0))
-            ind: Inductor = Inductor(prf.Bounded(0.0, 10.0, scale=1e-12))
-            cap: Capacitor = Capacitor(prf.Bounded(0.0, 10.0, scale=1e-12))
-
-            def build(self) -> prf.Model:
-                return self.res ** self.ind ** self.cap.terminated()
-            
     """
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -729,14 +714,14 @@ class Model(Module):
         """
         from pmrf.models import Wrapped
 
-        module = self.module if isinstance(self, Wrapped) else self
+        module = self.wrapped if isinstance(self, Wrapped) else self
         tied = Module.tied(
             module,
             target=target,
             source=source,
             tie_fn=tie_fn,
         )
-        return Wrapped(module=tied, **kwargs)
+        return Wrapped(wrapped=tied, **kwargs)
     
     # ---- File and conversion utilities  --------------------------------------------------            
     

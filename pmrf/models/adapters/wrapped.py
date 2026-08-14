@@ -12,13 +12,13 @@ from pmrf.types import ArrayLike
 class Wrapped(Model):
     """Adapt a module that unwraps to a model to the RF model interface."""
 
-    module: Module
+    wrapped: Module
 
     def _model(self) -> Model:
-        model = prx.unwrap(self.module)
+        model = prx.unwrap(self.wrapped)
         if not isinstance(model, Model):
             raise TypeError(
-                "Wrapped.module must unwrap to a pmrf.Model; "
+                "Wrapped.wrapped must unwrap to a pmrf.Model; "
                 f"got {type(model).__name__}."
             )
         return model

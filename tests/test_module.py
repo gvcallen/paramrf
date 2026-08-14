@@ -50,8 +50,8 @@ def test_tied_model_preserves_rf_interface():
     )
 
     assert isinstance(tied, Wrapped)
-    assert isinstance(tied.module, Tied)
-    assert jnp.allclose(tied.s(frequency), prf.unwrap(tied.module).s(frequency))
+    assert isinstance(tied.wrapped, Tied)
+    assert jnp.allclose(tied.s(frequency), prf.unwrap(tied.wrapped).s(frequency))
     assert isinstance(tied ** model, prf.models.Cascade)
 
 
@@ -69,8 +69,8 @@ def test_tied_model_stacking_keeps_one_rf_wrapper():
     )
 
     assert isinstance(twice, Wrapped)
-    assert isinstance(twice.module, Tied)
-    assert not isinstance(twice.module.module, Wrapped)
+    assert isinstance(twice.wrapped, Tied)
+    assert not isinstance(twice.wrapped.module, Wrapped)
 
 
 def test_wrapped_probabilistic_model_preserves_rf_interface():
@@ -81,7 +81,7 @@ def test_wrapped_probabilistic_model_preserves_rf_interface():
         distribution=prf.distributions.Normal(50.0, 1.0),
         target=lambda item: item.R,
     )
-    wrapped = Wrapped(module=probabilistic)
+    wrapped = Wrapped(wrapped=probabilistic)
 
     assert jnp.allclose(wrapped.s(frequency), prf.unwrap(probabilistic).s(frequency))
 

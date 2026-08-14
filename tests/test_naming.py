@@ -83,7 +83,7 @@ def test_tied_string_targets():
     
     # If the resolution failed, it would throw an error before instantiation
     assert isinstance(tied_rc, Wrapped)
-    assert isinstance(tied_rc.module, Tied)
+    assert isinstance(tied_rc.wrapped, Tied)
 
 def test_target_resolution_errors():
     """Test that invalid target formats or non-existent names raise appropriate errors."""
@@ -143,4 +143,4 @@ def test_tied_nested_namespace():
     )
     
     assert isinstance(tied_cas, Wrapped)
-    assert isinstance(tied_cas.module, Tied)
+    assert isinstance(tied_cas.wrapped, Tied)
