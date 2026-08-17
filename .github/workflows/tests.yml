@@ -28,6 +28,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .[tests]
+
+    - name: Smoke test package import
+      run: python -I -c "import pmrf"
+
+    - name: Install test backend overrides
+      run: |
         pip uninstall -y distreqx
         pip install "git+https://github.com/gvcallen/distreqx.git"
         pip install "git+https://github.com/PolyChord/PolyChordLite.git"
