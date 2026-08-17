@@ -100,3 +100,19 @@ def test_fit_minimize_accepts_module():
 
     assert isinstance(result.model, GainModule)
     assert jnp.allclose(result.model.gain, 4.0, atol=1e-3)
+
+
+def test_fit_minimize_accepts_arbitrary_pytree():
+    params = {"gain": jnp.asarray(1.0)}
+    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
+    target = jnp.full((3,), 4.0)
+
+    result = fit_minimize(
+        params,
+        target,
+        frequency=frequency,
+        features=lambda tree, freq: jnp.full((freq.npoints,), tree["gain"]),
+    )
+
+    assert isinstance(result.model, dict)
+    assert jnp.allclose(result.model["gain"], 4.0, atol=1e-3)

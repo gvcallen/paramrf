@@ -1,17 +1,17 @@
 from typing import Callable, Any, TypeVar, Generic
 import equinox as eqx
 import jax.numpy as jnp
+from jaxtyping import PyTree
 
-from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn
 
 
-ModuleT = TypeVar('ModuleT', bound=Module)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 
-class OptimizeResult(eqx.Module, Generic[ModuleT]):
+class OptimizeResult(eqx.Module, Generic[PyTreeT]):
     """
     The result of an optimization run.
     """
@@ -27,9 +27,9 @@ class OptimizeResult(eqx.Module, Generic[ModuleT]):
     metrics: Any = None
 
     @property
-    def model(self) -> ModuleT:
+    def model(self) -> PyTreeT:
         """
-        The RF model holding the final optimized parameters.
+        The PyTree holding the final optimized parameters.
         """
         return self.problem.model
 

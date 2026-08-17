@@ -1,16 +1,16 @@
 from typing import Any, Generic, TypeVar
 
 import equinox as eqx
+from jaxtyping import PyTree
 
-from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 
-ModuleT = TypeVar('ModuleT', bound=Module)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
-class FitResult(eqx.Module, Generic[ModuleT]):
+class FitResult(eqx.Module, Generic[PyTreeT]):
     """
     Standardized return object for a fitting routines.
 
@@ -18,7 +18,7 @@ class FitResult(eqx.Module, Generic[ModuleT]):
     with added information for easy plotting.
     """
     #: The underlying :class:`pmrf.optimize.OptimizeResult` or :class:`pmrf.infer.InferResult` result.
-    solution: OptimizeResult[ModuleT] | InferResult[ModuleT]
+    solution: OptimizeResult[PyTreeT] | InferResult[PyTreeT]
     
     #: The data used for the fit, if available.
     data: Any = None
@@ -27,7 +27,7 @@ class FitResult(eqx.Module, Generic[ModuleT]):
     frequency: Frequency | None = None
 
     @property
-    def model(self) -> ModuleT:
+    def model(self) -> PyTreeT:
         """
         The fitted model.
         """

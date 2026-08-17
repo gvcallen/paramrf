@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import parax as prx
+from jaxtyping import PyTree
 
 from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
 from pmrf.utils import field, unwrap
@@ -203,8 +204,13 @@ def is_module(x: Any) -> TypeGuard[Module]:
     return isinstance(x, Module)
 
 
-def validate(tree):
-    """Ensure modules contain no ambiguous raw, trainable-looking arrays."""
+def validate(tree: PyTree):
+    """Validate a parameter PyTree.
+
+    Any PyTree structure is accepted. ParamRF modules nested anywhere within it
+    additionally retain their stricter field validation, which prevents raw JAX
+    arrays from ambiguously representing either fixed or free parameters.
+    """
     def _is_leaf(x):
         return isinstance(x, Module) or prx.constraints.is_leaf(x)
 

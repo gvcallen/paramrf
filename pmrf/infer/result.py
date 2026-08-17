@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import jax
 import numpy as np
 import equinox as eqx
+from jaxtyping import PyTree
 
-from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, problem_terms
 from pmrf.terms import TermFn
@@ -14,10 +14,10 @@ from pmrf.utils import field, batch_mask, partition, combine
 from pmrf.utils.random import compress_samples
 
 
-ModuleT = TypeVar('ModuleT', bound=Module)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 
-class InferResult(eqx.Module, Generic[ModuleT]):
+class InferResult(eqx.Module, Generic[PyTreeT]):
     """
     The result of an inference run.
 
@@ -50,9 +50,9 @@ class InferResult(eqx.Module, Generic[ModuleT]):
     metrics: Any = field(default=None)
 
     @property
-    def best_model(self) -> ModuleT:
+    def best_model(self) -> PyTreeT:
         """
-        The maximum likelihood or maximum a posterior of the RF model.
+        The maximum likelihood or maximum a posterior parameter PyTree.
         """
         return self.best_problem.model
 
@@ -64,9 +64,9 @@ class InferResult(eqx.Module, Generic[ModuleT]):
         return problem_terms(self.best_problem, 'best_loglikelihood')
 
     @property
-    def sampled_model(self) -> ModuleT:
+    def sampled_model(self) -> PyTreeT:
         """
-        A batched model containing the sampled RF model.
+        A batched PyTree containing the sampled parameters.
         """
         return self.sampled_problem.model
 
@@ -77,7 +77,7 @@ class InferResult(eqx.Module, Generic[ModuleT]):
         """
         return problem_terms(self.sampled_problem, 'sampled_loglikelihood')
 
-    def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> ModuleT:
+    def compress_sampled_model(self, key: jnp.ndarray, **kwargs) -> PyTreeT:
         """
         Compresses the sampled model to its approximate channel capacity (entropy) 
         using stochastic rounding, yielding equally weighted samples.

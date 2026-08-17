@@ -1,8 +1,9 @@
 from typing import Callable, Sequence, TypeVar
 
 import jax.numpy as jnp
+from jaxtyping import PyTree
 
-from pmrf.modules.base import Module, validate
+from pmrf.modules.base import validate
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, SummedTerms
 from pmrf.terms import TermLike, as_terms
@@ -10,16 +11,16 @@ from pmrf.optimize.base import AbstractMinimizer, run_minimizer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers.scipy import ScipyMinimize
 
-ModuleT = TypeVar('ModuleT', bound=Module)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 def minimize(
     objective: TermLike | Sequence[TermLike],
-    model: ModuleT | None = None,
+    model: PyTreeT | None = None,
     frequency: Frequency | None = None,
     solver: AbstractMinimizer = ScipyMinimize(),
     max_iter: int | None = 1024,
     **kwargs,
-) -> OptimizeResult[ModuleT]:
+) -> OptimizeResult[PyTreeT]:
     """
     Minimizes a given objective function for a model over a frequency range.
     
@@ -37,8 +38,8 @@ def minimize(
         :class:`pmrf.Term`, binding it to its own frequency sweep rather than the
         shared one. This allows a single parameter set to be optimized against
         several bands at once.
-    model : Module | None, default=None
-        The RF model containing the parameters to be optimized. Omitted when an
+    model : PyTree | None, default=None
+        The PyTree containing the parameters to be optimized. Omitted when an
         already-built problem is passed.
         If the parameters contain bounds and the optimizer supports bounds, these bounds
         are used in a bounded optimization. Otherwise, the bounds are enforced

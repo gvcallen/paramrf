@@ -5,6 +5,7 @@ Conditioning a model on data using Bayesian inference.
 from typing import Callable, TypeVar
 
 import jax.numpy as jnp
+from jaxtyping import PyTree
 from distreqx.distributions import AbstractDistribution
 
 try:
@@ -12,7 +13,6 @@ try:
 except ImportError:
     pass
 
-from pmrf.modules.base import Module
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood
@@ -23,10 +23,10 @@ from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.parameters import Param, Random
 from pmrf.distributions import Uniform
 
-ModuleT = TypeVar('ModuleT', bound=Module)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 def fit_sample(
-    model: ModuleT,
+    model: PyTreeT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractSampler | None = None,
@@ -38,17 +38,17 @@ def fit_sample(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], AbstractDistribution] | None = None,
     temperature: float = None,
     **kwargs,
-) -> FitResult[ModuleT]:
+) -> FitResult[PyTreeT]:
     """
-    Conditions an RF model on measured data using Bayesian sampling.
+    Conditions a parameter PyTree on measured data using Bayesian sampling.
     
     This high-level function handles data format formatting (e.g., extracting arrays 
     from scikit-rf Networks) and forwards to :func:`pmrf.infer.sample`.
 
     Parameters
     ----------
-    model : Module
-        The parameter-aware module to fit.
+    model : PyTree
+        The parameter PyTree to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The data to condition on. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
@@ -58,7 +58,7 @@ def fit_sample(
     solver : AbstractSampler, optional
         The sampler to use.
         See :mod:`pmrf.infer` for available solvers.
-    features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
+    features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to condition on.
         Can either be function, a callable PyTree with optional parameters, or a string,
         in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
