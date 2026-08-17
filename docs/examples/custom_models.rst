@@ -1,11 +1,9 @@
-Custom Parametric Models
-========================
+Custom Models
+=============
 
 Sometimes, it is more convenient or elegant to define a custom model that is not available in ParamRF. For example, you may want to:
 
   * Define a model using a custom S-parameter equation
-  * Define a reusable component built from sub-models
-  * Expose another model's parameters under different names/paths
   * Implement a specialized version of an existing model
   * Add methods on top of your model e.g. for conversions/analysis
 
