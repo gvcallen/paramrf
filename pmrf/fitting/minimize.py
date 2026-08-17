@@ -1,6 +1,7 @@
 from typing import Callable, TypeVar
 
 import jax.numpy as jnp
+from jaxtyping import PyTree
 try:
     import skrf
 except ImportError:
@@ -9,7 +10,6 @@ except ImportError:
 import numpy as np
 import distreqx.distributions as dist
 
-from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood
@@ -25,10 +25,10 @@ from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
 from pmrf.parameters import Param
 
-ModelT = TypeVar('ModelT', bound=Model)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 def fit_minimize(
-    model: ModelT,
+    model: PyTreeT,
     data: np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection,
     frequency: Frequency | None = None,
     solver: AbstractMinimizer | None = None,
@@ -41,17 +41,17 @@ def fit_minimize(
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
     **kwargs,
-) -> FitResult[ModelT]:
+) -> FitResult[PyTreeT]:
     """
-    Fits an RF model to measured data using non-linear optimization.
+    Fits a parameter-aware module to measured data using non-linear optimization.
 
     This high-level function handles data formatting (e.g., extracting arrays 
     from the scikit-rf Networks) and forwards to :func:`pmrf.optimize.minimize`.
     
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : PyTree
+        The parameter PyTree to fit.
     data :np.ndarray | jnp.ndarray | skrf.Network | NetworkCollection
         The data to fit to. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
@@ -61,7 +61,7 @@ def fit_minimize(
     solver : AbstractMinimizer, optional
         The optimizer to use.
         See :mod:`pmrf.optimize` for available solvers.
-    features : str | list[str] | Callable[[Model, Frequency], jnp.ndarray], default='s'
+    features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,
         in which case a feature evaluator is created (see :class:`pmrf.evaluators.Feature`).
@@ -117,7 +117,7 @@ def fit_minimize(
     Returns
     -------
     FitResult
-        The optimization result containing the fitted Model.
+        The optimization result containing the fitted parameter PyTree.
     """
     # Error checking
     if inference != 'frequentist' and inference != 'bayesian':

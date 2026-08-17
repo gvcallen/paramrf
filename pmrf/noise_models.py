@@ -5,11 +5,11 @@ from abc import abstractmethod
 
 import jax.numpy as jnp
 
-import equinox as eqx
+from pmrf.modules.base import Module
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 
-class AbstractNoiseModel(eqx.Module):
+class AbstractNoiseModel(Module):
     """
     Abstract base class for likelihood noise models.
     

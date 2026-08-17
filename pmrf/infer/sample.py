@@ -2,8 +2,9 @@ from typing import Sequence, TypeVar
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import PyTree
 
-from pmrf.models import Model, validate
+from pmrf.modules.base import validate
 from pmrf.frequency import Frequency
 from pmrf.problems import AbstractProblem, SummedTerms
 from pmrf.terms import TermLike, as_terms
@@ -12,18 +13,18 @@ from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key
 from pmrf.utils.tree import batch_axes
 
-ModelT = TypeVar('ModelT', bound=Model)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 def sample(
     loglikelihood: TermLike | Sequence[TermLike],
-    model: ModelT | None = None,
+    model: PyTreeT | None = None,
     frequency: Frequency | None = None,
     solver: AbstractSampler = None,
     *,
     key: jnp.ndarray | None = None,
     max_steps: int | None = None,
     **kwargs,
-) -> InferResult[ModelT]:
+) -> InferResult[PyTreeT]:
     """
     Samples a given log likelihood function for a model over a frequency range.
     
@@ -44,8 +45,8 @@ def sample(
         :class:`pmrf.Term`, binding it to its own frequency sweep rather than the
         shared one. This allows a single parameter set to be sampled against
         several datasets on their own grids at once.
-    model : Model | None, default=None
-        The RF model containing the parameters to be sampled. Omitted when an
+    model : PyTree | None, default=None
+        The PyTree containing the parameters to be sampled. Omitted when an
         already-built problem is passed.
     frequency : Frequency | None, default=None
         The frequency sweep over which the log likelihood should be evaluated. May be

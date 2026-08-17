@@ -128,8 +128,8 @@ class Touchstone(Model):
         skrf_network = SkrfNetwork(skrf.Network(file, **kwargs))
         self.touchstone = skrf_network
     
-    def build(self):
-        return self.touchstone
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return self.touchstone.s(freq, z0=z0)
 
 
 class SModel(Model):

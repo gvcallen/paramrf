@@ -12,8 +12,9 @@ import jax.numpy as jnp
 import distreqx.distributions as dist
 
 from pmrf.utils import field
+from pmrf.modules.base import Module
 
-class AbstractDiscrepancyModel(eqx.Module):
+class AbstractDiscrepancyModel(Module):
     """
     Abstract base class for discrepancy models.
     

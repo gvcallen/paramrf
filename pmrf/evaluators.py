@@ -11,16 +11,17 @@ import equinox as eqx
 import parax as prx
 import jax
 import jax.numpy as jnp
+from jaxtyping import PyTree
 import distreqx.distributions as dist
 import distreqx.bijectors as bij
 from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Index
 
-from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.modules.base import Module
 from pmrf.utils import field, unwrap, unwrap_self
 
-class AbstractEvaluator(eqx.Module):
+class AbstractEvaluator(Module):
     """
     Abstract base class for callables that evaluate a model over frequency.
 
@@ -28,14 +29,14 @@ class AbstractEvaluator(eqx.Module):
     any not any additional metadata (bounds, distributions etc.).
     """
     @abstractmethod
-    def __call__(self, model: Model, freq: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, freq: Frequency, **kwargs) -> jnp.ndarray:
         """
         Evaluate the model response over the specified frequency range.
 
         Parameters
         ----------
-        model : Model
-            The model instance to evaluate.
+        model : PyTree
+            The parameter PyTree to evaluate.
         freq : Frequency
             The frequency object defining the evaluation points.
         **kwargs : dict
@@ -49,7 +50,7 @@ class AbstractEvaluator(eqx.Module):
         raise NotImplementedError
     
 #: A type alias for the function signature of an evaluator.
-EvaluatorFn: TypeAlias = Callable[[Model, Frequency], jnp.ndarray]
+EvaluatorFn: TypeAlias = Callable[[PyTree, Frequency], jnp.ndarray]
 
 #: A type alias for "evaluator-like" objects, used as inputs to functions.
 EvaluatorLike: TypeAlias = str | list[str] | EvaluatorFn | list[EvaluatorFn]
@@ -135,7 +136,7 @@ class Feature(AbstractEvaluator):
 
         self.expression = expression
 
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return self.expression(model, frequency, **kwargs)
      
     
@@ -156,7 +157,7 @@ class TargetLoss(AbstractEvaluator):
         See :mod:`pmrf.losses` for common losses.
     """
     #: The active predictor instance.
-    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    predictor: Callable[[PyTree, Frequency], jnp.ndarray]
 
     #: The fixed target data.
     target: np.ndarray = field(converter=np.asarray)
@@ -164,7 +165,7 @@ class TargetLoss(AbstractEvaluator):
     #: The active loss function.
     loss: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
     
@@ -207,7 +208,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     """
     #: The active predictor instance.
-    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    predictor: Callable[[PyTree, Frequency], jnp.ndarray]
     
     #: The observed data.
     observed: np.ndarray = field(converter=np.asarray)
@@ -243,7 +244,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
         # Get the distribution over obs_event and the actual observed event
         obs_dist = self.predictive_distribution(model, frequency, **kwargs)
@@ -260,7 +261,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         log_probs = mapped_log_prob(obs_dist, obs_event)
         return jnp.sum(log_probs)
     
-    def predictive_distribution(self, model: Model, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
+    def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
         Returns the full predictive distribution of an observed event for a given model.
         
@@ -300,7 +301,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         return self.likelihood(pred_event)
         
     @unwrap_self
-    def sample_observation(self, key: jax.Array, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def sample_observation(self, key: jax.Array, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         """
         Returns a sample from the predictive distribution in observation space.
         """
@@ -360,7 +361,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     """
     #: The active predictor instance.
-    predictor: Callable[[Model, Frequency], jnp.ndarray]
+    predictor: Callable[[PyTree, Frequency], jnp.ndarray]
     
     #: The observed data.
     observed: np.ndarray = field(converter=np.asarray)
@@ -398,7 +399,7 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
                 
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             return self.event_transform.forward(y_pred)
@@ -451,7 +452,7 @@ class NegativeLogLikelihood(AbstractEvaluator):
     #: The underlying MLL instance.
     mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
 
-    def __call__(self, model: Model, frequency: Frequency, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.mll(model, frequency, **kwargs)
 
 

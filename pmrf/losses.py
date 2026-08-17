@@ -9,14 +9,14 @@ from abc import abstractmethod
 from typing import Callable, Literal
 
 import jax.numpy as jnp
-import equinox as eqx
 import parax as prx
 
 from pmrf.math import losses as F
+from pmrf.modules.base import Module
 from pmrf.utils import field, unwrap, freeze
 
 
-class AbstractLoss(eqx.Module):
+class AbstractLoss(Module):
     """
     Abstract base class for frequentist loss functions.
     

@@ -73,7 +73,8 @@ def test_at_multiple_string_targets():
 
 def test_tied_string_targets():
     """Test that .tied() accepts string parameter names for source and target."""
-    from pmrf.models import Tied
+    from pmrf.models import Wrapped
+    from pmrf.modules import Tied
     
     rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
@@ -81,7 +82,8 @@ def test_tied_string_targets():
     tied_rc = rc.tied(target="custom_R", source="custom_C", tie_fn=lambda c: c * 5.0)
     
     # If the resolution failed, it would throw an error before instantiation
-    assert isinstance(tied_rc, Tied)
+    assert isinstance(tied_rc, Wrapped)
+    assert isinstance(tied_rc.wrapped, Tied)
 
 def test_target_resolution_errors():
     """Test that invalid target formats or non-existent names raise appropriate errors."""
@@ -120,7 +122,8 @@ def test_at_nested_namespace():
 
 def test_tied_nested_namespace():
     """Test that .tied() resolves string targets using nested model namespaces."""
-    from pmrf.models import Tied
+    from pmrf.models import Wrapped
+    from pmrf.modules import Tied
     
     r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
     c = Capacitor(prf.Unconstrained(10.0, name="cap_val"), name="myC")
@@ -139,4 +142,5 @@ def test_tied_nested_namespace():
         tie_fn=lambda val: val * 5.0
     )
     
-    assert isinstance(tied_cas, Tied)
+    assert isinstance(tied_cas, Wrapped)
+    assert isinstance(tied_cas.wrapped, Tied)

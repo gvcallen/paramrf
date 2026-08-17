@@ -1,5 +1,5 @@
 """
-Callables that evaluate a model, which form the summands of a problem.
+Callables that evaluate a parameter PyTree, which form the summands of a problem.
 """
 
 from typing import Callable, Sequence, TypeAlias
@@ -9,33 +9,34 @@ import jax.numpy as jnp
 import equinox as eqx
 import eqxpress as ex
 import parax as prx
+from jaxtyping import PyTree
 
-from pmrf.models.base import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
+from pmrf.modules.base import Module
 from pmrf.utils import freeze, field, unwrap
 
 
-class AbstractTerm(eqx.Module):
+class AbstractTerm(Module):
     """
     Abstract base class for callables that evaluate a model.
 
-    Terms are the summands of a :class:`pmrf.SummedTerms`. An evaluator takes both a model
-    and a frequency, whereas a term takes only a model, having already resolved the
+    Terms are the summands of a :class:`pmrf.SummedTerms`. An evaluator takes both a PyTree
+    and a frequency, whereas a term takes only a PyTree, having already resolved the
     frequency that it needs.
 
-    Inheriting from this class is optional. Any callable that accepts a model is a
+    Inheriting from this class is optional. Any callable that accepts a PyTree is a
     valid term, meaning that a once-off penalty can simply be written as a function.
     """
     @abstractmethod
-    def __call__(self, model: Model, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, **kwargs) -> jnp.ndarray:
         """
         Evaluate the model.
 
         Parameters
         ----------
-        model : Model
-            The model instance to evaluate.
+        model : PyTree
+            The parameter PyTree to evaluate.
         **kwargs : dict
             Additional keyword arguments for the evaluation process.
 
@@ -48,7 +49,7 @@ class AbstractTerm(eqx.Module):
 
 
 #: A type alias for the function signature of a term.
-TermFn: TypeAlias = Callable[[Model], jnp.ndarray]
+TermFn: TypeAlias = Callable[[PyTree], jnp.ndarray]
 
 #: A type alias for "term-like" objects, used as inputs to functions.
 TermLike: TypeAlias = TermFn | tuple[Callable, Frequency]
@@ -82,7 +83,7 @@ class BoundEvaluator(AbstractTerm):
     #: The relative weight of this term.
     weight: float = field(default=1.0, static=True)
 
-    def __call__(self, model: Model, **kwargs) -> jnp.ndarray:
+    def __call__(self, model: PyTree, **kwargs) -> jnp.ndarray:
         return self.weight * unwrap(self.evaluator)(model, unwrap(self.frequency), **kwargs)
 
 

@@ -8,6 +8,7 @@ from typing import Any
 
 import jax.numpy as jnp
 import equinox as eqx
+from jaxtyping import PyTree
 
 from pmrf.parameters import tree_param_distributions, tree_param_log_prob
 from pmrf.terms import TermFn
@@ -27,7 +28,7 @@ class AbstractProblem(eqx.Module):
     exposes the wrapped problem's `model` as its own.
     """
     #: The tree of parameters being solved for.
-    model: eqx.AbstractVar[Any]
+    model: eqx.AbstractVar[PyTree]
 
     @property
     def inner(self) -> 'AbstractProblem':
@@ -61,7 +62,7 @@ class SummedTerms(AbstractProblem):
         The terms to sum. Each maps the tree to a scalar or array result.
     """
     #: The tree of parameters being solved for.
-    model: Any
+    model: PyTree
 
     #: The terms summed to produce the result.
     terms: tuple[TermFn, ...] = field(converter=tuple)
@@ -115,7 +116,7 @@ class PriorPenalized(AbstractProblem):
         self.distributions = tree_param_distributions(self.problem)
 
     @property
-    def model(self) -> Any:
+    def model(self) -> PyTree:
         return self.problem.model
 
     @property

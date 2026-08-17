@@ -489,7 +489,7 @@ def param(
     This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
 
     It is used to register the parameter when a model is constructed, so it is listed
-    under :meth:`pmrf.Model.named_params`. It can also be used to enforce
+    under :meth:`pmrf.Module.named_params`. It can also be used to enforce
     constraints, scaling, bounds and variability within the model itself.
     
     This simply creates a `pmrf.field` with a `pmrf.as_param` converter.
@@ -502,15 +502,11 @@ def param(
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import Resistor, Capacitor
         from pmrf.constraints import Positive
 
-        class RC(prf.Model):
+        class RC(prf.Module):
             R: prf.Param = prf.param(constraint=Positive())
             C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
-
-            def build(self) -> prf.Model:
-                return Resistor(self.R) ** Capacitor(self.C)
 
         RC(1.0, 2.0)
         # RC(R=1., C=2.e-12)
@@ -775,7 +771,7 @@ def node_distribution(node) -> AbstractDistribution | None:
     Returns the prior distribution attached to a node, if any.
 
     Covers both a :class:`Param`'s own distribution and a joint distribution attached
-    over a sub-tree, such as by :class:`pmrf.models.Probabilistic`.
+    over a sub-tree, such as by :class:`pmrf.modules.Probabilistic`.
 
     A parameter's distribution is authored in its raw, unscaled space, whereas an
     unwrapped tree holds scaled values, so the scale is folded into the distribution

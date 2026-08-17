@@ -5,8 +5,9 @@ from operator import attrgetter
 
 import jax.numpy as jnp
 import skrf
+import equinox as eqx
+from jaxtyping import PyTree
 
-from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.evaluators import EvaluatorLike
 from pmrf.optimize import is_minimizer, OptimizeResult, ScipyMinimize, AbstractMinimizer
@@ -23,19 +24,19 @@ A type-hint for a solver capable of be used for fitting. Currently either :class
 """
 AbstractFitter: TypeAlias = AbstractMinimizer | AbstractSampler
 
-ModelT = TypeVar('ModelT', bound=Model)
+PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
 def fit(
-    model: ModelT,
+    model: PyTreeT,
     data: jnp.ndarray | skrf.Network | NetworkCollection,
     solver: AbstractFitter = ScipyMinimize(),
     frequency: Frequency | None = None,
     *,
     features: EvaluatorLike | None = 's',
     **kwargs
-) -> FitResult[ModelT]:
+) -> FitResult[PyTreeT]:
     """
-    Fit a model to data using a variety of methods.
+    Fit a parameter-aware module to data using a variety of methods.
 
     This is a unified router to either :meth:`pmrf.fitting.fit_minimize`
     or :meth:`pmrf.fitting.fit_sample`. The execution path is determined by the
@@ -43,8 +44,8 @@ def fit(
 
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : PyTree
+        The parameter PyTree to fit.
     data : jnp.ndarray | skrf.Network | NetworkCollection
         The data to fit. Can either be a JAX array,
         a :class:`skrf.Network`, or a :class:`pmrf.NetworkCollection`.
@@ -80,13 +81,13 @@ def fit(
         )
         
 def fit_sequential(
-    model: ModelT, 
+    model: PyTreeT,
     data: NetworkCollection,
     *,
     dynamic_kwargs: dict[str, dict[str, Any] | Callable[[skrf.Network], Any]] | None = None,
     callback: Callable[[FitResult], None] | None = None,
     **kwargs,
-) -> tuple[ModelT, dict[str, FitResult]]:
+) -> tuple[PyTreeT, dict[str, FitResult]]:
     """
     Sequentially fits sub-models using either optimization or sampling.
     
@@ -95,8 +96,8 @@ def fit_sequential(
 
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : PyTree
+        The parameter PyTree to fit.
     data : NetworkCollection
         A collection of network data whose names are used as prefixes for sub-model features.
     dynamic_kwargs : dict[str, dict | Callable[[skrf.Network], Any]] | None, default=None
@@ -120,7 +121,10 @@ def fit_sequential(
     for ntwk in data:
         name = ntwk.name
         
-        sub_model = model.at(lambda m: attrgetter(name)(m)).get()
+        def select_subtree(tree):
+            return tree[name] if isinstance(tree, dict) else attrgetter(name)(tree)
+
+        sub_model = select_subtree(model)
         sub_data = data.filter(lambda n: n.name == name)
 
         if len(sub_data.networks) > 1:
@@ -166,14 +170,14 @@ def fit_sequential(
         except Exception as e:
             raise Exception(f"Error fitting {name}: {e}")
         
-        model = model.at(lambda m: attrgetter(name)(m)).set(result_sub.model)
+        model = eqx.tree_at(select_subtree, model, result_sub.model)
         all_results[name] = result_sub
     
     return model, all_results
 
 
 def fit_joint(
-    model: Model, 
+    model: PyTree,
     data: NetworkCollection,
     **kwargs,
 ) -> FitResult:
@@ -190,8 +194,8 @@ def fit_joint(
 
     Parameters
     ----------
-    model : Model
-        The RF model to fit.
+    model : PyTree
+        The parameter PyTree to fit.
     data : NetworkCollection
         A collection of network data whose names are used as prefixes for sub-model features.
     **kwargs : dict

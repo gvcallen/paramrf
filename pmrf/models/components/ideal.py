@@ -107,14 +107,12 @@ class Port(Model):
     This class serves as a placeholder or marker for external connections
     in a :class:`pmrf.models.Circuit` definition, though can also be used
     as a simple tagged load in other types of models.
-    
-    Calling `build` returns a matched load model.
     """
     #: Port characteristic impedance
     z0: Param = param(default=50.0)
 
-    def build(self) -> Model:
-        return Load(gamma=0.0, z0=self.z0)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return Load(gamma=0.0, z0=self.z0).s(freq, z0=z0)
     
 
 class Ground(Model):
@@ -122,13 +120,12 @@ class Ground(Model):
     Represents a ground connection.
 
     This class serves as a placeholder for a ground node in a :class:`pmrf.models.Circuit` definition.
-    Calling `build` returns a short circuit model.
     
     The ground does not have a reference impedance, since an ideal ground circuit
     has the same S-parameters irrespective of the reference impedance.
     """
-    def build(self) -> Model:
-        return Short()
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return Short().s(freq, z0=z0)
 
 
 class Transformer(Model):
@@ -261,8 +258,8 @@ class Tee(Model):
     This model does not have a reference impedance and dynamically
     matches the evaluation characteristic impedance.
     """
-    def build(self) -> Model:
-        return Splitter(nports=3)
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        return Splitter(nports=3).s(freq, z0=z0)
     
 
 class Attenuator(Model):
