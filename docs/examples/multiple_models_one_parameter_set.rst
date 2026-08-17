@@ -1,7 +1,7 @@
 Fitting Multiple Models from One Parameter Set
 ==============================================
 
-Although :meth:`pmrf.Module.at` and :meth:`pmrf.Module.tied` provides a convenient way to manipulate models and tie parameters together, it is sometimes more convenient to have a single parameter base from which all models are derived. In this example, we fit two arrangements of the same resistor, inductor, and capacitor. Rather than fitting either circuit directly, we fit one set of ``R``, ``L``, and ``C`` values and use them to create both circuits.
+Although :meth:`pmrf.Module.at` and :meth:`pmrf.Module.tied` provide a convenient way to manipulate models and tie parameters together, it is sometimes more convenient to have a single parameter base from which all models are derived. In this example, we fit two arrangements of the same resistor, inductor, and capacitor. Rather than fitting either circuit directly, we fit one set of ``R``, ``L``, and ``C`` values and use them to create both circuits.
 
 Using a Dictionary of Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +90,7 @@ For simple examples, dictionaries are adequate. However, if the same set of para
 Plotting the Derived Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Finally,we compare the initial and fitted responses for both arrangements. We pass the fitted dictionary back to ``models``, which creates both circuits using the fitted ``R``, ``L``, and ``C`` values.
+Finally, we compare the initial and fitted responses for both arrangements. We pass the fitted dictionary back to ``models``, which creates both circuits using the fitted ``R``, ``L``, and ``C`` values.
 
 .. plot::
    :context: close-figs
