@@ -10,8 +10,9 @@ import equinox as eqx
 from distreqx.distributions import AbstractDistribution, Normal, MultivariateNormalFullCovariance
 
 from pmrf.parameters import Param
+from pmrf.modules.base import Module
 
-class AbstractLikelihood(eqx.Module):
+class AbstractLikelihood(Module):
     r"""
     Abstract base class for likelihood models.
     

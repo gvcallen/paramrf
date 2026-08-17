@@ -7,13 +7,13 @@ for more details.
 from abc import abstractmethod
 
 import jax.numpy as jnp
-import equinox as eqx
 
 from pmrf.utils import field
 from pmrf.types import ArrayLike
+from pmrf.modules.base import Module
 
 
-class AbstractCovarianceKernel(eqx.Module):
+class AbstractCovarianceKernel(Module):
     """
     Abstract base class for covariance kernel functions.
     

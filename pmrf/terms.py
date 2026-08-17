@@ -13,10 +13,11 @@ from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
 from pmrf.evaluators import AbstractEvaluator
+from pmrf.modules.base import Module
 from pmrf.utils import freeze, field, unwrap
 
 
-class AbstractTerm(eqx.Module):
+class AbstractTerm(Module):
     """
     Abstract base class for callables that evaluate a model.
 

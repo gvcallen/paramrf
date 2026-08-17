@@ -18,9 +18,10 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.modules.base import Module
 from pmrf.utils import field, unwrap, unwrap_self
 
-class AbstractEvaluator(eqx.Module):
+class AbstractEvaluator(Module):
     """
     Abstract base class for callables that evaluate a model over frequency.
 
