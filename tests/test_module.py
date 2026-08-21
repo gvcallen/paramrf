@@ -50,7 +50,9 @@ def test_tied_model_preserves_rf_interface():
     )
 
     assert isinstance(tied, Wrapped)
+    assert isinstance(tied, prf.models.AbstractBuilder)
     assert isinstance(tied.wrapped, Tied)
+    assert isinstance(tied.build(), prf.Model)
     assert jnp.allclose(tied.s(frequency), prf.unwrap(tied.wrapped).s(frequency))
     assert isinstance(tied ** model, prf.models.Cascade)
 

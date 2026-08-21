@@ -2,13 +2,16 @@
 import pytest
 import numpy as np
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.frequency import Frequency
+from pmrf.parameters import Unconstrained
 from pmrf.rf import s2y
 
 from pmrf.models import (
-    Model, GroundLifted, GroundExposed, Shunt, 
-    Resistor, Short, Open, Inductor
+    Model, Cascade, Circuit, FloatingLine, FloatingTwoPort, GroundLifted,
+    GroundExposed, Shunt, PhaseLine, Port, RLGCLine, Resistor, Short, Open,
+    Inductor
 )
 from pmrf.models.composite.nodal import CoupledOnePorts, CoupledTwoPorts
 
@@ -16,6 +19,164 @@ from pmrf.models.composite.nodal import CoupledOnePorts, CoupledTwoPorts
 @pytest.fixture
 def basic_freq():
     return Frequency(start=1.0, stop=10.0, npoints=5, unit='GHz')
+
+
+# ---------------------------------------------------------
+# FloatingTwoPort Tests
+# ---------------------------------------------------------
+
+@pytest.mark.parametrize("line", [
+    PhaseLine(z0=50.0, theta=37.0, f0=5e9),
+    RLGCLine(R=2.0, L=250e-9, G=2e-5, C=100e-12, length=0.13),
+])
+def test_floating_two_port_matches_floating_line_y(line, basic_freq):
+    generic = FloatingTwoPort(floating=line)
+    specialized = FloatingLine(floating=line)
+
+    assert generic.number_of_ports == 4
+    assert generic.primary_domain == "y"
+    assert jnp.allclose(generic.y(basic_freq), specialized.y(basic_freq))
+
+
+@pytest.mark.parametrize("z0", [
+    50.0,
+    50.0 + 5.0j,
+    jnp.array([45.0, 55.0, 65.0, 75.0]),
+])
+@pytest.mark.parametrize("line", [
+    PhaseLine(z0=50.0, theta=37.0, f0=5e9),
+    RLGCLine(R=2.0, L=250e-9, G=2e-5, C=100e-12, length=0.13),
+])
+def test_floating_two_port_matches_floating_line_s(line, z0, basic_freq):
+    generic = FloatingTwoPort(floating=line)
+    specialized = FloatingLine(floating=line)
+
+    assert jnp.allclose(
+        generic.s(basic_freq, z0=z0),
+        specialized.s(basic_freq, z0=z0),
+        rtol=1e-8,
+        atol=1e-8,
+    )
+
+
+def test_floating_two_port_terminal_pair_mapping(basic_freq):
+    inner = Resistor(R=37.0)
+    floating = FloatingTwoPort(floating=inner)
+    transform = jnp.array([
+        [1.0, 0.0],
+        [-1.0, 0.0],
+        [0.0, 1.0],
+        [0.0, -1.0],
+    ], dtype=complex)
+    expected = jnp.einsum(
+        "ai,...ij,bj->...ab", transform, inner.y(basic_freq), transform
+    )
+
+    assert jnp.allclose(floating.y(basic_freq), expected)
+    assert jnp.allclose(jnp.sum(floating.y(basic_freq), axis=-1), 0.0)
+    assert jnp.allclose(jnp.sum(floating.y(basic_freq), axis=-2), 0.0)
+
+
+def test_floating_two_port_port_order_agrees_with_circuit(basic_freq):
+    floating = FloatingTwoPort(
+        floating=PhaseLine(z0=50.0, theta=37.0, f0=5e9)
+    )
+    ports = tuple(Port() for _ in range(4))
+    circuit = Circuit([
+        [(ports[index], 0), (floating, index)] for index in range(4)
+    ])
+
+    assert jnp.allclose(
+        circuit.s(basic_freq), floating.s(basic_freq), rtol=1e-8, atol=1e-8
+    )
+
+
+def test_floating_two_port_is_differentiable(basic_freq):
+    resistance = 37.0
+    floating = FloatingTwoPort(
+        floating=Resistor(R=Unconstrained(resistance))
+    )
+
+    gradient = eqx.filter_grad(
+        lambda model: jnp.real(model.y(basic_freq)[0, 0, 0])
+    )(floating)
+
+    actual = gradient.floating.R
+    expected = -1.0 / resistance**2
+    assert jnp.isfinite(actual)
+    assert jnp.allclose(actual, expected, rtol=1e-10, atol=1e-12)
+
+
+def test_floating_two_port_validates_input():
+    with pytest.raises(TypeError, match="requires a pmrf.Model"):
+        FloatingTwoPort(floating=object())
+
+    with pytest.raises(ValueError, match="requires a 2-port model"):
+        FloatingTwoPort(floating=Short())
+
+
+@pytest.mark.parametrize("z0", [
+    50.0,
+    73.0,
+    jnp.array([45.0, 55.0, 45.0, 55.0]),
+])
+def test_floating_two_port_commutes_with_unequal_line_cascade(z0, basic_freq):
+    first = RLGCLine(R=1.0, L=220e-9, G=1e-5, C=90e-12, length=0.07)
+    second = RLGCLine(R=4.0, L=310e-9, G=4e-5, C=120e-12, length=0.11)
+
+    float_after = FloatingTwoPort(floating=Cascade((first, second)))
+    cascade_after = Cascade((
+        FloatingTwoPort(floating=first),
+        FloatingTwoPort(floating=second),
+    ))
+
+    assert jnp.allclose(
+        float_after.s(basic_freq, z0=z0),
+        cascade_after.s(basic_freq, z0=z0),
+        rtol=1e-7,
+        atol=1e-7,
+    )
+    assert jnp.allclose(
+        float_after.y(basic_freq),
+        cascade_after.y(basic_freq),
+        rtol=1e-7,
+        atol=1e-7,
+    )
+
+
+def test_floating_two_port_cascade_gradient_agrees(basic_freq):
+    second = RLGCLine(R=4.0, L=310e-9, G=4e-5, C=120e-12, length=0.11)
+    first_float_after = RLGCLine(
+        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=Unconstrained(0.07)
+    )
+    first_cascade_after = RLGCLine(
+        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=Unconstrained(0.07)
+    )
+    float_after = FloatingTwoPort(
+        floating=Cascade((first_float_after, second))
+    )
+    cascade_after = Cascade((
+        FloatingTwoPort(floating=first_cascade_after),
+        FloatingTwoPort(floating=second),
+    ))
+
+    response = lambda model: jnp.real(model.s(basic_freq)[2, 2, 0])
+    float_after_tree_grad = eqx.filter_grad(response)(float_after)
+    cascade_after_tree_grad = eqx.filter_grad(response)(cascade_after)
+    float_after_grad = float_after_tree_grad.floating.cascade[0].length
+    cascade_after_grad = cascade_after_tree_grad.cascade[0].floating.length
+
+    assert jnp.isfinite(float_after_grad)
+    assert jnp.isfinite(cascade_after_grad)
+    assert jnp.allclose(float_after_grad, cascade_after_grad, rtol=1e-6, atol=1e-6)
+
+
+def test_floating_two_port_near_zero_length_is_finite(basic_freq):
+    line = PhaseLine(z0=50.0, theta=1e-12, f0=5e9)
+    floating = FloatingTwoPort(floating=line)
+
+    assert jnp.all(jnp.isfinite(floating.y(basic_freq)))
+    assert jnp.all(jnp.isfinite(floating.s(basic_freq)))
 
 # ---------------------------------------------------------
 # GroundLifted Tests

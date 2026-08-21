@@ -13,6 +13,70 @@ from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike
 
 
+class FloatingTwoPort(Model):
+    r"""Lift a two-port model into a canonical floating four-terminal model.
+
+    Ports are ordered as ``(1+, 1-, 2+, 2-)``. If the inner two-port has
+    admittance matrix :math:`Y`, the lifted matrix is
+
+    .. math::
+
+        Y_\mathrm{floating} = D Y D^T,
+
+    where
+
+    .. math::
+
+        D = \begin{bmatrix}
+            1 & 0 \\
+           -1 & 0 \\
+            0 & 1 \\
+            0 & -1
+        \end{bmatrix}.
+
+    This is a canonical terminal-pair lift: each pair carries equal and
+    opposite current and common-mode voltages produce no response. It does not
+    infer capacitance, leakage, radiation, conduction, or other coupling to a
+    chassis or external reference that is absent from the inner two-port model.
+    In particular, it is distinct from :class:`GroundLifted` and
+    :class:`GroundExposed`, which expose a shared reference node.
+
+    Parameters
+    ----------
+    floating : Model
+        The two-port model whose port voltages are to be interpreted as
+        terminal-pair voltages.
+    """
+
+    floating: Model
+
+    def __post_init__(self):
+        if not isinstance(self.floating, Model):
+            raise TypeError(
+                "FloatingTwoPort requires a pmrf.Model; "
+                f"got {type(self.floating).__name__}."
+            )
+        nports = self.floating.nports
+        if nports != 2:
+            raise ValueError(
+                "FloatingTwoPort requires a 2-port model; "
+                f"received a {nports}-port model."
+            )
+
+    @property
+    def number_of_ports(self) -> int:
+        return 4
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        transform = jnp.array(
+            [[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]],
+            dtype=complex,
+        )
+        return jnp.einsum(
+            "ai,...ij,bj->...ab", transform, self.floating.y(freq), transform
+        )
+
+
 class GroundLifted(Model):
     r"""
     A wrapper that converts an N-port grounded model into a 2N-port ungrounded model.

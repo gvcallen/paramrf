@@ -4,13 +4,13 @@ Composite models that physically connect ports of other models in series.
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+import numpy as np
 from dataclasses import InitVar
 from typing import Literal
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.utils import field
-from pmrf.math import nudge_diag
 from pmrf.types import ArrayLike
 from pmrf.rf import a2s, s2a, a2mna, s2mna, MNAStamp
 
@@ -72,7 +72,7 @@ class Cascade(Model):
     #: The cascade reduction algorithm method.
     method: Literal['s', 'a'] = field(default='s', kw_only=True, static=True)
     
-    #: Epsilon for matrix singularity nudging in scattering cascade.
+    #: Relative cutoff for singular values in scattering cascade elimination.
     eps: float = field(default=1e-12, static=True, kw_only=True)
 
     def __post_init__(self):
@@ -146,11 +146,17 @@ class Cascade(Model):
 
         I = jnp.eye(N, dtype=Smat_A.dtype)
 
-        M = nudge_diag(I - B11 @ A22, eps=self.eps)
-        N_mat = nudge_diag(I - A22 @ B11, eps=self.eps)
-        
-        X = jnp.linalg.solve(M, I)
-        Y = jnp.linalg.solve(N_mat, I)
+        M = I - B11 @ A22
+        N_mat = I - A22 @ B11
+
+        # Floating multi-conductor networks contain an exact common-mode null
+        # space. A diagonal nudge turns that unobservable direction into a very
+        # large, epsilon-dependent solution. The Moore-Penrose inverse instead
+        # eliminates only the observable subspace and is identical to an inverse
+        # for full-rank connection matrices.
+        rtol = max(self.eps, np.finfo(Smat_A.real.dtype).eps * 10)
+        X = jnp.linalg.pinv(M, rtol=rtol)
+        Y = jnp.linalg.pinv(N_mat, rtol=rtol)
 
         S11 = A11 + A12 @ X @ B11 @ A21
         S12 = A12 @ X @ B12

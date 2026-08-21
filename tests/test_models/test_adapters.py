@@ -1,13 +1,15 @@
 # tests/test_adapters/test_adapters.py
 import pytest
+import warnings
 import jax
 import jax.numpy as jnp
 import numpy as np
 
+import pmrf as prf
 from pmrf import Frequency, Param, param
 from pmrf.models import (
-    AbstractDiscrete, AbstractSingleDomain,
-    AbstractHost, ContinuousCallable, SkrfNetwork
+    AbstractBuilder, AbstractDiscrete, AbstractSingleDomain,
+    AbstractHost, Cascade, ContinuousCallable, PhaseLine, SkrfNetwork
 )
 from pmrf.network_collection import NetworkCollection
 from pmrf.types import ArrayLike
@@ -25,6 +27,94 @@ def coarse_freq():
 def fine_freq():
     # 5 points: 1, 1.5, 2.0, 2.5, 3.0 GHz
     return Frequency(start=1.0, stop=3.0, npoints=5, unit='GHz')
+
+
+class BuiltLine(AbstractBuilder):
+    theta: Param = param()
+
+    def build(self):
+        return PhaseLine(z0=55.0, theta=self.theta, f0=5e9)
+
+
+class BuiltCascade(AbstractBuilder):
+    theta: Param = param()
+
+    def build(self):
+        return Cascade((
+            PhaseLine(z0=50.0, theta=self.theta, f0=5e9),
+            PhaseLine(z0=50.0, theta=10.0, f0=5e9),
+        ))
+
+
+class InvalidBuilder(AbstractBuilder):
+    def build(self):
+        return "not a model"
+
+
+def test_abstract_builder_cannot_be_instantiated():
+    with pytest.raises(TypeError):
+        AbstractBuilder()
+
+
+def test_abstract_builder_delegates_complete_rf_interface(fine_freq):
+    builder = BuiltLine(theta=25.0)
+    built = builder.build()
+
+    assert builder.number_of_ports == built.number_of_ports == 2
+    assert builder.nports == built.nports
+    assert builder.primary_domain == built.primary_domain
+    assert jnp.allclose(builder.primary_matrix(fine_freq), built.primary_matrix(fine_freq))
+    assert jnp.allclose(builder.s(fine_freq, z0=63.0), built.s(fine_freq, z0=63.0))
+    assert jnp.allclose(builder.a(fine_freq), built.a(fine_freq))
+    assert jnp.allclose(builder.y(fine_freq), built.y(fine_freq))
+    assert jnp.allclose(builder.z(fine_freq), built.z(fine_freq))
+
+    builder_stamp = builder.mna(fine_freq)
+    built_stamp = built.mna(fine_freq)
+    assert all(
+        jnp.allclose(actual, expected)
+        for actual, expected in zip(
+            jax.tree.leaves(builder_stamp), jax.tree.leaves(built_stamp)
+        )
+    )
+
+
+def test_abstract_builder_delegates_expand():
+    builder = BuiltCascade(theta=25.0)
+    expanded = builder.expand()
+
+    assert expanded is not None
+    port_map, internal_connections = expanded
+    assert len(port_map) == builder.nports == 2
+    assert internal_connections == []
+
+
+def test_abstract_builder_build_does_not_warn():
+    builder = BuiltLine(theta=25.0)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert isinstance(builder.build(), prf.Model)
+
+    assert not any(issubclass(w.category, FutureWarning) for w in caught)
+
+
+def test_abstract_builder_validates_build_result():
+    with pytest.raises(TypeError, match=r"build\(\) must return a pmrf\.Model"):
+        InvalidBuilder().s(Frequency(1.0, 2.0, 2, unit="GHz"))
+
+
+def test_abstract_builder_tracks_functional_parameter_updates(fine_freq):
+    builder = BuiltLine(theta=10.0)
+    updated = builder.at("theta").set(prf.as_param(35.0))
+
+    assert not jnp.allclose(builder.s(fine_freq), updated.s(fine_freq))
+
+    derivative = jax.grad(
+        lambda theta: jnp.real(BuiltLine(theta=theta).s(fine_freq)[0, 1, 0])
+    )(25.0)
+    assert jnp.isfinite(derivative)
+    assert not jnp.isclose(derivative, 0.0)
 
 # ---------------------------------------------------------
 # Abstract Adapter Dummies & Tests
