@@ -518,6 +518,11 @@ class ShuntInductor(Model):
         s21 = ((Z * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
+        s = jnp.array([
+            [s11, s12],
+            [s21, s22],
+        ]).transpose(2, 0, 1)        
+
         return s
 
 
