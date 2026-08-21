@@ -46,7 +46,8 @@ class Resistor(Model):
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         R = self.R
-        Y = 1.0 / R
+        R_safe = jnp.where(jnp.abs(R) < 1e-9, jnp.sign(R + 1e-15) * 1e-9, R)
+        Y = 1.0 / R_safe
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
         y11 = Y * ones
@@ -517,9 +518,58 @@ class ShuntInductor(Model):
         s21 = ((Z * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
+        return s
+
+
+class SeriesRL(Model):
+    """
+    A 2-port model of a series resistor and inductor (Z = R + j*w*L).
+
+    Parameters
+    ----------
+    R : Param
+        The resistance in Ohms.
+    L : Param
+        The inductance in Henrys.
+    """
+    #: Resistance in Ohms
+    R: Param = param()
+
+    #: Inductance in Henrys
+    L: Param = param()
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        w = freq.w
+        R = self.R
+        L = self.L
+        Z = R + 1j * w * L
+
+        if jnp.isscalar(z0):
+            z_in = z_out = z0
+        else:
+            z_in = z0[..., 0]
+            z_out = z0[..., 1]
+
+        denom = Z + (z_in + z_out)
+        s11 = (Z - jnp.conj(z_in) + z_out) / denom
+        s22 = (Z + z_in - jnp.conj(z_out)) / denom
+        s12 = s21 = (2.0 * (z_in.real * z_out.real)**0.5) / denom
+
         s = jnp.array([
             [s11, s12],
             [s21, s22]
         ]).transpose(2, 0, 1)
 
-        return s            
+        return s
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        R = self.R
+        L = self.L
+        Z = R + 1j * w * L
+        Y = 1.0 / Z
+        y = jnp.array([
+            [Y, -Y],
+            [-Y, Y]
+        ]).transpose(2, 0, 1)
+        return y            

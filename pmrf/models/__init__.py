@@ -86,6 +86,7 @@ from pmrf.models.components.lumped import (
     Resistor as Resistor,
     Capacitor as Capacitor,
     Inductor as Inductor,
+    SeriesRL as SeriesRL,
     Impedance as Impedance,
     Admittance as Admittance,
     ShuntResistor as ShuntResistor,
