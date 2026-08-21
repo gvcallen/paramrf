@@ -4,15 +4,15 @@ import parax as prx
 
 from pmrf.modules.base import Module
 from pmrf.models.base import Model
-from pmrf.models.adapters.delegated import _DelegatedModel
+from pmrf.models.adapters.delegated import AbstractBuilder
 
 
-class Wrapped(_DelegatedModel):
+class Wrapped(AbstractBuilder):
     """Adapt a module that unwraps to a model to the RF model interface."""
 
     wrapped: Module
 
-    def _model(self) -> Model:
+    def build(self) -> Model:
         model = prx.unwrap(self.wrapped)
         if not isinstance(model, Model):
             raise TypeError(
