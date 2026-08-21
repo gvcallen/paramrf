@@ -42,8 +42,10 @@ class Model(Module):
     This class should not be instantiated directly. It is created internally in ParamRF when models are
     built compositionally, or can be inherited from. When inheriting, at least one primary matrix method,
     such as or :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
-    or :meth:`pmrf.Model.primary_matrix`, must be overridden. Legacy classes may still
-    override :meth:`pmrf.Model.build`, but that interface is deprecated.
+    or :meth:`pmrf.Model.primary_matrix`, must be overridden. To implement a
+    model by returning another model, inherit from
+    :class:`pmrf.models.AbstractBuilder`. Legacy classes may still override
+    :meth:`pmrf.Model.build` directly, but that interface is deprecated.
 
     The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
@@ -74,7 +76,7 @@ class Model(Module):
     :meth:`mna`                       Modified Nodal Analysis (MNA) stamp matrices.
     :meth:`primary_matrix`            Return the primary matrix. Can be overridden for dynamic dispatch.
     :attr:`primary_domain`            The domain of the primary matrix as a string (e.g. ``"s"``, ``"a"``).
-    :meth:`build`                     Build the model. Can be overridden for advanced models.
+    :meth:`build`                     Deprecated here; use :class:`pmrf.models.AbstractBuilder`.
     :meth:`expand`                    Expands the model's topology. Used for circuit model flattening.
     ================================= ====================================================================
 
@@ -169,11 +171,15 @@ class Model(Module):
 
     def __getattribute__(self, name: str):
         attribute = super().__getattribute__(name)
-        if name == 'build' and is_overridden(type(self), Model, 'build'):
+        if (
+            name == 'build'
+            and is_overridden(type(self), Model, 'build')
+            and not getattr(type(self), '_pmrf_explicit_builder', False)
+        ):
             def deprecated_build(*args, **kwargs):
                 warnings.warn(
-                    "Model.build() is deprecated. Use a pmrf.Module to hold "
-                    "parameters and models, with explicit methods returning RF models.",
+                    "Model.build() is deprecated when overridden directly. Inherit "
+                    "from pmrf.models.AbstractBuilder instead.",
                     FutureWarning,
                     stacklevel=2,
                 )
@@ -217,15 +223,12 @@ class Model(Module):
     # ---- Core API -------------------------------------------------------------
     
     def build(self) -> 'Model':
-        """Build the model (deprecated).
+        """Build the model (deprecated on direct ``Model`` subclasses).
 
-        Use a :class:`pmrf.Module` with an explicit, domain-specific method that
-        returns an RF model or circuit instead. This method remains temporarily
-        available for compatibility with existing composite model classes.
-
-        It is useful to define advanced models that are built
-        using several sub-models or parameters, as opposed to
-        simpler models built using standard equations.
+        Inherit from :class:`pmrf.models.AbstractBuilder` to define a supported
+        model-returning ``build()`` hook. This method remains temporarily
+        available here for compatibility with existing classes that override it
+        directly.
 
         Returns
         -------
@@ -247,11 +250,11 @@ class Model(Module):
         to unpack composite models, wrappers, and nested hierarchies into a 
         single flat netlist. This allows global matrix solves to be used, where desired.
 
-        Note that `expand` is automatically implemented if :meth:`pmrf.Model.build` is overridden
-        and the built model also implements expand. This means that most user-classes
-        do NOT need to manually implement this method, and it is mainly intended for
-        built-in composite models in ParamRF to override e.g. :class:`pmrf.models.Cascade`
-        or :class:`pmrf.models.Renumbered`.
+        :class:`pmrf.models.AbstractBuilder` delegates this method to its built
+        model. The legacy direct ``Model.build()`` override does the same. Most
+        user classes therefore do not need to implement topology expansion
+        manually; it is mainly intended for built-in composite models such as
+        :class:`pmrf.models.Cascade` or :class:`pmrf.models.Renumbered`.
 
         Returns
         -------

@@ -13,6 +13,10 @@ from pmrf.models.base import (
 from pmrf.modules.base import Module as Module, is_module as is_module
 
 # Adapters
+from pmrf.models.adapters.delegated import (
+    AbstractBuilder as AbstractBuilder,
+)
+
 from pmrf.models.adapters.base import (
     AbstractDiscrete as AbstractDiscrete,
     AbstractSingleDomain as AbstractSingleDomain,
@@ -143,6 +147,7 @@ from pmrf.models.composite.transformed import (
 )
 
 from pmrf.models.composite.nodal import (
+    FloatingTwoPort as FloatingTwoPort,
     Shunt as Shunt,
     GroundLifted as GroundLifted,
     GroundExposed as GroundExposed,
