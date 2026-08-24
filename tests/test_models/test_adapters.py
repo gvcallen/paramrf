@@ -4,6 +4,7 @@ import warnings
 import jax
 import jax.numpy as jnp
 import numpy as np
+import parax as prx
 
 import pmrf as prf
 from pmrf import Frequency, Param, param
@@ -301,8 +302,9 @@ def test_skrf_cubic_coefficients_are_fixed_numpy_data():
         _complex_multiport_network(), interpolation_kind="cubic"
     )
 
-    assert isinstance(model._spline_coefficients.real, np.ndarray)
-    assert isinstance(model._spline_coefficients.imag, np.ndarray)
+    assert isinstance(model._spline_coefficients, prx.Static)
+    assert isinstance(model._spline_coefficients.unwrap(), np.ndarray)
+    assert np.iscomplexobj(model._spline_coefficients.unwrap())
     assert model.named_params() == {}
 
 
