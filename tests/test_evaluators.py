@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Goal
+from tests._dependency_checks import requires_distreqx_transpose
 
 dist = pytest.importorskip("distreqx.distributions")
 losses = pytest.importorskip("pmrf.losses")
@@ -155,6 +156,7 @@ def test_goal_met_zero_loss(model, basic_freq):
 # MarginalLogLikelihood Tests
 # ---------------------------------------------------------
 
+@requires_distreqx_transpose
 def test_marginal_loglikelihood(model, basic_freq):
     """Test probabilistic evaluation and the data/event mapping."""
     # We observe s11_mag data that is exactly 1.0 for all 5 points
@@ -179,6 +181,7 @@ def test_marginal_loglikelihood(model, basic_freq):
     expected = -0.91893853 * 5
     assert jnp.allclose(log_prob, expected)
 
+@requires_distreqx_transpose
 def test_mll_complex_default_event_map(model, basic_freq):
     """Ensure the default event mapper handles complex matrices properly."""
     # Observe an S-matrix

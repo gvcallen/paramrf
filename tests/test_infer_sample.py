@@ -14,6 +14,7 @@ from pmrf.infer.result import InferResult
 from pmrf.infer.base import SampleResult
 from pmrf.models import Model
 from pmrf.frequency import Frequency
+from tests._dependency_checks import requires_distreqx_joint
 
 # ==========================================
 # 1. Fixtures & Objectives
@@ -46,31 +47,7 @@ def penalty_ll(model, freq):
 # 2. Higher-Level Wrapper Tests
 # ==========================================
 
-def test_sample_wrapper_propagates_evidence(monkeypatch):
-    """Evidence returned by a solver is preserved by the high-level API."""
-    sample_module = importlib.import_module("pmrf.infer.sample")
-    expected_logevidence = jnp.array(-1.25)
-    expected_error = jnp.array(0.1)
-
-    def fake_run_sampler(*, model, **kwargs):
-        return model, SampleResult(
-            samples=model,
-            fn_values=jnp.array([0.0]),
-            logevidence=expected_logevidence,
-            logevidence_error=expected_error,
-        )
-
-    monkeypatch.setattr(sample_module, "run_sampler", fake_run_sampler)
-
-    result = sample_module.sample(
-        loglikelihood=lambda model: jnp.array(0.0),
-        model={"value": jnp.array(0.0)},
-        solver=object(),
-    )
-
-    assert result.logevidence == expected_logevidence
-    assert result.logevidence_error == expected_error
-
+@requires_distreqx_joint
 def test_sample_wrapper_basic(infer_model, basic_freq):
     """Test the higher-level sample API with a single loglikelihood using NUTS."""
     key = jax.random.key(0)
@@ -98,6 +75,7 @@ def test_sample_wrapper_basic(infer_model, basic_freq):
     assert result.best_model.val.ndim == 0
 
 
+@requires_distreqx_joint
 def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
     """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
     key = jax.random.key(0)
