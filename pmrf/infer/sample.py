@@ -112,5 +112,7 @@ def sample(
         sampled_problem=batched_problem,
         fn_values=results.fn_values,
         weights=results.weights,
+        logevidence=results.logevidence,
+        logevidence_error=results.logevidence_error,
         metrics=results.metrics,
     )
