@@ -8,6 +8,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
+import parax as prx
 import skrf
 from scipy.interpolate import CubicSpline
 
@@ -50,7 +51,7 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
 
 def _cubic_spline_coefficients(
     f: np.ndarray, data: np.ndarray
-) -> tuple[jnp.ndarray, jnp.ndarray]:
+) -> prx.Static[tuple[tuple[int, ...], str, bytes]]:
     """Precompute not-a-knot cubic spline coefficients for complex data."""
     f = np.asarray(f)
     data = np.asarray(data)
@@ -62,18 +63,27 @@ def _cubic_spline_coefficients(
     imag_coefficients = CubicSpline(
         f_normalized, np.imag(data), axis=0
     ).c
-    return jnp.asarray(real_coefficients), jnp.asarray(imag_coefficients)
+    coefficients = real_coefficients + 1j * imag_coefficients
+    payload = (coefficients.shape, coefficients.dtype.str, coefficients.tobytes())
+    return prx.Static(payload)
+
+
+def _restore_cubic_spline_coefficients(
+    payload: tuple[tuple[int, ...], str, bytes],
+) -> np.ndarray:
+    shape, dtype, buffer = payload
+    return np.frombuffer(buffer, dtype=np.dtype(dtype)).reshape(shape)
 
 
 def _interpolate_network_data_cubic(
     f_old: jnp.ndarray,
     f_new: jnp.ndarray,
-    real_coefficients: jnp.ndarray,
-    imag_coefficients: jnp.ndarray,
+    coefficients: np.ndarray,
 ) -> jnp.ndarray:
     """Evaluate precomputed cubic spline coefficients using JAX operations."""
     f_old = jnp.asarray(f_old)
     f_new = jnp.asarray(f_new)
+    coefficients = jnp.asarray(coefficients)
     f_normalized = (f_old - f_old[0]) / (f_old[-1] - f_old[0])
     f_new_normalized = (f_new - f_old[0]) / (f_old[-1] - f_old[0])
 
@@ -81,13 +91,10 @@ def _interpolate_network_data_cubic(
     interval = jnp.clip(interval, 0, f_old.shape[0] - 2)
     offset = (f_new_normalized - f_normalized[interval])[:, None, None]
 
-    def evaluate(coefficients: jnp.ndarray) -> jnp.ndarray:
-        selected = coefficients[:, interval, :, :]
-        return (
-            (selected[0] * offset + selected[1]) * offset + selected[2]
-        ) * offset + selected[3]
-
-    data_new = evaluate(real_coefficients) + 1j * evaluate(imag_coefficients)
+    selected = coefficients[:, interval, :, :]
+    data_new = (
+        (selected[0] * offset + selected[1]) * offset + selected[2]
+    ) * offset + selected[3]
     outside_range = (f_new < f_old[0]) | (f_new > f_old[-1])
     complex_nan = jnp.asarray(complex(np.nan, np.nan), dtype=data_new.dtype)
     return jnp.where(outside_range[:, None, None], complex_nan, data_new)
@@ -135,10 +142,9 @@ class SkrfNetwork(Model):
         default="linear", static=True
     )
 
-    _spline_coefficients_real: jnp.ndarray | None = field(
-        default=None, kw_only=True, repr=False
-    )
-    _spline_coefficients_imag: jnp.ndarray | None = field(
+    _spline_coefficients: prx.Static[
+        tuple[tuple[int, ...], str, bytes]
+    ] | None = field(
         default=None, kw_only=True, repr=False
     )
     
@@ -162,8 +168,7 @@ class SkrfNetwork(Model):
                 f"got {self.interpolation_kind!r}"
             )
 
-        self._spline_coefficients_real = None
-        self._spline_coefficients_imag = None
+        self._spline_coefficients = None
 
         if isinstance(self.network, skrf.Network):
             net_copy = self.network.copy()
@@ -171,10 +176,9 @@ class SkrfNetwork(Model):
             self.network = net_copy
 
             if self.interpolation_kind == "cubic":
-                (
-                    self._spline_coefficients_real,
-                    self._spline_coefficients_imag,
-                ) = _cubic_spline_coefficients(net_copy.f, net_copy.s)
+                self._spline_coefficients = _cubic_spline_coefficients(
+                    net_copy.f, net_copy.s
+                )
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         if isinstance(self.network, NetworkCollection):
@@ -190,11 +194,11 @@ class SkrfNetwork(Model):
                 data_old=s_old,
             )
         else:
+            coefficients = self._spline_coefficients
             s_interp = _interpolate_network_data_cubic(
                 f_old=f_old,
                 f_new=freq.f,
-                real_coefficients=self._spline_coefficients_real,
-                imag_coefficients=self._spline_coefficients_imag,
+                coefficients=_restore_cubic_spline_coefficients(coefficients),
             )
         
         return renormalize_network_data(s_interp, 50.0, z0)
@@ -214,7 +218,7 @@ class Touchstone(Model):
         The interpolation kind forwarded to :class:`SkrfNetwork`.
     """
     #: The underlying Network model use to encapsulate the touchstone.
-    touchstone: SkrfNetwork
+    touchstone: SkrfNetwork = field(static=True)
     
     def __init__(
         self,

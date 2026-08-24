@@ -4,6 +4,7 @@ import warnings
 import jax
 import jax.numpy as jnp
 import numpy as np
+import parax as prx
 
 import pmrf as prf
 from pmrf import Frequency, Param, param
@@ -294,6 +295,19 @@ def test_skrf_cubic_is_jittable_and_nan_outside_source_range():
     assert result.shape == (4, 2, 2)
     assert jnp.all(jnp.isnan(result[jnp.array([0, -1])]))
     assert jnp.all(jnp.isfinite(result[1:3]))
+
+
+def test_skrf_cubic_coefficients_are_fixed_numpy_data():
+    model = SkrfNetwork(
+        _complex_multiport_network(), interpolation_kind="cubic"
+    )
+
+    assert isinstance(model._spline_coefficients, prx.Static)
+    shape, dtype, buffer = model._spline_coefficients.unwrap()
+    coefficients = np.frombuffer(buffer, dtype=np.dtype(dtype)).reshape(shape)
+    assert isinstance(coefficients, np.ndarray)
+    assert np.iscomplexobj(coefficients)
+    assert model.named_params() == {}
 
 
 def test_skrf_cubic_preserves_impedance_renormalization():
