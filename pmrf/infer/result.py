@@ -43,7 +43,7 @@ class InferResult(eqx.Module, Generic[PyTreeT]):
     logevidence: jnp.ndarray = None
     
     #: The estimated error in the log evidence, if any.
-    logevidence_err: jnp.ndarray = None
+    logevidence_error: jnp.ndarray = None
     
     #: The underlying metrics returned by the solver, if any.
     #: May be a stripped-down version of the original results object.

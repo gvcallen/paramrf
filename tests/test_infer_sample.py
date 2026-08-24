@@ -1,5 +1,7 @@
 # tests/test_infer_sample.py
 
+import importlib
+
 import pytest
 import jax
 import jax.numpy as jnp
@@ -9,6 +11,7 @@ from pmrf.distributions import Normal
 from pmrf.infer.sample import sample
 from pmrf.infer.solvers.blackjax import NUTS
 from pmrf.infer.result import InferResult
+from pmrf.infer.base import SampleResult
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from tests._dependency_checks import requires_distreqx_joint
