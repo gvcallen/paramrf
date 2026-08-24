@@ -11,6 +11,10 @@ from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_joint
 from pmrf.fitting.targets import resolve_datasets, union_frequency
+from tests._dependency_checks import (
+    requires_distreqx_joint,
+    requires_distreqx_transpose,
+)
 
 skrf = pytest.importorskip("skrf")
 
@@ -210,6 +214,7 @@ def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
 
     assert count(PriorPenalized(SummedTerms(model=model, terms=(term,)))) == count(SummedTerms(model=model, terms=(term,)))
 
+@requires_distreqx_transpose
 def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
     """The regression: a tight prior must move the estimate away from the MLE."""
     import distreqx.distributions as dist
@@ -274,6 +279,7 @@ def test_probabilistic_single_target_prior_is_found(wide_band):
 
     assert jnp.allclose(scored, expected, atol=1e-6)
 
+@requires_distreqx_joint
 def test_correlated_joint_prior_over_a_subtree(wide_band):
     """A joint is scored over the whole sub-tree at once, preserving correlations."""
     import equinox as eqx
@@ -299,6 +305,7 @@ def test_correlated_joint_prior_over_a_subtree(wide_band):
         atol=1e-6,
     )
 
+@requires_distreqx_joint
 def test_map_problem_uses_a_correlated_prior(wide_band):
     """End to end: PriorPenalized must apply an attached joint, not ignore it."""
     import equinox as eqx
@@ -321,6 +328,8 @@ def test_map_problem_uses_a_correlated_prior(wide_band):
     assert jnp.allclose(mapp(), -joint.log_prob(prf.unwrap(base.wide)), atol=1e-6)
     assert not jnp.allclose(mapp(), mle(), atol=1e-6)
 
+@requires_distreqx_joint
+@requires_distreqx_transpose
 def test_correlated_prior_moves_a_fit(wide_band):
     """A tight joint prior must pull the fit away from the data's answer."""
     import equinox as eqx
@@ -413,6 +422,7 @@ def test_prior_is_finite_for_a_scaled_parameter(wide_band):
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
     assert jnp.isfinite(PriorPenalized(SummedTerms(model=model, terms=(term,)))())
 
+@requires_distreqx_transpose
 def test_scaled_parameter_still_moves_under_map(wide_band):
     """An infinite prior leaves the optimizer at its starting point."""
     from pmrf.fitting.minimize import fit_minimize

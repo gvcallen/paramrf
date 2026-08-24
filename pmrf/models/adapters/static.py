@@ -2,11 +2,14 @@
 Models that store and interpolate static network data from raw arrays.
 """
 
+from typing import Literal
+
 import numpy as np
 import jax
 import jax.numpy as jnp
 
 import skrf
+from scipy.interpolate import CubicSpline
 
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
@@ -45,6 +48,51 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
     return (data_real_new + 1j * data_imag_new).transpose(2, 0, 1)
 
 
+def _cubic_spline_coefficients(
+    f: np.ndarray, data: np.ndarray
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Precompute not-a-knot cubic spline coefficients for complex data."""
+    f = np.asarray(f)
+    data = np.asarray(data)
+    f_normalized = (f - f[0]) / (f[-1] - f[0])
+
+    real_coefficients = CubicSpline(
+        f_normalized, np.real(data), axis=0
+    ).c
+    imag_coefficients = CubicSpline(
+        f_normalized, np.imag(data), axis=0
+    ).c
+    return jnp.asarray(real_coefficients), jnp.asarray(imag_coefficients)
+
+
+def _interpolate_network_data_cubic(
+    f_old: jnp.ndarray,
+    f_new: jnp.ndarray,
+    real_coefficients: jnp.ndarray,
+    imag_coefficients: jnp.ndarray,
+) -> jnp.ndarray:
+    """Evaluate precomputed cubic spline coefficients using JAX operations."""
+    f_old = jnp.asarray(f_old)
+    f_new = jnp.asarray(f_new)
+    f_normalized = (f_old - f_old[0]) / (f_old[-1] - f_old[0])
+    f_new_normalized = (f_new - f_old[0]) / (f_old[-1] - f_old[0])
+
+    interval = jnp.searchsorted(f_normalized, f_new_normalized, side="right") - 1
+    interval = jnp.clip(interval, 0, f_old.shape[0] - 2)
+    offset = (f_new_normalized - f_normalized[interval])[:, None, None]
+
+    def evaluate(coefficients: jnp.ndarray) -> jnp.ndarray:
+        selected = coefficients[:, interval, :, :]
+        return (
+            (selected[0] * offset + selected[1]) * offset + selected[2]
+        ) * offset + selected[3]
+
+    data_new = evaluate(real_coefficients) + 1j * evaluate(imag_coefficients)
+    outside_range = (f_new < f_old[0]) | (f_new > f_old[-1])
+    complex_nan = jnp.asarray(complex(np.nan, np.nan), dtype=data_new.dtype)
+    return jnp.where(outside_range[:, None, None], complex_nan, data_new)
+
+
 def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jnp.ndarray) -> jnp.ndarray:
     z0_new_arr = jnp.asarray(z0_new)
     is_matched = jnp.all(z0_new_arr == z0_old)
@@ -69,30 +117,64 @@ class SkrfNetwork(Model):
     A model wrapping a static :class:`skrf.Network` or :class:`NetworkCollection`.
 
     This model takes a `skrf.Network` and interpolates its S-parameters to the
-    frequency grid requested during simulation, utilizing a shared interpolation function.
+    frequency grid requested during simulation.
 
     Parameters
     ----------
-    data : skrf.Network | NetworkCollection
+    network : skrf.Network | NetworkCollection
         The static network data containing S-parameters and frequency information.
+    interpolation_kind : {"linear", "cubic"}, default="linear"
+        Interpolation applied independently to the real and imaginary parts of
+        the S-parameters.
     """
     #: The underlying network data.
     network: skrf.Network | NetworkCollection = field(static=True)
+
+    #: The interpolation used when evaluating at a new frequency grid.
+    interpolation_kind: Literal["linear", "cubic"] = field(
+        default="linear", static=True
+    )
+
+    _spline_coefficients_real: jnp.ndarray | None = field(
+        default=None, kw_only=True, repr=False
+    )
+    _spline_coefficients_imag: jnp.ndarray | None = field(
+        default=None, kw_only=True, repr=False
+    )
     
     def __getattr__(self, name: str) -> 'SkrfNetwork':
         network = self.__getattribute__('network')
 
         if isinstance(network, NetworkCollection) and name in network.to_dict():
-            return SkrfNetwork(network[name])
+            return SkrfNetwork(
+                network[name], interpolation_kind=self.interpolation_kind
+            )
         elif isinstance(network, skrf.Network) and name == network.name:
-            return SkrfNetwork(network)
+            return SkrfNetwork(
+                network, interpolation_kind=self.interpolation_kind
+            )
         return super().__getattr__(name)
     
     def __post_init__(self):
+        if self.interpolation_kind not in ("linear", "cubic"):
+            raise ValueError(
+                "interpolation_kind must be either 'linear' or 'cubic', "
+                f"got {self.interpolation_kind!r}"
+            )
+
+        self._spline_coefficients_real = None
+        self._spline_coefficients_imag = None
+
         if isinstance(self.network, skrf.Network):
             net_copy = self.network.copy()
             net_copy.renormalize(50.0, 'power')
             self.network = net_copy
+
+            if self.interpolation_kind == "cubic":
+                (
+                    self._spline_coefficients_real,
+                    self._spline_coefficients_imag,
+                ) = _cubic_spline_coefficients(net_copy.f, net_copy.s)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         if isinstance(self.network, NetworkCollection):
@@ -101,11 +183,19 @@ class SkrfNetwork(Model):
         f_old = jnp.array(self.network.f)
         s_old = jnp.array(self.network.s)
         
-        s_interp = interpolate_network_data(
-            f_old=f_old, 
-            f_new=freq.f, 
-            data_old=s_old,
-        )
+        if self.interpolation_kind == "linear":
+            s_interp = interpolate_network_data(
+                f_old=f_old,
+                f_new=freq.f,
+                data_old=s_old,
+            )
+        else:
+            s_interp = _interpolate_network_data_cubic(
+                f_old=f_old,
+                f_new=freq.f,
+                real_coefficients=self._spline_coefficients_real,
+                imag_coefficients=self._spline_coefficients_imag,
+            )
         
         return renormalize_network_data(s_interp, 50.0, z0)
         
@@ -120,13 +210,27 @@ class Touchstone(Model):
     ----------
     file : str
         The file to open.
+    interpolation_kind : {"linear", "cubic"}, default="linear"
+        The interpolation kind forwarded to :class:`SkrfNetwork`.
     """
     #: The underlying Network model use to encapsulate the touchstone.
-    touchstone: SkrfNetwork = field(static=True)
+    touchstone: SkrfNetwork
     
-    def __init__(self, file: str, **kwargs):
-        skrf_network = SkrfNetwork(skrf.Network(file, **kwargs))
+    def __init__(
+        self,
+        file: str,
+        interpolation_kind: Literal["linear", "cubic"] = "linear",
+        **kwargs,
+    ):
+        skrf_network = SkrfNetwork(
+            skrf.Network(file, **kwargs),
+            interpolation_kind=interpolation_kind,
+        )
         self.touchstone = skrf_network
+
+    @property
+    def interpolation_kind(self) -> Literal["linear", "cubic"]:
+        return self.touchstone.interpolation_kind
     
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         return self.touchstone.s(freq, z0=z0)

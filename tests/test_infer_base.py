@@ -9,6 +9,7 @@ import equinox as eqx
 from pmrf.parameters import Random, Fixed
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
+from tests._dependency_checks import requires_distreqx_joint
 
 
 # ==========================================
@@ -51,6 +52,7 @@ def check_samples(x_samples, y_samples):
 # ==========================================
 
 @pytest.mark.parametrize("solver_name", ["NUTS", "HMC"])
+@requires_distreqx_joint
 def test_joint_samplers(solver_name, dummy_model):
     """Test unconstrained joint sampling using BlackJAX NUTS and HMC."""
     blackjax_backend = pytest.importorskip("pmrf.infer.solvers.blackjax")
@@ -84,6 +86,7 @@ def test_joint_samplers(solver_name, dummy_model):
 # 3. Split Sampler Tests
 # ==========================================
 
+@requires_distreqx_joint
 def test_split_sampler_nss(dummy_model):
     """Test constrained split sampling using BlackJAX NSS."""
     blackjax_backend = pytest.importorskip("pmrf.infer.solvers.blackjax")

@@ -11,6 +11,10 @@ from pmrf.fitting import fit_sample
 from pmrf.parameters import Fixed, Random
 from pmrf.distributions import Normal
 from pmrf.infer import NUTS
+from tests._dependency_checks import (
+    requires_distreqx_joint,
+    requires_distreqx_transpose,
+)
 
 @pytest.fixture
 def fit_freq():
@@ -49,6 +53,8 @@ def starting_model():
     )
 
 
+@requires_distreqx_joint
+@requires_distreqx_transpose
 def test_fit_sample_skrf_synthetic_data(starting_model, target_network, truth_model):
     key = jax.random.key(0)
     solver = NUTS(num_warmup=50, show_progress=False)
@@ -78,6 +84,8 @@ def test_fit_sample_skrf_synthetic_data(starting_model, target_network, truth_mo
     np.testing.assert_allclose(mean_length, true_length, rtol=0.01)
     np.testing.assert_allclose(best_length, true_length, rtol=0.01)    
 
+@requires_distreqx_joint
+@requires_distreqx_transpose
 def test_fit_sample_raw_ndarray(truth_model, starting_model, fit_freq):
     # Extract raw S-parameter array
     target_s = np.array(truth_model.s(fit_freq))
@@ -102,6 +110,8 @@ def test_fit_sample_missing_freq_error(starting_model, fit_freq):
     with pytest.raises(ValueError, match="Frequency must be passed if Network data is not provided"):
         fit_sample(starting_model, dummy_s, frequency=None)
 
+@requires_distreqx_joint
+@requires_distreqx_transpose
 def test_fit_sample_specific_feature(truth_model, starting_model, fit_freq):
     from pmrf.evaluators import Feature
     s21_mag_target = Feature('s21_mag')(truth_model, fit_freq)

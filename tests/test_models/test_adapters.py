@@ -9,7 +9,8 @@ import pmrf as prf
 from pmrf import Frequency, Param, param
 from pmrf.models import (
     AbstractBuilder, AbstractDiscrete, AbstractSingleDomain,
-    AbstractHost, Cascade, ContinuousCallable, PhaseLine, SkrfNetwork
+    AbstractHost, Cascade, ContinuousCallable, PhaseLine, SkrfNetwork,
+    Touchstone,
 )
 from pmrf.network_collection import NetworkCollection
 from pmrf.types import ArrayLike
@@ -245,6 +246,117 @@ def test_measured_skrf_interpolation(coarse_freq, fine_freq):
     
     assert s_interp.shape == (5, 1, 1)
     assert jnp.allclose(s_interp[1, 0, 0], 1.5 + 0.0j)
+
+
+def _complex_multiport_network():
+    skrf = pytest.importorskip("skrf")
+    frequency = skrf.Frequency(1.0, 7.0, 7, unit="GHz")
+    x = np.linspace(-1.0, 1.0, frequency.npoints)
+    s = np.empty((frequency.npoints, 2, 2), dtype=complex)
+    s[:, 0, 0] = 0.12 + 0.04*x - 0.03*x**2 + 0.02j*(x**3 - x)
+    s[:, 0, 1] = 0.55 - 0.08*x**3 + 0.03j*(x + x**2)
+    s[:, 1, 0] = -0.18 + 0.05*x**2 + 0.04j*(x**3 + x)
+    s[:, 1, 1] = 0.08*x**3 - 0.02j*(1.0 - x**2)
+    return skrf.Network(frequency=frequency, s=s, z0=50)
+
+
+def test_skrf_cubic_complex_multiport_matches_skrf_and_source_knots():
+    network = _complex_multiport_network()
+    model = SkrfNetwork(network, interpolation_kind="cubic")
+
+    knot_frequency = Frequency.from_skrf(network.frequency)
+    np.testing.assert_allclose(
+        np.asarray(model.s(knot_frequency)),
+        model.network.s,
+        rtol=2e-6,
+        atol=2e-6,
+    )
+
+    requested = Frequency.from_f(
+        [1.0, 1.35, 2.4, 3.7, 5.25, 6.6, 7.0], unit="GHz"
+    )
+    expected = model.network.interpolate(
+        requested.to_skrf(), kind="cubic"
+    ).s
+    np.testing.assert_allclose(
+        np.asarray(model.s(requested)), expected, rtol=2e-5, atol=2e-6
+    )
+
+
+def test_skrf_cubic_is_jittable_and_nan_outside_source_range():
+    model = SkrfNetwork(
+        _complex_multiport_network(), interpolation_kind="cubic"
+    )
+    requested = Frequency.from_f([0.5, 1.5, 4.25, 7.5], unit="GHz")
+
+    result = jax.jit(lambda frequency: model.s(frequency))(requested)
+
+    assert result.shape == (4, 2, 2)
+    assert jnp.all(jnp.isnan(result[jnp.array([0, -1])]))
+    assert jnp.all(jnp.isfinite(result[1:3]))
+
+
+def test_skrf_cubic_preserves_impedance_renormalization():
+    network = _complex_multiport_network()
+    network.renormalize(63.0, "power")
+    model = SkrfNetwork(network, interpolation_kind="cubic")
+    requested = Frequency.from_f([1.4, 2.75, 4.5, 6.25], unit="GHz")
+
+    expected = model.network.interpolate(requested.to_skrf(), kind="cubic")
+    expected.renormalize(75.0, "power")
+
+    np.testing.assert_allclose(
+        np.asarray(model.s(requested, z0=75.0)),
+        expected.s,
+        rtol=3e-5,
+        atol=3e-6,
+    )
+
+
+def test_skrf_interpolation_kind_validation_and_linear_default():
+    network = _complex_multiport_network()
+    requested = Frequency.from_f([1.5, 2.5, 4.5, 6.5], unit="GHz")
+
+    default_result = SkrfNetwork(network).s(requested)
+    explicit_result = SkrfNetwork(
+        network, interpolation_kind="linear"
+    ).s(requested)
+    expected = network.interpolate(requested.to_skrf(), kind="linear").s
+
+    np.testing.assert_allclose(np.asarray(default_result), expected, atol=2e-6)
+    np.testing.assert_allclose(default_result, explicit_result)
+    with pytest.raises(ValueError, match="interpolation_kind"):
+        SkrfNetwork(network, interpolation_kind="quadratic")
+
+
+def test_skrf_getattr_preserves_cubic_interpolation_kind():
+    network = _complex_multiport_network()
+    network.name = "named_network"
+
+    named_model = SkrfNetwork(network, interpolation_kind="cubic")
+    assert named_model.named_network.interpolation_kind == "cubic"
+
+    collection_model = SkrfNetwork(
+        NetworkCollection([network]), interpolation_kind="cubic"
+    )
+    assert collection_model.named_network.interpolation_kind == "cubic"
+
+
+def test_touchstone_forwards_interpolation_kind(tmp_path):
+    network = _complex_multiport_network()
+    path = tmp_path / "complex_multiport.s2p"
+    network.write_touchstone(path)
+
+    model = Touchstone(str(path), interpolation_kind="cubic")
+
+    assert model.interpolation_kind == model.touchstone.interpolation_kind == "cubic"
+    requested = Frequency.from_f([1.5, 3.25, 6.5], unit="GHz")
+    expected = model.touchstone.network.interpolate(
+        requested.to_skrf(), kind="cubic"
+    ).s
+    np.testing.assert_allclose(
+        np.asarray(model.s(requested)), expected, rtol=2e-5, atol=2e-6
+    )
 
 def test_measured_network_collection_getattr(coarse_freq):
     """Test dynamic attribute access for NetworkCollections."""
