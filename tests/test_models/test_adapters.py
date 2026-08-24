@@ -296,6 +296,16 @@ def test_skrf_cubic_is_jittable_and_nan_outside_source_range():
     assert jnp.all(jnp.isfinite(result[1:3]))
 
 
+def test_skrf_cubic_coefficients_are_fixed_numpy_data():
+    model = SkrfNetwork(
+        _complex_multiport_network(), interpolation_kind="cubic"
+    )
+
+    assert isinstance(model._spline_coefficients.real, np.ndarray)
+    assert isinstance(model._spline_coefficients.imag, np.ndarray)
+    assert model.named_params() == {}
+
+
 def test_skrf_cubic_preserves_impedance_renormalization():
     network = _complex_multiport_network()
     network.renormalize(63.0, "power")
