@@ -1,5 +1,7 @@
 # tests/test_infer_sample.py
 
+import importlib
+
 import pytest
 import jax
 import jax.numpy as jnp
@@ -9,6 +11,7 @@ from pmrf.distributions import Normal
 from pmrf.infer.sample import sample
 from pmrf.infer.solvers.blackjax import NUTS
 from pmrf.infer.result import InferResult
+from pmrf.infer.base import SampleResult
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 
@@ -42,6 +45,31 @@ def penalty_ll(model, freq):
 # ==========================================
 # 2. Higher-Level Wrapper Tests
 # ==========================================
+
+def test_sample_wrapper_propagates_evidence(monkeypatch):
+    """Evidence returned by a solver is preserved by the high-level API."""
+    sample_module = importlib.import_module("pmrf.infer.sample")
+    expected_logevidence = jnp.array(-1.25)
+    expected_error = jnp.array(0.1)
+
+    def fake_run_sampler(*, model, **kwargs):
+        return model, SampleResult(
+            samples=model,
+            fn_values=jnp.array([0.0]),
+            logevidence=expected_logevidence,
+            logevidence_error=expected_error,
+        )
+
+    monkeypatch.setattr(sample_module, "run_sampler", fake_run_sampler)
+
+    result = sample_module.sample(
+        loglikelihood=lambda model: jnp.array(0.0),
+        model={"value": jnp.array(0.0)},
+        solver=object(),
+    )
+
+    assert result.logevidence == expected_logevidence
+    assert result.logevidence_error == expected_error
 
 def test_sample_wrapper_basic(infer_model, basic_freq):
     """Test the higher-level sample API with a single loglikelihood using NUTS."""
