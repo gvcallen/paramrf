@@ -3,7 +3,6 @@ Models that store and interpolate static network data from raw arrays.
 """
 
 from typing import Literal
-import warnings
 
 import numpy as np
 import jax
@@ -52,7 +51,7 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
 
 def _cubic_spline_coefficients(
     f: np.ndarray, data: np.ndarray
-) -> prx.Static[np.ndarray]:
+) -> prx.Static[tuple[tuple[int, ...], str, bytes]]:
     """Precompute not-a-knot cubic spline coefficients for complex data."""
     f = np.asarray(f)
     data = np.asarray(data)
@@ -65,11 +64,15 @@ def _cubic_spline_coefficients(
         f_normalized, np.imag(data), axis=0
     ).c
     coefficients = real_coefficients + 1j * imag_coefficients
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore", message="A JAX array is being set as static!"
-        )
-        return prx.Static(coefficients)
+    payload = (coefficients.shape, coefficients.dtype.str, coefficients.tobytes())
+    return prx.Static(payload)
+
+
+def _restore_cubic_spline_coefficients(
+    payload: tuple[tuple[int, ...], str, bytes],
+) -> np.ndarray:
+    shape, dtype, buffer = payload
+    return np.frombuffer(buffer, dtype=np.dtype(dtype)).reshape(shape)
 
 
 def _interpolate_network_data_cubic(
@@ -139,7 +142,9 @@ class SkrfNetwork(Model):
         default="linear", static=True
     )
 
-    _spline_coefficients: prx.Static[np.ndarray] | None = field(
+    _spline_coefficients: prx.Static[
+        tuple[tuple[int, ...], str, bytes]
+    ] | None = field(
         default=None, kw_only=True, repr=False
     )
     
@@ -193,7 +198,7 @@ class SkrfNetwork(Model):
             s_interp = _interpolate_network_data_cubic(
                 f_old=f_old,
                 f_new=freq.f,
-                coefficients=coefficients,
+                coefficients=_restore_cubic_spline_coefficients(coefficients),
             )
         
         return renormalize_network_data(s_interp, 50.0, z0)

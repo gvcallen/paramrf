@@ -303,8 +303,10 @@ def test_skrf_cubic_coefficients_are_fixed_numpy_data():
     )
 
     assert isinstance(model._spline_coefficients, prx.Static)
-    assert isinstance(model._spline_coefficients.unwrap(), np.ndarray)
-    assert np.iscomplexobj(model._spline_coefficients.unwrap())
+    shape, dtype, buffer = model._spline_coefficients.unwrap()
+    coefficients = np.frombuffer(buffer, dtype=np.dtype(dtype)).reshape(shape)
+    assert isinstance(coefficients, np.ndarray)
+    assert np.iscomplexobj(coefficients)
     assert model.named_params() == {}
 
 
