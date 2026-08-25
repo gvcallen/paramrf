@@ -128,20 +128,64 @@ class Ground(Model):
         return Short().s(freq, z0=z0)
 
 
+def _constraint_s(currents: ArrayLike, npoints: int) -> jnp.ndarray:
+    r"""
+    The S-parameters of an ideal, lossless constraint network.
+
+    An ideal transformer has no dynamics of its own: it only constrains the terminal
+    voltages and currents. Since such a network neither stores nor dissipates energy,
+    every allowed voltage vector is orthogonal to every allowed current vector, and the
+    two subspaces are orthogonal complements. Writing the allowed currents as the range
+    of :math:`X`, the scattering matrix is then the reflection
+
+    .. math::
+
+        S = I - 2 X (X^T X)^{-1} X^T.
+
+    The result is real, symmetric and orthogonal, i.e. reciprocal and lossless, and it is
+    independent of both frequency and the reference impedance.
+
+    Parameters
+    ----------
+    currents : ArrayLike
+        An ``(n, r)`` matrix whose columns span the allowed terminal currents of the
+        n-terminal network.
+    npoints : int
+        The number of frequency points to broadcast the result across.
+
+    Returns
+    -------
+    jnp.ndarray
+        S-parameter matrix with shape ``(npoints, n, n)``.
+    """
+    X = jnp.asarray(currents)
+    n = X.shape[0]
+
+    projector = X @ jnp.linalg.solve(X.T @ X, X.T)
+    s_mat = (jnp.eye(n) - 2.0 * projector).astype(jnp.complex128)
+
+    return jnp.broadcast_to(s_mat, (npoints, n, n))
+
+
 class Transformer(Model):
     """
     (experimental) An ideal, lossless, frequency-independent 4-port 1:N transformer.
+
+    The primary winding sits across ports 1 and 2, and the secondary winding across
+    ports 3 and 4, so that :math:`V_3 - V_4 = N (V_1 - V_2)` and
+    :math:`I_3 = -I_1 / N`. Both windings are isolated: neither terminal pair carries
+    a net current, and their common-mode voltages are unconstrained.
 
     The S-parameters are constant across all frequencies
     and are independent of the characteristic impedance.
     
     Parameters
     ----------
-    N : float
+    N : Param
         The turns ratio (1:N) from primary to secondary. Defaults to 1.0.
     """
     #: The turns ratio 1:N
-    N: float = field(default=1.0, static=True, kw_only=True)
+    N: Param = param(default=1.0)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         N = self.N
@@ -157,6 +201,122 @@ class Transformer(Model):
 
         # Broadcast the 4x4 matrix across the frequency grid
         return jnp.broadcast_to(s_mat, (freq.npoints, 4, 4))
+
+
+class CentreTappedTransformer(Model):
+    """
+    (experimental) An ideal, lossless, frequency-independent 5-port 1:N transformer
+    with a tapped primary winding.
+
+    This is a :class:`Transformer` with an additional terminal brought out from an
+    intermediate point of the primary winding. The primary sits across ports 1 and 2,
+    the secondary across ports 3 and 4, and the tap is port 5.
+
+    The tap divides the primary into two series windings, with a fraction `tap` of the
+    primary turns between port 1 and the tap, and the remainder between the tap and
+    port 2. A `tap` of 0.5 therefore gives a true centre tap, and asymmetric taps are
+    expressed by moving `tap` away from 0.5.
+
+    The S-parameters are constant across all frequencies
+    and are independent of the characteristic impedance.
+
+    Parameters
+    ----------
+    N : Param
+        The turns ratio (1:N) from the full primary to the secondary. Defaults to 1.0.
+    tap : Param
+        The fraction of the primary turns between port 1 and the tap. Defaults to 0.5.
+    """
+    #: The turns ratio 1:N
+    N: Param = param(default=1.0)
+
+    #: The fraction of the primary winding between port 1 and the tap
+    tap: Param = param(default=0.5)
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        N = self.N
+        tap = self.tap
+
+        # Currents of the two upper and lower primary windings, referred to the secondary
+        upper = tap / N
+        lower = (1.0 - tap) / N
+
+        one = jnp.ones_like(upper)
+        zero = jnp.zeros_like(upper)
+
+        # Each column drives one primary section against the secondary at zero net MMF
+        currents = jnp.stack([
+            jnp.stack([one,  zero, -upper, upper, -one]),
+            jnp.stack([zero, -one, -lower, lower,  one]),
+        ], axis=-1)
+
+        return _constraint_s(currents, freq.npoints)
+
+
+class Autotransformer(Model):
+    """
+    (experimental) An ideal, lossless, frequency-independent 3-port 1:N autotransformer.
+
+    A single tapped winding runs from port 1 to port 3, with the tap brought out at
+    port 2, so that :math:`V_1 - V_3 = N (V_2 - V_3)`. Port 1 therefore sees the full
+    winding and port 2 the tapped section, making `N` the step-up ratio from the tap to
+    the full winding. Equivalently, this is a 1:(N-1) :class:`Transformer` with its
+    secondary connected in series with its primary.
+
+    Being a single winding, this component provides no isolation: the three terminal
+    currents sum to zero.
+
+    The S-parameters are constant across all frequencies
+    and are independent of the characteristic impedance.
+
+    Parameters
+    ----------
+    N : Param
+        The turns ratio (1:N) from the tapped section to the full winding.
+        Defaults to 1.0, for which the tap coincides with port 1.
+    """
+    #: The turns ratio 1:N
+    N: Param = param(default=1.0)
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        N = jnp.asarray(self.N)
+        one = jnp.ones_like(N)
+
+        # The series-connected sections carry a common current at zero net MMF
+        currents = jnp.stack([-one, N, one - N])[:, jnp.newaxis]
+
+        return _constraint_s(currents, freq.npoints)
+
+
+class Balun(Model):
+    """
+    (experimental) An ideal, lossless, frequency-independent 3-port 1:N balun.
+
+    This is a :class:`Transformer` whose primary is referenced to ground, converting the
+    single-ended port 1 into the balanced pair of ports 2 and 3, such that
+    :math:`V_2 - V_3 = N V_1`.
+
+    The S-parameters are constant across all frequencies
+    and are independent of the characteristic impedance.
+
+    Parameters
+    ----------
+    N : Param
+        The turns ratio (1:N) from the single-ended side to the balanced side.
+        Defaults to 1.0, for which this is equivalent to a :class:`SourceConverter`.
+    """
+    #: The turns ratio 1:N
+    N: Param = param(default=1.0)
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        N = jnp.asarray(self.N)
+        one = jnp.ones_like(N)
+
+        # The single-ended current returns through ground, so the terminal currents
+        # need not sum to zero
+        currents = jnp.stack([N, -one, one])[:, jnp.newaxis]
+
+        return _constraint_s(currents, freq.npoints)
     
 
 class SourceConverter(Model):
