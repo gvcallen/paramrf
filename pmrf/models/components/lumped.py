@@ -578,3 +578,78 @@ class SeriesRL(Model):
             [-Y, Y]
         ]).transpose(2, 0, 1)
         return y            
+
+class CoupledInductors(Model):
+    r"""
+    A 4-port model of two inductors sharing a mutual inductance.
+
+    This is the non-ideal counterpart of :class:`pmrf.models.Transformer`: leakage and
+    magnetizing inductance are not bolted on as extra elements, but follow from the
+    winding inductances and the coupling coefficient.
+
+    The first winding sits across ports 1 and 2, and the second across ports 3 and 4,
+    matching the port ordering of :class:`pmrf.models.Transformer`. Ports 1 and 3 are
+    the dotted terminals, so a positive `k` couples them in phase. Both windings are
+    isolated, so neither terminal pair carries a net current.
+
+    **Mathematical Formulation**
+
+    Taking each winding as one port of a floating 2-port gives
+
+    .. math::
+
+        Z = j \omega \begin{bmatrix} L_1 & M \\ M & L_2 \end{bmatrix},
+        \qquad M = k \sqrt{L_1 L_2},
+
+    which is inverted and lifted into the four terminals exactly as in
+    :class:`pmrf.models.FloatingTwoPort`.
+
+    Note that the admittance of a perfectly coupled pair is unbounded, so `k` must be
+    strictly less than 1; use :class:`pmrf.models.Transformer` for the ideal limit.
+    The windings are likewise short circuits at DC, so the frequency grid should
+    exclude 0 Hz.
+
+    Parameters
+    ----------
+    L1 : Param
+        The self-inductance of the first winding in Henrys.
+    L2 : Param
+        The self-inductance of the second winding in Henrys.
+    k : Param
+        The coupling coefficient, in the range (-1, 1).
+    """
+    #: Self-inductance of the first winding in Henrys
+    L1: Param = param()
+
+    #: Self-inductance of the second winding in Henrys
+    L2: Param = param()
+
+    #: Coupling coefficient between the windings
+    k: Param = param()
+
+    def y(self, freq: Frequency) -> jnp.ndarray:
+        w = freq.w
+        L1 = self.L1
+        L2 = self.L2
+        M = self.k * jnp.sqrt(L1 * L2)
+
+        # Invert the 2x2 winding impedance matrix Z = j*w*[[L1, M], [M, L2]]
+        denom = 1j * w * (L1 * L2 - M**2)
+        y11 = L2 / denom
+        y22 = L1 / denom
+        y12 = y21 = -M / denom
+
+        y_windings = jnp.array([
+            [y11, y12],
+            [y21, y22]
+        ]).transpose(2, 0, 1)
+
+        # Lift each winding into an isolated terminal pair
+        transform = jnp.array([
+            [1.0, 0.0],
+            [-1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, -1.0]
+        ], dtype=jnp.complex128)
+
+        return jnp.einsum('ai,...ij,bj->...ab', transform, y_windings, transform)
