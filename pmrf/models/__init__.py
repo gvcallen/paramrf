@@ -54,6 +54,7 @@ from pmrf.models.components.ideal import (
     Autotransformer as Autotransformer,
     Balun as Balun,
     SourceConverter as SourceConverter,
+    MixedModeConverter as MixedModeConverter,
     Isolator as Isolator,
     Splitter as Splitter,
     Tee as Tee,
