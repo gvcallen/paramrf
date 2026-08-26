@@ -9,7 +9,8 @@ import equinox as eqx
 
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.utils import field
+from pmrf.utils import error_if, field
+from pmrf.utils.rf import fix_z0_shape
 from pmrf.rf import renormalize_s
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
@@ -338,6 +339,106 @@ class SourceConverter(Model):
         s = jnp.tile(s_one, (freq.npoints, 1, 1))        
         return s
     
+
+def _require_equal_z0(x, z0: ArrayLike, nports: int, npoints: int):
+    """
+    Thread `x` through a runtime check that all `nports` reference impedances are equal.
+
+    Parameters
+    ----------
+    x : Any
+        The value to pass through, typically the S-parameter matrix being guarded.
+    z0 : ArrayLike
+        The reference impedance, in any shape accepted by :func:`pmrf.utils.rf.fix_z0_shape`.
+    nports : int
+        The number of ports.
+    npoints : int
+        The number of frequency points.
+
+    Returns
+    -------
+    Any
+        The unmodified input `x`.
+
+    Raises
+    ------
+    equinox.EquinoxRuntimeError
+        At runtime, if the ports do not all share the same reference impedance.
+    """
+    z0_arr = fix_z0_shape(z0, npoints, nports)
+    unequal = jnp.any(z0_arr != z0_arr[..., :1])
+
+    return error_if(
+        x,
+        unequal,
+        f"All {nports} reference impedances must be equal, got z0 = {{}}",
+        z0_arr,
+    )
+
+
+class MixedModeConverter(Model):
+    r"""
+    (experimental) An ideal, lossless, frequency-independent 4-port mixed-mode converter.
+
+    This component converts a pair of equal-impedance physical (single-ended) ports into
+    a power-normalized common-mode and differential-mode port pair, using the orthogonal
+    modal transform
+
+    .. math::
+
+        U = \frac{1}{\sqrt{2}} \begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}.
+
+    Port ordering:
+
+    - Port 1: physical (single-ended) port `p`
+    - Port 2: physical (single-ended) port `n`
+    - Port 3: common mode of ports 1 and 2
+    - Port 4: differential mode of ports 1 and 2
+
+    Writing the incident and reflected waves of the physical pair as
+    :math:`a_{12} = (a_1, a_2)^T` and :math:`b_{12} = (b_1, b_2)^T`, and likewise
+    :math:`a_{34} = (a_c, a_d)^T` for the modal pair, the converter enforces
+    :math:`b_{34} = U a_{12}` and :math:`b_{12} = U a_{34}`, so that
+
+    .. math::
+
+        S = \begin{bmatrix} 0 & U \\ U & 0 \end{bmatrix}.
+
+    Since :math:`U` is real, symmetric and orthogonal, `S` is symmetric (reciprocal) and
+    unitary (lossless), and all four ports are perfectly matched. The transform is its own
+    inverse, so cascading two converters back-to-back through the modal pair gives identity.
+
+    Because the modal waves are power-normalized, the modal ports carry the *same* wave
+    normalization as the physical ports: the usual :math:`Z_0/2` common-mode and
+    :math:`2 Z_0` differential-mode impedances are absorbed into the normalization. The
+    S-parameters are therefore constant across frequency and independent of the reference
+    impedance, provided every port shares the same reference impedance. This is validated
+    on evaluation.
+
+    Raises
+    ------
+    equinox.EquinoxRuntimeError
+        At runtime, if the four reference impedances passed to :meth:`s` are not all equal.
+    """
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        u = jnp.array([
+            [1.0,  1.0],
+            [1.0, -1.0],
+        ], dtype=jnp.complex128) / jnp.sqrt(2.0)
+
+        zeros = jnp.zeros((2, 2), dtype=jnp.complex128)
+
+        # The physical and modal pairs are each perfectly matched, and couple
+        # only to one another through the modal transform
+        s_mat = jnp.block([
+            [zeros, u],
+            [u, zeros],
+        ])
+
+        s_mat = jnp.broadcast_to(s_mat, (freq.npoints, 4, 4))
+
+        return _require_equal_z0(s_mat, z0, 4, freq.npoints)
+
 
 class Isolator(Model):
     """

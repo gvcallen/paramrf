@@ -2,12 +2,13 @@ import pytest
 import numpy as np
 import jax
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.parameters import Unconstrained
 from pmrf.models import (
     Transformer, CentreTappedTransformer, Autotransformer, Balun,
-    SourceConverter, CoupledInductors, Inductor,
+    SourceConverter, MixedModeConverter, CoupledInductors, Inductor,
 )
 
 
@@ -176,3 +177,96 @@ def test_coupled_inductors_approach_ideal_transformer(basic_freq):
     ideal = Transformer(N=np.sqrt(L2 / L1))
 
     assert np.allclose(coupled.s(basic_freq), ideal.s(basic_freq), atol=1e-3)
+
+
+def cascade_through_modes(s_a, s_b, nmodal=2):
+    """Cascade two 4-ports by tying the last `nmodal` ports of each together."""
+    s_a, s_b = np.asarray(s_a), np.asarray(s_b)
+    p = slice(0, s_a.shape[0] - nmodal)
+    m = slice(s_a.shape[0] - nmodal, s_a.shape[0])
+    npp = s_a.shape[0] - nmodal
+
+    # Internal waves satisfy b_m = S_mp a_p + S_mm a_m, with a_m of one side the b_m of the other
+    lhs = np.block([
+        [np.eye(nmodal), -s_a[m, m]],
+        [-s_b[m, m], np.eye(nmodal)],
+    ])
+    rhs = np.block([
+        [s_a[m, p], np.zeros((nmodal, npp))],
+        [np.zeros((nmodal, npp)), s_b[m, p]],
+    ])
+    b_int = np.linalg.solve(lhs, rhs)
+
+    # External ports see their own reflection plus what returns from the interface
+    ext = np.block([
+        [s_a[p, p], np.zeros((npp, npp))],
+        [np.zeros((npp, npp)), s_b[p, p]],
+    ])
+    coupling = np.block([
+        [s_a[p, m], np.zeros((npp, nmodal))],
+        [np.zeros((npp, nmodal)), s_b[p, m]],
+    ])
+    return ext + coupling @ b_int[[*range(nmodal, 2 * nmodal), *range(nmodal)], :]
+
+
+def test_mixed_mode_converter_is_unitary_and_reciprocal(basic_freq):
+    """The converter is lossless, reciprocal and matched at every port."""
+    s = MixedModeConverter().s(basic_freq)
+
+    assert s.shape == (5, 4, 4)
+    assert_lossless_and_reciprocal(s[0])
+
+    # Both the physical and the modal pair are perfectly matched
+    assert np.allclose(s[0, :2, :2], 0.0)
+    assert np.allclose(s[0, 2:, 2:], 0.0)
+
+
+def test_mixed_mode_converter_modal_selectivity(basic_freq):
+    """Even excitation appears only at the common port, and odd only at the differential."""
+    s = np.asarray(MixedModeConverter().s(basic_freq)[0])
+    root2 = np.sqrt(2.0)
+
+    # Ports 1 and 2 driven in phase excite port 3 alone
+    b_even = s @ np.array([1.0, 1.0, 0.0, 0.0])
+    assert np.allclose(b_even, [0.0, 0.0, root2, 0.0])
+
+    # Ports 1 and 2 driven in antiphase excite port 4 alone
+    b_odd = s @ np.array([1.0, -1.0, 0.0, 0.0])
+    assert np.allclose(b_odd, [0.0, 0.0, 0.0, root2])
+
+    # Driving the common port drives the physical pair in phase, and vice versa
+    assert np.allclose(s @ np.array([0.0, 0.0, 1.0, 0.0]), [1 / root2, 1 / root2, 0.0, 0.0])
+    assert np.allclose(s @ np.array([0.0, 0.0, 0.0, 1.0]), [1 / root2, -1 / root2, 0.0, 0.0])
+
+
+def test_mixed_mode_converter_round_trip_is_identity(basic_freq):
+    """Two converters back-to-back through their modal ports form a through connection."""
+    s = MixedModeConverter().s(basic_freq)[0]
+    cascaded = cascade_through_modes(s, s)
+
+    expected = np.block([
+        [np.zeros((2, 2)), np.eye(2)],
+        [np.eye(2), np.zeros((2, 2))],
+    ])
+    assert np.allclose(cascaded, expected)
+
+
+def test_mixed_mode_converter_broadcasts_over_frequency():
+    """The S-parameters are frequency-independent but span the whole grid."""
+    freq = Frequency(start=0.1, stop=20.0, npoints=17, unit='GHz')
+    s = np.asarray(MixedModeConverter().s(freq))
+
+    assert s.shape == (17, 4, 4)
+    assert np.allclose(s, s[0])
+
+
+def test_mixed_mode_converter_requires_equal_reference_impedances(basic_freq):
+    """The modal transform is only power-normalized when every port shares one z0."""
+    model = MixedModeConverter()
+
+    # A single shared impedance is fine, whatever its value
+    assert np.allclose(model.s(basic_freq, z0=50.0), model.s(basic_freq, z0=75.0))
+    assert np.allclose(model.s(basic_freq, z0=[50.0] * 4), model.s(basic_freq, z0=50.0))
+
+    with pytest.raises(eqx.EquinoxRuntimeError, match="must be equal"):
+        model.s(basic_freq, z0=[50.0, 75.0, 50.0, 50.0])
