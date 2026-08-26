@@ -179,76 +179,79 @@ def test_coupled_inductors_approach_ideal_transformer(basic_freq):
     assert np.allclose(coupled.s(basic_freq), ideal.s(basic_freq), atol=1e-3)
 
 
-def cascade_through_modes(s_a, s_b, nmodal=2):
-    """Cascade two 4-ports by tying the last `nmodal` ports of each together."""
-    s_a, s_b = np.asarray(s_a), np.asarray(s_b)
-    p = slice(0, s_a.shape[0] - nmodal)
-    m = slice(s_a.shape[0] - nmodal, s_a.shape[0])
-    npp = s_a.shape[0] - nmodal
-
-    # Internal waves satisfy b_m = S_mp a_p + S_mm a_m, with a_m of one side the b_m of the other
-    lhs = np.block([
-        [np.eye(nmodal), -s_a[m, m]],
-        [-s_b[m, m], np.eye(nmodal)],
-    ])
-    rhs = np.block([
-        [s_a[m, p], np.zeros((nmodal, npp))],
-        [np.zeros((nmodal, npp)), s_b[m, p]],
-    ])
-    b_int = np.linalg.solve(lhs, rhs)
-
-    # External ports see their own reflection plus what returns from the interface
-    ext = np.block([
-        [s_a[p, p], np.zeros((npp, npp))],
-        [np.zeros((npp, npp)), s_b[p, p]],
-    ])
-    coupling = np.block([
-        [s_a[p, m], np.zeros((npp, nmodal))],
-        [np.zeros((npp, nmodal)), s_b[p, m]],
-    ])
-    return ext + coupling @ b_int[[*range(nmodal, 2 * nmodal), *range(nmodal)], :]
+def input_impedance(gamma, z0=50.0):
+    """The impedance presented by a port with reflection coefficient `gamma`."""
+    return z0 * (1.0 + gamma) / (1.0 - gamma)
 
 
-def test_mixed_mode_converter_is_unitary_and_reciprocal(basic_freq):
-    """The converter is lossless, reciprocal and matched at every port."""
+def gamma_of(z, z0=50.0):
+    """The reflection coefficient of an impedance `z` in a reference impedance `z0`."""
+    return (z - z0) / (z + z0)
+
+
+def test_mixed_mode_converter_is_reciprocal_and_lossless(basic_freq):
+    """The converter has the signed ideal matrix, and is reciprocal and lossless."""
     s = MixedModeConverter().s(basic_freq)
 
     assert s.shape == (5, 4, 4)
     assert_lossless_and_reciprocal(s[0])
 
-    # Both the physical and the modal pair are perfectly matched
-    assert np.allclose(s[0, :2, :2], 0.0)
-    assert np.allclose(s[0, 2:, 2:], 0.0)
+    expected = np.array([
+        [1, 0, 2, -2],
+        [0, -1, 2, 2],
+        [2, 2, 0, 1],
+        [-2, 2, 1, 0],
+    ]) / 3.0
+    assert np.allclose(s[0], expected)
+
+
+def test_mixed_mode_converter_terminal_relations(basic_freq):
+    """The modal terminals follow the AWR voltage/current convention."""
+    s = MixedModeConverter().s(basic_freq)
+    v, i = terminal_waves(s[0])
+
+    # Ports are ordered (differential, common, positive, negative)
+    assert np.allclose(v[0], v[2] - v[3])
+    assert np.allclose(v[1], (v[2] + v[3]) / 2.0)
+
+    # With every terminal current taken as flowing into the converter
+    assert np.allclose(i[0], (i[3] - i[2]) / 2.0)
+    assert np.allclose(i[1], -(i[2] + i[3]))
 
 
 def test_mixed_mode_converter_modal_selectivity(basic_freq):
-    """Even excitation appears only at the common port, and odd only at the differential."""
+    """Odd excitation of the physical pair reaches only the differential port, and vice versa."""
     s = np.asarray(MixedModeConverter().s(basic_freq)[0])
-    root2 = np.sqrt(2.0)
 
-    # Ports 1 and 2 driven in phase excite port 3 alone
-    b_even = s @ np.array([1.0, 1.0, 0.0, 0.0])
-    assert np.allclose(b_even, [0.0, 0.0, root2, 0.0])
+    b_odd = s @ np.array([0.0, 0.0, 1.0, -1.0])
+    assert not np.isclose(b_odd[0], 0.0)
+    assert np.isclose(b_odd[1], 0.0)
 
-    # Ports 1 and 2 driven in antiphase excite port 4 alone
-    b_odd = s @ np.array([1.0, -1.0, 0.0, 0.0])
-    assert np.allclose(b_odd, [0.0, 0.0, 0.0, root2])
-
-    # Driving the common port drives the physical pair in phase, and vice versa
-    assert np.allclose(s @ np.array([0.0, 0.0, 1.0, 0.0]), [1 / root2, 1 / root2, 0.0, 0.0])
-    assert np.allclose(s @ np.array([0.0, 0.0, 0.0, 1.0]), [1 / root2, -1 / root2, 0.0, 0.0])
+    b_even = s @ np.array([0.0, 0.0, 1.0, 1.0])
+    assert np.isclose(b_even[0], 0.0)
+    assert not np.isclose(b_even[1], 0.0)
 
 
-def test_mixed_mode_converter_round_trip_is_identity(basic_freq):
-    """Two converters back-to-back through their modal ports form a through connection."""
-    s = MixedModeConverter().s(basic_freq)[0]
-    cascaded = cascade_through_modes(s, s)
+def test_mixed_mode_converter_modal_impedances(basic_freq):
+    """With 50 Ohm physical ports, the modal ports present 100 Ohm and 25 Ohm."""
+    s = MixedModeConverter().s(basic_freq)
 
-    expected = np.block([
-        [np.zeros((2, 2)), np.eye(2)],
-        [np.eye(2), np.zeros((2, 2))],
-    ])
-    assert np.allclose(cascaded, expected)
+    # Terminate the physical pair in the reference impedance and look into each mode
+    matched = terminated(terminated(s[0], port=3, gamma=0.0), port=2, gamma=0.0)
+
+    assert np.isclose(input_impedance(matched[0, 0]), 100.0)
+    assert np.isclose(input_impedance(matched[1, 1]), 25.0)
+
+
+def test_mixed_mode_converter_takes_physical_modal_loads(basic_freq):
+    """Modal loads connect at their physical impedances, with no factor-of-two scaling."""
+    s = MixedModeConverter().s(basic_freq)
+
+    # 100 Ohm across the differential port and 25 Ohm on the common port
+    loaded = terminated(terminated(s[0], port=1, gamma=gamma_of(25.0)), port=0, gamma=gamma_of(100.0))
+
+    # The physical pair is then perfectly matched at 50 Ohm
+    assert np.allclose(loaded, 0.0)
 
 
 def test_mixed_mode_converter_broadcasts_over_frequency():
@@ -261,7 +264,7 @@ def test_mixed_mode_converter_broadcasts_over_frequency():
 
 
 def test_mixed_mode_converter_requires_equal_reference_impedances(basic_freq):
-    """The modal transform is only power-normalized when every port shares one z0."""
+    """The modal impedances are set relative to a single shared reference impedance."""
     model = MixedModeConverter()
 
     # A single shared impedance is fine, whatever its value
