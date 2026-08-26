@@ -380,40 +380,52 @@ class MixedModeConverter(Model):
     r"""
     (experimental) An ideal, lossless, frequency-independent 4-port mixed-mode converter.
 
-    This component converts a pair of equal-impedance physical (single-ended) ports into
-    a power-normalized common-mode and differential-mode port pair, using the orthogonal
-    modal transform
+    This component converts a pair of equal-impedance physical (single-ended) ports into a
+    differential-mode and a common-mode port, using the AWR voltage/current convention
 
     .. math::
 
-        U = \frac{1}{\sqrt{2}} \begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}.
+        V_d = V_p - V_n, \qquad V_c = \frac{V_p + V_n}{2},
+
+    with the corresponding modal currents, taken as flowing *into* the converter alongside
+    the physical currents,
+
+    .. math::
+
+        I_d = \frac{I_n - I_p}{2}, \qquad I_c = -(I_p + I_n).
 
     Port ordering:
 
-    - Port 1: physical (single-ended) port `p`
-    - Port 2: physical (single-ended) port `n`
-    - Port 3: common mode of ports 1 and 2
-    - Port 4: differential mode of ports 1 and 2
+    - Port 1: differential mode of ports 3 and 4
+    - Port 2: common mode of ports 3 and 4
+    - Port 3: physical (single-ended) positive port `p`
+    - Port 4: physical (single-ended) negative port `n`
 
-    Writing the incident and reflected waves of the physical pair as
-    :math:`a_{12} = (a_1, a_2)^T` and :math:`b_{12} = (b_1, b_2)^T`, and likewise
-    :math:`a_{34} = (a_c, a_d)^T` for the modal pair, the converter enforces
-    :math:`b_{34} = U a_{12}` and :math:`b_{12} = U a_{34}`, so that
+    With every port referenced to the same impedance :math:`Z_0`, this gives the signed
+    scattering matrix
 
     .. math::
 
-        S = \begin{bmatrix} 0 & U \\ U & 0 \end{bmatrix}.
+        S = \frac{1}{3} \begin{bmatrix}
+             1 &  0 &  2 & -2 \\
+             0 & -1 &  2 &  2 \\
+             2 &  2 &  0 &  1 \\
+            -2 &  2 &  1 &  0
+        \end{bmatrix},
 
-    Since :math:`U` is real, symmetric and orthogonal, `S` is symmetric (reciprocal) and
-    unitary (lossless), and all four ports are perfectly matched. The transform is its own
-    inverse, so cascading two converters back-to-back through the modal pair gives identity.
+    which is real, symmetric (reciprocal) and orthogonal (lossless).
 
-    Because the modal waves are power-normalized, the modal ports carry the *same* wave
-    normalization as the physical ports: the usual :math:`Z_0/2` common-mode and
-    :math:`2 Z_0` differential-mode impedances are absorbed into the normalization. The
-    S-parameters are therefore constant across frequency and independent of the reference
-    impedance, provided every port shares the same reference impedance. This is validated
-    on evaluation.
+    Unlike a power-normalized converter, the modal ports here carry the *physical* modal
+    impedances: the differential port presents :math:`Z_d = 2 Z_0` and the common port
+    :math:`Z_c = Z_0 / 2`, which for 50 Ohm physical ports are 100 Ohm and 25 Ohm. This is
+    visible in the diagonal, where :math:`S_{11} = 1/3` and :math:`S_{22} = -1/3` are the
+    reflections of :math:`2 Z_0` and :math:`Z_0 / 2` in :math:`Z_0`. Modal loads may
+    therefore be connected to the modal ports directly, at their physical impedances and
+    with no external factor-of-two scaling.
+
+    The S-parameters are constant across all frequencies, and independent of the value of
+    the reference impedance, provided every port shares the same one. This is validated on
+    evaluation.
 
     Raises
     ------
@@ -421,19 +433,13 @@ class MixedModeConverter(Model):
         At runtime, if the four reference impedances passed to :meth:`s` are not all equal.
     """
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        u = jnp.array([
-            [1.0,  1.0],
-            [1.0, -1.0],
-        ], dtype=jnp.complex128) / jnp.sqrt(2.0)
-
-        zeros = jnp.zeros((2, 2), dtype=jnp.complex128)
-
-        # The physical and modal pairs are each perfectly matched, and couple
-        # only to one another through the modal transform
-        s_mat = jnp.block([
-            [zeros, u],
-            [u, zeros],
-        ])
+        # Ordered (differential, common, positive, negative)
+        s_mat = jnp.array([
+            [ 1.0,  0.0,  2.0, -2.0],
+            [ 0.0, -1.0,  2.0,  2.0],
+            [ 2.0,  2.0,  0.0,  1.0],
+            [-2.0,  2.0,  1.0,  0.0],
+        ], dtype=jnp.complex128) / 3.0
 
         s_mat = jnp.broadcast_to(s_mat, (freq.npoints, 4, 4))
 
