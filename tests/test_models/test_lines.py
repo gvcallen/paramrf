@@ -275,9 +275,9 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     zs = np.full(npoints, 0.01 + 0.01j)
 
     result = WheelerMicrostripFormulation().quasi_static(
-        basic_freq, w=3.0e-3, h=1.6e-3, t=None, epr=epr, zs=zs
+        basic_freq, w=3.0e-3, h=1.6e-3, t=None, ep_r=epr, zs=zs
     )
 
-    assert result.epeff.shape == (npoints,)
+    assert result.ep_eff.shape == (npoints,)
     assert jnp.all(jnp.real(result.zc) > 40.0)
-    assert jnp.allclose(result.weff, 3.0e-3)
+    assert jnp.allclose(result.w_eff, 3.0e-3)

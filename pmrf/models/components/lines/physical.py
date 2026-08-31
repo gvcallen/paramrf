@@ -275,8 +275,8 @@ class CoaxialLine(AbstractImmittanceLine):
             freq,
             din=self.din,
             dout=self.dout,
-            epr=self.dielectric.epsilon_r(freq),
-            mur=self.mur,
+            ep_r=self.dielectric.epsilon_r(freq),
+            mu_r=self.mur,
             conductor=self.conductor,
         )
     
@@ -361,7 +361,7 @@ class MicrostripLine(AbstractImmittanceLine):
             w=self.w,
             h=self.h,
             t=self.t,
-            epr=self.dielectric.epsilon_r(freq),
+            ep_r=self.dielectric.epsilon_r(freq),
             zs=zs,
         )
 
