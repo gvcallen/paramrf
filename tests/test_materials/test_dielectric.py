@@ -68,22 +68,22 @@ def test_djordjevic_sarkar_matches_skrf(wideband_freq):
     skrf = pytest.importorskip("skrf")
     from skrf.media.mline import MLine
 
-    epr, tand = 4.3, 0.02
-    flow, fhigh, fref = 1e3, 1e12, 1e9
+    ep_r, tand = 4.3, 0.02
+    f_low, f_high, f_ref = 1e3, 1e12, 1e9
     f = np.asarray(wideband_freq.f)
 
     expected, _ = MLine.analyse_dielectric(
-        None, ep_r=epr, tand=tand, f_low=flow, f_high=fhigh,
-        f_epr_tand=fref, f=f, diel='djordjevicsvensson',
+        None, ep_r=ep_r, tand=tand, f_low=f_low, f_high=f_high,
+        f_epr_tand=f_ref, f=f, diel='djordjevicsvensson',
     )
-    got = DjordjevicSarkar(epr, tand, flow, fhigh, fref).epsilon_r(wideband_freq)
+    got = DjordjevicSarkar(ep_r, tand, f_low, f_high, f_ref).epsilon_r(wideband_freq)
 
     assert jnp.allclose(got, jnp.asarray(expected), rtol=1e-10, atol=0.0)
 
 
 def test_djordjevic_sarkar_matches_target_at_reference():
     freq = Frequency.from_f(jnp.array([1e9]))
-    eps = DjordjevicSarkar(4.3, 0.02, fref=1e9).epsilon_r(freq)
+    eps = DjordjevicSarkar(4.3, 0.02, f_ref=1e9).epsilon_r(freq)
     assert jnp.allclose(jnp.real(eps), 4.3, rtol=1e-6)
     assert jnp.allclose(-jnp.imag(eps) / jnp.real(eps), 0.02, rtol=1e-6)
 
@@ -97,21 +97,21 @@ def test_djordjevic_sarkar_is_dispersive(wideband_freq):
 def test_multipole_debye_limits():
     lo = Frequency.from_f(jnp.array([1e3]))
     hi = Frequency.from_f(jnp.array([1e15]))
-    material = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+    material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
 
     assert jnp.allclose(jnp.real(material.epsilon_r(lo)), 3.5, rtol=1e-5)
     assert jnp.allclose(jnp.real(material.epsilon_r(hi)), 2.0, rtol=1e-5)
 
 
 def test_multipole_debye_coerces_pairs():
-    material = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9)])
+    material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)])
     assert isinstance(material.poles[0], DebyePole)
-    assert jnp.allclose(material.poles[0].depr, 1.0)
+    assert jnp.allclose(material.poles[0].dep_r, 1.0)
 
 
 def test_cole_cole_reduces_to_debye(freq):
-    cole = ColeCole(epinf=2.0, depr=1.0, frelax=1e9, alpha=0.0)
-    debye = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9)])
+    cole = ColeCole(ep_inf=2.0, dep_r=1.0, f_relax=1e9, alpha=0.0)
+    debye = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)])
     assert jnp.allclose(cole.epsilon_r(freq), debye.epsilon_r(freq))
 
 
@@ -125,7 +125,7 @@ def test_cole_cole_finite_at_dc():
 def test_tabulated_dielectric_interpolates():
     material = TabulatedDielectric(
         f=jnp.array([1e9, 2e9, 3e9]),
-        epr=jnp.array([4.0 - 0.1j, 3.8 - 0.2j, 3.6 - 0.3j]),
+        ep_r=jnp.array([4.0 - 0.1j, 3.8 - 0.2j, 3.6 - 0.3j]),
     )
     freq = Frequency.from_f(jnp.array([1e9, 1.5e9, 3e9]))
     eps = material.epsilon_r(freq)
@@ -134,15 +134,15 @@ def test_tabulated_dielectric_interpolates():
 
 def test_tabulated_dielectric_validates_shapes():
     with pytest.raises(ValueError):
-        TabulatedDielectric(f=jnp.array([1e9, 2e9]), epr=jnp.array([4.0]))
+        TabulatedDielectric(f=jnp.array([1e9, 2e9]), ep_r=jnp.array([4.0]))
 
 
 def test_as_dielectric_converters():
-    assert jnp.allclose(as_dielectric(ConstantDielectric(2.0)).epr, 2.0)
+    assert jnp.allclose(as_dielectric(ConstantDielectric(2.0)).ep_r, 2.0)
 
     scalar = as_dielectric(4.3)
     assert isinstance(scalar, ConstantDielectric)
-    assert jnp.allclose(scalar.epr, 4.3)
+    assert jnp.allclose(scalar.ep_r, 4.3)
 
     pair = as_dielectric((4.3, 0.02))
     assert jnp.allclose(pair.tand, 0.02)
@@ -154,7 +154,7 @@ def test_as_dielectric_converters():
 @pytest.mark.parametrize("material", [
     ConstantDielectric(4.3, 0.02, 0.01),
     DjordjevicSarkar(4.3, 0.02),
-    MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9)]),
+    MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)]),
     ColeCole(2.0, 1.0, 1e9, 0.3),
 ])
 def test_gradients_are_finite(material, wideband_freq):

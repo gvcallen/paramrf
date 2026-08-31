@@ -60,7 +60,7 @@ def test_bulk_reproduces_wheeler_resistance(freq):
 
 def test_bulk_permeability_scaling(freq):
     plain = BulkConductor(1.68e-8).surface_impedance(freq)
-    magnetic = BulkConductor(1.68e-8, mur=4.0).surface_impedance(freq)
+    magnetic = BulkConductor(1.68e-8, mu_r=4.0).surface_impedance(freq)
     assert jnp.allclose(magnetic, 2.0 * plain)
 
 

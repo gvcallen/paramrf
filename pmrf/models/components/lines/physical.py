@@ -36,7 +36,7 @@ class PhysicalLine(AbstractImmittanceLine):
     **Mathematical Formulation**
 
     The frequency-dependent attenuation components are computed as:
-    $$\alpha_c = A \cdot \sqrt{\frac{f}{fA}} \cdot \frac{\ln(10)}{20}$$
+    $$\alpha_c = A \cdot \sqrt{\frac{f}{f_A}} \cdot \frac{\ln(10)}{20}$$
     $$\alpha_d = \frac{\pi f \sqrt{\varepsilon_r}}{c} \cdot \tan\delta$$
 
     Which yield the per-unit-length parameters:
@@ -55,9 +55,9 @@ class PhysicalLine(AbstractImmittanceLine):
         line = PhysicalLine(
             zn=50.0,
             length=1.0,
-            epr=2.2,
+            ep_r=2.2,
             A=0.01,
-            fA=1.0,
+            f_A=1.0,
             tand=0.001
         )
 
@@ -68,11 +68,11 @@ class PhysicalLine(AbstractImmittanceLine):
     ----------
     zn : Param, default=50.0
         Nominal characteristic impedance defining the L/C ratio.
-    epr : Param, default=1.0
+    ep_r : Param, default=1.0
         Relative permittivity.
     A : Param, default=0.0
         Conductor loss in dB/m/sqrt(Hz).
-    fA : Param, default=1.0
+    f_A : Param, default=1.0
         Frequency scaling reference for attenuation in Hz.
     tand : Param, default=0.0
         Dielectric loss tangent.
@@ -81,29 +81,29 @@ class PhysicalLine(AbstractImmittanceLine):
     zn: Param = param(default=50.0, constraint=Positive())
     
     #: Relative permittivity
-    epr: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
     
     #: Conductor loss in dB/m/sqrt(Hz)
     A: Param = param(default=0.0, constraint=Positive())
     
     #: Frequency scaling reference
-    fA: Param = param(default=1.0, constraint=Positive())
+    f_A: Param = param(default=1.0, constraint=Positive())
     
     #: Dielectric loss tangent
     tand: Param = param(default=0.0, constraint=Positive())
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         f = freq.f
-        sqrt_epr = jnp.sqrt(self.epr)
-        A_dB = self.A * jnp.sqrt(f / self.fA)
+        sqrt_ep_r = jnp.sqrt(self.ep_r)
+        A_dB = self.A * jnp.sqrt(f / self.f_A)
 
         alpha_c = A_dB * (jnp.log(10) / 20.0)
-        alpha_d = jnp.pi * sqrt_epr * f / c * self.tand
-        
+        alpha_d = jnp.pi * sqrt_ep_r * f / c * self.tand
+
         R_val = 2 * self.zn * alpha_c
-        L_val = (self.zn * sqrt_epr) / c
+        L_val = (self.zn * sqrt_ep_r) / c
         G_val = 2 / self.zn * alpha_d
-        C_val = sqrt_epr / (self.zn * c)
+        C_val = sqrt_ep_r / (self.zn * c)
         
         ones = jnp.ones(freq.npoints)
         R = R_val * ones
@@ -221,9 +221,9 @@ class CoaxialLine(AbstractImmittanceLine):
         from pmrf.materials import BulkConductor, ConstantDielectric
 
         phys_cable = CoaxialLine(
-            din=0.9e-3,
-            dout=2.95e-3,
-            dielectric=ConstantDielectric(epr=1.5, tand=0.0004),
+            d_in=0.9e-3,
+            d_out=2.95e-3,
+            dielectric=ConstantDielectric(ep_r=1.5, tand=0.0004),
             conductor=BulkConductor(rho=1.72e-8),
             length=0.5
         )
@@ -233,14 +233,14 @@ class CoaxialLine(AbstractImmittanceLine):
 
     Parameters
     ----------
-    din : Param, default=1.12e-3
+    d_in : Param, default=1.12e-3
         Inner conductor diameter in meters.
-    dout : Param, default=3.2e-3
+    d_out : Param, default=3.2e-3
         Outer conductor inner diameter in meters.
     dielectric : AbstractDielectric, default=ConstantDielectric()
-        The dielectric filling. A scalar permittivity or an ``(epr, tand)`` tuple
+        The dielectric filling. A scalar permittivity or an ``(ep_r, tand)`` tuple
         is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
-    mur : Param, default=1.0
+    mu_r : Param, default=1.0
         Relative permeability of the dielectric filling.
     conductor : AbstractConductor, default=BulkConductor()
         The conductor material of both conductors. A scalar resistivity in
@@ -249,10 +249,10 @@ class CoaxialLine(AbstractImmittanceLine):
         The closed-form physics used to compute the immittance.
     """
     #: Inner conductor diameter
-    din: Param = param(default=1.12e-3, constraint=Positive())
+    d_in: Param = param(default=1.12e-3, constraint=Positive())
     
     #: Outer conductor inner diameter
-    dout: Param = param(default=3.2e-3, constraint=Positive())
+    d_out: Param = param(default=3.2e-3, constraint=Positive())
     
     #: The dielectric filling
     dielectric: AbstractDielectric = field(
@@ -260,7 +260,7 @@ class CoaxialLine(AbstractImmittanceLine):
     )
     
     #: Relative permeability of the dielectric filling
-    mur: Param = param(default=1.0, constraint=Positive())
+    mu_r: Param = param(default=1.0, constraint=Positive())
     
     #: The conductor material of both conductors
     conductor: AbstractConductor = field(
@@ -273,10 +273,10 @@ class CoaxialLine(AbstractImmittanceLine):
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         return self.formulation.immittance(
             freq,
-            din=self.din,
-            dout=self.dout,
+            d_in=self.d_in,
+            d_out=self.d_out,
             ep_r=self.dielectric.epsilon_r(freq),
-            mu_r=self.mur,
+            mu_r=self.mu_r,
             conductor=self.conductor,
         )
     
@@ -302,7 +302,7 @@ class MicrostripLine(AbstractImmittanceLine):
         phys_microstrip = MicrostripLine(
             w=4e-3,
             h=2.0e-3,
-            dielectric=ConstantDielectric(epr=4.6, tand=0.025),
+            dielectric=ConstantDielectric(ep_r=4.6, tand=0.025),
             conductor=BulkConductor(rho=1.72e-8),
             length=0.5
         )
@@ -316,8 +316,8 @@ class MicrostripLine(AbstractImmittanceLine):
         Width of the microstrip trace in meters.
     h : Param, default=1.6e-3
         Height of the dielectric substrate in meters.
-    dielectric : AbstractDielectric, default=ConstantDielectric(epr=4.3)
-        The substrate material. A scalar permittivity or an ``(epr, tand)`` tuple
+    dielectric : AbstractDielectric, default=ConstantDielectric(ep_r=4.3)
+        The substrate material. A scalar permittivity or an ``(ep_r, tand)`` tuple
         is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
     conductor : AbstractConductor, default=BulkConductor()
         The material of the trace and ground plane. A scalar resistivity in
@@ -335,7 +335,7 @@ class MicrostripLine(AbstractImmittanceLine):
     
     #: The substrate material
     dielectric: AbstractDielectric = field(
-        default_factory=lambda: ConstantDielectric(epr=4.3), converter=as_dielectric
+        default_factory=lambda: ConstantDielectric(ep_r=4.3), converter=as_dielectric
     )
     
     #: The material of the trace and ground plane

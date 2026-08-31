@@ -99,7 +99,7 @@ class AbstractCoaxialFormulation(eqx.Module):
     surface impedance.
     """
     @abstractmethod
-    def immittance(self, freq: Frequency, *, din, dout, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
 
@@ -107,9 +107,9 @@ class AbstractCoaxialFormulation(eqx.Module):
         ----------
         freq : Frequency
             The frequency axis.
-        din : ArrayLike
+        d_in : ArrayLike
             Inner conductor diameter in meters.
-        dout : ArrayLike
+        d_out : ArrayLike
             Outer conductor inner diameter in meters.
         ep_r : jnp.ndarray
             Complex relative permittivity of the dielectric, shape ``(npoints,)``.
@@ -158,12 +158,12 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def immittance(self, freq: Frequency, *, din, dout, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
         eps = epsilon_0 * ep_r
         mu = mu_0 * mu_r
         w = freq.w
 
-        a, b = din / 2, dout / 2
+        a, b = d_in / 2, d_out / 2
         lnbOvera = jnp.log(b / a)
 
         L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * lnbOvera

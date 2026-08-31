@@ -75,14 +75,14 @@ def test_physical_line_phase_delay(basic_freq):
     """Test that PhysicalLine calculates the correct phase delay based on permittivity."""
     # 15 mm line in a dielectric with Er = 4.0
     length = 0.015
-    epr = 4.0
-    line = PhysicalLine(zn=50.0, length=length, epr=epr, A=0.0, tand=0.0)
+    ep_r = 4.0
+    line = PhysicalLine(zn=50.0, length=length, ep_r=ep_r, A=0.0, tand=0.0)
     
     s = line.s(basic_freq)
     
-    # Expected phase shift: beta * L = w * sqrt(epr) * L / c
+    # Expected phase shift: beta * L = w * sqrt(ep_r) * L / c
     # Since S21 = exp(-j * beta * L), angle(S21) = -beta * L
-    expected_phase = -basic_freq.w * jnp.sqrt(epr) * length / c
+    expected_phase = -basic_freq.w * jnp.sqrt(ep_r) * length / c
     actual_phase = jnp.unwrap(jnp.angle(s[:, 1, 0]))
     
     assert jnp.allclose(actual_phase, expected_phase, atol=1e-4)
@@ -107,11 +107,11 @@ def test_datasheet_line_attenuation(basic_freq):
 
 def test_coaxial_line_impedance(basic_freq):
     """Verify CoaxialLine matches the analytical Zc formula for a lossless coax."""
-    # RG-58 dimensions roughly: epr=2.25, din=0.9mm, dout=2.95mm
+    # RG-58 dimensions roughly: ep_r=2.25, d_in=0.9mm, d_out=2.95mm
     line = CoaxialLine(
-        din=0.9e-3,
-        dout=2.95e-3,
-        dielectric=ConstantDielectric(epr=2.25, tand=0.0),
+        d_in=0.9e-3,
+        d_out=2.95e-3,
+        dielectric=ConstantDielectric(ep_r=2.25, tand=0.0),
         conductor=BulkConductor(rho=0.0),
         length=1.0,
     )
@@ -132,7 +132,7 @@ def test_microstrip_line_impedance(basic_freq):
     line = MicrostripLine(
         w=3.0e-3,
         h=1.6e-3,
-        dielectric=ConstantDielectric(epr=4.3, tand=0.0),
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
         conductor=BulkConductor(rho=0.0),
         length=0.1,
     )
@@ -150,7 +150,7 @@ def test_material_coercion():
 
     assert isinstance(line.dielectric, ConstantDielectric)
     assert isinstance(line.conductor, BulkConductor)
-    assert jnp.allclose(line.dielectric.epr.value, 2.25)
+    assert jnp.allclose(line.dielectric.ep_r.value, 2.25)
 
 
 def test_coaxial_line_matches_skrf(basic_freq):
@@ -158,17 +158,17 @@ def test_coaxial_line_matches_skrf(basic_freq):
     skrf = pytest.importorskip("skrf")
     from skrf.media import Coaxial
 
-    din, dout, epr, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.72e-8
+    d_in, d_out, ep_r, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.72e-8
     line = CoaxialLine(
-        din=din,
-        dout=dout,
-        dielectric=ConstantDielectric(epr=epr, tand=tand),
+        d_in=d_in,
+        d_out=d_out,
+        dielectric=ConstantDielectric(ep_r=ep_r, tand=tand),
         conductor=BulkConductor(rho=rho),
         length=0.5,
     )
     media = Coaxial(
         basic_freq.to_skrf(),
-        Dint=din, Dout=dout, epsilon_r=epr, tan_delta=tand, sigma=1 / rho,
+        Dint=d_in, Dout=d_out, epsilon_r=ep_r, tan_delta=tand, sigma=1 / rho,
         model='tesche',
     )
 
@@ -196,17 +196,17 @@ def test_microstrip_line_matches_skrf(basic_freq):
     skrf = pytest.importorskip("skrf")
     from skrf.media import MLine
 
-    W, H, epr = 3.0e-3, 1.6e-3, 4.3
+    W, H, ep_r = 3.0e-3, 1.6e-3, 4.3
     line = MicrostripLine(
         w=W,
         h=H,
-        dielectric=ConstantDielectric(epr=epr, tand=0.0),
+        dielectric=ConstantDielectric(ep_r=ep_r, tand=0.0),
         conductor=BulkConductor(rho=0.0),
         length=0.1,
     )
     media = MLine(
         basic_freq.to_skrf(),
-        w=W, h=H, ep_r=epr, tand=0.0, rho=0.0, rough=0.0,
+        w=W, h=H, ep_r=ep_r, tand=0.0, rho=0.0, rough=0.0,
         model='wheeler', disp='none', diel='frequencyinvariant',
     )
 
@@ -249,9 +249,9 @@ def test_dispersive_dielectric_is_grid_independent():
     evaluated on two different grids agrees at the frequencies they share.
     """
     line = CoaxialLine(
-        din=0.9e-3,
-        dout=2.95e-3,
-        dielectric=DjordjevicSarkar(epr=4.3, tand=0.02),
+        d_in=0.9e-3,
+        d_out=2.95e-3,
+        dielectric=DjordjevicSarkar(ep_r=4.3, tand=0.02),
         conductor=BulkConductor(rho=1.68e-8),
         length=0.1,
     )
@@ -271,11 +271,11 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     from pmrf.models import WheelerMicrostripFormulation
 
     npoints = basic_freq.npoints
-    epr = np.full(npoints, 4.3 - 0.086j)
+    ep_r = np.full(npoints, 4.3 - 0.086j)
     zs = np.full(npoints, 0.01 + 0.01j)
 
     result = WheelerMicrostripFormulation().quasi_static(
-        basic_freq, w=3.0e-3, h=1.6e-3, t=None, ep_r=epr, zs=zs
+        basic_freq, w=3.0e-3, h=1.6e-3, t=None, ep_r=ep_r, zs=zs
     )
 
     assert result.ep_eff.shape == (npoints,)
