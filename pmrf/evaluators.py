@@ -203,7 +203,39 @@ class MarginalLogLikelihood(AbstractEvaluator):
         which defines the model's orthogonal sub-space. Used for gaussian processes.
     event_transform
         A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
-        Can be a bijector or None to use the default mapping (frequency as the event axis and independant real/imag).
+        Can be:
+
+        * ``None``, to use the default mapping (frequency as the event axis and independant real/imag);
+        * an :class:`distreqx.bijectors.AbstractBijector`, applied as a fixed ("static")
+          transform to both the prediction and the observation;
+        * a callable taking the prediction in observation space and returning an
+          :class:`distreqx.bijectors.AbstractBijector` (a "conditional" transform).
+          The returned bijector is resolved once per evaluation and applied to **both**
+          the prediction and the observation, so the residual is expressed in the
+          prediction's own frame. This lets the residual basis depend on the prediction.
+
+        A conditional transform must be static in the PyTree sense: it is stored as a
+        static field, so it should be a plain function or another hashable callable that
+        holds no traced parameters. Any inferred parameters belong in the likelihood.
+
+        **Normalization.** A prediction-dependent change of variables introduces a
+        Jacobian determinant. This class **adds the log-determinant term properly**:
+        when the transform is conditional, ``jnp.sum(transform.forward_log_det_jacobian(observed))``
+        of the resolved bijector is added to the returned log-likelihood. Conditional
+        transforms are therefore *not* required to be volume preserving; for a
+        volume-preserving transform (such as a unitary rotation) the term is exactly
+        zero and contributes nothing.
+
+        The sum follows `distreqx`'s own convention, in that the bijector is trusted to
+        report its log-determinant with one contribution per independent coordinate it
+        transforms. A bijector parameterized by scalars may report a single scalar that
+        `distreqx` does not broadcast over the input, in which case the summed term
+        counts that contribution once rather than once per element.
+
+        The term is deliberately **not** added for a static (or default) transform,
+        where it is a constant offset independent of the model. Omitting it keeps the
+        default behaviour unchanged and shifts the log-likelihood only by a constant,
+        which affects neither optimization nor posterior sampling.
     event_ndims
         The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.
     """
@@ -222,8 +254,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
     #: Flag for orthogonal discrepancy.
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
-    #: The bijective event transform.
-    event_transform: bij.AbstractBijector = field(default=None, static=True)
+    #: The bijective event transform, or a callable resolving one from the prediction.
+    event_transform: bij.AbstractBijector | Callable[[jnp.ndarray], bij.AbstractBijector] = field(default=None, static=True)
 
     #: The number of trailing event dimensions.
     event_ndims: int = field(default=1, static=True)
@@ -244,11 +276,53 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
         
+    @property
+    def has_conditional_event_transform(self) -> bool:
+        """
+        Whether `event_transform` is prediction-dependent ("conditional").
+
+        True when `event_transform` is a callable that resolves to a bijector from the
+        prediction, rather than being a bijector itself.
+        """
+        return not isinstance(unwrap(self).event_transform, bij.AbstractBijector)
+
+    def resolve_event_transform(self, y_pred: jnp.ndarray) -> bij.AbstractBijector:
+        """
+        Resolve `event_transform` to a concrete bijector for a given prediction.
+
+        A static transform is returned unchanged. A conditional transform is called with
+        the prediction in observation space and must return an
+        :class:`distreqx.bijectors.AbstractBijector`.
+
+        Parameters
+        ----------
+        y_pred : jnp.ndarray
+            The model prediction in observation space.
+
+        Returns
+        -------
+        bij.AbstractBijector
+            The resolved transform, to be applied to both prediction and observation.
+        """
+        event_transform = unwrap(self).event_transform
+        if isinstance(event_transform, bij.AbstractBijector):
+            return event_transform
+
+        resolved = event_transform(y_pred)
+        if not isinstance(resolved, bij.AbstractBijector):
+            raise TypeError(
+                "A conditional `event_transform` must return a `distreqx` "
+                f"AbstractBijector. Got {type(resolved).__name__}."
+            )
+        return resolved
+
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
-        # Get the distribution over obs_event and the actual observed event
-        obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(observed)
+        # Get the distribution over obs_event and the actual observed event.
+        # The observation is mapped by the *same* resolved transform as the prediction,
+        # which for a conditional transform depends on the model.
+        obs_dist, event_transform = self._predictive(model, frequency, **kwargs)
+        obs_event = event_transform.forward(observed)
         batch_ndims = obs_event.ndim - self.event_ndims
         
         # We evaluate the log prob `batch_ndims` many times
@@ -259,7 +333,15 @@ class MarginalLogLikelihood(AbstractEvaluator):
             mapped_log_prob = eqx.filter_vmap(mapped_log_prob)
         
         log_probs = mapped_log_prob(obs_dist, obs_event)
-        return jnp.sum(log_probs)
+        log_prob = jnp.sum(log_probs)
+
+        # A prediction-dependent change of variables carries a Jacobian determinant that
+        # varies with the model, so it must be included for the density to be normalized.
+        # For a static transform the term is a constant offset, so it is omitted.
+        if self.has_conditional_event_transform:
+            log_prob = log_prob + jnp.sum(event_transform.forward_log_det_jacobian(observed))
+
+        return log_prob
     
     def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
@@ -268,11 +350,24 @@ class MarginalLogLikelihood(AbstractEvaluator):
         The returned distribution is in event space. To draw a sample from this distribution in
         observation space, see :meth:`MarginalLogLikelihood.sample_observation`.
         """
+        return self._predictive(model, frequency, **kwargs)[0]
+
+    def _predictive(self, model: PyTree, frequency: Frequency, **kwargs) -> tuple[dist.AbstractDistribution, bij.AbstractBijector]:
+        """
+        Returns both the predictive distribution in event space and the resolved
+        event transform used to produce it.
+
+        With a conditional `event_transform` the observation transform depends on the
+        model, so the two cannot be computed independently; every caller that needs to
+        map between observation and event space takes the transform from here.
+        """
         self = unwrap(self)
         
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
-            return self.event_transform.forward(y_pred)
+            # Resolved inside so that a conditional transform's dependence on the model
+            # is picked up by `func_jacobian` below.
+            return self.resolve_event_transform(y_pred).forward(y_pred)
         
         discrepancy_kwargs = {}
         if self.use_orthogonal_discrepancy:
@@ -293,20 +388,23 @@ class MarginalLogLikelihood(AbstractEvaluator):
             JT_J_inv = jnp.linalg.inv(JT_J_stable) # Shape: (..., P, P)
             discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
         
-        pred_event = event_fn(model, frequency)
+        y_pred = self.predictor(model, frequency, **kwargs)
+        event_transform = self.resolve_event_transform(y_pred)
+        pred_event = event_transform.forward(y_pred)
+        
         if self.discrepancy is not None:
             pred_event = self.discrepancy(pred_event, frequency.f_scaled, **discrepancy_kwargs)
             
         # 4. Apply measurement noise likelihood (adds noise to the GP covariance)
-        return self.likelihood(pred_event)
+        return self.likelihood(pred_event), event_transform
         
     @unwrap_self
     def sample_observation(self, key: jax.Array, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         """
         Returns a sample from the predictive distribution in observation space.
         """
-        obs_dist = self.predictive_distribution(model, frequency, **kwargs)
-        obs_event = self.event_transform.forward(self.observed)        
+        obs_dist, event_transform = self._predictive(model, frequency, **kwargs)
+        obs_event = event_transform.forward(self.observed)        
         
         # Get the actual shape of the batch dimensions
         batch_shape = obs_event.shape[:-self.event_ndims]
@@ -323,7 +421,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
             mapped_sample_fn = eqx.filter_vmap(mapped_sample_fn)
         
         event_sample = mapped_sample_fn(obs_dist, keys)
-        data_sample = self.event_transform.inverse(event_sample)
+        data_sample = event_transform.inverse(event_sample)
         return data_sample
     
     
@@ -437,23 +535,28 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         # Generalized log-posterior (Gibbs measure)
         return -(expected_loss / self.temperature)
         
-class NegativeLogLikelihood(AbstractEvaluator):
+class Negated(AbstractEvaluator):
     """
-    Computes the negative of the log of the probability of observed data.
+    Computes the negative of another evaluator.
     
-    Wrapper around :class:`pmrf.evaluators.MarginalLogLikelihood`
-    that is useful for performing Maximum Likelihood Estimation.
+    This is a general sign flip: it reads nothing from the wrapped evaluator beyond
+    calling it, so it works for any :class:`pmrf.evaluators.AbstractEvaluator`.
+    
+    Its most common use is turning a log-likelihood into a quantity to minimize, for
+    example wrapping :class:`pmrf.evaluators.MarginalLogLikelihood` or
+    :class:`pmrf.evaluators.GibbsMarginalLogLikelihood` for Maximum Likelihood
+    Estimation.
 
     Parameters
     ----------
-    mll
-        The underlying marginal log likelihood.
+    evaluator
+        The underlying evaluator to negate.
     """
-    #: The underlying MLL instance.
-    mll: MarginalLogLikelihood | GibbsMarginalLogLikelihood
+    #: The underlying evaluator instance.
+    evaluator: AbstractEvaluator
 
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
-        return -self.mll(model, frequency, **kwargs)
+        return -self.evaluator(model, frequency, **kwargs)
 
 
 class Goal(TargetLoss):
@@ -518,7 +621,7 @@ __all__ = [
     'TargetLoss',
     'MarginalLogLikelihood',
     'GibbsMarginalLogLikelihood',
-    'NegativeLogLikelihood',
+    'Negated',
     'Goal',
     'EvaluatorFn',
     'EvaluatorLike',

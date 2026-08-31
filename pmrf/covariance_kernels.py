@@ -5,12 +5,65 @@ Useful for discrepancy modeling. See :mod:`pmrf.discrepancy_models`
 for more details.
 """
 from abc import abstractmethod
+from collections.abc import Callable
 
+import jax
 import jax.numpy as jnp
 
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.modules.base import Module
+
+
+def gram(
+    kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
+    x: jnp.ndarray,
+    *,
+    jitter: float = 0.0,
+) -> jnp.ndarray:
+    """
+    Build the Gram (covariance) matrix of a kernel evaluated at a set of inputs.
+
+    The kernel is evaluated for every pair of input points using a double
+    :func:`jax.vmap`, producing an ``(N, N)`` matrix. Batching is preserved
+    exactly: if the kernel returns an array of shape ``batch_shape`` for a
+    single pair of points (for example a kernel whose parameters have shape
+    ``(D,)``), the result has shape ``(*batch_shape, N, N)``.
+
+    Parameters
+    ----------
+    kernel : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+        The covariance kernel. Accepts two input points of identical shape and
+        returns an array broadcastable to the kernel's batch shape.
+        Can be a function or a callable PyTree.
+        See :mod:`pmrf.covariance_kernels` for built-in covariance kernels.
+    x : jnp.ndarray
+        The input points. An array of shape ``(N,)`` is treated as ``N``
+        one-dimensional features; an array of shape ``(N, d)`` is treated as
+        ``N`` ``d``-dimensional features.
+    jitter : float, default=0.0
+        A small scalar added to the diagonal of the matrix for numerical
+        stability. The default of ``0.0`` returns the raw Gram matrix.
+
+    Returns
+    -------
+    jnp.ndarray
+        The Gram matrix, of shape ``(*batch_shape, N, N)``, where
+        ``batch_shape`` is the shape returned by the kernel for a single pair.
+    """
+    x = jnp.asarray(x)
+    if x.ndim == 1:
+        x_feat = x[:, None]
+    else:
+        x_feat = x
+
+    inner_vmap = jax.vmap(kernel, in_axes=(None, 0), out_axes=-1)
+    outer_vmap = jax.vmap(inner_vmap, in_axes=(0, None), out_axes=-2)
+
+    K = outer_vmap(x_feat, x_feat)
+    if jitter:
+        K = K + jnp.eye(x_feat.shape[0]) * jitter
+    return K
 
 
 class AbstractCovarianceKernel(Module):
@@ -39,6 +92,26 @@ class AbstractCovarianceKernel(Module):
             Kernel covariance scalar.
         """
         raise NotImplementedError
+
+    def gram(self, x: jnp.ndarray, *, jitter: float = 0.0) -> jnp.ndarray:
+        """
+        Build the Gram (covariance) matrix of this kernel evaluated at ``x``.
+
+        Equivalent to ``pmrf.covariance_kernels.gram(self, x, jitter=jitter)``.
+
+        Parameters
+        ----------
+        x : jnp.ndarray
+            The input points, of shape ``(N,)`` or ``(N, d)``.
+        jitter : float, default=0.0
+            A small scalar added to the diagonal for numerical stability.
+
+        Returns
+        -------
+        jnp.ndarray
+            The Gram matrix, of shape ``(*batch_shape, N, N)``.
+        """
+        return gram(self, x, jitter=jitter)
 
     def __add__(self, other: 'AbstractCovarianceKernel') -> 'AbstractCovarianceKernel':
         from pmrf.covariance_kernels import SumKernel
