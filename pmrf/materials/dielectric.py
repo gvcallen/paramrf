@@ -53,6 +53,23 @@ class AbstractDielectric(Module):
             any static conductivity contribution.
         """
 
+    def mu_r(self, freq: Frequency) -> jnp.ndarray:
+        r"""Total complex relative permeability, shape ``(freq.npoints,)``.
+
+        Permeability belongs to the medium exactly as permittivity does, so it
+        lives here rather than on the geometry that happens to be filled with
+        it. That is what lets a magnetic filling be defined once and used by
+        any line, and it mirrors :meth:`AbstractConductor.mu_r`.
+
+        The convention matches :meth:`epsilon_r`: $\mu_r = \mu' - j\mu''$ with
+        $\mu'' \geq 0$ for a passive medium, so magnetic loss is carried by the
+        imaginary part rather than by a separate field.
+
+        Most dielectrics are non-magnetic, so the default is $1$. A magnetic
+        medium overrides this.
+        """
+        return jnp.ones(freq.npoints, dtype=complex)
+
     def with_conduction(self, eps: jnp.ndarray, freq: Frequency) -> jnp.ndarray:
         r"""Add the static conduction term $-j\sigma/(\omega\varepsilon_0)$ to `eps`.
 
@@ -82,7 +99,8 @@ class ConstantDielectric(AbstractDielectric):
     **Mathematical Formulation**
 
     $$\varepsilon_r(\omega) = \varepsilon_r' \left(1 - j\tan\delta\right)
-    - j\frac{\sigma}{\omega\varepsilon_0}$$
+    - j\frac{\sigma}{\omega\varepsilon_0}
+    \qquad \mu_r(\omega) = \mu_r$$
 
     Example
     --------
@@ -107,6 +125,10 @@ class ConstantDielectric(AbstractDielectric):
         Dielectric loss tangent.
     sigma : Param, default=0.0
         Static bulk conductivity in S/m.
+    mu_rel : Param, default=1.0
+        Relative permeability of the medium. Stored under `mu_rel` because
+        :meth:`mu_r` is the evaluated accessor; a dataclass field of that name
+        would shadow it.
     """
     #: Real relative permittivity
     ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
@@ -117,10 +139,16 @@ class ConstantDielectric(AbstractDielectric):
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
+    #: Relative permeability of the medium
+    mu_rel: Param = param(default=1.0, constraint=Positive())
+
     def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
         ones = jnp.ones(freq.npoints)
         eps = self.ep_r * ones - 1j * self.ep_r * self.tand * ones
         return self.with_conduction(eps, freq)
+
+    def mu_r(self, freq: Frequency) -> jnp.ndarray:
+        return self.mu_rel * jnp.ones(freq.npoints, dtype=complex)
 
 
 class DjordjevicSarkar(AbstractDielectric):

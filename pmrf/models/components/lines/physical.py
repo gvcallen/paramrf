@@ -259,10 +259,10 @@ class CoaxialLine(AbstractImmittanceLine):
     d_out : Param, default=3.2e-3
         Outer conductor inner diameter in meters.
     dielectric : AbstractDielectric, default=ConstantDielectric()
-        The dielectric filling. A scalar permittivity or an ``(ep_r, tand)`` tuple
-        is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
-    mu_r : Param, default=1.0
-        Relative permeability of the dielectric filling.
+        The dielectric filling, which supplies both its permittivity and its
+        permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
+        coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
+        filling sets that material's ``mu_rel``.
     conductor : AbstractConductor, default=BulkConductor()
         The conductor material of both conductors. A scalar resistivity in
         ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
@@ -280,9 +280,6 @@ class CoaxialLine(AbstractImmittanceLine):
         default_factory=ConstantDielectric, converter=as_dielectric
     )
     
-    #: Relative permeability of the dielectric filling
-    mu_r: Param = param(default=1.0, constraint=Positive())
-    
     #: The conductor material of both conductors
     conductor: AbstractConductor = field(
         default_factory=BulkConductor, converter=as_conductor
@@ -297,12 +294,12 @@ class CoaxialLine(AbstractImmittanceLine):
             d_in=self.d_in,
             d_out=self.d_out,
             dielectric=DielectricProperties(
-                self.dielectric.epsilon_r(freq), self.mu_r * jnp.ones(freq.npoints)
+                self.dielectric.epsilon_r(freq), self.dielectric.mu_r(freq)
             ),
             conductor=ConductorProperties(
                 self.conductor.surface_impedance(freq),
                 self.conductor.sigma(freq),
-                self.conductor.mu(freq) / mu_0,
+                self.conductor.mu_r(freq),
             ),
         )
     

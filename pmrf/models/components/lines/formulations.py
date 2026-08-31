@@ -25,12 +25,13 @@ class DielectricProperties(NamedTuple):
     ep_r : array-like
         Complex relative permittivity.
     mu_r : array-like
-        Relative permeability.
+        Complex relative permeability. Magnetic loss is carried by the
+        imaginary part, so a lossy magnetic filling needs no extra field.
     """
 
     #: Complex relative permittivity
     ep_r: jnp.ndarray
-    #: Relative permeability
+    #: Complex relative permeability
     mu_r: jnp.ndarray
 
 
@@ -44,14 +45,14 @@ class ConductorProperties(NamedTuple):
     sigma : array-like
         Bulk conductivity in S/m.
     mu_r : array-like
-        Relative permeability.
+        Complex relative permeability.
     """
 
     #: Surface impedance in ohm per square
     zs: jnp.ndarray
     #: Bulk conductivity in S/m
     sigma: jnp.ndarray
-    #: Relative permeability
+    #: Complex relative permeability
     mu_r: jnp.ndarray
 
 
@@ -238,6 +239,10 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     The outer shield is treated as infinitely thick because only its inner
     diameter is part of :class:`CoaxialLine`; the finite-wall form is available
     in :func:`tube_internal_impedance`.
+
+    A magnetic filling needs no special case. With complex $\mu_r$ the external
+    term $j\omega L'$ acquires the real part $\omega\mu''\ln(b/a)/2\pi$, so
+    magnetic loss enters the series resistance on its own.
 
     References
     ----------
