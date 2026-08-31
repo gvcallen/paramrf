@@ -19,7 +19,48 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.modules.base import Module
-from pmrf.utils import field, unwrap, unwrap_self
+from pmrf.utils import derivative, field, unwrap, unwrap_self
+
+
+def _orthogonal_projection(
+    event_fn: Callable[[PyTree], jnp.ndarray],
+    model: PyTree,
+    *,
+    jitter: float = 1e-12,
+) -> jnp.ndarray:
+    """Build the projection onto the complement of an event Jacobian."""
+    unwrapped_model = unwrap(model)
+    parameter_leaves = jax.tree.leaves(
+        eqx.filter(unwrapped_model, eqx.is_inexact_array)
+    )
+    if not parameter_leaves:
+        raise ValueError(
+            "Orthogonal discrepancy requires a model with at least one "
+            "differentiable JAX-array leaf."
+        )
+
+    (jacobian_tree,) = derivative(event_fn, model)
+    jacobian_leaves = jax.tree.leaves(
+        eqx.filter(jacobian_tree, eqx.is_inexact_array)
+    )
+    dense_leaves = []
+    for jacobian_leaf, parameter_leaf in zip(jacobian_leaves, parameter_leaves):
+        parameter_shape = parameter_leaf.shape
+        event_shape = (
+            jacobian_leaf.shape[:-len(parameter_shape)]
+            if parameter_shape
+            else jacobian_leaf.shape
+        )
+        dense_leaves.append(
+            jnp.reshape(jacobian_leaf, event_shape + (parameter_leaf.size,))
+        )
+
+    J_b = jnp.concatenate(dense_leaves, axis=-1)
+    N, P = J_b.shape[-2:]
+    J_b_T = jnp.swapaxes(J_b, -1, -2)
+    gram = J_b_T @ J_b + jitter * jnp.eye(P, dtype=J_b.dtype)
+    projected = J_b @ jnp.linalg.solve(gram, J_b_T)
+    return jnp.eye(N, dtype=J_b.dtype) - projected
 
 class AbstractEvaluator(Module):
     """
@@ -366,27 +407,14 @@ class MarginalLogLikelihood(AbstractEvaluator):
         def event_fn(m, f):
             y_pred = self.predictor(m, f, **kwargs)
             # Resolved inside so that a conditional transform's dependence on the model
-            # is picked up by `func_jacobian` below.
+            # remains inside the function differentiated for the projection below.
             return self.resolve_event_transform(y_pred).forward(y_pred)
         
         discrepancy_kwargs = {}
-        if self.use_orthogonal_discrepancy:
-            jitter = 1e-12
-            jac_dict = model.func_jacobian(event_fn, frequency)
-            
-            # J_b : shape (..., N, P)  # e.g., (nports, nports, nfreq, P)
-            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)
-            
-            N, P = J_b.shape[-2], J_b.shape[-1]
-            I = jnp.eye(N)
-            
-            J_b_T = jnp.swapaxes(J_b, -1, -2)
-            JT_J = J_b_T @ J_b
-            JT_J_stable = JT_J + jitter * jnp.eye(P)
-            
-            # JAX automatically vectorizes linalg.inv over leading dimensions
-            JT_J_inv = jnp.linalg.inv(JT_J_stable) # Shape: (..., P, P)
-            discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
+        if self.use_orthogonal_discrepancy and self.discrepancy is not None:
+            discrepancy_kwargs['orthogonal_projection'] = _orthogonal_projection(
+                lambda m: event_fn(m, frequency), model
+            )
         
         y_pred = self.predictor(model, frequency, **kwargs)
         event_transform = self.resolve_event_transform(y_pred)
@@ -504,19 +532,9 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
             
         discrepancy_kwargs = {}
         if self.use_orthogonal_discrepancy and self.discrepancy is not None:
-            jitter = 1e-12
-            jac_dict = model.func_jacobian(event_fn, frequency)
-            
-            J_b = jnp.stack(tuple(jac_dict.values()), axis=-1)  # shape (..., N, P)
-            N, P = J_b.shape[-2], J_b.shape[-1]
-            I = jnp.eye(N)
-            
-            J_b_T = jnp.swapaxes(J_b, -1, -2)
-            JT_J = J_b_T @ J_b
-            JT_J_stable = JT_J + jitter * jnp.eye(P)
-            
-            JT_J_inv = jnp.linalg.inv(JT_J_stable)
-            discrepancy_kwargs['orthogonal_projection'] = I - (J_b @ JT_J_inv @ J_b_T)
+            discrepancy_kwargs['orthogonal_projection'] = _orthogonal_projection(
+                lambda m: event_fn(m, frequency), model
+            )
             
         pred_event = event_fn(model, frequency)
         variance_penalty = 0.0
