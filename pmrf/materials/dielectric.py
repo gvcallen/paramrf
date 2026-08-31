@@ -197,7 +197,7 @@ class DebyePole(Module):
 
     **Mathematical Formulation**
 
-    $$\Delta\varepsilon_r(f) = \frac{\Delta\varepsilon}{1 + jf/f_{r}}$$
+    $$\Delta\varepsilon_r(f) = \frac{\Delta\varepsilon_r}{1 + jf/f_{r}}$$
 
     References
     ----------
@@ -205,24 +205,24 @@ class DebyePole(Module):
 
     Parameters
     ----------
-    deps : Param, default=0.0
+    depr : Param, default=0.0
         Permittivity increment (relaxation strength) of the pole.
     frelax : Param, default=1e9
         Relaxation frequency of the pole in Hz.
     """
     #: Permittivity increment of the pole
-    deps: Param = param(default=0.0, constraint=Positive())
+    depr: Param = param(default=0.0, constraint=Positive())
 
     #: Relaxation frequency of the pole
     frelax: Param = param(default=1e9, constraint=Positive())
 
     def contribution(self, freq: Frequency) -> jnp.ndarray:
         """The pole's complex permittivity contribution."""
-        return self.deps / (1.0 + 1j * freq.f / self.frelax)
+        return self.depr / (1.0 + 1j * freq.f / self.frelax)
 
 
 def _as_poles(poles) -> tuple[DebyePole, ...]:
-    """Coerce a sequence of poles or ``(deps, frelax)`` pairs into modules."""
+    """Coerce a sequence of poles or ``(depr, frelax)`` pairs into modules."""
     return tuple(
         pole if isinstance(pole, DebyePole) else DebyePole(*pole) for pole in poles
     )
@@ -235,7 +235,7 @@ class MultipoleDebye(AbstractDielectric):
     **Mathematical Formulation**
 
     $$\varepsilon_r(f) = \varepsilon_\infty
-    + \sum_{n} \frac{\Delta\varepsilon_n}{1 + jf/f_{r,n}}
+    + \sum_{n} \frac{\Delta\varepsilon_{r,n}}{1 + jf/f_{r,n}}
     - j\frac{\sigma}{\omega\varepsilon_0}$$
 
     Example
@@ -255,7 +255,7 @@ class MultipoleDebye(AbstractDielectric):
     epinf : Param, default=1.0
         High-frequency limit of the relative permittivity.
     poles : tuple of DebyePole, default=()
-        The Debye poles. ``(deps, frelax)`` pairs are coerced automatically.
+        The Debye poles. ``(depr, frelax)`` pairs are coerced automatically.
     sigma : Param, default=0.0
         Static bulk conductivity in S/m.
     """
@@ -282,7 +282,7 @@ class ColeCole(AbstractDielectric):
     **Mathematical Formulation**
 
     $$\varepsilon_r(f) = \varepsilon_\infty
-    + \frac{\Delta\varepsilon}{1 + \left(jf/f_r\right)^{1 - \alpha}}
+    + \frac{\Delta\varepsilon_r}{1 + \left(jf/f_r\right)^{1 - \alpha}}
     - j\frac{\sigma}{\omega\varepsilon_0}$$
 
     With $\alpha = 0$ this reduces exactly to a single Debye pole.
@@ -296,7 +296,7 @@ class ColeCole(AbstractDielectric):
     ----------
     epinf : Param, default=1.0
         High-frequency limit of the relative permittivity.
-    deps : Param, default=0.0
+    depr : Param, default=0.0
         Permittivity increment (relaxation strength).
     frelax : Param, default=1e9
         Relaxation frequency in Hz.
@@ -309,7 +309,7 @@ class ColeCole(AbstractDielectric):
     epinf: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Permittivity increment
-    deps: Param = param(default=0.0, constraint=Positive())
+    depr: Param = param(default=0.0, constraint=Positive())
 
     #: Relaxation frequency
     frelax: Param = param(default=1e9, constraint=Positive())
@@ -326,7 +326,7 @@ class ColeCole(AbstractDielectric):
         safe_f = jnp.where(f > 0, f, 1.0)
         ratio = jnp.where(f > 0, (1j * safe_f / self.frelax) ** (1.0 - self.alpha), 0.0)
 
-        eps = self.epinf + self.deps / (1.0 + ratio)
+        eps = self.epinf + self.depr / (1.0 + ratio)
         return self.with_conduction(eps, freq)
 
 

@@ -106,11 +106,11 @@ def test_multipole_debye_limits():
 def test_multipole_debye_coerces_pairs():
     material = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9)])
     assert isinstance(material.poles[0], DebyePole)
-    assert jnp.allclose(material.poles[0].deps, 1.0)
+    assert jnp.allclose(material.poles[0].depr, 1.0)
 
 
 def test_cole_cole_reduces_to_debye(freq):
-    cole = ColeCole(epinf=2.0, deps=1.0, frelax=1e9, alpha=0.0)
+    cole = ColeCole(epinf=2.0, depr=1.0, frelax=1e9, alpha=0.0)
     debye = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9)])
     assert jnp.allclose(cole.epsilon_r(freq), debye.epsilon_r(freq))
 
