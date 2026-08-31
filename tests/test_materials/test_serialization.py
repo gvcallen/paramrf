@@ -17,9 +17,9 @@ from pmrf.materials import (
 MATERIALS = [
     ConstantDielectric(4.3, 0.02, 0.01),
     DjordjevicSarkar(4.3, 0.02),
-    MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)]),
+    MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)]),
     ColeCole(2.0, 1.0, 1e9, 0.3),
-    TabulatedDielectric(f=jnp.array([1e9, 2e9]), epr=jnp.array([4.0 - 0.1j, 3.8 - 0.2j])),
+    TabulatedDielectric(f=jnp.array([1e9, 2e9]), ep_r=jnp.array([4.0 - 0.1j, 3.8 - 0.2j])),
     BulkConductor(1.68e-8),
     RoughConductor(1.68e-8, roughness=1e-6),
 ]

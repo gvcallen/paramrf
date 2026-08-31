@@ -45,17 +45,17 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     freq_skrf = rf.Frequency(start=F_START, stop=F_STOP, npoints=N_POINTS, unit='ghz')
     freq_pmrf = prf.Frequency(start=F_START, stop=F_STOP, npoints=N_POINTS, unit='ghz')
 
-    def create_skrf_physical_line(freq, zn, length, epr, A, fA, tand, name):
+    def create_skrf_physical_line(freq, zn, length, ep_r, A, f_A, tand, name):
         """Builds a scikit-rf line matching ParamRF's PhysicalLine physics exactly."""
         f = freq.f
-        sqrt_epr = np.sqrt(epr)
-        A_dB = A * np.sqrt(f / fA)
+        sqrt_ep_r = np.sqrt(ep_r)
+        A_dB = A * np.sqrt(f / f_A)
         alpha_c = A_dB * (np.log(10) / 20.0)
-        alpha_d = np.pi * sqrt_epr * f / c * tand
+        alpha_d = np.pi * sqrt_ep_r * f / c * tand
         R = 2 * zn * alpha_c
-        L = (zn * sqrt_epr) / c
+        L = (zn * sqrt_ep_r) / c
         G = 2 / zn * alpha_d
-        C = sqrt_epr / (zn * c)
+        C = sqrt_ep_r / (zn * c)
         omega = 2 * np.pi * f
         Z_series = R + 1j * omega * L
         Y_shunt = G + 1j * omega * C
@@ -86,7 +86,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         """zns/lens hold either plain floats (fixed) or pmrf.Bounded instances (free parameters)."""
         p0, gnd = Port(), Ground()
         lines = [
-            PhysicalLine(zn=zns[i], length=lens[i], epr=EPR, A=ATTEN_A, fA=ATTEN_FA, tand=TAND)
+            PhysicalLine(zn=zns[i], length=lens[i], ep_r=EPR, A=ATTEN_A, f_A=ATTEN_FA, tand=TAND)
             for i in range(N_SECTIONS)
         ]
         load = Resistor(R=ZL)

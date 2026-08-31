@@ -116,14 +116,14 @@ class BulkConductor(AbstractConductor):
     ----------
     rho : Param, default=1.68e-8
         Resistivity in ohm-meters. Defaults to copper.
-    mur : Param, default=1.0
+    mu_r : Param, default=1.0
         Relative permeability of the conductor.
     """
     #: Resistivity in ohm-meters
     rho: Param = param(default=1.68e-8, constraint=Positive())
 
     #: Relative permeability of the conductor
-    mur: Param = param(default=1.0, constraint=Positive())
+    mu_r: Param = param(default=1.0, constraint=Positive())
 
     @classmethod
     def from_sigma(cls, sigma, **kwargs):
@@ -138,7 +138,7 @@ class BulkConductor(AbstractConductor):
         # pattern so the gradient stays finite as well as the value.
         w = jnp.asarray(freq.w)
         safe_w = jnp.where(w > 0, w, 1.0)
-        depth = jnp.sqrt(2 * self.rho / (safe_w * mu_0 * self.mur))
+        depth = jnp.sqrt(2 * self.rho / (safe_w * mu_0 * self.mu_r))
         return jnp.where(w > 0, depth, jnp.inf)
 
     def surface_impedance(self, freq: Frequency) -> jnp.ndarray:
@@ -146,7 +146,7 @@ class BulkConductor(AbstractConductor):
         # impedance is zero there, but its raw gradient would not be.
         w = jnp.asarray(freq.w)
         safe_w = jnp.where(w > 0, w, 1.0)
-        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mur * self.rho / 2), 0.0)
+        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mu_r * self.rho / 2), 0.0)
         return rs * (1 + 1j)
 
 
@@ -171,7 +171,7 @@ class RoughConductor(BulkConductor):
     ----------
     rho : Param, default=1.68e-8
         Resistivity in ohm-meters.
-    mur : Param, default=1.0
+    mu_r : Param, default=1.0
         Relative permeability of the conductor.
     roughness : AbstractRoughness, default=Hammerstad()
         The roughness correction formulation. A scalar RMS roughness in meters

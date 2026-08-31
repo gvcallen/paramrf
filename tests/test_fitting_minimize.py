@@ -16,12 +16,12 @@ def fit_freq():
 @pytest.fixture
 def truth_model():
     return CoaxialLine(
-        din=1.12e-3, 
-        dout=3.2e-3, 
-        dielectric=ConstantDielectric(epr=1.384, tand=0.001),
+        d_in=1.12e-3, 
+        d_out=3.2e-3, 
+        dielectric=ConstantDielectric(ep_r=1.384, tand=0.001),
         conductor=BulkConductor(rho=1.6e-8),
         length=0.1,  # This is the target length we want to find (10 cm)
-        mur=1.0
+        mu_r=1.0
     )
 
 @pytest.fixture
@@ -38,11 +38,11 @@ def starting_model():
     The model we will actually optimize. 
     """
     return CoaxialLine(
-        din=Fixed(1.12e-3),
-        dout=Fixed(3.2e-3),
-        dielectric=ConstantDielectric(epr=Fixed(1.384), tand=Fixed(0.001)),
+        d_in=Fixed(1.12e-3),
+        d_out=Fixed(3.2e-3),
+        dielectric=ConstantDielectric(ep_r=Fixed(1.384), tand=Fixed(0.001)),
         conductor=BulkConductor(rho=Fixed(1.6e-8)),
-        mur=Fixed(1.0),
+        mu_r=Fixed(1.0),
         # Start at 9.5 cm to stay within a fraction of a wavelength of 10 cm
         length=Bounded(0.05, 0.15, value=0.095)
     )

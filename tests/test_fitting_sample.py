@@ -24,12 +24,12 @@ def fit_freq():
 @pytest.fixture
 def truth_model():
     return CoaxialLine(
-        din=1.12e-3, 
-        dout=3.2e-3, 
-        dielectric=ConstantDielectric(epr=1.384, tand=0.001),
+        d_in=1.12e-3, 
+        d_out=3.2e-3, 
+        dielectric=ConstantDielectric(ep_r=1.384, tand=0.001),
         conductor=BulkConductor(rho=1.6e-8),
         length=0.1,  # Target length
-        mur=1.0
+        mu_r=1.0
     )
 
 @pytest.fixture
@@ -42,11 +42,11 @@ def target_network(fit_freq, truth_model):
 @pytest.fixture
 def starting_model():
     return CoaxialLine(
-        din=Fixed(1.12e-3),
-        dout=Fixed(3.2e-3),
-        dielectric=ConstantDielectric(epr=Fixed(1.384), tand=Fixed(0.001)),
+        d_in=Fixed(1.12e-3),
+        d_out=Fixed(3.2e-3),
+        dielectric=ConstantDielectric(ep_r=Fixed(1.384), tand=Fixed(0.001)),
         conductor=BulkConductor(rho=Fixed(1.6e-8)),
-        mur=Fixed(1.0),
+        mu_r=Fixed(1.0),
         # Normal prior centered at 0.1 with standard deviation 0.05
         length=Random(Normal(0.1, 0.05), value=jnp.array(0.095))
     )

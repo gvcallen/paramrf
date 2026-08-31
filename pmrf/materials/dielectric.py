@@ -28,8 +28,8 @@ class AbstractDielectric(Module):
     medium is included, so callers never see the split.
 
     **Reference frequencies are material constants.** Fields such as
-    :attr:`DjordjevicSarkar.flow`, :attr:`DjordjevicSarkar.fhigh` and
-    :attr:`DjordjevicSarkar.fref` describe the medium, never the sweep, and must
+    :attr:`DjordjevicSarkar.f_low`, :attr:`DjordjevicSarkar.f_high` and
+    :attr:`DjordjevicSarkar.f_ref` describe the medium, never the sweep, and must
     never be defaulted from the analysis band. Deriving them that way would make
     the same physical material give different answers depending on the band
     asked about, re-trigger a JIT compilation on every new frequency grid, and
@@ -91,7 +91,7 @@ class ConstantDielectric(AbstractDielectric):
         import pmrf as prf
         from pmrf.materials import ConstantDielectric
 
-        fr4 = ConstantDielectric(epr=4.3, tand=0.02)
+        fr4 = ConstantDielectric(ep_r=4.3, tand=0.02)
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
         eps = fr4.epsilon_r(freq)
 
@@ -101,7 +101,7 @@ class ConstantDielectric(AbstractDielectric):
 
     Parameters
     ----------
-    epr : Param, default=1.0
+    ep_r : Param, default=1.0
         Real relative permittivity.
     tand : Param, default=0.0
         Dielectric loss tangent.
@@ -109,7 +109,7 @@ class ConstantDielectric(AbstractDielectric):
         Static bulk conductivity in S/m.
     """
     #: Real relative permittivity
-    epr: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Dielectric loss tangent
     tand: Param = param(default=0.0, constraint=Positive())
@@ -119,7 +119,7 @@ class ConstantDielectric(AbstractDielectric):
 
     def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
         ones = jnp.ones(freq.npoints)
-        eps = self.epr * ones - 1j * self.epr * self.tand * ones
+        eps = self.ep_r * ones - 1j * self.ep_r * self.tand * ones
         return self.with_conduction(eps, freq)
 
 
@@ -127,7 +127,7 @@ class DjordjevicSarkar(AbstractDielectric):
     r"""
     Causal wideband Debye (Djordjevic-Sarkar / Svensson-Dermer) dielectric.
 
-    A continuous distribution of relaxation times between `flow` and `fhigh`
+    A continuous distribution of relaxation times between `f_low` and `f_high`
     gives a permittivity that falls slowly with frequency while keeping an
     almost constant loss tangent, and which satisfies the Kramers-Kronig
     relations.
@@ -145,7 +145,7 @@ class DjordjevicSarkar(AbstractDielectric):
     - j\frac{\sigma}{\omega\varepsilon_0}$$
 
     Here $\varepsilon_r'$ and $\tan\delta$ are the values measured at the
-    reference frequency `fref`.
+    reference frequency `f_ref`.
 
     References
     ----------
@@ -158,44 +158,44 @@ class DjordjevicSarkar(AbstractDielectric):
 
     Parameters
     ----------
-    epr : Param, default=1.0
-        Real relative permittivity at `fref`.
+    ep_r : Param, default=1.0
+        Real relative permittivity at `f_ref`.
     tand : Param, default=0.0
-        Dielectric loss tangent at `fref`.
-    flow : Param, default=1e3
+        Dielectric loss tangent at `f_ref`.
+    f_low : Param, default=1e3
         Lower bound of the relaxation-time distribution in Hz.
-    fhigh : Param, default=1e12
+    f_high : Param, default=1e12
         Upper bound of the relaxation-time distribution in Hz.
-    fref : Param, default=1e9
-        Frequency in Hz at which `epr` and `tand` were measured.
+    f_ref : Param, default=1e9
+        Frequency in Hz at which `ep_r` and `tand` were measured.
     sigma : Param, default=0.0
         Static bulk conductivity in S/m.
     """
-    #: Real relative permittivity at `fref`
-    epr: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    #: Real relative permittivity at `f_ref`
+    ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
-    #: Dielectric loss tangent at `fref`
+    #: Dielectric loss tangent at `f_ref`
     tand: Param = param(default=0.0, constraint=Positive())
 
     #: Lower bound of the relaxation-time distribution
-    flow: Param = param(default=1e3, constraint=Positive())
+    f_low: Param = param(default=1e3, constraint=Positive())
 
     #: Upper bound of the relaxation-time distribution
-    fhigh: Param = param(default=1e12, constraint=Positive())
+    f_high: Param = param(default=1e12, constraint=Positive())
 
-    #: Frequency at which `epr` and `tand` were measured
-    fref: Param = param(default=1e9, constraint=Positive())
+    #: Frequency at which `ep_r` and `tand` were measured
+    f_ref: Param = param(default=1e9, constraint=Positive())
 
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
     def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
         f = freq.f
-        k = jnp.log((self.fhigh + 1j * self.fref) / (self.flow + 1j * self.fref))
-        fd = jnp.log((self.fhigh + 1j * f) / (self.flow + 1j * f))
+        k = jnp.log((self.f_high + 1j * self.f_ref) / (self.f_low + 1j * self.f_ref))
+        fd = jnp.log((self.f_high + 1j * f) / (self.f_low + 1j * f))
 
-        eps_d = -self.tand * self.epr / jnp.imag(k)
-        eps_inf = self.epr * (1.0 + self.tand * jnp.real(k) / jnp.imag(k))
+        eps_d = -self.tand * self.ep_r / jnp.imag(k)
+        eps_inf = self.ep_r * (1.0 + self.tand * jnp.real(k) / jnp.imag(k))
 
         return self.with_conduction(eps_inf + eps_d * fd, freq)
 
@@ -214,24 +214,24 @@ class DebyePole(Module):
 
     Parameters
     ----------
-    depr : Param, default=0.0
+    dep_r : Param, default=0.0
         Permittivity increment (relaxation strength) of the pole.
-    frelax : Param, default=1e9
+    f_relax : Param, default=1e9
         Relaxation frequency of the pole in Hz.
     """
     #: Permittivity increment of the pole
-    depr: Param = param(default=0.0, constraint=Positive())
+    dep_r: Param = param(default=0.0, constraint=Positive())
 
     #: Relaxation frequency of the pole
-    frelax: Param = param(default=1e9, constraint=Positive())
+    f_relax: Param = param(default=1e9, constraint=Positive())
 
     def contribution(self, freq: Frequency) -> jnp.ndarray:
         """The pole's complex permittivity contribution."""
-        return self.depr / (1.0 + 1j * freq.f / self.frelax)
+        return self.dep_r / (1.0 + 1j * freq.f / self.f_relax)
 
 
 def _as_poles(poles) -> tuple[DebyePole, ...]:
-    """Coerce a sequence of poles or ``(depr, frelax)`` pairs into modules."""
+    """Coerce a sequence of poles or ``(dep_r, f_relax)`` pairs into modules."""
     return tuple(
         pole if isinstance(pole, DebyePole) else DebyePole(*pole) for pole in poles
     )
@@ -253,7 +253,7 @@ class MultipoleDebye(AbstractDielectric):
 
         from pmrf.materials import MultipoleDebye
 
-        material = MultipoleDebye(epinf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+        material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
 
     References
     ----------
@@ -261,15 +261,15 @@ class MultipoleDebye(AbstractDielectric):
 
     Parameters
     ----------
-    epinf : Param, default=1.0
+    ep_inf : Param, default=1.0
         High-frequency limit of the relative permittivity.
     poles : tuple of DebyePole, default=()
-        The Debye poles. ``(depr, frelax)`` pairs are coerced automatically.
+        The Debye poles. ``(dep_r, f_relax)`` pairs are coerced automatically.
     sigma : Param, default=0.0
         Static bulk conductivity in S/m.
     """
     #: High-frequency limit of the relative permittivity
-    epinf: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_inf: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: The Debye poles
     poles: tuple[DebyePole, ...] = field(default=(), converter=_as_poles)
@@ -278,7 +278,7 @@ class MultipoleDebye(AbstractDielectric):
     sigma: Param = param(default=0.0, constraint=Positive())
 
     def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
-        eps = self.epinf * jnp.ones(freq.npoints, dtype=complex)
+        eps = self.ep_inf * jnp.ones(freq.npoints, dtype=complex)
         for pole in self.poles:
             eps = eps + pole.contribution(freq)
         return self.with_conduction(eps, freq)
@@ -303,11 +303,11 @@ class ColeCole(AbstractDielectric):
 
     Parameters
     ----------
-    epinf : Param, default=1.0
+    ep_inf : Param, default=1.0
         High-frequency limit of the relative permittivity.
-    depr : Param, default=0.0
+    dep_r : Param, default=0.0
         Permittivity increment (relaxation strength).
-    frelax : Param, default=1e9
+    f_relax : Param, default=1e9
         Relaxation frequency in Hz.
     alpha : Param, default=0.0
         Broadening exponent, in [0, 1).
@@ -315,13 +315,13 @@ class ColeCole(AbstractDielectric):
         Static bulk conductivity in S/m.
     """
     #: High-frequency limit of the relative permittivity
-    epinf: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_inf: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Permittivity increment
-    depr: Param = param(default=0.0, constraint=Positive())
+    dep_r: Param = param(default=0.0, constraint=Positive())
 
     #: Relaxation frequency
-    frelax: Param = param(default=1e9, constraint=Positive())
+    f_relax: Param = param(default=1e9, constraint=Positive())
 
     #: Broadening exponent
     alpha: Param = param(default=0.0, constraint=Interval(0.0, 1.0))
@@ -333,9 +333,9 @@ class ColeCole(AbstractDielectric):
         # Guard f = 0, where (jf/f_r)**(1-alpha) is a branch point.
         f = jnp.asarray(freq.f)
         safe_f = jnp.where(f > 0, f, 1.0)
-        ratio = jnp.where(f > 0, (1j * safe_f / self.frelax) ** (1.0 - self.alpha), 0.0)
+        ratio = jnp.where(f > 0, (1j * safe_f / self.f_relax) ** (1.0 - self.alpha), 0.0)
 
-        eps = self.epinf + self.depr / (1.0 + ratio)
+        eps = self.ep_inf + self.dep_r / (1.0 + ratio)
         return self.with_conduction(eps, freq)
 
 
@@ -359,7 +359,7 @@ class TabulatedDielectric(AbstractDielectric):
     ----------
     f : jnp.ndarray
         Tabulated frequency points in Hz, strictly increasing.
-    epr : jnp.ndarray
+    ep_r : jnp.ndarray
         Complex relative permittivity at each tabulated frequency. Real input is
         promoted to a lossless complex value.
     sigma : Param, default=0.0
@@ -369,21 +369,21 @@ class TabulatedDielectric(AbstractDielectric):
     f: jnp.ndarray = field(converter=jnp.asarray)
 
     #: Complex relative permittivity at each tabulated frequency
-    epr: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=complex))
+    ep_r: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=complex))
 
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
     def __post_init__(self):
-        if self.f.shape != self.epr.shape:
+        if self.f.shape != self.ep_r.shape:
             raise ValueError(
-                "`f` and `epr` must have the same shape, got "
-                f"{self.f.shape} and {self.epr.shape}"
+                "`f` and `ep_r` must have the same shape, got "
+                f"{self.f.shape} and {self.ep_r.shape}"
             )
 
     def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
-        real = jnp.interp(freq.f, self.f, jnp.real(self.epr))
-        imag = jnp.interp(freq.f, self.f, jnp.imag(self.epr))
+        real = jnp.interp(freq.f, self.f, jnp.real(self.ep_r))
+        imag = jnp.interp(freq.f, self.f, jnp.imag(self.ep_r))
         return self.with_conduction(real + 1j * imag, freq)
 
 
@@ -392,7 +392,7 @@ def as_dielectric(value) -> AbstractDielectric:
     Coerce a value into a dielectric material.
 
     Accepts an existing :class:`AbstractDielectric`, a scalar permittivity, or an
-    ``(epr, tand)`` or ``(epr, tand, sigma)`` tuple, which build a
+    ``(ep_r, tand)`` or ``(ep_r, tand, sigma)`` tuple, which build a
     :class:`ConstantDielectric`.
 
     Parameters
