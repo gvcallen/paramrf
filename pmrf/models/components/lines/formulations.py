@@ -315,7 +315,6 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     """
 
     def quasi_static(self, freq: Frequency, *, w, h, t, ep_r, zs) -> QuasiStaticResult:
-        del zs
         u = w / h
         thickness = None if t is None else t / h
 
@@ -432,7 +431,6 @@ class KirschningJansen(AbstractMicrostripDispersion):
     def disperse(
         self, freq: Frequency, *, ep_eff_0, zc_0, ep_r, w, w_eff, h, t
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        del t
         # ADS applies the effective width in its complex-permittivity path;
         # QUCS applies the physical width in its real-permittivity path.
         dispersion_width = w_eff if jnp.iscomplexobj(ep_r) else w
