@@ -272,7 +272,21 @@ class AbstractImmittanceLine(AbstractUniformLine):
         immittance = self.immittance(frequency)
         Z, Y = immittance.Z, immittance.Y
 
-        zc = jnp.sqrt(Z / Y)
-        gammaL = jnp.sqrt(Z * Y) * self.length
+        w = immittance.w
 
-        return zc, gammaL
+        # Both square roots are singular at DC on a line with no static loss,
+        # where Z = Y = 0: sqrt(Z/Y) is a raw 0/0 and sqrt(ZY) sits on the
+        # branch point, whose derivative diverges. Guard both with the
+        # double-`where` pattern so the gradient stays finite too.
+        product = Z * Y
+        singular_gamma = product == 0
+        safe_product = jnp.where(singular_gamma, 1.0, product)
+        gamma = jnp.where(singular_gamma, 0.0, jnp.sqrt(safe_product))
+
+        singular_zc = (w <= 0) & singular_gamma
+        safe_Y = jnp.where(singular_zc, 1.0, Y)
+        ratio = jnp.where(singular_zc, 1.0, Z / safe_Y)
+        zc = jnp.sqrt(ratio)
+        zc = jnp.where(singular_zc, jnp.take(zc, jnp.argmax(w > 0)), zc)
+
+        return zc, gamma * self.length
