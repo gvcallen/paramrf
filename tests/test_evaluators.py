@@ -1,10 +1,17 @@
 # tests/test_evaluators/test_goals.py
 import pytest
+import numpy as np
+import equinox as eqx
+import jax
 import jax.numpy as jnp
+import distreqx.bijectors as bij
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Goal
+from pmrf.covariance_kernels import RBFKernel
+from pmrf.discrepancy_models import GaussianProcess
+from pmrf.likelihoods import GaussianLikelihood
+from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Negated, Goal
 from tests._dependency_checks import requires_distreqx_transpose
 
 dist = pytest.importorskip("distreqx.distributions")
@@ -202,3 +209,242 @@ def test_mll_complex_default_event_map(model, basic_freq):
     log_prob = mll(model, basic_freq)
     assert log_prob.ndim == 0  # It sums down to a scalar
     assert not jnp.isnan(log_prob)
+
+# ---------------------------------------------------------
+# Conditional (prediction-dependent) event transform tests
+# ---------------------------------------------------------
+
+class ScaledModel(Model):
+    """A 1-port model whose S11 varies over frequency and with two parameters."""
+    gain: float = 2.0
+    slope: float = 0.5
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        f = jnp.asarray(freq.f_scaled)
+        return (self.gain + self.slope * f)[:, None, None].astype(complex)
+
+    def func_jacobian(self, fn, frequency):
+        """
+        Jacobian of `fn(self, frequency)` with respect to each parameter.
+
+        `pmrf.Model` does not currently provide `func_jacobian`, which
+        `use_orthogonal_discrepancy` relies on, so the test supplies it here.
+        """
+        names = ('gain', 'slope')
+
+        def wrapped(values):
+            m = self
+            for name, value in zip(names, values):
+                m = eqx.tree_at(lambda mm, n=name: getattr(mm, n), m, value)
+            return fn(m, frequency)
+
+        values = tuple(jnp.asarray(getattr(self, n), dtype=float) for n in names)
+        jacs = jax.jacobian(wrapped)(values)
+        return dict(zip(names, jacs))
+
+
+@pytest.fixture
+def scaled_model():
+    return ScaledModel()
+
+
+def _unit_normal_likelihood(pred):
+    """A fixed unit-variance Normal likelihood over a deterministic prediction."""
+    return dist.Normal(pred, jnp.ones_like(pred))
+
+
+def test_conditional_transform_constant_matches_static(scaled_model, basic_freq):
+    """
+    (i) A conditional transform that ignores the prediction and returns a constant,
+    volume-preserving bijector reproduces the static-transform result exactly.
+    """
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    shift = 0.25
+
+    static = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=bij.Shift(shift),
+    )
+    conditional = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=lambda y_pred: bij.Shift(shift),
+    )
+
+    assert not static.has_conditional_event_transform
+    assert conditional.has_conditional_event_transform
+
+    static_lp = static(scaled_model, basic_freq)
+    conditional_lp = conditional(scaled_model, basic_freq)
+
+    # Exact equality: |det J| = 1 for a shift, so no log-det term is contributed.
+    assert conditional_lp == static_lp
+
+
+def test_conditional_transform_adds_log_det(scaled_model, basic_freq):
+    """
+    A constant but *non* volume-preserving conditional transform reproduces the
+    static result offset by exactly sum(log|det J|), evaluated at the observation.
+    """
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    # distreqx reports the log-det with the shape of its own parameters, so an
+    # array-shaped scale gives one contribution per element.
+    n = basic_freq.npoints
+    bijector = bij.ScalarAffine(shift=np.full((n,), 0.25), scale=np.full((n,), 2.0))
+
+    static = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=bijector,
+    )
+    conditional = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=lambda y_pred: bijector,
+    )
+
+    expected_log_det = jnp.sum(bijector.forward_log_det_jacobian(observed))
+    assert jnp.allclose(expected_log_det, n * jnp.log(2.0))
+
+    static_lp = static(scaled_model, basic_freq)
+    conditional_lp = conditional(scaled_model, basic_freq)
+    assert jnp.allclose(conditional_lp, static_lp + expected_log_det)
+
+
+def test_conditional_transform_is_applied_to_both(scaled_model, basic_freq):
+    """
+    The resolved transform is applied to prediction and observation alike, so a
+    prediction-dependent shift produces the residual in the prediction's own frame.
+    """
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=lambda y_pred: bij.Shift(-y_pred),
+    )
+
+    # The prediction maps to exactly zero in event space.
+    pred_dist = mll.predictive_distribution(scaled_model, basic_freq)
+    assert jnp.allclose(pred_dist.mean(), 0.0)
+
+    # And the log-prob is that of the residual under a unit normal centred at zero.
+    y_pred = Feature('s11_mag')(scaled_model, basic_freq)
+    residual = observed - y_pred
+    expected = jnp.sum(-0.5 * residual**2 - 0.5 * jnp.log(2.0 * jnp.pi))
+    assert jnp.allclose(mll(scaled_model, basic_freq), expected)
+
+
+def test_conditional_transform_rejects_non_bijector(scaled_model, basic_freq):
+    """A conditional transform must return an AbstractBijector."""
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=jnp.ones(basic_freq.npoints),
+        likelihood=_unit_normal_likelihood,
+        event_transform=lambda y_pred: y_pred,
+    )
+    with pytest.raises(TypeError, match="AbstractBijector"):
+        mll(scaled_model, basic_freq)
+
+
+def test_conditional_transform_sample_observation(scaled_model, basic_freq):
+    """
+    `sample_observation` inverts the same resolved transform, so a sample from a
+    residual-frame model lands back in observation space around the prediction.
+    """
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=lambda pred: dist.Normal(pred, jnp.full_like(pred, 1e-8)),
+        event_transform=lambda y_pred: bij.Shift(-y_pred),
+    )
+
+    sample = mll.sample_observation(jax.random.PRNGKey(0), scaled_model, basic_freq)
+    y_pred = Feature('s11_mag')(scaled_model, basic_freq)
+
+    # With a near-zero noise scale the inverted sample is the prediction itself.
+    assert sample.shape == observed.shape
+    assert jnp.allclose(sample, y_pred, atol=1e-6)
+
+
+def test_conditional_transform_with_orthogonal_gp_discrepancy(scaled_model, basic_freq):
+    """
+    (B5) Discrepancy + orthogonal projection + conditional transform together.
+
+    `use_orthogonal_discrepancy` needs no special handling: `event_fn` closes over
+    the model, so the conditional transform's own dependence on the model is
+    differentiated through when the projection is built.
+    """
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    gp = GaussianProcess(kernel=RBFKernel(lengthscale=1.0), jitter=1e-8)
+
+    # Non volume-preserving and prediction-dependent, so both the log-det term and
+    # the projection's dependence on the transform are exercised.
+    def conditional(y_pred):
+        return bij.ScalarAffine(
+            shift=jnp.zeros_like(y_pred),
+            scale=jnp.full_like(y_pred, 1.0) / (1.0 + jnp.mean(y_pred**2)),
+        )
+
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
+        discrepancy=gp,
+        use_orthogonal_discrepancy=True,
+        event_transform=conditional,
+    )
+
+    log_prob = mll(scaled_model, basic_freq)
+    assert log_prob.shape == ()
+    assert jnp.isfinite(log_prob)
+
+    # The projection must actually be applied: without it the covariance differs.
+    mll_unprojected = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
+        discrepancy=gp,
+        use_orthogonal_discrepancy=False,
+        event_transform=conditional,
+    )
+    assert not jnp.allclose(log_prob, mll_unprojected(scaled_model, basic_freq))
+
+    # It stays differentiable with respect to the model parameters.
+    grad = jax.grad(lambda g: mll(eqx.tree_at(lambda m: m.gain, scaled_model, g), basic_freq))(
+        jnp.asarray(2.0)
+    )
+    assert jnp.isfinite(grad)
+
+
+# ---------------------------------------------------------
+# Negated tests
+# ---------------------------------------------------------
+
+def test_negated_wraps_marginal_log_likelihood(scaled_model, basic_freq):
+    """Negated returns exactly the negative of the wrapped evaluator."""
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=_unit_normal_likelihood,
+        event_transform=bij.Shift(0.0),
+    )
+    assert Negated(mll)(scaled_model, basic_freq) == -mll(scaled_model, basic_freq)
+
+
+def test_negated_accepts_any_evaluator(model, basic_freq):
+    """Negated touches no likelihood-specific API, so it negates any evaluator."""
+    target_loss = TargetLoss(
+        predictor=Feature('s22_mag'),
+        target=jnp.ones((5,)) * 6.0,
+        loss=lambda t, p: jnp.mean((t - p) ** 2),
+    )
+    assert Negated(target_loss)(model, basic_freq) == -4.0

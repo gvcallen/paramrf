@@ -12,7 +12,7 @@ import distreqx.distributions as dist
 
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, NegativeLogLikelihood
+from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, Negated
 from pmrf.problems import SummedTerms, PriorPenalized
 from pmrf.terms import as_terms
 from pmrf.fitting.targets import resolve_datasets, union_frequency
@@ -80,8 +80,8 @@ def fit_minimize(
     likelihood : str | Callable, optional
         A likelihood model representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
-        Used to internally create a :class:`pmrf.evaluators.NegativeLogLikelihood`
-        evaluator.
+        Used to internally create a :class:`pmrf.evaluators.MarginalLogLikelihood`,
+        wrapped in a :class:`pmrf.evaluators.Negated` evaluator.
         Mutually exclusive with `loss`. If neither `loss` nor `likelihood` is passed,
         :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
@@ -154,7 +154,7 @@ def fit_minimize(
             else:
                 temperature = temperature if temperature is not None else 1.0
                 mll = GibbsMarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, loss=loss, discrepancy=discrepancy, temperature=temperature)
-            evaluator = NegativeLogLikelihood(mll)
+            evaluator = Negated(mll)
         objective.append((evaluator, dataset.frequency))
 
     # Run the optimizer
