@@ -110,7 +110,10 @@ class PhysicalLine(AbstractImmittanceLine):
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         f = freq.f
         sqrt_ep_r = jnp.sqrt(self.ep_r)
-        A_dB = self.A * jnp.sqrt(f / self.f_A)
+        # sqrt is a branch point at f = 0. The attenuation is zero there, but
+        # its raw gradient is not, so use the double-`where` pattern.
+        safe_f = jnp.where(f > 0, f, 1.0)
+        A_dB = self.A * jnp.where(f > 0, jnp.sqrt(safe_f / self.f_A), 0.0)
 
         alpha_c = A_dB * (jnp.log(10) / 20.0)
         alpha_d = jnp.pi * sqrt_ep_r * f / c * self.tand
@@ -205,7 +208,10 @@ class DatasheetLine(AbstractImmittanceLine):
             k1_norm = k1
             k2_norm = k2
 
-        sqrt_w = jnp.sqrt(w)
+        # sqrt is a branch point at w = 0, so guard it with the double-`where`
+        # pattern: the conductor attenuation is zero at DC, its gradient is not.
+        safe_w = jnp.where(w > 0, w, 1.0)
+        sqrt_w = jnp.where(w > 0, jnp.sqrt(safe_w), 0.0)
         dBtoNeper = jnp.log(10) / 20
         alpha_c = k1_norm * dBtoNeper * sqrt_w
         alpha_d = k2_norm * dBtoNeper * w
@@ -253,10 +259,10 @@ class CoaxialLine(AbstractImmittanceLine):
     d_out : Param, default=3.2e-3
         Outer conductor inner diameter in meters.
     dielectric : AbstractDielectric, default=ConstantDielectric()
-        The dielectric filling. A scalar permittivity or an ``(ep_r, tand)`` tuple
-        is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
-    mu_r : Param, default=1.0
-        Relative permeability of the dielectric filling.
+        The dielectric filling, which supplies both its permittivity and its
+        permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
+        coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
+        filling sets that material's ``mu_rel``.
     conductor : AbstractConductor, default=BulkConductor()
         The conductor material of both conductors. A scalar resistivity in
         ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
@@ -274,9 +280,6 @@ class CoaxialLine(AbstractImmittanceLine):
         default_factory=ConstantDielectric, converter=as_dielectric
     )
     
-    #: Relative permeability of the dielectric filling
-    mu_r: Param = param(default=1.0, constraint=Positive())
-    
     #: The conductor material of both conductors
     conductor: AbstractConductor = field(
         default_factory=BulkConductor, converter=as_conductor
@@ -291,12 +294,12 @@ class CoaxialLine(AbstractImmittanceLine):
             d_in=self.d_in,
             d_out=self.d_out,
             dielectric=DielectricProperties(
-                self.dielectric.epsilon_r(freq), self.mu_r * jnp.ones(freq.npoints)
+                self.dielectric.epsilon_r(freq), self.dielectric.mu_r(freq)
             ),
             conductor=ConductorProperties(
                 self.conductor.surface_impedance(freq),
                 self.conductor.sigma(freq),
-                self.conductor.mu(freq) / mu_0,
+                self.conductor.mu_r(freq),
             ),
         )
     

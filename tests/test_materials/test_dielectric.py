@@ -164,3 +164,20 @@ def test_gradients_are_finite(material, wideband_freq):
     grads = jax.grad(loss)(material)
     leaves = jax.tree_util.tree_leaves(prf.unwrap(grads))
     assert all(jnp.all(jnp.isfinite(leaf)) for leaf in leaves)
+
+
+def test_dielectrics_are_non_magnetic_by_default(freq):
+    """Permeability lives on the medium, and defaults to free space."""
+    for material in (
+        ConstantDielectric(4.3, 0.02),
+        DjordjevicSarkar(4.3, 0.02),
+        MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)]),
+        ColeCole(2.0, 1.0, 1e9, 0.3),
+    ):
+        mu_r = material.mu_r(freq)
+        assert mu_r.shape == (freq.npoints,)
+        assert jnp.allclose(mu_r, 1.0)
+
+
+def test_constant_dielectric_carries_permeability(freq):
+    assert jnp.allclose(ConstantDielectric(4.3, mu_rel=4.0).mu_r(freq), 4.0)

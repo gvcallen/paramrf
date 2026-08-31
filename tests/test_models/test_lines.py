@@ -134,6 +134,56 @@ def test_coaxial_line_impedance(basic_freq):
     # Real part of Zc should match the theoretical lossless impedance
     assert jnp.allclose(jnp.real(zc), expected_zc, rtol=1e-3)
 
+def test_coaxial_permeability_comes_from_the_dielectric(basic_freq):
+    """A magnetic filling is a property of the material, not of the geometry.
+
+    Zc = sqrt(mu/eps) * ln(b/a) / 2pi, so mu_r = 4 raises it by exactly 2.
+    """
+    def coax(dielectric):
+        return CoaxialLine(
+            d_in=0.9e-3,
+            d_out=2.95e-3,
+            dielectric=dielectric,
+            conductor=BulkConductor(rho=0.0),
+            length=1.0,
+        )
+
+    plain = coax(ConstantDielectric(ep_r=2.25, tand=0.0))
+    magnetic = coax(ConstantDielectric(ep_r=2.25, tand=0.0, mu_rel=4.0))
+
+    zc_plain, _ = plain.zc_and_gammaL(basic_freq)
+    zc_magnetic, _ = magnetic.zc_and_gammaL(basic_freq)
+
+    assert jnp.allclose(jnp.real(zc_magnetic), 2.0 * jnp.real(zc_plain), rtol=1e-6)
+
+
+def test_coaxial_magnetic_loss_enters_the_series_resistance(basic_freq):
+    """A complex mu_r is not restricted at the interface; it becomes loss.
+
+    With a lossless conductor and a lossless dielectric the only remaining loss
+    channel is magnetic: Im(mu_r) < 0 adds w*mu''*ln(b/a)/2pi to Re(Z).
+    """
+    class LossyMagnetic(ConstantDielectric):
+        def mu_r(self, freq):
+            return (4.0 - 0.5j) * jnp.ones(freq.npoints, dtype=complex)
+
+    line = CoaxialLine(
+        d_in=0.9e-3,
+        d_out=2.95e-3,
+        dielectric=LossyMagnetic(ep_r=2.25, tand=0.0),
+        conductor=BulkConductor(rho=0.0),
+        length=1.0,
+    )
+    immittance = line.immittance(basic_freq)
+
+    expected_R = (
+        basic_freq.w * 0.5 * mu_0 * jnp.log(2.95 / 0.9) / (2 * jnp.pi)
+    )
+    assert jnp.allclose(immittance.R, expected_R, rtol=1e-6)
+    # A passive magnetic loss must not show up as a negative resistance.
+    assert jnp.all(immittance.R > 0)
+
+
 def test_microstrip_line_impedance(basic_freq):
     """Verify MicrostripLine evaluates Wheeler's formula correctly."""
     # Standard 50-ohm trace on 1.6mm FR4 (Er=4.3) is roughly 3.0mm wide

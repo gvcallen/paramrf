@@ -34,7 +34,7 @@ def test_bulk_sigma_and_skin_depth(freq):
 
 
 def test_bulk_permeability(freq):
-    assert jnp.allclose(BulkConductor(1.68e-8, mu_r=4.0).mu(freq), 4.0 * mu_0)
+    assert jnp.allclose(BulkConductor(1.68e-8, mu_rel=4.0).mu_r(freq), 4.0)
 
 
 def test_bulk_from_sigma(freq):
@@ -64,7 +64,7 @@ def test_bulk_reproduces_wheeler_resistance(freq):
 
 def test_bulk_permeability_scaling(freq):
     plain = BulkConductor(1.68e-8).surface_impedance(freq)
-    magnetic = BulkConductor(1.68e-8, mu_r=4.0).surface_impedance(freq)
+    magnetic = BulkConductor(1.68e-8, mu_rel=4.0).surface_impedance(freq)
     assert jnp.allclose(magnetic, 2.0 * plain)
 
 
