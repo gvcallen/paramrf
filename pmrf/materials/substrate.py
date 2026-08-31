@@ -1,0 +1,101 @@
+"""
+Planar substrates: a dielectric sheet of known height, with its metallization.
+
+A substrate is a convenience grouping, not a mechanism. Engineers think "this
+trace is on Rogers 4350B", and the fields that make up that thought — the
+height, the dielectric, the conductor and its thickness — are exactly the ones
+every planar line already asks for individually.
+"""
+from __future__ import annotations
+
+from pmrf.constraints import Positive
+from pmrf.materials.conductor import AbstractConductor, BulkConductor, as_conductor
+from pmrf.materials.dielectric import AbstractDielectric, ConstantDielectric, as_dielectric
+from pmrf.modules.base import Module
+from pmrf.parameters import Param, as_param, param
+from pmrf.utils import field
+
+
+class Substrate(Module):
+    r"""
+    A dielectric sheet of a given height, with the conductor printed on it.
+
+    Sharing a substrate between traces needs no new machinery. A builder holds
+    one substrate and injects it into each line in :meth:`build`; because
+    ``build`` is lazy and uncached, the substrate is a leaf of the builder and
+    the lines are reconstructed per call from already-traced values:
+
+    >>> import pmrf as prf
+    >>> from pmrf.materials import Substrate
+    >>> from pmrf.models import AbstractBuilder, MicrostripLine
+    >>> class Board(AbstractBuilder):
+    ...     substrate: Substrate
+    ...     w1: prf.Param
+    ...     w2: prf.Param
+    ...     def build(self):
+    ...         return (MicrostripLine(w=self.w1, substrate=self.substrate, length=0.1)
+    ...              ** MicrostripLine(w=self.w2, substrate=self.substrate, length=0.2))
+    >>> board = Board(substrate=Substrate(h=1.6e-3, dielectric=4.3), w1=1e-3, w2=2e-3)
+    >>> [name for name in board.named_params() if name.endswith("ep_r")]
+    ['substrate.dielectric.ep_r']
+
+    One permittivity, not two. Passing the *same* :class:`~pmrf.Param` object to
+    two separately-constructed lines does **not** dedupe: PyTree flattening gives
+    two independent leaves, one per line. The builder is what makes the sharing
+    real.
+
+    Parameters
+    ----------
+    h : Param, default=1.6e-3
+        Height of the dielectric sheet in meters.
+    dielectric : AbstractDielectric, default=ConstantDielectric(ep_r=4.3)
+        The sheet material. A scalar permittivity or an ``(ep_r, tand)`` tuple is
+        coerced into a :class:`~pmrf.materials.ConstantDielectric`.
+    conductor : AbstractConductor, default=BulkConductor()
+        The metallization. A scalar resistivity in ohm-meters is coerced into a
+        :class:`~pmrf.materials.BulkConductor`.
+    t : Param | None, default=None
+        Thickness of the metallization in meters, or ``None`` for a
+        zero-thickness idealisation.
+    """
+    #: Height of the dielectric sheet
+    h: Param = param(default=1.6e-3, constraint=Positive())
+
+    #: The sheet material
+    dielectric: AbstractDielectric = field(
+        default_factory=lambda: ConstantDielectric(ep_r=4.3), converter=as_dielectric
+    )
+
+    #: The metallization
+    conductor: AbstractConductor = field(
+        default_factory=BulkConductor, converter=as_conductor
+    )
+
+    #: Thickness of the metallization
+    t: Param | None = field(
+        default=None,
+        converter=lambda x: as_param(x, constraint=Positive()) if x is not None else None,
+    )
+
+
+def as_substrate(value) -> Substrate:
+    """
+    Coerce a value into a :class:`Substrate`.
+
+    Accepts an existing :class:`Substrate` or a mapping of its fields.
+
+    Parameters
+    ----------
+    value : Any
+        The value to coerce.
+
+    Returns
+    -------
+    Substrate
+        The resulting substrate.
+    """
+    if isinstance(value, Substrate):
+        return value
+    if isinstance(value, dict):
+        return Substrate(**value)
+    raise TypeError(f"cannot interpret {value!r} as a Substrate")

@@ -13,8 +13,10 @@ from pmrf.materials import (
     AbstractDielectric,
     BulkConductor,
     ConstantDielectric,
+    Substrate,
     as_conductor,
     as_dielectric,
+    as_substrate,
 )
 from pmrf.utils import field
 from pmrf.parameters import Param, param, as_param
@@ -32,6 +34,9 @@ from pmrf.models.components.lines.formulations import (
 
 
 EpsilonConvention = Literal["complex", "real"]
+
+# `None` disables modal dispersion, so it cannot double as "not given".
+_DEFAULT_DISPERSION = object()
 
 
 def _as_epsilon_convention(value: str) -> EpsilonConvention:
@@ -353,12 +358,21 @@ class MicrostripLine(AbstractImmittanceLine):
         freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
         s_phys = phys_microstrip.s(freq)    
 
+    The substrate can be given as one :class:`~pmrf.materials.Substrate`, or as
+    its loose fields. Both build the same canonical substrate, so the two
+    idioms produce identical PyTrees; they may not be mixed in one call.
+
     Parameters
     ----------
     w : Param, default=3e-3
         Width of the microstrip trace in meters.
+    substrate : Substrate, optional
+        The substrate carrying the trace, as a single grouped module. Sharing
+        one substrate between several traces is what dedupes their permittivity
+        into a single parameter; see :class:`~pmrf.materials.Substrate`.
     h : Param, default=1.6e-3
-        Height of the dielectric substrate in meters.
+        Height of the dielectric substrate in meters. Loose form of
+        ``substrate.h``.
     dielectric : AbstractDielectric, default=ConstantDielectric(ep_r=4.3)
         The substrate material. A scalar permittivity or an ``(ep_r, tand)`` tuple
         is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
@@ -393,23 +407,10 @@ class MicrostripLine(AbstractImmittanceLine):
     """
     #: Width of the microstrip trace
     w: Param = param(default=3e-3, constraint=Positive())
-    
-    #: Height of the dielectric substrate
-    h: Param = param(default=1.6e-3, constraint=Positive())
-    
-    #: The substrate material
-    dielectric: AbstractDielectric = field(
-        default_factory=lambda: ConstantDielectric(ep_r=4.3), converter=as_dielectric
-    )
-    
-    #: The material of the trace and ground plane
-    conductor: AbstractConductor = field(
-        default_factory=BulkConductor, converter=as_conductor
-    )
-    
-    #: Thickness of the conductor
-    t: Param | None = field(default=None, converter=lambda x: as_param(x, constraint=Positive()) if x is not None else None)
-    
+
+    #: The substrate carrying the trace
+    substrate: Substrate = field(default_factory=Substrate, converter=as_substrate)
+
     #: The underlying physics formulation
     formulation: AbstractMicrostripFormulation = field(default_factory=WheelerMicrostripFormulation)
 
@@ -421,9 +422,47 @@ class MicrostripLine(AbstractImmittanceLine):
         default="complex", static=True, converter=_as_epsilon_convention
     )
 
+    def __init__(
+        self,
+        w: Param = 3e-3,
+        *,
+        length: Param,
+        substrate: Substrate | None = None,
+        h: Param | None = None,
+        dielectric=None,
+        conductor=None,
+        t: Param | None = None,
+        formulation: AbstractMicrostripFormulation | None = None,
+        dispersion: AbstractMicrostripDispersion | None = _DEFAULT_DISPERSION,
+        epsilon_convention: EpsilonConvention = "complex",
+        name: str | None = None,
+        metadata=None,
+    ):
+        loose = {"h": h, "dielectric": dielectric, "conductor": conductor, "t": t}
+        given = {key: value for key, value in loose.items() if value is not None}
+        if substrate is not None and given:
+            raise ValueError(
+                "pass either substrate= or the loose substrate fields "
+                f"({', '.join(sorted(given))}), not both"
+            )
+
+        self.w = w
+        self.substrate = Substrate(**given) if substrate is None else substrate
+        self.formulation = (
+            WheelerMicrostripFormulation() if formulation is None else formulation
+        )
+        self.dispersion = (
+            KirschningJansen() if dispersion is _DEFAULT_DISPERSION else dispersion
+        )
+        self.epsilon_convention = epsilon_convention
+        self.length = length
+        self.name = name
+        self.metadata = metadata
+
     def immittance(self, freq: Frequency) -> ImmittanceResult:
-        zs = self.conductor.surface_impedance(freq)
-        material_ep_r = self.dielectric.epsilon_r(freq)
+        substrate = self.substrate
+        zs = substrate.conductor.surface_impedance(freq)
+        material_ep_r = substrate.dielectric.epsilon_r(freq)
         formula_ep_r = (
             material_ep_r if self.epsilon_convention == "complex" else jnp.real(material_ep_r)
         )
@@ -431,8 +470,8 @@ class MicrostripLine(AbstractImmittanceLine):
         quasi_static = self.formulation.quasi_static(
             freq,
             w=self.w,
-            h=self.h,
-            t=self.t,
+            h=substrate.h,
+            t=substrate.t,
             ep_r=formula_ep_r,
             zs=zs,
         )
@@ -450,8 +489,8 @@ class MicrostripLine(AbstractImmittanceLine):
                 ep_r=formula_ep_r,
                 w=self.w,
                 w_eff=quasi_static.w_eff,
-                h=self.h,
-                t=self.t,
+                h=substrate.h,
+                t=substrate.t,
             )
 
         if self.epsilon_convention == "complex":
@@ -463,7 +502,7 @@ class MicrostripLine(AbstractImmittanceLine):
 
         # Wheeler's incremental-inductance rule. With no finite conductor
         # thickness scikit-rf defines this empirical correction as zero.
-        if self.t is not None:
+        if substrate.t is not None:
             z0 = jnp.sqrt(mu_0 / epsilon_0)
             loss_zc = zc if self.epsilon_convention == "complex" else quasi_static.zc
             current_distribution = jnp.exp(-1.2 * (jnp.real(loss_zc) / z0) ** 0.7)

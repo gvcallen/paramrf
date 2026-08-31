@@ -13,3 +13,4 @@ This chapter includes some basic examples to demonstrate ParamRF's core features
    derivatives_and_sweeps
    custom_models
    multiple_models_one_parameter_set
+   shared_substrates

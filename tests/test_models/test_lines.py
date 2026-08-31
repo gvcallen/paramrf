@@ -410,10 +410,10 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         length=0.1,
     )
 
-    ep_r = line.dielectric.epsilon_r(freq)
-    zs = line.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.epsilon_r(freq)
+    zs = line.substrate.conductor.surface_impedance(freq)
     quasi_static = formulation.quasi_static(
-        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
     )
     ep_eff, expected_zc = dispersion.disperse(
         freq,
@@ -422,8 +422,8 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         ep_r=ep_r,
         w=line.w,
         w_eff=quasi_static.w_eff,
-        h=line.h,
-        t=line.t,
+        h=line.substrate.h,
+        t=line.substrate.t,
     )
 
     zc, gamma_length = line.zc_and_gammaL(freq)
@@ -446,10 +446,10 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
-    ep_r = line.dielectric.epsilon_r(freq)
-    zs = line.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.epsilon_r(freq)
+    zs = line.substrate.conductor.surface_impedance(freq)
     quasi_static = line.formulation.quasi_static(
-        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
     )
 
     actual = line.immittance(freq)
