@@ -22,13 +22,8 @@ from pmrf.utils import field
 class AbstractConductor(Module):
     r"""Abstract base class for a conductor material.
 
-    The surface impedance interface is deliberately geometry-free, in ohm per
-    square, which is the right currency for planar lines. Coaxial lines are the
-    exception: the Schelkunoff solution needs the conductor radius inside a
-    Bessel function ratio, and Tesche's equivalent circuit needs the internal
-    inductance of a specific rod or tube. Those formulations consume
-    :meth:`sigma` plus the radius directly, and :meth:`surface_impedance`
-    covers planar lines and the coaxial high-frequency limit.
+    The material interfaces are geometry-free. Geometry-aware formulations
+    receive these evaluated quantities together with their geometry.
     """
 
     @abstractmethod
@@ -38,6 +33,10 @@ class AbstractConductor(Module):
     @abstractmethod
     def sigma(self, freq: Frequency) -> jnp.ndarray:
         """Bulk conductivity in S/m, for formulations that need it directly."""
+
+    @abstractmethod
+    def mu(self, freq: Frequency) -> jnp.ndarray:
+        """Absolute permeability in H/m, for formulations that need it directly."""
 
     @abstractmethod
     def skin_depth(self, freq: Frequency) -> jnp.ndarray:
@@ -132,6 +131,9 @@ class BulkConductor(AbstractConductor):
 
     def sigma(self, freq: Frequency) -> jnp.ndarray:
         return (1.0 / self.rho) * jnp.ones(freq.npoints)
+
+    def mu(self, freq: Frequency) -> jnp.ndarray:
+        return (mu_0 * self.mu_r) * jnp.ones(freq.npoints)
 
     def skin_depth(self, freq: Frequency) -> jnp.ndarray:
         # Guard DC, where the skin depth is infinite, using the double-`where`

@@ -7,14 +7,108 @@ parameter: it can be checked directly against the equations of the paper it
 comes from, and contributed without learning the material taxonomy.
 """
 from abc import abstractmethod
+from typing import NamedTuple
 
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.materials import AbstractConductor
 from pmrf.models.components.lines.base import ImmittanceResult
+
+
+class DielectricProperties(NamedTuple):
+    """Evaluated, geometry-free dielectric properties.
+
+    Parameters
+    ----------
+    ep_r : array-like
+        Complex relative permittivity.
+    mu_r : array-like
+        Relative permeability.
+    """
+
+    #: Complex relative permittivity
+    ep_r: jnp.ndarray
+    #: Relative permeability
+    mu_r: jnp.ndarray
+
+
+class ConductorProperties(NamedTuple):
+    """Evaluated, geometry-free conductor properties.
+
+    Parameters
+    ----------
+    zs : array-like
+        Surface impedance in ohm per square.
+    sigma : array-like
+        Bulk conductivity in S/m.
+    mu_r : array-like
+        Relative permeability.
+    """
+
+    #: Surface impedance in ohm per square
+    zs: jnp.ndarray
+    #: Bulk conductivity in S/m
+    sigma: jnp.ndarray
+    #: Relative permeability
+    mu_r: jnp.ndarray
+
+
+def _tesche_internal_impedance(zs_over_radius, rdc, lint, w):
+    """Evaluate Tesche's equivalent circuit after geometry terms are known."""
+    safe_w = jnp.where(w > 0, w, 1.0)
+    zhf = zs_over_radius / (2 * jnp.pi)
+    z = rdc + zhf / (1 + zhf / (1j * safe_w * lint))
+    return jnp.where(w > 0, z, rdc)
+
+
+def rod_internal_impedance(zs, sigma, mu_r, radius, w):
+    r"""Return Tesche's eq. (11)--(14) impedance for a solid conductor.
+
+    Parameters
+    ----------
+    zs, sigma, mu_r : array-like
+        Surface impedance, conductivity and relative permeability.
+    radius : float
+        Conductor radius in meters.
+    w : array-like
+        Angular frequency in rad/s.
+
+    Returns
+    -------
+    array-like
+        Series impedance per unit length in ohm/m.
+    """
+    rdc = 1 / (jnp.pi * radius**2 * sigma)
+    lint = mu_0 * mu_r / (8 * jnp.pi)
+    return _tesche_internal_impedance(zs / radius, rdc, lint, w)
+
+
+def tube_internal_impedance(zs, sigma, mu_r, radius, thickness, w):
+    r"""Return Tesche's eq. (13)--(14) impedance for a tubular conductor.
+
+    Parameters
+    ----------
+    zs, sigma, mu_r : array-like
+        Surface impedance, conductivity and relative permeability.
+    radius, thickness : float
+        Inner radius and wall thickness in meters.
+    w : array-like
+        Angular frequency in rad/s.
+
+    Returns
+    -------
+    array-like
+        Series impedance per unit length in ohm/m.
+    """
+    rdc = 1 / (2 * jnp.pi * radius * thickness * sigma)
+    q = (radius / (radius + thickness)) ** 2
+    lint = mu_0 * mu_r / (2 * jnp.pi) * (
+        jnp.log1p(thickness / radius) / (1 - q) ** 2
+        + (q - 3) / (4 * (1 - q))
+    )
+    return _tesche_internal_impedance(zs / radius, rdc, lint, w)
 
 
 class QuasiStaticResult(eqx.Module):
@@ -91,15 +185,12 @@ class AbstractCoaxialFormulation(eqx.Module):
     """
     Abstract base class for a closed-form coaxial line formulation.
 
-    A formulation is pure numerics: every argument other than `conductor`
-    arrives as an already-evaluated array, so it can be exercised directly
-    against its published equations with no ParamRF objects in sight. Coaxial
-    lines are the documented exception on `conductor`, because the internal
-    impedance of a rod or tube depends on the conductor radius as well as on the
-    surface impedance.
+    A formulation is pure numerics: all material arguments arrive as evaluated
+    arrays in small property records, so it can be exercised directly against
+    its published equations with no ParamRF objects in sight.
     """
     @abstractmethod
-    def immittance(self, freq: Frequency, *, d_in, d_out, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
 
@@ -111,12 +202,10 @@ class AbstractCoaxialFormulation(eqx.Module):
             Inner conductor diameter in meters.
         d_out : ArrayLike
             Outer conductor inner diameter in meters.
-        ep_r : jnp.ndarray
-            Complex relative permittivity of the dielectric, shape ``(npoints,)``.
-        mu_r : ArrayLike
-            Relative permeability of the dielectric.
-        conductor : AbstractConductor
-            The conductor material of both conductors.
+        dielectric : DielectricProperties
+            Evaluated relative permittivity and permeability.
+        conductor : ConductorProperties
+            Evaluated surface impedance, conductivity and relative permeability.
 
         Returns
         -------
@@ -128,7 +217,7 @@ class AbstractCoaxialFormulation(eqx.Module):
 
 class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     r"""
-    Coaxial line formulation using the Tesche high-frequency approximation.
+    Coaxial line formulation using Tesche's equivalent-circuit approximation.
 
     **Mathematical Formulation**
 
@@ -140,14 +229,15 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)}$$
 
     which is $G + j\omega C$ with $C = 2\pi\Re(\varepsilon)/\ln(b/a)$ and
-    $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. The internal impedance of the two
-    conductors adds their surface impedance $Z_s$ over their circumferences:
-    $$Z = j\omega L' + Z_s\left(\frac{1}{2\pi a} + \frac{1}{2\pi b}\right)$$
-
-    Where $a$ is the inner radius and $b$ is the outer radius. In the strong
-    skin-effect regime $Z_s = \sqrt{\omega\mu\rho/2}\,(1 + j)$, so the real part
-    is Tesche's skin resistance and the imaginary part is $\omega$ times his skin
-    inductance.
+    $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. For each conductor, Tesche's
+    equivalent circuit is
+    $$R_{dc} = \frac{1}{\pi a^2\sigma},\quad
+    L_{int} = \frac{\mu}{8\pi},\quad
+    Z = R_{dc} + \frac{Z_{hf}}{1 + Z_{hf}/(j\omega L_{int})},\quad
+    Z_{hf} = \frac{Z_s}{2\pi a}.$$
+    The outer shield is treated as infinitely thick because only its inner
+    diameter is part of :class:`CoaxialLine`; the finite-wall form is available
+    in :func:`tube_internal_impedance`.
 
     References
     ----------
@@ -158,23 +248,25 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def immittance(self, freq: Frequency, *, d_in, d_out, ep_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
-        eps = epsilon_0 * ep_r
-        mu = mu_0 * mu_r
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
+        eps = epsilon_0 * dielectric.ep_r
+        mu = mu_0 * dielectric.mu_r
         w = freq.w
 
         a, b = d_in / 2, d_out / 2
-        lnbOvera = jnp.log(b / a)
+        ln_b_over_a = jnp.log(b / a)
 
-        L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * lnbOvera
+        L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
-        # Internal impedance of the two conductors, per unit length: the surface
-        # impedance in ohm per square spread over each circumference.
-        zs = conductor.surface_impedance(freq)
-        Z_int = zs * (1 / (2 * jnp.pi * a) + 1 / (2 * jnp.pi * b))
+        # The model exposes only the shield's inner diameter, so its wall is
+        # treated as infinitely thick, matching the usual coaxial idealisation.
+        Z_int = rod_internal_impedance(conductor.zs, conductor.sigma, conductor.mu_r, a, w)
+        # In the infinite-wall limit the tube's dc resistance vanishes and its
+        # internal inductance diverges, leaving only the high-frequency term.
+        Z_int = Z_int + conductor.zs / (2 * jnp.pi * b)
 
         Z = 1j * w * L_ext + Z_int
-        Y = 1j * w * 2 * jnp.pi * eps / lnbOvera
+        Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
 
         return ImmittanceResult(Z=Z, Y=Y, w=w)
 

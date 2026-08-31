@@ -33,6 +33,10 @@ def test_bulk_sigma_and_skin_depth(freq):
     )
 
 
+def test_bulk_permeability(freq):
+    assert jnp.allclose(BulkConductor(1.68e-8, mu_r=4.0).mu(freq), 4.0 * mu_0)
+
+
 def test_bulk_from_sigma(freq):
     assert jnp.allclose(BulkConductor.from_sigma(5.8e7).rho, 1 / 5.8e7)
 

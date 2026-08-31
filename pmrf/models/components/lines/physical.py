@@ -23,6 +23,8 @@ from pmrf.models.components.lines.formulations import (
     AbstractCoaxialFormulation,
     AbstractMicrostripDispersion,
     AbstractMicrostripFormulation,
+    ConductorProperties,
+    DielectricProperties,
     KirschningJansen,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
@@ -288,9 +290,14 @@ class CoaxialLine(AbstractImmittanceLine):
             freq,
             d_in=self.d_in,
             d_out=self.d_out,
-            ep_r=self.dielectric.epsilon_r(freq),
-            mu_r=self.mu_r,
-            conductor=self.conductor,
+            dielectric=DielectricProperties(
+                self.dielectric.epsilon_r(freq), self.mu_r * jnp.ones(freq.npoints)
+            ),
+            conductor=ConductorProperties(
+                self.conductor.surface_impedance(freq),
+                self.conductor.sigma(freq),
+                self.conductor.mu(freq) / mu_0,
+            ),
         )
     
     

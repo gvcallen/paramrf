@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete Tesche coaxial conductor physics across the low-frequency regime,
+  and pass evaluated material properties to pure coaxial formulations.
 - Correct microstrip results by enabling Kirschning--Jansen modal dispersion by
   default. Set `dispersion=None` on `MicrostripLine` to retain the quasi-static
   pipeline explicitly.
