@@ -31,21 +31,21 @@ class QuasiStaticResult(eqx.Module):
 
     Parameters
     ----------
-    eps_eff : jnp.ndarray
+    epeff : jnp.ndarray
         Complex effective relative permittivity, shape ``(npoints,)``.
     zc : jnp.ndarray
         Quasi-static characteristic impedance in ohms, $Z_a/\sqrt{\varepsilon_e}$.
-    w_eff : jnp.ndarray
+    weff : jnp.ndarray
         Effective conductor width in meters, carrying the series loss.
     """
     #: Complex effective relative permittivity
-    eps_eff: jnp.ndarray
+    epeff: jnp.ndarray
 
     #: Quasi-static characteristic impedance in ohms
     zc: jnp.ndarray
 
     #: Effective conductor width in meters
-    w_eff: jnp.ndarray
+    weff: jnp.ndarray
 
     def to_immittance(self, freq: Frequency, zs: jnp.ndarray) -> ImmittanceResult:
         r"""
@@ -79,10 +79,10 @@ class QuasiStaticResult(eqx.Module):
         Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.
         """
         w = freq.w
-        sqrt_eps_eff = jnp.sqrt(self.eps_eff)
+        sqrt_epeff = jnp.sqrt(self.epeff)
 
-        Z = 1j * w * self.zc * sqrt_eps_eff / c + 2 * zs / self.w_eff
-        Y = 1j * w * sqrt_eps_eff / (self.zc * c)
+        Z = 1j * w * self.zc * sqrt_epeff / c + 2 * zs / self.weff
+        Y = 1j * w * sqrt_epeff / (self.zc * c)
 
         return ImmittanceResult(Z=Z, Y=Y, w=w)
 
@@ -99,7 +99,7 @@ class AbstractCoaxialFormulation(eqx.Module):
     surface impedance.
     """
     @abstractmethod
-    def immittance(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, din, dout, epr, mur, conductor: AbstractConductor) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
 
@@ -111,9 +111,9 @@ class AbstractCoaxialFormulation(eqx.Module):
             Inner conductor diameter in meters.
         dout : ArrayLike
             Outer conductor inner diameter in meters.
-        eps_r : jnp.ndarray
+        epr : jnp.ndarray
             Complex relative permittivity of the dielectric, shape ``(npoints,)``.
-        mu_r : ArrayLike
+        mur : ArrayLike
             Relative permeability of the dielectric.
         conductor : AbstractConductor
             The conductor material of both conductors.
@@ -135,7 +135,7 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     The external per-unit-length inductance and the shunt admittance follow from
     the coaxial geometry and the complex permittivity
     $\varepsilon = \varepsilon_0 \varepsilon_r$:
-    $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)
+    $$L' = \frac{\mu_0 \mur}{2\pi} \ln\left(\frac{b}{a}\right)
     \qquad
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)}$$
 
@@ -158,9 +158,9 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def immittance(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
-        eps = epsilon_0 * eps_r
-        mu = mu_0 * mu_r
+    def immittance(self, freq: Frequency, *, din, dout, epr, mur, conductor: AbstractConductor) -> ImmittanceResult:
+        eps = epsilon_0 * epr
+        mu = mu_0 * mur
         w = freq.w
 
         a, b = din / 2, dout / 2
@@ -188,7 +188,7 @@ class AbstractMicrostripFormulation(eqx.Module):
     published equations with no ParamRF objects in sight.
     """
     @abstractmethod
-    def quasi_static(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, freq: Frequency, *, w, h, t, epr, zs) -> QuasiStaticResult:
         r"""
         Calculates the quasi-static solution of the line.
 
@@ -202,7 +202,7 @@ class AbstractMicrostripFormulation(eqx.Module):
             Height of the dielectric substrate in meters.
         t : ArrayLike | None
             Thickness of the trace in meters, or None for a zero-thickness trace.
-        eps_r : jnp.ndarray
+        epr : jnp.ndarray
             Complex relative permittivity of the substrate, shape ``(npoints,)``.
         zs : jnp.ndarray
             Complex surface impedance of the conductor in ohm per square,
@@ -242,7 +242,7 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane.
     IEEE Transactions on Microwave Theory and Techniques.
     """
-    def quasi_static(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, freq: Frequency, *, w, h, t, epr, zs) -> QuasiStaticResult:
         if t is not None:
             raise ValueError("Wheeler microstrip approximation does not support finite thickness")
 
@@ -250,22 +250,22 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         u = W / H
 
         # Shared base terms
-        t1 = (eps_r + 1) / 2
-        t2 = (eps_r - 1) / 2
+        t1 = (epr + 1) / 2
+        t2 = (epr - 1) / 2
         t3 = 1 / jnp.sqrt(1 + 12 / u)
 
-        # Piecewise effective permittivity (eps_eff)
-        eps_eff_le1 = t1 + t2 * (t3 + 0.04 * (1 - u)**2)
-        eps_eff_gt1 = t1 + t2 * t3
-        eps_eff = jnp.where(u <= 1.0, eps_eff_le1, eps_eff_gt1) * jnp.ones(freq.npoints)
+        # Piecewise effective permittivity (epeff)
+        epeff_le1 = t1 + t2 * (t3 + 0.04 * (1 - u)**2)
+        epeff_gt1 = t1 + t2 * t3
+        epeff = jnp.where(u <= 1.0, epeff_le1, epeff_gt1) * jnp.ones(freq.npoints)
 
         # Piecewise characteristic impedance in air (Za)
         Za_le1 = 60 * jnp.log(8 / u + 0.25 * u)
         Za_gt1 = (120 * jnp.pi) / (u + 1.393 + 0.667 * jnp.log(u + 1.444))
         Za = jnp.where(u <= 1.0, Za_le1, Za_gt1)
 
-        zc = Za / jnp.sqrt(eps_eff)
-        w_eff = W * jnp.ones(freq.npoints)
+        zc = Za / jnp.sqrt(epeff)
+        weff = W * jnp.ones(freq.npoints)
 
-        return QuasiStaticResult(eps_eff=eps_eff, zc=zc, w_eff=w_eff)
+        return QuasiStaticResult(epeff=epeff, zc=zc, weff=weff)
 

@@ -271,13 +271,13 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     from pmrf.models import WheelerMicrostripFormulation
 
     npoints = basic_freq.npoints
-    eps_r = np.full(npoints, 4.3 - 0.086j)
+    epr = np.full(npoints, 4.3 - 0.086j)
     zs = np.full(npoints, 0.01 + 0.01j)
 
     result = WheelerMicrostripFormulation().quasi_static(
-        basic_freq, w=3.0e-3, h=1.6e-3, t=None, eps_r=eps_r, zs=zs
+        basic_freq, w=3.0e-3, h=1.6e-3, t=None, epr=epr, zs=zs
     )
 
-    assert result.eps_eff.shape == (npoints,)
+    assert result.epeff.shape == (npoints,)
     assert jnp.all(jnp.real(result.zc) > 40.0)
-    assert jnp.allclose(result.w_eff, 3.0e-3)
+    assert jnp.allclose(result.weff, 3.0e-3)
