@@ -1,5 +1,5 @@
 """
-Closed-form physics for transmission lines (coaxial, microstrip).
+Closed-form physics for transmission lines (coaxial, microstrip, stripline).
 
 A formulation is pure numerics. Materials are evaluated by the line, so a
 formulation never sees a :class:`~pmrf.Param` or a :class:`~pmrf.Module`
@@ -591,3 +591,128 @@ class KirschningJansen(AbstractMicrostripDispersion):
         ep_eff = ep_eff_0 + modal_weight * (ep_eff - ep_eff_0)
         zc = zc_0 + modal_weight * (zc - zc_0)
         return ep_eff, zc
+
+
+class AbstractStriplineFormulation(eqx.Module):
+    """
+    Abstract base class for a closed-form stripline formulation.
+
+    Stripline is homogeneously filled, so there is no modal dispersion to
+    correct afterwards: the quasi-static solution is the solution, and its
+    effective permittivity is the substrate permittivity itself.
+
+    A formulation is pure numerics: every argument arrives as an
+    already-evaluated array, so it can be exercised directly against its
+    published equations with no ParamRF objects in sight.
+    """
+
+    @abstractmethod
+    def quasi_static(self, freq: Frequency, *, w, b, t, ep_r, zs) -> QuasiStaticResult:
+        r"""
+        Calculates the quasi-static solution of the line.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency axis.
+        w : ArrayLike
+            Width of the centre strip in meters.
+        b : ArrayLike
+            Ground-plane separation in meters.
+        t : ArrayLike | None
+            Thickness of the strip in meters, or None for a zero-thickness strip.
+        ep_r : jnp.ndarray
+            Complex relative permittivity of the filling, shape ``(npoints,)``.
+        zs : jnp.ndarray
+            Complex surface impedance of the conductor in ohm per square,
+            shape ``(npoints,)``.
+
+        Returns
+        -------
+        QuasiStaticResult
+            The effective permittivity, impedance and effective width.
+        """
+        raise NotImplementedError
+
+
+class CohnStriplineFormulation(AbstractStriplineFormulation):
+    r"""
+    Cohn's stripline formulation, in the form tabulated by Pozar.
+
+    **Mathematical Formulation**
+
+    The filling is homogeneous, so
+    $$\varepsilon_e = \varepsilon_r$$
+    exactly, with no filling factor and no modal dispersion. With the fringing
+    correction to the strip width,
+    $$\frac{W_e}{b} = \frac{W}{b} -
+    \begin{cases}0, & W/b > 0.35,\\ (0.35 - W/b)^2, & W/b \leq 0.35,\end{cases}$$
+    the characteristic impedance of the zero-thickness strip is
+    $$Z_c = \frac{30\pi}{\sqrt{\varepsilon_r}}\frac{b}{W_e + 0.441b}.$$
+
+    Conductor loss follows Cohn's incremental-inductance result, which unlike
+    the impedance does depend on the strip thickness $T$:
+    $$\frac{\alpha_c}{R_s} = \begin{cases}
+    \dfrac{2.7\times10^{-3}\,\varepsilon_r Z_c}{30\pi(b-T)}A,
+        & \sqrt{\varepsilon_r}Z_c < 120,\\[2ex]
+    \dfrac{0.16}{Z_c b}B, & \sqrt{\varepsilon_r}Z_c \geq 120,
+    \end{cases}$$
+    $$A = 1 + \frac{2W}{b-T}
+    + \frac{1}{\pi}\frac{b+T}{b-T}\ln\frac{2b-T}{T}$$
+    $$B = 1 + \frac{b}{0.5W + 0.7T}
+    \left(0.5 + \frac{0.7T}{W} + \frac{1}{2\pi}\ln\frac{4\pi W}{T}\right).$$
+
+    That attenuation is returned as the effective width the line applies it
+    through. A per-unit-length series resistance $R = 2\alpha_c Z_c$ and the
+    line's own $R = 2R_s/W_{eff}$ are the same statement, so
+    $$W_{eff} = \frac{R_s}{\alpha_c Z_c} = \left[\frac{\alpha_c}{R_s}Z_c\right]^{-1},$$
+    which is independent of $R_s$ and therefore stays finite for a perfect
+    conductor. Dielectric loss needs no separate term: $\varepsilon_e$ is
+    complex, and carries it.
+
+    The formulas are the standard piecewise fits, discontinuous by a fraction of
+    a percent at $\sqrt{\varepsilon_r}Z_c = 120$; the branch is selected on the
+    real parts.
+
+    References
+    ----------
+    Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE Transactions
+    on Microwave Theory and Techniques, 3(2), 119-126.
+
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.7. Wiley.
+    """
+
+    def quasi_static(self, freq: Frequency, *, w, b, t, ep_r, zs) -> QuasiStaticResult:
+        ones = jnp.ones(freq.npoints)
+        ep_eff = ep_r * ones
+
+        u = w / b
+        w_e = b * (u - jnp.where(u > 0.35, 0.0, (0.35 - u) ** 2))
+        zc = 30 * jnp.pi / jnp.sqrt(ep_eff) * b / (w_e + 0.441 * b)
+
+        w_eff = self._loss_width(w, b, t, ep_eff, zc) * ones
+        return QuasiStaticResult(ep_eff=ep_eff, zc=zc, w_eff=w_eff)
+
+    @staticmethod
+    def _loss_width(w, b, t, ep_eff, zc):
+        """Return the effective width carrying Cohn's conductor attenuation."""
+        if t is None:
+            # Cohn's attenuation diverges logarithmically as the strip thins:
+            # a zero-thickness strip has no finite conductor loss to apply.
+            return jnp.inf
+
+        ep_r = jnp.real(ep_eff)
+        zc_real = jnp.real(zc)
+
+        a = 1 + 2 * w / (b - t) + (b + t) / (jnp.pi * (b - t)) * jnp.log((2 * b - t) / t)
+        alpha_low = 2.7e-3 * ep_r * zc_real / (30 * jnp.pi * (b - t)) * a
+
+        beta = 1 + b / (0.5 * w + 0.7 * t) * (
+            0.5 + 0.7 * t / w + jnp.log(4 * jnp.pi * w / t) / (2 * jnp.pi)
+        )
+        alpha_high = 0.16 / (zc_real * b) * beta
+
+        alpha_over_rs = jnp.where(
+            jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high
+        )
+        return 1 / (alpha_over_rs * zc_real)

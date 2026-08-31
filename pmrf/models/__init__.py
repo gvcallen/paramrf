@@ -84,6 +84,7 @@ from pmrf.models.components.lines.physical import (
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
     MicrostripLine as MicrostripLine,
+    StriplineLine as StriplineLine,
 )
 
 from pmrf.models.components.lines.formulations import (
@@ -94,6 +95,8 @@ from pmrf.models.components.lines.formulations import (
     HammerstadJensenMicrostripFormulation as HammerstadJensenMicrostripFormulation,
     AbstractMicrostripDispersion as AbstractMicrostripDispersion,
     KirschningJansen as KirschningJansen,
+    AbstractStriplineFormulation as AbstractStriplineFormulation,
+    CohnStriplineFormulation as CohnStriplineFormulation,
     QuasiStaticResult as QuasiStaticResult,
     DielectricProperties as DielectricProperties,
     ConductorProperties as ConductorProperties,

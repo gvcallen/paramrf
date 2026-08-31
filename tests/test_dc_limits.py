@@ -37,6 +37,7 @@ from pmrf.models import (
     PhaseLine,
     PhysicalLine,
     RLGCLine,
+    StriplineLine,
 )
 from pmrf.models.components.lines.formulations import (
     HammerstadJensenMicrostripFormulation,
@@ -92,6 +93,17 @@ LINES = {
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         t=35e-6,
         length=0.1,
+    ),
+    "StriplineLine": StriplineLine(
+        w=2.655e-3,
+        b=3.2e-3,
+        t=35e-6,
+        dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
+        conductor=BulkConductor(rho=1.72e-8),
+        length=0.1,
+    ),
+    "StriplineLine (zero thickness)": StriplineLine(
+        dielectric=ConstantDielectric(ep_r=2.2, tand=0.001), t=None, length=0.1
     ),
     "FloatingLine": FloatingLine(floating=PhaseLine(z0=50.0, theta=90.0, f0=5e9)),
 }

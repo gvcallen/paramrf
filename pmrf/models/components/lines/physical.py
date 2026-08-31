@@ -1,5 +1,5 @@
 """
-Physical transmission lines (general, coaxial, microstrip)
+Physical transmission lines (general, coaxial, microstrip, stripline)
 """
 from typing import Literal
 
@@ -27,6 +27,8 @@ from pmrf.models.components.lines.formulations import (
     AbstractMicrostripFormulation,
     ConductorProperties,
     DielectricProperties,
+    AbstractStriplineFormulation,
+    CohnStriplineFormulation,
     KirschningJansen,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
@@ -537,3 +539,111 @@ class MicrostripLine(AbstractImmittanceLine):
         )
         beta = freq.w * jnp.sqrt(ep_eff_real) / c
         return alpha_dielectric + 1j * beta
+
+
+class StriplineLine(AbstractImmittanceLine):
+    r"""
+    Stripline defined by its geometry and material modules.
+
+    Uses :class:`CohnStriplineFormulation` as the default mathematical
+    formulation.
+
+    Stripline is homogeneously filled, so it has no modal dispersion and
+    therefore no ``dispersion`` field: the effective permittivity is the
+    permittivity of the filling itself, at every frequency. Material dispersion
+    still applies, and needs nothing stripline-specific — it arrives through the
+    dielectric module exactly as it does for any other line.
+
+    **Mathematical Formulation**
+
+    The quasi-static formulation returns $(\varepsilon_e, Z_c, W_{eff})$, and
+    :meth:`QuasiStaticResult.to_immittance` converts them directly:
+    $$Z = \frac{j\omega Z_c\sqrt{\varepsilon_e}}{c} + \frac{2Z_s}{W_{eff}}
+    \qquad
+    Y = \frac{j\omega\sqrt{\varepsilon_e}}{Z_c c}.$$
+    See :class:`CohnStriplineFormulation` for the geometry.
+
+    Example
+    --------
+    .. code-block:: python
+
+        import pmrf as prf
+        from pmrf.models import StriplineLine
+        from pmrf.materials import BulkConductor, ConstantDielectric
+
+        line = StriplineLine(
+            w=2.655e-3,
+            b=3.2e-3,
+            t=35e-6,
+            dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
+            conductor=BulkConductor(rho=1.72e-8),
+            length=0.1,
+        )
+
+        freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
+        s = line.s(freq)
+
+    Parameters
+    ----------
+    w : Param, default=2.655e-3
+        Width of the centre strip in meters.
+    b : Param, default=3.2e-3
+        Separation of the ground planes in meters.
+    t : Param | None, default=35e-6
+        Thickness of the centre strip in meters. ``None`` idealises it as
+        zero-thickness, which has no finite conductor loss.
+    dielectric : AbstractDielectric, default=ConstantDielectric(ep_r=4.3)
+        The filling between the ground planes. A scalar permittivity or an
+        ``(ep_r, tand)`` tuple is coerced into a
+        :class:`~pmrf.materials.ConstantDielectric`.
+    conductor : AbstractConductor, default=BulkConductor()
+        The material of the strip and the ground planes. A scalar resistivity in
+        ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
+    formulation : AbstractStriplineFormulation, default=CohnStriplineFormulation()
+        The closed-form physics used to compute the quasi-static solution.
+
+    References
+    ----------
+    Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE Transactions
+    on Microwave Theory and Techniques, 3(2), 119-126.
+
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.7. Wiley.
+    """
+    #: Width of the centre strip
+    w: Param = param(default=2.655e-3, constraint=Positive())
+
+    #: Separation of the ground planes
+    b: Param = param(default=3.2e-3, constraint=Positive())
+
+    #: Thickness of the centre strip
+    t: Param | None = field(
+        default=35e-6,
+        converter=lambda x: as_param(x, constraint=Positive()) if x is not None else None,
+    )
+
+    #: The filling between the ground planes
+    dielectric: AbstractDielectric = field(
+        default_factory=lambda: ConstantDielectric(ep_r=4.3), converter=as_dielectric
+    )
+
+    #: The material of the strip and the ground planes
+    conductor: AbstractConductor = field(
+        default_factory=BulkConductor, converter=as_conductor
+    )
+
+    #: The underlying physics formulation
+    formulation: AbstractStriplineFormulation = field(
+        default_factory=CohnStriplineFormulation
+    )
+
+    def immittance(self, freq: Frequency) -> ImmittanceResult:
+        zs = self.conductor.surface_impedance(freq)
+        quasi_static = self.formulation.quasi_static(
+            freq,
+            w=self.w,
+            b=self.b,
+            t=self.t,
+            ep_r=self.dielectric.epsilon_r(freq),
+            zs=zs,
+        )
+        return quasi_static.to_immittance(freq, zs)
