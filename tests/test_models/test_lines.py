@@ -174,8 +174,13 @@ def test_coaxial_line_matches_skrf(basic_freq):
 
     imm = line.immittance(basic_freq)
 
-    # L, G and C agree to machine precision. scikit-rf blends the DC resistance
-    # into its skin resistance, which ParamRF does not, so R is looser.
+    # G and C agree to machine precision, L to 1e-6. R is looser for a known
+    # reason: scikit-rf implements Tesche's equivalent circuit, eq. (14),
+    # Z = Rdc + Zhf/(1 + Zhf/(jw*Lint)), which carries the DC resistance and the
+    # internal inductance of the rod. ParamRF implements only the Zhf term, the
+    # high-frequency asymptote, so the two converge as frequency rises and
+    # diverge without bound below the skin-depth transition. scikit-rf is the
+    # more complete model here; see the note on issue #63.
     assert jnp.allclose(imm.R, media.R, rtol=1e-2)
     assert jnp.allclose(imm.L, media.L, rtol=1e-6)
     assert jnp.allclose(imm.G, media.G, rtol=1e-12)

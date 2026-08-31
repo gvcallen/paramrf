@@ -50,6 +50,14 @@ directly above them.
 than against recorded ParamRF output, which only locks in current behaviour. Record
 tolerances per case; do not loosen a global tolerance to make one case pass.
 
+**scikit-rf is guidance, not ground truth.** It makes its own approximations and its own
+modelling choices, and it has been wrong before. When a comparison disagrees, find out
+which side is wrong before touching a tolerance — read the scikit-rf source, not just its
+docstring, and check both implementations against the cited paper. A disagreement is a
+finding either way: if ParamRF is wrong, fix it; if scikit-rf is, or if the two
+deliberately model different things, say so in the test with the reason. Never widen a
+tolerance until the number is explained.
+
 ## Agent skills
 
 ### Issue tracker
