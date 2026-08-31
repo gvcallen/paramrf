@@ -12,5 +12,4 @@
    models/index
    api/index
    skrf_comparison/index
-   release_notes
    license
