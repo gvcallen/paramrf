@@ -5,7 +5,7 @@ from scipy.constants import mu_0
 
 import pmrf as prf
 from pmrf.frequency import Frequency
-from pmrf.materials import Bulk, RoughConductor, as_conductor
+from pmrf.materials import BulkConductor, Hammerstad, RoughConductor, as_conductor
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def freq():
 
 def test_bulk_surface_impedance(freq):
     rho = 1.68e-8
-    zs = Bulk(rho).surface_impedance(freq)
+    zs = BulkConductor(rho).surface_impedance(freq)
 
     expected = jnp.sqrt(1j * freq.w * mu_0 / (1 / rho))
     assert zs.shape == (freq.npoints,)
@@ -26,7 +26,7 @@ def test_bulk_surface_impedance(freq):
 
 def test_bulk_sigma_and_skin_depth(freq):
     rho = 1.68e-8
-    conductor = Bulk(rho)
+    conductor = BulkConductor(rho)
     assert jnp.allclose(conductor.sigma(freq), 1 / rho)
     assert jnp.allclose(
         conductor.skin_depth(freq), jnp.sqrt(2 * rho / (freq.w * mu_0))
@@ -34,7 +34,7 @@ def test_bulk_sigma_and_skin_depth(freq):
 
 
 def test_bulk_from_sigma(freq):
-    assert jnp.allclose(Bulk.from_sigma(5.8e7).rho, 1 / 5.8e7)
+    assert jnp.allclose(BulkConductor.from_sigma(5.8e7).rho, 1 / 5.8e7)
 
 
 def test_bulk_reproduces_tesche_skin_terms(freq):
@@ -42,7 +42,7 @@ def test_bulk_reproduces_tesche_skin_terms(freq):
     rho, a = 1.68e-8, 0.56e-3
     sigma = 1 / rho
 
-    zs = Bulk(rho).surface_impedance(freq)
+    zs = BulkConductor(rho).surface_impedance(freq)
     R_skin = (1 / (2 * jnp.pi * a)) * jnp.sqrt(freq.w * mu_0 / (2 * sigma))
     L_skin = (1 / (2 * jnp.pi * a)) * jnp.sqrt(mu_0 / (2 * freq.w * sigma))
 
@@ -53,45 +53,40 @@ def test_bulk_reproduces_tesche_skin_terms(freq):
 def test_bulk_reproduces_wheeler_resistance(freq):
     """Wheeler's R = (1/W)*sqrt(2*mu_0*rho*w) is two squares of Re(Zs)."""
     rho, W = 1.68e-8, 3e-3
-    zs = Bulk(rho).surface_impedance(freq)
+    zs = BulkConductor(rho).surface_impedance(freq)
     R_wheeler = (1 / W) * jnp.sqrt(2 * mu_0 * rho * freq.w)
     assert jnp.allclose(2 * jnp.real(zs) / W, R_wheeler)
 
 
 def test_bulk_permeability_scaling(freq):
-    plain = Bulk(1.68e-8).surface_impedance(freq)
-    magnetic = Bulk(1.68e-8, mur=4.0).surface_impedance(freq)
+    plain = BulkConductor(1.68e-8).surface_impedance(freq)
+    magnetic = BulkConductor(1.68e-8, mur=4.0).surface_impedance(freq)
     assert jnp.allclose(magnetic, 2.0 * plain)
 
 
 def test_smooth_rough_conductor_is_bulk(freq):
-    rough = RoughConductor(1.68e-8, rms_roughness=0.0)
+    rough = RoughConductor(1.68e-8, roughness=0.0)
     assert jnp.allclose(
-        rough.surface_impedance(freq), Bulk(1.68e-8).surface_impedance(freq)
+        rough.surface_impedance(freq), BulkConductor(1.68e-8).surface_impedance(freq)
     )
 
 
 def test_roughness_increases_loss_and_saturates(freq):
     rho = 1.68e-8
-    rough = RoughConductor(rho, rms_roughness=1e-6)
-    factor = rough.roughness_factor(freq)
+    rough = RoughConductor(rho, roughness=1e-6)
+    factor = rough.roughness.factor(rough.skin_depth(freq))
 
     assert jnp.all(factor > 1.0)
     assert jnp.all(factor < 2.0)
     # Rougher surfaces lose more, and the factor grows with frequency.
     assert jnp.all(jnp.diff(factor) > 0)
-    assert jnp.allclose(rough.surface_impedance(freq), factor * Bulk(rho).surface_impedance(freq))
-
-
-def test_rough_conductor_rejects_unknown_model():
-    with pytest.raises(ValueError):
-        RoughConductor(1.68e-8, 1e-6, model='huray')
+    assert jnp.allclose(rough.surface_impedance(freq), factor * BulkConductor(rho).surface_impedance(freq))
 
 
 def test_conductor_gradients_are_finite(freq):
     dc = Frequency.from_f(jnp.array([0.0, 1e9]))
 
-    for material in (Bulk(1.68e-8), RoughConductor(1.68e-8, 1e-6)):
+    for material in (BulkConductor(1.68e-8), RoughConductor(1.68e-8, roughness=1e-6)):
         for axis in (freq, dc):
             grads = jax.grad(
                 lambda m: jnp.sum(jnp.abs(m.surface_impedance(axis)))
@@ -100,7 +95,30 @@ def test_conductor_gradients_are_finite(freq):
             assert all(jnp.all(jnp.isfinite(leaf)) for leaf in leaves)
 
 
+def test_unconstrained_gradients_are_finite_at_dc():
+    """The bare sqrt at w = 0 must be guarded, not just masked by a constraint."""
+    dc = Frequency.from_f(jnp.array([0.0, 1e9]))
+
+    def loss(rho):
+        conductor = BulkConductor(rho=prf.Unconstrained(rho))
+        return jnp.sum(jnp.real(conductor.surface_impedance(dc)))
+
+    assert jnp.isfinite(jax.grad(loss)(1.68e-8))
+
+
+def test_abstract_conductor_is_an_abc():
+    with pytest.raises(TypeError):
+        from pmrf.materials import AbstractConductor
+        AbstractConductor()
+
+
+def test_roughness_formulation_is_swappable():
+    conductor = RoughConductor(1.68e-8, roughness=Hammerstad(2e-6))
+    assert isinstance(conductor.roughness, Hammerstad)
+    assert jnp.allclose(conductor.roughness.roughness, 2e-6)
+
+
 def test_as_conductor_converters():
     assert jnp.allclose(as_conductor(1.68e-8).rho, 1.68e-8)
-    rough = RoughConductor(1.68e-8, 1e-6)
+    rough = RoughConductor(1.68e-8, roughness=1e-6)
     assert as_conductor(rough) is rough

@@ -18,7 +18,9 @@ from pmrf.materials.dielectric import (
 )
 from pmrf.materials.conductor import (
     AbstractConductor as AbstractConductor,
-    Bulk as Bulk,
+    AbstractRoughness as AbstractRoughness,
+    BulkConductor as BulkConductor,
+    Hammerstad as Hammerstad,
     RoughConductor as RoughConductor,
     as_conductor as as_conductor,
 )
@@ -33,7 +35,9 @@ __all__ = [
     "TabulatedDielectric",
     "as_dielectric",
     "AbstractConductor",
-    "Bulk",
+    "AbstractRoughness",
+    "BulkConductor",
+    "Hammerstad",
     "RoughConductor",
     "as_conductor",
 ]
