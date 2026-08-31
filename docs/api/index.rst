@@ -29,6 +29,7 @@ Main Modules
 
    pmrf.models
    pmrf.modules
+   pmrf.materials
    pmrf.optimize
    pmrf.infer
    pmrf.fitting

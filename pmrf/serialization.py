@@ -18,7 +18,7 @@ from jaxtyping import PyTree
 
 # Define the public namespaces where your users typically import from.
 # We use this to mask internal deep paths.
-PUBLIC_NAMESPACES = ['pmrf.models', 'pmrf.parameters', 'pmrf.simulate', 'pmrf']
+PUBLIC_NAMESPACES = ['pmrf.models', 'pmrf.materials', 'pmrf.parameters', 'pmrf.simulate', 'pmrf']
 
 def _get_public_module(cls: type) -> str:
     """
