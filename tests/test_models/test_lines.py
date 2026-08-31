@@ -153,32 +153,66 @@ def test_material_coercion():
     assert jnp.allclose(line.dielectric.epr.value, 2.25)
 
 
-def test_coaxial_line_matches_tesche_rlgc(basic_freq):
-    """The immittance reproduces the Tesche R, L, G, C expressions directly."""
-    din, dout, epr, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.68e-8
+def test_coaxial_line_matches_skrf(basic_freq):
+    """Validate the coaxial immittance against scikit-rf's Tesche coaxial media."""
+    skrf = pytest.importorskip("skrf")
+    from skrf.media import Coaxial
+
+    din, dout, epr, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.72e-8
     line = CoaxialLine(
         din=din,
         dout=dout,
         dielectric=ConstantDielectric(epr=epr, tand=tand),
         conductor=BulkConductor(rho=rho),
-        length=1.0,
+        length=0.5,
+    )
+    media = Coaxial(
+        basic_freq.to_skrf(),
+        Dint=din, Dout=dout, epsilon_r=epr, tan_delta=tand, sigma=1 / rho,
+        model='tesche',
     )
 
     imm = line.immittance(basic_freq)
-    w = basic_freq.w
-    a, b = din / 2, dout / 2
-    lnba = jnp.log(b / a)
 
-    L_ext = mu_0 / (2 * jnp.pi) * lnba
-    C = 2 * jnp.pi * epsilon_0 * epr / lnba
-    G = 2 * jnp.pi * w * epsilon_0 * epr * tand / lnba
-    rs = jnp.sqrt(w * mu_0 * rho / 2)
-    circumference = 1 / (2 * jnp.pi * a) + 1 / (2 * jnp.pi * b)
+    # L, G and C agree to machine precision. scikit-rf blends the DC resistance
+    # into its skin resistance, which ParamRF does not, so R is looser.
+    assert jnp.allclose(imm.R, media.R, rtol=1e-2)
+    assert jnp.allclose(imm.L, media.L, rtol=1e-6)
+    assert jnp.allclose(imm.G, media.G, rtol=1e-12)
+    assert jnp.allclose(imm.C, media.C, rtol=1e-12)
 
-    assert jnp.allclose(imm.R, rs * circumference, rtol=1e-10)
-    assert jnp.allclose(imm.L, L_ext + rs * circumference / w, rtol=1e-10)
-    assert jnp.allclose(imm.G, G, rtol=1e-10)
-    assert jnp.allclose(imm.C, C, rtol=1e-10)
+    zc, gammaL = line.zc_and_gammaL(basic_freq)
+    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-4)
+    assert jnp.allclose(gammaL / 0.5, media.gamma, rtol=1e-4)
+
+
+def test_microstrip_line_matches_skrf(basic_freq):
+    """Validate the microstrip line against scikit-rf's Wheeler microstrip media."""
+    skrf = pytest.importorskip("skrf")
+    from skrf.media import MLine
+
+    W, H, epr = 3.0e-3, 1.6e-3, 4.3
+    line = MicrostripLine(
+        w=W,
+        h=H,
+        dielectric=ConstantDielectric(epr=epr, tand=0.0),
+        conductor=BulkConductor(rho=0.0),
+        length=0.1,
+    )
+    media = MLine(
+        basic_freq.to_skrf(),
+        w=W, h=H, ep_r=epr, tand=0.0, rho=0.0, rough=0.0,
+        model='wheeler', disp='none', diel='frequencyinvariant',
+    )
+
+    zc, gammaL = line.zc_and_gammaL(basic_freq)
+
+    # scikit-rf implements Wheeler's own closed form, where ParamRF uses the
+    # Hammerstad simplification of it. The two agree on the impedance to half a
+    # percent and on the effective permittivity, hence the phase constant, to
+    # under two percent.
+    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-2)
+    assert jnp.allclose(gammaL / 0.1, media.gamma, rtol=2e-2)
 
 
 def test_immittance_rlgc_roundtrip(basic_freq):

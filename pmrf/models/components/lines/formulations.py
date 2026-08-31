@@ -6,7 +6,9 @@ formulation never sees a :class:`~pmrf.Param` or a :class:`~pmrf.Module`
 parameter: it can be checked directly against the equations of the paper it
 comes from, and contributed without learning the material taxonomy.
 """
-from scipy.constants import mu_0, epsilon_0
+from abc import abstractmethod
+
+from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 import equinox as eqx
 
@@ -42,6 +44,45 @@ class QuasiStaticResult(eqx.Module):
     #: Effective conductor width in meters
     w_eff: jnp.ndarray
 
+    def to_immittance(self, freq: Frequency, zs: jnp.ndarray) -> ImmittanceResult:
+        r"""
+        Converts the quasi-static solution into a per-unit-length immittance.
+
+        The external inductance and the shunt admittance follow from the
+        quasi-static impedance and effective permittivity, and the signal
+        conductor and its return path each add their surface impedance over the
+        effective width:
+        $$Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + \frac{2 Z_s}{W_{eff}}
+        \qquad
+        Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
+
+        $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss
+        as its real part and needs no separate loss-tangent term.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency axis.
+        zs : jnp.ndarray
+            Complex surface impedance of the conductor in ohm per square.
+
+        Returns
+        -------
+        ImmittanceResult
+            The series impedance and shunt admittance.
+
+        References
+        ----------
+        Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.
+        """
+        w = freq.w
+        sqrt_eps_eff = jnp.sqrt(self.eps_eff)
+
+        Z = 1j * w * self.zc * sqrt_eps_eff / c + 2 * zs / self.w_eff
+        Y = 1j * w * sqrt_eps_eff / (self.zc * c)
+
+        return ImmittanceResult(Z=Z, Y=Y, w=w)
+
 
 class AbstractCoaxialFormulation(eqx.Module):
     """
@@ -54,6 +95,7 @@ class AbstractCoaxialFormulation(eqx.Module):
     impedance of a rod or tube depends on the conductor radius as well as on the
     surface impedance.
     """
+    @abstractmethod
     def run(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
@@ -142,6 +184,7 @@ class AbstractMicrostripFormulation(eqx.Module):
     already-evaluated array, so it can be exercised directly against its
     published equations with no ParamRF objects in sight.
     """
+    @abstractmethod
     def run(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
         r"""
         Calculates the quasi-static solution of the line.
@@ -187,7 +230,9 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     $\varepsilon_r$ is complex, and $\varepsilon_e$ is linear in it, so the
     dielectric loss carries through the same filling factor as the real part and
     needs no separate loss-tangent term. The effective width is $W$: the
-    approximation is derived for a zero-thickness strip.
+    approximation is derived for a zero-thickness strip, so `zs` does not enter
+    here — a thickness-aware formulation uses it to widen $W_{eff}$ for the
+    current distribution, and the line applies the series loss either way.
 
     References
     ----------

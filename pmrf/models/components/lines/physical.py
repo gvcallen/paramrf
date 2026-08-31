@@ -287,19 +287,9 @@ class MicrostripLine(AbstractImmittanceLine):
     
     Uses :class:`WheelerMicrostripFormulation` for the default mathematical formulation.
 
-    **Mathematical Formulation**
-
-    The formulation returns a :class:`QuasiStaticResult`, which the line turns
-    into an immittance. The external inductance and the shunt admittance follow
-    from the quasi-static impedance and effective permittivity, and the two
-    conductors (trace and ground plane) add their surface impedance over the
-    effective width:
-    $$Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + \frac{2 Z_s}{W_{eff}}
-    \qquad
-    Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
-
-    $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss as its
-    real part.
+    The formulation returns a :class:`QuasiStaticResult`, which
+    :meth:`QuasiStaticResult.to_immittance` turns into an immittance using the
+    conductor's surface impedance.
     
     Example
     --------
@@ -364,7 +354,6 @@ class MicrostripLine(AbstractImmittanceLine):
             raise ValueError("Thickness not yet supported in `MicrostripLine`")
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
-        w = freq.w
         zs = self.conductor.surface_impedance(freq)
 
         quasi_static = self.formulation.run(
@@ -376,12 +365,4 @@ class MicrostripLine(AbstractImmittanceLine):
             zs=zs,
         )
 
-        sqrt_eps_eff = jnp.sqrt(quasi_static.eps_eff)
-        zc, w_eff = quasi_static.zc, quasi_static.w_eff
-
-        # The trace and the ground plane each contribute a surface impedance
-        # over the effective width.
-        Z = 1j * w * zc * sqrt_eps_eff / c + 2 * zs / w_eff
-        Y = 1j * w * sqrt_eps_eff / (zc * c)
-
-        return ImmittanceResult(Z=Z, Y=Y, w=w)
+        return quasi_static.to_immittance(freq, zs)
