@@ -18,49 +18,77 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
+from pmrf.likelihoods import GaussianLikelihood
+from pmrf.discrepancy_models import GaussianProcess
 from pmrf.modules.base import Module
 from pmrf.utils import derivative, field, unwrap, unwrap_self
+
+
+class OrthogonalBasis(eqx.Module):
+    """A padded orthonormal basis and mask for a batched tangent space."""
+
+    vectors: jnp.ndarray
+    mask: jnp.ndarray
 
 
 def _orthogonal_projection(
     event_fn: Callable[[PyTree], jnp.ndarray],
     model: PyTree,
     *,
-    jitter: float = 1e-12,
-) -> jnp.ndarray:
-    """Build the projection onto the complement of an event Jacobian."""
-    unwrapped_model = unwrap(model)
-    parameter_leaves = jax.tree.leaves(
-        eqx.filter(unwrapped_model, eqx.is_inexact_array)
-    )
-    if not parameter_leaves:
-        raise ValueError(
-            "Orthogonal discrepancy requires a model with at least one "
-            "differentiable JAX-array leaf."
+    rcond: float,
+) -> OrthogonalBasis:
+    """Build a scaled-SVD basis for the free-parameter event tangent space.
+
+    The returned basis is padded to a static column count for JIT-compatible batched
+    rank decisions. Columns rejected by ``rcond`` are zero and identified by ``mask``.
+    """
+    if not 0 <= rcond < 1:
+        raise ValueError("`rcond` must satisfy 0 <= rcond < 1.")
+    if not hasattr(model, "named_params") or not hasattr(model, "at"):
+        raise TypeError(
+            "Orthogonal discrepancy requires a parameter-aware model with "
+            "`named_params` and `at` methods."
         )
 
-    (jacobian_tree,) = derivative(event_fn, model)
-    jacobian_leaves = jax.tree.leaves(
-        eqx.filter(jacobian_tree, eqx.is_inexact_array)
+    # Request full parameter nodes so scalar tracers are not converted to Python
+    # ``float`` by the naming helper during higher-order differentiation.
+    named_parameters = model.named_params(full_params=True, free_only=True)
+    parameter_names = tuple(named_parameters)
+    parameter_values = tuple(
+        jnp.asarray(unwrap(value)) for value in named_parameters.values()
     )
+    if not parameter_values:
+        raise ValueError(
+            "Orthogonal discrepancy requires a model with at least one free parameter."
+        )
+
+    def evaluate(values):
+        candidate = model
+        for name, value in zip(parameter_names, values):
+            candidate = candidate.at(name).set(value)
+        return event_fn(candidate)
+
+    (jacobian_leaves,) = derivative(evaluate, parameter_values)
     dense_leaves = []
-    for jacobian_leaf, parameter_leaf in zip(jacobian_leaves, parameter_leaves):
-        parameter_shape = parameter_leaf.shape
+    for jacobian_leaf, parameter_value in zip(jacobian_leaves, parameter_values):
+        parameter_shape = parameter_value.shape
         event_shape = (
             jacobian_leaf.shape[:-len(parameter_shape)]
             if parameter_shape
             else jacobian_leaf.shape
         )
         dense_leaves.append(
-            jnp.reshape(jacobian_leaf, event_shape + (parameter_leaf.size,))
+            jnp.reshape(jacobian_leaf, event_shape + (parameter_value.size,))
         )
 
     J_b = jnp.concatenate(dense_leaves, axis=-1)
-    N, P = J_b.shape[-2:]
-    J_b_T = jnp.swapaxes(J_b, -1, -2)
-    gram = J_b_T @ J_b + jitter * jnp.eye(P, dtype=J_b.dtype)
-    projected = J_b @ jnp.linalg.solve(gram, J_b_T)
-    return jnp.eye(N, dtype=J_b.dtype) - projected
+    column_norm = jnp.linalg.norm(J_b, axis=-2, keepdims=True)
+    safe_column_norm = jnp.where(column_norm > 0, column_norm, 1)
+    scaled_J = J_b / safe_column_norm
+    U, singular_values, _ = jnp.linalg.svd(scaled_J, full_matrices=False)
+    cutoff = rcond * jnp.max(singular_values, axis=-1, keepdims=True)
+    mask = singular_values > cutoff
+    return OrthogonalBasis(U * mask[..., None, :], mask)
 
 class AbstractEvaluator(Module):
     """
@@ -240,8 +268,18 @@ class MarginalLogLikelihood(AbstractEvaluator):
         Can be a function or a PyTree with optional parameters.
         See :class:`pmrf.discrepancy_models` for common discrepancy models.
     use_orthogonal_discrepancy
-        Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
-        which defines the model's orthogonal sub-space. Used for gaussian processes.
+        Constrain a Gaussian-process discrepancy to the complement of the free-parameter
+        tangent space. This retains the full-data likelihood; it is not REML.
+    orthogonal_basis
+        A fixed tangent basis. Prefer creating it with
+        :meth:`with_orthogonal_reference` rather than constructing it directly.
+    orthogonal_rcond
+        Required relative singular-value cutoff for the column-scaled Jacobian SVD.
+        The cutoff is applied independently to each batch element.
+    orthogonal_recompute
+        If true, recompute the basis at every evaluation and differentiate through it.
+        The default is false: a fixed reference is faster and defines a stable,
+        normalized density. Configure it once with :meth:`with_orthogonal_reference`.
     event_transform
         A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
         Can be:
@@ -295,6 +333,15 @@ class MarginalLogLikelihood(AbstractEvaluator):
     #: Flag for orthogonal discrepancy.
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
+    #: Fixed tangent basis, normally populated by :meth:`with_orthogonal_reference`.
+    orthogonal_basis: OrthogonalBasis | None = None
+
+    #: Relative singular-value cutoff used to determine tangent rank.
+    orthogonal_rcond: float | None = field(default=None, static=True)
+
+    #: Recompute the tangent basis at every call, including its exact derivative.
+    orthogonal_recompute: bool = field(default=False, static=True)
+
     #: The bijective event transform, or a callable resolving one from the prediction.
     event_transform: bij.AbstractBijector | Callable[[jnp.ndarray], bij.AbstractBijector] = field(default=None, static=True)
 
@@ -306,6 +353,11 @@ class MarginalLogLikelihood(AbstractEvaluator):
         # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
         if self.event_ndims != 1:
             raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
+        if self.use_orthogonal_discrepancy and self.orthogonal_rcond is None:
+            raise ValueError(
+                "`orthogonal_rcond` must be chosen explicitly when enabling "
+                "orthogonal discrepancy."
+            )
         
         observed = unwrap(self.observed)
         if self.event_transform is None:
@@ -359,6 +411,16 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
+        if self.use_orthogonal_discrepancy:
+            log_prob, event_transform = self._orthogonal_log_prob(
+                model, frequency, **kwargs
+            )
+            if self.has_conditional_event_transform:
+                log_prob = log_prob + jnp.sum(
+                    event_transform.forward_log_det_jacobian(observed)
+                )
+            return log_prob
+
         # Get the distribution over obs_event and the actual observed event.
         # The observation is mapped by the *same* resolved transform as the prediction,
         # which for a conditional transform depends on the model.
@@ -383,6 +445,61 @@ class MarginalLogLikelihood(AbstractEvaluator):
             log_prob = log_prob + jnp.sum(event_transform.forward_log_det_jacobian(observed))
 
         return log_prob
+
+    def with_orthogonal_reference(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> "MarginalLogLikelihood":
+        """Return a copy with its tangent basis fixed at ``model`` and ``frequency``."""
+        if not self.use_orthogonal_discrepancy:
+            raise ValueError("Orthogonal discrepancy is not enabled on this evaluator.")
+        basis = _orthogonal_projection(
+            lambda candidate: self._event(candidate, frequency, **kwargs)[0],
+            model,
+            rcond=self.orthogonal_rcond,
+        )
+        return eqx.tree_at(lambda evaluator: evaluator.orthogonal_basis, self, basis)
+
+    def _event(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, bij.AbstractBijector]:
+        y_pred = self.predictor(model, frequency, **kwargs)
+        event_transform = self.resolve_event_transform(y_pred)
+        return event_transform.forward(y_pred), event_transform
+
+    def _orthogonal_log_prob(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, bij.AbstractBijector]:
+        if not isinstance(self.discrepancy, GaussianProcess) or not isinstance(
+            self.likelihood, GaussianLikelihood
+        ):
+            raise TypeError(
+                "Orthogonal discrepancy currently requires `GaussianProcess` and "
+                "`GaussianLikelihood`."
+            )
+        pred_event, event_transform = self._event(model, frequency, **kwargs)
+        basis = self.orthogonal_basis
+        if self.orthogonal_recompute:
+            basis = _orthogonal_projection(
+                lambda candidate: self._event(candidate, frequency, **kwargs)[0],
+                model,
+                rcond=self.orthogonal_rcond,
+            )
+        elif basis is None:
+            raise ValueError(
+                "No fixed orthogonal reference is configured. Call "
+                "`with_orthogonal_reference(model, frequency)` once, or set "
+                "`orthogonal_recompute=True`."
+            )
+        observed_event = event_transform.forward(self.observed)
+        variance = self.likelihood.variance(pred_event)
+        log_probs = self.discrepancy.orthogonal_log_prob(
+            pred_event,
+            observed_event,
+            frequency.f_scaled,
+            variance,
+            basis,
+        )
+        return jnp.sum(log_probs), event_transform
     
     def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
@@ -412,8 +529,21 @@ class MarginalLogLikelihood(AbstractEvaluator):
         
         discrepancy_kwargs = {}
         if self.use_orthogonal_discrepancy and self.discrepancy is not None:
-            discrepancy_kwargs['orthogonal_projection'] = _orthogonal_projection(
-                lambda m: event_fn(m, frequency), model
+            basis = self.orthogonal_basis
+            if self.orthogonal_recompute:
+                basis = _orthogonal_projection(
+                    lambda m: event_fn(m, frequency), model,
+                    rcond=self.orthogonal_rcond,
+                )
+            elif basis is None:
+                raise ValueError(
+                    "No fixed orthogonal reference is configured. Call "
+                    "`with_orthogonal_reference(model, frequency)` once."
+                )
+            Q1 = basis.vectors
+            n = Q1.shape[-2]
+            discrepancy_kwargs['orthogonal_projection'] = (
+                jnp.eye(n, dtype=Q1.dtype) - Q1 @ jnp.swapaxes(Q1, -1, -2)
             )
         
         y_pred = self.predictor(model, frequency, **kwargs)
@@ -479,8 +609,9 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     discrepancy
         (experimental) An optional discrepancy model to cater for model misspecification.
     use_orthogonal_discrepancy
-        (experimental) Whether or not the discrepancy callable accepts a key-word argument "orthogonal_projection"
-        which defines the model's orthogonal sub-space. Used for gaussian processes.
+        (experimental) Constrain Gaussian-process discrepancy to the complement of the
+        free-parameter tangent space. A fixed basis must be configured with
+        :meth:`with_orthogonal_reference` unless ``orthogonal_recompute=True``.
     event_transform
         A bijective transform that maps from "observation space" (predicted features) to "event space".
     event_ndims
@@ -504,6 +635,15 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
     #: Flag for orthogonal discrepancy.
     use_orthogonal_discrepancy: bool = field(default=False, static=True)
 
+    #: Fixed tangent basis, normally populated by :meth:`with_orthogonal_reference`.
+    orthogonal_basis: OrthogonalBasis | None = None
+
+    #: Relative singular-value cutoff used to determine tangent rank.
+    orthogonal_rcond: float | None = field(default=None, static=True)
+
+    #: Recompute the tangent basis at every call.
+    orthogonal_recompute: bool = field(default=False, static=True)
+
     #: The bijective event transform.
     event_transform: bij.AbstractBijector = field(default=None, static=True)
 
@@ -514,6 +654,11 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         # Default mapping logic (matches standard MarginalLogLikelihood)
         if self.event_ndims != 1:
             raise Exception("GibbsMarginalLogLikelihood currently only supports a single dependent event dimension")
+        if self.use_orthogonal_discrepancy and self.orthogonal_rcond is None:
+            raise ValueError(
+                "`orthogonal_rcond` must be chosen explicitly when enabling "
+                "orthogonal discrepancy."
+            )
         
         observed = unwrap(self.observed)
         if self.event_transform is None:
@@ -532,8 +677,21 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
             
         discrepancy_kwargs = {}
         if self.use_orthogonal_discrepancy and self.discrepancy is not None:
-            discrepancy_kwargs['orthogonal_projection'] = _orthogonal_projection(
-                lambda m: event_fn(m, frequency), model
+            basis = self.orthogonal_basis
+            if self.orthogonal_recompute:
+                basis = _orthogonal_projection(
+                    lambda m: event_fn(m, frequency), model,
+                    rcond=self.orthogonal_rcond,
+                )
+            elif basis is None:
+                raise ValueError(
+                    "No fixed orthogonal reference is configured. Call "
+                    "`with_orthogonal_reference(model, frequency)` once."
+                )
+            Q1 = basis.vectors
+            n = Q1.shape[-2]
+            discrepancy_kwargs['orthogonal_projection'] = (
+                jnp.eye(n, dtype=Q1.dtype) - Q1 @ jnp.swapaxes(Q1, -1, -2)
             )
             
         pred_event = event_fn(model, frequency)
@@ -552,6 +710,22 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         
         # Generalized log-posterior (Gibbs measure)
         return -(expected_loss / self.temperature)
+
+    def with_orthogonal_reference(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> "GibbsMarginalLogLikelihood":
+        """Return a copy with its tangent basis fixed at ``model`` and ``frequency``."""
+        if not self.use_orthogonal_discrepancy:
+            raise ValueError("Orthogonal discrepancy is not enabled on this evaluator.")
+
+        def event_fn(candidate):
+            prediction = self.predictor(candidate, frequency, **kwargs)
+            return self.event_transform.forward(prediction)
+
+        basis = _orthogonal_projection(
+            event_fn, model, rcond=self.orthogonal_rcond
+        )
+        return eqx.tree_at(lambda evaluator: evaluator.orthogonal_basis, self, basis)
         
 class Negated(AbstractEvaluator):
     """

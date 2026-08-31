@@ -66,6 +66,32 @@ class GaussianLikelihood(AbstractLikelihood):
     #: The noise parameter or a callable returning the measurement variance.
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
 
+    def variance(self, y_event: jnp.ndarray) -> jnp.ndarray:
+        """Return noise variance broadcastable over the non-event batch shape.
+
+        Orthogonal GP discrepancy requires variance that is constant along the event
+        axis so that the tangent covariance block is ``sigma^2 I``.
+        """
+        var = self.noise(y_event) if callable(self.noise) else self.noise
+        var = jnp.asarray(var)
+        batch_shape = y_event.shape[:-1]
+        if var.shape == y_event.shape:
+            raise ValueError(
+                "Orthogonal GP discrepancy requires Gaussian noise variance to be "
+                "constant along the event axis."
+            )
+        try:
+            broadcast_shape = jnp.broadcast_shapes(var.shape, batch_shape)
+        except ValueError as error:
+            raise ValueError(
+                "Gaussian noise variance is not broadcastable to the event batch shape."
+            ) from error
+        if broadcast_shape != batch_shape:
+            raise ValueError(
+                "Gaussian noise variance must not add dimensions to the event batch shape."
+            )
+        return var
+
     def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:
         # If y_event is an array, the prediction is deterministic
         # and we can simply use a regular gaussian likelihood.
