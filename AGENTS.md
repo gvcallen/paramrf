@@ -19,6 +19,12 @@ deprecation aliases, or legacy code paths unless explicitly asked. Prefer the cl
 
 No linter or formatter is configured. Match the style of surrounding code.
 
+## Commits
+
+Do not add yourself as an author. No `Co-Authored-By` trailer, no session link, no
+tool attribution. Every change is reviewed by a human before it lands, so the commit
+belongs to the person who reviewed it.
+
 ## Source layout
 
 Real code lives in `pmrf/`. `build/` and `dist/` hold stale copies of it — searches will
