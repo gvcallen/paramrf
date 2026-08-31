@@ -410,10 +410,10 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         length=0.1,
     )
 
-    ep_r = line.dielectric.epsilon_r(freq)
-    zs = line.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.epsilon_r(freq)
+    zs = line.substrate.conductor.surface_impedance(freq)
     quasi_static = formulation.quasi_static(
-        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
     )
     ep_eff, expected_zc = dispersion.disperse(
         freq,
@@ -422,8 +422,8 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         ep_r=ep_r,
         w=line.w,
         w_eff=quasi_static.w_eff,
-        h=line.h,
-        t=line.t,
+        h=line.substrate.h,
+        t=line.substrate.t,
     )
 
     zc, gamma_length = line.zc_and_gammaL(freq)
@@ -446,10 +446,10 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
-    ep_r = line.dielectric.epsilon_r(freq)
-    zs = line.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.epsilon_r(freq)
+    zs = line.substrate.conductor.surface_impedance(freq)
     quasi_static = line.formulation.quasi_static(
-        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
     )
 
     actual = line.immittance(freq)
@@ -629,3 +629,176 @@ def test_microstrip_near_air_has_finite_conductance_and_gradient():
 def test_coaxial_line_has_no_modal_dispersion_field():
     """Homogeneously filled coax has no modal-dispersion stage."""
     assert not hasattr(CoaxialLine(length=0.1), "dispersion")
+
+
+# -----------------------------------------------------------------------------
+# Stripline
+#
+# scikit-rf has no stripline media, so these compare against the published
+# closed-form results (Pozar, Microwave Engineering 4th ed., Section 3.7)
+# and against the exact identities a homogeneously-filled line must satisfy.
+# -----------------------------------------------------------------------------
+
+def test_stripline_effective_permittivity_equals_relative_permittivity():
+    """Stripline is homogeneously filled, so there is no filling factor at all."""
+    from pmrf.models import CohnStriplineFormulation, StriplineLine
+
+    freq = Frequency(start=1.0, stop=20.0, npoints=11, unit="GHz")
+    dielectric = ConstantDielectric(ep_r=2.2, tand=0.001)
+    line = StriplineLine(w=2.655e-3, b=3.2e-3, dielectric=dielectric, length=0.1)
+
+    quasi_static = CohnStriplineFormulation().quasi_static(
+        freq,
+        w=line.w,
+        b=line.b,
+        t=line.t,
+        ep_r=dielectric.epsilon_r(freq),
+        zs=line.conductor.surface_impedance(freq),
+    )
+
+    assert jnp.array_equal(quasi_static.ep_eff, dielectric.epsilon_r(freq))
+
+
+def test_stripline_impedance_matches_pozar_design_example():
+    """Pozar Example 3.7: er=2.20, b=0.32 cm, W/b=0.830 designs a 50 ohm line."""
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
+    b = 0.32e-2
+    w_over_b = 30 * jnp.pi / (jnp.sqrt(2.2) * 50.0) - 0.441
+    line = StriplineLine(
+        w=w_over_b * b,
+        b=b,
+        dielectric=2.2,
+        conductor=BulkConductor(rho=0.0),
+        length=0.1,
+    )
+
+    zc = jnp.real(line.zc(freq))
+    assert jnp.allclose(zc, 50.0, rtol=2e-3)
+
+
+def test_stripline_dielectric_loss_is_the_homogeneous_limit():
+    """A homogeneous line has alpha_d = k tan(delta) / 2 exactly."""
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
+    tand = 0.001
+    line = StriplineLine(
+        w=2.655e-3,
+        b=3.2e-3,
+        dielectric=ConstantDielectric(ep_r=2.2, tand=tand),
+        conductor=BulkConductor(rho=0.0),
+        length=1.0,
+    )
+
+    alpha = jnp.real(line.gammaL(freq))
+    k = freq.w * jnp.sqrt(2.2) / c
+    assert jnp.allclose(alpha, k * tand / 2, rtol=1e-3)
+
+
+def test_stripline_attenuation_matches_pozar_worked_example():
+    """Pozar Example 3.7 publishes alpha_d = 0.155 Np/m and alpha_c = 0.122 Np/m.
+
+    Geometry: er=2.20, tand=0.001, b=0.32 cm, t=0.01 mm, copper, Z0=50 ohm,
+    at 10 GHz.
+    """
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
+    geometry = dict(w=2.655e-3, b=3.2e-3, t=1e-5, length=1.0)
+    copper = BulkConductor(rho=1.72e-8)
+
+    lossless = StriplineLine(
+        dielectric=2.2, conductor=BulkConductor(rho=0.0), **geometry
+    )
+    conductor_only = StriplineLine(dielectric=2.2, conductor=copper, **geometry)
+    dielectric_only = StriplineLine(
+        dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
+        conductor=BulkConductor(rho=0.0),
+        **geometry,
+    )
+
+    assert jnp.allclose(jnp.real(lossless.zc(freq)), 50.0, rtol=1e-3)
+    assert jnp.allclose(jnp.real(lossless.gammaL(freq)), 0.0, atol=1e-12)
+    # Pozar rounds to three digits, so match to that.
+    assert jnp.allclose(jnp.real(conductor_only.gammaL(freq)), 0.122, atol=5e-4)
+    assert jnp.allclose(jnp.real(dielectric_only.gammaL(freq)), 0.155, atol=5e-4)
+
+
+def test_stripline_conductor_loss_scales_with_root_frequency():
+    """Conductor loss enters through the surface impedance, so it follows sqrt(f)."""
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=1.0, stop=100.0, npoints=3, unit="GHz")
+    line = StriplineLine(
+        w=2.655e-3,
+        b=3.2e-3,
+        t=35e-6,
+        dielectric=2.2,
+        conductor=BulkConductor(rho=1.72e-8),
+        length=1.0,
+    )
+
+    alpha = jnp.real(line.gammaL(freq))
+    assert jnp.all(alpha > 0)
+    # A hundredfold in frequency is a tenfold in skin-effect attenuation.
+    assert jnp.allclose(alpha[2] / alpha[0], 10.0, rtol=1e-2)
+
+
+def test_stripline_accepts_a_dispersive_dielectric():
+    """A dispersive material needs no stripline-specific code: eps_eff tracks it."""
+    from pmrf.models import CohnStriplineFormulation, StriplineLine
+
+    freq = Frequency(start=1.0, stop=20.0, npoints=11, unit="GHz")
+    dielectric = DjordjevicSarkar(ep_r=3.9, tand=0.02, f_ref=1e9)
+    line = StriplineLine(w=2.655e-3, b=3.2e-3, dielectric=dielectric, length=0.1)
+
+    ep_r = dielectric.epsilon_r(freq)
+    quasi_static = CohnStriplineFormulation().quasi_static(
+        freq,
+        w=line.w,
+        b=line.b,
+        t=line.t,
+        ep_r=ep_r,
+        zs=line.conductor.surface_impedance(freq),
+    )
+
+    assert jnp.array_equal(quasi_static.ep_eff, ep_r)
+    # The dielectric actually disperses over the band, so this is not vacuous.
+    assert jnp.abs(jnp.real(ep_r[0]) - jnp.real(ep_r[-1])) > 1e-3
+
+    s = line.s(freq)
+    assert jnp.all(jnp.isfinite(s))
+
+
+def test_stripline_narrow_strip_uses_the_fringing_correction():
+    """Below W/b = 0.35 Cohn's effective width picks up the fringing term."""
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
+    b = 3.2e-3
+    narrow = StriplineLine(
+        w=0.2 * b, b=b, dielectric=2.2, conductor=BulkConductor(rho=0.0), length=0.1
+    )
+
+    w_e = 0.2 * b - (0.35 - 0.2) ** 2 * b
+    expected = 30 * jnp.pi / jnp.sqrt(2.2) * b / (w_e + 0.441 * b)
+    assert jnp.allclose(jnp.real(narrow.zc(freq)), expected, rtol=1e-6)
+
+
+def test_stripline_high_impedance_branch_is_selected():
+    """A narrow strip crosses sqrt(er)*Zc = 120 onto Cohn's other loss fit."""
+    from pmrf.models import StriplineLine
+
+    freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
+    geometry = dict(b=3.2e-3, t=35e-6, dielectric=2.2, length=1.0)
+    copper = BulkConductor(rho=1.72e-8)
+
+    narrow = StriplineLine(w=0.2e-3, conductor=copper, **geometry)
+    wide = StriplineLine(w=2.655e-3, conductor=copper, **geometry)
+
+    assert jnp.sqrt(2.2) * jnp.real(narrow.zc(freq)) > 120
+    assert jnp.sqrt(2.2) * jnp.real(wide.zc(freq)) < 120
+    # A narrower strip concentrates the current, so it loses more.
+    assert jnp.real(narrow.gammaL(freq)) > jnp.real(wide.gammaL(freq)) > 0

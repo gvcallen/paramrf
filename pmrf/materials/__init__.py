@@ -16,6 +16,10 @@ from pmrf.materials.dielectric import (
     TabulatedDielectric as TabulatedDielectric,
     as_dielectric as as_dielectric,
 )
+from pmrf.materials.substrate import (
+    Substrate as Substrate,
+    as_substrate as as_substrate,
+)
 from pmrf.materials.conductor import (
     AbstractConductor as AbstractConductor,
     AbstractRoughness as AbstractRoughness,
@@ -40,4 +44,6 @@ __all__ = [
     "Hammerstad",
     "RoughConductor",
     "as_conductor",
+    "Substrate",
+    "as_substrate",
 ]
