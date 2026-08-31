@@ -11,7 +11,10 @@ from pmrf.models.base import Model
 from pmrf.covariance_kernels import RBFKernel
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.evaluators import Feature, TargetLoss, MarginalLogLikelihood, Negated, Goal
+from pmrf.evaluators import (
+    Feature, GibbsMarginalLogLikelihood, Goal, MarginalLogLikelihood, Negated,
+    TargetLoss, _orthogonal_projection,
+)
 from tests._dependency_checks import requires_distreqx_transpose
 
 dist = pytest.importorskip("distreqx.distributions")
@@ -216,36 +219,18 @@ def test_mll_complex_default_event_map(model, basic_freq):
 
 class ScaledModel(Model):
     """A 1-port model whose S11 varies over frequency and with two parameters."""
-    gain: float = 2.0
-    slope: float = 0.5
+    gain: jax.Array
+    slopes: jax.Array
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         f = jnp.asarray(freq.f_scaled)
-        return (self.gain + self.slope * f)[:, None, None].astype(complex)
-
-    def func_jacobian(self, fn, frequency):
-        """
-        Jacobian of `fn(self, frequency)` with respect to each parameter.
-
-        `pmrf.Model` does not currently provide `func_jacobian`, which
-        `use_orthogonal_discrepancy` relies on, so the test supplies it here.
-        """
-        names = ('gain', 'slope')
-
-        def wrapped(values):
-            m = self
-            for name, value in zip(names, values):
-                m = eqx.tree_at(lambda mm, n=name: getattr(mm, n), m, value)
-            return fn(m, frequency)
-
-        values = tuple(jnp.asarray(getattr(self, n), dtype=float) for n in names)
-        jacs = jax.jacobian(wrapped)(values)
-        return dict(zip(names, jacs))
+        response = self.gain + self.slopes[0] * f + self.slopes[1] * f**2
+        return response[:, None, None].astype(complex)
 
 
 @pytest.fixture
 def scaled_model():
-    return ScaledModel()
+    return ScaledModel(gain=jnp.array(2.0), slopes=jnp.array([0.5, 0.05]))
 
 
 def _unit_normal_likelihood(pred):
@@ -422,6 +407,57 @@ def test_conditional_transform_with_orthogonal_gp_discrepancy(scaled_model, basi
         jnp.asarray(2.0)
     )
     assert jnp.isfinite(grad)
+
+
+def test_orthogonal_projection_densifies_array_parameter_leaf(scaled_model, basic_freq):
+    """The length-two slopes leaf contributes two dense Jacobian columns."""
+    event_fn = lambda model: Feature('s11_mag')(model, basic_freq)
+    projection = _orthogonal_projection(event_fn, scaled_model)
+
+    assert not hasattr(scaled_model, "func_jacobian")
+    assert projection.shape == (basic_freq.npoints, basic_freq.npoints)
+    assert jnp.linalg.matrix_rank(jnp.eye(basic_freq.npoints) - projection) == 3
+
+    gp = GaussianProcess(kernel=RBFKernel(lengthscale=1.0), jitter=1e-8)
+    mean = event_fn(scaled_model)
+    projected_covariance = gp(
+        mean, basic_freq.f_scaled, orthogonal_projection=projection
+    ).covariance()
+    unprojected_covariance = gp(mean, basic_freq.f_scaled).covariance()
+    assert not jnp.allclose(projected_covariance, unprojected_covariance)
+
+
+def test_orthogonal_projection_preserves_batches_and_rejects_static_model(
+    scaled_model, model, basic_freq
+):
+    def batched_event_fn(candidate):
+        event = Feature('s11_mag')(candidate, basic_freq)
+        return jnp.stack((event, 2.0 * event))
+
+    projection = _orthogonal_projection(batched_event_fn, scaled_model)
+    assert projection.shape == (2, basic_freq.npoints, basic_freq.npoints)
+
+    with pytest.raises(ValueError, match="at least one differentiable JAX-array leaf"):
+        _orthogonal_projection(lambda candidate: candidate.s_mag(basic_freq), model)
+
+
+def test_gibbs_orthogonal_gp_discrepancy_uses_functional_derivative(
+    scaled_model, basic_freq
+):
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    gp = GaussianProcess(kernel=RBFKernel(lengthscale=1.0), jitter=1e-8)
+    gibbs = GibbsMarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        loss=lambda target, prediction: jnp.mean((target - prediction) ** 2),
+        discrepancy=gp,
+        use_orthogonal_discrepancy=True,
+        event_transform=bij.Shift(0.0),
+    )
+
+    value = gibbs(scaled_model, basic_freq)
+    assert value.shape == ()
+    assert jnp.isfinite(value)
 
 
 # ---------------------------------------------------------
