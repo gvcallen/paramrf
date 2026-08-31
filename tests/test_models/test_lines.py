@@ -16,7 +16,13 @@ from pmrf.models import (
     MicrostripLine, 
     FloatingLine
 )
-from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkar
+from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkar, RoughConductor
+from pmrf.models.components.lines.formulations import (
+    ConductorProperties,
+    DielectricProperties,
+    TescheCoaxialFormulation,
+    tube_internal_impedance,
+)
 
 @pytest.fixture
 def basic_freq():
@@ -156,12 +162,31 @@ def test_material_coercion():
     assert jnp.allclose(line.dielectric.ep_r.value, 2.25)
 
 
-def test_coaxial_line_matches_skrf(basic_freq):
-    """Validate the coaxial immittance against scikit-rf's Tesche coaxial media."""
+def test_coaxial_formulation_takes_plain_arrays(basic_freq):
+    """A coaxial formulation is callable without ParamRF objects."""
+    npoints = basic_freq.npoints
+    result = TescheCoaxialFormulation().immittance(
+        basic_freq,
+        d_in=0.9e-3,
+        d_out=2.95e-3,
+        dielectric=DielectricProperties(np.full(npoints, 2.25 - 0.00225j), np.ones(npoints)),
+        conductor=ConductorProperties(
+            np.full(npoints, 0.01 + 0.01j),
+            np.full(npoints, 1 / 1.72e-8),
+            np.ones(npoints),
+        ),
+    )
+    assert result.Z.shape == (npoints,)
+    assert result.Y.shape == (npoints,)
+
+
+def test_coaxial_line_matches_skrf_tesche_wideband():
+    """Validate Tesche's complete equivalent circuit over the full sweep."""
     skrf = pytest.importorskip("skrf")
     from skrf.media import Coaxial
 
     d_in, d_out, ep_r, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.72e-8
+    freq = Frequency.from_f(jnp.geomspace(1e3, 40e9, 101))
     line = CoaxialLine(
         d_in=d_in,
         d_out=d_out,
@@ -170,28 +195,48 @@ def test_coaxial_line_matches_skrf(basic_freq):
         length=0.5,
     )
     media = Coaxial(
-        basic_freq.to_skrf(),
+        freq.to_skrf(),
         Dint=d_in, Dout=d_out, epsilon_r=ep_r, tan_delta=tand, sigma=1 / rho,
         model='tesche',
     )
 
-    imm = line.immittance(basic_freq)
+    imm = line.immittance(freq)
 
-    # G and C agree to machine precision, L to 1e-6. R is looser for a known
-    # reason: scikit-rf implements Tesche's equivalent circuit, eq. (14),
-    # Z = Rdc + Zhf/(1 + Zhf/(jw*Lint)), which carries the DC resistance and the
-    # internal inductance of the rod. ParamRF implements only the Zhf term, the
-    # high-frequency asymptote, so the two converge as frequency rises and
-    # diverge without bound below the skin-depth transition. scikit-rf is the
-    # more complete model here; see the note on issue #63.
-    assert jnp.allclose(imm.R, media.R, rtol=1e-2)
+    assert jnp.allclose(imm.R, media.R, rtol=1e-6, atol=1e-12)
     assert jnp.allclose(imm.L, media.L, rtol=1e-6)
     assert jnp.allclose(imm.G, media.G, rtol=1e-12)
     assert jnp.allclose(imm.C, media.C, rtol=1e-12)
 
-    zc, gammaL = line.zc_and_gammaL(basic_freq)
+    zc, gammaL = line.zc_and_gammaL(freq)
     assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-4)
     assert jnp.allclose(gammaL / 0.5, media.gamma, rtol=1e-4)
+
+
+def test_coaxial_internal_impedance_tube():
+    """Tube arithmetic follows Tesche's equation (13)."""
+    skrf = pytest.importorskip("skrf")
+    from skrf.media import Coaxial
+
+    freq = Frequency.from_f(jnp.array([1e9]))
+    sigma, mu = jnp.array([1e7]), jnp.ones(1)
+    zs = jnp.sqrt(1j * freq.w * mu_0 / sigma)
+    radius, thickness = 1e-3, 0.2e-3
+    reference = Coaxial(
+        freq.to_skrf(), Dint=2 * radius, Dout=4 * radius,
+        sigma=float(sigma[0]), tout=thickness, model="tesche",
+    )
+    expected = reference._conductor_impedance(radius, thickness, None)
+    actual = tube_internal_impedance(zs, sigma, mu, radius, thickness, freq.w)
+    assert jnp.allclose(actual, expected)
+
+
+def test_rough_conductor_is_passed_to_coaxial_formulation():
+    freq = Frequency.from_f(jnp.array([1e6, 1e9]))
+    smooth = CoaxialLine(conductor=BulkConductor(1.68e-8), length=0.1)
+    rough = CoaxialLine(
+        conductor=RoughConductor(1.68e-8, roughness=1e-6), length=0.1
+    )
+    assert jnp.all(rough.immittance(freq).R > smooth.immittance(freq).R)
 
 
 def test_microstrip_line_matches_skrf(basic_freq):

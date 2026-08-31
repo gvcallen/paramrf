@@ -95,6 +95,8 @@ from pmrf.models.components.lines.formulations import (
     AbstractMicrostripDispersion as AbstractMicrostripDispersion,
     KirschningJansen as KirschningJansen,
     QuasiStaticResult as QuasiStaticResult,
+    DielectricProperties as DielectricProperties,
+    ConductorProperties as ConductorProperties,
 )
 
 from pmrf.models.components.lumped import (
