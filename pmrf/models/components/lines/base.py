@@ -243,6 +243,15 @@ class AbstractImmittanceLine(AbstractUniformLine):
     where $Z = R + j\omega L$ and $Y = G + j\omega C$. The total complex
     electrical length is $\gamma L$.
 
+    A line with no static loss has $Z = Y = 0$ at $\omega = 0$, where neither
+    root is defined. Both are continued there:
+    $$\gamma(0) = 0, \qquad Z_c(0) = Z_c(\omega_{min})$$
+    with $\omega_{min}$ the lowest non-zero frequency on the axis, matching how
+    :class:`ImmittanceResult` continues $L$ and $C$. A line whose $R$ and $G$
+    are both non-zero at DC keeps its genuine $Z_c(0) = \sqrt{R/G}$; one with
+    $R > 0$ and $G = 0$ has a genuinely infinite $Z_c(0)$, and takes the same
+    finite continuation rather than propagating an infinity into $S$.
+
     Parameters
     ----------
     length : Param
@@ -274,19 +283,25 @@ class AbstractImmittanceLine(AbstractUniformLine):
 
         w = immittance.w
 
-        # Both square roots are singular at DC on a line with no static loss,
-        # where Z = Y = 0: sqrt(Z/Y) is a raw 0/0 and sqrt(ZY) sits on the
-        # branch point, whose derivative diverges. Guard both with the
-        # double-`where` pattern so the gradient stays finite too.
+        # A vanishing ZY makes sqrt(ZY) sit on the branch point, where the
+        # derivative diverges, and sqrt(Z/Y) a raw 0/0. Both are guarded with
+        # the double-`where` pattern so the gradient stays finite as well as
+        # the value. gamma is zero wherever the product is; zc has no value at
+        # all, so the DC entry inherits the lowest non-zero frequency.
         product = Z * Y
-        singular_gamma = product == 0
-        safe_product = jnp.where(singular_gamma, 1.0, product)
-        gamma = jnp.where(singular_gamma, 0.0, jnp.sqrt(safe_product))
+        # The predicate is anchored on omega rather than on the product alone,
+        # matching the materials package: at omega > 0 a vanishing product is
+        # not a physical degeneracy, and its sqrt gradient is large but finite.
+        degenerate = (w <= 0) & (product == 0)
+        safe_product = jnp.where(degenerate, 1.0, product)
+        gamma = jnp.where(degenerate, 0.0, jnp.sqrt(safe_product))
 
-        singular_zc = (w <= 0) & singular_gamma
-        safe_Y = jnp.where(singular_zc, 1.0, Y)
-        ratio = jnp.where(singular_zc, 1.0, Z / safe_Y)
+        safe_Y = jnp.where(degenerate, 1.0, Y)
+        ratio = jnp.where(degenerate, 1.0, Z / safe_Y)
         zc = jnp.sqrt(ratio)
-        zc = jnp.where(singular_zc, jnp.take(zc, jnp.argmax(w > 0)), zc)
+        # A sweep of nothing but DC has no frequency to continue from, and
+        # `argmax` then selects the guarded entry itself. That axis carries no
+        # information about the line, so its Zc is left unspecified.
+        zc = jnp.where(degenerate, jnp.take(zc, jnp.argmax(w > 0)), zc)
 
         return zc, gamma * self.length

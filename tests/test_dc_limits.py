@@ -26,6 +26,9 @@ from pmrf.materials import (
     RoughConductor,
     TabulatedDielectric,
 )
+from pmrf.materials.conductor import AbstractConductor
+from pmrf.materials.dielectric import AbstractDielectric
+from pmrf.models.components.lines.base import TransmissionLine
 from pmrf.models import (
     CoaxialLine,
     DatasheetLine,
@@ -76,6 +79,12 @@ LINES = {
     "MicrostripLine (real convention)": MicrostripLine(
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         epsilon_convention="real",
+        length=0.1,
+    ),
+    "MicrostripLine (explicit KirschningJansen)": MicrostripLine(
+        formulation=WheelerMicrostripFormulation(),
+        dispersion=KirschningJansen(),
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         length=0.1,
     ),
     "MicrostripLine (finite thickness)": MicrostripLine(
@@ -163,3 +172,39 @@ def test_immittance_l_and_c_carry_the_lowest_frequency(dc_freq):
 
     assert jnp.allclose(immittance.L, 250e-9)
     assert jnp.allclose(immittance.C, 100e-12)
+
+
+def _concrete_subclasses(base):
+    """Every instantiable class under `base`, so a new model cannot slip the net.
+
+    A concrete class that is itself subclassed still counts -- `BulkConductor`
+    is directly usable as well as being the base of `RoughConductor`.
+    """
+    found = set()
+    pending = [base]
+    while pending:
+        cls = pending.pop()
+        pending.extend(cls.__subclasses__())
+        if cls is not base and not getattr(cls, "__abstractmethods__", None):
+            found.add(cls)
+    return found
+
+
+@pytest.mark.parametrize(
+    "base, covered",
+    [
+        (TransmissionLine, {type(line) for line in LINES.values()}),
+        (AbstractDielectric, {type(m) for m in MATERIALS.values()}),
+        (AbstractConductor, {type(m) for m in MATERIALS.values()}),
+    ],
+    ids=["lines", "dielectrics", "conductors"],
+)
+def test_dc_coverage_is_exhaustive(base, covered):
+    """A model added later must be added to `LINES` or `MATERIALS` as well.
+
+    The DC checks above are parametrised over hand-written instances, because
+    each model needs a physically sensible geometry. This test is what makes a
+    future model inherit them: it fails until the new class is listed.
+    """
+    missing = _concrete_subclasses(base) - covered
+    assert not missing, f"not covered by the DC checks: {sorted(c.__name__ for c in missing)}"
