@@ -7,6 +7,7 @@ import numpy as np
 
 from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine
+from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_sample
 from pmrf.parameters import Fixed, Random
 from pmrf.distributions import Normal
@@ -25,9 +26,8 @@ def truth_model():
     return CoaxialLine(
         din=1.12e-3, 
         dout=3.2e-3, 
-        epr=1.384, 
-        rho=1.6e-8, 
-        tand=0.001, 
+        dielectric=ConstantDielectric(epr=1.384, tand=0.001),
+        conductor=BulkConductor(rho=1.6e-8),
         length=0.1,  # Target length
         mur=1.0
     )
@@ -44,9 +44,8 @@ def starting_model():
     return CoaxialLine(
         din=Fixed(1.12e-3),
         dout=Fixed(3.2e-3),
-        epr=Fixed(1.384),
-        rho=Fixed(1.6e-8),
-        tand=Fixed(0.001),
+        dielectric=ConstantDielectric(epr=Fixed(1.384), tand=Fixed(0.001)),
+        conductor=BulkConductor(rho=Fixed(1.6e-8)),
         mur=Fixed(1.0),
         # Normal prior centered at 0.1 with standard deviation 0.05
         length=Random(Normal(0.1, 0.05), value=jnp.array(0.095))

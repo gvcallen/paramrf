@@ -7,7 +7,7 @@ from pmrf.frequency import Frequency
 from pmrf.constraints import Positive
 from pmrf.utils import field
 from pmrf.parameters import Param, param
-from pmrf.models.components.lines.base import AbstractUniformLine, AbstractRLGCLine, RLGCResult
+from pmrf.models.components.lines.base import AbstractUniformLine, AbstractImmittanceLine, ImmittanceResult
 
 
 class PhaseLine(AbstractUniformLine):
@@ -66,7 +66,7 @@ class PhaseLine(AbstractUniformLine):
         return zc, gammaL
 
 
-class RLGCLine(AbstractRLGCLine):
+class RLGCLine(AbstractImmittanceLine):
     r"""
     Transmission line with specified RLGC parameters.
 
@@ -116,9 +116,9 @@ class RLGCLine(AbstractRLGCLine):
     #: Capacitance in Farads/m
     C: Param = param(default=90e-12, constraint=Positive())
 
-    def rlgc(self, freq: Frequency) -> RLGCResult:
+    def immittance(self, freq: Frequency) -> ImmittanceResult:
         ones = jnp.ones(freq.npoints)
         R, L, G, C = self.R * ones, self.L * ones, self.G * ones, self.C * ones
 
-        return RLGCResult(R=R, L=L, G=G, C=C)
+        return ImmittanceResult.from_rlgc(R, L, G, C, freq.w)
     

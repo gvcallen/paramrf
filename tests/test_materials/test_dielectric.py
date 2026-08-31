@@ -68,15 +68,15 @@ def test_djordjevic_sarkar_matches_skrf(wideband_freq):
     skrf = pytest.importorskip("skrf")
     from skrf.media.mline import MLine
 
-    eps_r, tand = 4.3, 0.02
-    f_low, f_high, f_ref = 1e3, 1e12, 1e9
+    epr, tand = 4.3, 0.02
+    flow, fhigh, fref = 1e3, 1e12, 1e9
     f = np.asarray(wideband_freq.f)
 
     expected, _ = MLine.analyse_dielectric(
-        None, ep_r=eps_r, tand=tand, f_low=f_low, f_high=f_high,
-        f_epr_tand=f_ref, f=f, diel='djordjevicsvensson',
+        None, ep_r=epr, tand=tand, f_low=flow, f_high=fhigh,
+        f_epr_tand=fref, f=f, diel='djordjevicsvensson',
     )
-    got = DjordjevicSarkar(eps_r, tand, f_low, f_high, f_ref).epsilon_r(wideband_freq)
+    got = DjordjevicSarkar(epr, tand, flow, fhigh, fref).epsilon_r(wideband_freq)
 
     assert jnp.allclose(got, jnp.asarray(expected), rtol=1e-10, atol=0.0)
 

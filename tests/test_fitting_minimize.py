@@ -5,6 +5,7 @@ import numpy as np
 
 from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine
+from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_minimize
 from pmrf.parameters import Fixed, Bounded
 
@@ -17,9 +18,8 @@ def truth_model():
     return CoaxialLine(
         din=1.12e-3, 
         dout=3.2e-3, 
-        epr=1.384, 
-        rho=1.6e-8, 
-        tand=0.001, 
+        dielectric=ConstantDielectric(epr=1.384, tand=0.001),
+        conductor=BulkConductor(rho=1.6e-8),
         length=0.1,  # This is the target length we want to find (10 cm)
         mur=1.0
     )
@@ -40,9 +40,8 @@ def starting_model():
     return CoaxialLine(
         din=Fixed(1.12e-3),
         dout=Fixed(3.2e-3),
-        epr=Fixed(1.384),
-        rho=Fixed(1.6e-8),
-        tand=Fixed(0.001),
+        dielectric=ConstantDielectric(epr=Fixed(1.384), tand=Fixed(0.001)),
+        conductor=BulkConductor(rho=Fixed(1.6e-8)),
         mur=Fixed(1.0),
         # Start at 9.5 cm to stay within a fraction of a wavelength of 10 cm
         length=Bounded(0.05, 0.15, value=0.095)
