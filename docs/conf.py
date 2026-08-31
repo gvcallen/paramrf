@@ -152,7 +152,7 @@ autoclass_content = 'both'
 autosummary_generate = True
 autosummary_ignore_module_all = False
 templates_path = ['_templates']
-exclude_patterns = ['_templates', '_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_templates', '_build', 'Thumbs.db', '.DS_Store', 'agents']
 
 autodoc_default_options = {
     "members": True,
