@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import jax.numpy as jnp
 from pmrf.frequency import Frequency
 
@@ -13,6 +14,7 @@ from pmrf.models import (
     MicrostripLine, 
     FloatingLine
 )
+from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkar
 
 @pytest.fixture
 def basic_freq():
@@ -107,7 +109,11 @@ def test_coaxial_line_impedance(basic_freq):
     """Verify CoaxialLine matches the analytical Zc formula for a lossless coax."""
     # RG-58 dimensions roughly: epr=2.25, din=0.9mm, dout=2.95mm
     line = CoaxialLine(
-        din=0.9e-3, dout=2.95e-3, epr=2.25, length=1.0, tand=0.0, rho=0.0
+        din=0.9e-3,
+        dout=2.95e-3,
+        dielectric=ConstantDielectric(epr=2.25, tand=0.0),
+        conductor=BulkConductor(rho=0.0),
+        length=1.0,
     )
     
     # Extract Zc directly from the internal method
@@ -123,7 +129,13 @@ def test_coaxial_line_impedance(basic_freq):
 def test_microstrip_line_impedance(basic_freq):
     """Verify MicrostripLine evaluates Wheeler's formula correctly."""
     # Standard 50-ohm trace on 1.6mm FR4 (Er=4.3) is roughly 3.0mm wide
-    line = MicrostripLine(w=3.0e-3, h=1.6e-3, epr=4.3, length=0.1, tand=0.0, rho=0.0)
+    line = MicrostripLine(
+        w=3.0e-3,
+        h=1.6e-3,
+        dielectric=ConstantDielectric(epr=4.3, tand=0.0),
+        conductor=BulkConductor(rho=0.0),
+        length=0.1,
+    )
     
     zc, _ = line.zc_and_gammaL(basic_freq)
     
@@ -131,3 +143,102 @@ def test_microstrip_line_impedance(basic_freq):
     zc_real = jnp.real(zc)
     assert jnp.all(zc_real > 48.0)
     assert jnp.all(zc_real < 52.0)
+
+def test_material_coercion():
+    """Scalars and tuples coerce into the corresponding material modules."""
+    line = CoaxialLine(dielectric=(2.25, 0.001), conductor=1.68e-8, length=0.1)
+
+    assert isinstance(line.dielectric, ConstantDielectric)
+    assert isinstance(line.conductor, BulkConductor)
+    assert jnp.allclose(line.dielectric.epr.value, 2.25)
+
+
+def test_coaxial_line_matches_tesche_rlgc(basic_freq):
+    """The immittance reproduces the Tesche R, L, G, C expressions directly."""
+    din, dout, epr, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.68e-8
+    line = CoaxialLine(
+        din=din,
+        dout=dout,
+        dielectric=ConstantDielectric(epr=epr, tand=tand),
+        conductor=BulkConductor(rho=rho),
+        length=1.0,
+    )
+
+    imm = line.immittance(basic_freq)
+    w = basic_freq.w
+    a, b = din / 2, dout / 2
+    lnba = jnp.log(b / a)
+
+    L_ext = mu_0 / (2 * jnp.pi) * lnba
+    C = 2 * jnp.pi * epsilon_0 * epr / lnba
+    G = 2 * jnp.pi * w * epsilon_0 * epr * tand / lnba
+    rs = jnp.sqrt(w * mu_0 * rho / 2)
+    circumference = 1 / (2 * jnp.pi * a) + 1 / (2 * jnp.pi * b)
+
+    assert jnp.allclose(imm.R, rs * circumference, rtol=1e-10)
+    assert jnp.allclose(imm.L, L_ext + rs * circumference / w, rtol=1e-10)
+    assert jnp.allclose(imm.G, G, rtol=1e-10)
+    assert jnp.allclose(imm.C, C, rtol=1e-10)
+
+
+def test_immittance_rlgc_roundtrip(basic_freq):
+    """R, L, G, C are exact derived views on Z and Y."""
+    line = RLGCLine(R=0.5, G=1e-4, L=250e-9, C=100e-12, length=0.1)
+    imm = line.immittance(basic_freq)
+
+    assert jnp.allclose(imm.R, 0.5)
+    assert jnp.allclose(imm.L, 250e-9)
+    assert jnp.allclose(imm.G, 1e-4)
+    assert jnp.allclose(imm.C, 100e-12)
+
+
+def test_immittance_rlgc_at_dc():
+    """L and C stay finite when the axis includes DC."""
+    freq = Frequency(start=0.0, stop=1.0, npoints=3, unit='GHz')
+    line = RLGCLine(R=0.5, G=1e-4, L=250e-9, C=100e-12, length=0.1)
+    imm = line.immittance(freq)
+
+    assert jnp.all(jnp.isfinite(imm.L))
+    assert jnp.all(jnp.isfinite(imm.C))
+    assert jnp.allclose(imm.L, 250e-9)
+    assert jnp.allclose(imm.C, 100e-12)
+
+
+def test_dispersive_dielectric_is_grid_independent():
+    """
+    A dispersive material is a function of frequency alone, so the same line
+    evaluated on two different grids agrees at the frequencies they share.
+    """
+    line = CoaxialLine(
+        din=0.9e-3,
+        dout=2.95e-3,
+        dielectric=DjordjevicSarkar(epr=4.3, tand=0.02),
+        conductor=BulkConductor(rho=1.68e-8),
+        length=0.1,
+    )
+
+    coarse = Frequency(start=1.0, stop=5.0, npoints=5, unit='GHz')
+    fine = Frequency(start=1.0, stop=9.0, npoints=9, unit='GHz')
+
+    s_coarse = line.s(coarse)
+    s_fine = line.s(fine)
+
+    # The coarse grid is 1, 2, 3, 4, 5 GHz; the fine grid's first five points.
+    assert jnp.allclose(s_coarse, s_fine[:5], atol=1e-12)
+
+
+def test_microstrip_formulation_takes_plain_arrays(basic_freq):
+    """A formulation is pure numerics, callable with no ParamRF objects."""
+    from pmrf.models import WheelerMicrostripFormulation
+
+    npoints = basic_freq.npoints
+    eps_r = np.full(npoints, 4.3 - 0.086j)
+    zs = np.full(npoints, 0.01 + 0.01j)
+
+    result = WheelerMicrostripFormulation().run(
+        basic_freq, w=3.0e-3, h=1.6e-3, t=None, eps_r=eps_r, zs=zs
+    )
+
+    assert result.eps_eff.shape == (npoints,)
+    assert jnp.all(jnp.real(result.zc) > 40.0)
+    assert jnp.allclose(result.w_eff, 3.0e-3)

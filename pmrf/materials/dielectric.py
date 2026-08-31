@@ -26,6 +26,15 @@ class AbstractDielectric(Module):
     convention $\varepsilon_r = \varepsilon' - j\varepsilon''$ with
     $\varepsilon'' \geq 0$ for a passive medium. The static conductivity of the
     medium is included, so callers never see the split.
+
+    **Reference frequencies are material constants.** Fields such as
+    :attr:`DjordjevicSarkar.flow`, :attr:`DjordjevicSarkar.fhigh` and
+    :attr:`DjordjevicSarkar.fref` describe the medium, never the sweep, and must
+    never be defaulted from the analysis band. Deriving them that way would make
+    the same physical material give different answers depending on the band
+    asked about, re-trigger a JIT compilation on every new frequency grid, and
+    stop results being comparable across sweeps — which breaks any fitting
+    workflow that calibrates on one grid and validates on another.
     """
 
     @abstractmethod

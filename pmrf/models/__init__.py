@@ -66,8 +66,8 @@ from pmrf.models.components.ideal import (
 from pmrf.models.components.lines.base import (
     TransmissionLine as TransmissionLine,
     AbstractUniformLine as AbstractUniformLine,
-    AbstractRLGCLine as AbstractRLGCLine,
-    RLGCResult as RLGCResult,
+    AbstractImmittanceLine as AbstractImmittanceLine,
+    ImmittanceResult as ImmittanceResult,
 )
 
 from pmrf.models.components.lines.nodal import (
@@ -83,11 +83,15 @@ from pmrf.models.components.lines.physical import (
     PhysicalLine as PhysicalLine,
     DatasheetLine as DatasheetLine,
     CoaxialLine as CoaxialLine,
-    TescheCoaxialSolver as TescheCoaxialSolver,
     MicrostripLine as MicrostripLine,
-    WheelerMicrostripSolver as WheelerMicrostripSolver,
-    AbstractCoaxialSolver as AbstractCoaxialSolver,
-    AbstractMicrostripSolver as AbstractMicrostripSolver,
+)
+
+from pmrf.models.components.lines.formulations import (
+    AbstractCoaxialFormulation as AbstractCoaxialFormulation,
+    TescheCoaxialFormulation as TescheCoaxialFormulation,
+    AbstractMicrostripFormulation as AbstractMicrostripFormulation,
+    WheelerMicrostripFormulation as WheelerMicrostripFormulation,
+    QuasiStaticResult as QuasiStaticResult,
 )
 
 from pmrf.models.components.lumped import (

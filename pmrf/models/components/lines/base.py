@@ -14,11 +14,71 @@ from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
 
 
-class RLGCResult(eqx.Module):
-    R: jnp.ndarray
-    L: jnp.ndarray
-    G: jnp.ndarray
-    C: jnp.ndarray
+class ImmittanceResult(eqx.Module):
+    r"""
+    Per-unit-length series impedance and shunt admittance of a line.
+
+    Immittance is the internal currency between a formulation and a line.
+    $R$, $L$, $G$ and $C$ are derived views on it rather than the primary form,
+    because $L = \Im(Z)/\omega$ and $C = \Im(Y)/\omega$ both carry a removable
+    $0/0$ at DC that $(Z, Y)$ does not, and because
+    :meth:`AbstractImmittanceLine.zc_and_gammaL` then reduces to $\sqrt{Z/Y}$ and
+    $\sqrt{ZY}$ with no division by $\omega$ anywhere.
+
+    Parameters
+    ----------
+    Z : jnp.ndarray
+        Series impedance per unit length, $Z = R + j\omega L$, in ohm/m.
+    Y : jnp.ndarray
+        Shunt admittance per unit length, $Y = G + j\omega C$, in S/m.
+    w : jnp.ndarray
+        Angular frequency axis, kept so that `L` and `C` can be recovered.
+    """
+    #: Series impedance per unit length in ohm/m
+    Z: jnp.ndarray
+
+    #: Shunt admittance per unit length in S/m
+    Y: jnp.ndarray
+
+    #: Angular frequency axis in rad/s
+    w: jnp.ndarray
+
+    @classmethod
+    def from_rlgc(cls, R, L, G, C, w) -> "ImmittanceResult":
+        r"""Build an immittance from per-unit-length $R$, $L$, $G$ and $C$."""
+        w = jnp.asarray(w)
+        return cls(Z=R + 1j * w * L, Y=G + 1j * w * C, w=w)
+
+    @property
+    def R(self) -> jnp.ndarray:
+        """Series resistance per unit length in ohm/m."""
+        return jnp.real(self.Z)
+
+    @property
+    def G(self) -> jnp.ndarray:
+        """Shunt conductance per unit length in S/m."""
+        return jnp.real(self.Y)
+
+    @property
+    def L(self) -> jnp.ndarray:
+        r"""Series inductance per unit length in H/m, $\Im(Z)/\omega$."""
+        return self._per_w(jnp.imag(self.Z))
+
+    @property
+    def C(self) -> jnp.ndarray:
+        r"""Shunt capacitance per unit length in F/m, $\Im(Y)/\omega$."""
+        return self._per_w(jnp.imag(self.Y))
+
+    def _per_w(self, x: jnp.ndarray) -> jnp.ndarray:
+        # The DC limit is finite but reached as 0/0. Use the double-`where`
+        # pattern so both the value and its gradient stay well defined, then
+        # carry the lowest non-zero frequency into any DC entry, which is exact
+        # whenever the reactance is linear in omega there.
+        w = self.w
+        safe_w = jnp.where(w > 0, w, 1.0)
+        ratio = jnp.where(w > 0, x / safe_w, 0.0)
+        first = jnp.take(ratio, jnp.argmax(w > 0))
+        return jnp.where(w > 0, ratio, first)
 
 
 class TransmissionLine(Model):
@@ -140,21 +200,23 @@ class AbstractUniformLine(TransmissionLine):
         return y
 
 
-class AbstractRLGCLine(AbstractUniformLine):
+class AbstractImmittanceLine(AbstractUniformLine):
     r"""
     Abstract base class for a transmission line defined by its per-unit-length
-    RLGC (Resistance, Inductance, Conductance, Capacitance) parameters.
+    series impedance and shunt admittance.
 
-    Derived classes must implement `rlgc` to define how these parameters
-    behave over frequency.
+    Derived classes must implement `immittance` to define how those behave over
+    frequency. $R$, $L$, $G$ and $C$ remain available as derived views on
+    :class:`ImmittanceResult`.
 
     **Mathematical Formulation**
 
     The characteristic impedance ($Z_c$) and complex propagation constant ($\gamma$) are derived as:
-    $$Z_c = \sqrt{\frac{R + j\omega L}{G + j\omega C}}$$
-    $$\gamma = \sqrt{(R + j\omega L)(G + j\omega C)}$$
+    $$Z_c = \sqrt{\frac{Z}{Y}}$$
+    $$\gamma = \sqrt{ZY}$$
 
-    The total complex electrical length is $\gamma L$.
+    where $Z = R + j\omega L$ and $Y = G + j\omega C$. The total complex
+    electrical length is $\gamma L$.
 
     Parameters
     ----------
@@ -165,9 +227,9 @@ class AbstractRLGCLine(AbstractUniformLine):
     length: Param = param(constraint=Positive())
 
     @abstractmethod
-    def rlgc(self, freq: Frequency) -> RLGCResult:
+    def immittance(self, freq: Frequency) -> ImmittanceResult:
         r"""
-        Calculates the frequency-dependent RLGC parameters.
+        Calculates the frequency-dependent per-unit-length immittance.
 
         Parameters
         ----------
@@ -176,20 +238,16 @@ class AbstractRLGCLine(AbstractUniformLine):
 
         Returns
         -------
-        RLGCResult
-            The R, L, G, and C parameter vectors.
+        ImmittanceResult
+            The series impedance and shunt admittance vectors.
         """
-        raise NotImplementedError("'rlgc' must be implemented in the derived class")       
+        raise NotImplementedError("'immittance' must be implemented in the derived class")
 
     def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
-        w = frequency.w
-        
-        rlgc = self.rlgc(frequency)
+        immittance = self.immittance(frequency)
+        Z, Y = immittance.Z, immittance.Y
 
-        R, L, G, C = rlgc.R, rlgc.L, rlgc.G, rlgc.C
-        
-        zc = jnp.sqrt((R + 1j*w*L) / (G + 1j*w*C))
-        gamma = jnp.sqrt((R + 1j*w*L) * (G + 1j*w*C))
-        gammaL = gamma*self.length
-        
-        return zc, gammaL  
+        zc = jnp.sqrt(Z / Y)
+        gammaL = jnp.sqrt(Z * Y) * self.length
+
+        return zc, gammaL
