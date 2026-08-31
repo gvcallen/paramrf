@@ -91,6 +91,9 @@ from pmrf.models.components.lines.formulations import (
     TescheCoaxialFormulation as TescheCoaxialFormulation,
     AbstractMicrostripFormulation as AbstractMicrostripFormulation,
     WheelerMicrostripFormulation as WheelerMicrostripFormulation,
+    HammerstadJensenMicrostripFormulation as HammerstadJensenMicrostripFormulation,
+    AbstractMicrostripDispersion as AbstractMicrostripDispersion,
+    KirschningJansen as KirschningJansen,
     QuasiStaticResult as QuasiStaticResult,
 )
 

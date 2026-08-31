@@ -49,6 +49,31 @@ class ImmittanceResult(eqx.Module):
         w = jnp.asarray(w)
         return cls(Z=R + 1j * w * L, Y=G + 1j * w * C, w=w)
 
+    @classmethod
+    def from_zc_gamma(cls, zc, gamma, w) -> "ImmittanceResult":
+        r"""Invert characteristic impedance and propagation constant exactly.
+
+        The per-unit-length quantities are the exact bijection
+        $$Z = \gamma Z_c \qquad Y = \frac{\gamma}{Z_c}.$$
+
+        A passive line must have non-negative series resistance and shunt
+        conductance. Violating that condition indicates that an empirical
+        formulation has been evaluated outside its physical regime.
+        """
+        Z = gamma * zc
+        Y = gamma / zc
+        # Exact lossless products can leave round-off-sized negative real parts.
+        # Reject physical negativity while allowing that numerical noise floor.
+        z_tol = 64 * jnp.finfo(jnp.real(Z).dtype).eps * jnp.maximum(jnp.abs(Z), 1)
+        y_tol = 64 * jnp.finfo(jnp.real(Y).dtype).eps * jnp.maximum(jnp.abs(Y), 1)
+        Z = eqx.error_if(
+            Z, jnp.any(jnp.real(Z) < -z_tol), "inversion produced Re(Z) < 0"
+        )
+        Y = eqx.error_if(
+            Y, jnp.any(jnp.real(Y) < -y_tol), "inversion produced Re(Y) < 0"
+        )
+        return cls(Z=Z, Y=Y, w=jnp.asarray(w))
+
     @property
     def R(self) -> jnp.ndarray:
         """Series resistance per unit length in ohm/m."""

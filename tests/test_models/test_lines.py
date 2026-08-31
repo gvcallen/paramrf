@@ -1,6 +1,8 @@
 import pytest
 import numpy as np
+import jax
 import jax.numpy as jnp
+import equinox as eqx
 from pmrf.frequency import Frequency
 
 from scipy.constants import c, mu_0, epsilon_0
@@ -134,6 +136,7 @@ def test_microstrip_line_impedance(basic_freq):
         h=1.6e-3,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
         conductor=BulkConductor(rho=0.0),
+        dispersion=None,
         length=0.1,
     )
     
@@ -202,6 +205,7 @@ def test_microstrip_line_matches_skrf(basic_freq):
         h=H,
         dielectric=ConstantDielectric(ep_r=ep_r, tand=0.0),
         conductor=BulkConductor(rho=0.0),
+        dispersion=None,
         length=0.1,
     )
     media = MLine(
@@ -243,6 +247,16 @@ def test_immittance_rlgc_at_dc():
     assert jnp.allclose(imm.C, 100e-12)
 
 
+def test_immittance_inversion_rejects_non_passive_result():
+    """Exact (Zc, gamma) inversion surfaces non-physical empirical output."""
+    from pmrf.models import ImmittanceResult
+
+    with pytest.raises(eqx.EquinoxRuntimeError, match=r"Re\(Z\) < 0"):
+        ImmittanceResult.from_zc_gamma(
+            zc=jnp.array([50.0]), gamma=jnp.array([-1.0 + 1j]), w=jnp.array([1.0])
+        )
+
+
 def test_dispersive_dielectric_is_grid_independent():
     """
     A dispersive material is a function of frequency alone, so the same line
@@ -281,3 +295,242 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     assert result.ep_eff.shape == (npoints,)
     assert jnp.all(jnp.real(result.zc) > 40.0)
     assert jnp.allclose(result.w_eff, 3.0e-3)
+
+
+def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
+    """The dispersed modal solution survives exact immittance inversion."""
+    from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansen
+
+    freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
+    formulation = HammerstadJensenMicrostripFormulation()
+    dispersion = KirschningJansen()
+    line = MicrostripLine(
+        w=0.2e-3,
+        h=0.5e-3,
+        t=18e-6,
+        dielectric=ConstantDielectric(ep_r=10.0, tand=0.05),
+        conductor=BulkConductor(rho=1e-6),
+        formulation=formulation,
+        dispersion=dispersion,
+        length=0.1,
+    )
+
+    ep_r = line.dielectric.epsilon_r(freq)
+    zs = line.conductor.surface_impedance(freq)
+    quasi_static = formulation.quasi_static(
+        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+    )
+    ep_eff, expected_zc = dispersion.disperse(
+        freq,
+        ep_eff_0=quasi_static.ep_eff,
+        zc_0=quasi_static.zc,
+        ep_r=ep_r,
+        w=line.w,
+        w_eff=quasi_static.w_eff,
+        h=line.h,
+        t=line.t,
+    )
+
+    zc, gamma_length = line.zc_and_gammaL(freq)
+    gamma = gamma_length / line.length
+
+    assert jnp.allclose(zc, expected_zc, rtol=1e-12, atol=1e-12)
+    expected_beta = jnp.imag(1j * freq.w * jnp.sqrt(ep_eff) / c)
+    assert jnp.allclose(jnp.imag(gamma), expected_beta, rtol=1e-12, atol=1e-12)
+
+
+def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
+    """Disabling stage three reproduces the pre-dispersion pipeline exactly."""
+    freq = Frequency(start=1.0, stop=20.0, npoints=21, unit="GHz")
+    line = MicrostripLine(
+        w=3e-3,
+        h=1.6e-3,
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
+        conductor=BulkConductor(rho=1.72e-8),
+        dispersion=None,
+        length=0.1,
+    )
+
+    ep_r = line.dielectric.epsilon_r(freq)
+    zs = line.conductor.surface_impedance(freq)
+    quasi_static = line.formulation.quasi_static(
+        freq, w=line.w, h=line.h, t=line.t, ep_r=ep_r, zs=zs
+    )
+
+    actual = line.immittance(freq)
+    expected = quasi_static.to_immittance(freq, zs)
+    assert jnp.array_equal(actual.Z, expected.Z)
+    assert jnp.array_equal(actual.Y, expected.Y)
+
+
+def test_microstrip_defaults_to_kirschning_jansen():
+    """Modal dispersion is the accuracy-oriented microstrip default."""
+    from pmrf.models import KirschningJansen
+
+    assert isinstance(MicrostripLine(length=0.1).dispersion, KirschningJansen)
+
+
+def test_hammerstad_jensen_finite_thickness_matches_skrf():
+    """The thickness-aware quasi-static formulation agrees with scikit-rf."""
+    from skrf.media import MLine
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    freq = Frequency(start=1.0, stop=10.0, npoints=10, unit="GHz")
+    formulation = HammerstadJensenMicrostripFormulation()
+    ep_r = jnp.full(freq.npoints, 4.3)
+    result = formulation.quasi_static(
+        freq, w=1e-3, h=1e-3, t=35e-6, ep_r=ep_r, zs=jnp.zeros(freq.npoints)
+    )
+    media = MLine(
+        freq.to_skrf(),
+        w=1e-3,
+        h=1e-3,
+        t=35e-6,
+        ep_r=4.3,
+        tand=0.0,
+        rho=1.68e-8,
+        rough=0.0,
+        model="hammerstadjensen",
+        disp="none",
+        diel="frequencyinvariant",
+    )
+
+    assert jnp.allclose(result.zc, media.z0_characteristic, rtol=1e-12)
+    assert jnp.allclose(result.ep_eff, media.ep_reff, rtol=1e-12)
+    assert jnp.allclose(result.w_eff, media.w_eff, rtol=1e-12)
+
+
+@pytest.mark.parametrize("ep_r", [2.2, 4.3, 10.0])
+@pytest.mark.parametrize("width_height", [0.1, 1.0, 10.0])
+def test_kirschning_jansen_matches_skrf(ep_r, width_height):
+    """Kirschning--Jansen agrees with its independent scikit-rf implementation."""
+    from skrf.media import MLine
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    freq = Frequency(start=0.1, stop=50.0, npoints=101, unit="GHz")
+    h = 1e-3
+    line = MicrostripLine(
+        w=width_height * h,
+        h=h,
+        dielectric=ConstantDielectric(ep_r=ep_r, tand=0.0),
+        conductor=BulkConductor(rho=0.0),
+        formulation=HammerstadJensenMicrostripFormulation(),
+        length=0.1,
+    )
+    media = MLine(
+        freq.to_skrf(),
+        w=width_height * h,
+        h=h,
+        ep_r=ep_r,
+        tand=0.0,
+        rho=0.0,
+        rough=0.0,
+        model="hammerstadjensen",
+        disp="kirschningjansen",
+        diel="frequencyinvariant",
+        compatibility_mode=None,
+    )
+
+    zc, gamma_length = line.zc_and_gammaL(freq)
+    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-3)
+    assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("convention", "compatibility_mode"),
+    [("complex", None), ("real", "qucs")],
+)
+def test_microstrip_epsilon_convention_matches_skrf(convention, compatibility_mode):
+    """Both documented permittivity conventions match their scikit-rf modes."""
+    from skrf.media import MLine
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
+    line = MicrostripLine(
+        w=1e-3,
+        h=1e-3,
+        t=35e-6,
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
+        conductor=BulkConductor(rho=1.68e-8),
+        formulation=HammerstadJensenMicrostripFormulation(),
+        epsilon_convention=convention,
+        length=0.1,
+    )
+    media = MLine(
+        freq.to_skrf(),
+        w=1e-3,
+        h=1e-3,
+        t=35e-6,
+        ep_r=4.3,
+        tand=0.02,
+        rho=1.68e-8,
+        rough=0.0,
+        model="hammerstadjensen",
+        disp="kirschningjansen",
+        diel="frequencyinvariant",
+        compatibility_mode=compatibility_mode,
+    )
+
+    zc, gamma_length = line.zc_and_gammaL(freq)
+    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-3)
+    assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
+
+
+def test_real_epsilon_convention_retains_loss_without_modal_dispersion():
+    """The convention switch is independent of enabling modal dispersion."""
+    freq = Frequency(start=1.0, stop=10.0, npoints=10, unit="GHz")
+    line = MicrostripLine(
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
+        conductor=BulkConductor(rho=0.0),
+        dispersion=None,
+        epsilon_convention="real",
+        length=0.1,
+    )
+
+    assert jnp.all(line.immittance(freq).G > 0)
+
+
+def test_microstrip_rejects_unknown_epsilon_convention():
+    with pytest.raises(ValueError, match="epsilon_convention"):
+        MicrostripLine(epsilon_convention="hybrid", length=0.1)
+
+
+def test_microstrip_near_air_has_finite_conductance_and_gradient():
+    """The old filling-factor singularity cannot return at εr approaching one."""
+    freq = Frequency(start=1.0, stop=5.0, npoints=5, unit="GHz")
+
+    def response(ep_r):
+        line = MicrostripLine(
+            w=1e-3,
+            h=1e-3,
+            dielectric=ConstantDielectric(ep_r=ep_r, tand=0.02),
+            conductor=BulkConductor(rho=0.0),
+            length=0.1,
+        )
+        return jnp.real(line.s(freq)[-1, 0, 0])
+
+    near_air = MicrostripLine(
+        w=1e-3,
+        h=1e-3,
+        dielectric=ConstantDielectric(ep_r=1.0 + 1e-12, tand=0.02),
+        conductor=BulkConductor(rho=0.0),
+        length=0.1,
+    )
+    near_air_g = near_air.immittance(freq).G
+    slightly_above = MicrostripLine(
+        w=1e-3,
+        h=1e-3,
+        dielectric=ConstantDielectric(ep_r=1.0 + 2e-12, tand=0.02),
+        conductor=BulkConductor(rho=0.0),
+        length=0.1,
+    ).immittance(freq).G
+    assert jnp.all(jnp.isfinite(near_air_g))
+    assert jnp.allclose(near_air_g, slightly_above, rtol=1e-10, atol=1e-12)
+
+    gradients = jax.vmap(jax.grad(response))(jnp.linspace(1.0 + 1e-12, 12.0, 25))
+    assert jnp.all(jnp.isfinite(gradients))
+
+
+def test_coaxial_line_has_no_modal_dispersion_field():
+    """Homogeneously filled coax has no modal-dispersion stage."""
+    assert not hasattr(CoaxialLine(length=0.1), "dispersion")
