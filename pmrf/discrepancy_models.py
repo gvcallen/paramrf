@@ -7,6 +7,7 @@ from collections.abc import Callable
 from abc import abstractmethod
 
 import equinox as eqx
+import jax.scipy as jsp
 import jax.numpy as jnp
 import distreqx.distributions as dist
 
@@ -80,6 +81,74 @@ class GaussianProcess(AbstractDiscrepancyModel):
     
     #: The added jitter.
     jitter: float = field(default=1e-10, static=True)
+
+    def orthogonal_log_prob(
+        self,
+        y_event: jnp.ndarray,
+        observed: jnp.ndarray,
+        x: jnp.ndarray,
+        noise_variance: jnp.ndarray,
+        basis,
+    ) -> jnp.ndarray:
+        r"""Evaluate the full-data ``P K P^T + sigma^2 I`` Gaussian density.
+
+        This uses its nonsingular block factorization; it is not REML. In particular,
+        the tangent-space block is retained because it depends on the fitted mean and
+        measurement noise.
+        """
+        K = gram(self.kernel, x, jitter=self.jitter)
+        variance = jnp.asarray(noise_variance)
+        n = y_event.shape[-1]
+        # Keep M at the smallest broadcast batch shape. Its Cholesky is then shared
+        # automatically across any additional event/basis batch axes.
+        M = K + variance[..., None, None] * jnp.eye(n, dtype=K.dtype)
+        chol_M = jnp.linalg.cholesky(M)
+
+        def chol_solve(chol, rhs):
+            solved = jsp.linalg.solve_triangular(chol, rhs, lower=True)
+            return jsp.linalg.solve_triangular(
+                jnp.swapaxes(chol, -1, -2), solved, lower=False
+            )
+
+        residual = observed - y_event
+        Q1 = basis.vectors
+        mask = basis.mask
+        minv_Q1 = chol_solve(chol_M, Q1)
+        minv_r = chol_solve(chol_M, residual[..., None])[..., 0]
+        Q1_T = jnp.swapaxes(Q1, -1, -2)
+        small = Q1_T @ minv_Q1
+        # Rejected SVD columns are padded zeros. Giving those slots an identity block
+        # preserves a static shape without contributing to either determinant.
+        small = small + (
+            jnp.eye(small.shape[-1], dtype=small.dtype)
+            * (~mask).astype(small.dtype)[..., None, :]
+        )
+        chol_small = jnp.linalg.cholesky(small)
+        coupling = (Q1_T @ minv_r[..., None])[..., 0]
+        corrected = jnp.sum(
+            coupling * chol_solve(chol_small, coupling[..., None])[..., 0], axis=-1
+        )
+        tangent = (Q1_T @ residual[..., None])[..., 0]
+
+        logdet_M = 2 * jnp.sum(
+            jnp.log(jnp.diagonal(chol_M, axis1=-2, axis2=-1)), axis=-1
+        )
+        logdet_small = 2 * jnp.sum(
+            jnp.log(jnp.diagonal(chol_small, axis1=-2, axis2=-1)), axis=-1
+        )
+        rank = jnp.sum(mask, axis=-1)
+        quadratic = (
+            jnp.sum(tangent**2, axis=-1) / variance
+            + jnp.sum(residual * minv_r, axis=-1)
+            - corrected
+        )
+        normalizer = (
+            n * jnp.log(2 * jnp.pi)
+            + rank * jnp.log(variance)
+            + logdet_M
+            + logdet_small
+        )
+        return -0.5 * (normalizer + quadratic)
 
     def __call__(self, y_event: jnp.ndarray, x: jnp.ndarray, orthogonal_projection: jnp.ndarray | None = None) -> dist.AbstractDistribution:
         """

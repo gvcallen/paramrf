@@ -5,10 +5,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import distreqx.bijectors as bij
+import pmrf as prf
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.covariance_kernels import RBFKernel
+from pmrf.covariance_kernels import RBFKernel, gram
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.evaluators import (
@@ -233,6 +234,24 @@ def scaled_model():
     return ScaledModel(gain=jnp.array(2.0), slopes=jnp.array([0.5, 0.05]))
 
 
+class RankDeficientModel(Model):
+    coefficients: jax.Array
+
+    def event(self, x):
+        # The final two columns are identical, so J has rank two rather than three.
+        return self.coefficients[0] + (
+            self.coefficients[1] + self.coefficients[2]
+        ) * x
+
+
+class FreeFixedModel(Model):
+    free_coefficient: object
+    fixed_coefficient: object
+
+    def event(self, x):
+        return self.free_coefficient * x + self.fixed_coefficient * x**2
+
+
 def _unit_normal_likelihood(pred):
     """A fixed unit-variance Normal likelihood over a deterministic prediction."""
     return dist.Normal(pred, jnp.ones_like(pred))
@@ -384,8 +403,9 @@ def test_conditional_transform_with_orthogonal_gp_discrepancy(scaled_model, basi
         likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
         discrepancy=gp,
         use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8,
         event_transform=conditional,
-    )
+    ).with_orthogonal_reference(scaled_model, basic_freq)
 
     log_prob = mll(scaled_model, basic_freq)
     assert log_prob.shape == ()
@@ -412,7 +432,11 @@ def test_conditional_transform_with_orthogonal_gp_discrepancy(scaled_model, basi
 def test_orthogonal_projection_densifies_array_parameter_leaf(scaled_model, basic_freq):
     """The length-two slopes leaf contributes two dense Jacobian columns."""
     event_fn = lambda model: Feature('s11_mag')(model, basic_freq)
-    projection = _orthogonal_projection(event_fn, scaled_model)
+    basis = _orthogonal_projection(event_fn, scaled_model, rcond=1e-8)
+    projection = (
+        jnp.eye(basic_freq.npoints)
+        - basis.vectors @ jnp.swapaxes(basis.vectors, -1, -2)
+    )
 
     assert not hasattr(scaled_model, "func_jacobian")
     assert projection.shape == (basic_freq.npoints, basic_freq.npoints)
@@ -434,7 +458,11 @@ def test_orthogonal_projection_preserves_batches_and_rejects_static_model(
         event = Feature('s11_mag')(candidate, basic_freq)
         return jnp.stack((event, 2.0 * event))
 
-    projection = _orthogonal_projection(batched_event_fn, scaled_model)
+    basis = _orthogonal_projection(batched_event_fn, scaled_model, rcond=1e-8)
+    projection = (
+        jnp.eye(basic_freq.npoints)
+        - basis.vectors @ jnp.swapaxes(basis.vectors, -1, -2)
+    )
     assert projection.shape == (2, basic_freq.npoints, basic_freq.npoints)
     projection_T = jnp.swapaxes(projection, -1, -2)
     assert jnp.allclose(projection, projection_T, atol=1e-8)
@@ -453,26 +481,129 @@ def test_orthogonal_projection_preserves_batches_and_rejects_static_model(
         basic_freq.npoints,
     )
 
-    with pytest.raises(ValueError, match="at least one differentiable JAX-array leaf"):
-        _orthogonal_projection(lambda candidate: candidate.s_mag(basic_freq), model)
+    with pytest.raises(ValueError, match="at least one free parameter"):
+        _orthogonal_projection(
+            lambda candidate: candidate.s_mag(basic_freq), model, rcond=1e-8
+        )
+
+
+def test_orthogonal_basis_uses_only_free_parameters():
+    x = jnp.linspace(-1.0, 1.0, 7)
+    model = FreeFixedModel(
+        free_coefficient=prf.Unconstrained(2.0),
+        fixed_coefficient=prf.Fixed(3.0),
+    )
+    basis = _orthogonal_projection(lambda candidate: candidate.event(x), model, rcond=1e-10)
+    assert tuple(model.named_params(free_only=True)) == ("free_coefficient",)
+    assert jnp.sum(basis.mask) == 1
+
+
+def test_orthogonal_block_density_matches_dense_rank_deficient_reference():
+    x = jnp.linspace(-1.0, 1.0, 7)
+    model = RankDeficientModel(coefficients=jnp.array([0.4, 0.2, -0.1]))
+    basis = _orthogonal_projection(lambda candidate: candidate.event(x), model, rcond=1e-10)
+    assert jnp.sum(basis.mask) == 2
+
+    gp = GaussianProcess(kernel=RBFKernel(lengthscale=0.4), jitter=1e-10)
+    mean = model.event(x)
+    observed = jnp.sin(x)
+    variance = jnp.asarray(0.07)
+    block = gp.orthogonal_log_prob(mean, observed, x, variance, basis)
+
+    Q1 = basis.vectors
+    P = jnp.eye(x.size) - Q1 @ Q1.T
+    K = gram(gp.kernel, x, jitter=gp.jitter)
+    covariance = P @ K @ P.T + variance * jnp.eye(x.size)
+    dense = dist.MultivariateNormalFullCovariance(mean, covariance).log_prob(observed)
+    assert jnp.allclose(block, dense, rtol=1e-9, atol=1e-9)
+
+
+def test_fixed_orthogonal_density_eager_jit_and_finite_difference(scaled_model, basic_freq):
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
+        discrepancy=GaussianProcess(RBFKernel(lengthscale=0.7), jitter=1e-10),
+        use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8,
+        event_transform=bij.Shift(0.0),
+    ).with_orthogonal_reference(scaled_model, basic_freq)
+
+    def objective(gain):
+        candidate = eqx.tree_at(lambda item: item.gain, scaled_model, gain)
+        return mll(candidate, basic_freq)
+
+    gain = scaled_model.gain
+    eager = objective(gain)
+    compiled = jax.jit(objective)(gain)
+    assert eager == compiled
+
+    automatic = jax.grad(objective)(gain)
+    step = jnp.asarray(1e-5, dtype=gain.dtype)
+    finite_difference = (objective(gain + step) - objective(gain - step)) / (2 * step)
+    assert jnp.allclose(automatic, finite_difference, rtol=2e-5, atol=2e-5)
+
+
+def test_recomputed_orthogonal_density_gradient_includes_basis_derivative(
+    scaled_model, basic_freq
+):
+    observed = jnp.linspace(1.0, 3.0, basic_freq.npoints)
+
+    def conditional(y_pred):
+        return bij.ScalarAffine(
+            shift=jnp.zeros_like(y_pred),
+            scale=1.0 / (1.0 + jnp.mean(y_pred**2)),
+        )
+
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
+        discrepancy=GaussianProcess(RBFKernel(lengthscale=0.7), jitter=1e-10),
+        use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8,
+        orthogonal_recompute=True,
+        event_transform=conditional,
+    )
+
+    def objective(gain):
+        candidate = eqx.tree_at(lambda item: item.gain, scaled_model, gain)
+        return mll(candidate, basic_freq)
+
+    gain = scaled_model.gain
+    automatic = jax.grad(objective)(gain)
+    step = jnp.asarray(1e-5, dtype=gain.dtype)
+    finite_difference = (objective(gain + step) - objective(gain - step)) / (2 * step)
+    assert jnp.allclose(automatic, finite_difference, rtol=2e-4, atol=2e-4)
 
 
 def test_mll_batched_orthogonal_gp_discrepancy(scaled_model, basic_freq):
     def batched_predictor(candidate, frequency):
         prediction = Feature('s11_mag')(candidate, frequency)
-        return jnp.stack((prediction, 2.0 * prediction))
+        return jnp.stack(
+            (
+                jnp.stack((prediction, 2.0 * prediction)),
+                jnp.stack((3.0 * prediction, 4.0 * prediction)),
+            )
+        )
 
-    observed = jnp.ones((2, basic_freq.npoints))
+    def batched_kernel(x1, x2):
+        squared_distance = jnp.sum((x1 - x2) ** 2)
+        return jnp.exp(-jnp.array([0.5, 1.5]) * squared_distance)
+
+    observed = jnp.ones((2, 2, basic_freq.npoints))
     mll = MarginalLogLikelihood(
         predictor=batched_predictor,
         observed=observed,
         likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
         discrepancy=GaussianProcess(
-            kernel=RBFKernel(lengthscale=1.0), jitter=1e-8
+            kernel=batched_kernel, jitter=1e-8
         ),
         use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8,
         event_transform=bij.Shift(0.0),
-    )
+    ).with_orthogonal_reference(scaled_model, basic_freq)
 
     log_prob = mll(scaled_model, basic_freq)
     assert log_prob.shape == ()
@@ -490,8 +621,9 @@ def test_gibbs_orthogonal_gp_discrepancy_uses_functional_derivative(
         loss=lambda target, prediction: jnp.mean((target - prediction) ** 2),
         discrepancy=gp,
         use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8,
         event_transform=bij.Shift(0.0),
-    )
+    ).with_orthogonal_reference(scaled_model, basic_freq)
 
     value = gibbs(scaled_model, basic_freq)
     assert value.shape == ()
