@@ -180,3 +180,13 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Agent tooling and skills (local only, never pushed)
+.claude/
+.agents/
+skills-lock.json
+
+# Local secrets — GitHub tokens, API keys. Never commit.
+.secrets/
+*.token
+.env.local
