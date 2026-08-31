@@ -92,9 +92,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
         x : jnp.ndarray
             The frequency points, with shape `(N,)`.
         orthogonal_projection : jnp.ndarray, optional
-            An optional matrix P of shape (N, N) which the kernel matrix
-            is projected onto using P @ K @ P.T. This can be used to
-            specify the subspace which the kernel is allowed.
+            An optional matrix P of shape ``(..., N, N)`` which the kernel
+            matrix is projected onto using ``P @ K @ P^T``. This can be used
+            to specify the subspace which the kernel is allowed.
 
         Returns
         -------
@@ -109,7 +109,8 @@ class GaussianProcess(AbstractDiscrepancyModel):
         K = gram(self.kernel, x, jitter=self.jitter)
         
         if orthogonal_projection is not None:
-            K = orthogonal_projection @ K @ orthogonal_projection.T
+            projection_T = jnp.swapaxes(orthogonal_projection, -1, -2)
+            K = orthogonal_projection @ K @ projection_T
 
         target_K_shape = y_event.shape[:-1] + K.shape[-2:]
         K = jnp.broadcast_to(K, target_K_shape)

@@ -436,9 +436,47 @@ def test_orthogonal_projection_preserves_batches_and_rejects_static_model(
 
     projection = _orthogonal_projection(batched_event_fn, scaled_model)
     assert projection.shape == (2, basic_freq.npoints, basic_freq.npoints)
+    projection_T = jnp.swapaxes(projection, -1, -2)
+    assert jnp.allclose(projection, projection_T, atol=1e-8)
+    assert jnp.allclose(projection @ projection, projection, atol=1e-8)
+
+    gp = GaussianProcess(kernel=RBFKernel(lengthscale=1.0), jitter=1e-8)
+    batched_event = batched_event_fn(scaled_model)
+    projected = gp(
+        batched_event,
+        basic_freq.f_scaled,
+        orthogonal_projection=projection,
+    )
+    assert projected.covariance().shape == (
+        2,
+        basic_freq.npoints,
+        basic_freq.npoints,
+    )
 
     with pytest.raises(ValueError, match="at least one differentiable JAX-array leaf"):
         _orthogonal_projection(lambda candidate: candidate.s_mag(basic_freq), model)
+
+
+def test_mll_batched_orthogonal_gp_discrepancy(scaled_model, basic_freq):
+    def batched_predictor(candidate, frequency):
+        prediction = Feature('s11_mag')(candidate, frequency)
+        return jnp.stack((prediction, 2.0 * prediction))
+
+    observed = jnp.ones((2, basic_freq.npoints))
+    mll = MarginalLogLikelihood(
+        predictor=batched_predictor,
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=jnp.array(0.1)),
+        discrepancy=GaussianProcess(
+            kernel=RBFKernel(lengthscale=1.0), jitter=1e-8
+        ),
+        use_orthogonal_discrepancy=True,
+        event_transform=bij.Shift(0.0),
+    )
+
+    log_prob = mll(scaled_model, basic_freq)
+    assert log_prob.shape == ()
+    assert jnp.isfinite(log_prob)
 
 
 def test_gibbs_orthogonal_gp_discrepancy_uses_functional_derivative(
