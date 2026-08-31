@@ -271,7 +271,7 @@ class CoaxialLine(AbstractImmittanceLine):
     formulation: AbstractCoaxialFormulation = field(default_factory=TescheCoaxialFormulation)
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
-        return self.formulation.run(
+        return self.formulation.immittance(
             freq,
             din=self.din,
             dout=self.dout,
@@ -356,7 +356,7 @@ class MicrostripLine(AbstractImmittanceLine):
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         zs = self.conductor.surface_impedance(freq)
 
-        quasi_static = self.formulation.run(
+        quasi_static = self.formulation.quasi_static(
             freq,
             w=self.w,
             h=self.h,

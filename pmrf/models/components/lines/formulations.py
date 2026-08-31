@@ -19,12 +19,15 @@ from pmrf.models.components.lines.base import ImmittanceResult
 
 class QuasiStaticResult(eqx.Module):
     r"""
-    Quasi-static solution of a planar line.
+    Quasi-static solution of a single-conductor planar line over a ground plane.
 
     A quasi-static formulation stops at the effective permittivity, the
     characteristic impedance it implies and the effective conductor width; the
     line turns those into an immittance, and a dispersion model may correct them
     first.
+
+    Coupled lines are not this type: they carry a solution per mode, so they
+    need their own result.
 
     Parameters
     ----------
@@ -96,7 +99,7 @@ class AbstractCoaxialFormulation(eqx.Module):
     surface impedance.
     """
     @abstractmethod
-    def run(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
 
@@ -155,7 +158,7 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def run(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, din, dout, eps_r, mu_r, conductor: AbstractConductor) -> ImmittanceResult:
         eps = epsilon_0 * eps_r
         mu = mu_0 * mu_r
         w = freq.w
@@ -185,7 +188,7 @@ class AbstractMicrostripFormulation(eqx.Module):
     published equations with no ParamRF objects in sight.
     """
     @abstractmethod
-    def run(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
         r"""
         Calculates the quasi-static solution of the line.
 
@@ -239,7 +242,7 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane.
     IEEE Transactions on Microwave Theory and Techniques.
     """
-    def run(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, freq: Frequency, *, w, h, t, eps_r, zs) -> QuasiStaticResult:
         if t is not None:
             raise ValueError("Wheeler microstrip approximation does not support finite thickness")
 

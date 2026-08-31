@@ -269,7 +269,7 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     eps_r = np.full(npoints, 4.3 - 0.086j)
     zs = np.full(npoints, 0.01 + 0.01j)
 
-    result = WheelerMicrostripFormulation().run(
+    result = WheelerMicrostripFormulation().quasi_static(
         basic_freq, w=3.0e-3, h=1.6e-3, t=None, eps_r=eps_r, zs=zs
     )
 
