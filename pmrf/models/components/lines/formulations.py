@@ -42,6 +42,7 @@ from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
     CohnCurrentDistribution,
     WheelerCurrentDistribution,
+    _wheeler_current_factor,
 )
 from pmrf.models.components.lines.base import ImmittanceResult
 
@@ -139,7 +140,7 @@ class PlanarQuasiStaticResult(eqx.Module):
             Z_cond = sum(
                 shape.impedance(w, conductor) * weight
                 for shape, weight in current_distribution.distribute(
-                    freq, zc=self.zc, **geometry
+                    freq, zc=self.zc, conductor=conductor, **geometry
                 )
             )
         Z = Z + Z_cond
@@ -860,9 +861,7 @@ def _wheeler_conductor_loss_factor(w, zc):
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
     IRE, 30(9), 412-424.
     """
-    z0 = jnp.sqrt(mu_0 / epsilon_0)
-    current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-    return 2 / w * current_distribution
+    return 2 / w * _wheeler_current_factor(zc)
 
 
 def _microstrip_conductance_factor(ep_r, ep_eff, zc):

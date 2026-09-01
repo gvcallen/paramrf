@@ -548,7 +548,7 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     ).to_immittance(
         freq, dielectric, conductor,
         current_distribution=line.current_distribution,
-        w=line.w, t=line.substrate.t,
+        w=line.w, h=line.substrate.h, t=line.substrate.t,
     )
 
     actual = line.immittance(freq)
@@ -584,6 +584,10 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         freq,
         line.substrate.dielectric.properties(freq),
         line.substrate.conductor.properties(freq),
+        current_distribution=line.current_distribution,
+        w=line.w,
+        h=line.substrate.h,
+        t=line.substrate.t,
     )
     assert jnp.array_equal(actual.Z, expected.Z)
     assert jnp.array_equal(actual.Y, expected.Y)
@@ -593,7 +597,7 @@ def test_microstrip_dispersion_is_a_pure_dispersion_toggle():
     """Turning dispersion off must not change *which* conductor loss applies.
 
     Both the quasi-static path (``PlanarQuasiStaticResult.to_immittance``) and
-    the dispersion path charge Wheeler's incremental-inductance rule, so
+    the dispersion path charge the selected trace/ground strategy, so
     disabling dispersion with an identity dispersion formulation (one that
     hands the quasi-static ep_eff/zc straight through, unchanged) reproduces
     the quasi-static attenuation to the accuracy of the quasi-static path's

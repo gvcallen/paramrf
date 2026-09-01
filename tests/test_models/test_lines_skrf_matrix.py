@@ -59,6 +59,7 @@ from pmrf.models import (
     MicrostripLine,
     SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation,
+    WheelerCurrentDistribution,
     WheelerMicrostripFormulation,
 )
 
@@ -371,6 +372,7 @@ def _microstrip_pair(*, w, h, t, ep_r, tand, rho, dispersion, diel, formulation,
             conductor=BulkConductor(sigma=_sigma_of_rho(rho)),
             formulation=formulation(),
             dispersion=None if dispersion is None else dispersion(),
+            current_distribution=WheelerCurrentDistribution(),
             length=length,
         )
 
@@ -673,6 +675,36 @@ def test_microstrip_matches_skrf_s_parameters(case):
     _assert_close(line.s(WIDEBAND, z0=case.z0), expected, "s", case)
 
 
+def test_split_microstrip_records_its_deliberate_departure_from_skrf_wheeler():
+    r"""The new default and scikit-rf deliberately charge different surfaces.
+
+    At this 49-ohm strong-skin cross-section, scikit-rf's MLine uses its
+    Wheeler-based conductor correction. ParamRF instead sums the finite-slab
+    trace and the independently integrated Holloway--Kuester ground current.
+    The resulting attenuation is 1.13612 times scikit-rf's value for this case,
+    at the bottom of the 12--30% band in which Holloway and Kuester report
+    Wheeler underpredicting measured loss. This is partial corroboration, not
+    proof that the split closes that experimental gap; the per-case tolerance
+    records the comparison without treating either approximation as ground
+    truth.
+    """
+    freq = Frequency.from_f(jnp.array([100e9]))
+    line = MicrostripLine(
+        w=1.94e-3, h=1e-3, t=35e-6,
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
+        conductor=BulkConductor(sigma=5.8e7),
+        dispersion=None, length=0.1,
+    )
+    media = MLine(
+        freq.to_skrf(), w=1.94e-3, h=1e-3, t=35e-6,
+        ep_r=4.3, tand=0.0, rho=1 / 5.8e7, rough=0.0,
+        model="hammerstadjensen", disp="none", diel="frequencyinvariant",
+    )
+
+    actual_alpha = jnp.real(line.zc_and_gammaL(freq)[1] / line.length)
+    assert jnp.allclose(actual_alpha / media.alpha_conductor, 1.136124, rtol=3e-6)
+
+
 def _wide_low_er_lossy_line(*, t, dispersion):
     """The ``wide_low_er_lossy_quasi_static`` cross-section, at a given `t`.
 
@@ -689,6 +721,7 @@ def _wide_low_er_lossy_line(*, t, dispersion):
         conductor=base.substrate.conductor,
         formulation=base.formulation,
         dispersion=dispersion,
+        current_distribution=base.current_distribution,
         length=case.length,
     )
 
