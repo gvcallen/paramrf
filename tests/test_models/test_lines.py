@@ -215,6 +215,30 @@ def test_coaxial_magnetic_loss_enters_the_series_resistance(basic_freq):
     assert jnp.all(immittance.R > 0)
 
 
+def test_microstrip_line_default_construction_has_conductor_loss(basic_freq):
+    """A default-constructed line has nonzero, rho-sensitive attenuation.
+
+    Regression for the bug where Wheeler's conductor-loss correction was
+    guarded on `substrate.t is not None`, and `t` defaults to `None`: a
+    default-constructed line (dispersion=KirschningJansenMicrostripDispersion,
+    t=None) had `rho` completely inert.
+    """
+    def alpha(rho):
+        line = MicrostripLine(
+            dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
+            conductor=BulkConductor(rho=rho),
+            length=0.1,
+        )
+        _, gamma_length = line.zc_and_gammaL(basic_freq)
+        return jnp.real(gamma_length / line.length)
+
+    alpha_lossless = alpha(0.0)
+    alpha_lossy = alpha(1.68e-8)
+
+    assert jnp.all(alpha_lossless == 0.0)
+    assert jnp.all(alpha_lossy > alpha_lossless)
+
+
 def test_microstrip_line_impedance(basic_freq):
     """Verify MicrostripLine evaluates Wheeler's formula correctly."""
     # Standard 50-ohm trace on 1.6mm FR4 (Er=4.3) is roughly 3.0mm wide
