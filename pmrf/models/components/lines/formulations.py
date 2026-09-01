@@ -129,7 +129,7 @@ class PlanarQuasiStaticResult(eqx.Module):
 
     def to_immittance(
         self, freq: Frequency, dielectric: DielectricProperties,
-        conductor: ConductorProperties,
+        conductor: ConductorProperties, r_dc: jnp.ndarray | None = None,
     ) -> ImmittanceResult:
         r"""
         Converts the quasi-static solution into a per-unit-length immittance.
@@ -152,12 +152,29 @@ class PlanarQuasiStaticResult(eqx.Module):
         $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss
         as its real part and needs no separate loss-tangent term.
 
+        When `r_dc` is given, the resistive part of the conductor term is
+        floored at it by a smooth blend, $R=\sqrt{R_{dc}^2+\Re(Z_sK_c)^2}$,
+        leaving the reactive part untouched; the caller passes `r_dc=None`
+        wherever a dc floor does not apply. This blend is a **ParamRF
+        convention, not a rule any cited source prescribes**: ADS applies no
+        floor at all, and mcalc/wcalc hard-switch to a dc solution once the
+        skin depth exceeds the conductor thickness. Both the sheet term and
+        the floor are resistive at every frequency of interest, so a
+        Pythagorean sum is a defensible way to interpolate between the two
+        regimes without a hard switch, but the hard switch remains an
+        equally defensible alternative.
+
         Parameters
         ----------
         freq : Frequency
             The frequency axis.
         zs : jnp.ndarray
             Complex surface impedance of the conductor in ohm per square.
+        r_dc : jnp.ndarray | None, default=None
+            DC resistance per unit length to floor the conductor term at, or
+            `None` where no dc regime applies (e.g. an unspecified-thickness
+            conductor, which asserts skin effect at every frequency including
+            dc).
 
         Returns
         -------
@@ -173,7 +190,11 @@ class PlanarQuasiStaticResult(eqx.Module):
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
         Z = 1j * w * self.zc * sqrt_ep_eff_mu / c
-        Z = Z + conductor.zs * self.conductor_loss_factor
+        Z_cond = conductor.zs * self.conductor_loss_factor
+        if r_dc is not None:
+            r_ac = jnp.real(Z_cond)
+            Z_cond = jnp.sqrt(r_dc**2 + r_ac**2) + 1j * jnp.imag(Z_cond)
+        Z = Z + Z_cond
         Y = 1j * w * sqrt_ep_eff_over_mu / (self.zc * c)
         Y = Y + dielectric.sigma * self.shunt_conductance_factor
 

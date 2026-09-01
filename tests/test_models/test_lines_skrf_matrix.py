@@ -601,6 +601,26 @@ def test_microstrip_matches_skrf_s_parameters(case):
     _assert_close(line.s(WIDEBAND, z0=case.z0), expected, "s", case)
 
 
+def _wide_low_er_lossy_line(*, t, dispersion):
+    """The ``wide_low_er_lossy_quasi_static`` cross-section, at a given `t`.
+
+    Reads the geometry and loss off the case itself, rather than repeating
+    its literals, so the two low-frequency tests below stay in sync with
+    ``MICROSTRIP_CASES`` automatically if that case ever changes; only the
+    dc-floor policy (`t`) and dispersion vary.
+    """
+    case = next(c for c in MICROSTRIP_CASES if c.id == "wide_low_er_lossy_quasi_static")
+    base = case.line(case.length)
+    return MicrostripLine(
+        w=base.w, h=base.substrate.h, t=t,
+        dielectric=base.substrate.dielectric,
+        conductor=base.substrate.conductor,
+        formulation=base.formulation,
+        dispersion=dispersion,
+        length=case.length,
+    )
+
+
 @pytest.mark.parametrize("dispersion", [None, KirschningJansenMicrostripDispersion()],
                          ids=["quasi_static", "dispersive"])
 def test_quasi_static_microstrip_zc_follows_the_rlgc_limit(dispersion):
@@ -634,19 +654,15 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit(dispersion):
     own correction is negligible over this sub-hertz sweep, so the
     ``dispersive`` case is expected to agree with the ``quasi_static`` one to
     tight tolerance.
+
+    #84 gives a *finite*-t line a dc resistance floor, which caps this
+    $f^{-1/4}$ growth once $R_{dc}$ overtakes the sheet term -- checked
+    separately in ``test_finite_thickness_microstrip_zc_floors_at_dc``. This
+    test uses a t=None line instead, since t=None asserts skin effect in
+    operation at every frequency including dc and so gets no floor: the
+    $f^{-1/4}$ tail is preserved down to arbitrarily low frequency.
     """
-    case = next(c for c in MICROSTRIP_CASES if c.id == "wide_low_er_lossy_quasi_static")
-    quasi_static_line = case.line(case.length)
-    line = (
-        quasi_static_line if dispersion is None
-        else MicrostripLine(
-            w=quasi_static_line.w,
-            substrate=quasi_static_line.substrate,
-            formulation=quasi_static_line.formulation,
-            dispersion=dispersion,
-            length=case.length,
-        )
-    )
+    line = _wide_low_er_lossy_line(t=None, dispersion=dispersion)
 
     low = Frequency.from_f(jnp.geomspace(1e-3, 1e0, 9))
     zc = line.zc_and_gammaL(low)[0]
@@ -654,3 +670,39 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit(dispersion):
     scaled = jnp.abs(zc) * low.f ** 0.25
     assert jnp.allclose(scaled, scaled[0], rtol=1e-2)
     assert jnp.allclose(jnp.angle(zc, deg=True), -22.5, atol=1.0)
+
+
+@pytest.mark.parametrize("dispersion", [None, KirschningJansenMicrostripDispersion()],
+                         ids=["quasi_static", "dispersive"])
+def test_finite_thickness_microstrip_zc_floors_at_dc(dispersion):
+    r"""A finite-t line's R saturates at the dc floor instead of vanishing.
+
+    Same cross-section as
+    ``test_quasi_static_microstrip_zc_follows_the_rlgc_limit``, but with
+    t=35um: below the transition where $R_{dc}=\rho/(Wt)$ overtakes the
+    sheet-resistance term $\Re(Z_sK_c)$, #84's floor holds $R\to R_{dc}$
+    rather than $R\to0$. With $R$ constant and $Y\to j\omega C$,
+    $$Z_c=\sqrt{Z/Y}\to\sqrt{\frac{R_{dc}}{j\omega C}},$$
+    whose magnitude rises as $f^{-1/2}$ (steeper than the unfloored
+    $f^{-1/4}$) and whose phase settles at $-45$ degrees, rather than the
+    unfloored $f^{-1/4}$/$-22.5$ degree tail. The immittance is checked first,
+    directly against $R_{dc}$, since that is the quantity #84 actually
+    introduces; the $Z_c$ asymptote is the derived consequence.
+    """
+    t = 35e-6
+    line = _wide_low_er_lossy_line(t=t, dispersion=dispersion)
+
+    dc = Frequency.from_f(jnp.array([1e-6]))
+    r_dc = 1.0 / (
+        line.substrate.conductor.properties(dc).sigma[0] * line.w * t
+    )
+    assert r_dc > 0.0
+
+    low = Frequency.from_f(jnp.geomspace(1e-4, 1e-2, 9))
+    R = line.immittance(low).R
+    assert jnp.allclose(R, r_dc, rtol=1e-3)
+
+    zc = line.zc_and_gammaL(low)[0]
+    scaled = jnp.abs(zc) * low.f ** 0.5
+    assert jnp.allclose(scaled, scaled[0], rtol=1e-2)
+    assert jnp.allclose(jnp.angle(zc, deg=True), -45.0, atol=1.0)
