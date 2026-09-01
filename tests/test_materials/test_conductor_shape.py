@@ -10,6 +10,8 @@ from pmrf.materials import BulkConductor, ConductorProperties
 from pmrf.materials.conductor_shape import (
     HalfSpaceShape,
     SchelkunoffRodShape,
+    SchelkunoffTubeShape,
+    SchelkunoffCothTubeShape,
     TescheRodShape,
     TescheTubeShape,
 )
@@ -211,3 +213,16 @@ def test_schelkunoff_rod_is_lossless_for_a_perfect_conductor():
     zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=0.455e-3)
 
     assert jnp.all(zs == 0)
+
+
+def test_schelkunoff_tube_and_coth_approximation_agree_in_coax_band():
+    """The cheap shield entry tracks the cylindrical tube in the RF band."""
+    freq = Frequency(start=10.0, stop=500.0, npoints=20, unit='MHz')
+    conductor = _conductor(freq, 5.8e7)
+    exact = SchelkunoffTubeShape().impedance(
+        freq.w, conductor, a=1.475e-3, t=25e-6
+    )
+    cheap = SchelkunoffCothTubeShape().impedance(
+        freq.w, conductor, a=1.475e-3, t=25e-6
+    )
+    assert jnp.allclose(cheap, exact, rtol=2e-3)

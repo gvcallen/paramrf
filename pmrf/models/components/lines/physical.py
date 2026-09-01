@@ -265,9 +265,13 @@ class CoaxialLine(AbstractImmittanceLine):
         permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
         coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
         filling sets that material's ``mu_r``.
-    conductor : AbstractConductor, default=BulkConductor()
-        The conductor material of both conductors. A scalar conductivity in
+        conductor : AbstractConductor, default=BulkConductor()
+        The inner conductor material. A scalar conductivity in
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
+    outer_conductor : AbstractConductor | None, default=None
+        The shield material. ``None`` means the same material as ``conductor``.
+    shield_thickness : Param | None, default=None
+        Shield wall thickness in meters. ``None`` means an infinitely thick shield.
     formulation : AbstractCoaxialFormulation, default=SchelkunoffCoaxialFormulation()
         The closed-form physics used to compute the immittance.
     """
@@ -282,9 +286,21 @@ class CoaxialLine(AbstractImmittanceLine):
         default_factory=ConstantDielectric, converter=as_dielectric
     )
     
-    #: The conductor material of both conductors
+    #: The inner conductor material
     conductor: AbstractConductor = field(
         default_factory=BulkConductor, converter=as_conductor
+    )
+
+    #: The optional shield material; None reuses the inner conductor
+    outer_conductor: AbstractConductor | None = field(
+        default=None,
+        converter=lambda x: None if x is None else as_conductor(x),
+    )
+
+    #: The optional shield wall thickness in meters
+    shield_thickness: Param | None = field(
+        default=None,
+        converter=lambda x: as_param(x, constraint=Positive()) if x is not None else None,
     )
     
     #: The underlying physics formulation
@@ -297,6 +313,13 @@ class CoaxialLine(AbstractImmittanceLine):
             d_out=self.d_out,
             dielectric=self.dielectric.properties(freq),
             conductor=self.conductor.properties(freq),
+            outer_conductor=(
+                None if self.outer_conductor is None
+                else self.outer_conductor.properties(freq)
+            ),
+            shield_thickness=(
+                None if self.shield_thickness is None else self.shield_thickness
+            ),
         )
     
     

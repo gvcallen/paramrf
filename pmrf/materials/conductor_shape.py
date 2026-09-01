@@ -231,3 +231,81 @@ class SchelkunoffRodShape(AbstractConductorShape):
         zs = conductor.zs * i0_over_i1(safe_gamma_a)
         r_dc_sq = 2 / (a * conductor.sigma)
         return jnp.where(w > 0, zs, r_dc_sq)
+
+
+def _k0_over_k1_asymptotic(x):
+    """Evaluate the large-argument expansion of ``K_0(x) / K_1(x)``."""
+    inv = 1 / x
+    return 1 - inv / 2 + 3 * inv**2 / 8
+
+
+class SchelkunoffTubeShape(AbstractConductorShape):
+    r"""Finite cylindrical tube using Schelkunoff's tube impedance.
+
+    **Mathematical Formulation**
+
+    For inner radius $a$ and outer radius $b=a+t$, Schelkunoff's eq. (74) is
+    evaluated in the numerically stable form
+    $$Z_s = \zeta_c\frac{I_0(\gamma b)K_1(\gamma a)+K_0(\gamma b)I_1(\gamma a)}
+    {I_1(\gamma b)K_1(\gamma a)-K_1(\gamma b)I_1(\gamma a)}.$$
+
+    The implementation uses the equivalent exponentially scaled expression;
+    the modified Bessel ratios are evaluated by their large-argument series,
+    which is the regime for which this coaxial cross-section entry is intended.
+
+    References
+    ----------
+    Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial
+    Transmission Lines and Cylindrical Shields. Bell System Technical Journal,
+    13(4), 532-579. Eq. (74).
+    """
+    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
+        gamma = conductor.sigma * conductor.zs
+        xa = gamma * a
+        xb = gamma * (a + t)
+        # Eq. (74) in the strong-skin range, retaining the exponentially small
+        # coupling between the two cylindrical surfaces.
+        curvature = _k0_over_k1_asymptotic(xa)
+        coupling = jnp.exp(-2 * (xb - xa))
+        z = conductor.zs * (curvature + coupling) / (1 - coupling)
+        return jnp.where(w > 0, z, 1 / (t * conductor.sigma))
+
+
+class SchelkunoffCothTubeShape(AbstractConductorShape):
+    r"""Cheap finite-wall shield approximation.
+
+    **Mathematical Formulation**
+
+    The planar finite-slab impedance is charged over the circumference and
+    corrected by the infinite-wall cylindrical curvature:
+    $$Z_s = \zeta_c\coth(\gamma t)\frac{K_0(\gamma a)}{K_1(\gamma a)}.$$
+    """
+    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
+        gamma = conductor.sigma * conductor.zs
+        safe_gamma = jnp.where(w > 0, gamma, 1.0)
+        zeta = conductor.zs / jnp.tanh(safe_gamma * t)
+        zeta = zeta * _k0_over_k1_asymptotic(safe_gamma * a)
+        return jnp.where(w > 0, zeta, 1 / (t * conductor.sigma))
+
+
+class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
+    r"""Infinite-wall limit of the Schelkunoff cylindrical shield.
+
+    **Mathematical Formulation**
+
+    $$Z_s = \zeta_c\frac{K_0(\gamma a)}{K_1(\gamma a)}$$
+
+    The ratio is evaluated with the strong-skin asymptotic expansion, which
+    is the intended coaxial operating regime.
+
+    References
+    ----------
+    Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial
+    Transmission Lines and Cylindrical Shields. Bell System Technical Journal,
+    13(4), 532-579. Eq. (74), infinite-wall limit.
+    """
+    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
+        gamma = conductor.sigma * conductor.zs
+        safe_gamma = jnp.where(w > 0, gamma, 1.0)
+        z = conductor.zs * _k0_over_k1_asymptotic(safe_gamma * a)
+        return jnp.where(w > 0, z, 0.0)

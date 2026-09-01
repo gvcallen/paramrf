@@ -32,7 +32,11 @@ from pmrf.materials.conductor_shape import (
     AbstractConductorShape,
     HalfSpaceShape,
     SchelkunoffRodShape,
+    SchelkunoffTubeShape,
+    SchelkunoffCothTubeShape,
+    SchelkunoffInfiniteTubeShape,
     TescheRodShape,
+    TescheTubeShape,
 )
 from pmrf.models.components.lines.base import ImmittanceResult
 
@@ -160,7 +164,7 @@ class AbstractCoaxialFormulation(eqx.Module):
     its published equations with no ParamRF objects in sight.
     """
     @abstractmethod
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None = None, shield_thickness=None) -> ImmittanceResult:
         r"""
         Calculates the per-unit-length immittance of the line.
 
@@ -175,7 +179,11 @@ class AbstractCoaxialFormulation(eqx.Module):
         dielectric : DielectricProperties
             Evaluated relative permittivity and permeability.
         conductor : ConductorProperties
-            Evaluated surface impedance, conductivity and relative permeability.
+            Evaluated inner-conductor properties.
+        outer_conductor : ConductorProperties | None, default=None
+            Evaluated shield properties, or ``None`` to reuse ``conductor``.
+        shield_thickness : ArrayLike | None, default=None
+            Shield wall thickness, or ``None`` for an infinitely thick shield.
 
         Returns
         -------
@@ -185,12 +193,12 @@ class AbstractCoaxialFormulation(eqx.Module):
         raise NotImplementedError
 
 
-def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, inner_shape: AbstractConductorShape) -> ImmittanceResult:
+def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_shape: AbstractConductorShape, shield_shape: AbstractConductorShape) -> ImmittanceResult:
     """Assemble a coaxial line's immittance around a choice of inner-conductor shape.
 
     Everything but the inner rod is common to every coaxial formulation here:
     the external inductance and the shunt admittance are pure geometry, and
-    the shield's contribution is the half-space limit. The formulations
+    the shield's contribution is selected from the cylindrical tube shapes. The formulations
     differ only in how the solid centre conductor's cross-section is solved.
     """
     eps = epsilon_0 * dielectric.ep_r
@@ -205,10 +213,16 @@ def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricP
 
     rod_zs = inner_shape.impedance(w, conductor, a=a)
     Z_int = rod_zs / (2 * jnp.pi * a)
-    # The model exposes only the shield's inner diameter, so its wall is
-    # treated as infinitely thick, matching the usual coaxial idealisation:
-    # the tube shape's own infinite-wall limit.
-    shield_zs = HalfSpaceShape().impedance(w, conductor)
+    # An unspecified wall is the infinite-wall cylindrical limit. A finite wall
+    # uses Schelkunoff's tube solution; its cheaper coth-plus-curvature sibling
+    # remains available as a public cross-section entry for large sweeps.
+    shield_conductor = conductor if outer_conductor is None else outer_conductor
+    if shield_thickness is None:
+        shield_zs = shield_shape.impedance(w, shield_conductor, a=b)
+    else:
+        shield_zs = shield_shape.impedance(
+            w, shield_conductor, a=b, t=shield_thickness
+        )
     Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
     Z = 1j * w * L_ext + Z_int
@@ -271,10 +285,12 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=conductor, inner_shape=TescheRodShape(),
+            conductor=conductor, outer_conductor=outer_conductor,
+            shield_thickness=shield_thickness, inner_shape=TescheRodShape(),
+            shield_shape=(HalfSpaceShape() if shield_thickness is None else TescheTubeShape()),
         )
 
 
@@ -312,10 +328,12 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579. Eq. (65).
     """
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=conductor, inner_shape=SchelkunoffRodShape(),
+            conductor=conductor, outer_conductor=outer_conductor,
+            shield_thickness=shield_thickness, inner_shape=SchelkunoffRodShape(),
+            shield_shape=(SchelkunoffInfiniteTubeShape() if shield_thickness is None else SchelkunoffTubeShape()),
         )
 
 
