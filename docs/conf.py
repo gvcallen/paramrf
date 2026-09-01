@@ -174,7 +174,7 @@ napoleon_use_ivar = True
 napoleon_use_param = True
 
 # --- 6. Math & MyST Configuration --------------------------------------------
-myst_enable_extensions = ['colon_fence', 'deflist', 'linkify', 'dollarmath']
+myst_enable_extensions = ['colon_fence', 'deflist', 'dollarmath']
 
 math_dollar_node_blacklist = NODE_BLACKLIST + (sphinx.addnodes.pending_xref_condition,)
 
