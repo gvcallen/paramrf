@@ -11,13 +11,13 @@ that are then divided.
 """
 import jax.numpy as jnp
 
-#: Number of power-series terms used below :data:`I_RATIO_SERIES_CUTOFF`.
+# Number of power-series terms used below the cutoff.
 _SERIES_TERMS = 40
 
 #: $|x|$ above which the ratio switches from the power series to the
 #: asymptotic expansion. The two agree to 3e-8 relative here, and better on
 #: either side; raising it trades series terms for accuracy at the seam.
-I_RATIO_SERIES_CUTOFF = 20.0
+I0_OVER_I1_SERIES_CUTOFF = 20.0
 
 #: Coefficients of $x^{-n}$, $n=0\ldots5$, in the large-argument expansion of
 #: $I_0(x)/I_1(x)$, obtained by dividing the standard asymptotic series
@@ -88,9 +88,9 @@ def i0_over_i1(x: jnp.ndarray) -> jnp.ndarray:
         $I_0(x)/I_1(x)$.
     """
     x = jnp.asarray(x)
-    small = jnp.abs(x) < I_RATIO_SERIES_CUTOFF
+    small = jnp.abs(x) < I0_OVER_I1_SERIES_CUTOFF
     # Each branch is evaluated on an argument the other branch's regime
     # cannot make overflow, so the unused branch never poisons the gradient.
-    x_series = jnp.where(small, x, I_RATIO_SERIES_CUTOFF)
-    x_asymptotic = jnp.where(small, I_RATIO_SERIES_CUTOFF, x)
+    x_series = jnp.where(small, x, I0_OVER_I1_SERIES_CUTOFF)
+    x_asymptotic = jnp.where(small, I0_OVER_I1_SERIES_CUTOFF, x)
     return jnp.where(small, _i_ratio_series(x_series), _i_ratio_asymptotic(x_asymptotic))

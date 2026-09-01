@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from scipy.special import ive
 
-from pmrf.math.bessel import I_RATIO_SERIES_CUTOFF, i0_over_i1
+from pmrf.math.bessel import I0_OVER_I1_SERIES_CUTOFF, i0_over_i1
 
 
 def _reference(x):
@@ -60,7 +60,7 @@ def test_gradient_is_finite_across_the_branch_switch():
         return jnp.real(i0_over_i1(m * jnp.exp(1j * jnp.pi / 4)))
 
     grads = jax.vmap(jax.grad(real_part))(
-        jnp.asarray([1e-6, 1.0, I_RATIO_SERIES_CUTOFF, 1e3, 1e4])
+        jnp.asarray([1e-6, 1.0, I0_OVER_I1_SERIES_CUTOFF, 1e3, 1e4])
     )
 
     assert jnp.all(jnp.isfinite(grads))
@@ -72,7 +72,7 @@ def test_the_derivative_jump_at_the_seam_is_small():
         return jnp.real(i0_over_i1(m * jnp.exp(1j * jnp.pi / 4)))
 
     eps = 1e-6
-    below = jax.grad(real_part)(I_RATIO_SERIES_CUTOFF - eps)
-    above = jax.grad(real_part)(I_RATIO_SERIES_CUTOFF + eps)
+    below = jax.grad(real_part)(I0_OVER_I1_SERIES_CUTOFF - eps)
+    above = jax.grad(real_part)(I0_OVER_I1_SERIES_CUTOFF + eps)
 
     assert abs(above / below - 1) < 2e-4

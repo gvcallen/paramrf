@@ -221,7 +221,10 @@ class SchelkunoffRodShape(AbstractConductorShape):
         # and keep the argument away from the pole so the gradient stays
         # finite. A perfect conductor is the other unevaluable argument:
         # gamma is infinite there, but zeta_c is zero, so the shape factor
-        # never has to be evaluated at all.
+        # never has to be evaluated at all -- which is why the final guard
+        # below is the narrower `w > 0`: an infinite sigma needs a safe
+        # Bessel argument, but its zero zeta_c already gives the right
+        # answer, and 2/(a*sigma) is likewise zero there.
         gamma_a = conductor.sigma * conductor.zs * a
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma_a = jnp.where(evaluable, gamma_a, 1.0)
