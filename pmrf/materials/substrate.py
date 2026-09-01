@@ -1,10 +1,5 @@
 """
-Planar substrates: a dielectric sheet of known height, with its metallization.
-
-A substrate is a convenience grouping, not a mechanism. Engineers think "this
-trace is on Rogers 4350B", and the fields that make up that thought — the
-height, the dielectric, the conductor and its thickness — are exactly the ones
-every planar line already asks for individually.
+A convenience grouping for a dielectric sheet of known height, with its metallization.
 """
 from __future__ import annotations
 
@@ -20,10 +15,9 @@ class Substrate(Module):
     r"""
     A dielectric sheet of a given height, with the conductor printed on it.
 
-    Sharing a substrate between traces needs no new machinery. A builder holds
-    one substrate and injects it into each line in :meth:`build`; because
-    ``build`` is lazy and uncached, the substrate is a leaf of the builder and
-    the lines are reconstructed per call from already-traced values:
+    Substrates can be used as a shared base that is injected into other models.
+    For example, when combined with :class:`~pmrf.models.AbstractBuilder`,
+    one substrate can be shared between two lines within the same model.
 
     >>> import pmrf as prf
     >>> from pmrf.materials import Substrate
@@ -38,11 +32,6 @@ class Substrate(Module):
     >>> board = Board(substrate=Substrate(h=1.6e-3, dielectric=4.3), w1=1e-3, w2=2e-3)
     >>> [name for name in board.named_params() if name.endswith("ep_r")]
     ['substrate.dielectric.ep_r']
-
-    One permittivity, not two. Passing the *same* :class:`~pmrf.Param` object to
-    two separately-constructed lines does **not** dedupe: PyTree flattening gives
-    two independent leaves, one per line. The builder is what makes the sharing
-    real.
 
     Parameters
     ----------
