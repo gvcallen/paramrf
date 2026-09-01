@@ -367,6 +367,41 @@ _MICROSTRIP_HJ = {
     "alpha": (1e-1, 1e-12), "beta": (1e-4, 0.0), "s": (0.0, 5e-3),
 }
 
+#: Same low-frequency finding as ``wide_low_er_lossy_quasi_static``'s "zc"
+#: note, now on the dispersion path as well: below the transition where the
+#: conductor's sheet impedance outgrows j*w*L, ParamRF's Zc = sqrt(Z/Y)
+#: genuinely departs from scikit-rf's MLine, whose z0_characteristic never
+#: sees the conductor. This is Zc's own finding, not a re-derivation of it,
+#: but it now also drags alpha and beta off scikit-rf's perturbative values
+#: (which assume the lossless Zc), and s along with them, so all four
+#: quantities need the same floor.
+_MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE = (
+    "Below the transition where the conductor's sheet impedance outgrows "
+    "j*w*L, ParamRF's Zc = sqrt(Z/Y) now genuinely includes the conductor "
+    "(see the fix routing the dispersion path through "
+    "PlanarQuasiStaticResult.to_immittance), while scikit-rf's MLine reports "
+    "the quasi-static Zc there and never sees it. The comparison floor "
+    "excludes that transition; the low-frequency limit itself is checked "
+    "against theory in "
+    "test_quasi_static_microstrip_zc_follows_the_rlgc_limit[dispersive]."
+)
+
+
+def _dispersive_conductor_notes(*, s_extra=""):
+    """Attach ``_MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE`` to zc, beta and s.
+
+    Shared by every dispersive case whose conductor is lossy enough to pull
+    its low-frequency Zc, beta and s off scikit-rf's quasi-static-only values.
+    ``s_extra`` appends a case-specific addendum to the s note.
+    """
+    return {
+        **_MICROSTRIP_NOTES,
+        "zc": _MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE,
+        "beta": _MICROSTRIP_NOTES["beta"] + " " + _MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE,
+        "s": _MICROSTRIP_NOTES["s"] + " " + _MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE + s_extra,
+    }
+
+
 MICROSTRIP_CASES = [
     Case(
         id="narrow_low_er_lossless_quasi_static",
@@ -413,7 +448,7 @@ MICROSTRIP_CASES = [
                   "definitions only converge above the transition, so the "
                   "comparison starts at 1 GHz; the low-frequency limit is "
                   "checked against theory in "
-                  "test_quasi_static_microstrip_zc_follows_the_rlgc_limit.",
+                  "test_quasi_static_microstrip_zc_follows_the_rlgc_limit[quasi_static].",
             "alpha": _MICROSTRIP_NOTES["alpha"] + " Both ParamRF and scikit-rf "
                      "now charge Wheeler's incremental-inductance rule on this "
                      "path too, evaluated at the (unrenormalized) quasi-static "
@@ -438,7 +473,11 @@ MICROSTRIP_CASES = [
                            diel="frequencyinvariant",
                            formulation=HammerstadJensenMicrostripFormulation,
                            model="hammerstadjensen"),
-        length=5e-3, z0=50.0, tol=_MICROSTRIP_HJ, notes=_MICROSTRIP_NOTES,
+        length=5e-3, z0=50.0,
+        tol={**_MICROSTRIP_HJ, "zc": (8e-3, 0.0), "beta": (5e-3, 0.0),
+             "s": (0.0, 9e-3)},
+        f_min={"zc": 1e9, "alpha": 1e9, "beta": 1e9, "s": 1e9},
+        notes=_dispersive_conductor_notes(),
     ),
     Case(
         id="narrow_high_er_lossy_stress",
@@ -451,10 +490,21 @@ MICROSTRIP_CASES = [
                            diel="frequencyinvariant",
                            formulation=HammerstadJensenMicrostripFormulation,
                            model="hammerstadjensen"),
-        length=2e-3, z0=50.0, notes=_MICROSTRIP_NOTES,
+        length=2e-3, z0=50.0,
+        notes=_dispersive_conductor_notes(
+            s_extra=" The deliberately resistive conductor here (rho=1e-6) "
+                    "also pushes that transition far higher up the band "
+                    "than any other case, so the floor is correspondingly "
+                    "higher."
+        ),
         # The most attenuating case in the matrix, so the documented
-        # dielectric-loss difference shows up largest in S21.
-        tol={**_MICROSTRIP_HJ, "s": (0.0, 1e-2)},
+        # dielectric-loss difference shows up largest in S21. The deliberately
+        # resistive conductor also pushes the conductor-dominated Zc
+        # transition (see _MICROSTRIP_DISPERSIVE_CONDUCTOR_NOTE) far higher up
+        # the band than any other case, hence the much higher floor here.
+        tol={**_MICROSTRIP_HJ, "zc": (3e-2, 0.0), "beta": (2e-2, 0.0),
+             "s": (0.0, 5e-2)},
+        f_min={"zc": 2e10, "alpha": 2e10, "beta": 2e10, "s": 2e10},
     ),
     Case(
         id="wide_high_er_zero_thickness_dispersive",
@@ -486,7 +536,11 @@ MICROSTRIP_CASES = [
                            diel="djordjevicsvensson",
                            formulation=HammerstadJensenMicrostripFormulation,
                            model="hammerstadjensen"),
-        length=5e-3, z0=50.0, tol=_MICROSTRIP_HJ, notes=_MICROSTRIP_NOTES,
+        length=5e-3, z0=50.0,
+        tol={**_MICROSTRIP_HJ, "zc": (8e-3, 0.0), "beta": (5e-3, 0.0),
+             "s": (0.0, 9e-3)},
+        f_min={"zc": 1e9, "alpha": 1e9, "beta": 1e9, "s": 1e9},
+        notes=_dispersive_conductor_notes(),
     ),
     Case(
         id="wheeler_formulation_nominal",
@@ -562,7 +616,9 @@ def test_microstrip_matches_skrf_s_parameters(case):
     _assert_close(line.s(WIDEBAND, z0=case.z0), expected, "s", case)
 
 
-def test_quasi_static_microstrip_zc_follows_the_rlgc_limit():
+@pytest.mark.parametrize("dispersion", [None, KirschningJansenMicrostripDispersion()],
+                         ids=["quasi_static", "dispersive"])
+def test_quasi_static_microstrip_zc_follows_the_rlgc_limit(dispersion):
     r"""The low-frequency Zc that scikit-rf's MLine cannot express.
 
     Once the sheet impedance of the conductor outgrows $j\omega L$, the series
@@ -582,9 +638,30 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit():
     lower frequency than before; the swept range is kept inside the decade
     where the asymptote already holds to a fraction of a percent, rather than
     widening the tolerance to paper over a range that reaches beyond it.
+
+    #83 routes the dispersion path through
+    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`
+    at the dispersed $(\varepsilon_e, Z_c)$, in place of inverting the modal
+    $(Z_c, \gamma)$ through ``from_zc_gamma`` -- an inversion that made
+    $Z_c=\sqrt{Z/Y}$ tautologically reproduce Kirschning-Jansen's own modal
+    $Z_c$ and never let the conductor genuinely enter it. With that fix, the
+    same asymptote holds with Kirschning-Jansen dispersion turned on too: its
+    own correction is negligible over this sub-hertz sweep, so the
+    ``dispersive`` case is expected to agree with the ``quasi_static`` one to
+    tight tolerance.
     """
     case = next(c for c in MICROSTRIP_CASES if c.id == "wide_low_er_lossy_quasi_static")
-    line = case.line(case.length)
+    quasi_static_line = case.line(case.length)
+    line = (
+        quasi_static_line if dispersion is None
+        else MicrostripLine(
+            w=quasi_static_line.w,
+            substrate=quasi_static_line.substrate,
+            formulation=quasi_static_line.formulation,
+            dispersion=dispersion,
+            length=case.length,
+        )
+    )
 
     low = Frequency.from_f(jnp.geomspace(1e-3, 1e0, 9))
     zc = line.zc_and_gammaL(low)[0]

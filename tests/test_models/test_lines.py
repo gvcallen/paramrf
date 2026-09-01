@@ -393,9 +393,24 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     assert jnp.allclose(result.w_eff, 3.0e-3)
 
 
-def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
-    """The dispersed modal solution survives exact immittance inversion."""
+def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance():
+    """#83: the dispersion path reports true RLGC Zc, not modal K-J Zc.
+
+    Inverting the dispersed modal ``(zc, gamma)`` through ``from_zc_gamma``
+    made ``Zc = sqrt(Z/Y)`` tautologically reproduce Kirschning-Jansen's own
+    modal Zc, so the conductor never genuinely entered it. The dispersion
+    path must instead build a fresh
+    :class:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult`
+    at the dispersed ``(ep_eff, zc)`` and route it through
+    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`,
+    exactly like the quasi-static path, so ``line.immittance`` matches that
+    construction bit for bit.
+    """
     from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansenMicrostripDispersion
+    from pmrf.models.components.lines.formulations import (
+        PlanarQuasiStaticResult,
+        _wheeler_conductor_loss_factor,
+    )
 
     freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
@@ -411,26 +426,35 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         length=0.1,
     )
 
-    ep_r = line.substrate.dielectric.properties(freq).ep_r
-    zs = line.substrate.conductor.properties(freq).zs
+    dielectric = line.substrate.dielectric.properties(freq)
+    conductor = line.substrate.conductor.properties(freq)
     quasi_static = formulation.quasi_static(
-        w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r
+        w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=dielectric.ep_r
     )
-    ep_eff, expected_zc = dispersion.disperse(
+    ep_eff, zc = dispersion.disperse(
         freq,
         ep_eff_0=quasi_static.ep_eff,
         zc_0=quasi_static.zc,
-        ep_r=ep_r,
+        ep_r=dielectric.ep_r,
         w_eff=quasi_static.w_eff,
         h=line.substrate.h,
     )
+    expected = PlanarQuasiStaticResult(
+        ep_eff=ep_eff,
+        zc=zc,
+        w_eff=quasi_static.w_eff,
+        conductor_loss_factor=_wheeler_conductor_loss_factor(line.w, zc),
+        shunt_conductance_factor=quasi_static.shunt_conductance_factor,
+    ).to_immittance(freq, dielectric, conductor)
 
-    zc, gamma_length = line.zc_and_gammaL(freq)
-    gamma = gamma_length / line.length
+    actual = line.immittance(freq)
+    assert jnp.array_equal(actual.Z, expected.Z)
+    assert jnp.array_equal(actual.Y, expected.Y)
 
-    assert jnp.allclose(zc, expected_zc, rtol=1e-12, atol=1e-12)
-    expected_beta = jnp.imag(1j * freq.w * jnp.sqrt(ep_eff) / c)
-    assert jnp.allclose(jnp.imag(gamma), expected_beta, rtol=1e-12, atol=1e-12)
+    # The dispersed zc no longer equals sqrt(Z/Y) tautologically: the
+    # conductor genuinely enters the exact RLGC ratio, so the two differ.
+    exact_zc = jnp.sqrt(actual.Z / actual.Y)
+    assert not jnp.allclose(exact_zc, zc, rtol=1e-6, atol=1e-6)
 
 
 def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
