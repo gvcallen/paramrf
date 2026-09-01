@@ -16,6 +16,7 @@ from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
+from pmrf.materials.properties import ConductorProperties
 from pmrf.utils import field
 
 
@@ -27,41 +28,19 @@ class AbstractConductor(Module):
     """
 
     @abstractmethod
-    def surface_impedance(self, freq: Frequency) -> jnp.ndarray:
-        """Complex surface impedance in ohm per square, shape ``(freq.npoints,)``."""
-
-    @abstractmethod
-    def sigma(self, freq: Frequency) -> jnp.ndarray:
-        """Bulk conductivity in S/m, for formulations that need it directly."""
-
-    @abstractmethod
-    def mu_r(self, freq: Frequency) -> jnp.ndarray:
-        r"""Relative permeability, shape ``(freq.npoints,)``.
-
-        Relative rather than absolute, so that it composes with
-        :meth:`AbstractDielectric.mu_r` and with the relative permittivity
-        without a caller having to track which convention a material used.
-
-        The return may be complex, following the same passive convention as the
-        permittivity, $\mu_r = \mu' - j\mu''$ with $\mu'' \geq 0$. A material
-        with magnetic loss is expressed that way rather than through a separate
-        loss field.
-        """
-
-    @abstractmethod
-    def skin_depth(self, freq: Frequency) -> jnp.ndarray:
-        """Skin depth in meters."""
+    def properties(self, freq: Frequency) -> ConductorProperties:
+        """Evaluate surface impedance, conductivity, and permeability."""
 
 
 class AbstractRoughness(Module):
     """Abstract base class for a surface-roughness correction."""
 
     @abstractmethod
-    def factor(self, skin_depth: jnp.ndarray) -> jnp.ndarray:
+    def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
         """The multiplicative correction applied to a smooth surface impedance."""
 
 
-class Hammerstad(AbstractRoughness):
+class HammerstadRoughness(AbstractRoughness):
     r"""
     Hammerstad-Jensen surface-roughness correction.
 
@@ -71,6 +50,20 @@ class Hammerstad(AbstractRoughness):
 
     where $\Delta$ is the RMS surface roughness and $\delta$ the skin depth. The
     factor saturates at $2$, which is the well-known limitation of the model.
+
+    **Validity**
+
+    A Roughness is a correction to conductor behaviour, not a line formulation:
+    it scales a smooth surface impedance and produces no state of its own. The
+    skin depth is derived here from frequency, conductivity and permeability
+    rather than being part of the conductor interface, so the correction is
+    meaningful only for a conductor whose loss is genuinely skin-effect
+    limited -- :class:`RoughConductor` therefore extends :class:`BulkConductor`
+    rather than the abstract conductor, and a non-bulk conductor cannot silently
+    acquire one. The arctangent fit is empirical and saturates at $2$: it
+    understates loss once $\Delta/\delta$ exceeds roughly unity, which is the
+    documented limitation of the Hammerstad-Jensen form rather than a rejected
+    input.
 
     References
     ----------
@@ -86,7 +79,12 @@ class Hammerstad(AbstractRoughness):
     #: RMS surface roughness in meters
     roughness: Param = param(default=0.0, constraint=Positive())
 
-    def factor(self, skin_depth: jnp.ndarray) -> jnp.ndarray:
+    def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
+        w = jnp.asarray(freq.w)
+        safe_w = jnp.where(w > 0, w, 1.0)
+        skin_depth = jnp.where(
+            w > 0, jnp.sqrt(2 / (safe_w * mu_0 * mu_r * sigma)), jnp.inf
+        )
         ratio = self.roughness / skin_depth
         return 1 + (2 / jnp.pi) * jnp.arctan(1.4 * ratio**2)
 
@@ -115,7 +113,7 @@ class BulkConductor(AbstractConductor):
 
         copper = BulkConductor(rho=1.68e-8)
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
-        zs = copper.surface_impedance(freq)
+        zs = copper.properties(freq).zs
 
     References
     ----------
@@ -125,43 +123,28 @@ class BulkConductor(AbstractConductor):
     ----------
     rho : Param, default=1.68e-8
         Resistivity in ohm-meters. Defaults to copper.
-    mu_rel : Param, default=1.0
-        Relative permeability of the conductor. Stored under `mu_rel` because
-        :meth:`mu_r` is the evaluated accessor; a dataclass field of that name
-        would shadow it.
+    mu_r : Param, default=1.0
+        Relative permeability of the conductor.
     """
     #: Resistivity in ohm-meters
     rho: Param = param(default=1.68e-8, constraint=Positive())
 
     #: Relative permeability of the conductor
-    mu_rel: Param = param(default=1.0, constraint=Positive())
+    mu_r: Param = param(default=1.0, constraint=Positive())
 
     @classmethod
     def from_sigma(cls, sigma, **kwargs):
         """Build a conductor from a conductivity in S/m instead of a resistivity."""
         return cls(rho=1.0 / sigma, **kwargs)
 
-    def sigma(self, freq: Frequency) -> jnp.ndarray:
-        return (1.0 / self.rho) * jnp.ones(freq.npoints)
-
-    def mu_r(self, freq: Frequency) -> jnp.ndarray:
-        return self.mu_rel * jnp.ones(freq.npoints)
-
-    def skin_depth(self, freq: Frequency) -> jnp.ndarray:
-        # Guard DC, where the skin depth is infinite, using the double-`where`
-        # pattern so the gradient stays finite as well as the value.
-        w = jnp.asarray(freq.w)
-        safe_w = jnp.where(w > 0, w, 1.0)
-        depth = jnp.sqrt(2 * self.rho / (safe_w * mu_0 * self.mu_rel))
-        return jnp.where(w > 0, depth, jnp.inf)
-
-    def surface_impedance(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> ConductorProperties:
         # sqrt is a branch point at w = 0, so guard it the same way: the
         # impedance is zero there, but its raw gradient would not be.
         w = jnp.asarray(freq.w)
         safe_w = jnp.where(w > 0, w, 1.0)
-        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mu_rel * self.rho / 2), 0.0)
-        return rs * (1 + 1j)
+        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mu_r * self.rho / 2), 0.0)
+        ones = jnp.ones(freq.npoints)
+        return ConductorProperties(rs * (1 + 1j), ones / self.rho, self.mu_r * ones)
 
 
 class RoughConductor(BulkConductor):
@@ -173,7 +156,7 @@ class RoughConductor(BulkConductor):
     $$Z_s(\omega) = K(\omega) \sqrt{\frac{j\omega\mu}{\sigma}}$$
 
     where $K$ is supplied by the `roughness` formulation, and equals $1$ for a
-    perfectly smooth surface. See :class:`Hammerstad` for the default.
+    perfectly smooth surface. See :class:`HammerstadRoughness` for the default.
 
     References
     ----------
@@ -185,21 +168,22 @@ class RoughConductor(BulkConductor):
     ----------
     rho : Param, default=1.68e-8
         Resistivity in ohm-meters.
-    mu_rel : Param, default=1.0
+    mu_r : Param, default=1.0
         Relative permeability of the conductor.
-    roughness : AbstractRoughness, default=Hammerstad()
+    roughness : AbstractRoughness, default=HammerstadRoughness()
         The roughness correction formulation. A scalar RMS roughness in meters
-        is coerced into a :class:`Hammerstad` correction.
+        is coerced into a :class:`HammerstadRoughness` correction.
     """
     #: The roughness correction formulation
     roughness: AbstractRoughness = field(
-        default_factory=Hammerstad,
-        converter=lambda x: x if isinstance(x, AbstractRoughness) else Hammerstad(x),
+        default_factory=HammerstadRoughness,
+        converter=lambda x: x if isinstance(x, AbstractRoughness) else HammerstadRoughness(x),
     )
 
-    def surface_impedance(self, freq: Frequency) -> jnp.ndarray:
-        factor = self.roughness.factor(self.skin_depth(freq))
-        return super().surface_impedance(freq) * factor
+    def properties(self, freq: Frequency) -> ConductorProperties:
+        properties = super().properties(freq)
+        factor = self.roughness.factor(freq, properties.sigma, properties.mu_r)
+        return properties._replace(zs=properties.zs * factor)
 
 
 def as_conductor(value) -> AbstractConductor:

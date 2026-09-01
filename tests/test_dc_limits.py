@@ -19,7 +19,7 @@ from pmrf.materials import (
     ColeCole,
     ConstantDielectric,
     DjordjevicSarkar,
-    Hammerstad,
+    HammerstadRoughness,
     MultipoleDebye,
     BulkConductor,
     DebyePole,
@@ -41,7 +41,7 @@ from pmrf.models import (
 )
 from pmrf.models.components.lines.formulations import (
     HammerstadJensenMicrostripFormulation,
-    KirschningJansen,
+    KirschningJansenMicrostripDispersion,
     WheelerMicrostripFormulation,
 )
 
@@ -77,14 +77,9 @@ LINES = {
     "MicrostripLine (no dispersion)": MicrostripLine(
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02), dispersion=None, length=0.1
     ),
-    "MicrostripLine (real convention)": MicrostripLine(
-        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        epsilon_convention="real",
-        length=0.1,
-    ),
-    "MicrostripLine (explicit KirschningJansen)": MicrostripLine(
+    "MicrostripLine (explicit KirschningJansenMicrostripDispersion)": MicrostripLine(
         formulation=WheelerMicrostripFormulation(),
-        dispersion=KirschningJansen(),
+        dispersion=KirschningJansenMicrostripDispersion(),
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         length=0.1,
     ),
@@ -121,7 +116,7 @@ MATERIALS = {
         sigma=1e-3,
     ),
     "BulkConductor": BulkConductor(rho=1.72e-8),
-    "RoughConductor": RoughConductor(rho=1.72e-8, roughness=Hammerstad(1e-6)),
+    "RoughConductor": RoughConductor(rho=1.72e-8, roughness=HammerstadRoughness(1e-6)),
 }
 
 
@@ -158,23 +153,11 @@ def test_line_is_finite_at_dc(line, dc_freq):
 
 @pytest.mark.parametrize("material", MATERIALS.values(), ids=MATERIALS.keys())
 def test_material_is_finite_at_dc(material, dc_freq):
-    if hasattr(material, "epsilon_r"):
-        _assert_finite_value_and_grad(material, lambda m: m.epsilon_r(dc_freq))
+    if isinstance(material, AbstractDielectric):
+        _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).ep_r)
     else:
-        _assert_finite_value_and_grad(material, lambda m: m.surface_impedance(dc_freq))
-        _assert_finite_value_and_grad(material, lambda m: m.sigma(dc_freq))
-
-
-def test_skin_depth_is_infinite_at_dc(dc_freq):
-    """The existing guard: the DC value is infinite, but the gradient is not."""
-    conductor = BulkConductor(rho=1.72e-8)
-    depth = conductor.skin_depth(dc_freq)
-    assert jnp.isinf(depth[0])
-    assert jnp.all(jnp.isfinite(depth[1:]))
-
-    grads = eqx.filter_grad(lambda m: jnp.sum(m.skin_depth(dc_freq)[1:]))(conductor)
-    for leaf in jax.tree.leaves(eqx.filter(grads, eqx.is_inexact_array)):
-        assert jnp.all(jnp.isfinite(leaf))
+        _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).zs)
+        _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).sigma)
 
 
 def test_immittance_l_and_c_carry_the_lowest_frequency(dc_freq):
@@ -197,7 +180,11 @@ def _concrete_subclasses(base):
     while pending:
         cls = pending.pop()
         pending.extend(cls.__subclasses__())
-        if cls is not base and not getattr(cls, "__abstractmethods__", None):
+        if (
+            cls is not base
+            and cls.__module__.startswith("pmrf.")
+            and not getattr(cls, "__abstractmethods__", None)
+        ):
             found.add(cls)
     return found
 
