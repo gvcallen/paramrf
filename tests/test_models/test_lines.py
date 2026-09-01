@@ -360,6 +360,32 @@ def test_coaxial_formulation_takes_plain_arrays(basic_freq):
     assert result.Y.shape == (npoints,)
 
 
+def test_coaxial_defaults_reuse_inner_material_and_infinite_wall(basic_freq):
+    """Unspecified shield options preserve the simple coaxial construction."""
+    line = CoaxialLine(length=0.1)
+    explicit = CoaxialLine(
+        length=0.1, outer_conductor=line.conductor, shield_thickness=None
+    )
+    assert jnp.allclose(line.immittance(basic_freq).Z, explicit.immittance(basic_freq).Z)
+
+
+def test_coaxial_supports_dissimilar_finite_shield(basic_freq):
+    """The shield can be a separate metal and a finite wall changes loss."""
+    inner = BulkConductor(sigma=5.8e7)
+    outer = BulkConductor(sigma=3.5e7)
+    infinite = CoaxialLine(
+        conductor=inner, outer_conductor=outer, length=0.1
+    )
+    finite = CoaxialLine(
+        conductor=inner, outer_conductor=outer, shield_thickness=12.5e-6,
+        length=0.1,
+    )
+    assert jnp.all(finite.immittance(basic_freq).R > 0)
+    assert not jnp.allclose(
+        finite.immittance(basic_freq).R, infinite.immittance(basic_freq).R
+    )
+
+
 def test_coaxial_internal_impedance_tube():
     """Tube arithmetic follows Tesche's equation (13).
 
