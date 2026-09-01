@@ -2,6 +2,10 @@
 Core maths functions.
 """
 
+from pmrf.math.bessel import (
+    i0_over_i1 as i0_over_i1,
+)
+
 import pmrf.math.aggregations as aggregations
 from pmrf.math.aggregations import (
     weighted_sum as weighted_sum,
@@ -55,6 +59,7 @@ from pmrf.math.misc import *
 
 __all__ = [
     "aggregations",
+    "i0_over_i1",
     "complex_2_magnitude",
     "complex_2_db",
     "complex_2_db10",

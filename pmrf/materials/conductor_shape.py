@@ -18,6 +18,7 @@ import jax.numpy as jnp
 from scipy.constants import mu_0
 
 from pmrf.materials.properties import ConductorProperties
+from pmrf.math.bessel import i0_over_i1
 
 
 class AbstractConductorShape(eqx.Module):
@@ -111,13 +112,19 @@ class TescheRodShape(AbstractConductorShape):
 
     **Validity**
 
-    Interpolates between the exact dc resistance and the exact
-    high-frequency skin-effect impedance of a round conductor, so it carries
-    no geometric fit range. It is not exact at finite frequency: unlike a
-    genuine half-space, its strong-skin limit is not $\zeta_c$ but
+    Interpolates between the exact dc resistance and the bare half-space
+    impedance $\zeta_c$, so it carries no geometric fit range. It is not
+    exact at finite frequency, and it does not reach the exact
+    high-frequency limit of a round conductor either: the true strong-skin
+    expansion of :class:`SchelkunoffRodShape` is
+    $\zeta_c(1 + 1/2\gamma a + \ldots)$, and the circuit never produces
+    that $1/2\gamma a$ curvature term. Its own strong-skin limit is instead
     $\zeta_c + R_{dc,sq}$ -- a known, persistent defect of the circuit
     approximation, not a porting error (see ``tests/test_materials/
-    test_conductor_shape.py`` for the size of the departure).
+    test_conductor_shape.py`` for the size of the departure). The error is
+    a *shape* error, so refitting $\sigma$ does not absorb it; prefer
+    :class:`SchelkunoffRodShape` unless the Bessel evaluation is too
+    expensive.
 
     References
     ----------
@@ -170,3 +177,54 @@ class TescheTubeShape(AbstractConductorShape):
             jnp.log1p(t / a) / (1 - q) ** 2 + (q - 3) / (4 * (1 - q))
         )
         return _tesche_circuit_impedance(conductor.zs, r_dc_sq, l_int_sq, w)
+
+
+class SchelkunoffRodShape(AbstractConductorShape):
+    r"""
+    Solid round conductor, exact.
+
+    **Mathematical Formulation**
+
+    Schelkunoff solves Maxwell's equations inside the rod rather than
+    interpolating between its limits. His eq. (65), the internal impedance
+    per unit length of a solid cylinder of radius $a$, is
+    $$Z = \frac{\gamma}{2\pi a\sigma}\,\frac{I_0(\gamma a)}{I_1(\gamma a)},
+    \qquad \gamma=\sqrt{j\omega\mu\sigma}.$$
+    Since $\zeta_c=\sqrt{j\omega\mu/\sigma}=\gamma/\sigma$, the shape
+    factor this layer returns -- with the caller supplying its own
+    $1/2\pi a$ geometry weight -- is simply the Bessel ratio:
+    $$Z_s = \zeta_c\,\frac{I_0(\gamma a)}{I_1(\gamma a)}.$$
+
+    Both limits follow with no special case. As $\gamma a\to0$,
+    $I_0/I_1\to2/\gamma a$ and $Z_s\to2/a\sigma$, which is the exact dc
+    sheet resistance $\pi a^2$ times $1/\pi a^2\sigma$; as
+    $\gamma a\to\infty$, $I_0/I_1\to1+1/2\gamma a$, so the shape
+    approaches :class:`HalfSpaceShape` with the leading curvature
+    correction that :class:`TescheRodShape` cannot reproduce.
+
+    **Validity**
+
+    Exact for a homogeneous, isotropic, non-magnetic-hysteresis solid rod
+    carrying axially symmetric current, at every frequency. The remaining
+    error is the numerics of :func:`~pmrf.math.bessel.i0_over_i1`, below
+    3.1e-8 relative on the $\gamma$ ray.
+
+    References
+    ----------
+    Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial
+    Transmission Lines and Cylindrical Shields. Bell System Technical
+    Journal, 13(4), 532-579. Eq. (65).
+    """
+    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
+        # gamma = sigma * zeta_c vanishes at dc, where the ratio has a pole
+        # that exactly cancels zeta_c's zero. Take that limit analytically
+        # and keep the argument away from the pole so the gradient stays
+        # finite. A perfect conductor is the other unevaluable argument:
+        # gamma is infinite there, but zeta_c is zero, so the shape factor
+        # never has to be evaluated at all.
+        gamma_a = conductor.sigma * conductor.zs * a
+        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        safe_gamma_a = jnp.where(evaluable, gamma_a, 1.0)
+        zs = conductor.zs * i0_over_i1(safe_gamma_a)
+        r_dc_sq = 2 / (a * conductor.sigma)
+        return jnp.where(w > 0, zs, r_dc_sq)
