@@ -25,9 +25,9 @@ from pmrf.materials import (
     DjordjevicSarkar,
     RoughConductor,
 )
+from pmrf.materials.conductor_shape import TescheTubeShape
 from pmrf.models.components.lines.formulations import (
     TescheCoaxialFormulation,
-    tube_internal_impedance,
     KirschningJansenMicrostripDispersion,
 )
 
@@ -380,7 +380,8 @@ def test_coaxial_internal_impedance_tube():
         sigma=float(sigma[0]), tout=thickness, model="tesche",
     )
     expected = reference._conductor_impedance(radius, thickness, None)
-    actual = tube_internal_impedance(zs, sigma, mu, radius, thickness, freq.w)
+    zs_sq = TescheTubeShape().impedance(freq.w, zs, sigma, mu, radius=radius, thickness=thickness)
+    actual = zs_sq / (2 * jnp.pi * radius)
     assert jnp.allclose(actual, expected)
 
 

@@ -28,63 +28,8 @@ import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.materials import ConductorProperties, DielectricProperties
+from pmrf.materials.conductor_shape import HalfSpaceShape, TescheRodShape
 from pmrf.models.components.lines.base import ImmittanceResult
-
-
-def _tesche_internal_impedance(zs_over_radius, rdc, lint, w):
-    """Evaluate Tesche's equivalent circuit after geometry terms are known."""
-    safe_w = jnp.where(w > 0, w, 1.0)
-    zhf = zs_over_radius / (2 * jnp.pi)
-    z = rdc + zhf / (1 + zhf / (1j * safe_w * lint))
-    return jnp.where(w > 0, z, rdc)
-
-
-def rod_internal_impedance(zs, sigma, mu_r, radius, w):
-    r"""Return Tesche's eq. (11)--(14) impedance for a solid conductor.
-
-    Parameters
-    ----------
-    zs, sigma, mu_r : array-like
-        Surface impedance, conductivity and relative permeability.
-    radius : float
-        Conductor radius in meters.
-    w : array-like
-        Angular frequency in rad/s.
-
-    Returns
-    -------
-    array-like
-        Series impedance per unit length in ohm/m.
-    """
-    rdc = 1 / (jnp.pi * radius**2 * sigma)
-    lint = mu_0 * mu_r / (8 * jnp.pi)
-    return _tesche_internal_impedance(zs / radius, rdc, lint, w)
-
-
-def tube_internal_impedance(zs, sigma, mu_r, radius, thickness, w):
-    r"""Return Tesche's eq. (13)--(14) impedance for a tubular conductor.
-
-    Parameters
-    ----------
-    zs, sigma, mu_r : array-like
-        Surface impedance, conductivity and relative permeability.
-    radius, thickness : float
-        Inner radius and wall thickness in meters.
-    w : array-like
-        Angular frequency in rad/s.
-
-    Returns
-    -------
-    array-like
-        Series impedance per unit length in ohm/m.
-    """
-    rdc = 1 / (2 * jnp.pi * radius * thickness * sigma)
-    q = (radius / (radius + thickness)) ** 2
-    lint = mu_0 * mu_r / (2 * jnp.pi) * (
-        jnp.log1p(thickness / radius) / (1 - q) ** 2
-        + (q - 3) / (4 * (1 - q))
-    )
-    return _tesche_internal_impedance(zs / radius, rdc, lint, w)
 
 
 class PlanarQuasiStaticResult(eqx.Module):
@@ -249,15 +194,15 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)}$$
 
     which is $G + j\omega C$ with $C = 2\pi\Re(\varepsilon)/\ln(b/a)$ and
-    $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. For each conductor, Tesche's
-    equivalent circuit is
-    $$R_{dc} = \frac{1}{\pi a^2\sigma},\quad
-    L_{int} = \frac{\mu}{8\pi},\quad
-    Z = R_{dc} + \frac{Z_{hf}}{1 + Z_{hf}/(j\omega L_{int})},\quad
-    Z_{hf} = \frac{Z_s}{2\pi a}.$$
-    The outer shield is treated as infinitely thick because only its inner
-    diameter is part of :class:`CoaxialLine`; the finite-wall form is available
-    in :func:`tube_internal_impedance`.
+    $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. Each conductor's series
+    impedance is a shape's surface impedance charged over its circumference,
+    $Z = Z_s/2\pi r$: the inner conductor is a
+    :class:`~pmrf.materials.conductor_shape.TescheRodShape`, and the outer
+    shield -- treated as infinitely thick because only its inner diameter is
+    part of :class:`CoaxialLine` -- is the
+    :class:`~pmrf.materials.conductor_shape.HalfSpaceShape` limit that Tesche's
+    tube circuit approaches as its wall thickens; the finite-wall form is
+    :class:`~pmrf.materials.conductor_shape.TescheTubeShape`.
 
     A magnetic filling needs no special case. With complex $\mu_r$ the external
     term $j\omega L'$ acquires the real part $\omega\mu''\ln(b/a)/2\pi$, so
@@ -294,12 +239,13 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
 
         L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
+        rod_zs = TescheRodShape().impedance(w, conductor.zs, conductor.sigma, conductor.mu_r, radius=a)
+        Z_int = rod_zs / (2 * jnp.pi * a)
         # The model exposes only the shield's inner diameter, so its wall is
-        # treated as infinitely thick, matching the usual coaxial idealisation.
-        Z_int = rod_internal_impedance(conductor.zs, conductor.sigma, conductor.mu_r, a, w)
-        # In the infinite-wall limit the tube's dc resistance vanishes and its
-        # internal inductance diverges, leaving only the high-frequency term.
-        Z_int = Z_int + conductor.zs / (2 * jnp.pi * b)
+        # treated as infinitely thick, matching the usual coaxial idealisation:
+        # the tube shape's own infinite-wall limit.
+        shield_zs = HalfSpaceShape().impedance(w, conductor.zs, conductor.sigma, conductor.mu_r)
+        Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
         Z = 1j * w * L_ext + Z_int
         Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
