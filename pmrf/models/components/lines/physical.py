@@ -658,10 +658,20 @@ class StriplineLine(AbstractImmittanceLine):
 
     The quasi-static formulation returns $(\varepsilon_e, Z_c, W_{eff})$, and
     :meth:`PlanarQuasiStaticResult.to_immittance` converts them directly:
-    $$Z = \frac{j\omega Z_c\sqrt{\varepsilon_e}}{c} + \frac{2Z_s}{W_{eff}}
+    $$Z = \frac{j\omega Z_c\sqrt{\varepsilon_e}}{c} + Z_{c,\mathrm{cond}}
     \qquad
     Y = \frac{j\omega\sqrt{\varepsilon_e}}{Z_c c}.$$
-    See :class:`CohnStriplineFormulation` for the geometry.
+    For known centre-strip thickness, $Z_{c,\mathrm{cond}}$ uses Holloway and
+    Kuester's finite total-current slab, anchored at the model-resolvable
+    centre-strip resistance $R_{dc,trace}=1/(\sigma WT)$ and converging to Cohn's published conductor-loss
+    factor in strong skin effect.  Cohn's factor already includes the centre
+    strip and both symmetric ground returns, so ground loss is not charged a
+    second time.  The complete physical stripline DC resistance would also
+    require ground-plane width and thickness, which this geometry does not
+    supply.  This differs from microstrip, whose trace and single ground
+    distributions are independently available and therefore charged as
+    separate terms.  See :class:`CohnCurrentDistribution` for the transition
+    and :class:`CohnStriplineFormulation` for the geometry.
 
     Example
     --------
@@ -706,6 +716,10 @@ class StriplineLine(AbstractImmittanceLine):
     ----------
     Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE Transactions
     on Microwave Theory and Techniques, 3(2), 119-126.
+
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip lines.
+    Radio Science, 29(3), 539-559.
 
     Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.7. Wiley.
     """

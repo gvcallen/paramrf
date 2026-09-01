@@ -860,6 +860,57 @@ def test_stripline_conductor_loss_scales_with_root_frequency():
     assert jnp.allclose(alpha[2] / alpha[0], 10.0, rtol=1e-2)
 
 
+@pytest.mark.parametrize(
+    (
+        "w", "b", "t", "expected_transition_r", "transition_rtol",
+        "expected_transition_x", "transition_x_rtol", "expected_skin_weight",
+    ),
+    [
+        (
+            2.655e-3, 3.2e-3, 35e-6,
+            0.2766344102, 2e-8, 0.0129251261, 2e-8, 435.26525504,
+        ),
+        (
+            0.8e-3, 2.0e-3, 18e-6,
+            1.4432152717, 2e-8, 0.0178441363, 2e-8, 1291.40977227,
+        ),
+    ],
+)
+def test_stripline_finite_thickness_transitions_from_true_dc_to_cohn_skin_limit(
+    w, b, t, expected_transition_r, transition_rtol,
+    expected_transition_x, transition_x_rtol, expected_skin_weight,
+):
+    """Known strip thickness anchors DC without changing Cohn's skin limit."""
+    sigma = 5.8e7
+    freq = Frequency.from_f(jnp.array([0.0, 1e6, 1e13]))
+    line = StriplineLine(
+        w=w, b=b, t=t, dielectric=2.2,
+        conductor=BulkConductor(sigma=sigma), length=1.0,
+    )
+
+    resistance = line.immittance(freq).R
+    surface_resistance = jnp.real(line.conductor.properties(freq).zs)
+    ideal = StriplineLine(
+        w=w, b=b, t=t, dielectric=2.2,
+        conductor=BulkConductor(sigma=jnp.inf), length=1.0,
+    ).immittance(freq)
+    internal_reactance = freq.w * (line.immittance(freq).L - ideal.L)
+    half_space_impedance = line.conductor.properties(freq).zs * expected_skin_weight
+
+    assert jnp.isclose(resistance[0], 1 / (sigma * w * t), rtol=1e-6)
+    # Per-case checkpoints independently evaluated from the documented slab
+    # and interpolation equations, not from recorded ParamRF output.
+    assert jnp.isclose(resistance[1], expected_transition_r, rtol=transition_rtol)
+    assert jnp.isclose(
+        internal_reactance[1], expected_transition_x, rtol=transition_x_rtol,
+    )
+    assert resistance[1] > jnp.real(half_space_impedance[1])
+    assert internal_reactance[1] < jnp.imag(half_space_impedance[1])
+    assert jnp.isclose(
+        resistance[-1], surface_resistance[-1] * expected_skin_weight, rtol=2e-6,
+    )
+
+
 def test_stripline_accepts_a_dispersive_dielectric():
     """A dispersive material needs no stripline-specific code: eps_eff tracks it."""
     from pmrf.models import CohnStriplineFormulation, StriplineLine

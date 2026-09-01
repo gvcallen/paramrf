@@ -19,6 +19,16 @@ def _wheeler_current_factor(zc):
     return jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
 
 
+def _slab_penetration(freq, conductor, t):
+    """Return the guarded finite-slab penetration transition."""
+    evaluable = (freq.w > 0) & jnp.isfinite(conductor.sigma)
+    safe_sigma = jnp.where(evaluable, conductor.sigma, 1.0)
+    safe_zs = jnp.where(evaluable, conductor.zs, 0.0)
+    return jnp.where(
+        evaluable, jnp.abs(jnp.tanh(safe_sigma * safe_zs * t / 2)), 0.0,
+    )
+
+
 class AbstractCurrentDistribution(eqx.Module):
     r"""Surface-current distribution for a transmission-line cross-section.
 
@@ -125,13 +135,7 @@ class TraceGroundCurrentDistribution(AbstractCurrentDistribution):
         if conductor is None:
             raise ValueError("conductor properties are required for finite thickness")
 
-        evaluable = (freq.w > 0) & jnp.isfinite(conductor.sigma)
-        safe_sigma = jnp.where(evaluable, conductor.sigma, 1.0)
-        safe_zs = jnp.where(evaluable, conductor.zs, 0.0)
-        safe_gamma_t_over_two = safe_sigma * safe_zs * t / 2
-        penetration = jnp.where(
-            evaluable, jnp.abs(jnp.tanh(safe_gamma_t_over_two)), 0.0,
-        )
+        penetration = _slab_penetration(freq, conductor, t)
         trace_weight = 1 / (2 * w) + penetration * (2 * ki / w - 1 / (2 * w))
         return ((HollowayKuesterSlabShape(t=t), trace_weight), ground_pair)
 
@@ -141,14 +145,37 @@ class CohnCurrentDistribution(AbstractCurrentDistribution):
 
     **Mathematical Formulation**
 
-    The returned weight is $k_c=2\alpha_c/R_s$, using Cohn's two attenuation
-    branches and the stripline geometry.  A zero-thickness strip has no finite
-    conductor-loss weight in this model.
+    Cohn's $k_c=2\alpha_c Z_c/R_s$ is an effective strong-skin weight for the
+    centre strip and both ground planes together.  When the centre-strip
+    thickness is known, ParamRF charges that weight through Holloway and
+    Kuester's total-current slab and interpolates the weight from $1/(2W)$ at
+    dc to $k_c$ in strong skin effect according to the ParamRF convention
+
+    $$k(f)=\frac{1}{2W}+|\tanh(\gamma_cT/2)|
+    \left(k_c-\frac{1}{2W}\right).$$
+
+    This gives the centre strip's exact
+    $R_{dc}=1/(\sigma WT)$ while preserving Cohn's complete high-frequency
+    result and replacing the half-space internal reactance.
+
+    Ground-plane loss is not added as a separate pair.  Unlike microstrip,
+    symmetric stripline already has both returns folded into Cohn's effective
+    geometry factor; adding ground half-spaces would double-count them.  Their
+    finite-thickness dc resistance also cannot be determined without ground
+    thickness and width inputs.  A strip with unspecified thickness retains
+    the existing zero conductor-loss convention because Cohn's finite-$T$
+    expression diverges as $T\to0$.
 
     References
     ----------
     Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE Transactions
     on Microwave Theory and Techniques, 3(2), 119-126.
+
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip lines.
+    Radio Science, 29(3), 539-559.
+
+    ParamRF finite-strip interpolation convention; no external source.
     """
 
     def distribute(self, freq: Frequency, *, zc, w, b, t, ep_r, conductor=None):
@@ -164,5 +191,10 @@ class CohnCurrentDistribution(AbstractCurrentDistribution):
             )
             alpha_high = 0.16 / (zc_real * b) * beta
             alpha_over_rs = jnp.where(jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high)
-            weight = 2 * alpha_over_rs * zc_real
-        return ((HalfSpaceShape(), weight),)
+            skin_weight = 2 * alpha_over_rs * zc_real
+            if conductor is None:
+                raise ValueError("conductor properties are required for finite thickness")
+            penetration = _slab_penetration(freq, conductor, t)
+            weight = 1 / (2 * w) + penetration * (skin_weight - 1 / (2 * w))
+        shape = HalfSpaceShape() if t is None else HollowayKuesterSlabShape(t=t)
+        return ((shape, weight),)

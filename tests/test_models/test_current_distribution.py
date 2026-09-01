@@ -43,12 +43,14 @@ def test_current_distribution_can_be_selected_independently_of_microstrip_formul
 def test_cohn_distribution_uses_a_surface_pair():
     freq = Frequency.from_f(jnp.array([10e9]))
     zc = jnp.array([50.0])
+    conductor = BulkConductor(sigma=5.8e7).properties(freq)
 
     pairs = CohnCurrentDistribution().distribute(
-        freq, zc=zc, w=2.655e-3, b=3.2e-3, t=35e-6, ep_r=jnp.array([2.2])
+        freq, zc=zc, w=2.655e-3, b=3.2e-3, t=35e-6,
+        ep_r=jnp.array([2.2]), conductor=conductor,
     )
 
-    assert isinstance(pairs[0][0], HalfSpaceShape)
+    assert isinstance(pairs[0][0], HollowayKuesterSlabShape)
     assert pairs[0][1].shape == (1,)
     assert jnp.all(pairs[0][1] > 0)
 
