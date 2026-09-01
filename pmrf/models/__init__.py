@@ -89,6 +89,7 @@ from pmrf.models.components.lines.physical import (
 
 from pmrf.models.components.lines.formulations import (
     AbstractCoaxialFormulation as AbstractCoaxialFormulation,
+    SchelkunoffCoaxialFormulation as SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation as TescheCoaxialFormulation,
     AbstractMicrostripFormulation as AbstractMicrostripFormulation,
     WheelerMicrostripFormulation as WheelerMicrostripFormulation,

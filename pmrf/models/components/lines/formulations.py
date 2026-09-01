@@ -28,7 +28,12 @@ import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.materials import ConductorProperties, DielectricProperties
-from pmrf.materials.conductor_shape import HalfSpaceShape, TescheRodShape
+from pmrf.materials.conductor_shape import (
+    AbstractConductorShape,
+    HalfSpaceShape,
+    SchelkunoffRodShape,
+    TescheRodShape,
+)
 from pmrf.models.components.lines.base import ImmittanceResult
 
 
@@ -180,6 +185,39 @@ class AbstractCoaxialFormulation(eqx.Module):
         raise NotImplementedError
 
 
+def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, inner_shape: AbstractConductorShape) -> ImmittanceResult:
+    """Assemble a coaxial line's immittance around a choice of inner-conductor shape.
+
+    Everything but the inner rod is common to every coaxial formulation here:
+    the external inductance and the shunt admittance are pure geometry, and
+    the shield's contribution is the half-space limit. The formulations
+    differ only in how the solid centre conductor's cross-section is solved.
+    """
+    eps = epsilon_0 * dielectric.ep_r
+    mu = mu_0 * dielectric.mu_r
+    w = freq.w
+
+    d_out = eqx.error_if(d_out, d_out - d_in <= 0, "d_out must exceed d_in")
+    a, b = d_in / 2, d_out / 2
+    ln_b_over_a = jnp.log(b / a)
+
+    L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
+
+    rod_zs = inner_shape.impedance(w, conductor, a=a)
+    Z_int = rod_zs / (2 * jnp.pi * a)
+    # The model exposes only the shield's inner diameter, so its wall is
+    # treated as infinitely thick, matching the usual coaxial idealisation:
+    # the tube shape's own infinite-wall limit.
+    shield_zs = HalfSpaceShape().impedance(w, conductor)
+    Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
+
+    Z = 1j * w * L_ext + Z_int
+    Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
+    Y = Y + 2 * jnp.pi * dielectric.sigma / ln_b_over_a
+
+    return ImmittanceResult(Z=Z, Y=Y, w=w)
+
+
 class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     r"""
     Coaxial line formulation using Tesche's equivalent-circuit approximation.
@@ -212,8 +250,13 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
 
     The equivalent circuit is not an empirical fit to a width ratio, so it
     carries no geometric fit range: it interpolates between the exact DC
-    resistance and the exact high-frequency skin-effect impedance of a round
-    conductor. The transmission-line description itself is the limit: it assumes
+    resistance and the bare half-space impedance $\zeta_c$. That is not the
+    exact high-frequency limit of a round conductor -- the circuit reaches
+    $R_{dc} + Z_{hf}$ and never captures the $1/2\gamma a$ curvature term of
+    the exact solution -- so it is an approximation to
+    :class:`SchelkunoffCoaxialFormulation` at every finite frequency, worst
+    for thin inner conductors at low frequency. The transmission-line
+    description itself is the further limit: it assumes
     the TEM mode, so it holds below the TE11 cutoff
     $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
     Above that, higher-order modes propagate and a single per-unit-length
@@ -229,29 +272,51 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
-        eps = epsilon_0 * dielectric.ep_r
-        mu = mu_0 * dielectric.mu_r
-        w = freq.w
+        return _coaxial_immittance(
+            freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
+            conductor=conductor, inner_shape=TescheRodShape(),
+        )
 
-        d_out = eqx.error_if(d_out, d_out - d_in <= 0, "d_out must exceed d_in")
-        a, b = d_in / 2, d_out / 2
-        ln_b_over_a = jnp.log(b / a)
 
-        L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
+class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
+    r"""
+    Coaxial line formulation using Schelkunoff's exact cylindrical solution.
 
-        rod_zs = TescheRodShape().impedance(w, conductor, a=a)
-        Z_int = rod_zs / (2 * jnp.pi * a)
-        # The model exposes only the shield's inner diameter, so its wall is
-        # treated as infinitely thick, matching the usual coaxial idealisation:
-        # the tube shape's own infinite-wall limit.
-        shield_zs = HalfSpaceShape().impedance(w, conductor)
-        Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
+    **Mathematical Formulation**
 
-        Z = 1j * w * L_ext + Z_int
-        Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
-        Y = Y + 2 * jnp.pi * dielectric.sigma / ln_b_over_a
+    The external inductance and shunt admittance are the same pure geometry
+    as in :class:`TescheCoaxialFormulation`,
+    $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)
+    \qquad
+    Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)},$$
+    and so is the shield's half-space contribution $\zeta_c/2\pi b$. What
+    differs is the solid inner conductor, which is
+    :class:`~pmrf.materials.conductor_shape.SchelkunoffRodShape` --
+    Schelkunoff's eq. (65) rather than an equivalent circuit:
+    $$Z_{inner} = \frac{\zeta_c}{2\pi a}\,
+    \frac{I_0(\gamma a)}{I_1(\gamma a)},\qquad
+    \gamma = \sqrt{j\omega\mu\sigma}.$$
 
-        return ImmittanceResult(Z=Z, Y=Y, w=w)
+    **Validity**
+
+    Exact for the inner conductor at every frequency, dc included, so unlike
+    Tesche it leaves no frequency-shaped residual for a conductivity fit to
+    absorb. The shield remains infinitely thick, since only its inner
+    diameter is part of :class:`CoaxialLine`. The transmission-line
+    description is still the outer limit: it assumes the TEM mode, so it
+    holds below the TE11 cutoff
+    $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
+
+    References
+    ----------
+    Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
+    and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579. Eq. (65).
+    """
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties) -> ImmittanceResult:
+        return _coaxial_immittance(
+            freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
+            conductor=conductor, inner_shape=SchelkunoffRodShape(),
+        )
 
 
 class AbstractMicrostripFormulation(eqx.Module):

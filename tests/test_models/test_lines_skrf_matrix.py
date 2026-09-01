@@ -57,6 +57,8 @@ from pmrf.models import (
     HammerstadJensenMicrostripFormulation,
     KirschningJansenMicrostripDispersion,
     MicrostripLine,
+    SchelkunoffCoaxialFormulation,
+    TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
 )
 
@@ -174,19 +176,29 @@ def _sigma_of_rho(rho):
     return np.inf if rho == 0.0 else 1 / rho
 
 
-def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f):
+#: The conductor model each side is put on, kept in step so a case can never
+#: compare ParamRF's inner-conductor physics against scikit-rf's other one.
+_COAX_MODELS = {
+    "tesche": TescheCoaxialFormulation,
+    "schelkunoff": SchelkunoffCoaxialFormulation,
+}
+
+
+def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche"):
     """A ParamRF/scikit-rf builder pair for one coaxial geometry."""
     sigma = _sigma_of_rho(rho)
+    formulation = _COAX_MODELS[model]()
 
     def line(length):
         return CoaxialLine(
             d_in=d_in, d_out=d_out, dielectric=dielectric,
             conductor=BulkConductor(sigma=sigma), length=length,
+            formulation=formulation,
         )
 
     def media(freq, z0_port=None):
         return Coaxial(
-            freq, Dint=d_in, Dout=d_out, model="tesche", z0_port=z0_port,
+            freq, Dint=d_in, Dout=d_out, model=model, z0_port=z0_port,
             sigma=sigma,
             dielectric={"ep_r": ep_r_of_f(np.asarray(freq.f))},
         )
@@ -259,6 +271,89 @@ COAX_CASES = [
             _skrf_djordjevic_sarkar(ep_r=4.3, tand=0.02),
         ),
         length=0.1, z0=50.0, tol=_COAX_EXACT,
+    ),
+]
+
+#: Both sides solve the same Schelkunoff eq. (65) for the inner rod, but the
+#: shields differ: ParamRF charges the shield a half-space $\zeta_c$, while
+#: scikit-rf with ``tout=None`` evaluates Schelkunoff eq. (74) for a tube of
+#: infinite wall, which keeps the shield's own $K_0/K_1$ curvature. Only the
+#: shield's inner diameter is part of :class:`CoaxialLine`, so that
+#: correction is deliberately not modelled; the tolerances below are the
+#: measured size of that one difference, recorded per case, not a floor
+#: widened until a case passed. G and C never touch the conductors and stay
+#: at round-off in all three.
+_SHIELD_NOTE = (
+    "ParamRF models the shield as a Leontovich half-space and scikit-rf as an "
+    "infinitely thick Schelkunoff tube. Neither side is wrong: the shield's "
+    "wall thickness is not part of CoaxialLine, so its curvature correction "
+    "is out of the model by construction. The difference is largest at the "
+    "low-frequency end, where the shield is only a few skin depths deep."
+)
+
+#: The infinite-wall shield's internal inductance diverges logarithmically as
+#: $\omega\to0$ -- an infinitely thick return conductor stores unbounded
+#: internal flux -- while a half-space shield stores none. The two therefore
+#: describe different things below the skin-effect onset rather than
+#: disagreeing numerically, so L is compared only above 1 MHz.
+_SHIELD_L_NOTE = (
+    "Below the skin-effect onset the two shield models are not comparable at "
+    "all: scikit-rf's infinite wall has a logarithmically divergent internal "
+    "inductance and ParamRF's half-space has none. " + _SHIELD_NOTE
+)
+
+_SHIELD_L_FLOOR = 1e6
+
+
+def _shield_tol(*, R, L, zc, alpha, beta, s):
+    """Tolerances for a Schelkunoff case, keyed the same way as ``_COAX_EXACT``."""
+    return {
+        "R": (R, 1e-14), "L": (L, 0.0), "G": (1e-9, 0.0), "C": (1e-9, 0.0),
+        "zc": (zc, 0.0), "alpha": (alpha, 0.0), "beta": (beta, 0.0),
+        "s": (0.0, s),
+    }
+
+
+_SHIELD_NOTES = {q: _SHIELD_NOTE for q in ("R", "zc", "alpha", "beta", "s")} | {
+    "L": _SHIELD_L_NOTE
+}
+
+COAX_CASES += [
+    Case(
+        id="rg58_ptfe_copper_schelkunoff",
+        purpose="The default formulation on the nominal cable: the exact "
+                "cylindrical inner conductor, against scikit-rf's own Bessel "
+                "solution of the same Schelkunoff equation.",
+        **_coax_pair(0.9e-3, 2.95e-3, ConstantDielectric(ep_r=2.25, tand=1e-3),
+                    RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
+                    model="schelkunoff"),
+        length=0.5, z0=50.0,
+        tol=_shield_tol(R=2e-2, L=1e-5, zc=1e-2, alpha=2e-2, beta=1e-2, s=5e-6),
+        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
+    ),
+    Case(
+        id="semirigid_small_diameters_steel_schelkunoff",
+        purpose="Stress on the default formulation: small diameters and a "
+                "stainless conductor put the dc-to-skin transition, where "
+                "Tesche is worst, right inside the band.",
+        **_coax_pair(0.51e-3, 1.68e-3, ConstantDielectric(ep_r=2.1, tand=2e-4),
+                    RHO_STEEL, lambda f: _coax_ep_r(2.1, 2e-4, f=f),
+                    model="schelkunoff"),
+        length=0.25, z0=50.0,
+        tol=_shield_tol(R=2e-2, L=5e-3, zc=1e-2, alpha=2e-2, beta=1e-2, s=5e-4),
+        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
+    ),
+    Case(
+        id="foam_large_diameter_ratio_schelkunoff",
+        purpose="Boundary on the default formulation: a large b/a, where the "
+                "thin inner conductor dominates the loss and the shield "
+                "difference is correspondingly small.",
+        **_coax_pair(0.3e-3, 7.0e-3, ConstantDielectric(ep_r=1.2, tand=1e-4),
+                    RHO_COPPER, lambda f: _coax_ep_r(1.2, 1e-4, f=f),
+                    model="schelkunoff"),
+        length=0.2, z0=75.0,
+        tol=_shield_tol(R=1e-3, L=1e-6, zc=5e-4, alpha=1e-3, beta=5e-4, s=5e-7),
+        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
     ),
 ]
 

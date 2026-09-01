@@ -40,6 +40,11 @@ from pmrf.math.conversions import (
     complexify as complexify,
     CONVERSION_LOOKUP as CONVERSION_LOOKUP,
 )
+import pmrf.math.bessel as bessel
+from pmrf.math.bessel import (
+    i0_over_i1 as i0_over_i1,
+)
+
 import pmrf.math.losses as losses
 from pmrf.math.losses import (
     mean_squared_error as mean_squared_error,
@@ -55,6 +60,8 @@ from pmrf.math.misc import *
 
 __all__ = [
     "aggregations",
+    "bessel",
+    "i0_over_i1",
     "complex_2_magnitude",
     "complex_2_db",
     "complex_2_db10",

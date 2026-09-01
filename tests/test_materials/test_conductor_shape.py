@@ -1,11 +1,15 @@
+import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from scipy.constants import mu_0
+from scipy.special import ive
 
 from pmrf.frequency import Frequency
-from pmrf.materials import ConductorProperties
+from pmrf.materials import BulkConductor, ConductorProperties
 from pmrf.materials.conductor_shape import (
     HalfSpaceShape,
+    SchelkunoffRodShape,
     TescheRodShape,
     TescheTubeShape,
 )
@@ -105,3 +109,105 @@ def test_tesche_tube_approaches_half_space_as_the_wall_thickens():
     half_space = HalfSpaceShape().impedance(freq.w, conductor)
 
     assert jnp.allclose(thick_tube, half_space, rtol=1e-3)
+
+
+def test_schelkunoff_rod_matches_scipy_bessel_ratio():
+    """The shape factor is Schelkunoff eq. (65), checked against scipy directly."""
+    sigma, a = 5.8e7, 0.455e-3
+    freq = Frequency(start=1.0, stop=20.0, npoints=20, unit='GHz')
+    conductor = _conductor(freq, sigma)
+
+    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+
+    gamma_a = np.sqrt(1j * np.asarray(freq.w) * mu_0 * sigma) * a
+    expected = np.asarray(conductor.zs) * ive(0, gamma_a) / ive(1, gamma_a)
+    assert np.allclose(np.asarray(zs), expected, rtol=1e-10)
+
+
+def test_schelkunoff_rod_reproduces_the_dc_resistance_without_a_special_case():
+    """At dc the Bessel ratio's pole cancels zeta_c's zero, giving 1/(pi a^2 sigma).
+
+    The dc point itself is the where-branch, but the limit is approached
+    continuously from above: 1 Hz already lands on the same number, which is
+    what shows the branch is a limit rather than a patch.
+    """
+    sigma, a = 5.8e7, 0.455e-3
+    freq = Frequency.from_f(jnp.array([0.0, 1.0]))
+    conductor = _conductor(freq, sigma)
+
+    z = SchelkunoffRodShape().impedance(freq.w, conductor, a=a) / (2 * jnp.pi * a)
+
+    r_dc = 1 / (jnp.pi * a**2 * sigma)
+    assert jnp.allclose(jnp.real(z), r_dc, rtol=1e-9)
+
+
+def test_schelkunoff_rod_tends_to_the_half_space_plus_curvature():
+    """The strong-skin limit is $\\zeta_c(1 + 1/2\\gamma a)$, not $\\zeta_c$.
+
+    This curvature term is exactly what :class:`TescheRodShape` cannot
+    produce, and it is a real effect: at 20 GHz it is still 0.05% of the
+    shape factor for a 0.455 mm radius.
+    """
+    sigma, a = 5.8e7, 0.455e-3
+    freq = Frequency.from_f(jnp.array([20e9]))
+    conductor = _conductor(freq, sigma)
+
+    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+
+    gamma_a = conductor.sigma * conductor.zs * a
+    assert jnp.allclose(zs / conductor.zs, 1 + 1 / (2 * gamma_a), rtol=1e-4)
+    assert jnp.abs(1 / (2 * gamma_a))[0] > 1e-4
+
+
+def test_tesche_rod_departs_from_schelkunoff_by_a_shape_error():
+    """The Tesche error is frequency-shaped, so refitting sigma cannot absorb it.
+
+    Removing the best-fit global scale from the ratio of the two shape
+    factors over 10-500 MHz leaves a residual of several percent for a thin
+    inner conductor -- the number that motivates making Schelkunoff the
+    default.
+    """
+    sigma, a = 5.8e7, 0.255e-3  # RG405-like inner conductor
+    freq = Frequency(start=10.0, stop=500.0, npoints=51, unit='MHz')
+    conductor = _conductor(freq, sigma)
+
+    tesche = TescheRodShape().impedance(freq.w, conductor, a=a)
+    exact = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+
+    ratio = jnp.real(tesche) / jnp.real(exact)
+    residual = jnp.max(jnp.abs(ratio / jnp.mean(ratio) - 1))
+    assert 0.03 < residual < 0.12
+
+
+def test_schelkunoff_rod_gradients_are_finite_including_at_dc():
+    """Fitting needs finite d/dsigma and d/df everywhere, dc included.
+
+    The gradient is taken through :class:`BulkConductor` rather than through
+    a hand-built ``zeta_c``: $\\zeta_c=\\sqrt{j\\omega\\mu/\\sigma}$ has an
+    infinite $\\omega$-derivative at dc of its own, which every shape in
+    this module would inherit, and the material is where that is handled.
+    """
+    a = 0.455e-3
+
+    def resistance(sigma, f):
+        freq = Frequency.from_f(jnp.atleast_1d(f))
+        conductor = BulkConductor(sigma=sigma).properties(freq)
+        return jnp.real(SchelkunoffRodShape().impedance(freq.w, conductor, a=a))[0]
+
+    for f in [0.0, 1e3, 1e9]:
+        d_sigma, d_f = jax.grad(resistance, argnums=(0, 1))(5.8e7, f)
+        assert jnp.isfinite(d_sigma) and jnp.isfinite(d_f)
+
+
+def test_schelkunoff_rod_is_lossless_for_a_perfect_conductor():
+    """An infinite sigma sends gamma to infinity and zeta_c to zero: Z_s is 0.
+
+    The Bessel argument is unevaluable there, so the shape has to recognise
+    the limit rather than propagate a nan through it.
+    """
+    freq = Frequency.from_f(jnp.array([0.0, 1e9]))
+    conductor = _conductor(freq, sigma=jnp.inf)
+
+    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=0.455e-3)
+
+    assert jnp.all(zs == 0)

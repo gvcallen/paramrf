@@ -29,6 +29,7 @@ from pmrf.models.components.lines.formulations import (
     CohnStriplineFormulation,
     KirschningJansenMicrostripDispersion,
     PlanarQuasiStaticResult,
+    SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
     _wheeler_conductor_loss_factor,
@@ -230,7 +231,9 @@ class CoaxialLine(AbstractImmittanceLine):
     r"""
     Coaxial line defined directly by its physical geometry and material modules.
     
-    Uses :class:`TescheCoaxialFormulation` as the default mathematical formulation.
+    Uses :class:`SchelkunoffCoaxialFormulation` -- the exact cylindrical solution --
+    as the default mathematical formulation. :class:`TescheCoaxialFormulation` remains
+    selectable as the cheaper, Bessel-free alternative and as an independent cross-check.
 
     Example
     --------
@@ -265,7 +268,7 @@ class CoaxialLine(AbstractImmittanceLine):
     conductor : AbstractConductor, default=BulkConductor()
         The conductor material of both conductors. A scalar conductivity in
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
-    formulation : AbstractCoaxialFormulation, default=TescheCoaxialFormulation()
+    formulation : AbstractCoaxialFormulation, default=SchelkunoffCoaxialFormulation()
         The closed-form physics used to compute the immittance.
     """
     #: Inner conductor diameter
@@ -285,7 +288,7 @@ class CoaxialLine(AbstractImmittanceLine):
     )
     
     #: The underlying physics formulation
-    formulation: AbstractCoaxialFormulation = field(default_factory=TescheCoaxialFormulation)
+    formulation: AbstractCoaxialFormulation = field(default_factory=SchelkunoffCoaxialFormulation)
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         return self.formulation.immittance(

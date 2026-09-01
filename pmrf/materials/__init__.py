@@ -35,6 +35,7 @@ from pmrf.materials.conductor import (
 from pmrf.materials.conductor_shape import (
     AbstractConductorShape as AbstractConductorShape,
     HalfSpaceShape as HalfSpaceShape,
+    SchelkunoffRodShape as SchelkunoffRodShape,
     TescheRodShape as TescheRodShape,
     TescheTubeShape as TescheTubeShape,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "as_conductor",
     "AbstractConductorShape",
     "HalfSpaceShape",
+    "SchelkunoffRodShape",
     "TescheRodShape",
     "TescheTubeShape",
     "Substrate",
