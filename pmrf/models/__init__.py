@@ -94,12 +94,10 @@ from pmrf.models.components.lines.formulations import (
     WheelerMicrostripFormulation as WheelerMicrostripFormulation,
     HammerstadJensenMicrostripFormulation as HammerstadJensenMicrostripFormulation,
     AbstractMicrostripDispersion as AbstractMicrostripDispersion,
-    KirschningJansen as KirschningJansen,
+    KirschningJansenMicrostripDispersion as KirschningJansenMicrostripDispersion,
     AbstractStriplineFormulation as AbstractStriplineFormulation,
     CohnStriplineFormulation as CohnStriplineFormulation,
-    QuasiStaticResult as QuasiStaticResult,
-    DielectricProperties as DielectricProperties,
-    ConductorProperties as ConductorProperties,
+    PlanarQuasiStaticResult as PlanarQuasiStaticResult,
 )
 
 from pmrf.models.components.lumped import (

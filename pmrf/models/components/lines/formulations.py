@@ -1,59 +1,34 @@
 """
 Closed-form physics for transmission lines (coaxial, microstrip, stripline).
 
+Three distinct strategy roles appear on a line model, each with its own field:
+
+- A **Formulation** (`formulation`) produces the complete electrical state a
+  model needs to reach S-parameters: either a per-unit-length immittance
+  directly, or a :class:`PlanarQuasiStaticResult` the line converts into one.
+  It is the primary strategy, and a line always has exactly one.
+- A **Dispersion** (`dispersion`) modifies an existing quasi-static state with
+  modal frequency dependence. It never produces a state of its own, so it only
+  exists where the cross-section is inhomogeneous and the mode is therefore not
+  strictly TEM -- microstrip has one, homogeneously filled coaxial and stripline
+  do not.
+- A **Roughness** (`roughness`, in :mod:`pmrf.materials.conductor`) modifies
+  conductor behaviour rather than line state: it scales a surface impedance,
+  and so belongs to the conductor material, not to the geometry.
+
 A formulation is pure numerics. Materials are evaluated by the line, so a
 formulation never sees a :class:`~pmrf.Param` or a :class:`~pmrf.Module`
 parameter: it can be checked directly against the equations of the paper it
 comes from, and contributed without learning the material taxonomy.
 """
 from abc import abstractmethod
-from typing import NamedTuple
-
 from scipy.constants import c, mu_0, epsilon_0
 import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
+from pmrf.materials import ConductorProperties, DielectricProperties
 from pmrf.models.components.lines.base import ImmittanceResult
-
-
-class DielectricProperties(NamedTuple):
-    """Evaluated, geometry-free dielectric properties.
-
-    Parameters
-    ----------
-    ep_r : array-like
-        Complex relative permittivity.
-    mu_r : array-like
-        Complex relative permeability. Magnetic loss is carried by the
-        imaginary part, so a lossy magnetic filling needs no extra field.
-    """
-
-    #: Complex relative permittivity
-    ep_r: jnp.ndarray
-    #: Complex relative permeability
-    mu_r: jnp.ndarray
-
-
-class ConductorProperties(NamedTuple):
-    """Evaluated, geometry-free conductor properties.
-
-    Parameters
-    ----------
-    zs : array-like
-        Surface impedance in ohm per square.
-    sigma : array-like
-        Bulk conductivity in S/m.
-    mu_r : array-like
-        Complex relative permeability.
-    """
-
-    #: Surface impedance in ohm per square
-    zs: jnp.ndarray
-    #: Bulk conductivity in S/m
-    sigma: jnp.ndarray
-    #: Complex relative permeability
-    mu_r: jnp.ndarray
 
 
 def _tesche_internal_impedance(zs_over_radius, rdc, lint, w):
@@ -112,7 +87,7 @@ def tube_internal_impedance(zs, sigma, mu_r, radius, thickness, w):
     return _tesche_internal_impedance(zs / radius, rdc, lint, w)
 
 
-class QuasiStaticResult(eqx.Module):
+class PlanarQuasiStaticResult(eqx.Module):
     r"""
     Quasi-static solution of a single-conductor planar line over a ground plane.
 
@@ -131,7 +106,11 @@ class QuasiStaticResult(eqx.Module):
     zc : jnp.ndarray
         Quasi-static characteristic impedance in ohms, $Z_a/\sqrt{\varepsilon_e}$.
     w_eff : jnp.ndarray
-        Effective conductor width in meters, carrying the series loss.
+        Electromagnetic effective conductor width in meters.
+    conductor_loss_factor : jnp.ndarray
+        Geometry factor multiplying surface impedance, in inverse meters.
+    shunt_conductance_factor : jnp.ndarray
+        Geometry factor multiplying static conductivity, in meters.
     """
     #: Complex effective relative permittivity
     ep_eff: jnp.ndarray
@@ -142,7 +121,16 @@ class QuasiStaticResult(eqx.Module):
     #: Effective conductor width in meters
     w_eff: jnp.ndarray
 
-    def to_immittance(self, freq: Frequency, zs: jnp.ndarray) -> ImmittanceResult:
+    #: Geometry factor multiplying surface impedance
+    conductor_loss_factor: jnp.ndarray
+
+    #: Geometry factor multiplying static conductivity
+    shunt_conductance_factor: jnp.ndarray
+
+    def to_immittance(
+        self, freq: Frequency, dielectric: DielectricProperties,
+        conductor: ConductorProperties,
+    ) -> ImmittanceResult:
         r"""
         Converts the quasi-static solution into a per-unit-length immittance.
 
@@ -174,10 +162,13 @@ class QuasiStaticResult(eqx.Module):
         Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.
         """
         w = freq.w
-        sqrt_ep_eff = jnp.sqrt(self.ep_eff)
+        sqrt_ep_eff_mu = jnp.sqrt(self.ep_eff * dielectric.mu_r)
+        sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
-        Z = 1j * w * self.zc * sqrt_ep_eff / c + 2 * zs / self.w_eff
-        Y = 1j * w * sqrt_ep_eff / (self.zc * c)
+        Z = 1j * w * self.zc * sqrt_ep_eff_mu / c
+        Z = Z + conductor.zs * self.conductor_loss_factor
+        Y = 1j * w * sqrt_ep_eff_over_mu / (self.zc * c)
+        Y = Y + dielectric.sigma * self.shunt_conductance_factor
 
         return ImmittanceResult(Z=Z, Y=Y, w=w)
 
@@ -244,6 +235,17 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     term $j\omega L'$ acquires the real part $\omega\mu''\ln(b/a)/2\pi$, so
     magnetic loss enters the series resistance on its own.
 
+    **Validity**
+
+    The equivalent circuit is not an empirical fit to a width ratio, so it
+    carries no geometric fit range: it interpolates between the exact DC
+    resistance and the exact high-frequency skin-effect impedance of a round
+    conductor. The transmission-line description itself is the limit: it assumes
+    the TEM mode, so it holds below the TE11 cutoff
+    $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
+    Above that, higher-order modes propagate and a single per-unit-length
+    immittance no longer describes the line.
+
     References
     ----------
     Tesche, F. M. (2007). A Simple Model for the Line Parameters of a Lossy Coaxial
@@ -258,6 +260,7 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
         mu = mu_0 * dielectric.mu_r
         w = freq.w
 
+        d_out = eqx.error_if(d_out, d_out - d_in <= 0, "d_out must exceed d_in")
         a, b = d_in / 2, d_out / 2
         ln_b_over_a = jnp.log(b / a)
 
@@ -272,6 +275,7 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
 
         Z = 1j * w * L_ext + Z_int
         Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
+        Y = Y + 2 * jnp.pi * dielectric.sigma / ln_b_over_a
 
         return ImmittanceResult(Z=Z, Y=Y, w=w)
 
@@ -285,7 +289,7 @@ class AbstractMicrostripFormulation(eqx.Module):
     published equations with no ParamRF objects in sight.
     """
     @abstractmethod
-    def quasi_static(self, freq: Frequency, *, w, h, t, ep_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         r"""
         Calculates the quasi-static solution of the line.
 
@@ -307,7 +311,7 @@ class AbstractMicrostripFormulation(eqx.Module):
 
         Returns
         -------
-        QuasiStaticResult
+        PlanarQuasiStaticResult
             The effective permittivity, impedance and effective width.
         """
         raise NotImplementedError
@@ -334,12 +338,23 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     here — a thickness-aware formulation uses it to widen $W_{eff}$ for the
     current distribution, and the line applies the series loss either way.
 
+    **Validity**
+
+    Derived for a zero-thickness strip on an isotropic, non-magnetic substrate,
+    which is why finite thickness is rejected rather than ignored. It is a
+    quasi-static result and carries no modal dispersion, so it describes the
+    line only well below the frequency at which $\varepsilon_e$ begins to rise
+    towards $\varepsilon_r$; pair it with an
+    :class:`AbstractMicrostripDispersion` above that. Outside its fitted width
+    range the closed form remains smooth and finite, so ParamRF extrapolates
+    rather than rejecting.
+
     References
     ----------
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane.
     IEEE Transactions on Microwave Theory and Techniques.
     """
-    def quasi_static(self, freq: Frequency, *, w, h, t, ep_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         if t is not None:
             raise ValueError("Wheeler microstrip approximation does not support finite thickness")
 
@@ -354,7 +369,7 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         # Piecewise effective permittivity (ep_eff)
         ep_eff_le1 = t1 + t2 * (t3 + 0.04 * (1 - u)**2)
         ep_eff_gt1 = t1 + t2 * t3
-        ep_eff = jnp.where(u <= 1.0, ep_eff_le1, ep_eff_gt1) * jnp.ones(freq.npoints)
+        ep_eff = jnp.where(u <= 1.0, ep_eff_le1, ep_eff_gt1) * jnp.ones_like(ep_r)
 
         # Piecewise characteristic impedance in air (Za)
         Za_le1 = 60 * jnp.log(8 / u + 0.25 * u)
@@ -362,9 +377,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         Za = jnp.where(u <= 1.0, Za_le1, Za_gt1)
 
         zc = Za / jnp.sqrt(ep_eff)
-        w_eff = W * jnp.ones(freq.npoints)
+        w_eff = W * jnp.ones_like(ep_r)
+        conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
 
-        return QuasiStaticResult(ep_eff=ep_eff, zc=zc, w_eff=w_eff)
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, 2 / w_eff, conductance_factor)
 
 
 class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
@@ -404,6 +420,19 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     The dielectric constraint $\Re(\varepsilon_r)>1$ keeps its argument away
     from the negative-real branch cut for passive materials.
 
+    **Validity**
+
+    Hammerstad and Jensen quote the fit accuracy of $\varepsilon_e$ as better
+    than 0.2% for $\varepsilon_r < 128$ and $0.01 \leq u \leq 100$, and the
+    accuracy of $Z_L$ as better than 0.01% for $u \leq 1$ and 0.03% for
+    $u \leq 1000$. The result is quasi-static: it carries no modal dispersion,
+    so a :class:`AbstractMicrostripDispersion` supplies the frequency
+    dependence. The substrate must be non-magnetic; :class:`MicrostripLine`
+    rejects $\mu_r \neq 1$ rather than extrapolating. Leaving the fitted ranges
+    is a documented extrapolation: the expressions stay finite and smooth, and
+    only $\Re(\varepsilon_r) > 1$ is enforced, because the fractional power in
+    $b$ has a branch cut below it.
+
     References
     ----------
     Hammerstad, E., & Jensen, O. (1980). Accurate Models for Microstrip
@@ -411,7 +440,7 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     407-409.
     """
 
-    def quasi_static(self, freq: Frequency, *, w, h, t, ep_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         u = w / h
         thickness = None if t is None else t / h
 
@@ -440,7 +469,8 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         zc = zr / jnp.sqrt(e)
         ep_eff = e * (z1 / zr) ** 2
         w_eff = ur * h
-        return QuasiStaticResult(ep_eff=ep_eff, zc=zc, w_eff=w_eff)
+        conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, 2 / w_eff, conductance_factor)
 
     @staticmethod
     def _homogeneous_impedance(u):
@@ -454,13 +484,35 @@ class AbstractMicrostripDispersion(eqx.Module):
 
     @abstractmethod
     def disperse(
-        self, freq: Frequency, *, ep_eff_0, zc_0, ep_r, w, w_eff, h, t
+        self, freq: Frequency, *, ep_eff_0, zc_0, ep_r, w_eff, h
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        r"""Return frequency-dependent $(\varepsilon_e, Z_c)$."""
+        r"""
+        Return frequency-dependent $(\varepsilon_e, Z_c)$.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency axis.
+        ep_eff_0 : jnp.ndarray
+            Quasi-static complex effective relative permittivity.
+        zc_0 : jnp.ndarray
+            Quasi-static characteristic impedance in ohms.
+        ep_r : jnp.ndarray
+            Complex relative permittivity of the substrate.
+        w_eff : jnp.ndarray
+            Electromagnetic effective conductor width in meters.
+        h : ArrayLike
+            Substrate height in meters.
+
+        Returns
+        -------
+        tuple of jnp.ndarray
+            The dispersed effective permittivity and characteristic impedance.
+        """
         raise NotImplementedError
 
 
-class KirschningJansen(AbstractMicrostripDispersion):
+class KirschningJansenMicrostripDispersion(AbstractMicrostripDispersion):
     r"""
     Kirschning--Jansen modal dispersion for microstrip.
 
@@ -478,9 +530,8 @@ class KirschningJansen(AbstractMicrostripDispersion):
     $$P_4=1+2.751[1-e^{-(\varepsilon_r/15.916)^8}].$$
     The normalized frequency is
     $f_n=f[\mathrm{Hz}]H[\mathrm{m}]10^{-6}$ (GHz-mm).
-    Following the ADS and QUCS conventions, the normalized width is
-    $$u=\begin{cases}W_{eff}/H,&\text{complex permittivity},\\
-    W/H,&\text{real permittivity}.\end{cases}$$
+    Following the ADS convention adopted throughout ParamRF, the normalized
+    width is the thickness-corrected $u = W_{eff}/H$.
 
     Characteristic impedance is corrected by
     $$Z_c(f)=Z_c(0)\left(\frac{R_{13}}{R_{14}}\right)^{R_{17}},$$
@@ -514,6 +565,16 @@ class KirschningJansen(AbstractMicrostripDispersion):
     This extension is not part of the cited empirical fit; it supplies a
     continuous, differentiable connection to its required homogeneous limit.
 
+    **Validity**
+
+    The published fits cover $1 \leq \varepsilon_r \leq 20$,
+    $0.1 \leq W/H \leq 100$ and $0 \leq H/\lambda_0 \leq 0.13$, with the
+    numerical fits themselves anchored from $\varepsilon_r = 2.2$ upwards; the
+    smooth homogeneous-limit weight described above covers the interval below
+    that, and is ParamRF's own extension rather than part of the cited fit.
+    Outside these ranges the expressions remain finite, so ParamRF extrapolates
+    and documents it rather than rejecting the input.
+
     References
     ----------
     Kirschning, M., & Jansen, R. H. (1982). Accurate Model for Effective
@@ -526,12 +587,9 @@ class KirschningJansen(AbstractMicrostripDispersion):
     """
 
     def disperse(
-        self, freq: Frequency, *, ep_eff_0, zc_0, ep_r, w, w_eff, h, t
+        self, freq: Frequency, *, ep_eff_0, zc_0, ep_r, w_eff, h
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        # ADS applies the effective width in its complex-permittivity path;
-        # QUCS applies the physical width in its real-permittivity path.
-        dispersion_width = w_eff if jnp.iscomplexobj(ep_r) else w
-        u = dispersion_width / h
+        u = w_eff / h
         fn = freq.f * h * 1e-6
 
         p1 = (
@@ -607,7 +665,7 @@ class AbstractStriplineFormulation(eqx.Module):
     """
 
     @abstractmethod
-    def quasi_static(self, freq: Frequency, *, w, b, t, ep_r, zs) -> QuasiStaticResult:
+    def quasi_static(self, *, w, b, t, ep_r) -> PlanarQuasiStaticResult:
         r"""
         Calculates the quasi-static solution of the line.
 
@@ -629,7 +687,7 @@ class AbstractStriplineFormulation(eqx.Module):
 
         Returns
         -------
-        QuasiStaticResult
+        PlanarQuasiStaticResult
             The effective permittivity, impedance and effective width.
         """
         raise NotImplementedError
@@ -662,17 +720,29 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     $$B = 1 + \frac{b}{0.5W + 0.7T}
     \left(0.5 + \frac{0.7T}{W} + \frac{1}{2\pi}\ln\frac{4\pi W}{T}\right).$$
 
-    That attenuation is returned as the effective width the line applies it
-    through. A per-unit-length series resistance $R = 2\alpha_c Z_c$ and the
-    line's own $R = 2R_s/W_{eff}$ are the same statement, so
-    $$W_{eff} = \frac{R_s}{\alpha_c Z_c} = \left[\frac{\alpha_c}{R_s}Z_c\right]^{-1},$$
-    which is independent of $R_s$ and therefore stays finite for a perfect
-    conductor. Dielectric loss needs no separate term: $\varepsilon_e$ is
-    complex, and carries it.
+    That attenuation is returned directly as the conductor-loss factor, not
+    disguised as a width. A per-unit-length series resistance is
+    $R = 2\alpha_c Z_c$, so the factor multiplying the surface impedance is
+    $$K_c = 2\frac{\alpha_c}{R_s}Z_c,$$
+    which is independent of $R_s$. The returned $W_e$ stays the genuine
+    electromagnetic fringing width and is not reused for loss. Dielectric loss
+    needs no separate term: $\varepsilon_e$ is complex, and carries it.
 
     The formulas are the standard piecewise fits, discontinuous by a fraction of
     a percent at $\sqrt{\varepsilon_r}Z_c = 120$; the branch is selected on the
     real parts.
+
+    **Validity**
+
+    The filling is homogeneous, so $\varepsilon_e = \varepsilon_r$ is exact and
+    there is no fit range on the permittivity and no modal dispersion below the
+    first higher-order mode. The impedance expression is Cohn's zero-thickness
+    result with a fringing correction whose two branches meet at $W/b = 0.35$;
+    the attenuation fit is piecewise in $\sqrt{\varepsilon_r} Z_c$ and is
+    discontinuous there by a fraction of a percent. Finite thickness must
+    satisfy $0 < T < b$, which is enforced, and the attenuation diverges
+    logarithmically as $T \to 0$, so a zero-thickness strip is given no
+    conductor loss rather than an infinite one.
 
     References
     ----------
@@ -682,24 +752,30 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.7. Wiley.
     """
 
-    def quasi_static(self, freq: Frequency, *, w, b, t, ep_r, zs) -> QuasiStaticResult:
-        ones = jnp.ones(freq.npoints)
+    def quasi_static(self, *, w, b, t, ep_r) -> PlanarQuasiStaticResult:
+        ones = jnp.ones_like(ep_r)
+        if t is not None:
+            t = eqx.error_if(t, t - b >= 0, "stripline thickness must satisfy 0 < t < b")
         ep_eff = ep_r * ones
 
         u = w / b
         w_e = b * (u - jnp.where(u > 0.35, 0.0, (0.35 - u) ** 2))
         zc = 30 * jnp.pi / jnp.sqrt(ep_eff) * b / (w_e + 0.441 * b)
 
-        w_eff = self._loss_width(w, b, t, ep_eff, zc) * ones
-        return QuasiStaticResult(ep_eff=ep_eff, zc=zc, w_eff=w_eff)
+        conductor_loss_factor = self._conductor_loss_factor(w, b, t, ep_eff, zc) * ones
+        shunt_conductance_factor = jnp.sqrt(ep_eff) / (zc * c * epsilon_0 * ep_eff)
+        return PlanarQuasiStaticResult(
+            ep_eff, zc, w_e * ones, conductor_loss_factor,
+            shunt_conductance_factor,
+        )
 
     @staticmethod
-    def _loss_width(w, b, t, ep_eff, zc):
-        """Return the effective width carrying Cohn's conductor attenuation."""
+    def _conductor_loss_factor(w, b, t, ep_eff, zc):
+        """Return the geometry factor multiplying surface impedance."""
         if t is None:
             # Cohn's attenuation diverges logarithmically as the strip thins:
             # a zero-thickness strip has no finite conductor loss to apply.
-            return jnp.inf
+            return 0.0
 
         ep_r = jnp.real(ep_eff)
         zc_real = jnp.real(zc)
@@ -715,4 +791,17 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
         alpha_over_rs = jnp.where(
             jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high
         )
-        return 1 / (alpha_over_rs * zc_real)
+        return 2 * alpha_over_rs * zc_real
+
+
+def _microstrip_conductance_factor(ep_r, ep_eff, zc):
+    """Convert static substrate conductivity through the quasi-static fill."""
+    capacitance = jnp.sqrt(ep_eff) / (zc * c)
+    delta = ep_r - 1
+    safe_delta = jnp.where(jnp.abs(delta) > 1e-14, delta, 1.0)
+    filling = jnp.where(
+        jnp.abs(delta) > 1e-14,
+        (capacitance - 1 / (zc * c * jnp.sqrt(ep_eff))) / safe_delta,
+        0.0,
+    )
+    return jnp.real(filling) / epsilon_0

@@ -10,12 +10,11 @@ from __future__ import annotations
 from abc import abstractmethod
 
 import jax.numpy as jnp
-from scipy.constants import epsilon_0
-
 from pmrf.constraints import Positive, GreaterThan, Interval
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
+from pmrf.materials.properties import DielectricProperties
 from pmrf.utils import field
 
 
@@ -38,8 +37,8 @@ class AbstractDielectric(Module):
     """
 
     @abstractmethod
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
-        """Total complex relative permittivity.
+    def properties(self, freq: Frequency) -> DielectricProperties:
+        """Evaluate the dielectric properties over a frequency axis.
 
         Parameters
         ----------
@@ -49,42 +48,8 @@ class AbstractDielectric(Module):
         Returns
         -------
         jnp.ndarray
-            Complex relative permittivity of shape ``(freq.npoints,)``, including
-            any static conductivity contribution.
+            Complex permittivity, permeability, and static conductivity.
         """
-
-    def mu_r(self, freq: Frequency) -> jnp.ndarray:
-        r"""Total complex relative permeability, shape ``(freq.npoints,)``.
-
-        Permeability belongs to the medium exactly as permittivity does, so it
-        lives here rather than on the geometry that happens to be filled with
-        it. That is what lets a magnetic filling be defined once and used by
-        any line, and it mirrors :meth:`AbstractConductor.mu_r`.
-
-        The convention matches :meth:`epsilon_r`: $\mu_r = \mu' - j\mu''$ with
-        $\mu'' \geq 0$ for a passive medium, so magnetic loss is carried by the
-        imaginary part rather than by a separate field.
-
-        Most dielectrics are non-magnetic, so the default is $1$. A magnetic
-        medium overrides this.
-        """
-        return jnp.ones(freq.npoints, dtype=complex)
-
-    def with_conduction(self, eps: jnp.ndarray, freq: Frequency) -> jnp.ndarray:
-        r"""Add the static conduction term $-j\sigma/(\omega\varepsilon_0)$ to `eps`.
-
-        A constant loss tangent gives a conductance proportional to $\omega$,
-        whereas a constant conductivity gives a frequency-independent one;
-        neither can express the other, so `sigma` is carried separately by every
-        concrete dielectric and folded in here.
-
-        The term is guarded at DC with the double-``where`` pattern, so both the
-        value and its gradient stay finite when the axis includes $\omega = 0$.
-        """
-        w = jnp.asarray(freq.w)
-        safe_w = jnp.where(w > 0, w, 1.0)
-        term = jnp.where(w > 0, self.sigma / (safe_w * epsilon_0), 0.0)
-        return eps - 1j * term
 
 
 class ConstantDielectric(AbstractDielectric):
@@ -111,7 +76,7 @@ class ConstantDielectric(AbstractDielectric):
 
         fr4 = ConstantDielectric(ep_r=4.3, tand=0.02)
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
-        eps = fr4.epsilon_r(freq)
+        eps = fr4.properties(freq).ep_r
 
     References
     ----------
@@ -125,10 +90,8 @@ class ConstantDielectric(AbstractDielectric):
         Dielectric loss tangent.
     sigma : Param, default=0.0
         Static bulk conductivity in S/m.
-    mu_rel : Param, default=1.0
-        Relative permeability of the medium. Stored under `mu_rel` because
-        :meth:`mu_r` is the evaluated accessor; a dataclass field of that name
-        would shadow it.
+    mu_r : Param, default=1.0
+        Relative permeability of the medium.
     """
     #: Real relative permittivity
     ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
@@ -140,15 +103,12 @@ class ConstantDielectric(AbstractDielectric):
     sigma: Param = param(default=0.0, constraint=Positive())
 
     #: Relative permeability of the medium
-    mu_rel: Param = param(default=1.0, constraint=Positive())
+    mu_r: Param = param(default=1.0, constraint=Positive())
 
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> DielectricProperties:
         ones = jnp.ones(freq.npoints)
         eps = self.ep_r * ones - 1j * self.ep_r * self.tand * ones
-        return self.with_conduction(eps, freq)
-
-    def mu_r(self, freq: Frequency) -> jnp.ndarray:
-        return self.mu_rel * jnp.ones(freq.npoints, dtype=complex)
+        return DielectricProperties(eps, self.mu_r * ones, self.sigma * ones)
 
 
 class DjordjevicSarkar(AbstractDielectric):
@@ -217,7 +177,7 @@ class DjordjevicSarkar(AbstractDielectric):
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> DielectricProperties:
         f = freq.f
         k = jnp.log((self.f_high + 1j * self.f_ref) / (self.f_low + 1j * self.f_ref))
         fd = jnp.log((self.f_high + 1j * f) / (self.f_low + 1j * f))
@@ -225,7 +185,8 @@ class DjordjevicSarkar(AbstractDielectric):
         eps_d = -self.tand * self.ep_r / jnp.imag(k)
         eps_inf = self.ep_r * (1.0 + self.tand * jnp.real(k) / jnp.imag(k))
 
-        return self.with_conduction(eps_inf + eps_d * fd, freq)
+        ones = jnp.ones(freq.npoints)
+        return DielectricProperties(eps_inf + eps_d * fd, ones, self.sigma * ones)
 
 
 class DebyePole(Module):
@@ -305,11 +266,12 @@ class MultipoleDebye(AbstractDielectric):
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> DielectricProperties:
         eps = self.ep_inf * jnp.ones(freq.npoints, dtype=complex)
         for pole in self.poles:
             eps = eps + pole.contribution(freq)
-        return self.with_conduction(eps, freq)
+        ones = jnp.ones(freq.npoints)
+        return DielectricProperties(eps, ones, self.sigma * ones)
 
 
 class ColeCole(AbstractDielectric):
@@ -357,14 +319,15 @@ class ColeCole(AbstractDielectric):
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> DielectricProperties:
         # Guard f = 0, where (jf/f_r)**(1-alpha) is a branch point.
         f = jnp.asarray(freq.f)
         safe_f = jnp.where(f > 0, f, 1.0)
         ratio = jnp.where(f > 0, (1j * safe_f / self.f_relax) ** (1.0 - self.alpha), 0.0)
 
         eps = self.ep_inf + self.dep_r / (1.0 + ratio)
-        return self.with_conduction(eps, freq)
+        ones = jnp.ones(freq.npoints)
+        return DielectricProperties(eps, ones, self.sigma * ones)
 
 
 class TabulatedDielectric(AbstractDielectric):
@@ -402,17 +365,24 @@ class TabulatedDielectric(AbstractDielectric):
     #: Static bulk conductivity in S/m
     sigma: Param = param(default=0.0, constraint=Positive())
 
-    def __post_init__(self):
+    def __check_init__(self):
+        if self.f.ndim != 1 or self.ep_r.ndim != 1:
+            raise ValueError("`f` and `ep_r` must be one-dimensional")
+        if self.f.size == 0:
+            raise ValueError("tabulated dielectric data must be nonempty")
         if self.f.shape != self.ep_r.shape:
             raise ValueError(
                 "`f` and `ep_r` must have the same shape, got "
                 f"{self.f.shape} and {self.ep_r.shape}"
             )
+        if not bool(jnp.all(jnp.diff(self.f) > 0)):
+            raise ValueError("`f` must be strictly increasing")
 
-    def epsilon_r(self, freq: Frequency) -> jnp.ndarray:
+    def properties(self, freq: Frequency) -> DielectricProperties:
         real = jnp.interp(freq.f, self.f, jnp.real(self.ep_r))
         imag = jnp.interp(freq.f, self.f, jnp.imag(self.ep_r))
-        return self.with_conduction(real + 1j * imag, freq)
+        ones = jnp.ones(freq.npoints)
+        return DielectricProperties(real + 1j * imag, ones, self.sigma * ones)
 
 
 def as_dielectric(value) -> AbstractDielectric:

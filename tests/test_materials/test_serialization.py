@@ -34,7 +34,10 @@ def test_material_round_trips(material, tmp_path):
     assert type(loaded) is type(material)
 
     freq = Frequency(start=1.0, stop=10.0, npoints=11, unit='GHz')
-    if hasattr(material, "epsilon_r"):
-        assert jnp.allclose(loaded.epsilon_r(freq), material.epsilon_r(freq))
+    if isinstance(
+        material,
+        (ConstantDielectric, DjordjevicSarkar, MultipoleDebye, ColeCole, TabulatedDielectric),
+    ):
+        assert jnp.allclose(loaded.properties(freq).ep_r, material.properties(freq).ep_r)
     else:
-        assert jnp.allclose(loaded.surface_impedance(freq), material.surface_impedance(freq))
+        assert jnp.allclose(loaded.properties(freq).zs, material.properties(freq).zs)

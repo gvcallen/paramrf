@@ -7,6 +7,7 @@ from scipy.constants import epsilon_0
 import pmrf as prf
 from pmrf.frequency import Frequency
 from pmrf.materials import (
+    DielectricProperties,
     ColeCole,
     ConstantDielectric,
     DebyePole,
@@ -15,6 +16,18 @@ from pmrf.materials import (
     TabulatedDielectric,
     as_dielectric,
 )
+
+
+def test_dielectric_properties_separate_static_conductivity(freq):
+    material = ConstantDielectric(ep_r=4.3, tand=0.02, sigma=0.01, mu_r=2.0)
+
+    properties = material.properties(freq)
+
+    assert isinstance(properties, DielectricProperties)
+    assert jnp.allclose(properties.ep_r, 4.3 * (1 - 0.02j))
+    assert jnp.allclose(properties.mu_r, 2.0)
+    assert jnp.allclose(properties.sigma, 0.01)
+    assert not hasattr(material, "epsilon_r")
 
 
 @pytest.fixture
@@ -28,38 +41,38 @@ def wideband_freq():
 
 
 def test_constant_dielectric(freq):
-    eps = ConstantDielectric(4.3, 0.02).epsilon_r(freq)
+    eps = ConstantDielectric(4.3, 0.02).properties(freq).ep_r
     assert eps.shape == (freq.npoints,)
     assert jnp.allclose(eps, 4.3 * (1 - 0.02j))
 
 
 def test_constant_dielectric_loss_tangent(freq):
-    eps = ConstantDielectric(4.3, 0.02).epsilon_r(freq)
+    eps = ConstantDielectric(4.3, 0.02).properties(freq).ep_r
     assert jnp.allclose(-jnp.imag(eps) / jnp.real(eps), 0.02)
 
 
 def test_conductivity_gives_frequency_independent_conductance(freq):
-    """A sigma-only dielectric gives w*eps'' constant, hence a constant G."""
+    """Static conductivity is retained separately from permittivity."""
     sigma = 0.01
-    eps = ConstantDielectric(4.3, sigma=sigma).epsilon_r(freq)
-    G_like = freq.w * -jnp.imag(eps) * epsilon_0
-    assert jnp.allclose(G_like, sigma)
+    properties = ConstantDielectric(4.3, sigma=sigma).properties(freq)
+    assert jnp.allclose(jnp.imag(properties.ep_r), 0.0)
+    assert jnp.allclose(properties.sigma, sigma)
 
 
 def test_loss_terms_are_additive(freq):
-    both = ConstantDielectric(4.3, 0.02, 0.01).epsilon_r(freq)
-    tand_only = ConstantDielectric(4.3, 0.02).epsilon_r(freq)
-    sigma_only = ConstantDielectric(4.3, sigma=0.01).epsilon_r(freq)
+    both = ConstantDielectric(4.3, 0.02, 0.01).properties(freq).ep_r
+    tand_only = ConstantDielectric(4.3, 0.02).properties(freq).ep_r
+    sigma_only = ConstantDielectric(4.3, sigma=0.01).properties(freq).ep_r
     assert jnp.allclose(both, tand_only + sigma_only - 4.3)
 
 
 def test_conductivity_guarded_at_dc():
     dc = Frequency.from_f(jnp.array([0.0, 1e9]))
-    eps = ConstantDielectric(4.3, sigma=0.01).epsilon_r(dc)
+    eps = ConstantDielectric(4.3, sigma=0.01).properties(dc).ep_r
     assert jnp.all(jnp.isfinite(eps))
 
     grad = jax.grad(
-        lambda s: jnp.sum(jnp.imag(ConstantDielectric(4.3, sigma=s).epsilon_r(dc)))
+        lambda s: jnp.sum(jnp.imag(ConstantDielectric(4.3, sigma=s).properties(dc).ep_r))
     )(0.01)
     assert jnp.isfinite(grad)
 
@@ -76,20 +89,20 @@ def test_djordjevic_sarkar_matches_skrf(wideband_freq):
         None, ep_r=ep_r, tand=tand, f_low=f_low, f_high=f_high,
         f_epr_tand=f_ref, f=f, diel='djordjevicsvensson',
     )
-    got = DjordjevicSarkar(ep_r, tand, f_low, f_high, f_ref).epsilon_r(wideband_freq)
+    got = DjordjevicSarkar(ep_r, tand, f_low, f_high, f_ref).properties(wideband_freq).ep_r
 
     assert jnp.allclose(got, jnp.asarray(expected), rtol=1e-10, atol=0.0)
 
 
 def test_djordjevic_sarkar_matches_target_at_reference():
     freq = Frequency.from_f(jnp.array([1e9]))
-    eps = DjordjevicSarkar(4.3, 0.02, f_ref=1e9).epsilon_r(freq)
+    eps = DjordjevicSarkar(4.3, 0.02, f_ref=1e9).properties(freq).ep_r
     assert jnp.allclose(jnp.real(eps), 4.3, rtol=1e-6)
     assert jnp.allclose(-jnp.imag(eps) / jnp.real(eps), 0.02, rtol=1e-6)
 
 
 def test_djordjevic_sarkar_is_dispersive(wideband_freq):
-    eps = DjordjevicSarkar(4.3, 0.02).epsilon_r(wideband_freq)
+    eps = DjordjevicSarkar(4.3, 0.02).properties(wideband_freq).ep_r
     # Permittivity falls monotonically with frequency inside the relaxation band.
     assert jnp.all(jnp.diff(jnp.real(eps)) < 0)
 
@@ -99,8 +112,8 @@ def test_multipole_debye_limits():
     hi = Frequency.from_f(jnp.array([1e15]))
     material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
 
-    assert jnp.allclose(jnp.real(material.epsilon_r(lo)), 3.5, rtol=1e-5)
-    assert jnp.allclose(jnp.real(material.epsilon_r(hi)), 2.0, rtol=1e-5)
+    assert jnp.allclose(jnp.real(material.properties(lo).ep_r), 3.5, rtol=1e-5)
+    assert jnp.allclose(jnp.real(material.properties(hi).ep_r), 2.0, rtol=1e-5)
 
 
 def test_multipole_debye_coerces_pairs():
@@ -112,12 +125,12 @@ def test_multipole_debye_coerces_pairs():
 def test_cole_cole_reduces_to_debye(freq):
     cole = ColeCole(ep_inf=2.0, dep_r=1.0, f_relax=1e9, alpha=0.0)
     debye = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)])
-    assert jnp.allclose(cole.epsilon_r(freq), debye.epsilon_r(freq))
+    assert jnp.allclose(cole.properties(freq).ep_r, debye.properties(freq).ep_r)
 
 
 def test_cole_cole_finite_at_dc():
     dc = Frequency.from_f(jnp.array([0.0, 1e9]))
-    eps = ColeCole(2.0, 1.0, 1e9, 0.3).epsilon_r(dc)
+    eps = ColeCole(2.0, 1.0, 1e9, 0.3).properties(dc).ep_r
     assert jnp.all(jnp.isfinite(eps))
     assert jnp.allclose(eps[0], 3.0)
 
@@ -128,8 +141,23 @@ def test_tabulated_dielectric_interpolates():
         ep_r=jnp.array([4.0 - 0.1j, 3.8 - 0.2j, 3.6 - 0.3j]),
     )
     freq = Frequency.from_f(jnp.array([1e9, 1.5e9, 3e9]))
-    eps = material.epsilon_r(freq)
+    eps = material.properties(freq).ep_r
     assert jnp.allclose(eps, jnp.array([4.0 - 0.1j, 3.9 - 0.15j, 3.6 - 0.3j]))
+
+
+@pytest.mark.parametrize(
+    ("f", "ep_r", "message"),
+    [
+        ([], [], "nonempty"),
+        ([[1e9, 2e9]], [[4.0, 3.9]], "one-dimensional"),
+        ([1e9, 1e9], [4.0, 3.9], "strictly increasing"),
+        ([2e9, 1e9], [4.0, 3.9], "strictly increasing"),
+        ([1e9], [4.0, 3.9], "same shape"),
+    ],
+)
+def test_tabulated_dielectric_rejects_invalid_tables(f, ep_r, message):
+    with pytest.raises(ValueError, match=message):
+        TabulatedDielectric(f=f, ep_r=ep_r)
 
 
 def test_tabulated_dielectric_validates_shapes():
@@ -159,7 +187,7 @@ def test_as_dielectric_converters():
 ])
 def test_gradients_are_finite(material, wideband_freq):
     def loss(m):
-        return jnp.sum(jnp.abs(m.epsilon_r(wideband_freq)))
+        return jnp.sum(jnp.abs(m.properties(wideband_freq).ep_r))
 
     grads = jax.grad(loss)(material)
     leaves = jax.tree_util.tree_leaves(prf.unwrap(grads))
@@ -174,10 +202,10 @@ def test_dielectrics_are_non_magnetic_by_default(freq):
         MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)]),
         ColeCole(2.0, 1.0, 1e9, 0.3),
     ):
-        mu_r = material.mu_r(freq)
+        mu_r = material.properties(freq).mu_r
         assert mu_r.shape == (freq.npoints,)
         assert jnp.allclose(mu_r, 1.0)
 
 
 def test_constant_dielectric_carries_permeability(freq):
-    assert jnp.allclose(ConstantDielectric(4.3, mu_rel=4.0).mu_r(freq), 4.0)
+    assert jnp.allclose(ConstantDielectric(4.3, mu_r=4.0).properties(freq).mu_r, 4.0)

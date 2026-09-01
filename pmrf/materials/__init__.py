@@ -16,6 +16,10 @@ from pmrf.materials.dielectric import (
     TabulatedDielectric as TabulatedDielectric,
     as_dielectric as as_dielectric,
 )
+from pmrf.materials.properties import (
+    ConductorProperties as ConductorProperties,
+    DielectricProperties as DielectricProperties,
+)
 from pmrf.materials.substrate import (
     Substrate as Substrate,
     as_substrate as as_substrate,
@@ -24,7 +28,7 @@ from pmrf.materials.conductor import (
     AbstractConductor as AbstractConductor,
     AbstractRoughness as AbstractRoughness,
     BulkConductor as BulkConductor,
-    Hammerstad as Hammerstad,
+    HammerstadRoughness as HammerstadRoughness,
     RoughConductor as RoughConductor,
     as_conductor as as_conductor,
 )
@@ -38,10 +42,12 @@ __all__ = [
     "ColeCole",
     "TabulatedDielectric",
     "as_dielectric",
+    "DielectricProperties",
+    "ConductorProperties",
     "AbstractConductor",
     "AbstractRoughness",
     "BulkConductor",
-    "Hammerstad",
+    "HammerstadRoughness",
     "RoughConductor",
     "as_conductor",
     "Substrate",

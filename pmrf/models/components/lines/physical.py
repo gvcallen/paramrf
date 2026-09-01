@@ -1,10 +1,9 @@
 """
 Physical transmission lines (general, coaxial, microstrip, stripline)
 """
-from typing import Literal
-
 from scipy.constants import c, epsilon_0, mu_0
 import jax.numpy as jnp
+import equinox as eqx
 
 from pmrf.frequency import Frequency
 from pmrf.constraints import Positive, GreaterThan
@@ -13,6 +12,7 @@ from pmrf.materials import (
     AbstractDielectric,
     BulkConductor,
     ConstantDielectric,
+    DielectricProperties,
     Substrate,
     as_conductor,
     as_dielectric,
@@ -25,26 +25,16 @@ from pmrf.models.components.lines.formulations import (
     AbstractCoaxialFormulation,
     AbstractMicrostripDispersion,
     AbstractMicrostripFormulation,
-    ConductorProperties,
-    DielectricProperties,
     AbstractStriplineFormulation,
     CohnStriplineFormulation,
-    KirschningJansen,
+    KirschningJansenMicrostripDispersion,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
 )
 
 
-EpsilonConvention = Literal["complex", "real"]
-
 # `None` disables modal dispersion, so it cannot double as "not given".
 _DEFAULT_DISPERSION = object()
-
-
-def _as_epsilon_convention(value: str) -> EpsilonConvention:
-    if value not in ("complex", "real"):
-        raise ValueError("epsilon_convention must be 'complex' or 'real'")
-    return value
 
 # -----------------------------------------------------------------------------
 # Lines
@@ -269,7 +259,7 @@ class CoaxialLine(AbstractImmittanceLine):
         The dielectric filling, which supplies both its permittivity and its
         permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
         coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
-        filling sets that material's ``mu_rel``.
+        filling sets that material's ``mu_r``.
     conductor : AbstractConductor, default=BulkConductor()
         The conductor material of both conductors. A scalar resistivity in
         ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
@@ -300,14 +290,8 @@ class CoaxialLine(AbstractImmittanceLine):
             freq,
             d_in=self.d_in,
             d_out=self.d_out,
-            dielectric=DielectricProperties(
-                self.dielectric.epsilon_r(freq), self.dielectric.mu_r(freq)
-            ),
-            conductor=ConductorProperties(
-                self.conductor.surface_impedance(freq),
-                self.conductor.sigma(freq),
-                self.conductor.mu_r(freq),
-            ),
+            dielectric=self.dielectric.properties(freq),
+            conductor=self.conductor.properties(freq),
         )
     
     
@@ -317,21 +301,27 @@ class MicrostripLine(AbstractImmittanceLine):
     
     Uses :class:`WheelerMicrostripFormulation` for the default mathematical formulation.
 
-    The quasi-static formulation returns a :class:`QuasiStaticResult`. With
-    modal dispersion disabled, :meth:`QuasiStaticResult.to_immittance` converts
+    The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`. With
+    modal dispersion disabled, :meth:`PlanarQuasiStaticResult.to_immittance` converts
     it directly; otherwise the dispersed modal quantities are inverted exactly.
 
     **Mathematical Formulation**
 
     The line evaluates material permittivity, a quasi-static formulation, and
-    then the optional modal-dispersion formulation. Under the complex
-    convention the material loss is carried directly by effective permittivity:
+    then the optional modal-dispersion formulation. ParamRF carries permittivity
+    complex throughout, following the ADS/AWR convention, so the dielectric loss
+    is carried directly by the effective permittivity and needs no separate
+    attenuation term:
     $$\gamma_m=\frac{j\omega}{c}\sqrt{\varepsilon_e(f)}.$$
-    Under the real convention, QUCS-like dielectric attenuation is added to a
-    real phase constant:
-    $$\alpha_d=\frac{\pi f}{c}\frac{\varepsilon_r}{\varepsilon_r-1}
-    \frac{\varepsilon_e(0)-1}{\sqrt{\varepsilon_e(0)}}\tan\delta,
-    \qquad \beta=\frac{\omega}{c}\sqrt{\varepsilon_e(f)}.$$
+
+    Static bulk conductivity is not folded into that permittivity, which would
+    make it singular at DC. It is applied separately as a shunt conductance
+    $G = \sigma K_g$, where $K_g$ is the geometric
+    ``shunt_conductance_factor`` of the quasi-static result, so the line keeps a
+    finite, nonzero conductance down to DC.
+
+    The substrate must be nonmagnetic. No cited microstrip formulation covers
+    magnetic media, so $\mu_r \neq 1$ is rejected rather than silently ignored.
 
     For a finite-thickness conductor, Wheeler's incremental-inductance
     correction adds
@@ -386,13 +376,9 @@ class MicrostripLine(AbstractImmittanceLine):
         formulations such as Hammerstad--Jensen use a positive value.
     formulation : AbstractMicrostripFormulation, default=WheelerMicrostripFormulation()
         The closed-form physics used to compute the quasi-static solution.
-    dispersion : AbstractMicrostripDispersion | None, default=KirschningJansen()
+    dispersion : AbstractMicrostripDispersion | None, default=KirschningJansenMicrostripDispersion()
         The modal-dispersion correction. ``None`` disables modal dispersion and
         preserves the quasi-static immittance path.
-    epsilon_convention : {'complex', 'real'}, default='complex'
-        Whether the quasi-static and modal formulas consume the full complex
-        material permittivity or only its real part. The real convention adds
-        dielectric attenuation separately.
 
     References
     ----------
@@ -417,11 +403,8 @@ class MicrostripLine(AbstractImmittanceLine):
     formulation: AbstractMicrostripFormulation = field(default_factory=WheelerMicrostripFormulation)
 
     #: The modal-dispersion formulation, or None to disable it
-    dispersion: AbstractMicrostripDispersion | None = field(default_factory=KirschningJansen)
-
-    #: Permittivity convention used by the empirical formulas
-    epsilon_convention: EpsilonConvention = field(
-        default="complex", static=True, converter=_as_epsilon_convention
+    dispersion: AbstractMicrostripDispersion | None = field(
+        default_factory=KirschningJansenMicrostripDispersion
     )
 
     def __init__(
@@ -436,7 +419,6 @@ class MicrostripLine(AbstractImmittanceLine):
         t: Param | None = None,
         formulation: AbstractMicrostripFormulation | None = None,
         dispersion: AbstractMicrostripDispersion | None = _DEFAULT_DISPERSION,
-        epsilon_convention: EpsilonConvention = "complex",
         name: str | None = None,
         metadata=None,
     ):
@@ -454,91 +436,59 @@ class MicrostripLine(AbstractImmittanceLine):
             WheelerMicrostripFormulation() if formulation is None else formulation
         )
         self.dispersion = (
-            KirschningJansen() if dispersion is _DEFAULT_DISPERSION else dispersion
+            KirschningJansenMicrostripDispersion()
+            if dispersion is _DEFAULT_DISPERSION else dispersion
         )
-        self.epsilon_convention = epsilon_convention
         self.length = length
         self.name = name
         self.metadata = metadata
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         substrate = self.substrate
-        zs = substrate.conductor.surface_impedance(freq)
-        material_ep_r = substrate.dielectric.epsilon_r(freq)
-        formula_ep_r = (
-            material_ep_r if self.epsilon_convention == "complex" else jnp.real(material_ep_r)
+        conductor = substrate.conductor.properties(freq)
+        dielectric = substrate.dielectric.properties(freq)
+        ep_r = eqx.error_if(
+            dielectric.ep_r,
+            jnp.any(jnp.abs(dielectric.mu_r - 1) > 1e-12),
+            "microstrip formulations require a nonmagnetic substrate (mu_r = 1)",
         )
 
         quasi_static = self.formulation.quasi_static(
-            freq,
             w=self.w,
             h=substrate.h,
             t=substrate.t,
-            ep_r=formula_ep_r,
-            zs=zs,
+            ep_r=ep_r,
         )
 
-        if self.dispersion is None and self.epsilon_convention == "complex":
-            return quasi_static.to_immittance(freq, zs)
-
         if self.dispersion is None:
-            ep_eff, zc = quasi_static.ep_eff, quasi_static.zc
+            return quasi_static.to_immittance(freq, dielectric, conductor)
         else:
             ep_eff, zc = self.dispersion.disperse(
                 freq,
                 ep_eff_0=quasi_static.ep_eff,
                 zc_0=quasi_static.zc,
-                ep_r=formula_ep_r,
-                w=self.w,
+                ep_r=ep_r,
                 w_eff=quasi_static.w_eff,
                 h=substrate.h,
-                t=substrate.t,
             )
 
-        if self.epsilon_convention == "complex":
-            gamma = 1j * freq.w * jnp.sqrt(ep_eff) / c
-        else:
-            gamma = self._real_convention_gamma(
-                freq, material_ep_r, ep_eff, quasi_static.ep_eff
-            )
+        gamma = 1j * freq.w * jnp.sqrt(ep_eff) / c
 
         # Wheeler's incremental-inductance rule. With no finite conductor
         # thickness scikit-rf defines this empirical correction as zero.
         if substrate.t is not None:
             z0 = jnp.sqrt(mu_0 / epsilon_0)
-            loss_zc = zc if self.epsilon_convention == "complex" else quasi_static.zc
-            current_distribution = jnp.exp(-1.2 * (jnp.real(loss_zc) / z0) ** 0.7)
+            current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
             gamma = gamma + (
-                jnp.real(zs) / (jnp.real(loss_zc) * self.w) * current_distribution
+                jnp.real(conductor.zs) / (jnp.real(zc) * self.w) * current_distribution
             )
 
-        return ImmittanceResult.from_zc_gamma(zc, gamma, freq.w)
-
-    @staticmethod
-    def _real_convention_gamma(freq, material_ep_r, ep_eff, loss_ep_eff):
-        ep_r_real = jnp.real(material_ep_r)
-        ep_eff_real = jnp.real(ep_eff)
-        loss_ep_eff_real = jnp.real(loss_ep_eff)
-        tan_delta = -jnp.imag(material_ep_r) / ep_r_real
-
-        delta_ep_r = ep_r_real - 1
-        safe_delta = jnp.where(jnp.abs(delta_ep_r) > 1e-14, delta_ep_r, 1.0)
-        filling = jnp.where(
-            jnp.abs(delta_ep_r) > 1e-14,
-            (loss_ep_eff_real - 1) / safe_delta,
-            0.0,
+        result = ImmittanceResult.from_zc_gamma(zc, gamma, freq.w)
+        return ImmittanceResult(
+            Z=result.Z,
+            Y=result.Y + dielectric.sigma * quasi_static.shunt_conductance_factor,
+            w=freq.w,
         )
-        alpha_dielectric = (
-            jnp.pi
-            * ep_r_real
-            * filling
-            / jnp.sqrt(loss_ep_eff_real)
-            * tan_delta
-            * freq.f
-            / c
-        )
-        beta = freq.w * jnp.sqrt(ep_eff_real) / c
-        return alpha_dielectric + 1j * beta
 
 
 class StriplineLine(AbstractImmittanceLine):
@@ -557,7 +507,7 @@ class StriplineLine(AbstractImmittanceLine):
     **Mathematical Formulation**
 
     The quasi-static formulation returns $(\varepsilon_e, Z_c, W_{eff})$, and
-    :meth:`QuasiStaticResult.to_immittance` converts them directly:
+    :meth:`PlanarQuasiStaticResult.to_immittance` converts them directly:
     $$Z = \frac{j\omega Z_c\sqrt{\varepsilon_e}}{c} + \frac{2Z_s}{W_{eff}}
     \qquad
     Y = \frac{j\omega\sqrt{\varepsilon_e}}{Z_c c}.$$
@@ -637,13 +587,12 @@ class StriplineLine(AbstractImmittanceLine):
     )
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
-        zs = self.conductor.surface_impedance(freq)
+        dielectric = self.dielectric.properties(freq)
+        conductor = self.conductor.properties(freq)
         quasi_static = self.formulation.quasi_static(
-            freq,
             w=self.w,
             b=self.b,
             t=self.t,
-            ep_r=self.dielectric.epsilon_r(freq),
-            zs=zs,
+            ep_r=dielectric.ep_r,
         )
-        return quasi_static.to_immittance(freq, zs)
+        return quasi_static.to_immittance(freq, dielectric, conductor)

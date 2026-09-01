@@ -14,12 +14,18 @@ from pmrf.models import (
     DatasheetLine, 
     CoaxialLine, 
     MicrostripLine, 
+    StriplineLine,
     FloatingLine
 )
-from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkar, RoughConductor
-from pmrf.models.components.lines.formulations import (
+from pmrf.materials import (
+    BulkConductor,
     ConductorProperties,
+    ConstantDielectric,
     DielectricProperties,
+    DjordjevicSarkar,
+    RoughConductor,
+)
+from pmrf.models.components.lines.formulations import (
     TescheCoaxialFormulation,
     tube_internal_impedance,
 )
@@ -134,6 +140,28 @@ def test_coaxial_line_impedance(basic_freq):
     # Real part of Zc should match the theoretical lossless impedance
     assert jnp.allclose(jnp.real(zc), expected_zc, rtol=1e-3)
 
+
+def test_coaxial_static_conductivity_has_analytic_dc_conductance():
+    freq = Frequency.from_f(jnp.array([0.0, 1.0, 1e3]))
+    sigma = 0.01
+    d_in, d_out = 0.9e-3, 2.95e-3
+    line = CoaxialLine(
+        d_in=d_in,
+        d_out=d_out,
+        dielectric=ConstantDielectric(ep_r=2.25, sigma=sigma),
+        conductor=BulkConductor(rho=0.0),
+        length=1.0,
+    )
+
+    expected = 2 * jnp.pi * sigma / jnp.log(d_out / d_in)
+    assert jnp.allclose(line.immittance(freq).G, expected)
+
+
+def test_coaxial_rejects_reversed_diameters():
+    line = CoaxialLine(d_in=2e-3, d_out=1e-3, length=0.1)
+    with pytest.raises(Exception, match="d_out must exceed d_in"):
+        line.immittance(Frequency.from_f(jnp.array([1e9])))
+
 def test_coaxial_permeability_comes_from_the_dielectric(basic_freq):
     """A magnetic filling is a property of the material, not of the geometry.
 
@@ -149,7 +177,7 @@ def test_coaxial_permeability_comes_from_the_dielectric(basic_freq):
         )
 
     plain = coax(ConstantDielectric(ep_r=2.25, tand=0.0))
-    magnetic = coax(ConstantDielectric(ep_r=2.25, tand=0.0, mu_rel=4.0))
+    magnetic = coax(ConstantDielectric(ep_r=2.25, tand=0.0, mu_r=4.0))
 
     zc_plain, _ = plain.zc_and_gammaL(basic_freq)
     zc_magnetic, _ = magnetic.zc_and_gammaL(basic_freq)
@@ -164,8 +192,11 @@ def test_coaxial_magnetic_loss_enters_the_series_resistance(basic_freq):
     channel is magnetic: Im(mu_r) < 0 adds w*mu''*ln(b/a)/2pi to Re(Z).
     """
     class LossyMagnetic(ConstantDielectric):
-        def mu_r(self, freq):
-            return (4.0 - 0.5j) * jnp.ones(freq.npoints, dtype=complex)
+        def properties(self, freq):
+            properties = super().properties(freq)
+            return properties._replace(
+                mu_r=(4.0 - 0.5j) * jnp.ones(freq.npoints, dtype=complex)
+            )
 
     line = CoaxialLine(
         d_in=0.9e-3,
@@ -219,7 +250,9 @@ def test_coaxial_formulation_takes_plain_arrays(basic_freq):
         basic_freq,
         d_in=0.9e-3,
         d_out=2.95e-3,
-        dielectric=DielectricProperties(np.full(npoints, 2.25 - 0.00225j), np.ones(npoints)),
+        dielectric=DielectricProperties(
+            np.full(npoints, 2.25 - 0.00225j), np.ones(npoints), np.zeros(npoints)
+        ),
         conductor=ConductorProperties(
             np.full(npoints, 0.01 + 0.01j),
             np.full(npoints, 1 / 1.72e-8),
@@ -312,7 +345,7 @@ def test_microstrip_line_matches_skrf(basic_freq):
     zc, gammaL = line.zc_and_gammaL(basic_freq)
 
     # scikit-rf implements Wheeler's own closed form, where ParamRF uses the
-    # Hammerstad simplification of it. The two agree on the impedance to half a
+    # HammerstadRoughness simplification of it. The two agree on the impedance to half a
     # percent and on the effective permittivity, hence the phase constant, to
     # under two percent.
     assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-2)
@@ -384,7 +417,7 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
     zs = np.full(npoints, 0.01 + 0.01j)
 
     result = WheelerMicrostripFormulation().quasi_static(
-        basic_freq, w=3.0e-3, h=1.6e-3, t=None, ep_r=ep_r, zs=zs
+        w=3.0e-3, h=1.6e-3, t=None, ep_r=ep_r
     )
 
     assert result.ep_eff.shape == (npoints,)
@@ -394,11 +427,11 @@ def test_microstrip_formulation_takes_plain_arrays(basic_freq):
 
 def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
     """The dispersed modal solution survives exact immittance inversion."""
-    from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansen
+    from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansenMicrostripDispersion
 
     freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
-    dispersion = KirschningJansen()
+    dispersion = KirschningJansenMicrostripDispersion()
     line = MicrostripLine(
         w=0.2e-3,
         h=0.5e-3,
@@ -410,20 +443,18 @@ def test_lossy_microstrip_preserves_dispersed_zc_and_phase():
         length=0.1,
     )
 
-    ep_r = line.substrate.dielectric.epsilon_r(freq)
-    zs = line.substrate.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.properties(freq).ep_r
+    zs = line.substrate.conductor.properties(freq).zs
     quasi_static = formulation.quasi_static(
-        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
+        w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r
     )
     ep_eff, expected_zc = dispersion.disperse(
         freq,
         ep_eff_0=quasi_static.ep_eff,
         zc_0=quasi_static.zc,
         ep_r=ep_r,
-        w=line.w,
         w_eff=quasi_static.w_eff,
         h=line.substrate.h,
-        t=line.substrate.t,
     )
 
     zc, gamma_length = line.zc_and_gammaL(freq)
@@ -446,23 +477,27 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
-    ep_r = line.substrate.dielectric.epsilon_r(freq)
-    zs = line.substrate.conductor.surface_impedance(freq)
+    ep_r = line.substrate.dielectric.properties(freq).ep_r
+    zs = line.substrate.conductor.properties(freq).zs
     quasi_static = line.formulation.quasi_static(
-        freq, w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r, zs=zs
+        w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r
     )
 
     actual = line.immittance(freq)
-    expected = quasi_static.to_immittance(freq, zs)
+    expected = quasi_static.to_immittance(
+        freq,
+        line.substrate.dielectric.properties(freq),
+        line.substrate.conductor.properties(freq),
+    )
     assert jnp.array_equal(actual.Z, expected.Z)
     assert jnp.array_equal(actual.Y, expected.Y)
 
 
 def test_microstrip_defaults_to_kirschning_jansen():
     """Modal dispersion is the accuracy-oriented microstrip default."""
-    from pmrf.models import KirschningJansen
+    from pmrf.models import KirschningJansenMicrostripDispersion
 
-    assert isinstance(MicrostripLine(length=0.1).dispersion, KirschningJansen)
+    assert isinstance(MicrostripLine(length=0.1).dispersion, KirschningJansenMicrostripDispersion)
 
 
 def test_hammerstad_jensen_finite_thickness_matches_skrf():
@@ -473,9 +508,7 @@ def test_hammerstad_jensen_finite_thickness_matches_skrf():
     freq = Frequency(start=1.0, stop=10.0, npoints=10, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
     ep_r = jnp.full(freq.npoints, 4.3)
-    result = formulation.quasi_static(
-        freq, w=1e-3, h=1e-3, t=35e-6, ep_r=ep_r, zs=jnp.zeros(freq.npoints)
-    )
+    result = formulation.quasi_static(w=1e-3, h=1e-3, t=35e-6, ep_r=ep_r)
     media = MLine(
         freq.to_skrf(),
         w=1e-3,
@@ -531,12 +564,8 @@ def test_kirschning_jansen_matches_skrf(ep_r, width_height):
     assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
 
 
-@pytest.mark.parametrize(
-    ("convention", "compatibility_mode"),
-    [("complex", None), ("real", "qucs")],
-)
-def test_microstrip_epsilon_convention_matches_skrf(convention, compatibility_mode):
-    """Both documented permittivity conventions match their scikit-rf modes."""
+def test_microstrip_complex_permittivity_matches_skrf():
+    """Microstrip uses the ADS/AWR complex-permittivity convention."""
     from skrf.media import MLine
     from pmrf.models import HammerstadJensenMicrostripFormulation
 
@@ -548,7 +577,6 @@ def test_microstrip_epsilon_convention_matches_skrf(convention, compatibility_mo
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         conductor=BulkConductor(rho=1.68e-8),
         formulation=HammerstadJensenMicrostripFormulation(),
-        epsilon_convention=convention,
         length=0.1,
     )
     media = MLine(
@@ -563,31 +591,12 @@ def test_microstrip_epsilon_convention_matches_skrf(convention, compatibility_mo
         model="hammerstadjensen",
         disp="kirschningjansen",
         diel="frequencyinvariant",
-        compatibility_mode=compatibility_mode,
+        compatibility_mode=None,
     )
 
     zc, gamma_length = line.zc_and_gammaL(freq)
     assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-3)
     assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
-
-
-def test_real_epsilon_convention_retains_loss_without_modal_dispersion():
-    """The convention switch is independent of enabling modal dispersion."""
-    freq = Frequency(start=1.0, stop=10.0, npoints=10, unit="GHz")
-    line = MicrostripLine(
-        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=0.0),
-        dispersion=None,
-        epsilon_convention="real",
-        length=0.1,
-    )
-
-    assert jnp.all(line.immittance(freq).G > 0)
-
-
-def test_microstrip_rejects_unknown_epsilon_convention():
-    with pytest.raises(ValueError, match="epsilon_convention"):
-        MicrostripLine(epsilon_convention="hybrid", length=0.1)
 
 
 def test_microstrip_near_air_has_finite_conductance_and_gradient():
@@ -639,6 +648,36 @@ def test_coaxial_line_has_no_modal_dispersion_field():
 # and against the exact identities a homogeneously-filled line must satisfy.
 # -----------------------------------------------------------------------------
 
+
+@pytest.mark.parametrize("line", [
+    MicrostripLine(
+        dielectric=ConstantDielectric(ep_r=4.3, sigma=0.01), length=0.1
+    ),
+    StriplineLine(
+        dielectric=ConstantDielectric(ep_r=2.2, sigma=0.01), length=0.1
+    ),
+])
+def test_planar_static_conductivity_is_finite_and_continuous_at_dc(line):
+    freq = Frequency.from_f(jnp.array([0.0, 1e-3, 1.0]))
+    conductance = line.immittance(freq).G
+    assert jnp.all(jnp.isfinite(conductance))
+    assert jnp.all(conductance > 0)
+    assert jnp.allclose(conductance[0], conductance[1], rtol=1e-12)
+
+
+def test_microstrip_rejects_magnetic_substrate():
+    line = MicrostripLine(
+        dielectric=ConstantDielectric(ep_r=4.3, mu_r=2.0), length=0.1
+    )
+    with pytest.raises(Exception, match="nonmagnetic substrate"):
+        line.immittance(Frequency.from_f(jnp.array([1e9])))
+
+
+def test_stripline_rejects_thickness_not_below_ground_spacing():
+    line = StriplineLine(b=1e-3, t=1e-3, length=0.1)
+    with pytest.raises(Exception, match="0 < t < b"):
+        line.immittance(Frequency.from_f(jnp.array([1e9])))
+
 def test_stripline_effective_permittivity_equals_relative_permittivity():
     """Stripline is homogeneously filled, so there is no filling factor at all."""
     from pmrf.models import CohnStriplineFormulation, StriplineLine
@@ -648,15 +687,13 @@ def test_stripline_effective_permittivity_equals_relative_permittivity():
     line = StriplineLine(w=2.655e-3, b=3.2e-3, dielectric=dielectric, length=0.1)
 
     quasi_static = CohnStriplineFormulation().quasi_static(
-        freq,
         w=line.w,
         b=line.b,
         t=line.t,
-        ep_r=dielectric.epsilon_r(freq),
-        zs=line.conductor.surface_impedance(freq),
+        ep_r=dielectric.properties(freq).ep_r,
     )
 
-    assert jnp.array_equal(quasi_static.ep_eff, dielectric.epsilon_r(freq))
+    assert jnp.array_equal(quasi_static.ep_eff, dielectric.properties(freq).ep_r)
 
 
 def test_stripline_impedance_matches_pozar_design_example():
@@ -754,14 +791,12 @@ def test_stripline_accepts_a_dispersive_dielectric():
     dielectric = DjordjevicSarkar(ep_r=3.9, tand=0.02, f_ref=1e9)
     line = StriplineLine(w=2.655e-3, b=3.2e-3, dielectric=dielectric, length=0.1)
 
-    ep_r = dielectric.epsilon_r(freq)
+    ep_r = dielectric.properties(freq).ep_r
     quasi_static = CohnStriplineFormulation().quasi_static(
-        freq,
         w=line.w,
         b=line.b,
         t=line.t,
         ep_r=ep_r,
-        zs=line.conductor.surface_impedance(freq),
     )
 
     assert jnp.array_equal(quasi_static.ep_eff, ep_r)
