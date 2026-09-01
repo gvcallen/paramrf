@@ -461,6 +461,48 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
     assert jnp.array_equal(actual.Y, expected.Y)
 
 
+def test_microstrip_dispersion_is_a_pure_dispersion_toggle():
+    """Turning dispersion off must not change *which* conductor loss applies.
+
+    Both the quasi-static path (``PlanarQuasiStaticResult.to_immittance``) and
+    the dispersion path charge Wheeler's incremental-inductance rule, so
+    disabling dispersion with an identity dispersion formulation (one that
+    hands the quasi-static ep_eff/zc straight through, unchanged) reproduces
+    the quasi-static attenuation to the accuracy of the quasi-static path's
+    own low-loss linearisation -- not to the ~9% gap that opened when the two
+    paths charged different conductor-loss forms (issue #82).
+    """
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+    from pmrf.models.components.lines.formulations import AbstractMicrostripDispersion
+
+    class IdentityDispersion(AbstractMicrostripDispersion):
+        """Hands the quasi-static ep_eff/zc through unchanged."""
+
+        def disperse(self, freq, *, ep_eff_0, zc_0, ep_r, w_eff, h):
+            return ep_eff_0, zc_0
+
+    freq = Frequency(start=1.0, stop=20.0, npoints=21, unit="GHz")
+
+    def alpha(dispersion):
+        line = MicrostripLine(
+            w=3e-3,
+            h=1.6e-3,
+            t=35e-6,
+            dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
+            conductor=BulkConductor(rho=1.72e-8),
+            formulation=HammerstadJensenMicrostripFormulation(),
+            dispersion=dispersion,
+            length=0.1,
+        )
+        _, gamma_length = line.zc_and_gammaL(freq)
+        return jnp.real(gamma_length / line.length)
+
+    alpha_quasi_static = alpha(None)
+    alpha_identity_dispersion = alpha(IdentityDispersion())
+
+    assert jnp.allclose(alpha_quasi_static, alpha_identity_dispersion, rtol=1e-2)
+
+
 def test_microstrip_defaults_to_kirschning_jansen():
     """Modal dispersion is the accuracy-oriented microstrip default."""
     from pmrf.models import KirschningJansenMicrostripDispersion
