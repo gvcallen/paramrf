@@ -16,7 +16,17 @@ from pmrf.materials.conductor_shape import (
     TescheRodShape,
     TescheTubeShape,
 )
+from pmrf.models.components.lines.cross_section import MicrostripCrossSection
 from pmrf.models.components.lines.current_distribution import WheelerCurrentDistribution
+from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
+
+
+def _solved(zc):
+    """A minimal solved state carrying only the impedance a strategy reads."""
+    ones = jnp.ones_like(zc)
+    return PlanarQuasiStaticResult(
+        ep_eff=ones, zc=zc, w_eff=ones, shunt_conductance_factor=ones
+    )
 
 
 @pytest.fixture
@@ -84,7 +94,9 @@ def test_root_sum_square_slab_reproduces_the_true_dc_resistance_under_its_weight
     freq = Frequency.from_f(jnp.array([0.0]))
     conductor = _conductor(freq, sigma)
     (shape, weight), = WheelerCurrentDistribution().distribute(
-        freq, zc=jnp.full(freq.f.shape, 50.0), w=w, t=t,
+        freq,
+        MicrostripCrossSection(w=w, h=1.6e-3, t=t),
+        _solved(jnp.full(freq.f.shape, 50.0)),
     )
 
     r_dc = shape.impedance(freq.w, conductor, w=w, t=t, weight=weight) * weight
@@ -106,7 +118,9 @@ def test_exact_slab_wants_a_different_weight_from_wheelers():
     freq = Frequency.from_f(jnp.array([0.0]))
     conductor = _conductor(freq, sigma)
     (_, wheeler_weight), = WheelerCurrentDistribution().distribute(
-        freq, zc=jnp.full(freq.f.shape, 50.0), w=w, t=t,
+        freq,
+        MicrostripCrossSection(w=w, h=1.6e-3, t=t),
+        _solved(jnp.full(freq.f.shape, 50.0)),
     )
     slab_weight = 1 / (2 * w)
 
@@ -177,15 +191,17 @@ def test_tabulated_planar_entries_record_transition_error(w, h, zc, expected, rt
     ohm/m at 10 and 50 MHz.  The literals were independently evaluated from
     Holloway--Kuester eq. (100) and Wheeler's published current weight using
     35 um copper with rho=1.68e-8 ohm m.  `h` records the complete tabulated
-    cross-section even though these planar entries depend on it only through
-    the supplied characteristic impedance.
+    cross-section: it reaches the distribution through the typed record even
+    though these planar entries depend on it only through the supplied
+    characteristic impedance.
     """
-    del h
     t, sigma = 35e-6, 1 / 1.68e-8
     freq = Frequency.from_f(jnp.array([10e6, 50e6]))
     conductor = _conductor(freq, sigma)
     blend, weight = WheelerCurrentDistribution().distribute(
-        freq, zc=jnp.full(freq.f.shape, zc), w=w, t=t,
+        freq,
+        MicrostripCrossSection(w=w, h=h, t=t),
+        _solved(jnp.full(freq.f.shape, zc)),
     )[0]
     geometry = dict(w=w, t=t, weight=weight)
 

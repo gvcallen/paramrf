@@ -35,6 +35,7 @@ from pmrf.materials.conductor_shape import (
     TescheRodShape,
     TescheTubeShape,
 )
+from pmrf.models.components.lines.cross_section import AbstractPlanarCrossSection
 from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
     CohnCurrentDistribution,
@@ -63,9 +64,6 @@ class PlanarQuasiStaticResult(eqx.Module):
         Quasi-static characteristic impedance in ohms, $Z_a/\sqrt{\varepsilon_e}$.
     w_eff : jnp.ndarray
         Electromagnetic effective conductor width in meters.
-    conductor_loss_factor : jnp.ndarray | None
-        Legacy scalar geometry factor retained for direct callers. Line models
-        use a current-distribution strategy instead.
     shunt_conductance_factor : jnp.ndarray
         Geometry factor multiplying static conductivity, in meters.
     """
@@ -81,14 +79,11 @@ class PlanarQuasiStaticResult(eqx.Module):
     #: Geometry factor multiplying static conductivity
     shunt_conductance_factor: jnp.ndarray
 
-    #: Legacy geometry factor for callers predating current distributions
-    conductor_loss_factor: jnp.ndarray | None = None
-
     def to_immittance(
         self, freq: Frequency, dielectric: DielectricProperties,
         conductor: ConductorProperties,
-        current_distribution: AbstractCurrentDistribution | None = None,
-        **geometry,
+        current_distribution: AbstractCurrentDistribution,
+        cross_section: AbstractPlanarCrossSection,
     ) -> ImmittanceResult:
         r"""
         Converts the quasi-static solution into a per-unit-length immittance.
@@ -111,8 +106,15 @@ class PlanarQuasiStaticResult(eqx.Module):
         ----------
         freq : Frequency
             The frequency axis.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square.
+        dielectric : DielectricProperties
+            Evaluated relative permittivity and permeability.
+        conductor : ConductorProperties
+            Evaluated conductor properties.
+        current_distribution : AbstractCurrentDistribution
+            The strategy that charges surface impedance into $Z$. It must be
+            written for the family ``cross_section`` belongs to.
+        cross_section : AbstractPlanarCrossSection
+            The line's frozen cross-section record.
 
         Returns
         -------
@@ -128,22 +130,18 @@ class PlanarQuasiStaticResult(eqx.Module):
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
         Z = 1j * omega * self.zc * sqrt_ep_eff_mu / c
-        if current_distribution is None:
-            if self.conductor_loss_factor is None:
-                raise ValueError("current_distribution is required")
-            Z_cond = conductor.zs * self.conductor_loss_factor
-        else:
-            # Cross-section dimensions reach the shape from the line's own
-            # geometry, and the weight the shape is about to be multiplied
-            # by travels with them: an entry whose dc floor is fixed in
-            # per-unit-length terms needs it to express that floor in this
-            # caller's normalisation. Every other entry ignores it.
-            Z_cond = sum(
-                shape.impedance(omega, conductor, weight=weight, **geometry) * weight
-                for shape, weight in current_distribution.distribute(
-                    freq, zc=self.zc, **geometry
-                )
+        # Cross-section dimensions reach the shape from the typed record, and
+        # the weight the shape is about to be multiplied by travels with
+        # them: an entry whose dc floor is fixed in per-unit-length terms
+        # needs it to express that floor in this caller's normalisation.
+        # Every other entry ignores it.
+        dimensions = cross_section.dimensions()
+        Z_cond = sum(
+            shape.impedance(omega, conductor, weight=weight, **dimensions) * weight
+            for shape, weight in current_distribution.distribute(
+                freq, cross_section, self
             )
+        )
         Z = Z + Z_cond
         Y = 1j * omega * sqrt_ep_eff_over_mu / (self.zc * c)
         Y = Y + dielectric.sigma * self.shunt_conductance_factor
@@ -362,8 +360,6 @@ class AbstractMicrostripFormulation(eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
-            The frequency axis.
         w : ArrayLike
             Width of the microstrip trace in meters.
         h : ArrayLike
@@ -372,9 +368,6 @@ class AbstractMicrostripFormulation(eqx.Module):
             Thickness of the trace in meters, or None for a zero-thickness trace.
         ep_r : jnp.ndarray
             Complex relative permittivity of the substrate, shape ``(npoints,)``.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square,
-            shape ``(npoints,)``.
 
         Returns
         -------
@@ -401,11 +394,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     $\varepsilon_r$ is complex, and $\varepsilon_e$ is linear in it, so the
     dielectric loss carries through the same filling factor as the real part and
     needs no separate loss-tangent term. The effective width is $W$: the
-    approximation is derived for a zero-thickness strip, so `zs` does not enter
-    here. Conductor loss is charged separately, through
-    `conductor_loss_factor`, by Wheeler's own incremental-inductance rule
-    (see :func:`_wheeler_conductor_loss_factor`), applied over the physical
-    width $W$ rather than a thickness-widened one.
+    approximation is derived for a zero-thickness strip, so conductor properties
+    do not enter here. Conductor loss is not produced by this formulation at
+    all: the line charges it through its
+    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
 
     **Validity**
 
@@ -448,10 +440,7 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         zc = Za / jnp.sqrt(ep_eff)
         w_eff = W * jnp.ones_like(ep_r)
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        return PlanarQuasiStaticResult(
-            ep_eff, zc, w_eff, conductance_factor,
-            _wheeler_conductor_loss_factor(W, zc),
-        )
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductance_factor)
 
 
 class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
@@ -486,11 +475,9 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     \qquad W_{eff}=u_rH,$$
     where $e$ denotes the bracketed permittivity expression before its
     thickness correction. $W_{eff}$ is the electromagnetic fringing width and
-    feeds the dispersion formulation; conductor loss is charged separately,
-    through `conductor_loss_factor`, by Wheeler's incremental-inductance rule
-    (see :func:`_wheeler_conductor_loss_factor`) over the physical width $W$,
-    which is the correct one for that rule regardless of which formulation
-    supplied the quasi-static solution.
+    feeds the dispersion formulation; conductor loss is not produced here at all,
+    but charged separately by the line's
+    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
 
     The fractional power in $b$ is evaluated through the principal logarithm.
     The dielectric constraint $\Re(\varepsilon_r)>1$ keeps its argument away
@@ -546,10 +533,7 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         ep_eff = e * (z1 / zr) ** 2
         w_eff = ur * h
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        return PlanarQuasiStaticResult(
-            ep_eff, zc, w_eff, conductance_factor,
-            _wheeler_conductor_loss_factor(w, zc),
-        )
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductance_factor)
 
     @staticmethod
     def _homogeneous_impedance(u):
@@ -749,8 +733,6 @@ class AbstractStriplineFormulation(eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
-            The frequency axis.
         w : ArrayLike
             Width of the centre strip in meters.
         b : ArrayLike
@@ -759,9 +741,6 @@ class AbstractStriplineFormulation(eqx.Module):
             Thickness of the strip in meters, or None for a zero-thickness strip.
         ep_r : jnp.ndarray
             Complex relative permittivity of the filling, shape ``(npoints,)``.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square,
-            shape ``(npoints,)``.
 
         Returns
         -------
@@ -786,29 +765,12 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     the characteristic impedance of the zero-thickness strip is
     $$Z_c = \frac{30\pi}{\sqrt{\varepsilon_r}}\frac{b}{W_e + 0.441b}.$$
 
-    Conductor loss follows Cohn's incremental-inductance result, which unlike
-    the impedance does depend on the strip thickness $T$:
-    $$\frac{\alpha_c}{R_s} = \begin{cases}
-    \dfrac{2.7\times10^{-3}\,\varepsilon_r Z_c}{30\pi(b-T)}A,
-        & \sqrt{\varepsilon_r}Z_c < 120,\\[2ex]
-    \dfrac{0.16}{Z_c b}B, & \sqrt{\varepsilon_r}Z_c \geq 120,
-    \end{cases}$$
-    $$A = 1 + \frac{2W}{b-T}
-    + \frac{1}{\pi}\frac{b+T}{b-T}\ln\frac{2b-T}{T}$$
-    $$B = 1 + \frac{b}{0.5W + 0.7T}
-    \left(0.5 + \frac{0.7T}{W} + \frac{1}{2\pi}\ln\frac{4\pi W}{T}\right).$$
-
-    That attenuation is returned directly as the conductor-loss factor, not
-    disguised as a width. A per-unit-length series resistance is
-    $R = 2\alpha_c Z_c$, so the factor multiplying the surface impedance is
-    $$K_c = 2\frac{\alpha_c}{R_s}Z_c,$$
-    which is independent of $R_s$. The returned $W_e$ stays the genuine
+    Conductor loss is not produced here: this formulation returns no loss
+    factor, and Cohn's attenuation lives in
+    :class:`~pmrf.models.components.lines.current_distribution.CohnCurrentDistribution`,
+    which the line pairs with it by default. The returned $W_e$ is the genuine
     electromagnetic fringing width and is not reused for loss. Dielectric loss
     needs no separate term: $\varepsilon_e$ is complex, and carries it.
-
-    The formulas are the standard piecewise fits, discontinuous by a fraction of
-    a percent at $\sqrt{\varepsilon_r}Z_c = 120$; the branch is selected on the
-    real parts.
 
     **Validity**
 
@@ -816,11 +778,8 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     there is no fit range on the permittivity and no modal dispersion below the
     first higher-order mode. The impedance expression is Cohn's zero-thickness
     result with a fringing correction whose two branches meet at $W/b = 0.35$;
-    the attenuation fit is piecewise in $\sqrt{\varepsilon_r} Z_c$ and is
-    discontinuous there by a fraction of a percent. Finite thickness must
-    satisfy $0 < T < b$, which is enforced, and the attenuation diverges
-    logarithmically as $T \to 0$, so a zero-thickness strip is given no
-    conductor loss rather than an infinite one.
+    finite thickness must satisfy $0 < T < b$, which is enforced. The impedance
+    itself does not depend on $T$.
 
     References
     ----------
@@ -844,36 +803,6 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
         return PlanarQuasiStaticResult(
             ep_eff, zc, w_e * ones, shunt_conductance_factor,
         )
-
-def _wheeler_conductor_loss_factor(w, zc):
-    r"""Wheeler's incremental-inductance rule, as a `conductor_loss_factor`.
-
-    $$k_c = \frac{2}{W}\exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right]$$
-
-    charges the sheet impedance over the physical trace width $W$, not the
-    dispersion-widened $W_{eff}$: the rule sums over every receded conductor
-    surface, and those terms do not vanish as $t\to0$, so the effective width
-    used to widen the current-carrying geometry is not the right one here.
-    $Z_c$ is the (possibly dispersed) characteristic impedance at the point in
-    the line's pipeline where the factor is evaluated; only its real part
-    enters, since the exponent is a lossless current-crowding correction.
-
-    This is the low-loss linearisation shared by both callers: charged
-    directly onto $\gamma$ it reproduces the rule's own $\alpha_c$, and
-    charged onto $Z$ through :meth:`PlanarQuasiStaticResult.to_immittance` it
-    reduces to the same $\alpha_c$ once $Z=\gamma Z_c$ is inverted, using
-    $\Re(\gamma) \approx \Re(Z_s k_c)/(2\Re(Z_c))$ for a small series
-    perturbation on an otherwise lossless line.
-
-    References
-    ----------
-    Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
-    IRE, 30(9), 412-424.
-    """
-    z0 = jnp.sqrt(mu_0 / epsilon_0)
-    current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-    return 2 / w * current_distribution
-
 
 def _microstrip_conductance_factor(ep_r, ep_eff, zc):
     """Convert static substrate conductivity through the quasi-static fill."""

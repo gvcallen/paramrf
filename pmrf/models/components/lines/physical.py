@@ -33,6 +33,10 @@ from pmrf.models.components.lines.formulations import (
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
 )
+from pmrf.models.components.lines.cross_section import (
+    MicrostripCrossSection,
+    StriplineCrossSection,
+)
 from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
     CohnCurrentDistribution,
@@ -367,15 +371,17 @@ class MicrostripLine(AbstractImmittanceLine):
     is the exact loss perturbation of the effective-permittivity model, following
     Schneider's energy-perturbation derivation.
 
-    Wheeler's incremental-inductance rule (:func:`_wheeler_conductor_loss_factor`)
-    is the single conductor-loss term charged on both paths:
+    Wheeler's incremental-inductance rule
+    (:class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`,
+    the default ``current_distribution``) is the single conductor-loss term
+    charged on both paths:
     $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
     \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
     applied unconditionally, over the physical width $W$ rather than any
     thickness-widened one. So ``dispersion=None`` is a pure dispersion toggle:
-    the quasi-static formulation's own `conductor_loss_factor` charges the
-    same rule at $Z_{c,loss}=Z_{c,0}$, and the dispersion path charges it
-    again at the dispersed $Z_{c,loss}$. The rule contains no $t$: it sums
+    the distribution charges the same rule at $Z_{c,loss}=Z_{c,0}$ on the
+    quasi-static path and at the dispersed $Z_{c,loss}$ on the other, because
+    it reads $Z_c$ off whichever solved state it is handed. The rule contains no $t$: it sums
     over every receded conductor surface, and the broad-face terms do not
     vanish as $t\to0$. So $t=\text{None}$ ("thickness unspecified") is not
     the same input as $t=0$; it is read as skin effect being in operation
@@ -592,11 +598,11 @@ class MicrostripLine(AbstractImmittanceLine):
         substrate = self.substrate
         conductor = substrate.conductor.properties(freq)
         dielectric = substrate.dielectric.properties(freq)
-        t = substrate.t
+        cross_section = MicrostripCrossSection(w=self.w, h=substrate.h, t=substrate.t)
         return self._resolved_quasi_static(freq).to_immittance(
             freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w, t=t,
+            cross_section=cross_section,
         )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
@@ -754,5 +760,7 @@ class StriplineLine(AbstractImmittanceLine):
         return quasi_static.to_immittance(
             freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w, b=self.b, t=self.t, ep_r=dielectric.ep_r,
+            cross_section=StriplineCrossSection(
+                w=self.w, b=self.b, t=self.t, ep_r=dielectric.ep_r
+            ),
         )

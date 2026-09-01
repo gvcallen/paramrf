@@ -508,10 +508,8 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     construction bit for bit.
     """
     from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansenMicrostripDispersion
-    from pmrf.models.components.lines.formulations import (
-        PlanarQuasiStaticResult,
-        _wheeler_conductor_loss_factor,
-    )
+    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
+    from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
 
     freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
@@ -548,7 +546,9 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     ).to_immittance(
         freq, dielectric, conductor,
         current_distribution=line.current_distribution,
-        w=line.w, t=line.substrate.t,
+        cross_section=MicrostripCrossSection(
+            w=line.w, h=line.substrate.h, t=line.substrate.t
+        ),
     )
 
     actual = line.immittance(freq)
@@ -573,6 +573,8 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
+    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
+
     ep_r = line.substrate.dielectric.properties(freq).ep_r
     zs = line.substrate.conductor.properties(freq).zs
     quasi_static = line.formulation.quasi_static(
@@ -584,6 +586,10 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         freq,
         line.substrate.dielectric.properties(freq),
         line.substrate.conductor.properties(freq),
+        current_distribution=line.current_distribution,
+        cross_section=MicrostripCrossSection(
+            w=line.w, h=line.substrate.h, t=line.substrate.t
+        ),
     )
     assert jnp.array_equal(actual.Z, expected.Z)
     assert jnp.array_equal(actual.Y, expected.Y)
