@@ -38,6 +38,11 @@ from pmrf.materials.conductor_shape import (
     TescheRodShape,
     TescheTubeShape,
 )
+from pmrf.models.components.lines.current_distribution import (
+    AbstractCurrentDistribution,
+    CohnCurrentDistribution,
+    WheelerCurrentDistribution,
+)
 from pmrf.models.components.lines.base import ImmittanceResult
 
 
@@ -61,8 +66,9 @@ class PlanarQuasiStaticResult(eqx.Module):
         Quasi-static characteristic impedance in ohms, $Z_a/\sqrt{\varepsilon_e}$.
     w_eff : jnp.ndarray
         Electromagnetic effective conductor width in meters.
-    conductor_loss_factor : jnp.ndarray
-        Geometry factor multiplying surface impedance, in inverse meters.
+    conductor_loss_factor : jnp.ndarray | None
+        Legacy scalar geometry factor retained for direct callers. Line models
+        use a current-distribution strategy instead.
     shunt_conductance_factor : jnp.ndarray
         Geometry factor multiplying static conductivity, in meters.
     """
@@ -75,33 +81,31 @@ class PlanarQuasiStaticResult(eqx.Module):
     #: Effective conductor width in meters
     w_eff: jnp.ndarray
 
-    #: Geometry factor multiplying surface impedance
-    conductor_loss_factor: jnp.ndarray
-
     #: Geometry factor multiplying static conductivity
     shunt_conductance_factor: jnp.ndarray
+
+    #: Legacy geometry factor for callers predating current distributions
+    conductor_loss_factor: jnp.ndarray | None = None
 
     def to_immittance(
         self, freq: Frequency, dielectric: DielectricProperties,
         conductor: ConductorProperties, r_dc: jnp.ndarray | None = None,
+        current_distribution: AbstractCurrentDistribution | None = None,
+        **geometry,
     ) -> ImmittanceResult:
         r"""
         Converts the quasi-static solution into a per-unit-length immittance.
 
         The external inductance and the shunt admittance follow from the
-        quasi-static impedance and effective permittivity, and the surface
-        impedance is charged through a geometry factor the formulation itself
-        supplies:
+        quasi-static impedance and effective permittivity. Surface impedance
+        is charged through the supplied current-distribution strategy:
         $$Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + Z_s K_c
         \qquad
         Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
 
-        $K_c$ (`conductor_loss_factor`) is formulation-specific: Cohn's
-        stripline result charges the sheet impedance over an effective width,
-        $2/W_{eff}$, while both microstrip formulations charge Wheeler's own
-        incremental-inductance rule instead (see
-        :func:`_wheeler_conductor_loss_factor`), a different geometry factor
-        over the physical width $W$.
+        Each distribution returns one or more conductor shapes and their
+        inverse-metre geometry weights. This keeps conductor-loss selection
+        independent from the quasi-static formulation.
 
         $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss
         as its real part and needs no separate loss-tangent term.
@@ -144,7 +148,17 @@ class PlanarQuasiStaticResult(eqx.Module):
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
         Z = 1j * w * self.zc * sqrt_ep_eff_mu / c
-        Z_cond = conductor.zs * self.conductor_loss_factor
+        if current_distribution is None:
+            if self.conductor_loss_factor is None:
+                raise ValueError("current_distribution is required")
+            Z_cond = conductor.zs * self.conductor_loss_factor
+        else:
+            Z_cond = sum(
+                shape.impedance(w, conductor) * weight
+                for shape, weight in current_distribution.distribute(
+                    freq, zc=self.zc, **geometry
+                )
+            )
         if r_dc is not None:
             r_ac = jnp.real(Z_cond)
             Z_cond = jnp.sqrt(r_dc**2 + r_ac**2) + 1j * jnp.imag(Z_cond)
@@ -218,7 +232,10 @@ def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricP
     # remains available as a public cross-section entry for large sweeps.
     shield_conductor = conductor if outer_conductor is None else outer_conductor
     if shield_thickness is None:
-        shield_zs = shield_shape.impedance(w, shield_conductor, a=b)
+        if isinstance(shield_shape, HalfSpaceShape):
+            shield_zs = shield_shape.impedance(w, shield_conductor)
+        else:
+            shield_zs = shield_shape.impedance(w, shield_conductor, a=b)
     else:
         shield_zs = shield_shape.impedance(
             w, shield_conductor, a=b, t=shield_thickness
@@ -438,9 +455,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         zc = Za / jnp.sqrt(ep_eff)
         w_eff = W * jnp.ones_like(ep_r)
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        conductor_loss_factor = _wheeler_conductor_loss_factor(W, zc)
-
-        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductor_loss_factor, conductance_factor)
+        return PlanarQuasiStaticResult(
+            ep_eff, zc, w_eff, conductance_factor,
+            _wheeler_conductor_loss_factor(W, zc),
+        )
 
 
 class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
@@ -535,8 +553,10 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         ep_eff = e * (z1 / zr) ** 2
         w_eff = ur * h
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        conductor_loss_factor = _wheeler_conductor_loss_factor(w, zc)
-        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductor_loss_factor, conductance_factor)
+        return PlanarQuasiStaticResult(
+            ep_eff, zc, w_eff, conductance_factor,
+            _wheeler_conductor_loss_factor(w, zc),
+        )
 
     @staticmethod
     def _homogeneous_impedance(u):
@@ -827,37 +847,10 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
         w_e = b * (u - jnp.where(u > 0.35, 0.0, (0.35 - u) ** 2))
         zc = 30 * jnp.pi / jnp.sqrt(ep_eff) * b / (w_e + 0.441 * b)
 
-        conductor_loss_factor = self._conductor_loss_factor(w, b, t, ep_eff, zc) * ones
         shunt_conductance_factor = jnp.sqrt(ep_eff) / (zc * c * epsilon_0 * ep_eff)
         return PlanarQuasiStaticResult(
-            ep_eff, zc, w_e * ones, conductor_loss_factor,
-            shunt_conductance_factor,
+            ep_eff, zc, w_e * ones, shunt_conductance_factor,
         )
-
-    @staticmethod
-    def _conductor_loss_factor(w, b, t, ep_eff, zc):
-        """Return the geometry factor multiplying surface impedance."""
-        if t is None:
-            # Cohn's attenuation diverges logarithmically as the strip thins:
-            # a zero-thickness strip has no finite conductor loss to apply.
-            return 0.0
-
-        ep_r = jnp.real(ep_eff)
-        zc_real = jnp.real(zc)
-
-        a = 1 + 2 * w / (b - t) + (b + t) / (jnp.pi * (b - t)) * jnp.log((2 * b - t) / t)
-        alpha_low = 2.7e-3 * ep_r * zc_real / (30 * jnp.pi * (b - t)) * a
-
-        beta = 1 + b / (0.5 * w + 0.7 * t) * (
-            0.5 + 0.7 * t / w + jnp.log(4 * jnp.pi * w / t) / (2 * jnp.pi)
-        )
-        alpha_high = 0.16 / (zc_real * b) * beta
-
-        alpha_over_rs = jnp.where(
-            jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high
-        )
-        return 2 * alpha_over_rs * zc_real
-
 
 def _wheeler_conductor_loss_factor(w, zc):
     r"""Wheeler's incremental-inductance rule, as a `conductor_loss_factor`.

@@ -101,6 +101,12 @@ from pmrf.models.components.lines.formulations import (
     PlanarQuasiStaticResult as PlanarQuasiStaticResult,
 )
 
+from pmrf.models.components.lines.current_distribution import (
+    AbstractCurrentDistribution as AbstractCurrentDistribution,
+    WheelerCurrentDistribution as WheelerCurrentDistribution,
+    CohnCurrentDistribution as CohnCurrentDistribution,
+)
+
 from pmrf.models.components.lumped import (
     Resistor as Resistor,
     Capacitor as Capacitor,

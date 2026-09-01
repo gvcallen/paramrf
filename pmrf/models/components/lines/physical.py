@@ -32,7 +32,11 @@ from pmrf.models.components.lines.formulations import (
     SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
-    _wheeler_conductor_loss_factor,
+)
+from pmrf.models.components.lines.current_distribution import (
+    AbstractCurrentDistribution,
+    CohnCurrentDistribution,
+    WheelerCurrentDistribution,
 )
 
 
@@ -484,6 +488,11 @@ class MicrostripLine(AbstractImmittanceLine):
         default_factory=KirschningJansenMicrostripDispersion
     )
 
+    #: The conductor current-distribution strategy
+    current_distribution: AbstractCurrentDistribution = field(
+        default_factory=WheelerCurrentDistribution
+    )
+
     def __init__(
         self,
         w: Param = 3e-3,
@@ -496,6 +505,7 @@ class MicrostripLine(AbstractImmittanceLine):
         t: Param | None = None,
         formulation: AbstractMicrostripFormulation | None = None,
         dispersion: AbstractMicrostripDispersion | None = _DEFAULT_DISPERSION,
+        current_distribution: AbstractCurrentDistribution | None = None,
         name: str | None = None,
         metadata=None,
     ):
@@ -515,6 +525,10 @@ class MicrostripLine(AbstractImmittanceLine):
         self.dispersion = (
             KirschningJansenMicrostripDispersion()
             if dispersion is _DEFAULT_DISPERSION else dispersion
+        )
+        self.current_distribution = (
+            WheelerCurrentDistribution()
+            if current_distribution is None else current_distribution
         )
         self.length = length
         self.name = name
@@ -567,18 +581,10 @@ class MicrostripLine(AbstractImmittanceLine):
         # Alpert, Arz et al., "Causal Characteristic Impedance of Planar
         # Transmission Lines") establishes that microstrip has no unique Zc.
         #
-        # Wheeler's incremental-inductance rule applies at every thickness.
-        # It contains no `t`: the broad-face terms it sums over do not vanish
-        # as t -> 0, so t=None ("thickness unspecified") is not the same as
-        # t=0. Skin effect is assumed to be in operation regardless. This is
-        # the same conductor_loss_factor the quasi-static path charges,
-        # evaluated here at the dispersed zc.
-        conductor_loss_factor = _wheeler_conductor_loss_factor(self.w, zc)
         return PlanarQuasiStaticResult(
             ep_eff=ep_eff,
             zc=zc,
             w_eff=quasi_static.w_eff,
-            conductor_loss_factor=conductor_loss_factor,
             shunt_conductance_factor=quasi_static.shunt_conductance_factor,
         )
 
@@ -592,7 +598,9 @@ class MicrostripLine(AbstractImmittanceLine):
         # finite t gets R_dc = 1/(sigma*W*t).
         r_dc = None if t is None else 1.0 / (conductor.sigma * self.w * t)
         return self._resolved_quasi_static(freq).to_immittance(
-            freq, dielectric, conductor, r_dc=r_dc
+            freq, dielectric, conductor, r_dc=r_dc,
+            current_distribution=self.current_distribution,
+            w=self.w,
         )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
@@ -733,6 +741,11 @@ class StriplineLine(AbstractImmittanceLine):
         default_factory=CohnStriplineFormulation
     )
 
+    #: The conductor current-distribution strategy
+    current_distribution: AbstractCurrentDistribution = field(
+        default_factory=CohnCurrentDistribution
+    )
+
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         dielectric = self.dielectric.properties(freq)
         conductor = self.conductor.properties(freq)
@@ -742,4 +755,8 @@ class StriplineLine(AbstractImmittanceLine):
             t=self.t,
             ep_r=dielectric.ep_r,
         )
-        return quasi_static.to_immittance(freq, dielectric, conductor)
+        return quasi_static.to_immittance(
+            freq, dielectric, conductor,
+            current_distribution=self.current_distribution,
+            w=self.w, b=self.b, t=self.t, ep_r=dielectric.ep_r,
+        )
