@@ -35,8 +35,8 @@ Any tolerance above floating-point noise carries a note naming which side is
 approximating and why.
 
 Runtime budget: 121 log-spaced frequency points per case, thirteen cases, two
-tests each. The whole file runs in about twenty seconds, most of it JAX
-compilation.
+tests each. The whole file runs in under half a minute on an unloaded machine,
+most of that JAX compilation.
 """
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ from pmrf.models import (
 )
 
 # scikit-rf is an optional dependency, so the whole module skips without it.
-pytest.importorskip("skrf")
+skrf = pytest.importorskip("skrf")
 from skrf.media import Coaxial, MLine  # noqa: E402
 
 #: Wideband axis shared by every case: 1 kHz to 40 GHz, log spaced so the
@@ -100,6 +100,14 @@ class Case:
     #: implementations model different things below it. Needs a note.
     f_min: dict[str, float] = field(default_factory=dict)
 
+    def __post_init__(self):
+        # `notes` and `f_min` are keyed by the same quantity names as `tol`, and
+        # a typo in either would silently drop the explanation or the floor it
+        # was meant to carry rather than fail.
+        for name, keyed in (("notes", self.notes), ("f_min", self.f_min)):
+            unknown = set(keyed) - set(self.tol)
+            assert not unknown, f"{self.id}: {name} keys not in tol: {unknown}"
+
 
 def _assert_close(actual, desired, quantity, case):
     """Compare one quantity over the sweep against its own recorded tolerance."""
@@ -138,6 +146,25 @@ def _coax_ep_r(ep_r, tand=0.0, sigma=0.0, f=None):
     if sigma:
         eps = eps - 1j * sigma / (2 * np.pi * f * epsilon_0)
     return eps
+
+
+def _skrf_djordjevic_sarkar(*, ep_r, tand):
+    """scikit-rf's own Djordjevic-Svensson permittivity, as a function of f.
+
+    Read off a throwaway :class:`~skrf.media.MLine`, whose geometry is
+    irrelevant to the filling: the dielectric stage runs before any of it. This
+    is the only place scikit-rf implements the model, and borrowing it here is
+    what makes the coaxial case a cross-check of ParamRF's
+    :class:`~pmrf.materials.DjordjevicSarkar` rather than of itself.
+    """
+    def ep_r_of_f(f):
+        return MLine(
+            skrf.Frequency.from_f(f, unit="Hz"), ep_r=ep_r, tand=tand,
+            diel="djordjevicsvensson", f_low=DS_BAND["f_low"],
+            f_high=DS_BAND["f_high"], f_epr_tand=DS_BAND["f_ref"],
+        ).ep_r_f
+
+    return ep_r_of_f
 
 
 def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f):
@@ -220,11 +247,7 @@ COAX_CASES = [
             DjordjevicSarkar(ep_r=4.3, tand=0.02, f_low=DS_BAND["f_low"],
                              f_high=DS_BAND["f_high"], f_ref=DS_BAND["f_ref"]),
             RHO_COPPER,
-            lambda f: MLine.analyse_dielectric(
-                None, ep_r=4.3, tand=0.02, f_low=DS_BAND["f_low"],
-                f_high=DS_BAND["f_high"], f_epr_tand=DS_BAND["f_ref"], f=f,
-                diel="djordjevicsvensson",
-            )[0],
+            _skrf_djordjevic_sarkar(ep_r=4.3, tand=0.02),
         ),
         length=0.1, z0=50.0, tol=_COAX_EXACT,
     ),
@@ -529,11 +552,6 @@ def test_microstrip_matches_skrf_s_parameters(case):
     _assert_close(line.s(WIDEBAND, z0=case.z0), expected, "s", case)
 
 
-def _case(id, cases):
-    """The case of a given id, for tests that speak about one case by name."""
-    return next(case for case in cases if case.id == id)
-
-
 def test_quasi_static_microstrip_zc_follows_the_rlgc_limit():
     r"""The low-frequency Zc that scikit-rf's MLine cannot express.
 
@@ -548,7 +566,7 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit():
     ``wide_low_er_lossy_quasi_static`` excludes, checked here against theory
     rather than against the other implementation.
     """
-    case = _case("wide_low_er_lossy_quasi_static", MICROSTRIP_CASES)
+    case = next(c for c in MICROSTRIP_CASES if c.id == "wide_low_er_lossy_quasi_static")
     line = case.line(case.length)
 
     low = Frequency.from_f(jnp.geomspace(1e-3, 1e1, 9))

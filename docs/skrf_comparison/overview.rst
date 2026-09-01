@@ -38,3 +38,12 @@ If your workflow requires the use of complex or high-dimensional RF models or st
 - **Statistical Analysis**: Running automated Monte Carlo or Latin Hypercube sampling across your model's entire parameter space.
 
 Also note that :class:`pmrf.Model` instances can easily be converted to ``skrf.Network`` objects by simply passing a frequency to :meth:`pmrf.Model.to_skrf`, allowing, for example, models to be defined and optimized in ParamRF and then further analyzed in scikit-rf.
+Physics validation against scikit-rf
+------------------------------------
+The two libraries implement the same published transmission-line formulations independently, which makes scikit-rf a useful external reference for ParamRF's physics. ParamRF's coaxial and microstrip lines are checked against ``skrf.media.Coaxial`` and ``skrf.media.MLine`` over a curated wideband matrix, from kilohertz frequencies through tens of gigahertz, covering per-unit-length R, L, G and C, characteristic impedance, propagation constant and S-parameters. The matrix lives in ``tests/test_models/test_lines_skrf_matrix.py``, where each case records its purpose and its own tolerances.
+
+scikit-rf is treated as guidance, not as ground truth. Where the two disagree, the cause is traced to a modelling choice on one side or the other and recorded in the test, rather than absorbed into a wider tolerance.
+
+**The complex-permittivity convention only.** ParamRF carries permittivity complex throughout, matching the convention used by ADS and AWR. scikit-rf's ``MLine`` additionally offers a QUCS compatibility mode, which uses a real permittivity for the quasi-static and dispersion stages. ParamRF does not implement that path, so QUCS compatibility is out of scope: the comparisons use ``compatibility_mode=None`` exclusively.
+
+Stripline has no scikit-rf counterpart, and is instead validated against Cohn's published formulation and against analytic identities.
