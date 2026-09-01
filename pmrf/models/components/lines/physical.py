@@ -323,12 +323,18 @@ class MicrostripLine(AbstractImmittanceLine):
     The substrate must be nonmagnetic. No cited microstrip formulation covers
     magnetic media, so $\mu_r \neq 1$ is rejected rather than silently ignored.
 
-    For a finite-thickness conductor, Wheeler's incremental-inductance
-    correction adds
+    Wheeler's incremental-inductance correction adds
     $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
-    \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right].$$
-    The resulting modal quantities are inverted exactly into the line's
-    internal currency:
+    \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
+    applied unconditionally on the dispersion path. The rule contains no $t$:
+    it sums over every receded conductor surface, and the broad-face terms do
+    not vanish as $t\to0$. So $t=\text{None}$ ("thickness unspecified") is not
+    the same input as $t=0$; it is read as skin effect being in operation
+    regardless, which is the good-faith default since Wheeler's $R_s$ is
+    itself a thick-conductor result. $t$ only refines the geometry (through
+    the quasi-static formulation, where supported), it does not gate whether
+    conductor loss is applied. The resulting modal quantities are inverted
+    exactly into the line's internal currency:
     $$Z=\gamma Z_c,\qquad Y=\frac{\gamma}{Z_c}.$$
     
     Example
@@ -372,8 +378,13 @@ class MicrostripLine(AbstractImmittanceLine):
         The material of the trace and ground plane. A scalar resistivity in
         ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
-        Thickness of the conductor. Wheeler requires ``None``; thickness-aware
-        formulations such as Hammerstad--Jensen use a positive value.
+        Thickness of the conductor. ``None`` means the thickness is
+        unspecified, not that it is zero: skin effect is assumed to be in
+        operation regardless, and Wheeler's conductor-loss correction (which
+        does not depend on `t`) is applied unconditionally. Wheeler's
+        quasi-static formulation requires ``None``; thickness-aware
+        formulations such as Hammerstad--Jensen use a positive value to
+        refine the geometry.
     formulation : AbstractMicrostripFormulation, default=WheelerMicrostripFormulation()
         The closed-form physics used to compute the quasi-static solution.
     dispersion : AbstractMicrostripDispersion | None, default=KirschningJansenMicrostripDispersion()
@@ -474,14 +485,15 @@ class MicrostripLine(AbstractImmittanceLine):
 
         gamma = 1j * freq.w * jnp.sqrt(ep_eff) / c
 
-        # Wheeler's incremental-inductance rule. With no finite conductor
-        # thickness scikit-rf defines this empirical correction as zero.
-        if substrate.t is not None:
-            z0 = jnp.sqrt(mu_0 / epsilon_0)
-            current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-            gamma = gamma + (
-                jnp.real(conductor.zs) / (jnp.real(zc) * self.w) * current_distribution
-            )
+        # Wheeler's incremental-inductance rule applies at every thickness.
+        # It contains no `t`: the broad-face terms it sums over do not vanish
+        # as t -> 0, so t=None ("thickness unspecified") is not the same as
+        # t=0. Skin effect is assumed to be in operation regardless.
+        z0 = jnp.sqrt(mu_0 / epsilon_0)
+        current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
+        gamma = gamma + (
+            jnp.real(conductor.zs) / (jnp.real(zc) * self.w) * current_distribution
+        )
 
         result = ImmittanceResult.from_zc_gamma(zc, gamma, freq.w)
         return ImmittanceResult(

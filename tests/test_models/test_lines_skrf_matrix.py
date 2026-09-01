@@ -454,11 +454,17 @@ MICROSTRIP_CASES = [
     ),
     Case(
         id="wide_high_er_zero_thickness_dispersive",
-        purpose="u = 10 on a high-permittivity substrate with zero conductor "
-                "thickness, where neither side applies a conductor correction "
-                "and the dielectric loss stands alone.",
+        purpose="u = 10 on a high-permittivity substrate with unspecified "
+                "conductor thickness and a lossless conductor, so the "
+                "dielectric loss stands alone. (A nonzero rho here would pit "
+                "ParamRF's unconditional Wheeler correction against "
+                "scikit-rf's policy of zeroing conductor loss whenever t is "
+                "unspecified -- a difference in missing-input policy, not "
+                "physics, already covered by "
+                "test_microstrip_line_default_construction_has_conductor_loss "
+                "in test_lines.py.)",
         **_microstrip_pair(w=10e-3, h=1e-3, t=None, ep_r=10.0, tand=0.002,
-                           rho=RHO_COPPER,
+                           rho=0.0,
                            dispersion=KirschningJansenMicrostripDispersion,
                            diel="frequencyinvariant",
                            formulation=HammerstadJensenMicrostripFormulation,
