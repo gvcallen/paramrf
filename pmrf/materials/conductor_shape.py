@@ -18,7 +18,7 @@ import jax.numpy as jnp
 from scipy.constants import mu_0
 
 from pmrf.materials.properties import ConductorProperties
-from pmrf.math.bessel import i0_over_i1
+from pmrf.math.bessel import i0_over_i1, k0_over_k1
 
 
 class AbstractConductorShape(eqx.Module):
@@ -233,12 +233,6 @@ class SchelkunoffRodShape(AbstractConductorShape):
         return jnp.where(w > 0, zs, r_dc_sq)
 
 
-def _k0_over_k1_asymptotic(x):
-    """Evaluate the large-argument expansion of ``K_0(x) / K_1(x)``."""
-    inv = 1 / x
-    return 1 - inv / 2 + 3 * inv**2 / 8
-
-
 class SchelkunoffTubeShape(AbstractConductorShape):
     r"""Finite cylindrical tube using Schelkunoff's tube impedance.
 
@@ -249,9 +243,9 @@ class SchelkunoffTubeShape(AbstractConductorShape):
     $$Z_s = \zeta_c\frac{I_0(\gamma b)K_1(\gamma a)+K_0(\gamma b)I_1(\gamma a)}
     {I_1(\gamma b)K_1(\gamma a)-K_1(\gamma b)I_1(\gamma a)}.$$
 
-    The implementation uses the equivalent exponentially scaled expression;
-    the modified Bessel ratios are evaluated by their large-argument series,
-    which is the regime for which this coaxial cross-section entry is intended.
+    The implementation uses an equivalent exponentially scaled expression.
+    The cylindrical curvature ratio is evaluated from its convergent series
+    in weak skin effect and its asymptotic expansion in strong skin effect.
 
     References
     ----------
@@ -261,14 +255,16 @@ class SchelkunoffTubeShape(AbstractConductorShape):
     """
     def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
         gamma = conductor.sigma * conductor.zs
-        xa = gamma * a
-        xb = gamma * (a + t)
+        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        safe_gamma = jnp.where(evaluable, gamma, 1.0)
+        xa = safe_gamma * a
+        xb = safe_gamma * (a + t)
         # Eq. (74) in the strong-skin range, retaining the exponentially small
         # coupling between the two cylindrical surfaces.
-        curvature = _k0_over_k1_asymptotic(xa)
+        curvature = k0_over_k1(xa)
         coupling = jnp.exp(-2 * (xb - xa))
         z = conductor.zs * (curvature + coupling) / (1 - coupling)
-        return jnp.where(w > 0, z, 1 / (t * conductor.sigma))
+        return jnp.where(evaluable, z, 1 / (t * conductor.sigma))
 
 
 class SchelkunoffCothTubeShape(AbstractConductorShape):
@@ -282,10 +278,11 @@ class SchelkunoffCothTubeShape(AbstractConductorShape):
     """
     def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
         gamma = conductor.sigma * conductor.zs
-        safe_gamma = jnp.where(w > 0, gamma, 1.0)
+        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        safe_gamma = jnp.where(evaluable, gamma, 1.0)
         zeta = conductor.zs / jnp.tanh(safe_gamma * t)
-        zeta = zeta * _k0_over_k1_asymptotic(safe_gamma * a)
-        return jnp.where(w > 0, zeta, 1 / (t * conductor.sigma))
+        zeta = zeta * k0_over_k1(safe_gamma * a)
+        return jnp.where(evaluable, zeta, 1 / (t * conductor.sigma))
 
 
 class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
@@ -295,8 +292,8 @@ class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
 
     $$Z_s = \zeta_c\frac{K_0(\gamma a)}{K_1(\gamma a)}$$
 
-    The ratio is evaluated with the strong-skin asymptotic expansion, which
-    is the intended coaxial operating regime.
+    The ratio is evaluated from its convergent series in weak skin effect and
+    its asymptotic expansion in strong skin effect.
 
     References
     ----------
@@ -306,6 +303,7 @@ class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
     """
     def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
         gamma = conductor.sigma * conductor.zs
-        safe_gamma = jnp.where(w > 0, gamma, 1.0)
-        z = conductor.zs * _k0_over_k1_asymptotic(safe_gamma * a)
-        return jnp.where(w > 0, z, 0.0)
+        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        safe_gamma = jnp.where(evaluable, gamma, 1.0)
+        z = conductor.zs * k0_over_k1(safe_gamma * a)
+        return jnp.where(evaluable, z, 0.0)

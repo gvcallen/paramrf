@@ -43,6 +43,7 @@ from pmrf.math.conversions import (
 import pmrf.math.bessel as bessel
 from pmrf.math.bessel import (
     i0_over_i1 as i0_over_i1,
+    k0_over_k1 as k0_over_k1,
 )
 
 import pmrf.math.losses as losses
@@ -62,6 +63,7 @@ __all__ = [
     "aggregations",
     "bessel",
     "i0_over_i1",
+    "k0_over_k1",
     "complex_2_magnitude",
     "complex_2_db",
     "complex_2_db10",

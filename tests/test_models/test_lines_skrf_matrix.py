@@ -274,48 +274,15 @@ COAX_CASES = [
     ),
 ]
 
-#: Both sides solve the same Schelkunoff eq. (65) for the inner rod, but the
-#: shields differ: ParamRF charges the shield a half-space $\zeta_c$, while
-#: scikit-rf with ``tout=None`` evaluates Schelkunoff eq. (74) for a tube of
-#: infinite wall, which keeps the shield's own $K_0/K_1$ curvature. Only the
-#: shield's inner diameter is part of :class:`CoaxialLine`, so that
-#: correction is deliberately not modelled; the tolerances below are the
-#: measured size of that one difference, recorded per case, not a floor
-#: widened until a case passed. G and C never touch the conductors and stay
-#: at round-off in all three.
-_SHIELD_NOTE = (
-    "ParamRF models the shield as a Leontovich half-space and scikit-rf as an "
-    "infinitely thick Schelkunoff tube. Neither side is wrong: the shield's "
-    "wall thickness is not part of CoaxialLine, so its curvature correction "
-    "is out of the model by construction. The difference is largest at the "
-    "low-frequency end, where the shield is only a few skin depths deep."
-)
-
-#: The infinite-wall shield's internal inductance diverges logarithmically as
-#: $\omega\to0$ -- an infinitely thick return conductor stores unbounded
-#: internal flux -- while a half-space shield stores none. The two therefore
-#: describe different things below the skin-effect onset rather than
-#: disagreeing numerically, so L is compared only above 1 MHz.
-_SHIELD_L_NOTE = (
-    "Below the skin-effect onset the two shield models are not comparable at "
-    "all: scikit-rf's infinite wall has a logarithmically divergent internal "
-    "inductance and ParamRF's half-space has none. " + _SHIELD_NOTE
-)
-
-_SHIELD_L_FLOOR = 1e6
-
-
-def _shield_tol(*, R, L, zc, alpha, beta, s):
-    """Tolerances for a Schelkunoff case, keyed the same way as ``_COAX_EXACT``."""
-    return {
-        "R": (R, 1e-14), "L": (L, 0.0), "G": (1e-9, 0.0), "C": (1e-9, 0.0),
-        "zc": (zc, 0.0), "alpha": (alpha, 0.0), "beta": (beta, 0.0),
-        "s": (0.0, s),
-    }
-
-
-_SHIELD_NOTES = {q: _SHIELD_NOTE for q in ("R", "zc", "alpha", "beta", "s")} | {
-    "L": _SHIELD_L_NOTE
+#: Both implementations solve Schelkunoff's cylindrical equations for the
+#: solid inner rod and the infinite-wall shield. The tolerance records the
+#: measured error of ParamRF's JAX-native Bessel-ratio evaluators against
+#: scipy's special functions; dielectric quantities remain at round-off.
+_SCHELKUNOFF_EXACT = {
+    "R": (5e-7, 1e-14), "L": (5e-7, 0.0),
+    "G": (1e-9, 0.0), "C": (1e-9, 0.0),
+    "zc": (5e-7, 0.0), "alpha": (5e-7, 0.0), "beta": (5e-7, 0.0),
+    "s": (0.0, 1e-8),
 }
 
 COAX_CASES += [
@@ -328,8 +295,7 @@ COAX_CASES += [
                     RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
                     model="schelkunoff"),
         length=0.5, z0=50.0,
-        tol=_shield_tol(R=2e-2, L=1e-5, zc=1e-2, alpha=2e-2, beta=1e-2, s=5e-6),
-        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
+        tol=_SCHELKUNOFF_EXACT,
     ),
     Case(
         id="semirigid_small_diameters_steel_schelkunoff",
@@ -340,8 +306,7 @@ COAX_CASES += [
                     RHO_STEEL, lambda f: _coax_ep_r(2.1, 2e-4, f=f),
                     model="schelkunoff"),
         length=0.25, z0=50.0,
-        tol=_shield_tol(R=2e-2, L=5e-3, zc=1e-2, alpha=2e-2, beta=1e-2, s=5e-4),
-        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
+        tol=_SCHELKUNOFF_EXACT,
     ),
     Case(
         id="foam_large_diameter_ratio_schelkunoff",
@@ -352,8 +317,7 @@ COAX_CASES += [
                     RHO_COPPER, lambda f: _coax_ep_r(1.2, 1e-4, f=f),
                     model="schelkunoff"),
         length=0.2, z0=75.0,
-        tol=_shield_tol(R=1e-3, L=1e-6, zc=5e-4, alpha=1e-3, beta=5e-4, s=5e-7),
-        notes=_SHIELD_NOTES, f_min={"L": _SHIELD_L_FLOOR},
+        tol=_SCHELKUNOFF_EXACT,
     ),
 ]
 
