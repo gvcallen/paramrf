@@ -9,6 +9,7 @@
    core_concepts/index
    examples/index
    tutorials/index
+   research/index
    models/index
    api/index
    skrf_comparison/index
