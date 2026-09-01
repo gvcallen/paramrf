@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from scipy.constants import mu_0
-from scipy.special import ive
+from scipy.special import ive, kve
 
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConductorProperties, RoughConductor
@@ -13,7 +13,6 @@ from pmrf.materials.conductor_shape import (
     RootSumSquareSlabShape,
     SchelkunoffRodShape,
     SchelkunoffTubeShape,
-    SchelkunoffCothTubeShape,
     TescheRodShape,
     TescheTubeShape,
 )
@@ -311,17 +310,134 @@ def test_schelkunoff_rod_is_lossless_for_a_perfect_conductor():
     assert jnp.all(zs == 0)
 
 
-def test_schelkunoff_tube_and_coth_approximation_agree_in_coax_band():
-    """The cheap shield entry tracks the cylindrical tube in the RF band."""
+def _schelkunoff_eq_74(w, sigma, a, t):
+    """Schelkunoff eq. (74) referred to the inner surface, from scipy.
+
+    Written in the paper's own grouping, with the exponential scaling of
+    ``ive``/``kve`` carried explicitly so that nothing overflows in strong
+    skin effect. ``ive(v, x) = I_v(x) e^{-|Re x|}`` and
+    ``kve(v, x) = K_v(x) e^{x}``, and the common factor
+    ``e^{|Re x_b| - x_a}`` cancels between numerator and denominator,
+    leaving the bounded ``s`` below.
+    """
+    gamma = np.sqrt(1j * w * mu_0 * sigma)
+    xa, xb = gamma * a, gamma * (a + t)
+    s = np.exp(np.abs(xa.real) + xa - np.abs(xb.real) - xb)
+    num = ive(0, xa) * kve(1, xb) * s + kve(0, xa) * ive(1, xb)
+    den = ive(1, xb) * kve(1, xa) - ive(1, xa) * kve(1, xb) * s
+    return (gamma / sigma) * num / den
+
+
+@pytest.mark.parametrize(
+    'f, t, rtol',
+    [
+        # Weak skin effect: the wall is a small fraction of a skin depth, so
+        # the two surfaces are strongly coupled and the dc sheet resistance
+        # dominates. This is the regime the previous strong-skin expression
+        # was 33-43% wrong in.
+        (1e3, 10e-6, 1e-12), (1e3, 50e-6, 1e-12), (1e3, 500e-6, 1e-12),
+        (1e5, 500e-6, 1e-7),
+        # Transition: wall and skin depth comparable.
+        (1e5, 10e-6, 1e-7), (1e6, 50e-6, 1e-9),
+        # Strong skin effect: the coupling term is exponentially small and
+        # the tube is a curved half-space.
+        (1e8, 10e-6, 1e-12), (1e10, 500e-6, 1e-12),
+    ],
+)
+def test_schelkunoff_tube_matches_scipy_evaluation_of_eq_74(f, t, rtol):
+    """The finite tube is eq. (74) itself, checked against scipy.
+
+    The tolerances are the Bessel numerics of :mod:`pmrf.math.bessel`, not a
+    physics allowance: 1e-7 is the seam of ``i0_over_i1`` at |x| = 20, which
+    the 100 kHz cases sit near, and the rest are at machine level.
+    """
+    sigma, a = 5.8e7, 1.6e-3
+    freq = Frequency.from_f(jnp.array([f]))
+    conductor = _conductor(freq, sigma)
+
+    zs = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t)
+
+    expected = _schelkunoff_eq_74(np.asarray(freq.w), sigma, a, t)
+    assert np.allclose(zs, expected, rtol=rtol)
+
+
+def test_schelkunoff_tube_dc_limit_is_the_tube_resistance_and_is_continuous():
+    """The dc branch is the exact tube resistance the series limit reaches.
+
+    The shape factor is 2*pi*a times the tube's dc resistance per unit
+    length, 1/(sigma*pi*(b^2-a^2)) -- so 2a/(sigma*(b^2-a^2)), which is
+    1/(sigma*t) only in the thin-wall limit. The earlier expression returned
+    half of this from its series and the full 1/(sigma*t) from its dc
+    branch, a factor-two discontinuity at the first nonzero frequency; the
+    two must now agree.
+    """
+    sigma, a, t = 5.8e7, 1.6e-3, 50e-6
+    freq = Frequency.from_f(jnp.array([0.0, 1e-3]))
+    conductor = _conductor(freq, sigma)
+
+    zs = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t)
+
+    exact_dc = 2 * a / (sigma * ((a + t) ** 2 - a**2))
+    assert np.allclose(np.real(zs), exact_dc, rtol=1e-9)
+    assert np.isclose(np.real(zs[1]), np.real(zs[0]), rtol=1e-9)
+    # Continuous *from above*: dissipation never falls below the dc value.
+    # The 1e-9 slack is the rounding of the two branches against each other,
+    # not a physical allowance -- the difference at 1 mHz is 4e-10 relative.
+    assert np.real(zs[1]) >= np.real(zs[0]) * (1 - 1e-9)
+
+
+def test_schelkunoff_tube_infinite_wall_is_the_infinite_wall_limit():
+    """An infinite wall decouples the surfaces: rho -> 0 leaves K0/K1."""
     freq = Frequency(start=10.0, stop=500.0, npoints=20, unit='MHz')
     conductor = _conductor(freq, 5.8e7)
-    exact = SchelkunoffTubeShape().impedance(
-        freq.w, conductor, a=1.475e-3, t=25e-6
-    )
-    cheap = SchelkunoffCothTubeShape().impedance(
-        freq.w, conductor, a=1.475e-3, t=25e-6
-    )
-    assert jnp.allclose(cheap, exact, rtol=2e-3)
+    a = 1.475e-3
+
+    infinite = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=jnp.inf)
+
+    # 30 mm of copper is more than 10^4 skin depths at 10 MHz, so a finite
+    # wall that thick must reproduce the analytic infinite-wall branch.
+    thick = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=30e-3)
+    assert jnp.all(jnp.isfinite(infinite))
+    assert jnp.allclose(infinite, thick, rtol=1e-12)
+
+
+def test_schelkunoff_tube_gradients_are_finite_at_dc_and_for_a_perfect_conductor():
+    """Both unevaluable arguments must leave a usable gradient behind.
+
+    dc sends gamma to zero and a perfect conductor sends it to infinity;
+    either one propagates a nan into the gradient unless both branches are
+    evaluated on safe arguments. As for the rod, the gradient is taken
+    through :class:`BulkConductor`, which owns the dc derivative of
+    $\zeta_c$ itself. A perfect conductor is checked on the shape alone:
+    $\zeta_c=\sqrt{j\omega\mu/\sigma}$ has a nan $\omega$-derivative at
+    $\sigma=\infty$ that every shape in this module inherits, so the
+    conductor record is built directly to isolate the shape's own arithmetic.
+    """
+    a, t = 1.6e-3, 25e-6
+
+    def resistance(sigma, f):
+        freq = Frequency.from_f(jnp.atleast_1d(f))
+        conductor = BulkConductor(sigma=sigma).properties(freq)
+        return jnp.real(SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t))[0]
+
+    for f in (0.0, 1e3, 1e9):
+        d_sigma, d_f = jax.grad(resistance, argnums=(0, 1))(5.8e7, f)
+        assert jnp.isfinite(d_sigma) and jnp.isfinite(d_f)
+        # A perfect conductor is lossless at every frequency, dc included,
+        # and the wall gradient there survives the infinite Bessel argument.
+        freq = Frequency.from_f(jnp.array([f]))
+        conductor = ConductorProperties(
+            jnp.zeros_like(freq.w, dtype=complex), jnp.inf, 1.0
+        )
+        assert jnp.all(
+            SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t) == 0
+        )
+        wall_gradient = jax.grad(
+            lambda wall: jnp.real(
+                SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=wall)
+            )[0]
+        )(t)
+        assert jnp.isfinite(wall_gradient)
 
 
 @pytest.mark.parametrize(
@@ -330,7 +446,7 @@ def test_schelkunoff_tube_and_coth_approximation_agree_in_coax_band():
         (HollowayKuesterSlabShape(t=18e-6), {}),
         (SchelkunoffRodShape(), dict(a=20e-6)),
         (SchelkunoffTubeShape(), dict(a=1.475e-3, t=25e-6)),
-        (SchelkunoffCothTubeShape(), dict(a=1.475e-3, t=25e-6)),
+        (SchelkunoffTubeShape(), dict(a=1.475e-3, t=jnp.inf)),
     ],
 )
 def test_roughness_scales_the_prefactor_and_not_the_shape_factor(shape, geometry):

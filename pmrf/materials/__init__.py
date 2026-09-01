@@ -39,8 +39,6 @@ from pmrf.materials.conductor_shape import (
     RootSumSquareSlabShape as RootSumSquareSlabShape,
     SchelkunoffRodShape as SchelkunoffRodShape,
     SchelkunoffTubeShape as SchelkunoffTubeShape,
-    SchelkunoffCothTubeShape as SchelkunoffCothTubeShape,
-    SchelkunoffInfiniteTubeShape as SchelkunoffInfiniteTubeShape,
     TescheRodShape as TescheRodShape,
     TescheTubeShape as TescheTubeShape,
 )
@@ -68,8 +66,6 @@ __all__ = [
     "RootSumSquareSlabShape",
     "SchelkunoffRodShape",
     "SchelkunoffTubeShape",
-    "SchelkunoffCothTubeShape",
-    "SchelkunoffInfiniteTubeShape",
     "TescheRodShape",
     "TescheTubeShape",
     "Substrate",

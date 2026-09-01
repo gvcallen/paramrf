@@ -18,7 +18,7 @@ import jax.numpy as jnp
 from scipy.constants import mu_0
 
 from pmrf.materials.properties import ConductorProperties
-from pmrf.math.bessel import i0_over_i1, k0_over_k1
+from pmrf.math.bessel import i0_over_i1, i1e, k0_over_k1, k1e
 
 
 class AbstractConductorShape(eqx.Module):
@@ -55,7 +55,11 @@ class AbstractConductorShape(eqx.Module):
             bulk conductor. ``zs`` is not yet weighted by this shape's
             factor.
         **geometry
-            Shape-specific cross-section dimensions, in meters.
+            Shape-specific cross-section dimensions, in meters. A shape
+            accepts and ignores dimensions it has none of -- a half-space
+            takes a radius and a wall thickness and uses neither -- so a
+            caller choosing between shapes never has to know which
+            arguments a particular one reads.
 
         Returns
         -------
@@ -91,7 +95,10 @@ class HalfSpaceShape(AbstractConductorShape):
     Investigations of Radiowave Propagation, Part II, 5-12. Academy of
     Sciences, USSR.
     """
-    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
+    def impedance(self, w, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
+        # Cross-section dimensions are accepted and ignored: a half-space has
+        # none, and a caller choosing between shapes should not have to know
+        # which of them take a radius or a wall thickness.
         return conductor.zs
 
 
@@ -170,10 +177,16 @@ class RootSumSquareSlabShape(AbstractConductorShape):
         return resistance + 1j * jnp.imag(conductor.zs)
 
 
-def _tesche_circuit_impedance(zeta_c, r_dc_sq, l_int_sq, w):
-    """Blend Tesche's dc and high-frequency limits through his equivalent circuit."""
+def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, w):
+    """Blend Tesche's dc and high-frequency limits through his equivalent circuit.
+
+    The internal inductance arrives inverted so that an infinite one -- an
+    infinitely thick tube wall -- enters as a plain zero. Complex arithmetic
+    on an infinity does not survive: ``1j*w*inf`` is ``nan + infj``, and
+    dividing a complex number by ``inf + 0j`` is nan under XLA's division.
+    """
     safe_w = jnp.where(w > 0, w, 1.0)
-    z = r_dc_sq + zeta_c / (1 + zeta_c / (1j * safe_w * l_int_sq))
+    z = r_dc_sq + zeta_c / (1 + zeta_c * inverse_l_int_sq / (1j * safe_w))
     return jnp.where(w > 0, z, r_dc_sq)
 
 
@@ -217,8 +230,8 @@ class TescheRodShape(AbstractConductorShape):
     """
     def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
         r_dc_sq = 2 / (a * conductor.sigma)
-        l_int_sq = mu_0 * conductor.mu_r * a / 4
-        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, l_int_sq, w)
+        inverse_l_int_sq = 4 / (mu_0 * conductor.mu_r * a)
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, w)
 
 
 class TescheTubeShape(AbstractConductorShape):
@@ -242,10 +255,12 @@ class TescheTubeShape(AbstractConductorShape):
 
     Same circuit approximation as the solid rod, so it shares the same
     defect: its strong-skin limit is $\zeta_c + R_{dc,sq}$, not $\zeta_c$
-    exactly. In the infinite-wall limit ($t\to\infty$), $R_{dc,sq}\to0$ and
-    $L_{int,sq}\to\infty$, and this reduces to :class:`HalfSpaceShape` --
-    how :class:`~pmrf.models.components.lines.formulations.TescheCoaxialFormulation`
-    treats an outer shield whose wall thickness is not modelled.
+    exactly. An infinite $t$ is the default, and is taken analytically
+    rather than arithmetically: $R_{dc,sq}\to0$ and $L_{int,sq}\to\infty$,
+    so the shape reduces exactly to :class:`HalfSpaceShape`. That is how
+    :class:`~pmrf.models.components.lines.formulations.TescheCoaxialFormulation`
+    describes an outer shield whose wall thickness is not modelled -- it
+    passes an infinite $t$ rather than swapping the shape.
 
     References
     ----------
@@ -253,13 +268,20 @@ class TescheTubeShape(AbstractConductorShape):
     Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
     on Electromagnetic Compatibility, 49(1), 12-17.
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
-        q = (a / (a + t)) ** 2
-        r_dc_sq = 1 / (t * conductor.sigma)
+    def impedance(self, w, conductor: ConductorProperties, *, a, t=jnp.inf) -> jnp.ndarray:
+        # An infinite wall is taken analytically rather than arithmetically:
+        # both the dc resistance and the inverse internal inductance are zero
+        # there, and evaluating the expressions at t = inf would leave an
+        # inf/inf behind instead.
+        finite_wall = jnp.isfinite(t)
+        safe_t = jnp.where(finite_wall, t, a)
+        q = (a / (a + safe_t)) ** 2
+        r_dc_sq = jnp.where(finite_wall, 1 / (safe_t * conductor.sigma), 0.0)
         l_int_sq = mu_0 * conductor.mu_r * a * (
-            jnp.log1p(t / a) / (1 - q) ** 2 + (q - 3) / (4 * (1 - q))
+            jnp.log1p(safe_t / a) / (1 - q) ** 2 + (q - 3) / (4 * (1 - q))
         )
-        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, l_int_sq, w)
+        inverse_l_int_sq = jnp.where(finite_wall, 1 / l_int_sq, 0.0)
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, w)
 
 
 class SchelkunoffRodShape(AbstractConductorShape):
@@ -317,76 +339,89 @@ class SchelkunoffRodShape(AbstractConductorShape):
 
 
 class SchelkunoffTubeShape(AbstractConductorShape):
-    r"""Finite cylindrical tube using Schelkunoff's tube impedance.
+    r"""
+    Cylindrical tube of finite wall thickness, exact.
 
     **Mathematical Formulation**
 
-    For inner radius $a$ and outer radius $b=a+t$, Schelkunoff's eq. (74) is
-    evaluated in the numerically stable form
-    $$Z_s = \zeta_c\frac{I_0(\gamma b)K_1(\gamma a)+K_0(\gamma b)I_1(\gamma a)}
-    {I_1(\gamma b)K_1(\gamma a)-K_1(\gamma b)I_1(\gamma a)}.$$
+    For inner radius $a$, outer radius $b=a+t$ and current returning on the
+    **inner** surface, Schelkunoff's eq. (74) gives the internal impedance
+    referred to that surface. Written as a shape factor -- the caller
+    supplies the $1/2\pi a$ geometry weight -- it is
+    $$Z_s = \zeta_c\,
+    \frac{I_0(\gamma a)K_1(\gamma b)+K_0(\gamma a)I_1(\gamma b)}
+    {I_1(\gamma b)K_1(\gamma a)-I_1(\gamma a)K_1(\gamma b)},
+    \qquad\gamma=\sqrt{j\omega\mu\sigma}.$$
 
-    The implementation uses an equivalent exponentially scaled expression.
-    The cylindrical curvature ratio is evaluated from its convergent series
-    in weak skin effect and its asymptotic expansion in strong skin effect.
+    Dividing through by $I_1(\gamma b)K_1(\gamma a)$ turns this into three
+    bounded pieces,
+    $$Z_s = \zeta_c\,\frac{K_0(\gamma a)/K_1(\gamma a)
+    + \big[I_0(\gamma a)/I_1(\gamma a)\big]\,\rho}{1-\rho},
+    \qquad
+    \rho = \frac{I_1(\gamma a)K_1(\gamma b)}{I_1(\gamma b)K_1(\gamma a)},$$
+    which is what is evaluated. The two ratios are
+    :func:`~pmrf.math.bessel.i0_over_i1` and
+    :func:`~pmrf.math.bessel.k0_over_k1`; the surface-coupling term $\rho$ is
+    assembled from the exponentially scaled
+    :func:`~pmrf.math.bessel.i1e` and :func:`~pmrf.math.bessel.k1e`, so that
+    the only exponential left is $e^{-2\gamma t}$, which never exceeds unity.
+    No Bessel function is ever evaluated unscaled, and nothing overflows for
+    a thick wall.
+
+    Both limits fall out with no special case. In strong skin effect
+    $\rho\to e^{-2\gamma t}$ and the shape becomes
+    $\zeta_c\coth(\gamma t)$ with the cylindrical curvature corrections
+    carried by the two ratios. As $\gamma\to0$, $\rho\to a^2/b^2$ and
+    $I_0/I_1\to2/\gamma a$, leaving the exact dc sheet resistance
+    $$Z_s \to \frac{2a}{\sigma(b^2-a^2)} = \frac{1}{\sigma t}
+    \cdot\frac{2a}{a+b},$$
+    which is $2\pi a$ times $1/\sigma\pi(b^2-a^2)$, the tube's dc resistance
+    per unit length, and reduces to $1/\sigma t$ for a thin wall. That is the
+    value the $\omega=0$ branch below returns, so the dc value and the
+    low-frequency limit agree exactly rather than differing by a factor of
+    two.
+
+    An infinite ``t`` is accepted and gives the infinite-wall limit
+    $\zeta_c K_0(\gamma a)/K_1(\gamma a)$, which is how a coaxial shield
+    whose wall is not modelled is described.
+
+    **Validity**
+
+    Exact for a homogeneous, isotropic tube carrying axially symmetric
+    current returning on its inner surface, at every frequency. The
+    remaining error is the numerics of the Bessel evaluations, below 1e-7
+    relative against :func:`scipy.special` over the weak-skin, transition
+    and strong-skin regimes; see ``tests/test_materials/
+    test_conductor_shape.py``.
 
     References
     ----------
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial
-    Transmission Lines and Cylindrical Shields. Bell System Technical Journal,
-    13(4), 532-579. Eq. (74).
+    Transmission Lines and Cylindrical Shields. Bell System Technical
+    Journal, 13(4), 532-579. Eq. (74).
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
+    def impedance(self, w, conductor: ConductorProperties, *, a, t=jnp.inf) -> jnp.ndarray:
+        # Same guards as the solid rod: gamma vanishes at dc and diverges for
+        # a perfect conductor, so both branches are evaluated on arguments
+        # the other regime cannot poison. An infinite wall is the third
+        # unevaluable argument -- the Bessel functions at gamma*b are then
+        # 0 and inf, whose product is NaN -- so it too gets a safe argument
+        # and an analytic value, here rho = 0.
         gamma = conductor.gamma(w)
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma = jnp.where(evaluable, gamma, 1.0)
+        finite_wall = jnp.isfinite(t)
+        safe_t = jnp.where(finite_wall, t, a)
+
         xa = safe_gamma * a
-        xb = safe_gamma * (a + t)
-        # Eq. (74) in the strong-skin range, retaining the exponentially small
-        # coupling between the two cylindrical surfaces.
-        curvature = k0_over_k1(xa)
-        coupling = jnp.exp(-2 * (xb - xa))
-        z = conductor.zs * (curvature + coupling) / (1 - coupling)
-        return jnp.where(evaluable, z, 1 / (t * conductor.sigma))
+        xb = safe_gamma * (a + safe_t)
+        rho = (i1e(xa) * k1e(xb)) / (i1e(xb) * k1e(xa)) * jnp.exp(-2 * safe_gamma * safe_t)
+        rho = jnp.where(finite_wall, rho, 0.0)
 
-
-class SchelkunoffCothTubeShape(AbstractConductorShape):
-    r"""Cheap finite-wall shield approximation.
-
-    **Mathematical Formulation**
-
-    The planar finite-slab impedance is charged over the circumference and
-    corrected by the infinite-wall cylindrical curvature:
-    $$Z_s = \zeta_c\coth(\gamma t)\frac{K_0(\gamma a)}{K_1(\gamma a)}.$$
-    """
-    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
-        gamma = conductor.gamma(w)
-        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
-        safe_gamma = jnp.where(evaluable, gamma, 1.0)
-        zeta = conductor.zs / jnp.tanh(safe_gamma * t)
-        zeta = zeta * k0_over_k1(safe_gamma * a)
-        return jnp.where(evaluable, zeta, 1 / (t * conductor.sigma))
-
-
-class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
-    r"""Infinite-wall limit of the Schelkunoff cylindrical shield.
-
-    **Mathematical Formulation**
-
-    $$Z_s = \zeta_c\frac{K_0(\gamma a)}{K_1(\gamma a)}$$
-
-    The ratio is evaluated from its convergent series in weak skin effect and
-    its asymptotic expansion in strong skin effect.
-
-    References
-    ----------
-    Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial
-    Transmission Lines and Cylindrical Shields. Bell System Technical Journal,
-    13(4), 532-579. Eq. (74), infinite-wall limit.
-    """
-    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
-        gamma = conductor.gamma(w)
-        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
-        safe_gamma = jnp.where(evaluable, gamma, 1.0)
-        z = conductor.zs * k0_over_k1(safe_gamma * a)
-        return jnp.where(evaluable, z, 0.0)
+        z = conductor.zs * (k0_over_k1(xa) + i0_over_i1(xa) * rho) / (1 - rho)
+        # sigma divides last so that a perfect conductor sends the whole
+        # quotient to zero rather than leaving inf/inf in the wall gradient.
+        r_dc_sq = jnp.where(
+            finite_wall, (2 * a / (safe_t * (safe_t + 2 * a))) / conductor.sigma, 0.0
+        )
+        return jnp.where(evaluable, z, r_dc_sq)
