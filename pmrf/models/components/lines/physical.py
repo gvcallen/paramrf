@@ -350,7 +350,19 @@ class MicrostripLine(AbstractImmittanceLine):
     NIST (Williams, Alpert, Arz et al., *Causal Characteristic Impedance of
     Planar Transmission Lines*) establishes that microstrip has no unique
     $Z_c$.
-    
+
+    The sheet model above gives $R\to0$ as $f\to0$, which is wrong for a
+    trace of known thickness: a finite $t$ gets a dc floor
+    $R_{dc}=\rho/(Wt)$, blended smoothly with the skin-effect term as
+    $R=\sqrt{R_{dc}^2+R_{ac}^2}$ (see
+    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`).
+    $t=\text{None}$ gets no floor: it asserts skin effect in operation at
+    every frequency including dc, so there is no dc regime for a floor to
+    describe, matching ADS, which applies no floor at all. The blend itself
+    is a ParamRF convention rather than a rule any cited source prescribes
+    -- mcalc/wcalc hard-switch to a dc solution once skin depth exceeds
+    thickness instead, an equally defensible alternative.
+
     Example
     --------
     .. code-block:: python
@@ -534,7 +546,14 @@ class MicrostripLine(AbstractImmittanceLine):
         substrate = self.substrate
         conductor = substrate.conductor.properties(freq)
         dielectric = substrate.dielectric.properties(freq)
-        return self._resolved_quasi_static(freq).to_immittance(freq, dielectric, conductor)
+        t = substrate.t
+        # t=None asserts skin effect in operation at every frequency,
+        # including dc, so there is no dc regime for a floor to describe; a
+        # finite t gets R_dc = rho/(W*t) = 1/(sigma*W*t).
+        r_dc = None if t is None else 1.0 / (conductor.sigma * self.w * t)
+        return self._resolved_quasi_static(freq).to_immittance(
+            freq, dielectric, conductor, r_dc=r_dc
+        )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
         r"""
