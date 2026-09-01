@@ -399,7 +399,7 @@ MICROSTRIP_CASES = [
                            model="hammerstadjensen"),
         length=5e-3, z0=50.0,
         tol={"ep_eff": (1e-12, 0.0), "zc": (5e-3, 0.0),
-             "alpha": (1e-1, 1e-12), "beta": (5e-3, 0.0), "s": (0.0, 5e-3)},
+             "alpha": (1e-2, 1e-12), "beta": (5e-3, 0.0), "s": (0.0, 5e-3)},
         f_min={"zc": 1e9, "alpha": 1e9, "beta": 1e9, "s": 1e9},
         notes={
             "zc": "Finding, not a tolerance to widen. With modal dispersion "
@@ -414,10 +414,14 @@ MICROSTRIP_CASES = [
                   "comparison starts at 1 GHz; the low-frequency limit is "
                   "checked against theory in "
                   "test_quasi_static_microstrip_zc_follows_the_rlgc_limit.",
-            "alpha": _MICROSTRIP_NOTES["alpha"] + " On this quasi-static path "
-                     "the conductor term differs too: ParamRF charges the sheet "
-                     "impedance over the effective width, 2*Zs/w_eff, where "
-                     "scikit-rf applies Wheeler's incremental-inductance rule.",
+            "alpha": _MICROSTRIP_NOTES["alpha"] + " Both ParamRF and scikit-rf "
+                     "now charge Wheeler's incremental-inductance rule on this "
+                     "path too, evaluated at the (unrenormalized) quasi-static "
+                     "Zc, so the residual here is the same dielectric-loss "
+                     "difference as the dispersive cases, about half a percent "
+                     "at 40 GHz -- tighter than the general Hammerstad-Jensen "
+                     "tolerance because this substrate's low permittivity keeps "
+                     "the linear-in-ep_r approximation closer to exact.",
             "beta": _MICROSTRIP_NOTES["beta"] + " On this path beta also "
                     "carries the conductor resistance through sqrt(Z*Y), which "
                     "is what the 1 GHz floor excludes.",
@@ -562,20 +566,27 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit():
     r"""The low-frequency Zc that scikit-rf's MLine cannot express.
 
     Once the sheet impedance of the conductor outgrows $j\omega L$, the series
-    impedance of this line is $2Z_s/W_{eff}$, which is
+    impedance of this line is $Z_s K_c$ (Wheeler's incremental-inductance
+    rule, $K_c$ constant at a fixed quasi-static $Z_c$), which is
     $(1 + j)R_s \propto \sqrt{f}$. So
-    $$Z_c = \sqrt{Z/Y} \to \sqrt{\frac{(1 + j)R_s}{j\omega C}},$$
+    $$Z_c = \sqrt{Z/Y} \to \sqrt{\frac{(1 + j)R_s K_c}{j\omega C}},$$
     whose magnitude rises as $f^{-1/4}$ and whose phase settles at
     $(45 - 90)/2 = -22.5$ degrees. scikit-rf's MLine reports the quasi-static
     impedance there instead, because its ``z0_characteristic`` never sees the
     conductor at all. That is the difference the ``f_min`` floor on
     ``wide_low_er_lossy_quasi_static`` excludes, checked here against theory
     rather than against the other implementation.
+
+    Wheeler's current-distribution factor makes $K_c$ smaller than the
+    retired $2/W_{eff}$ term was, so $j\omega L$ stays non-negligible to a
+    lower frequency than before; the swept range is kept inside the decade
+    where the asymptote already holds to a fraction of a percent, rather than
+    widening the tolerance to paper over a range that reaches beyond it.
     """
     case = next(c for c in MICROSTRIP_CASES if c.id == "wide_low_er_lossy_quasi_static")
     line = case.line(case.length)
 
-    low = Frequency.from_f(jnp.geomspace(1e-3, 1e1, 9))
+    low = Frequency.from_f(jnp.geomspace(1e-3, 1e0, 9))
     zc = line.zc_and_gammaL(low)[0]
 
     scaled = jnp.abs(zc) * low.f ** 0.25

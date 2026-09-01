@@ -135,12 +135,19 @@ class PlanarQuasiStaticResult(eqx.Module):
         Converts the quasi-static solution into a per-unit-length immittance.
 
         The external inductance and the shunt admittance follow from the
-        quasi-static impedance and effective permittivity, and the signal
-        conductor and its return path each add their surface impedance over the
-        effective width:
-        $$Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + \frac{2 Z_s}{W_{eff}}
+        quasi-static impedance and effective permittivity, and the surface
+        impedance is charged through a geometry factor the formulation itself
+        supplies:
+        $$Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + Z_s K_c
         \qquad
         Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
+
+        $K_c$ (`conductor_loss_factor`) is formulation-specific: Cohn's
+        stripline result charges the sheet impedance over an effective width,
+        $2/W_{eff}$, while both microstrip formulations charge Wheeler's own
+        incremental-inductance rule instead (see
+        :func:`_wheeler_conductor_loss_factor`), a different geometry factor
+        over the physical width $W$.
 
         $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss
         as its real part and needs no separate loss-tangent term.
@@ -335,8 +342,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     dielectric loss carries through the same filling factor as the real part and
     needs no separate loss-tangent term. The effective width is $W$: the
     approximation is derived for a zero-thickness strip, so `zs` does not enter
-    here — a thickness-aware formulation uses it to widen $W_{eff}$ for the
-    current distribution, and the line applies the series loss either way.
+    here. Conductor loss is charged separately, through
+    `conductor_loss_factor`, by Wheeler's own incremental-inductance rule
+    (see :func:`_wheeler_conductor_loss_factor`), applied over the physical
+    width $W$ rather than a thickness-widened one.
 
     **Validity**
 
@@ -379,8 +388,9 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         zc = Za / jnp.sqrt(ep_eff)
         w_eff = W * jnp.ones_like(ep_r)
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
+        conductor_loss_factor = _wheeler_conductor_loss_factor(W, zc)
 
-        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, 2 / w_eff, conductance_factor)
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductor_loss_factor, conductance_factor)
 
 
 class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
@@ -414,7 +424,12 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     \varepsilon_e=e\left[\frac{Z_L(u_1)}{Z_L(u_r)}\right]^2,
     \qquad W_{eff}=u_rH,$$
     where $e$ denotes the bracketed permittivity expression before its
-    thickness correction.
+    thickness correction. $W_{eff}$ is the electromagnetic fringing width and
+    feeds the dispersion formulation; conductor loss is charged separately,
+    through `conductor_loss_factor`, by Wheeler's incremental-inductance rule
+    (see :func:`_wheeler_conductor_loss_factor`) over the physical width $W$,
+    which is the correct one for that rule regardless of which formulation
+    supplied the quasi-static solution.
 
     The fractional power in $b$ is evaluated through the principal logarithm.
     The dielectric constraint $\Re(\varepsilon_r)>1$ keeps its argument away
@@ -470,7 +485,8 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         ep_eff = e * (z1 / zr) ** 2
         w_eff = ur * h
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, 2 / w_eff, conductance_factor)
+        conductor_loss_factor = _wheeler_conductor_loss_factor(w, zc)
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductor_loss_factor, conductance_factor)
 
     @staticmethod
     def _homogeneous_impedance(u):
@@ -792,6 +808,36 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
             jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high
         )
         return 2 * alpha_over_rs * zc_real
+
+
+def _wheeler_conductor_loss_factor(w, zc):
+    r"""Wheeler's incremental-inductance rule, as a `conductor_loss_factor`.
+
+    $$k_c = \frac{2}{W}\exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right]$$
+
+    charges the sheet impedance over the physical trace width $W$, not the
+    dispersion-widened $W_{eff}$: the rule sums over every receded conductor
+    surface, and those terms do not vanish as $t\to0$, so the effective width
+    used to widen the current-carrying geometry is not the right one here.
+    $Z_c$ is the (possibly dispersed) characteristic impedance at the point in
+    the line's pipeline where the factor is evaluated; only its real part
+    enters, since the exponent is a lossless current-crowding correction.
+
+    This is the low-loss linearisation shared by both callers: charged
+    directly onto $\gamma$ it reproduces the rule's own $\alpha_c$, and
+    charged onto $Z$ through :meth:`PlanarQuasiStaticResult.to_immittance` it
+    reduces to the same $\alpha_c$ once $Z=\gamma Z_c$ is inverted, using
+    $\Re(\gamma) \approx \Re(Z_s k_c)/(2\Re(Z_c))$ for a small series
+    perturbation on an otherwise lossless line.
+
+    References
+    ----------
+    Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
+    IRE, 30(9), 412-424.
+    """
+    z0 = jnp.sqrt(mu_0 / epsilon_0)
+    current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
+    return 2 / w * current_distribution
 
 
 def _microstrip_conductance_factor(ep_r, ep_eff, zc):
