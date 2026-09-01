@@ -43,9 +43,17 @@ class AbstractConductorShape(eqx.Module):
         w : ArrayLike
             Angular frequency in rad/s.
         conductor : ConductorProperties
-            The metal's evaluated properties. ``conductor.zs`` is its
-            intrinsic surface impedance $\zeta_c=\sqrt{j\omega\mu/\sigma}$,
-            not yet weighted by this shape's factor.
+            The metal's evaluated properties. ``conductor.zs`` is the
+            surface prefactor -- for a smooth bulk metal the intrinsic
+            surface impedance $\zeta_c=\sqrt{j\omega\mu/\sigma}$, but a
+            surface treatment such as roughness scales it -- and
+            ``conductor.gamma(w)`` is the diffusion constant
+            $\gamma=\sqrt{j\omega\mu\sigma}$ inside the bulk, which supplies
+            the dimensionless $\gamma a$ and $\gamma t$ arguments. The two
+            are independent inputs: never recover one from the other via
+            $\gamma=\sigma\zeta_c$, an identity that holds only for a smooth
+            bulk conductor. ``zs`` is not yet weighted by this shape's
+            factor.
         **geometry
             Shape-specific cross-section dimensions, in meters.
 
@@ -98,7 +106,7 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
     $Z_m=\zeta_c\operatorname{csch}(\gamma_c t)$.  Their eq. (100) shows
     that the total current therefore sees
     $$Z_s+Z_m=\zeta_c\coth(\gamma_c t/2),\qquad
-    \gamma_c=\sigma\zeta_c.$$
+    \gamma_c=\sqrt{j\omega\mu\sigma}.$$
 
     The half-thickness argument is essential: the scalar represents total
     current, rather than the self impedance of either face.  Its limits are
@@ -124,7 +132,7 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
     t: jnp.ndarray
 
     def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
-        gamma_t_over_two = conductor.sigma * conductor.zs * self.t / 2
+        gamma_t_over_two = conductor.gamma(w) * self.t / 2
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_argument = jnp.where(evaluable, gamma_t_over_two, 1.0)
         zs = conductor.zs / jnp.tanh(safe_argument)
@@ -265,9 +273,9 @@ class SchelkunoffRodShape(AbstractConductorShape):
     per unit length of a solid cylinder of radius $a$, is
     $$Z = \frac{\gamma}{2\pi a\sigma}\,\frac{I_0(\gamma a)}{I_1(\gamma a)},
     \qquad \gamma=\sqrt{j\omega\mu\sigma}.$$
-    Since $\zeta_c=\sqrt{j\omega\mu/\sigma}=\gamma/\sigma$, the shape
-    factor this layer returns -- with the caller supplying its own
-    $1/2\pi a$ geometry weight -- is simply the Bessel ratio:
+    For a smooth bulk metal $\zeta_c=\sqrt{j\omega\mu/\sigma}=\gamma/\sigma$,
+    so the shape factor this layer returns -- with the caller supplying its
+    own $1/2\pi a$ geometry weight -- is simply the Bessel ratio:
     $$Z_s = \zeta_c\,\frac{I_0(\gamma a)}{I_1(\gamma a)}.$$
 
     Both limits follow with no special case. As $\gamma a\to0$,
@@ -291,16 +299,16 @@ class SchelkunoffRodShape(AbstractConductorShape):
     Journal, 13(4), 532-579. Eq. (65).
     """
     def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
-        # gamma = sigma * zeta_c vanishes at dc, where the ratio has a pole
-        # that exactly cancels zeta_c's zero. Take that limit analytically
-        # and keep the argument away from the pole so the gradient stays
-        # finite. A perfect conductor is the other unevaluable argument:
-        # gamma is infinite there, but zeta_c is zero, so the shape factor
-        # never has to be evaluated at all -- which is why the final guard
-        # below is the narrower `w > 0`: an infinite sigma needs a safe
-        # Bessel argument, but its zero zeta_c already gives the right
-        # answer, and 2/(a*sigma) is likewise zero there.
-        gamma_a = conductor.sigma * conductor.zs * a
+        # gamma vanishes at dc, where the ratio has a pole that exactly
+        # cancels zeta_c's zero. Take that limit analytically and keep the
+        # argument away from the pole so the gradient stays finite. A
+        # perfect conductor is the other unevaluable argument: gamma is
+        # infinite there, but zeta_c is zero, so the shape factor never has
+        # to be evaluated at all -- which is why the final guard below is
+        # the narrower `w > 0`: an infinite sigma needs a safe Bessel
+        # argument, but its zero zeta_c already gives the right answer, and
+        # 2/(a*sigma) is likewise zero there.
+        gamma_a = conductor.gamma(w) * a
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma_a = jnp.where(evaluable, gamma_a, 1.0)
         zs = conductor.zs * i0_over_i1(safe_gamma_a)
@@ -329,7 +337,7 @@ class SchelkunoffTubeShape(AbstractConductorShape):
     13(4), 532-579. Eq. (74).
     """
     def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
-        gamma = conductor.sigma * conductor.zs
+        gamma = conductor.gamma(w)
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma = jnp.where(evaluable, gamma, 1.0)
         xa = safe_gamma * a
@@ -352,7 +360,7 @@ class SchelkunoffCothTubeShape(AbstractConductorShape):
     $$Z_s = \zeta_c\coth(\gamma t)\frac{K_0(\gamma a)}{K_1(\gamma a)}.$$
     """
     def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
-        gamma = conductor.sigma * conductor.zs
+        gamma = conductor.gamma(w)
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma = jnp.where(evaluable, gamma, 1.0)
         zeta = conductor.zs / jnp.tanh(safe_gamma * t)
@@ -377,7 +385,7 @@ class SchelkunoffInfiniteTubeShape(AbstractConductorShape):
     13(4), 532-579. Eq. (74), infinite-wall limit.
     """
     def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
-        gamma = conductor.sigma * conductor.zs
+        gamma = conductor.gamma(w)
         evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma = jnp.where(evaluable, gamma, 1.0)
         z = conductor.zs * k0_over_k1(safe_gamma * a)

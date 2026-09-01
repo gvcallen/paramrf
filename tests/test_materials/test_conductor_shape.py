@@ -6,7 +6,7 @@ from scipy.constants import mu_0
 from scipy.special import ive
 
 from pmrf.frequency import Frequency
-from pmrf.materials import BulkConductor, ConductorProperties
+from pmrf.materials import BulkConductor, ConductorProperties, RoughConductor
 from pmrf.materials.conductor_shape import (
     HalfSpaceShape,
     HollowayKuesterSlabShape,
@@ -322,3 +322,56 @@ def test_schelkunoff_tube_and_coth_approximation_agree_in_coax_band():
         freq.w, conductor, a=1.475e-3, t=25e-6
     )
     assert jnp.allclose(cheap, exact, rtol=2e-3)
+
+
+@pytest.mark.parametrize(
+    'shape, geometry',
+    [
+        (HollowayKuesterSlabShape(t=18e-6), {}),
+        (SchelkunoffRodShape(), dict(a=20e-6)),
+        (SchelkunoffTubeShape(), dict(a=1.475e-3, t=25e-6)),
+        (SchelkunoffCothTubeShape(), dict(a=1.475e-3, t=25e-6)),
+    ],
+)
+def test_roughness_scales_the_prefactor_and_not_the_shape_factor(shape, geometry):
+    """Surface texture roughens Z_s; it does not change bulk field diffusion.
+
+    A rough and a smooth conductor of the same bulk material must therefore
+    produce the same dimensionless shape factor Z_s/zeta_c, and differ only
+    by the roughness factor K on the prefactor. Deriving gamma as
+    ``sigma * zs`` inflates the shape's argument by K and breaks this.
+    """
+    freq = Frequency(start=1.0, stop=20.0, npoints=20, unit='GHz')
+    sigma = 5.8e7
+    smooth = BulkConductor(sigma=sigma).properties(freq)
+    rough = RoughConductor(sigma=sigma, roughness=2e-6).properties(freq)
+
+    k = rough.zs / smooth.zs
+    assert jnp.max(jnp.real(k)) > 1.5  # roughness is significant in this band
+    assert jnp.allclose(jnp.imag(k), 0.0, atol=1e-12)
+
+    smooth_factor = shape.impedance(freq.w, smooth, **geometry) / smooth.zs
+    rough_factor = shape.impedance(freq.w, rough, **geometry) / rough.zs
+
+    assert jnp.allclose(rough_factor, smooth_factor, rtol=1e-12)
+
+
+def test_metal_propagation_constant_is_the_inverse_complex_skin_depth():
+    """gamma = sqrt(j w mu sigma) = (1+j)/delta, with finite dc gradient."""
+    freq = Frequency.from_f(jnp.array([0.0, 1e6, 1e9]))
+    conductor = BulkConductor(sigma=5.8e7, mu_r=2.0).properties(freq)
+
+    gamma = conductor.gamma(freq.w)
+
+    w = np.asarray(freq.w)
+    expected = np.sqrt(1j * w * mu_0 * 2.0 * 5.8e7)
+    assert np.allclose(gamma, expected, rtol=1e-12)
+
+    grad = jax.grad(
+        lambda f: jnp.real(
+            BulkConductor(sigma=5.8e7)
+            .properties(Frequency.from_f(jnp.atleast_1d(f)))
+            .gamma(jnp.atleast_1d(2 * jnp.pi * f))
+        )[0]
+    )(0.0)
+    assert jnp.isfinite(grad)
