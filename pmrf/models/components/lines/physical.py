@@ -314,10 +314,11 @@ class MicrostripLine(AbstractImmittanceLine):
     **Mathematical Formulation**
 
     The line evaluates material permittivity, a quasi-static formulation, and
-    then the optional modal-dispersion formulation. ParamRF carries permittivity
-    complex throughout, following the ADS/AWR convention, so the dielectric loss
-    is carried directly by the effective permittivity and needs no separate
-    attenuation term:
+    then the optional modal-dispersion formulation. ParamRF carries the complex
+    permittivity through the quasi-static and modal-dispersion formulations. This
+    keeps dielectric loss self-consistent with the effective-permittivity model:
+    the loss is carried directly by the effective permittivity and needs no
+    separate attenuation term:
     $$\gamma_m=\frac{j\omega}{c}\sqrt{\varepsilon_e(f)}.$$
 
     Static bulk conductivity is not folded into that permittivity, which would
@@ -328,6 +329,13 @@ class MicrostripLine(AbstractImmittanceLine):
 
     The substrate must be nonmagnetic. No cited microstrip formulation covers
     magnetic media, so $\mu_r \neq 1$ is rejected rather than silently ignored.
+
+    This treatment is consistent with ADS's documented treatment of permittivity
+    as a complex material property (ADS 2011.01, *Distributed Components*,
+    ``About Dielectric Loss Models``), but the vendor documentation does not
+    establish the dielectric-loss expression used here. The complex evaluation
+    is the exact loss perturbation of the effective-permittivity model, following
+    Schneider's energy-perturbation derivation.
 
     Wheeler's incremental-inductance rule (:func:`_wheeler_conductor_loss_factor`)
     is the single conductor-loss term charged on both paths:
@@ -421,6 +429,12 @@ class MicrostripLine(AbstractImmittanceLine):
     ----------
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
     IRE, 30(9), 412-424.
+
+    Schneider, M. V. (1969). Dielectric Loss in Integrated Microwave Circuits.
+    Bell System Technical Journal, 48(7).
+
+    Schneider, M. V. (1969). Microstrip Lines for Microwave Integrated Circuits.
+    Bell System Technical Journal, 48(5), 1421-1444.
 
     Kirschning, M., & Jansen, R. H. (1982). Accurate Model for Effective
     Dielectric Constant of Microstrip with Validity up to Millimeter-Wave
@@ -562,8 +576,8 @@ class MicrostripLine(AbstractImmittanceLine):
         Dispersed via ``dispersion`` when it is set, quasi-static otherwise —
         the same value :meth:`immittance` uses internally, so it is exposed
         here rather than recomputed by the caller. The imaginary part carries
-        the dielectric loss, following the ADS/AWR convention of carrying
-        permittivity complex throughout (see the class docstring and #79).
+        the dielectric loss because ParamRF carries complex permittivity through
+        the model (see the class docstring and #79).
 
         Parameters
         ----------

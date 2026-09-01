@@ -567,8 +567,7 @@ class KirschningJansenMicrostripDispersion(AbstractMicrostripDispersion):
     $$P_4=1+2.751[1-e^{-(\varepsilon_r/15.916)^8}].$$
     The normalized frequency is
     $f_n=f[\mathrm{Hz}]H[\mathrm{m}]10^{-6}$ (GHz-mm).
-    Following the ADS convention adopted throughout ParamRF, the normalized
-    width is the thickness-corrected $u = W_{eff}/H$.
+    The normalized width is the thickness-corrected $u = W_{eff}/H$.
 
     Characteristic impedance is corrected by
     $$Z_c(f)=Z_c(0)\left(\frac{R_{13}}{R_{14}}\right)^{R_{17}},$$
