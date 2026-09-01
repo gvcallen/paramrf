@@ -263,40 +263,14 @@ def test_coaxial_formulation_takes_plain_arrays(basic_freq):
     assert result.Y.shape == (npoints,)
 
 
-def test_coaxial_line_matches_skrf_tesche_wideband():
-    """Validate Tesche's complete equivalent circuit over the full sweep."""
-    skrf = pytest.importorskip("skrf")
-    from skrf.media import Coaxial
-
-    d_in, d_out, ep_r, tand, rho = 0.9e-3, 2.95e-3, 2.25, 1e-3, 1.72e-8
-    freq = Frequency.from_f(jnp.geomspace(1e3, 40e9, 101))
-    line = CoaxialLine(
-        d_in=d_in,
-        d_out=d_out,
-        dielectric=ConstantDielectric(ep_r=ep_r, tand=tand),
-        conductor=BulkConductor(rho=rho),
-        length=0.5,
-    )
-    media = Coaxial(
-        freq.to_skrf(),
-        Dint=d_in, Dout=d_out, epsilon_r=ep_r, tan_delta=tand, sigma=1 / rho,
-        model='tesche',
-    )
-
-    imm = line.immittance(freq)
-
-    assert jnp.allclose(imm.R, media.R, rtol=1e-6, atol=1e-12)
-    assert jnp.allclose(imm.L, media.L, rtol=1e-6)
-    assert jnp.allclose(imm.G, media.G, rtol=1e-12)
-    assert jnp.allclose(imm.C, media.C, rtol=1e-12)
-
-    zc, gammaL = line.zc_and_gammaL(freq)
-    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-4)
-    assert jnp.allclose(gammaL / 0.5, media.gamma, rtol=1e-4)
-
-
 def test_coaxial_internal_impedance_tube():
-    """Tube arithmetic follows Tesche's equation (13)."""
+    """Tube arithmetic follows Tesche's equation (13).
+
+    Kept here rather than folded into the wideband scikit-rf matrix in
+    ``test_lines_skrf_matrix.py``: it pins one formula on its own, so a failure
+    points straight at the internal impedance instead of at whichever line
+    happens to use it.
+    """
     skrf = pytest.importorskip("skrf")
     from skrf.media import Coaxial
 
@@ -320,36 +294,6 @@ def test_rough_conductor_is_passed_to_coaxial_formulation():
         conductor=RoughConductor(1.68e-8, roughness=1e-6), length=0.1
     )
     assert jnp.all(rough.immittance(freq).R > smooth.immittance(freq).R)
-
-
-def test_microstrip_line_matches_skrf(basic_freq):
-    """Validate the microstrip line against scikit-rf's Wheeler microstrip media."""
-    skrf = pytest.importorskip("skrf")
-    from skrf.media import MLine
-
-    W, H, ep_r = 3.0e-3, 1.6e-3, 4.3
-    line = MicrostripLine(
-        w=W,
-        h=H,
-        dielectric=ConstantDielectric(ep_r=ep_r, tand=0.0),
-        conductor=BulkConductor(rho=0.0),
-        dispersion=None,
-        length=0.1,
-    )
-    media = MLine(
-        basic_freq.to_skrf(),
-        w=W, h=H, ep_r=ep_r, tand=0.0, rho=0.0, rough=0.0,
-        model='wheeler', disp='none', diel='frequencyinvariant',
-    )
-
-    zc, gammaL = line.zc_and_gammaL(basic_freq)
-
-    # scikit-rf implements Wheeler's own closed form, where ParamRF uses the
-    # HammerstadRoughness simplification of it. The two agree on the impedance to half a
-    # percent and on the effective permittivity, hence the phase constant, to
-    # under two percent.
-    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-2)
-    assert jnp.allclose(gammaL / 0.1, media.gamma, rtol=2e-2)
 
 
 def test_immittance_rlgc_roundtrip(basic_freq):
@@ -501,7 +445,13 @@ def test_microstrip_defaults_to_kirschning_jansen():
 
 
 def test_hammerstad_jensen_finite_thickness_matches_skrf():
-    """The thickness-aware quasi-static formulation agrees with scikit-rf."""
+    """The thickness-aware quasi-static formulation agrees with scikit-rf.
+
+    Kept as a local unit test for the same reason as
+    ``test_coaxial_internal_impedance_tube``: it exercises the quasi-static
+    solution alone, with no dispersion, loss or conversion on top of it. The
+    wideband end-to-end comparisons live in ``test_lines_skrf_matrix.py``.
+    """
     from skrf.media import MLine
     from pmrf.models import HammerstadJensenMicrostripFormulation
 
@@ -526,77 +476,6 @@ def test_hammerstad_jensen_finite_thickness_matches_skrf():
     assert jnp.allclose(result.zc, media.z0_characteristic, rtol=1e-12)
     assert jnp.allclose(result.ep_eff, media.ep_reff, rtol=1e-12)
     assert jnp.allclose(result.w_eff, media.w_eff, rtol=1e-12)
-
-
-@pytest.mark.parametrize("ep_r", [2.2, 4.3, 10.0])
-@pytest.mark.parametrize("width_height", [0.1, 1.0, 10.0])
-def test_kirschning_jansen_matches_skrf(ep_r, width_height):
-    """Kirschning--Jansen agrees with its independent scikit-rf implementation."""
-    from skrf.media import MLine
-    from pmrf.models import HammerstadJensenMicrostripFormulation
-
-    freq = Frequency(start=0.1, stop=50.0, npoints=101, unit="GHz")
-    h = 1e-3
-    line = MicrostripLine(
-        w=width_height * h,
-        h=h,
-        dielectric=ConstantDielectric(ep_r=ep_r, tand=0.0),
-        conductor=BulkConductor(rho=0.0),
-        formulation=HammerstadJensenMicrostripFormulation(),
-        length=0.1,
-    )
-    media = MLine(
-        freq.to_skrf(),
-        w=width_height * h,
-        h=h,
-        ep_r=ep_r,
-        tand=0.0,
-        rho=0.0,
-        rough=0.0,
-        model="hammerstadjensen",
-        disp="kirschningjansen",
-        diel="frequencyinvariant",
-        compatibility_mode=None,
-    )
-
-    zc, gamma_length = line.zc_and_gammaL(freq)
-    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-3)
-    assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
-
-
-def test_microstrip_complex_permittivity_matches_skrf():
-    """Microstrip uses the ADS/AWR complex-permittivity convention."""
-    from skrf.media import MLine
-    from pmrf.models import HammerstadJensenMicrostripFormulation
-
-    freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
-    line = MicrostripLine(
-        w=1e-3,
-        h=1e-3,
-        t=35e-6,
-        dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=1.68e-8),
-        formulation=HammerstadJensenMicrostripFormulation(),
-        length=0.1,
-    )
-    media = MLine(
-        freq.to_skrf(),
-        w=1e-3,
-        h=1e-3,
-        t=35e-6,
-        ep_r=4.3,
-        tand=0.02,
-        rho=1.68e-8,
-        rough=0.0,
-        model="hammerstadjensen",
-        disp="kirschningjansen",
-        diel="frequencyinvariant",
-        compatibility_mode=None,
-    )
-
-    zc, gamma_length = line.zc_and_gammaL(freq)
-    assert jnp.allclose(zc, media.z0_characteristic, rtol=1e-3)
-    assert jnp.allclose(gamma_length / line.length, media.gamma, rtol=1e-3)
 
 
 def test_microstrip_near_air_has_finite_conductance_and_gradient():
