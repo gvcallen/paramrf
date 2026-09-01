@@ -123,27 +123,32 @@ class PlanarQuasiStaticResult(eqx.Module):
         ----------
         Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.
         """
-        w = freq.w
+        omega = freq.w
         sqrt_ep_eff_mu = jnp.sqrt(self.ep_eff * dielectric.mu_r)
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
-        Z = 1j * w * self.zc * sqrt_ep_eff_mu / c
+        Z = 1j * omega * self.zc * sqrt_ep_eff_mu / c
         if current_distribution is None:
             if self.conductor_loss_factor is None:
                 raise ValueError("current_distribution is required")
             Z_cond = conductor.zs * self.conductor_loss_factor
         else:
+            # Cross-section dimensions reach the shape from the line's own
+            # geometry, and the weight the shape is about to be multiplied
+            # by travels with them: an entry whose dc floor is fixed in
+            # per-unit-length terms needs it to express that floor in this
+            # caller's normalisation. Every other entry ignores it.
             Z_cond = sum(
-                shape.impedance(w, conductor) * weight
+                shape.impedance(omega, conductor, weight=weight, **geometry) * weight
                 for shape, weight in current_distribution.distribute(
                     freq, zc=self.zc, **geometry
                 )
             )
         Z = Z + Z_cond
-        Y = 1j * w * sqrt_ep_eff_over_mu / (self.zc * c)
+        Y = 1j * omega * sqrt_ep_eff_over_mu / (self.zc * c)
         Y = Y + dielectric.sigma * self.shunt_conductance_factor
 
-        return ImmittanceResult(Z=Z, Y=Y, w=w)
+        return ImmittanceResult(Z=Z, Y=Y, w=omega)
 
 
 class AbstractCoaxialFormulation(eqx.Module):

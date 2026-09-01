@@ -6,7 +6,11 @@ import jax.numpy as jnp
 from scipy.constants import epsilon_0, mu_0
 
 from pmrf.frequency import Frequency
-from pmrf.materials.conductor_shape import HalfSpaceShape, RootSumSquareSlabShape
+from pmrf.materials.conductor_shape import (
+    AbstractConductorShape,
+    HalfSpaceShape,
+    RootSumSquareSlabShape,
+)
 
 
 class AbstractCurrentDistribution(eqx.Module):
@@ -16,7 +20,10 @@ class AbstractCurrentDistribution(eqx.Module):
     material's surface impedance and the weight, in inverse metres, charges
     that impedance into the line's series impedance.  Weights are evaluated
     at the requested frequency because current crowding may be frequency
-    dependent.
+    dependent.  A strategy chooses shapes and weights only: the
+    cross-section dimensions a shape needs reach it from the line at call
+    time, so no strategy ever hands a shape a number derived from its own
+    weight.
     """
 
     @abstractmethod
@@ -35,19 +42,33 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution):
     The trace is represented by a half-space surface and the returned weight
     is Wheeler's geometry factor in inverse metres.
 
+    A trace of unspecified thickness is a half-space; a trace of stated
+    thickness is charged through :attr:`slab_shape`.
+
     References
     ----------
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
     IRE, 30(9), 412-424.
     """
 
-    def distribute(self, freq: Frequency, *, zc, w, t=None):
+    #: The finite-thickness cross-section entry used when a thickness is
+    #: stated.  The default,
+    #: :class:`~pmrf.materials.conductor_shape.RootSumSquareSlabShape`, is
+    #: the only entry that is right at both asymptotes under this
+    #: distribution's frequency-independent weight;
+    #: :class:`~pmrf.materials.conductor_shape.HollowayKuesterSlabShape` is
+    #: the exact strip-diffusion result but is normalised to the total strip
+    #: current and so wants a weight of $1/(2W)$ rather than Wheeler's.
+    #: Neither is the better entry in general -- see the normalisation note
+    #: on :class:`~pmrf.materials.conductor_shape.AbstractConductorShape`.
+    slab_shape: AbstractConductorShape = eqx.field(
+        default_factory=RootSumSquareSlabShape
+    )
+
+    def distribute(self, freq: Frequency, *, zc, w, t=None, **geometry):
         z0 = jnp.sqrt(mu_0 / epsilon_0)
         weight = 2 / w * jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-        shape = (
-            HalfSpaceShape() if t is None else
-            RootSumSquareSlabShape(dc_shape_factor=1 / (w * t * weight))
-        )
+        shape = HalfSpaceShape() if t is None else self.slab_shape
         return ((shape, weight),)
 
 
@@ -66,7 +87,7 @@ class CohnCurrentDistribution(AbstractCurrentDistribution):
     on Microwave Theory and Techniques, 3(2), 119-126.
     """
 
-    def distribute(self, freq: Frequency, *, zc, w, b, t, ep_r):
+    def distribute(self, freq: Frequency, *, zc, w, b, t, ep_r, **geometry):
         if t is None:
             weight = jnp.asarray(0.0)
         else:

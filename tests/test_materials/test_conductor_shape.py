@@ -45,7 +45,7 @@ def test_holloway_kuester_slab_matches_half_thickness_coth():
     freq = Frequency.from_f(jnp.array([10e6, 30e6, 100e6, 500e6]))
     conductor = _conductor(freq, sigma)
 
-    actual = HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor)
+    actual = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
 
     gamma = np.sqrt(1j * np.asarray(freq.w) * mu_0 * sigma)
     expected = np.asarray(conductor.zs) / np.tanh(gamma * t / 2)
@@ -58,24 +58,92 @@ def test_holloway_kuester_slab_has_dc_and_strong_skin_limits():
     freq = Frequency.from_f(jnp.array([0.0, 1e12]))
     conductor = _conductor(freq, sigma)
 
-    zs = HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor)
+    zs = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
 
     assert jnp.allclose(zs[0], 2 / (sigma * t))
     assert jnp.allclose(zs[1], conductor.zs[1], rtol=1e-6)
 
 
-def test_root_sum_square_slab_preserves_the_paramrf_convention():
-    """The named compatibility entry blends resistance and retains half-space X."""
-    sigma, t = 5.8e7, 35e-6
+def test_root_sum_square_slab_blends_resistance_and_keeps_half_space_reactance():
+    """The blend takes its dimensions at call time and keeps the half-space X."""
+    sigma, w, t, weight = 5.8e7, 1.55e-3, 35e-6, 963.7
     freq = Frequency.from_f(jnp.array([0.0, 10e6, 500e6]))
     conductor = _conductor(freq, sigma)
 
-    r_dc_sq = 1 / (sigma * t)
-    zs = RootSumSquareSlabShape(dc_shape_factor=1 / t).impedance(freq.w, conductor)
+    zs = RootSumSquareSlabShape().impedance(freq.w, conductor, w=w, t=t, weight=weight)
 
+    r_dc_sq = 1 / (sigma * w * t * weight)
     expected_r = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
     expected = expected_r + 1j * jnp.imag(conductor.zs)
     assert jnp.allclose(zs, expected)
+
+
+def test_root_sum_square_slab_reproduces_the_true_dc_resistance_under_its_weight():
+    """Charged with the caller's weight, the dc floor is 1/(sigma*W*t) exactly."""
+    sigma, w, t = 1 / 1.68e-8, 1.55e-3, 35e-6
+    freq = Frequency.from_f(jnp.array([0.0]))
+    conductor = _conductor(freq, sigma)
+    (shape, weight), = WheelerCurrentDistribution().distribute(
+        freq, zc=jnp.full(freq.f.shape, 50.0), w=w, t=t,
+    )
+
+    r_dc = shape.impedance(freq.w, conductor, w=w, t=t, weight=weight) * weight
+
+    assert jnp.allclose(jnp.real(r_dc), 1 / (sigma * w * t), rtol=1e-12)
+
+
+def test_exact_slab_wants_a_different_weight_from_wheelers():
+    """The 2.99 normalisation finding: the two decompositions do not share a weight.
+
+    The exact slab is referred to the total strip current, so its own weight
+    is 1/(2W): its dc value 2/(sigma*t) times 1/(2W) is the true
+    1/(sigma*W*t).  Wheeler's weight is larger because it covers the ground
+    plane and the edge crowding as well as the strip, so charging the slab
+    with it overstates the dc resistance by that same factor.  The literals
+    are 35 um copper, rho = 1.68e-8 ohm m, on a 1.55 mm 50 ohm trace.
+    """
+    sigma, w, t = 1 / 1.68e-8, 1.55e-3, 35e-6
+    freq = Frequency.from_f(jnp.array([0.0]))
+    conductor = _conductor(freq, sigma)
+    (_, wheeler_weight), = WheelerCurrentDistribution().distribute(
+        freq, zc=jnp.full(freq.f.shape, 50.0), w=w, t=t,
+    )
+    slab_weight = 1 / (2 * w)
+
+    assert jnp.allclose(wheeler_weight, 963.7, rtol=1e-4)
+    assert jnp.allclose(slab_weight, 322.6, rtol=1e-4)
+    assert jnp.allclose(wheeler_weight / slab_weight, 2.99, rtol=2e-3)
+
+    zs = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
+    assert jnp.allclose(zs * slab_weight, 1 / (sigma * w * t), rtol=1e-12)
+    assert jnp.allclose(zs * wheeler_weight, 0.925, rtol=2e-3)
+    assert jnp.allclose(1 / (sigma * w * t), 0.3097, rtol=2e-3)
+
+
+def test_root_sum_square_slab_overstates_internal_inductance_below_one_skin_depth():
+    """The blend keeps the half-space reactance, which the finite slab does not.
+
+    Below t ~ delta the true internal reactance saturates at omega*mu*t/6
+    while the blend's grows as sqrt(omega), so the entry is qualitatively
+    wrong on internal inductance there.  The ratios are weight-independent
+    -- both entries are charged with the same weight -- and are recorded
+    here as the measured size of that limitation for 35 um copper.
+    """
+    sigma, t = 1 / 1.68e-8, 35e-6
+    f = jnp.array([100e3, 1e6, 5e6, 10e6, 50e6])
+    freq = Frequency.from_f(f)
+    conductor = _conductor(freq, sigma)
+
+    delta = jnp.sqrt(2 / (freq.w * mu_0 * sigma))
+    # The tabulated t/delta and ratios are the measured values rounded to
+    # two decimals, so they are compared to within half of that last place.
+    assert jnp.allclose(t / delta, jnp.array([0.17, 0.54, 1.20, 1.70, 3.79]), atol=5e-3)
+
+    blend_x = jnp.imag(conductor.zs)
+    exact_x = jnp.imag(HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t))
+
+    ratio = blend_x / exact_x
+    assert jnp.allclose(ratio, jnp.array([17.7, 5.6, 2.5, 1.8, 1.01]), atol=0.05)
 
 
 @pytest.mark.parametrize(
@@ -119,12 +187,16 @@ def test_tabulated_planar_entries_record_transition_error(w, h, zc, expected, rt
     blend, weight = WheelerCurrentDistribution().distribute(
         freq, zc=jnp.full(freq.f.shape, zc), w=w, t=t,
     )[0]
+    geometry = dict(w=w, t=t, weight=weight)
 
     actual = jnp.stack(
         [
-            jnp.real(HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor) * weight),
-            jnp.real(HalfSpaceShape().impedance(freq.w, conductor) * weight),
-            jnp.real(blend.impedance(freq.w, conductor) * weight),
+            jnp.real(
+                HollowayKuesterSlabShape().impedance(freq.w, conductor, **geometry)
+                * weight
+            ),
+            jnp.real(HalfSpaceShape().impedance(freq.w, conductor, **geometry) * weight),
+            jnp.real(blend.impedance(freq.w, conductor, **geometry) * weight),
         ],
         axis=1,
     )
@@ -443,7 +515,7 @@ def test_schelkunoff_tube_gradients_are_finite_at_dc_and_for_a_perfect_conductor
 @pytest.mark.parametrize(
     'shape, geometry',
     [
-        (HollowayKuesterSlabShape(t=18e-6), {}),
+        (HollowayKuesterSlabShape(), dict(t=18e-6)),
         (SchelkunoffRodShape(), dict(a=20e-6)),
         (SchelkunoffTubeShape(), dict(a=1.475e-3, t=25e-6)),
         (SchelkunoffTubeShape(), dict(a=1.475e-3, t=jnp.inf)),

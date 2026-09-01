@@ -1,7 +1,13 @@
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.materials import BulkConductor, ConstantDielectric, HalfSpaceShape
+from pmrf.materials import (
+    BulkConductor,
+    ConstantDielectric,
+    HalfSpaceShape,
+    HollowayKuesterSlabShape,
+    RootSumSquareSlabShape,
+)
 from pmrf.models import (
     CohnCurrentDistribution,
     HammerstadJensenMicrostripFormulation,
@@ -45,3 +51,30 @@ def test_cohn_distribution_uses_a_surface_pair():
     assert isinstance(pairs[0][0], HalfSpaceShape)
     assert pairs[0][1].shape == (1,)
     assert jnp.all(pairs[0][1] > 0)
+
+
+def test_wheeler_finite_thickness_slab_entry_is_a_selectable_field():
+    """Which slab entry charges a stated thickness is a field, not a literal.
+
+    The default is the root-sum-square blend, the only entry that satisfies
+    both asymptotes under this distribution's frequency-independent weight;
+    the exact strip-diffusion slab is reachable for a caller that supplies
+    its own normalisation.
+    """
+    freq = Frequency.from_f(jnp.array([10e6]))
+    zc = jnp.array([50.0])
+
+    assert isinstance(WheelerCurrentDistribution().slab_shape, RootSumSquareSlabShape)
+
+    default_shape, _ = WheelerCurrentDistribution().distribute(
+        freq, zc=zc, w=1.55e-3, t=35e-6
+    )[0]
+    assert isinstance(default_shape, RootSumSquareSlabShape)
+
+    chosen = WheelerCurrentDistribution(slab_shape=HollowayKuesterSlabShape())
+    chosen_shape, _ = chosen.distribute(freq, zc=zc, w=1.55e-3, t=35e-6)[0]
+    assert isinstance(chosen_shape, HollowayKuesterSlabShape)
+
+    # An unspecified thickness is still a half-space: there is no slab.
+    unspecified, _ = chosen.distribute(freq, zc=zc, w=1.55e-3)[0]
+    assert isinstance(unspecified, HalfSpaceShape)

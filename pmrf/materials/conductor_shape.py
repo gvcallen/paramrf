@@ -32,22 +32,57 @@ class AbstractConductorShape(eqx.Module):
     ParamRF objects in sight. Concrete shapes differ in the geometry they
     need -- a rod takes a radius, a tube a radius and a wall thickness, a
     half-space none -- so only the common material argument is fixed here.
+
+    **Normalisation convention**
+
+    Every entry returns an impedance in ohm per square, referred to the
+    current its own cross-section carries, and the caller multiplies by an
+    inverse-metre geometry weight $k$ to obtain a per-unit-length series
+    impedance. The round entries and the caller agree on that normalisation
+    exactly: :class:`SchelkunoffRodShape` is referred to the total rod
+    current and the caller's weight is $1/2\pi a$, so the product is the
+    rod's true impedance at every frequency.
+
+    The planar entries do not have that luxury, because the planar weight in
+    use is Wheeler's incremental-inductance factor, which is a different
+    decomposition of the problem. :class:`HollowayKuesterSlabShape` is
+    referred to the *total strip current*, so reproducing the true dc
+    resistance $1/(\sigma W t)$ from its dc value $2/(\sigma t)$ requires a
+    weight of $1/(2W)$ -- for a 1.55 mm trace that is $322.6\,\mathrm{m^{-1}}$
+    against Wheeler's $963.7\,\mathrm{m^{-1}}$, a factor of **2.99**. The
+    discrepancy is real physics, not a scale error: Wheeler's weight is
+    larger because it is an incremental-inductance result covering the
+    ground plane and the edge crowding as well as the strip, while the slab
+    is a one-dimensional strip diffusion result containing neither. Under
+    Wheeler's weight the exact slab therefore returns 0.925 ohm/m at dc for
+    35 um copper on that trace where the true value is 0.3097 ohm/m, and no
+    rescaling repairs it: halving the slab to fix dc breaks the strong-skin
+    asymptote by the same factor.
+
+    A frequency-independent weight consequently admits only one entry that
+    is right at both ends, :class:`RootSumSquareSlabShape`, which reaches
+    into the caller's normalisation through the optional ``weight``
+    argument. That is why the blend is the planar default and not merely an
+    industry convention; the honest fix is separate strip and ground-plane
+    weights (Holloway--Kuester), which ParamRF does not implement.
     """
     @abstractmethod
-    def impedance(self, w, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
         r"""
         Return the surface impedance of this shape, in ohm per square.
 
         Parameters
         ----------
-        w : ArrayLike
-            Angular frequency in rad/s.
+        omega : ArrayLike
+            Angular frequency in rad/s. The frequency argument is *not*
+            named ``w``: under the symbol-named geometry convention ``w`` is
+            a strip width, which a planar entry takes at the same call.
         conductor : ConductorProperties
             The metal's evaluated properties. ``conductor.zs`` is the
             surface prefactor -- for a smooth bulk metal the intrinsic
             surface impedance $\zeta_c=\sqrt{j\omega\mu/\sigma}$, but a
             surface treatment such as roughness scales it -- and
-            ``conductor.gamma(w)`` is the diffusion constant
+            ``conductor.gamma(omega)`` is the diffusion constant
             $\gamma=\sqrt{j\omega\mu\sigma}$ inside the bulk, which supplies
             the dimensionless $\gamma a$ and $\gamma t$ arguments. The two
             are independent inputs: never recover one from the other via
@@ -60,6 +95,13 @@ class AbstractConductorShape(eqx.Module):
             takes a radius and a wall thickness and uses neither -- so a
             caller choosing between shapes never has to know which
             arguments a particular one reads.
+        weight : ArrayLike, optional
+            The inverse-metre geometry weight the caller is about to
+            multiply this entry's answer by, passed as part of the geometry
+            so that an entry whose dc floor is fixed in per-unit-length
+            terms can express that floor in the caller's normalisation. Only
+            :class:`RootSumSquareSlabShape` reads it; see the normalisation
+            note in :class:`AbstractConductorShape`.
 
         Returns
         -------
@@ -95,7 +137,7 @@ class HalfSpaceShape(AbstractConductorShape):
     Investigations of Radiowave Propagation, Part II, 5-12. Academy of
     Sciences, USSR.
     """
-    def impedance(self, w, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
         # Cross-section dimensions are accepted and ignored: a half-space has
         # none, and a caller choosing between shapes should not have to know
         # which of them take a radius or a wall thickness.
@@ -125,6 +167,25 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
     $\zeta_c\tanh(\gamma_c t/2)$ is valid for quasi-TEM coplanar waveguide
     and for microstrip whose characteristic impedance exceeds 40 ohm.
 
+    **Normalisation**
+
+    The scalar is referred to the *total* strip current, so the geometry
+    weight that turns it into a per-unit-length resistance is $1/(2W)$: at
+    dc the entry returns $2/(\sigma t)$ and $2/(\sigma t)\cdot 1/(2W)$ is
+    the true $1/(\sigma W t)$. That is not the weight
+    :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`
+    supplies -- for a 1.55 mm trace Wheeler's weight is
+    $963.7\,\mathrm{m^{-1}}$ against $1/(2W)=322.6\,\mathrm{m^{-1}}$, a
+    factor of 2.99 -- because Wheeler's weight also covers the ground plane
+    and the edge crowding that this one-dimensional strip result does not
+    contain. Charged with Wheeler's weight the entry therefore gives
+    0.925 ohm/m at dc for 35 um copper on that trace where the true value is
+    0.3097 ohm/m. Rescaling cannot fix both ends at once, which is why
+    :class:`RootSumSquareSlabShape` and not this entry is the planar
+    default; see the normalisation note on
+    :class:`AbstractConductorShape`. Use this entry with a weight it is
+    normalised against.
+
     References
     ----------
     Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
@@ -135,15 +196,12 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
     Electromagnetic Analysis. IEEE Transactions on Microwave Theory and
     Techniques, 51(3), 915-921. Eq. (4).
     """
-    #: Strip thickness in metres
-    t: jnp.ndarray
-
-    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
-        gamma_t_over_two = conductor.gamma(w) * self.t / 2
-        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+    def impedance(self, omega, conductor: ConductorProperties, *, t, **geometry) -> jnp.ndarray:
+        gamma_t_over_two = conductor.gamma(omega) * t / 2
+        evaluable = (omega > 0) & jnp.isfinite(conductor.sigma)
         safe_argument = jnp.where(evaluable, gamma_t_over_two, 1.0)
         zs = conductor.zs / jnp.tanh(safe_argument)
-        dc = 2 / (conductor.sigma * self.t)
+        dc = 2 / (conductor.sigma * t)
         return jnp.where(evaluable, zs, dc)
 
 
@@ -153,41 +211,80 @@ class RootSumSquareSlabShape(AbstractConductorShape):
 
     **Mathematical Formulation**
 
-    $$Z_s=\sqrt{R_{dc,sq}^2+\Re(\zeta_c)^2}+j\Im(\zeta_c).$$
+    $$Z_s=\sqrt{R_{dc,sq}^2+\Re(\zeta_c)^2}+j\Im(\zeta_c),\qquad
+    R_{dc,sq}=\frac{1}{\sigma W t\,k},$$
 
-    This is a ParamRF convention and has no source paper.  It preserves the
-    dc and semi-infinite resistance asymptotes, remains smooth and monotone,
-    and deliberately leaves the half-space reactance unchanged.  Against the
-    exact slab over 10--500 MHz its transition-shape residual after the best
-    global scale is 11% for a 1.55 mm by 35 um trace, 14% for 0.45 mm by
-    35 um, and 15% for a 0.35 mm by 35 um, 96-ohm trace.  It is retained for
-    compatibility with the modelling convention used by industry tools, not
-    as the preferred finite-thickness physics.
+    where $W$ is the strip width, $t$ its thickness and $k$ the caller's
+    inverse-metre geometry weight. The entry computes its own dc floor from
+    those dimensions: charged with $k$ the first term becomes exactly the
+    strip's true dc resistance $1/(\sigma W t)$, and the second becomes the
+    semi-infinite result $k\,\Re(\zeta_c)$. This is a ParamRF convention and
+    has no source paper.
+
+    **Why it is the planar default**
+
+    Under a frequency-independent geometry weight this is the *only* entry
+    that is right at both ends. :class:`HollowayKuesterSlabShape` is exact
+    but is normalised to the total strip current, which fixes its weight at
+    $1/(2W)$ -- a factor of 2.99 away from Wheeler's for a 1.55 mm trace --
+    so it cannot satisfy the dc asymptote under the weight actually in use;
+    see the normalisation note on :class:`AbstractConductorShape`. Reaching
+    into the caller's normalisation through ``weight`` is the price of
+    satisfying both asymptotes at once, and is why the industry tools
+    converged on the same blend.
+
+    **Validity**
+
+    Against the exact slab over 10--500 MHz its transition-shape residual
+    after the best global scale is 11% for a 1.55 mm by 35 um trace, 14% for
+    0.45 mm by 35 um, and 15% for a 0.35 mm by 35 um, 96-ohm trace.
+
+    The blend is resistance-only: it keeps the half-space reactance
+    $\Im(\zeta_c)$, which grows as $\sqrt{\omega}$, where the true finite
+    slab's internal inductance saturates at $\omega\mu t/6$. Below
+    $t\approx\delta$ it is therefore not merely approximate in the
+    transition but qualitatively wrong on internal inductance. Measured
+    against :class:`HollowayKuesterSlabShape` for 35 um copper:
+
+    ==================  ======  ======  ======  ======  ======
+    quantity            100kHz    1MHz    5MHz   10MHz   50MHz
+    ==================  ======  ======  ======  ======  ======
+    $t/\delta$            0.17    0.54    1.20    1.70    3.79
+    blend $X$/exact $X$  17.7x    5.6x    2.5x    1.8x   1.01x
+    ==================  ======  ======  ======  ======  ======
+
+    The honest fix is separate strip and ground-plane weights, which
+    Holloway--Kuester supply and ParamRF does not implement.
 
     References
     ----------
     ParamRF convention; no source paper.
-    """
-    #: Geometry factor which gives DC sheet resistance when divided by sigma
-    dc_shape_factor: jnp.ndarray
 
-    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
-        r_dc_sq = self.dc_shape_factor / conductor.sigma
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip
+    lines. Radio Science, 29(3), 539-559.
+    """
+    def impedance(self, omega, conductor: ConductorProperties, *, w, t, weight, **geometry) -> jnp.ndarray:
+        # The dc floor is a per-unit-length quantity, 1/(sigma*W*t), while
+        # this layer returns ohm per square: dividing by the caller's weight
+        # places that floor in the caller's normalisation, so that
+        # multiplying by the weight restores it exactly.
+        r_dc_sq = 1 / (conductor.sigma * w * t * weight)
         resistance = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
         return resistance + 1j * jnp.imag(conductor.zs)
 
 
-def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, w):
+def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, omega):
     """Blend Tesche's dc and high-frequency limits through his equivalent circuit.
 
     The internal inductance arrives inverted so that an infinite one -- an
     infinitely thick tube wall -- enters as a plain zero. Complex arithmetic
-    on an infinity does not survive: ``1j*w*inf`` is ``nan + infj``, and
+    on an infinity does not survive: ``1j*omega*inf`` is ``nan + infj``, and
     dividing a complex number by ``inf + 0j`` is nan under XLA's division.
     """
-    safe_w = jnp.where(w > 0, w, 1.0)
-    z = r_dc_sq + zeta_c / (1 + zeta_c * inverse_l_int_sq / (1j * safe_w))
-    return jnp.where(w > 0, z, r_dc_sq)
+    safe_omega = jnp.where(omega > 0, omega, 1.0)
+    z = r_dc_sq + zeta_c / (1 + zeta_c * inverse_l_int_sq / (1j * safe_omega))
+    return jnp.where(omega > 0, z, r_dc_sq)
 
 
 class TescheRodShape(AbstractConductorShape):
@@ -228,10 +325,10 @@ class TescheRodShape(AbstractConductorShape):
     Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
     on Electromagnetic Compatibility, 49(1), 12-17.
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, *, a, **geometry) -> jnp.ndarray:
         r_dc_sq = 2 / (a * conductor.sigma)
         inverse_l_int_sq = 4 / (mu_0 * conductor.mu_r * a)
-        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, w)
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
 class TescheTubeShape(AbstractConductorShape):
@@ -268,7 +365,7 @@ class TescheTubeShape(AbstractConductorShape):
     Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
     on Electromagnetic Compatibility, 49(1), 12-17.
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a, t=jnp.inf) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, *, a, t=jnp.inf, **geometry) -> jnp.ndarray:
         # An infinite wall is taken analytically rather than arithmetically:
         # both the dc resistance and the inverse internal inductance are zero
         # there, and evaluating the expressions at t = inf would leave an
@@ -281,7 +378,7 @@ class TescheTubeShape(AbstractConductorShape):
             jnp.log1p(safe_t / a) / (1 - q) ** 2 + (q - 3) / (4 * (1 - q))
         )
         inverse_l_int_sq = jnp.where(finite_wall, 1 / l_int_sq, 0.0)
-        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, w)
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
 class SchelkunoffRodShape(AbstractConductorShape):
@@ -320,7 +417,7 @@ class SchelkunoffRodShape(AbstractConductorShape):
     Transmission Lines and Cylindrical Shields. Bell System Technical
     Journal, 13(4), 532-579. Eq. (65).
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, *, a, **geometry) -> jnp.ndarray:
         # gamma vanishes at dc, where the ratio has a pole that exactly
         # cancels zeta_c's zero. Take that limit analytically and keep the
         # argument away from the pole so the gradient stays finite. A
@@ -330,12 +427,12 @@ class SchelkunoffRodShape(AbstractConductorShape):
         # the narrower `w > 0`: an infinite sigma needs a safe Bessel
         # argument, but its zero zeta_c already gives the right answer, and
         # 2/(a*sigma) is likewise zero there.
-        gamma_a = conductor.gamma(w) * a
-        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        gamma_a = conductor.gamma(omega) * a
+        evaluable = (omega > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma_a = jnp.where(evaluable, gamma_a, 1.0)
         zs = conductor.zs * i0_over_i1(safe_gamma_a)
         r_dc_sq = 2 / (a * conductor.sigma)
-        return jnp.where(w > 0, zs, r_dc_sq)
+        return jnp.where(omega > 0, zs, r_dc_sq)
 
 
 class SchelkunoffTubeShape(AbstractConductorShape):
@@ -400,15 +497,15 @@ class SchelkunoffTubeShape(AbstractConductorShape):
     Transmission Lines and Cylindrical Shields. Bell System Technical
     Journal, 13(4), 532-579. Eq. (74).
     """
-    def impedance(self, w, conductor: ConductorProperties, *, a, t=jnp.inf) -> jnp.ndarray:
+    def impedance(self, omega, conductor: ConductorProperties, *, a, t=jnp.inf, **geometry) -> jnp.ndarray:
         # Same guards as the solid rod: gamma vanishes at dc and diverges for
         # a perfect conductor, so both branches are evaluated on arguments
         # the other regime cannot poison. An infinite wall is the third
         # unevaluable argument -- the Bessel functions at gamma*b are then
         # 0 and inf, whose product is NaN -- so it too gets a safe argument
         # and an analytic value, here rho = 0.
-        gamma = conductor.gamma(w)
-        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        gamma = conductor.gamma(omega)
+        evaluable = (omega > 0) & jnp.isfinite(conductor.sigma)
         safe_gamma = jnp.where(evaluable, gamma, 1.0)
         finite_wall = jnp.isfinite(t)
         safe_t = jnp.where(finite_wall, t, a)
