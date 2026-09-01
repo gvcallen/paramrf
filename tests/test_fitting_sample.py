@@ -27,7 +27,7 @@ def truth_model():
         d_in=1.12e-3, 
         d_out=3.2e-3, 
         dielectric=ConstantDielectric(ep_r=1.384, tand=0.001),
-        conductor=BulkConductor(rho=1.6e-8),
+        conductor=BulkConductor(sigma=1 / 1.6e-8),
         length=0.1,  # Target length
     )
 
@@ -44,7 +44,7 @@ def starting_model():
         d_in=Fixed(1.12e-3),
         d_out=Fixed(3.2e-3),
         dielectric=ConstantDielectric(ep_r=Fixed(1.384), tand=Fixed(0.001)),
-        conductor=BulkConductor(rho=Fixed(1.6e-8)),
+        conductor=BulkConductor(sigma=Fixed(1 / 1.6e-8)),
         # Normal prior centered at 0.1 with standard deviation 0.05
         length=Random(Normal(0.1, 0.05), value=jnp.array(0.095))
     )

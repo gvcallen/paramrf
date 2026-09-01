@@ -41,7 +41,7 @@ class Substrate(Module):
         The sheet material. A scalar permittivity or an ``(ep_r, tand)`` tuple is
         coerced into a :class:`~pmrf.materials.ConstantDielectric`.
     conductor : AbstractConductor, default=BulkConductor()
-        The metallization. A scalar resistivity in ohm-meters is coerced into a
+        The metallization. A scalar conductivity in S/m is coerced into a
         :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
         Thickness of the metallization in meters, or ``None`` for a

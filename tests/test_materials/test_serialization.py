@@ -20,8 +20,8 @@ MATERIALS = [
     MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)]),
     ColeCole(2.0, 1.0, 1e9, 0.3),
     TabulatedDielectric(f=jnp.array([1e9, 2e9]), ep_r=jnp.array([4.0 - 0.1j, 3.8 - 0.2j])),
-    BulkConductor(1.68e-8),
-    RoughConductor(1.68e-8, roughness=1e-6),
+    BulkConductor(5.8e7),
+    RoughConductor(5.8e7, roughness=1e-6),
 ]
 
 

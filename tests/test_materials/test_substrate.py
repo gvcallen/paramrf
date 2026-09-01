@@ -18,7 +18,7 @@ def freq():
 
 def test_substrate_coerces_loose_materials():
     """Scalars are coerced by the same converters the lines use."""
-    substrate = Substrate(h=1.6e-3, dielectric=4.3, conductor=1.72e-8)
+    substrate = Substrate(h=1.6e-3, dielectric=4.3, conductor=5.8e7)
 
     assert isinstance(substrate.dielectric, ConstantDielectric)
     assert isinstance(substrate.conductor, BulkConductor)
@@ -71,7 +71,7 @@ def test_microstrip_substrate_and_loose_forms_are_identical(freq):
         w=3e-3,
         h=1.6e-3,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=0.1,
     )
     grouped = MicrostripLine(
@@ -79,7 +79,7 @@ def test_microstrip_substrate_and_loose_forms_are_identical(freq):
         substrate=Substrate(
             h=1.6e-3,
             dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-            conductor=BulkConductor(rho=1.72e-8),
+            conductor=BulkConductor(sigma=1 / 1.72e-8),
         ),
         length=0.1,
     )

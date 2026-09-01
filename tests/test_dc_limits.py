@@ -64,14 +64,14 @@ LINES = {
         d_in=0.9e-3,
         d_out=2.95e-3,
         dielectric=ConstantDielectric(ep_r=1.5, tand=4e-4),
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=0.5,
     ),
     "MicrostripLine": MicrostripLine(
         w=3e-3,
         h=1.6e-3,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=0.1,
     ),
     "MicrostripLine (no dispersion)": MicrostripLine(
@@ -94,7 +94,7 @@ LINES = {
         b=3.2e-3,
         t=35e-6,
         dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=0.1,
     ),
     "StriplineLine (zero thickness)": StriplineLine(
@@ -115,8 +115,8 @@ MATERIALS = {
         ep_r=jnp.array([4.3 - 0.1j, 4.2 - 0.1j, 4.1 - 0.1j]),
         sigma=1e-3,
     ),
-    "BulkConductor": BulkConductor(rho=1.72e-8),
-    "RoughConductor": RoughConductor(rho=1.72e-8, roughness=HammerstadRoughness(1e-6)),
+    "BulkConductor": BulkConductor(sigma=1 / 1.72e-8),
+    "RoughConductor": RoughConductor(sigma=1 / 1.72e-8, roughness=HammerstadRoughness(1e-6)),
 }
 
 

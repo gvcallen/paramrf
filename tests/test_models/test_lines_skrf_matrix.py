@@ -169,18 +169,25 @@ def _skrf_djordjevic_sarkar(*, ep_r, tand):
     return ep_r_of_f
 
 
+def _sigma_of_rho(rho):
+    """Conductivity equivalent of a resistivity, with the perfect-conductor limit at rho=0."""
+    return np.inf if rho == 0.0 else 1 / rho
+
+
 def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f):
     """A ParamRF/scikit-rf builder pair for one coaxial geometry."""
+    sigma = _sigma_of_rho(rho)
+
     def line(length):
         return CoaxialLine(
             d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=BulkConductor(rho=rho), length=length,
+            conductor=BulkConductor(sigma=sigma), length=length,
         )
 
     def media(freq, z0_port=None):
         return Coaxial(
             freq, Dint=d_in, Dout=d_out, model="tesche", z0_port=z0_port,
-            sigma=np.inf if rho == 0.0 else 1 / rho,
+            sigma=sigma,
             dielectric={"ep_r": ep_r_of_f(np.asarray(freq.f))},
         )
 
@@ -302,7 +309,7 @@ def _microstrip_pair(*, w, h, t, ep_r, tand, rho, dispersion, diel, formulation,
         )
         return MicrostripLine(
             w=w, h=h, t=t, dielectric=dielectric,
-            conductor=BulkConductor(rho=rho),
+            conductor=BulkConductor(sigma=_sigma_of_rho(rho)),
             formulation=formulation(),
             dispersion=None if dispersion is None else dispersion(),
             length=length,
