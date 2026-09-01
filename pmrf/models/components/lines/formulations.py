@@ -239,12 +239,12 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
 
         L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
-        rod_zs = TescheRodShape().impedance(w, conductor.zs, conductor.sigma, conductor.mu_r, radius=a)
+        rod_zs = TescheRodShape().impedance(w, conductor, a=a)
         Z_int = rod_zs / (2 * jnp.pi * a)
         # The model exposes only the shield's inner diameter, so its wall is
         # treated as infinitely thick, matching the usual coaxial idealisation:
         # the tube shape's own infinite-wall limit.
-        shield_zs = HalfSpaceShape().impedance(w, conductor.zs, conductor.sigma, conductor.mu_r)
+        shield_zs = HalfSpaceShape().impedance(w, conductor)
         Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
         Z = 1j * w * L_ext + Z_int

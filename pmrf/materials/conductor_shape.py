@@ -17,6 +17,8 @@ import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import mu_0
 
+from pmrf.materials.properties import ConductorProperties
+
 
 class AbstractConductorShape(eqx.Module):
     r"""
@@ -28,10 +30,10 @@ class AbstractConductorShape(eqx.Module):
     directly against the equations of the paper it comes from with no
     ParamRF objects in sight. Concrete shapes differ in the geometry they
     need -- a rod takes a radius, a tube a radius and a wall thickness, a
-    half-space none -- so only the common material arguments are fixed here.
+    half-space none -- so only the common material argument is fixed here.
     """
     @abstractmethod
-    def impedance(self, w, zeta_c, sigma, mu_r, **geometry) -> jnp.ndarray:
+    def impedance(self, w, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
         r"""
         Return the surface impedance of this shape, in ohm per square.
 
@@ -39,13 +41,10 @@ class AbstractConductorShape(eqx.Module):
         ----------
         w : ArrayLike
             Angular frequency in rad/s.
-        zeta_c : jnp.ndarray
-            Complex intrinsic surface impedance of the metal,
-            $\zeta_c=\sqrt{j\omega\mu/\sigma}$, in ohm per square.
-        sigma : jnp.ndarray
-            Bulk conductivity in S/m.
-        mu_r : jnp.ndarray
-            Relative permeability of the conductor.
+        conductor : ConductorProperties
+            The metal's evaluated properties. ``conductor.zs`` is its
+            intrinsic surface impedance $\zeta_c=\sqrt{j\omega\mu/\sigma}$,
+            not yet weighted by this shape's factor.
         **geometry
             Shape-specific cross-section dimensions, in meters.
 
@@ -83,8 +82,8 @@ class HalfSpaceShape(AbstractConductorShape):
     Investigations of Radiowave Propagation, Part II, 5-12. Academy of
     Sciences, USSR.
     """
-    def impedance(self, w, zeta_c, sigma, mu_r) -> jnp.ndarray:
-        return zeta_c
+    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
+        return conductor.zs
 
 
 def _tesche_circuit_impedance(zeta_c, r_dc_sq, l_int_sq, w):
@@ -126,10 +125,10 @@ class TescheRodShape(AbstractConductorShape):
     Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
     on Electromagnetic Compatibility, 49(1), 12-17.
     """
-    def impedance(self, w, zeta_c, sigma, mu_r, *, radius) -> jnp.ndarray:
-        r_dc_sq = 2 / (radius * sigma)
-        l_int_sq = mu_0 * mu_r * radius / 4
-        return _tesche_circuit_impedance(zeta_c, r_dc_sq, l_int_sq, w)
+    def impedance(self, w, conductor: ConductorProperties, *, a) -> jnp.ndarray:
+        r_dc_sq = 2 / (a * conductor.sigma)
+        l_int_sq = mu_0 * conductor.mu_r * a / 4
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, l_int_sq, w)
 
 
 class TescheTubeShape(AbstractConductorShape):
@@ -164,11 +163,10 @@ class TescheTubeShape(AbstractConductorShape):
     Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
     on Electromagnetic Compatibility, 49(1), 12-17.
     """
-    def impedance(self, w, zeta_c, sigma, mu_r, *, radius, thickness) -> jnp.ndarray:
-        a, t = radius, thickness
+    def impedance(self, w, conductor: ConductorProperties, *, a, t) -> jnp.ndarray:
         q = (a / (a + t)) ** 2
-        r_dc_sq = 1 / (t * sigma)
-        l_int_sq = mu_0 * mu_r * a * (
+        r_dc_sq = 1 / (t * conductor.sigma)
+        l_int_sq = mu_0 * conductor.mu_r * a * (
             jnp.log1p(t / a) / (1 - q) ** 2 + (q - 3) / (4 * (1 - q))
         )
-        return _tesche_circuit_impedance(zeta_c, r_dc_sq, l_int_sq, w)
+        return _tesche_circuit_impedance(conductor.zs, r_dc_sq, l_int_sq, w)

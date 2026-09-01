@@ -380,7 +380,8 @@ def test_coaxial_internal_impedance_tube():
         sigma=float(sigma[0]), tout=thickness, model="tesche",
     )
     expected = reference._conductor_impedance(radius, thickness, None)
-    zs_sq = TescheTubeShape().impedance(freq.w, zs, sigma, mu, radius=radius, thickness=thickness)
+    conductor = ConductorProperties(zs, sigma, mu)
+    zs_sq = TescheTubeShape().impedance(freq.w, conductor, a=radius, t=thickness)
     actual = zs_sq / (2 * jnp.pi * radius)
     assert jnp.allclose(actual, expected)
 
