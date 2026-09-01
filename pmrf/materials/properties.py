@@ -1,10 +1,10 @@
 """Frequency-evaluated, geometry-free material properties."""
-from typing import NamedTuple
+import equinox as eqx
 
 import jax.numpy as jnp
 
 
-class DielectricProperties(NamedTuple):
+class DielectricProperties(eqx.Module):
     """Evaluated dielectric properties.
 
     Parameters
@@ -22,7 +22,7 @@ class DielectricProperties(NamedTuple):
     sigma: jnp.ndarray
 
 
-class ConductorProperties(NamedTuple):
+class ConductorProperties(eqx.Module):
     """Evaluated conductor properties.
 
     Parameters

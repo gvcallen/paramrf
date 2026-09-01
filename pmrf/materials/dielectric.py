@@ -23,17 +23,9 @@ class AbstractDielectric(Module):
 
     Subclasses return the *total* complex relative permittivity, using the
     convention $\varepsilon_r = \varepsilon' - j\varepsilon''$ with
-    $\varepsilon'' \geq 0$ for a passive medium. The static conductivity of the
-    medium is included, so callers never see the split.
-
-    **Reference frequencies are material constants.** Fields such as
-    :attr:`DjordjevicSarkar.f_low`, :attr:`DjordjevicSarkar.f_high` and
-    :attr:`DjordjevicSarkar.f_ref` describe the medium, never the sweep, and must
-    never be defaulted from the analysis band. Deriving them that way would make
-    the same physical material give different answers depending on the band
-    asked about, re-trigger a JIT compilation on every new frequency grid, and
-    stop results being comparable across sweeps — which breaks any fitting
-    workflow that calibrates on one grid and validates on another.
+    $\varepsilon'' \geq 0$ for a passive medium.
+    
+    Static conductivity of the medium is included.
     """
 
     @abstractmethod
@@ -56,10 +48,10 @@ class ConstantDielectric(AbstractDielectric):
     r"""
     Non-dispersive dielectric with a constant permittivity and loss tangent.
 
-    This is the default material. It is not causal — a constant loss tangent
-    cannot satisfy the Kramers-Kronig relations — but it is the conventional
-    choice in a frequency-domain package. For a causal wideband alternative see
-    :class:`DjordjevicSarkar`.
+    This is the default material. It is not causal - a constant loss tangent
+    cannot satisfy the Kramers-Kronig relations - but it is the conventional
+    choice in a frequency-domain package. For a popular causal wideband alternative,
+    see :class:`DjordjevicSarkar`.
 
     **Mathematical Formulation**
 
