@@ -244,7 +244,7 @@ class CoaxialLine(AbstractImmittanceLine):
             d_in=0.9e-3,
             d_out=2.95e-3,
             dielectric=ConstantDielectric(ep_r=1.5, tand=0.0004),
-            conductor=BulkConductor(rho=1.72e-8),
+            conductor=BulkConductor(sigma=5.8e7),
             length=0.5
         )
 
@@ -263,8 +263,8 @@ class CoaxialLine(AbstractImmittanceLine):
         coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
         filling sets that material's ``mu_r``.
     conductor : AbstractConductor, default=BulkConductor()
-        The conductor material of both conductors. A scalar resistivity in
-        ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
+        The conductor material of both conductors. A scalar conductivity in
+        S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     formulation : AbstractCoaxialFormulation, default=TescheCoaxialFormulation()
         The closed-form physics used to compute the immittance.
     """
@@ -361,7 +361,7 @@ class MicrostripLine(AbstractImmittanceLine):
 
     The sheet model above gives $R\to0$ as $f\to0$, which is wrong for a
     trace of known thickness: a finite $t$ gets a dc floor
-    $R_{dc}=\rho/(Wt)$, blended smoothly with the skin-effect term as
+    $R_{dc}=1/(\sigma Wt)$, blended smoothly with the skin-effect term as
     $R=\sqrt{R_{dc}^2+R_{ac}^2}$ (see
     :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`).
     $t=\text{None}$ gets no floor: it asserts skin effect in operation at
@@ -383,7 +383,7 @@ class MicrostripLine(AbstractImmittanceLine):
             w=4e-3,
             h=2.0e-3,
             dielectric=ConstantDielectric(ep_r=4.6, tand=0.025),
-            conductor=BulkConductor(rho=1.72e-8),
+            conductor=BulkConductor(sigma=5.8e7),
             length=0.5
         )
 
@@ -409,8 +409,8 @@ class MicrostripLine(AbstractImmittanceLine):
         The substrate material. A scalar permittivity or an ``(ep_r, tand)`` tuple
         is coerced into a :class:`~pmrf.materials.ConstantDielectric`.
     conductor : AbstractConductor, default=BulkConductor()
-        The material of the trace and ground plane. A scalar resistivity in
-        ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
+        The material of the trace and ground plane. A scalar conductivity in
+        S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
         Thickness of the conductor. ``None`` means the thickness is
         unspecified, not that it is zero: skin effect is assumed to be in
@@ -563,7 +563,7 @@ class MicrostripLine(AbstractImmittanceLine):
         t = substrate.t
         # t=None asserts skin effect in operation at every frequency,
         # including dc, so there is no dc regime for a floor to describe; a
-        # finite t gets R_dc = rho/(W*t) = 1/(sigma*W*t).
+        # finite t gets R_dc = 1/(sigma*W*t).
         r_dc = None if t is None else 1.0 / (conductor.sigma * self.w * t)
         return self._resolved_quasi_static(freq).to_immittance(
             freq, dielectric, conductor, r_dc=r_dc
@@ -647,7 +647,7 @@ class StriplineLine(AbstractImmittanceLine):
             b=3.2e-3,
             t=35e-6,
             dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
-            conductor=BulkConductor(rho=1.72e-8),
+            conductor=BulkConductor(sigma=5.8e7),
             length=0.1,
         )
 
@@ -668,8 +668,8 @@ class StriplineLine(AbstractImmittanceLine):
         ``(ep_r, tand)`` tuple is coerced into a
         :class:`~pmrf.materials.ConstantDielectric`.
     conductor : AbstractConductor, default=BulkConductor()
-        The material of the strip and the ground planes. A scalar resistivity in
-        ohm-meters is coerced into a :class:`~pmrf.materials.BulkConductor`.
+        The material of the strip and the ground planes. A scalar conductivity in
+        S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     formulation : AbstractStriplineFormulation, default=CohnStriplineFormulation()
         The closed-form physics used to compute the quasi-static solution.
 

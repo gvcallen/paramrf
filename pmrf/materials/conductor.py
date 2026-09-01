@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 
+import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import mu_0
 
@@ -96,13 +97,12 @@ class BulkConductor(AbstractConductor):
     **Mathematical Formulation**
 
     $$Z_s(\omega) = \sqrt{\frac{j\omega\mu}{\sigma}}
-    = \sqrt{\frac{\omega\mu\rho}{2}}\,(1 + j)
     \qquad
-    \delta = \sqrt{\frac{2\rho}{\omega\mu}}$$
+    \delta = \sqrt{\frac{2}{\omega\mu\sigma}}$$
 
-    where $\mu = \mu_0\mu_r$ and $\sigma = 1/\rho$. The real part is the skin
-    resistance per square and the imaginary part is the internal reactance,
-    equal to it in this regime.
+    where $\mu = \mu_0\mu_r$. The real part is the skin resistance per square
+    and the imaginary part is the internal reactance, equal to it in this
+    regime.
 
     Example
     --------
@@ -111,7 +111,7 @@ class BulkConductor(AbstractConductor):
         import pmrf as prf
         from pmrf.materials import BulkConductor
 
-        copper = BulkConductor(rho=1.68e-8)
+        copper = BulkConductor(sigma=5.8e7)
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
         zs = copper.properties(freq).zs
 
@@ -121,30 +121,30 @@ class BulkConductor(AbstractConductor):
 
     Parameters
     ----------
-    rho : Param, default=1.68e-8
-        Resistivity in ohm-meters. Defaults to copper.
+    sigma : Param, default=5.8e7
+        Conductivity in S/m. Defaults to copper.
     mu_r : Param, default=1.0
         Relative permeability of the conductor.
     """
-    #: Resistivity in ohm-meters
-    rho: Param = param(default=1.68e-8, constraint=Positive())
+    #: Conductivity in S/m
+    sigma: Param = param(default=5.8e7, constraint=Positive())
 
     #: Relative permeability of the conductor
     mu_r: Param = param(default=1.0, constraint=Positive())
 
     @classmethod
-    def from_sigma(cls, sigma, **kwargs):
-        """Build a conductor from a conductivity in S/m instead of a resistivity."""
-        return cls(rho=1.0 / sigma, **kwargs)
+    def from_rho(cls, rho, **kwargs):
+        """Build a conductor from a resistivity in ohm-meters instead of a conductivity."""
+        return cls(sigma=1.0 / rho, **kwargs)
 
     def properties(self, freq: Frequency) -> ConductorProperties:
         # sqrt is a branch point at w = 0, so guard it the same way: the
         # impedance is zero there, but its raw gradient would not be.
         w = jnp.asarray(freq.w)
         safe_w = jnp.where(w > 0, w, 1.0)
-        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mu_r * self.rho / 2), 0.0)
+        rs = jnp.where(w > 0, jnp.sqrt(safe_w * mu_0 * self.mu_r / (2 * self.sigma)), 0.0)
         ones = jnp.ones(freq.npoints)
-        return ConductorProperties(rs * (1 + 1j), ones / self.rho, self.mu_r * ones)
+        return ConductorProperties(rs * (1 + 1j), self.sigma * ones, self.mu_r * ones)
 
 
 class RoughConductor(BulkConductor):
@@ -166,8 +166,8 @@ class RoughConductor(BulkConductor):
 
     Parameters
     ----------
-    rho : Param, default=1.68e-8
-        Resistivity in ohm-meters.
+    sigma : Param, default=5.8e7
+        Conductivity in S/m.
     mu_r : Param, default=1.0
         Relative permeability of the conductor.
     roughness : AbstractRoughness, default=HammerstadRoughness()
@@ -183,15 +183,15 @@ class RoughConductor(BulkConductor):
     def properties(self, freq: Frequency) -> ConductorProperties:
         properties = super().properties(freq)
         factor = self.roughness.factor(freq, properties.sigma, properties.mu_r)
-        return properties._replace(zs=properties.zs * factor)
+        return eqx.tree_at(lambda p: p.zs, properties, properties.zs * factor)
 
 
 def as_conductor(value) -> AbstractConductor:
     """
     Coerce a value into a conductor material.
 
-    Accepts an existing :class:`AbstractConductor` or a scalar resistivity in
-    ohm-meters, which builds a :class:`BulkConductor`.
+    Accepts an existing :class:`AbstractConductor` or a scalar conductivity in
+    S/m, which builds a :class:`BulkConductor`.
 
     Parameters
     ----------
@@ -202,7 +202,20 @@ def as_conductor(value) -> AbstractConductor:
     -------
     AbstractConductor
         The resulting conductor material.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` falls in the resistivity regime (roughly 1e-8 to 1e-5
+        ohm-meters for metals) rather than the conductivity regime (roughly
+        1e5 to 1e8 S/m): the two are fifteen orders of magnitude apart, so
+        there is no ambiguous middle ground.
     """
     if isinstance(value, AbstractConductor):
         return value
-    return BulkConductor(rho=value)
+    if 0 < value < 1.0:
+        raise ValueError(
+            f"{value!r} looks like a resistivity in ohm-meters, not a "
+            "conductivity in S/m; use BulkConductor.from_rho() instead"
+        )
+    return BulkConductor(sigma=value)

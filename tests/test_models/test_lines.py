@@ -127,7 +127,7 @@ def test_coaxial_line_impedance(basic_freq):
         d_in=0.9e-3,
         d_out=2.95e-3,
         dielectric=ConstantDielectric(ep_r=2.25, tand=0.0),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=1.0,
     )
     
@@ -150,7 +150,7 @@ def test_coaxial_static_conductivity_has_analytic_dc_conductance():
         d_in=d_in,
         d_out=d_out,
         dielectric=ConstantDielectric(ep_r=2.25, sigma=sigma),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=1.0,
     )
 
@@ -173,7 +173,7 @@ def test_coaxial_permeability_comes_from_the_dielectric(basic_freq):
             d_in=0.9e-3,
             d_out=2.95e-3,
             dielectric=dielectric,
-            conductor=BulkConductor(rho=0.0),
+            conductor=BulkConductor(sigma=jnp.inf),
             length=1.0,
         )
 
@@ -195,15 +195,17 @@ def test_coaxial_magnetic_loss_enters_the_series_resistance(basic_freq):
     class LossyMagnetic(ConstantDielectric):
         def properties(self, freq):
             properties = super().properties(freq)
-            return properties._replace(
-                mu_r=(4.0 - 0.5j) * jnp.ones(freq.npoints, dtype=complex)
+            return eqx.tree_at(
+                lambda p: p.mu_r,
+                properties,
+                (4.0 - 0.5j) * jnp.ones(freq.npoints, dtype=complex),
             )
 
     line = CoaxialLine(
         d_in=0.9e-3,
         d_out=2.95e-3,
         dielectric=LossyMagnetic(ep_r=2.25, tand=0.0),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=1.0,
     )
     immittance = line.immittance(basic_freq)
@@ -217,24 +219,24 @@ def test_coaxial_magnetic_loss_enters_the_series_resistance(basic_freq):
 
 
 def test_microstrip_line_default_construction_has_conductor_loss(basic_freq):
-    """A default-constructed line has nonzero, rho-sensitive attenuation.
+    """A default-constructed line has nonzero, sigma-sensitive attenuation.
 
     Regression for the bug where Wheeler's conductor-loss correction was
     guarded on `substrate.t is not None`, and `t` defaults to `None`: a
     default-constructed line (dispersion=KirschningJansenMicrostripDispersion,
-    t=None) had `rho` completely inert.
+    t=None) had `sigma` completely inert.
     """
-    def alpha(rho):
+    def alpha(sigma):
         line = MicrostripLine(
             dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
-            conductor=BulkConductor(rho=rho),
+            conductor=BulkConductor(sigma=sigma),
             length=0.1,
         )
         _, gamma_length = line.zc_and_gammaL(basic_freq)
         return jnp.real(gamma_length / line.length)
 
-    alpha_lossless = alpha(0.0)
-    alpha_lossy = alpha(1.68e-8)
+    alpha_lossless = alpha(jnp.inf)
+    alpha_lossy = alpha(1 / 1.68e-8)
 
     assert jnp.all(alpha_lossless == 0.0)
     assert jnp.all(alpha_lossy > alpha_lossless)
@@ -247,7 +249,7 @@ def test_microstrip_line_impedance(basic_freq):
         w=3.0e-3,
         h=1.6e-3,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         dispersion=None,
         length=0.1,
     )
@@ -275,7 +277,7 @@ def test_microstrip_line_ep_eff_and_w_eff_match_immittance_pipeline(basic_freq, 
         w=w,
         h=h,
         dielectric=ConstantDielectric(ep_r=ep_r, tand=0.01),
-        conductor=BulkConductor(rho=1.68e-8),
+        conductor=BulkConductor(sigma=1 / 1.68e-8),
         dispersion=dispersion,
         length=0.1,
     )
@@ -313,7 +315,7 @@ def test_microstrip_finite_thickness_has_dc_resistance_floor():
     floored = MicrostripLine(
         w=w, h=h, t=t,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
-        conductor=BulkConductor(rho=rho),
+        conductor=BulkConductor(sigma=1 / rho),
         formulation=HammerstadJensenMicrostripFormulation(),
         length=0.1,
     )
@@ -323,7 +325,7 @@ def test_microstrip_finite_thickness_has_dc_resistance_floor():
     unfloored = MicrostripLine(
         w=w, h=h, t=None,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
-        conductor=BulkConductor(rho=rho),
+        conductor=BulkConductor(sigma=1 / rho),
         length=0.1,
     )
     assert jnp.allclose(unfloored.immittance(dc).R, 0.0)
@@ -331,7 +333,7 @@ def test_microstrip_finite_thickness_has_dc_resistance_floor():
 
 def test_material_coercion():
     """Scalars and tuples coerce into the corresponding material modules."""
-    line = CoaxialLine(dielectric=(2.25, 0.001), conductor=1.68e-8, length=0.1)
+    line = CoaxialLine(dielectric=(2.25, 0.001), conductor=5.8e7, length=0.1)
 
     assert isinstance(line.dielectric, ConstantDielectric)
     assert isinstance(line.conductor, BulkConductor)
@@ -384,9 +386,9 @@ def test_coaxial_internal_impedance_tube():
 
 def test_rough_conductor_is_passed_to_coaxial_formulation():
     freq = Frequency.from_f(jnp.array([1e6, 1e9]))
-    smooth = CoaxialLine(conductor=BulkConductor(1.68e-8), length=0.1)
+    smooth = CoaxialLine(conductor=BulkConductor(1 / 1.68e-8), length=0.1)
     rough = CoaxialLine(
-        conductor=RoughConductor(1.68e-8, roughness=1e-6), length=0.1
+        conductor=RoughConductor(1 / 1.68e-8, roughness=1e-6), length=0.1
     )
     assert jnp.all(rough.immittance(freq).R > smooth.immittance(freq).R)
 
@@ -433,7 +435,7 @@ def test_dispersive_dielectric_is_grid_independent():
         d_in=0.9e-3,
         d_out=2.95e-3,
         dielectric=DjordjevicSarkar(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=1.68e-8),
+        conductor=BulkConductor(sigma=1 / 1.68e-8),
         length=0.1,
     )
 
@@ -491,7 +493,7 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
         h=0.5e-3,
         t=18e-6,
         dielectric=ConstantDielectric(ep_r=10.0, tand=0.05),
-        conductor=BulkConductor(rho=1e-6),
+        conductor=BulkConductor(sigma=1e6),
         formulation=formulation,
         dispersion=dispersion,
         length=0.1,
@@ -536,7 +538,7 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         w=3e-3,
         h=1.6e-3,
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         dispersion=None,
         length=0.1,
     )
@@ -585,7 +587,7 @@ def test_microstrip_dispersion_is_a_pure_dispersion_toggle():
             h=1.6e-3,
             t=35e-6,
             dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
-            conductor=BulkConductor(rho=1.72e-8),
+            conductor=BulkConductor(sigma=1 / 1.72e-8),
             formulation=HammerstadJensenMicrostripFormulation(),
             dispersion=dispersion,
             length=0.1,
@@ -649,7 +651,7 @@ def test_microstrip_near_air_has_finite_conductance_and_gradient():
             w=1e-3,
             h=1e-3,
             dielectric=ConstantDielectric(ep_r=ep_r, tand=0.02),
-            conductor=BulkConductor(rho=0.0),
+            conductor=BulkConductor(sigma=jnp.inf),
             length=0.1,
         )
         return jnp.real(line.s(freq)[-1, 0, 0])
@@ -658,7 +660,7 @@ def test_microstrip_near_air_has_finite_conductance_and_gradient():
         w=1e-3,
         h=1e-3,
         dielectric=ConstantDielectric(ep_r=1.0 + 1e-12, tand=0.02),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=0.1,
     )
     near_air_g = near_air.immittance(freq).G
@@ -666,7 +668,7 @@ def test_microstrip_near_air_has_finite_conductance_and_gradient():
         w=1e-3,
         h=1e-3,
         dielectric=ConstantDielectric(ep_r=1.0 + 2e-12, tand=0.02),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=0.1,
     ).immittance(freq).G
     assert jnp.all(jnp.isfinite(near_air_g))
@@ -748,7 +750,7 @@ def test_stripline_impedance_matches_pozar_design_example():
         w=w_over_b * b,
         b=b,
         dielectric=2.2,
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=0.1,
     )
 
@@ -766,7 +768,7 @@ def test_stripline_dielectric_loss_is_the_homogeneous_limit():
         w=2.655e-3,
         b=3.2e-3,
         dielectric=ConstantDielectric(ep_r=2.2, tand=tand),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         length=1.0,
     )
 
@@ -785,15 +787,15 @@ def test_stripline_attenuation_matches_pozar_worked_example():
 
     freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
     geometry = dict(w=2.655e-3, b=3.2e-3, t=1e-5, length=1.0)
-    copper = BulkConductor(rho=1.72e-8)
+    copper = BulkConductor(sigma=1 / 1.72e-8)
 
     lossless = StriplineLine(
-        dielectric=2.2, conductor=BulkConductor(rho=0.0), **geometry
+        dielectric=2.2, conductor=BulkConductor(sigma=jnp.inf), **geometry
     )
     conductor_only = StriplineLine(dielectric=2.2, conductor=copper, **geometry)
     dielectric_only = StriplineLine(
         dielectric=ConstantDielectric(ep_r=2.2, tand=0.001),
-        conductor=BulkConductor(rho=0.0),
+        conductor=BulkConductor(sigma=jnp.inf),
         **geometry,
     )
 
@@ -814,7 +816,7 @@ def test_stripline_conductor_loss_scales_with_root_frequency():
         b=3.2e-3,
         t=35e-6,
         dielectric=2.2,
-        conductor=BulkConductor(rho=1.72e-8),
+        conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=1.0,
     )
 
@@ -855,7 +857,7 @@ def test_stripline_narrow_strip_uses_the_fringing_correction():
     freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
     b = 3.2e-3
     narrow = StriplineLine(
-        w=0.2 * b, b=b, dielectric=2.2, conductor=BulkConductor(rho=0.0), length=0.1
+        w=0.2 * b, b=b, dielectric=2.2, conductor=BulkConductor(sigma=jnp.inf), length=0.1
     )
 
     w_e = 0.2 * b - (0.35 - 0.2) ** 2 * b
@@ -869,7 +871,7 @@ def test_stripline_high_impedance_branch_is_selected():
 
     freq = Frequency(start=10.0, stop=10.0, npoints=1, unit="GHz")
     geometry = dict(b=3.2e-3, t=35e-6, dielectric=2.2, length=1.0)
-    copper = BulkConductor(rho=1.72e-8)
+    copper = BulkConductor(sigma=1 / 1.72e-8)
 
     narrow = StriplineLine(w=0.2e-3, conductor=copper, **geometry)
     wide = StriplineLine(w=2.655e-3, conductor=copper, **geometry)
