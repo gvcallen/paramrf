@@ -8,8 +8,10 @@ and the skin effect has not yet taken over — as well as microwave behaviour,
 and compares both the internal electrical quantities and the public
 S-parameters.
 
-**Scope.** ParamRF carries permittivity complex throughout, the ADS/AWR
-convention. Only the scikit-rf modes matching that convention are used:
+**Scope.** ParamRF carries permittivity complex throughout its microstrip
+formulations, which is consistent with ADS's documented treatment of permittivity
+as a complex material property. Only the scikit-rf modes with the same complex
+permittivity treatment are used:
 ``compatibility_mode=None`` for :class:`~skrf.media.MLine`, and the complex
 ``dielectric={'ep_r': ...}`` filling for :class:`~skrf.media.Coaxial`. QUCS
 compatibility is deliberately out of scope — ParamRF does not implement the
@@ -322,16 +324,20 @@ def _microstrip_pair(*, w, h, t, ep_r, tand, rho, dispersion, diel, formulation,
 # the two implementations, so the notes are written once and shared.
 _MICROSTRIP_NOTES = {
     "alpha": (
-        "Dielectric loss is modelled differently on the two sides, and this is "
-        "the expected consequence rather than an error. ParamRF evaluates the "
-        "quasi-static formulation at a complex permittivity, so its "
-        "attenuation is (w/2c)*ep_r*tand*(d ep_eff/d ep_r)/sqrt(ep_eff), the "
-        "exact derivative of the model actually in use. scikit-rf instead adds "
-        "the classical filling-factor term, pi*ep_r*(ep_eff-1)*tand/"
-        "((ep_r-1)*sqrt(ep_eff)*lambda_0), which assumes ep_eff is linear in "
-        "ep_r. Hammerstad-Jensen is not linear in ep_r, so the two differ by "
-        "up to about ten percent. The conductor term is identical on both "
-        "sides: Re(Zs)/(Re(Zc)*w) times Wheeler's current-distribution factor."
+        "The residual dielectric-loss difference has three causes. First, in the "
+        "quasi-static path, ParamRF uses the exact d ep_eff/d ep_r from the "
+        "complex effective-permittivity model, while scikit-rf uses the "
+        "linearised (ep_eff-1)/(ep_r-1) surrogate. Schneider's 1969 energy-"
+        "perturbation derivation supports ParamRF's derivative form; the "
+        "linearity difference accounts for only 0.25-0.88% across this matrix. "
+        "Second, dispersion can contribute up to about 3% and grows with "
+        "frequency: ParamRF evaluates Kirschning-Jansen at complex ep_eff, "
+        "whereas scikit-rf feeds dispersed real ep_reff into its quasi-static "
+        "filling factor and adds a_dielectric separately. With dispersion off "
+        "the gap is a flat 0.25%; with it on, it grows to 3.2%. Third, the "
+        "conductor-loss form formerly contributed up to about 9% in the "
+        "wide_low_er_lossy_quasi_static case; that difference was removed by "
+        "issue #82, so it should no longer contribute here."
     ),
     "beta": (
         "ParamRF takes beta = Im(w*sqrt(ep_eff)/c) from the complex effective "
