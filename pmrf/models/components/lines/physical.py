@@ -28,6 +28,7 @@ from pmrf.models.components.lines.formulations import (
     AbstractStriplineFormulation,
     CohnStriplineFormulation,
     KirschningJansenMicrostripDispersion,
+    PlanarQuasiStaticResult,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
     _wheeler_conductor_loss_factor,
@@ -302,9 +303,13 @@ class MicrostripLine(AbstractImmittanceLine):
     
     Uses :class:`WheelerMicrostripFormulation` for the default mathematical formulation.
 
-    The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`. With
-    modal dispersion disabled, :meth:`PlanarQuasiStaticResult.to_immittance` converts
-    it directly; otherwise the dispersed modal quantities are inverted exactly.
+    The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`.
+    :meth:`PlanarQuasiStaticResult.to_immittance` converts it directly whether
+    modal dispersion is disabled or not: with dispersion enabled, the dispersed
+    $(\varepsilon_e, Z_c)$ replace the quasi-static ones in a fresh
+    :class:`PlanarQuasiStaticResult` first, so both paths report the same
+    genuine RLGC $Z_c=\sqrt{Z/Y}$ rather than the dispersion path tautologically
+    reproducing Kirschning-Jansen's modal $Z_c$.
 
     **Mathematical Formulation**
 
@@ -339,9 +344,12 @@ class MicrostripLine(AbstractImmittanceLine):
     regardless, which is the good-faith default since Wheeler's $R_s$ is
     itself a thick-conductor result. $t$ only refines the geometry (through
     the quasi-static formulation, where supported), it does not gate whether
-    conductor loss is applied. The resulting modal quantities are inverted
-    exactly into the line's internal currency:
-    $$Z=\gamma Z_c,\qquad Y=\frac{\gamma}{Z_c}.$$
+    conductor loss is applied. This is a ParamRF convention, not a correction
+    of Kirschning-Jansen: K-J's $Z_c$ is a power-current quasi-TEM modal
+    quantity, chosen by Jansen & Koster for its weak frequency dependence, and
+    NIST (Williams, Alpert, Arz et al., *Causal Characteristic Impedance of
+    Planar Transmission Lines*) establishes that microstrip has no unique
+    $Z_c$.
     
     Example
     --------
@@ -479,36 +487,44 @@ class MicrostripLine(AbstractImmittanceLine):
 
         if self.dispersion is None:
             return quasi_static.to_immittance(freq, dielectric, conductor)
-        else:
-            ep_eff, zc = self.dispersion.disperse(
-                freq,
-                ep_eff_0=quasi_static.ep_eff,
-                zc_0=quasi_static.zc,
-                ep_r=ep_r,
-                w_eff=quasi_static.w_eff,
-                h=substrate.h,
-            )
 
-        gamma = 1j * freq.w * jnp.sqrt(ep_eff) / c
+        ep_eff, zc = self.dispersion.disperse(
+            freq,
+            ep_eff_0=quasi_static.ep_eff,
+            zc_0=quasi_static.zc,
+            ep_r=ep_r,
+            w_eff=quasi_static.w_eff,
+            h=substrate.h,
+        )
 
+        # Route through the same to_immittance a quasi-static line uses, at
+        # the dispersed (ep_eff, zc) rather than inverting the modal (zc,
+        # gamma) through from_zc_gamma. That inversion made Zc = sqrt(Z/Y)
+        # tautologically equal to the modal zc, so the conductor never
+        # genuinely entered it; to_immittance instead builds Z and Y from
+        # physical per-unit-length quantities, so Zc = sqrt(Z/Y) falls out
+        # exact with the conductor contribution actually in it. This is a
+        # ParamRF convention, not a correction of Kirschning-Jansen: K-J's Zc
+        # is a power-current quasi-TEM modal quantity, chosen by Jansen &
+        # Koster for its weak frequency dependence, and NIST (Williams,
+        # Alpert, Arz et al., "Causal Characteristic Impedance of Planar
+        # Transmission Lines") establishes that microstrip has no unique Zc.
+        #
         # Wheeler's incremental-inductance rule applies at every thickness.
         # It contains no `t`: the broad-face terms it sums over do not vanish
         # as t -> 0, so t=None ("thickness unspecified") is not the same as
         # t=0. Skin effect is assumed to be in operation regardless. This is
-        # the same conductor_loss_factor the quasi-static path charges
-        # through PlanarQuasiStaticResult.to_immittance, evaluated here at the
-        # dispersed zc and applied directly to gamma rather than to Z.
+        # the same conductor_loss_factor the quasi-static path charges,
+        # evaluated here at the dispersed zc.
         conductor_loss_factor = _wheeler_conductor_loss_factor(self.w, zc)
-        gamma = gamma + jnp.real(conductor.zs) * conductor_loss_factor / (
-            2 * jnp.real(zc)
+        dispersed_quasi_static = PlanarQuasiStaticResult(
+            ep_eff=ep_eff,
+            zc=zc,
+            w_eff=quasi_static.w_eff,
+            conductor_loss_factor=conductor_loss_factor,
+            shunt_conductance_factor=quasi_static.shunt_conductance_factor,
         )
-
-        result = ImmittanceResult.from_zc_gamma(zc, gamma, freq.w)
-        return ImmittanceResult(
-            Z=result.Z,
-            Y=result.Y + dielectric.sigma * quasi_static.shunt_conductance_factor,
-            w=freq.w,
-        )
+        return dispersed_quasi_static.to_immittance(freq, dielectric, conductor)
 
 
 class StriplineLine(AbstractImmittanceLine):
