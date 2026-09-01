@@ -78,6 +78,13 @@ def test_conductivity_guarded_at_dc():
 
 
 def test_djordjevic_sarkar_matches_skrf(wideband_freq):
+    """The material's own permittivity, with no line wrapped around it.
+
+    Kept alongside the wideband line matrix in
+    ``tests/test_models/test_lines_skrf_matrix.py``, which also exercises this
+    material through both a coaxial and a microstrip line: a failure here means
+    the permittivity itself is wrong, not the line that consumed it.
+    """
     skrf = pytest.importorskip("skrf")
     from skrf.media.mline import MLine
 
