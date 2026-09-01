@@ -318,21 +318,6 @@ def _microstrip_pair(*, w, h, t, ep_r, tand, rho, dispersion, diel, formulation,
     return {"line": line, "media": media}
 
 
-def _ep_eff(line, freq):
-    """The complex effective permittivity a ParamRF microstrip line ends up with."""
-    ep_r = line.substrate.dielectric.properties(freq).ep_r
-    quasi_static = line.formulation.quasi_static(
-        w=line.w, h=line.substrate.h, t=line.substrate.t, ep_r=ep_r
-    )
-    if line.dispersion is None:
-        return quasi_static.ep_eff
-    ep_eff, _ = line.dispersion.disperse(
-        freq, ep_eff_0=quasi_static.ep_eff, zc_0=quasi_static.zc, ep_r=ep_r,
-        w_eff=quasi_static.w_eff, h=line.substrate.h,
-    )
-    return ep_eff
-
-
 # Every microstrip case sits on the same set of documented differences between
 # the two implementations, so the notes are written once and shared.
 _MICROSTRIP_NOTES = {
@@ -599,7 +584,7 @@ def test_microstrip_matches_skrf_electrical_quantities(case):
     # The effective permittivity is what the phase constant is built from,
     # compared in its own right so a phase failure stays distinguishable from a
     # loss failure.
-    _assert_close(_ep_eff(line, WIDEBAND), media.ep_reff_f, "ep_eff", case)
+    _assert_close(line.ep_eff(WIDEBAND), media.ep_reff_f, "ep_eff", case)
     _assert_close(zc, media.z0_characteristic, "zc", case)
     _assert_close(np.real(gamma), np.real(media.gamma), "alpha", case)
     _assert_close(np.imag(gamma), np.imag(media.gamma), "beta", case)
