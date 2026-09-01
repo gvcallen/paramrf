@@ -98,6 +98,13 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
 class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSection]):
     r"""Wheeler's incremental-inductance current distribution.
 
+    This is Wheeler's 1942 skin-effect rule, and it is the default
+    ``current_distribution`` of every microstrip. It is a different paper
+    from :class:`~pmrf.models.components.lines.formulations.WheelerMicrostripFormulation`
+    (Wheeler 1977), which is the quasi-static impedance approximation and is
+    *not* the default formulation -- Hammerstad--Jensen is. The two share only
+    an author.
+
     **Mathematical Formulation**
 
     $$k_c = \frac{2}{W}\exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right]$$

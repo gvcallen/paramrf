@@ -44,8 +44,12 @@ class Substrate(Module):
         The metallization. A scalar conductivity in S/m is coerced into a
         :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
-        Thickness of the metallization in meters, or ``None`` for a
-        zero-thickness idealisation.
+        Thickness of the metallization in meters, or ``None`` when it is
+        unspecified. Unspecified is not the same input as zero: it asserts
+        skin effect in operation at every frequency, so the conductor loss
+        gets no dc resistance floor. A positive value gets the floor
+        $R_{dc}=1/(\sigma W t)$, and refines the geometry in those
+        quasi-static formulations that are thickness-aware.
     """
     #: Height of the dielectric sheet
     h: Param = param(default=1.6e-3, constraint=Positive())

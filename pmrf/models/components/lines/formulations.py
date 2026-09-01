@@ -365,7 +365,11 @@ class AbstractMicrostripFormulation(eqx.Module):
         h : ArrayLike
             Height of the dielectric substrate in meters.
         t : ArrayLike | None
-            Thickness of the trace in meters, or None for a zero-thickness trace.
+            Thickness of the trace in meters, or ``None`` when it is
+            unspecified. A formulation derived for a zero-thickness strip
+            accepts it and ignores it rather than rejecting it; thickness
+            reaches conductor loss through the line's cross-section either
+            way.
         ep_r : jnp.ndarray
             Complex relative permittivity of the substrate, shape ``(npoints,)``.
 
@@ -380,6 +384,13 @@ class AbstractMicrostripFormulation(eqx.Module):
 class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     r"""
     Microstrip line formulation using the standard Wheeler approximations.
+
+    This is Wheeler's 1977 quasi-static impedance approximation. It is not
+    the ParamRF default -- :class:`HammerstadJensenMicrostripFormulation` is.
+    It is a different paper from
+    :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`
+    (Wheeler 1942), the skin-effect conductor-loss rule, which *is* the default
+    current distribution and is unaffected by the choice of formulation.
 
     **Mathematical Formulation**
 
@@ -401,8 +412,13 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
 
     **Validity**
 
-    Derived for a zero-thickness strip on an isotropic, non-magnetic substrate,
-    which is why finite thickness is rejected rather than ignored. It is a
+    Derived for a zero-thickness strip on an isotropic, non-magnetic substrate.
+    A finite thickness is accepted and ignored: it does not enter this
+    formulation's $\varepsilon_e$ or $Z_c$, and the line applies it to
+    conductor loss instead, through the cross-section it hands its
+    current distribution. Use
+    :class:`HammerstadJensenMicrostripFormulation` -- the ParamRF default --
+    when the thickness should also widen the strip electrically. It is a
     quasi-static result and carries no modal dispersion, so it describes the
     line only well below the frequency at which $\varepsilon_e$ begins to rise
     towards $\varepsilon_r$; pair it with an
@@ -416,9 +432,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     IEEE Transactions on Microwave Theory and Techniques.
     """
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
-        if t is not None:
-            raise ValueError("Wheeler microstrip approximation does not support finite thickness")
-
+        # t is accepted and ignored: the 1977 result is derived for a
+        # zero-thickness strip, so thickness enters neither ep_eff nor zc. It
+        # still reaches the current distribution through the line's
+        # cross-section, where it refines conductor loss.
         W, H = w, h
         u = W / H
 
