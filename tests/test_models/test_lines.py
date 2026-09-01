@@ -297,6 +297,38 @@ def test_microstrip_line_ep_eff_and_w_eff_match_immittance_pipeline(basic_freq, 
     assert jnp.any(jnp.imag(line.ep_eff(basic_freq)) != 0.0)
 
 
+def test_microstrip_finite_thickness_has_dc_resistance_floor():
+    """#84: a finite-t line's R settles at rho/(W*t) at dc instead of 0.
+
+    The sheet model alone gives R -> 0 as f -> 0, wrong for a trace of known
+    thickness. A finite t gets a floor; t=None gets none, since it asserts
+    skin effect in operation at every frequency including dc, leaving no dc
+    regime for a floor to describe (matches ADS, which floors nothing).
+    """
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    w, h, t, rho = 3.0e-3, 1.6e-3, 35e-6, 1.68e-8
+    dc = Frequency.from_f(jnp.array([0.0]))
+
+    floored = MicrostripLine(
+        w=w, h=h, t=t,
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
+        conductor=BulkConductor(rho=rho),
+        formulation=HammerstadJensenMicrostripFormulation(),
+        length=0.1,
+    )
+    r_dc_expected = rho / (w * t)
+    assert jnp.allclose(floored.immittance(dc).R, r_dc_expected)
+
+    unfloored = MicrostripLine(
+        w=w, h=h, t=None,
+        dielectric=ConstantDielectric(ep_r=4.3, tand=0.0),
+        conductor=BulkConductor(rho=rho),
+        length=0.1,
+    )
+    assert jnp.allclose(unfloored.immittance(dc).R, 0.0)
+
+
 def test_material_coercion():
     """Scalars and tuples coerce into the corresponding material modules."""
     line = CoaxialLine(dielectric=(2.25, 0.001), conductor=1.68e-8, length=0.1)
@@ -478,13 +510,14 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
         w_eff=quasi_static.w_eff,
         h=line.substrate.h,
     )
+    r_dc = 1.0 / (conductor.sigma * line.w * line.substrate.t)
     expected = PlanarQuasiStaticResult(
         ep_eff=ep_eff,
         zc=zc,
         w_eff=quasi_static.w_eff,
         conductor_loss_factor=_wheeler_conductor_loss_factor(line.w, zc),
         shunt_conductance_factor=quasi_static.shunt_conductance_factor,
-    ).to_immittance(freq, dielectric, conductor)
+    ).to_immittance(freq, dielectric, conductor, r_dc=r_dc)
 
     actual = line.immittance(freq)
     assert jnp.array_equal(actual.Z, expected.Z)
