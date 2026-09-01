@@ -28,6 +28,7 @@ from pmrf.materials import (
 from pmrf.models.components.lines.formulations import (
     TescheCoaxialFormulation,
     tube_internal_impedance,
+    KirschningJansenMicrostripDispersion,
 )
 
 @pytest.fixture
@@ -257,6 +258,44 @@ def test_microstrip_line_impedance(basic_freq):
     zc_real = jnp.real(zc)
     assert jnp.all(zc_real > 48.0)
     assert jnp.all(zc_real < 52.0)
+
+@pytest.mark.parametrize("dispersion", [None, KirschningJansenMicrostripDispersion()])
+def test_microstrip_line_ep_eff_and_w_eff_match_immittance_pipeline(basic_freq, dispersion):
+    """`ep_eff`/`w_eff` must report exactly what `immittance` uses internally.
+
+    Regression for #80: these were previously reconstructed by hand in the
+    scikit-rf validation matrix rather than exposed on the model, so a
+    refactor of `immittance` could silently drift from the recomputed value.
+    Recomputes the quasi-static (+ optional dispersion) pipeline independently
+    here, rather than calling the model's own helper, so the test does not
+    just check the method against itself.
+    """
+    w, h, ep_r = 3.0e-3, 1.6e-3, 4.3
+    line = MicrostripLine(
+        w=w,
+        h=h,
+        dielectric=ConstantDielectric(ep_r=ep_r, tand=0.01),
+        conductor=BulkConductor(rho=1.68e-8),
+        dispersion=dispersion,
+        length=0.1,
+    )
+
+    dielectric = line.substrate.dielectric.properties(basic_freq)
+    quasi_static = line.formulation.quasi_static(w=w, h=h, t=None, ep_r=dielectric.ep_r)
+    if dispersion is None:
+        expected_ep_eff, expected_w_eff = quasi_static.ep_eff, quasi_static.w_eff
+    else:
+        expected_ep_eff, _ = dispersion.disperse(
+            basic_freq, ep_eff_0=quasi_static.ep_eff, zc_0=quasi_static.zc,
+            ep_r=dielectric.ep_r, w_eff=quasi_static.w_eff, h=h,
+        )
+        expected_w_eff = quasi_static.w_eff
+
+    assert jnp.allclose(line.ep_eff(basic_freq), expected_ep_eff)
+    assert jnp.allclose(line.w_eff(basic_freq), expected_w_eff)
+    assert jnp.iscomplexobj(line.ep_eff(basic_freq))
+    assert jnp.any(jnp.imag(line.ep_eff(basic_freq)) != 0.0)
+
 
 def test_material_coercion():
     """Scalars and tuples coerce into the corresponding material modules."""

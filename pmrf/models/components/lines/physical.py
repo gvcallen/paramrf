@@ -468,9 +468,14 @@ class MicrostripLine(AbstractImmittanceLine):
         self.name = name
         self.metadata = metadata
 
-    def immittance(self, freq: Frequency) -> ImmittanceResult:
+    def _resolved_quasi_static(self, freq: Frequency) -> PlanarQuasiStaticResult:
+        """The quasi-static solution actually in force, dispersed when ``dispersion`` is set.
+
+        Both :meth:`immittance` and the public :meth:`ep_eff`/:meth:`w_eff`
+        accessors route through this single pipeline, so the accessors cannot
+        drift from what ``immittance`` actually charges.
+        """
         substrate = self.substrate
-        conductor = substrate.conductor.properties(freq)
         dielectric = substrate.dielectric.properties(freq)
         ep_r = eqx.error_if(
             dielectric.ep_r,
@@ -486,7 +491,7 @@ class MicrostripLine(AbstractImmittanceLine):
         )
 
         if self.dispersion is None:
-            return quasi_static.to_immittance(freq, dielectric, conductor)
+            return quasi_static
 
         ep_eff, zc = self.dispersion.disperse(
             freq,
@@ -517,14 +522,61 @@ class MicrostripLine(AbstractImmittanceLine):
         # the same conductor_loss_factor the quasi-static path charges,
         # evaluated here at the dispersed zc.
         conductor_loss_factor = _wheeler_conductor_loss_factor(self.w, zc)
-        dispersed_quasi_static = PlanarQuasiStaticResult(
+        return PlanarQuasiStaticResult(
             ep_eff=ep_eff,
             zc=zc,
             w_eff=quasi_static.w_eff,
             conductor_loss_factor=conductor_loss_factor,
             shunt_conductance_factor=quasi_static.shunt_conductance_factor,
         )
-        return dispersed_quasi_static.to_immittance(freq, dielectric, conductor)
+
+    def immittance(self, freq: Frequency) -> ImmittanceResult:
+        substrate = self.substrate
+        conductor = substrate.conductor.properties(freq)
+        dielectric = substrate.dielectric.properties(freq)
+        return self._resolved_quasi_static(freq).to_immittance(freq, dielectric, conductor)
+
+    def ep_eff(self, freq: Frequency) -> jnp.ndarray:
+        r"""
+        Complex effective relative permittivity the line actually ends up with.
+
+        Dispersed via ``dispersion`` when it is set, quasi-static otherwise —
+        the same value :meth:`immittance` uses internally, so it is exposed
+        here rather than recomputed by the caller. The imaginary part carries
+        the dielectric loss, following the ADS/AWR convention of carrying
+        permittivity complex throughout (see the class docstring and #79).
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequencies at which to evaluate the line.
+
+        Returns
+        -------
+        jnp.ndarray
+            Complex effective relative permittivity, shape ``(npoints,)``.
+        """
+        return self._resolved_quasi_static(freq).ep_eff
+
+    def w_eff(self, freq: Frequency) -> jnp.ndarray:
+        r"""
+        Effective conductor width the line actually ends up with.
+
+        Dispersed via ``dispersion`` when it is set, quasi-static otherwise —
+        the same value :meth:`immittance` uses internally, so it is exposed
+        here rather than recomputed by the caller.
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequencies at which to evaluate the line.
+
+        Returns
+        -------
+        jnp.ndarray
+            Effective conductor width in meters, shape ``(npoints,)``.
+        """
+        return self._resolved_quasi_static(freq).w_eff
 
 
 class StriplineLine(AbstractImmittanceLine):
