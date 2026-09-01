@@ -32,6 +32,12 @@ from pmrf.materials.conductor import (
     RoughConductor as RoughConductor,
     as_conductor as as_conductor,
 )
+from pmrf.materials.conductor_shape import (
+    AbstractConductorShape as AbstractConductorShape,
+    HalfSpaceShape as HalfSpaceShape,
+    TescheRodShape as TescheRodShape,
+    TescheTubeShape as TescheTubeShape,
+)
 
 __all__ = [
     "AbstractDielectric",
@@ -50,6 +56,10 @@ __all__ = [
     "HammerstadRoughness",
     "RoughConductor",
     "as_conductor",
+    "AbstractConductorShape",
+    "HalfSpaceShape",
+    "TescheRodShape",
+    "TescheTubeShape",
     "Substrate",
     "as_substrate",
 ]
