@@ -147,3 +147,9 @@ def test_as_conductor_converters():
 def test_as_conductor_rejects_resistivity_regime_scalar():
     with pytest.raises(ValueError, match="from_rho"):
         as_conductor(1.68e-8)
+
+
+def test_as_conductor_rejects_zero():
+    """0 was the old rho idiom for a perfect conductor; as a sigma it means the opposite."""
+    with pytest.raises(ValueError, match="ambiguous"):
+        as_conductor(0.0)

@@ -209,10 +209,18 @@ def as_conductor(value) -> AbstractConductor:
         If ``value`` falls in the resistivity regime (roughly 1e-8 to 1e-5
         ohm-meters for metals) rather than the conductivity regime (roughly
         1e5 to 1e8 S/m): the two are fifteen orders of magnitude apart, so
-        there is no ambiguous middle ground.
+        there is no ambiguous middle ground. Also raised for ``0``, which
+        was the old resistivity-based idiom for a perfect conductor and
+        would now silently build the opposite: an infinitely resistive one.
     """
     if isinstance(value, AbstractConductor):
         return value
+    if value == 0:
+        raise ValueError(
+            "0 is ambiguous as a conductivity: pass sigma=jnp.inf for a "
+            "perfect conductor, or BulkConductor.from_rho(0) if you meant "
+            "zero resistivity"
+        )
     if 0 < value < 1.0:
         raise ValueError(
             f"{value!r} looks like a resistivity in ohm-meters, not a "
