@@ -322,13 +322,16 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)
     \qquad
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)},$$
-    and so is the shield's half-space contribution $\zeta_c/2\pi b$. What
-    differs is the solid inner conductor, which is
+    The inner conductor uses
     :class:`~pmrf.materials.conductor_shape.SchelkunoffRodShape` --
     Schelkunoff's eq. (65) rather than an equivalent circuit:
     $$Z_{inner} = \frac{\zeta_c}{2\pi a}\,
     \frac{I_0(\gamma a)}{I_1(\gamma a)},\qquad
     \gamma = \sqrt{j\omega\mu\sigma}.$$
+
+    An unspecified shield thickness uses the matching infinite-wall tube
+    solution, $Z_{outer}=\zeta_c K_0(\gamma b)/(2\pi bK_1(\gamma b))$;
+    a specified thickness uses Schelkunoff's finite-tube equation.
 
     **Validity**
 

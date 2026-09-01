@@ -8,9 +8,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from scipy.special import ive
+from scipy.special import ive, kve
 
-from pmrf.math.bessel import I0_OVER_I1_SERIES_CUTOFF, i0_over_i1
+from pmrf.math.bessel import (
+    I0_OVER_I1_SERIES_CUTOFF,
+    K0_OVER_K1_SERIES_CUTOFF,
+    i0_over_i1,
+    k0_over_k1,
+)
 
 
 def _reference(x):
@@ -76,3 +81,34 @@ def test_the_derivative_jump_at_the_seam_is_small():
     above = jax.grad(real_part)(I0_OVER_I1_SERIES_CUTOFF + eps)
 
     assert abs(above / below - 1) < 2e-4
+
+
+@pytest.mark.parametrize(
+    "lo, hi, rtol",
+    [
+        (1e-6, 7.9, 1e-9),
+        (7.9, 8.1, 3e-7),
+        (8.1, 1e4, 3e-7),
+    ],
+)
+def test_k0_over_k1_matches_scipy_over_conductor_arguments(lo, hi, rtol):
+    """The shield ratio remains accurate from weak through strong skin effect."""
+    magnitude = np.logspace(np.log10(lo), np.log10(hi), 400)
+    x = magnitude * np.exp(1j * np.pi / 4)
+
+    got = np.asarray(k0_over_k1(jnp.asarray(x)))
+    expected = kve(0, x) / kve(1, x)
+
+    assert np.abs(got / expected - 1).max() < rtol
+
+
+def test_k0_over_k1_gradient_is_finite_across_the_branch_switch():
+    """Safe branch arguments prevent an unused series from poisoning gradients."""
+    def real_part(m):
+        return jnp.real(k0_over_k1(m * jnp.exp(1j * jnp.pi / 4)))
+
+    grads = jax.vmap(jax.grad(real_part))(
+        jnp.asarray([1e-6, 1.0, K0_OVER_K1_SERIES_CUTOFF, 1e3, 1e4])
+    )
+
+    assert jnp.all(jnp.isfinite(grads))
