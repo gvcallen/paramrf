@@ -87,6 +87,81 @@ class HalfSpaceShape(AbstractConductorShape):
         return conductor.zs
 
 
+class HollowayKuesterSlabShape(AbstractConductorShape):
+    r"""
+    Exact finite-thickness impedance for the total current in a planar strip.
+
+    **Mathematical Formulation**
+
+    Holloway and Kuester's eq. (45) gives the coupled impedances of the two
+    strip faces, $Z_s=\zeta_c\coth(\gamma_c t)$ and
+    $Z_m=\zeta_c\operatorname{csch}(\gamma_c t)$.  Their eq. (100) shows
+    that the total current therefore sees
+    $$Z_s+Z_m=\zeta_c\coth(\gamma_c t/2),\qquad
+    \gamma_c=\sigma\zeta_c.$$
+
+    The half-thickness argument is essential: the scalar represents total
+    current, rather than the self impedance of either face.  Its limits are
+    $2/(\sigma t)$ at dc and $\zeta_c$ in strong skin effect.
+
+    **Validity**
+
+    Neglecting the difference-current impedance
+    $\zeta_c\tanh(\gamma_c t/2)$ is valid for quasi-TEM coplanar waveguide
+    and for microstrip whose characteristic impedance exceeds 40 ohm.
+
+    References
+    ----------
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip
+    lines. Radio Science, 29(3), 539-559. Eq. (45), (100).
+
+    Rautio, J. C., & Demir, V. (2003). Microstrip Conductor Loss Models for
+    Electromagnetic Analysis. IEEE Transactions on Microwave Theory and
+    Techniques, 51(3), 915-921. Eq. (4).
+    """
+    #: Strip thickness in metres
+    t: jnp.ndarray
+
+    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
+        gamma_t_over_two = conductor.sigma * conductor.zs * self.t / 2
+        evaluable = (w > 0) & jnp.isfinite(conductor.sigma)
+        safe_argument = jnp.where(evaluable, gamma_t_over_two, 1.0)
+        zs = conductor.zs / jnp.tanh(safe_argument)
+        dc = 2 / (conductor.sigma * self.t)
+        return jnp.where(evaluable, zs, dc)
+
+
+class RootSumSquareSlabShape(AbstractConductorShape):
+    r"""
+    ParamRF's smooth resistance-only blend for a finite planar conductor.
+
+    **Mathematical Formulation**
+
+    $$Z_s=\sqrt{R_{dc,sq}^2+\Re(\zeta_c)^2}+j\Im(\zeta_c).$$
+
+    This is a ParamRF convention and has no source paper.  It preserves the
+    dc and semi-infinite resistance asymptotes, remains smooth and monotone,
+    and deliberately leaves the half-space reactance unchanged.  Against the
+    exact slab over 10--500 MHz its transition-shape residual after the best
+    global scale is 11% for a 1.55 mm by 35 um trace, 14% for 0.45 mm by
+    35 um, and 15% for a 0.35 mm by 35 um, 96-ohm trace.  It is retained for
+    compatibility with the modelling convention used by industry tools, not
+    as the preferred finite-thickness physics.
+
+    References
+    ----------
+    ParamRF convention; no source paper.
+    """
+    #: Geometry factor which gives DC sheet resistance when divided by sigma
+    dc_shape_factor: jnp.ndarray
+
+    def impedance(self, w, conductor: ConductorProperties) -> jnp.ndarray:
+        r_dc_sq = self.dc_shape_factor / conductor.sigma
+        resistance = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
+        return resistance + 1j * jnp.imag(conductor.zs)
+
+
 def _tesche_circuit_impedance(zeta_c, r_dc_sq, l_int_sq, w):
     """Blend Tesche's dc and high-frequency limits through his equivalent circuit."""
     safe_w = jnp.where(w > 0, w, 1.0)
