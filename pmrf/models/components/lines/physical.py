@@ -27,6 +27,7 @@ from pmrf.models.components.lines.formulations import (
     AbstractMicrostripFormulation,
     AbstractStriplineFormulation,
     CohnStriplineFormulation,
+    HammerstadJensenMicrostripFormulation,
     KirschningJansenMicrostripDispersion,
     PlanarQuasiStaticResult,
     SchelkunoffCoaxialFormulation,
@@ -36,6 +37,7 @@ from pmrf.models.components.lines.formulations import (
 from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
     CohnCurrentDistribution,
+    TraceGroundCurrentDistribution,
     WheelerCurrentDistribution,
 )
 
@@ -331,7 +333,10 @@ class MicrostripLine(AbstractImmittanceLine):
     r"""
     Microstrip line defined by standard geometry and material modules.
     
-    Uses :class:`WheelerMicrostripFormulation` for the default mathematical formulation.
+    Uses :class:`HammerstadJensenMicrostripFormulation` for the default
+    quasi-static geometry and :class:`TraceGroundCurrentDistribution` for
+    conductor loss. Wheeler's formulation and current distribution remain
+    independently selectable.
 
     The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`.
     :meth:`PlanarQuasiStaticResult.to_immittance` converts it directly whether
@@ -367,39 +372,24 @@ class MicrostripLine(AbstractImmittanceLine):
     is the exact loss perturbation of the effective-permittivity model, following
     Schneider's energy-perturbation derivation.
 
-    Wheeler's incremental-inductance rule (:func:`_wheeler_conductor_loss_factor`)
-    is the single conductor-loss term charged on both paths:
-    $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
-    \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
-    applied unconditionally, over the physical width $W$ rather than any
-    thickness-widened one. So ``dispersion=None`` is a pure dispersion toggle:
-    the quasi-static formulation's own `conductor_loss_factor` charges the
-    same rule at $Z_{c,loss}=Z_{c,0}$, and the dispersion path charges it
-    again at the dispersed $Z_{c,loss}$. The rule contains no $t$: it sums
-    over every receded conductor surface, and the broad-face terms do not
-    vanish as $t\to0$. So $t=\text{None}$ ("thickness unspecified") is not
-    the same input as $t=0$; it is read as skin effect being in operation
-    regardless, which is the good-faith default since Wheeler's $R_s$ is
-    itself a thick-conductor result. $t$ only refines the geometry (through
-    the quasi-static formulation, where supported), it does not gate whether
-    conductor loss is applied. This is a ParamRF convention, not a correction
-    of Kirschning-Jansen: K-J's $Z_c$ is a power-current quasi-TEM modal
-    quantity, chosen by Jansen & Koster for its weak frequency dependence, and
-    NIST (Williams, Alpert, Arz et al., *Causal Characteristic Impedance of
-    Planar Transmission Lines*) establishes that microstrip has no unique
-    $Z_c$.
+    Conductor loss is charged as separate trace and ground-plane terms. For a
+    known thickness, the trace uses Holloway and Kuester's finite slab and is
+    anchored at its exact $R_{dc}=1/(\sigma Wt)$ limit. Its strong-skin weight
+    approaches Wheeler's trace weight. The ground effective width comes from
+    integrating Holloway and Kuester's closed-form ground current density; its
+    term stays on the strong-skin half-space law because finite plane width and
+    ground copper thickness are not inputs. See
+    :class:`TraceGroundCurrentDistribution` for the equations and the explicit
+    current-crowding convention. If $t$ is unspecified, both terms use their
+    strong-skin shapes and no dc trace limit is asserted.
 
-    The sheet model above gives $R\to0$ as $f\to0$, which is wrong for a
-    trace of known thickness: a finite $t$ gets a dc floor
-    $R_{dc}=1/(\sigma Wt)$, blended smoothly with the skin-effect term as
-    $R=\sqrt{R_{dc}^2+R_{ac}^2}$ (see
-    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`).
-    $t=\text{None}$ gets no floor: it asserts skin effect in operation at
-    every frequency including dc, so there is no dc regime for a floor to
-    describe, matching ADS, which applies no floor at all. The blend itself
-    is a ParamRF convention rather than a rule any cited source prescribes
-    -- mcalc/wcalc hard-switch to a dc solution once skin depth exceeds
-    thickness instead, an equally defensible alternative.
+    The same current-distribution strategy is evaluated after optional modal
+    dispersion, so ``dispersion=None`` remains a pure dispersion toggle. This
+    is a ParamRF convention, not a correction of Kirschning-Jansen: K-J's
+    $Z_c$ is a power-current quasi-TEM modal quantity, chosen by Jansen and
+    Koster for its weak frequency dependence, and NIST (Williams, Alpert, Arz
+    et al., *Causal Characteristic Impedance of Planar Transmission Lines*)
+    establishes that microstrip has no unique $Z_c$.
 
     Example
     --------
@@ -443,22 +433,28 @@ class MicrostripLine(AbstractImmittanceLine):
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
         Thickness of the conductor. ``None`` means the thickness is
-        unspecified, not that it is zero: skin effect is assumed to be in
-        operation regardless, and Wheeler's conductor-loss correction (which
-        does not depend on `t`) is applied unconditionally. Wheeler's
-        quasi-static formulation requires ``None``; thickness-aware
-        formulations such as Hammerstad--Jensen use a positive value to
-        refine the geometry.
-    formulation : AbstractMicrostripFormulation, default=WheelerMicrostripFormulation()
+        unspecified, not that it is zero. A positive value enables both the
+        finite-thickness geometry correction and exact slab cross-section;
+        ``None`` retains their strong-skin limits.
+    formulation : AbstractMicrostripFormulation, default=HammerstadJensenMicrostripFormulation()
         The closed-form physics used to compute the quasi-static solution.
     dispersion : AbstractMicrostripDispersion | None, default=KirschningJansenMicrostripDispersion()
         The modal-dispersion correction. ``None`` disables modal dispersion and
         preserves the quasi-static immittance path.
+    current_distribution : AbstractCurrentDistribution, default=TraceGroundCurrentDistribution()
+        The conductor-current strategy. Pass
+        :class:`WheelerCurrentDistribution` to retain the standard single-term
+        Wheeler model used by ADS and scikit-rf.
 
     References
     ----------
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
     IRE, 30(9), 412-424.
+
+    Holloway, C. L., & Kuester, E. F. (1995). Closed-form expressions for the
+    current density on the ground plane of a microstrip line, with application
+    to ground plane loss. IEEE Transactions on Microwave Theory and Techniques,
+    43(5), 1204-1208.
 
     Schneider, M. V. (1969). Dielectric Loss in Integrated Microwave Circuits.
     Bell System Technical Journal, 48(7).
@@ -481,7 +477,9 @@ class MicrostripLine(AbstractImmittanceLine):
     substrate: Substrate = field(default_factory=Substrate, converter=as_substrate)
 
     #: The underlying physics formulation
-    formulation: AbstractMicrostripFormulation = field(default_factory=WheelerMicrostripFormulation)
+    formulation: AbstractMicrostripFormulation = field(
+        default_factory=HammerstadJensenMicrostripFormulation
+    )
 
     #: The modal-dispersion formulation, or None to disable it
     dispersion: AbstractMicrostripDispersion | None = field(
@@ -490,7 +488,7 @@ class MicrostripLine(AbstractImmittanceLine):
 
     #: The conductor current-distribution strategy
     current_distribution: AbstractCurrentDistribution = field(
-        default_factory=WheelerCurrentDistribution
+        default_factory=TraceGroundCurrentDistribution
     )
 
     def __init__(
@@ -520,14 +518,15 @@ class MicrostripLine(AbstractImmittanceLine):
         self.w = w
         self.substrate = Substrate(**given) if substrate is None else substrate
         self.formulation = (
-            WheelerMicrostripFormulation() if formulation is None else formulation
+            HammerstadJensenMicrostripFormulation()
+            if formulation is None else formulation
         )
         self.dispersion = (
             KirschningJansenMicrostripDispersion()
             if dispersion is _DEFAULT_DISPERSION else dispersion
         )
         self.current_distribution = (
-            WheelerCurrentDistribution()
+            TraceGroundCurrentDistribution()
             if current_distribution is None else current_distribution
         )
         self.length = length
@@ -596,7 +595,7 @@ class MicrostripLine(AbstractImmittanceLine):
         return self._resolved_quasi_static(freq).to_immittance(
             freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w, t=t,
+            w=self.w, h=substrate.h, t=t,
         )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
