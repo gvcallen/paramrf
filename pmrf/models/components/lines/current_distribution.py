@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from scipy.constants import epsilon_0, mu_0
 
 from pmrf.frequency import Frequency
-from pmrf.materials.conductor_shape import HalfSpaceShape
+from pmrf.materials.conductor_shape import HalfSpaceShape, RootSumSquareSlabShape
 
 
 class AbstractCurrentDistribution(eqx.Module):
@@ -41,10 +41,14 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution):
     IRE, 30(9), 412-424.
     """
 
-    def distribute(self, freq: Frequency, *, zc, w):
+    def distribute(self, freq: Frequency, *, zc, w, t=None):
         z0 = jnp.sqrt(mu_0 / epsilon_0)
         weight = 2 / w * jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-        return ((HalfSpaceShape(), weight),)
+        shape = (
+            HalfSpaceShape() if t is None else
+            RootSumSquareSlabShape(dc_shape_factor=1 / (w * t * weight))
+        )
+        return ((shape, weight),)
 
 
 class CohnCurrentDistribution(AbstractCurrentDistribution):

@@ -593,14 +593,10 @@ class MicrostripLine(AbstractImmittanceLine):
         conductor = substrate.conductor.properties(freq)
         dielectric = substrate.dielectric.properties(freq)
         t = substrate.t
-        # t=None asserts skin effect in operation at every frequency,
-        # including dc, so there is no dc regime for a floor to describe; a
-        # finite t gets R_dc = 1/(sigma*W*t).
-        r_dc = None if t is None else 1.0 / (conductor.sigma * self.w * t)
         return self._resolved_quasi_static(freq).to_immittance(
-            freq, dielectric, conductor, r_dc=r_dc,
+            freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w,
+            w=self.w, t=t,
         )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:

@@ -540,14 +540,16 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
         w_eff=quasi_static.w_eff,
         h=line.substrate.h,
     )
-    r_dc = 1.0 / (conductor.sigma * line.w * line.substrate.t)
     expected = PlanarQuasiStaticResult(
         ep_eff=ep_eff,
         zc=zc,
         w_eff=quasi_static.w_eff,
-        conductor_loss_factor=_wheeler_conductor_loss_factor(line.w, zc),
         shunt_conductance_factor=quasi_static.shunt_conductance_factor,
-    ).to_immittance(freq, dielectric, conductor, r_dc=r_dc)
+    ).to_immittance(
+        freq, dielectric, conductor,
+        current_distribution=line.current_distribution,
+        w=line.w, t=line.substrate.t,
+    )
 
     actual = line.immittance(freq)
     assert jnp.array_equal(actual.Z, expected.Z)

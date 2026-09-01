@@ -9,12 +9,15 @@ from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConductorProperties
 from pmrf.materials.conductor_shape import (
     HalfSpaceShape,
+    HollowayKuesterSlabShape,
+    RootSumSquareSlabShape,
     SchelkunoffRodShape,
     SchelkunoffTubeShape,
     SchelkunoffCothTubeShape,
     TescheRodShape,
     TescheTubeShape,
 )
+from pmrf.models.components.lines.current_distribution import WheelerCurrentDistribution
 
 
 @pytest.fixture
@@ -35,6 +38,99 @@ def test_half_space_is_the_trivial_shape_factor(freq):
     zs = HalfSpaceShape().impedance(freq.w, conductor)
 
     assert jnp.allclose(zs, conductor.zs)
+
+
+def test_holloway_kuester_slab_matches_half_thickness_coth():
+    """The total strip current sees Holloway--Kuester eq. (100)."""
+    sigma, t = 5.8e7, 18e-6
+    freq = Frequency.from_f(jnp.array([10e6, 30e6, 100e6, 500e6]))
+    conductor = _conductor(freq, sigma)
+
+    actual = HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor)
+
+    gamma = np.sqrt(1j * np.asarray(freq.w) * mu_0 * sigma)
+    expected = np.asarray(conductor.zs) / np.tanh(gamma * t / 2)
+    assert np.allclose(actual, expected, rtol=2e-7)
+
+
+def test_holloway_kuester_slab_has_dc_and_strong_skin_limits():
+    """The slab tends to 2/(sigma*t) at dc and zeta_c in strong skin effect."""
+    sigma, t = 5.8e7, 35e-6
+    freq = Frequency.from_f(jnp.array([0.0, 1e12]))
+    conductor = _conductor(freq, sigma)
+
+    zs = HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor)
+
+    assert jnp.allclose(zs[0], 2 / (sigma * t))
+    assert jnp.allclose(zs[1], conductor.zs[1], rtol=1e-6)
+
+
+def test_root_sum_square_slab_preserves_the_paramrf_convention():
+    """The named compatibility entry blends resistance and retains half-space X."""
+    sigma, t = 5.8e7, 35e-6
+    freq = Frequency.from_f(jnp.array([0.0, 10e6, 500e6]))
+    conductor = _conductor(freq, sigma)
+
+    r_dc_sq = 1 / (sigma * t)
+    zs = RootSumSquareSlabShape(dc_shape_factor=1 / t).impedance(freq.w, conductor)
+
+    expected_r = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
+    expected = expected_r + 1j * jnp.imag(conductor.zs)
+    assert jnp.allclose(zs, expected)
+
+
+@pytest.mark.parametrize(
+    "w,h,zc,expected,rtol",
+    [
+        (
+            1.55e-3, 0.8e-3, 50.0,
+            [[0.9668851882, 0.7848033691, 0.8436921430],
+             [1.6462990845, 1.7548736823, 1.7819881438]],
+            3e-7,
+        ),
+        (
+            0.45e-3, 0.25e-3, 50.0,
+            [[3.3303823150, 2.7032116046, 2.9060507149],
+             [5.6705857357, 6.0445649056, 6.1379591621]],
+            3e-7,
+        ),
+        (
+            0.35e-3, 0.8e-3, 96.0,
+            [[3.6163499495, 2.9353264057, 3.2399008371],
+             [6.1574979986, 6.5635893792, 6.7053353283]],
+            4e-7,
+        ),
+    ],
+    ids=["w1p55_h0p8", "w0p45_h0p25", "w0p35_h0p8_96ohm"],
+)
+def test_tabulated_planar_entries_record_transition_error(w, h, zc, expected, rtol):
+    r"""Slab, half-space, and compatibility blend at issue #100's geometries.
+
+    Each row is `[exact slab, semi-infinite, root-sum-square blend]` in
+    ohm/m at 10 and 50 MHz.  The literals were independently evaluated from
+    Holloway--Kuester eq. (100) and Wheeler's published current weight using
+    35 um copper with rho=1.68e-8 ohm m.  `h` records the complete tabulated
+    cross-section even though these planar entries depend on it only through
+    the supplied characteristic impedance.
+    """
+    del h
+    t, sigma = 35e-6, 1 / 1.68e-8
+    freq = Frequency.from_f(jnp.array([10e6, 50e6]))
+    conductor = _conductor(freq, sigma)
+    blend, weight = WheelerCurrentDistribution().distribute(
+        freq, zc=jnp.full(freq.f.shape, zc), w=w, t=t,
+    )[0]
+
+    actual = jnp.stack(
+        [
+            jnp.real(HollowayKuesterSlabShape(t=t).impedance(freq.w, conductor) * weight),
+            jnp.real(HalfSpaceShape().impedance(freq.w, conductor) * weight),
+            jnp.real(blend.impedance(freq.w, conductor) * weight),
+        ],
+        axis=1,
+    )
+
+    assert jnp.allclose(actual, jnp.asarray(expected), rtol=rtol)
 
 
 def test_tesche_rod_matches_its_own_strong_skin_asymptote():
