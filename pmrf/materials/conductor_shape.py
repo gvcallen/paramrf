@@ -126,7 +126,7 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
 
     The impedance is referred to total strip current and therefore requires
     a geometry weight of $1/(2W)$. This differs from the weight supplied by
-    :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`
+    :class:`~pmrf.models.components.lines.microstrip.WheelerCurrentDistribution`
     because Wheeler's model also includes the ground plane and edge-current
     crowding. Use this formulation only with a compatible weight; see
     :class:`AbstractConductorShape`.
@@ -262,7 +262,7 @@ class TescheTubeShape(AbstractConductorShape):
     its strong-skin limit is $\zeta_c+R_{dc,sq}$ rather than $\zeta_c$.
     For $t\to\infty$, $R_{dc,sq}\to0$ and $L_{int,sq}\to\infty$, reducing
     the result to :class:`HalfSpaceShape`. This limit is used by
-    :class:`~pmrf.models.components.lines.formulations.TescheCoaxialFormulation`
+    :class:`~pmrf.models.components.lines.coaxial.TescheCoaxialFormulation`
     when the outer-shield thickness is unspecified.
 
     References

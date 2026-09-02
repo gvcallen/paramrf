@@ -763,7 +763,7 @@ def test_quasi_static_microstrip_zc_follows_the_rlgc_limit(dispersion):
     widening the tolerance to paper over a range that reaches beyond it.
 
     #83 routes the dispersion path through
-    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`
+    :meth:`~pmrf.models.components.lines.planar.PlanarQuasiStaticResult.to_immittance`
     at the dispersed $(\varepsilon_e, Z_c)$, in place of inverting the modal
     $(Z_c, \gamma)$ through ``from_zc_gamma`` -- an inversion that made
     $Z_c=\sqrt{Z/Y}$ tautologically reproduce Kirschning-Jansen's own modal

@@ -480,8 +480,9 @@ Useful hierarchy:
 ## Source and implementation index
 
 - ParamRF implementation:
-  [`pmrf/models/components/lines/formulations.py`](../../pmrf/models/components/lines/formulations.py),
-  [`pmrf/models/components/lines/physical.py`](../../pmrf/models/components/lines/physical.py),
+  [`pmrf/models/components/lines/coaxial.py`](../../pmrf/models/components/lines/coaxial.py),
+  [`pmrf/models/components/lines/microstrip.py`](../../pmrf/models/components/lines/microstrip.py),
+  [`pmrf/models/components/lines/planar.py`](../../pmrf/models/components/lines/planar.py),
   [`pmrf/materials/conductor.py`](../../pmrf/materials/conductor.py), and
   [`pmrf/materials/dielectric.py`](../../pmrf/materials/dielectric.py).
 - ParamRF validation:

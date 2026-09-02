@@ -39,7 +39,7 @@ from pmrf.models import (
     RLGCLine,
     StriplineLine,
 )
-from pmrf.models.components.lines.formulations import (
+from pmrf.models.components.lines.microstrip import (
     HammerstadJensenMicrostripFormulation,
     KirschningJansenMicrostripDispersion,
     WheelerMicrostripFormulation,

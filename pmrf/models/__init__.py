@@ -79,38 +79,41 @@ from pmrf.models.components.lines.ideal import (
     RLGCLine as RLGCLine,
 )
 
-from pmrf.models.components.lines.physical import (
+from pmrf.models.components.lines.empirical import (
     PhysicalLine as PhysicalLine,
     DatasheetLine as DatasheetLine,
-    CoaxialLine as CoaxialLine,
-    MicrostripLine as MicrostripLine,
-    StriplineLine as StriplineLine,
 )
 
-from pmrf.models.components.lines.formulations import (
+from pmrf.models.components.lines.coaxial import (
+    CoaxialLine as CoaxialLine,
     AbstractCoaxialFormulation as AbstractCoaxialFormulation,
     SchelkunoffCoaxialFormulation as SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation as TescheCoaxialFormulation,
+)
+
+from pmrf.models.components.lines.microstrip import (
+    MicrostripLine as MicrostripLine,
     AbstractMicrostripFormulation as AbstractMicrostripFormulation,
     WheelerMicrostripFormulation as WheelerMicrostripFormulation,
     HammerstadJensenMicrostripFormulation as HammerstadJensenMicrostripFormulation,
     AbstractMicrostripDispersion as AbstractMicrostripDispersion,
     KirschningJansenMicrostripDispersion as KirschningJansenMicrostripDispersion,
+    MicrostripCrossSection as MicrostripCrossSection,
+    WheelerCurrentDistribution as WheelerCurrentDistribution,
+)
+
+from pmrf.models.components.lines.stripline import (
+    StriplineLine as StriplineLine,
     AbstractStriplineFormulation as AbstractStriplineFormulation,
     CohnStriplineFormulation as CohnStriplineFormulation,
-    PlanarQuasiStaticResult as PlanarQuasiStaticResult,
-)
-
-from pmrf.models.components.lines.cross_section import (
-    AbstractPlanarCrossSection as AbstractPlanarCrossSection,
-    MicrostripCrossSection as MicrostripCrossSection,
     StriplineCrossSection as StriplineCrossSection,
+    CohnCurrentDistribution as CohnCurrentDistribution,
 )
 
-from pmrf.models.components.lines.current_distribution import (
+from pmrf.models.components.lines.planar import (
+    PlanarQuasiStaticResult as PlanarQuasiStaticResult,
+    AbstractPlanarCrossSection as AbstractPlanarCrossSection,
     AbstractCurrentDistribution as AbstractCurrentDistribution,
-    WheelerCurrentDistribution as WheelerCurrentDistribution,
-    CohnCurrentDistribution as CohnCurrentDistribution,
 )
 
 from pmrf.models.components.lumped import (

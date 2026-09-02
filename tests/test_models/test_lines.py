@@ -26,10 +26,8 @@ from pmrf.materials import (
     RoughConductor,
 )
 from pmrf.materials.conductor_shape import TescheTubeShape
-from pmrf.models.components.lines.formulations import (
-    TescheCoaxialFormulation,
-    KirschningJansenMicrostripDispersion,
-)
+from pmrf.models.components.lines.coaxial import TescheCoaxialFormulation
+from pmrf.models.components.lines.microstrip import KirschningJansenMicrostripDispersion
 
 @pytest.fixture
 def basic_freq():
@@ -501,15 +499,15 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     made ``Zc = sqrt(Z/Y)`` tautologically reproduce Kirschning-Jansen's own
     modal Zc, so the conductor never genuinely entered it. The dispersion
     path must instead build a fresh
-    :class:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult`
+    :class:`~pmrf.models.components.lines.planar.PlanarQuasiStaticResult`
     at the dispersed ``(ep_eff, zc)`` and route it through
-    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`,
+    :meth:`~pmrf.models.components.lines.planar.PlanarQuasiStaticResult.to_immittance`,
     exactly like the quasi-static path, so ``line.immittance`` matches that
     construction bit for bit.
     """
     from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansenMicrostripDispersion
-    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
-    from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
+    from pmrf.models.components.lines.microstrip import MicrostripCrossSection
+    from pmrf.models.components.lines.planar import PlanarQuasiStaticResult
 
     freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
@@ -573,7 +571,7 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
-    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
+    from pmrf.models.components.lines.microstrip import MicrostripCrossSection
 
     ep_r = line.substrate.dielectric.properties(freq).ep_r
     zs = line.substrate.conductor.properties(freq).zs
@@ -607,7 +605,7 @@ def test_microstrip_dispersion_is_a_pure_dispersion_toggle():
     paths charged different conductor-loss forms (issue #82).
     """
     from pmrf.models import HammerstadJensenMicrostripFormulation
-    from pmrf.models.components.lines.formulations import AbstractMicrostripDispersion
+    from pmrf.models.components.lines.microstrip import AbstractMicrostripDispersion
 
     class IdentityDispersion(AbstractMicrostripDispersion):
         """Hands the quasi-static ep_eff/zc through unchanged."""

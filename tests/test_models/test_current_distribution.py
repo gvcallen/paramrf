@@ -16,11 +16,9 @@ from pmrf.models import (
     MicrostripLine,
     WheelerCurrentDistribution,
 )
-from pmrf.models.components.lines.cross_section import (
-    MicrostripCrossSection,
-    StriplineCrossSection,
-)
-from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
+from pmrf.models.components.lines.microstrip import MicrostripCrossSection
+from pmrf.models.components.lines.planar import PlanarQuasiStaticResult
+from pmrf.models.components.lines.stripline import StriplineCrossSection
 
 
 def _solved(zc):

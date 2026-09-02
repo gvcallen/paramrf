@@ -16,9 +16,11 @@ from pmrf.materials.conductor_shape import (
     TescheRodShape,
     TescheTubeShape,
 )
-from pmrf.models.components.lines.cross_section import MicrostripCrossSection
-from pmrf.models.components.lines.current_distribution import WheelerCurrentDistribution
-from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
+from pmrf.models.components.lines.microstrip import (
+    MicrostripCrossSection,
+    WheelerCurrentDistribution,
+)
+from pmrf.models.components.lines.planar import PlanarQuasiStaticResult
 
 
 def _solved(zc):
