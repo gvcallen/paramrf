@@ -1,37 +1,9 @@
-"""
-Closed-form physics for transmission lines (coaxial, microstrip, stripline).
+"""Closed-form transmission-line formulations.
 
-Five distinct strategy roles appear across the line models, each with its own
-field. The vocabulary is defined once in ``CONTEXT.md`` at the repo root; the
-architectural decisions behind it are in ``docs/adr/``.
-
-- A **Formulation** (`formulation`) produces the complete electrical state a
-  model needs to reach S-parameters: either a per-unit-length immittance
-  directly, or a :class:`PlanarQuasiStaticResult` the line converts into one.
-  It is the primary strategy, and a line always has exactly one.
-- A **Dispersion** (`dispersion`) modifies an existing quasi-static state with
-  modal frequency dependence. It never produces a state of its own, so it only
-  exists where the cross-section is inhomogeneous and the mode is therefore not
-  strictly TEM -- microstrip has one, homogeneously filled coaxial and stripline
-  do not.
-- A **ConductorShape**
-  (:mod:`pmrf.materials.conductor_shape`) gives the surface impedance per
-  square of one conductor cross-section: pure numerics over an evaluated
-  material and a set of named dimensions, with the inverse-metre geometry
-  weight left to the caller.
-- A **CurrentDistribution** (`current_distribution`, in
-  :mod:`pmrf.models.components.lines.current_distribution`) says how a line's
-  surface current divides across its conductors, pairing shapes with those
-  geometry weights. Planar lines carry one; a coaxial line does not, because
-  its weights are exact constants rather than a fitted rule.
-- A **Roughness** (`roughness`, in :mod:`pmrf.materials.conductor`) modifies
-  conductor behaviour rather than line state: it scales a surface impedance,
-  and so belongs to the conductor material, not to the geometry.
-
-A formulation is pure numerics. Materials are evaluated by the line, so a
-formulation never sees a :class:`~pmrf.Param` or a :class:`~pmrf.Module`
-parameter: it can be checked directly against the equations of the paper it
-comes from, and contributed without learning the material taxonomy.
+Formulations produce immittance or a quasi-static state. Dispersion
+formulations add modal frequency dependence. Conductor shapes and current
+distributions supply conductor surface impedance and geometry weights.
+Material roughness is handled by the conductor material.
 """
 from abc import abstractmethod
 from scipy.constants import c, mu_0, epsilon_0
@@ -60,13 +32,8 @@ class PlanarQuasiStaticResult(eqx.Module):
     r"""
     Quasi-static solution of a single-conductor planar line over a ground plane.
 
-    A quasi-static formulation stops at the effective permittivity, the
-    characteristic impedance it implies and the effective conductor width; the
-    line turns those into an immittance, and a dispersion model may correct them
-    first.
-
-    Coupled lines are not this type: they carry a solution per mode, so they
-    need their own result.
+    Contains the effective permittivity, characteristic impedance, effective
+    conductor width, and static-conductivity geometry factor.
 
     Parameters
     ----------
@@ -98,7 +65,7 @@ class PlanarQuasiStaticResult(eqx.Module):
         cross_section: AbstractPlanarCrossSection,
     ) -> ImmittanceResult:
         r"""
-        Converts the quasi-static solution into a per-unit-length immittance.
+        Convert the quasi-static solution to per-unit-length immittance.
 
         The external inductance and the shunt admittance follow from the
         quasi-static impedance and effective permittivity. Surface impedance
@@ -107,12 +74,9 @@ class PlanarQuasiStaticResult(eqx.Module):
         \qquad
         Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
 
-        Each distribution returns one or more conductor shapes and their
-        inverse-metre geometry weights. This keeps conductor-loss selection
-        independent from the quasi-static formulation.
-
-        $\varepsilon_e$ is complex, so $Y$ already carries the dielectric loss
-        as its real part and needs no separate loss-tangent term.
+        The current distribution supplies conductor shapes and geometry
+        weights. Complex $\varepsilon_e$ contributes dielectric loss through
+        the real part of $Y$.
 
         Parameters
         ----------
@@ -158,21 +122,15 @@ class PlanarQuasiStaticResult(eqx.Module):
         Y = 1j * omega * sqrt_ep_eff_over_mu / (self.zc * c)
         Y = Y + dielectric.sigma * self.shunt_conductance_factor
 
-        return ImmittanceResult(Z=Z, Y=Y, w=omega)
+        return ImmittanceResult(Z=Z, Y=Y, omega=omega)
 
 
 class AbstractCoaxialFormulation(eqx.Module):
-    """
-    Abstract base class for a closed-form coaxial line formulation.
-
-    A formulation is pure numerics: all material arguments arrive as evaluated
-    arrays in small property records, so it can be exercised directly against
-    its published equations with no ParamRF objects in sight.
-    """
+    """Abstract base class for a closed-form coaxial formulation."""
     @abstractmethod
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None = None, shield_thickness=None) -> ImmittanceResult:
         r"""
-        Calculates the per-unit-length immittance of the line.
+        Calculate the per-unit-length immittance.
 
         Parameters
         ----------
@@ -200,15 +158,10 @@ class AbstractCoaxialFormulation(eqx.Module):
 
 
 def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_shape: AbstractConductorShape, shield_shape: AbstractConductorShape) -> ImmittanceResult:
-    """Assemble a coaxial line's immittance around a choice of cross-section shapes.
-
-    The external inductance and the shunt admittance are pure geometry and are
-    common to every coaxial formulation here; the two conductors differ only
-    in which cross-section shape solves them, which the formulation supplies.
-    """
+    """Calculate coaxial immittance for the supplied conductor shapes."""
     eps = epsilon_0 * dielectric.ep_r
     mu = mu_0 * dielectric.mu_r
-    w = freq.w
+    omega = freq.w
 
     d_out = eqx.error_if(d_out, d_out - d_in <= 0, "d_out must exceed d_in")
     a, b = d_in / 2, d_out / 2
@@ -216,20 +169,20 @@ def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricP
 
     L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
-    Z_int = inner_shape.impedance(w, conductor, a=a) / (2 * jnp.pi * a)
+    Z_int = inner_shape.impedance(omega, conductor, a=a) / (2 * jnp.pi * a)
     # An unmodelled wall is an infinitely thick one, which every tube shape
     # takes analytically -- so the shield is one call whatever shape it is,
     # with no branch on the shape's type or on whether a wall was given.
     shield_conductor = conductor if outer_conductor is None else outer_conductor
     wall = jnp.inf if shield_thickness is None else shield_thickness
-    shield_zs = shield_shape.impedance(w, shield_conductor, a=b, t=wall)
+    shield_zs = shield_shape.impedance(omega, shield_conductor, a=b, t=wall)
     Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
-    Z = 1j * w * L_ext + Z_int
-    Y = 1j * w * 2 * jnp.pi * eps / ln_b_over_a
+    Z = 1j * omega * L_ext + Z_int
+    Y = 1j * omega * 2 * jnp.pi * eps / ln_b_over_a
     Y = Y + 2 * jnp.pi * dielectric.sigma / ln_b_over_a
 
-    return ImmittanceResult(Z=Z, Y=Y, w=w)
+    return ImmittanceResult(Z=Z, Y=Y, omega=omega)
 
 
 class TescheCoaxialFormulation(AbstractCoaxialFormulation):
@@ -245,38 +198,19 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     \qquad
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)}$$
 
-    which is $G + j\omega C$ with $C = 2\pi\Re(\varepsilon)/\ln(b/a)$ and
-    $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. Each conductor's series
-    impedance is a shape's surface impedance charged over its circumference,
-    $Z = Z_s/2\pi r$: the inner conductor is a
-    :class:`~pmrf.materials.conductor_shape.TescheRodShape` by default and
-    the shield a :class:`~pmrf.materials.conductor_shape.TescheTubeShape`.
-    An unspecified ``shield_thickness`` is an infinite wall, which the tube
-    circuit takes analytically: its dc resistance vanishes and its internal
-    inductance diverges, leaving the
-    :class:`~pmrf.materials.conductor_shape.HalfSpaceShape` impedance
-    $\zeta_c$. Both shapes are fields, so either conductor's cross-section
-    can be swapped without subclassing.
-
-    A magnetic filling needs no special case. With complex $\mu_r$ the external
-    term $j\omega L'$ acquires the real part $\omega\mu''\ln(b/a)/2\pi$, so
-    magnetic loss enters the series resistance on its own.
+    Each conductor contributes $Z_s/(2\pi r)$. The defaults are
+    :class:`~pmrf.materials.conductor_shape.TescheRodShape` and
+    :class:`~pmrf.materials.conductor_shape.TescheTubeShape`. An unspecified
+    shield thickness uses the infinite-wall limit. Complex $\varepsilon_r$
+    and $\mu_r$ account for dielectric and magnetic loss.
 
     **Validity**
 
-    The equivalent circuit is not an empirical fit to a width ratio, so it
-    carries no geometric fit range: it interpolates between the exact DC
-    resistance and the bare half-space impedance $\zeta_c$. That is not the
-    exact high-frequency limit of a round conductor -- the circuit reaches
-    $R_{dc} + Z_{hf}$ and never captures the $1/2\gamma a$ curvature term of
-    the exact solution -- so it is an approximation to
-    :class:`SchelkunoffCoaxialFormulation` at every finite frequency, worst
-    for thin inner conductors at low frequency. The transmission-line
-    description itself is the further limit: it assumes
-    the TEM mode, so it holds below the TE11 cutoff
+    The conductor circuit interpolates between dc resistance and half-space
+    impedance but omits the exact $1/(2\gamma a)$ curvature term. Use
+    :class:`SchelkunoffCoaxialFormulation` for the exact cylindrical solution.
+    The TEM line model applies below the TE11 cutoff
     $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
-    Above that, higher-order modes propagate and a single per-unit-length
-    immittance no longer describes the line.
 
     References
     ----------
@@ -308,8 +242,7 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
 
     **Mathematical Formulation**
 
-    The external inductance and shunt admittance are the same pure geometry
-    as in :class:`TescheCoaxialFormulation`,
+    The external inductance and shunt admittance are
     $$L' = \frac{\mu_0 \mu_r}{2\pi} \ln\left(\frac{b}{a}\right)
     \qquad
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)},$$
@@ -320,20 +253,15 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     \frac{I_0(\gamma a)}{I_1(\gamma a)},\qquad
     \gamma = \sqrt{j\omega\mu\sigma}.$$
 
-    The shield is a :class:`~pmrf.materials.conductor_shape.SchelkunoffTubeShape`,
-    Schelkunoff's eq. (74) referred to the tube's inner surface. An
-    unspecified ``shield_thickness`` is an infinite wall, which that
-    expression takes analytically, leaving
+    The shield uses Schelkunoff's tube solution, referred to its inner
+    surface. An unspecified ``shield_thickness`` gives
     $Z_{outer}=\zeta_c K_0(\gamma b)/(2\pi bK_1(\gamma b))$. Both shapes
-    are fields, so either conductor's cross-section can be swapped without
-    subclassing.
+    are configurable fields.
 
     **Validity**
 
-    Exact for both conductors at every frequency, dc included, so unlike
-    Tesche it leaves no frequency-shaped residual for a conductivity fit to
-    absorb. The transmission-line description is still the outer limit: it
-    assumes the TEM mode, so it holds below the TE11 cutoff
+    Exact for homogeneous cylindrical conductors carrying axially symmetric
+    current. The TEM line model applies below the TE11 cutoff
     $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
 
     References
@@ -358,17 +286,11 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
 
 
 class AbstractMicrostripFormulation(eqx.Module):
-    """
-    Abstract base class for a closed-form microstrip line formulation.
-
-    A formulation is pure numerics: every argument arrives as an
-    already-evaluated array, so it can be exercised directly against its
-    published equations with no ParamRF objects in sight.
-    """
+    """Abstract base class for a closed-form microstrip formulation."""
     @abstractmethod
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         r"""
-        Calculates the quasi-static solution of the line.
+        Calculate the quasi-static solution.
 
         Parameters
         ----------
@@ -377,11 +299,7 @@ class AbstractMicrostripFormulation(eqx.Module):
         h : ArrayLike
             Height of the dielectric substrate in meters.
         t : ArrayLike | None
-            Thickness of the trace in meters, or ``None`` when it is
-            unspecified. A formulation derived for a zero-thickness strip
-            accepts it and ignores it rather than rejecting it; thickness
-            reaches conductor loss through the line's cross-section either
-            way.
+            Trace thickness in meters, or ``None`` when unspecified.
         ep_r : jnp.ndarray
             Complex relative permittivity of the substrate, shape ``(npoints,)``.
 
@@ -397,12 +315,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     r"""
     Microstrip line formulation using the standard Wheeler approximations.
 
-    This is Wheeler's 1977 quasi-static impedance approximation. It is not
-    the ParamRF default -- :class:`HammerstadJensenMicrostripFormulation` is.
-    It is a different paper from
+    This implements Wheeler's 1977 quasi-static approximation. It is distinct
+    from the 1942 conductor-loss rule in
     :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`
-    (Wheeler 1942), the skin-effect conductor-loss rule, which *is* the default
-    current distribution and is unaffected by the choice of formulation.
+    and does not calculate conductor loss.
 
     **Mathematical Formulation**
 
@@ -414,29 +330,15 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     Z_a = 60 \ln\left(\frac{8}{u} + \frac{u}{4}\right) \quad (u \leq 1)$$
     $$Z_c = \frac{Z_a}{\sqrt{\varepsilon_e}}$$
 
-    $\varepsilon_r$ is complex, and $\varepsilon_e$ is linear in it, so the
-    dielectric loss carries through the same filling factor as the real part and
-    needs no separate loss-tangent term. The effective width is $W$: the
-    approximation is derived for a zero-thickness strip, so conductor properties
-    do not enter here. Conductor loss is not produced by this formulation at
-    all: the line charges it through its
-    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
+    Complex $\varepsilon_r$ carries dielectric loss through the same filling
+    factor. The effective width is $W$.
 
     **Validity**
 
     Derived for a zero-thickness strip on an isotropic, non-magnetic substrate.
-    A finite thickness is accepted and ignored: it does not enter this
-    formulation's $\varepsilon_e$ or $Z_c$, and the line applies it to
-    conductor loss instead, through the cross-section it hands its
-    current distribution. Use
-    :class:`HammerstadJensenMicrostripFormulation` -- the ParamRF default --
-    when the thickness should also widen the strip electrically. It is a
-    quasi-static result and carries no modal dispersion, so it describes the
-    line only well below the frequency at which $\varepsilon_e$ begins to rise
-    towards $\varepsilon_r$; pair it with an
-    :class:`AbstractMicrostripDispersion` above that. Outside its fitted width
-    range the closed form remains smooth and finite, so ParamRF extrapolates
-    rather than rejecting.
+    Finite thickness is ignored by this formulation but remains available to
+    the current distribution. Modal dispersion requires a separate
+    :class:`AbstractMicrostripDispersion`.
 
     References
     ----------
@@ -502,11 +404,8 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     $$Z_c=\frac{Z_L(u_r)}{\sqrt{e}},\qquad
     \varepsilon_e=e\left[\frac{Z_L(u_1)}{Z_L(u_r)}\right]^2,
     \qquad W_{eff}=u_rH,$$
-    where $e$ denotes the bracketed permittivity expression before its
-    thickness correction. $W_{eff}$ is the electromagnetic fringing width and
-    feeds the dispersion formulation; conductor loss is not produced here at all,
-    but charged separately by the line's
-    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
+    $W_{eff}$ is passed to the dispersion formulation. Conductor loss is
+    calculated separately by the current distribution.
 
     The fractional power in $b$ is evaluated through the principal logarithm.
     The dielectric constraint $\Re(\varepsilon_r)>1$ keeps its argument away
@@ -514,16 +413,11 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
 
     **Validity**
 
-    Hammerstad and Jensen quote the fit accuracy of $\varepsilon_e$ as better
-    than 0.2% for $\varepsilon_r < 128$ and $0.01 \leq u \leq 100$, and the
-    accuracy of $Z_L$ as better than 0.01% for $u \leq 1$ and 0.03% for
-    $u \leq 1000$. The result is quasi-static: it carries no modal dispersion,
-    so a :class:`AbstractMicrostripDispersion` supplies the frequency
-    dependence. The substrate must be non-magnetic; :class:`MicrostripLine`
-    rejects $\mu_r \neq 1$ rather than extrapolating. Leaving the fitted ranges
-    is a documented extrapolation: the expressions stay finite and smooth, and
-    only $\Re(\varepsilon_r) > 1$ is enforced, because the fractional power in
-    $b$ has a branch cut below it.
+    The quoted error in $\varepsilon_e$ is below 0.2% for
+    $\varepsilon_r<128$ and $0.01\leq u\leq100$. The quoted error in $Z_L$
+    is below 0.01% for $u\leq1$ and 0.03% for $u\leq1000$. The formulation
+    is quasi-static and requires a non-magnetic substrate. Inputs outside the
+    fitted ranges are extrapolated.
 
     References
     ----------
@@ -653,18 +547,14 @@ class KirschningJansenMicrostripDispersion(AbstractMicrostripDispersion):
     \qquad q=x^2(3-2x),$$
     $$\varepsilon_e=(1-q)\varepsilon_e(0)+q\varepsilon_{e,KJ},\qquad
     Z_c=(1-q)Z_c(0)+qZ_{c,KJ}.$$
-    This extension is not part of the cited empirical fit; it supplies a
-    continuous, differentiable connection to its required homogeneous limit.
+    This smooth extension to the homogeneous limit is specific to ParamRF.
 
     **Validity**
 
-    The published fits cover $1 \leq \varepsilon_r \leq 20$,
-    $0.1 \leq W/H \leq 100$ and $0 \leq H/\lambda_0 \leq 0.13$, with the
-    numerical fits themselves anchored from $\varepsilon_r = 2.2$ upwards; the
-    smooth homogeneous-limit weight described above covers the interval below
-    that, and is ParamRF's own extension rather than part of the cited fit.
-    Outside these ranges the expressions remain finite, so ParamRF extrapolates
-    and documents it rather than rejecting the input.
+    The published fits cover $1\leq\varepsilon_r\leq20$,
+    $0.1\leq W/H\leq100$, and $0\leq H/\lambda_0\leq0.13$, with numerical
+    fits anchored at $\varepsilon_r\geq2.2$. ParamRF uses the extension above
+    for $1<\varepsilon_r<2.2$ and extrapolates outside the remaining ranges.
 
     References
     ----------
@@ -743,22 +633,16 @@ class KirschningJansenMicrostripDispersion(AbstractMicrostripDispersion):
 
 
 class AbstractStriplineFormulation(eqx.Module):
-    """
-    Abstract base class for a closed-form stripline formulation.
+    """Abstract base class for a closed-form stripline formulation.
 
-    Stripline is homogeneously filled, so there is no modal dispersion to
-    correct afterwards: the quasi-static solution is the solution, and its
-    effective permittivity is the substrate permittivity itself.
-
-    A formulation is pure numerics: every argument arrives as an
-    already-evaluated array, so it can be exercised directly against its
-    published equations with no ParamRF objects in sight.
+    Homogeneous filling gives $\varepsilon_e=\varepsilon_r$ without modal
+    dispersion.
     """
 
     @abstractmethod
     def quasi_static(self, *, w, b, t, ep_r) -> PlanarQuasiStaticResult:
         r"""
-        Calculates the quasi-static solution of the line.
+        Calculate the quasi-static solution.
 
         Parameters
         ----------
@@ -794,21 +678,15 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     the characteristic impedance of the zero-thickness strip is
     $$Z_c = \frac{30\pi}{\sqrt{\varepsilon_r}}\frac{b}{W_e + 0.441b}.$$
 
-    Conductor loss is not produced here: this formulation returns no loss
-    factor, and Cohn's attenuation lives in
+    Conductor loss is supplied by
     :class:`~pmrf.models.components.lines.current_distribution.CohnCurrentDistribution`,
-    which the line pairs with it by default. The returned $W_e$ is the genuine
-    electromagnetic fringing width and is not reused for loss. Dielectric loss
-    needs no separate term: $\varepsilon_e$ is complex, and carries it.
+    and complex $\varepsilon_e$ carries dielectric loss.
 
     **Validity**
 
-    The filling is homogeneous, so $\varepsilon_e = \varepsilon_r$ is exact and
-    there is no fit range on the permittivity and no modal dispersion below the
-    first higher-order mode. The impedance expression is Cohn's zero-thickness
-    result with a fringing correction whose two branches meet at $W/b = 0.35$;
-    finite thickness must satisfy $0 < T < b$, which is enforced. The impedance
-    itself does not depend on $T$.
+    The impedance expression assumes zero thickness and uses a continuous
+    fringing correction at $W/b=0.35$. A supplied thickness must satisfy
+    $0<T<b$, although it does not enter the impedance expression.
 
     References
     ----------

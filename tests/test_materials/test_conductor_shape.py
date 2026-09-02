@@ -561,11 +561,11 @@ def test_roughness_scales_the_prefactor_and_not_the_shape_factor(shape, geometry
 
 
 def test_metal_propagation_constant_is_the_inverse_complex_skin_depth():
-    """gamma = sqrt(j w mu sigma) = (1+j)/delta, with finite dc gradient."""
+    """gamma = sqrt(j omega mu sigma) = (1+j)/delta, with finite dc gradient."""
     freq = Frequency.from_f(jnp.array([0.0, 1e6, 1e9]))
     conductor = BulkConductor(sigma=5.8e7, mu_r=2.0).properties(freq)
 
-    gamma = conductor.gamma(freq.w)
+    gamma = conductor.gamma(omega=freq.w)
 
     w = np.asarray(freq.w)
     expected = np.sqrt(1j * w * mu_0 * 2.0 * 5.8e7)
@@ -575,7 +575,7 @@ def test_metal_propagation_constant_is_the_inverse_complex_skin_depth():
         lambda f: jnp.real(
             BulkConductor(sigma=5.8e7)
             .properties(Frequency.from_f(jnp.atleast_1d(f)))
-            .gamma(jnp.atleast_1d(2 * jnp.pi * f))
+            .gamma(omega=jnp.atleast_1d(2 * jnp.pi * f))
         )[0]
     )(0.0)
     assert jnp.isfinite(grad)

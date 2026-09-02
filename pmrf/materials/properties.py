@@ -44,7 +44,7 @@ class ConductorProperties(eqx.Module):
     sigma: jnp.ndarray
     mu_r: jnp.ndarray
 
-    def gamma(self, w) -> jnp.ndarray:
+    def gamma(self, omega) -> jnp.ndarray:
         r"""
         Return the propagation constant inside the metal, in 1/m.
 
@@ -75,7 +75,7 @@ class ConductorProperties(eqx.Module):
 
         Parameters
         ----------
-        w : ArrayLike
+        omega : ArrayLike
             Angular frequency in rad/s.
 
         Returns
@@ -88,7 +88,7 @@ class ConductorProperties(eqx.Module):
         Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 1.7.
         Wiley.
         """
-        w = jnp.asarray(w)
-        safe_w = jnp.where(w > 0, w, 1.0)
-        k = jnp.sqrt(safe_w * mu_0 * self.mu_r * self.sigma / 2)
-        return jnp.where(w > 0, k * (1 + 1j), 0.0)
+        omega = jnp.asarray(omega)
+        safe_omega = jnp.where(omega > 0, omega, 1.0)
+        k = jnp.sqrt(safe_omega * mu_0 * self.mu_r * self.sigma / 2)
+        return jnp.where(omega > 0, k * (1 + 1j), 0.0)

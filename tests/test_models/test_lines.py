@@ -450,7 +450,7 @@ def test_immittance_inversion_rejects_non_passive_result():
 
     with pytest.raises(eqx.EquinoxRuntimeError, match=r"Re\(Z\) < 0"):
         ImmittanceResult.from_zc_gamma(
-            zc=jnp.array([50.0]), gamma=jnp.array([-1.0 + 1j]), w=jnp.array([1.0])
+            zc=jnp.array([50.0]), gamma=jnp.array([-1.0 + 1j]), omega=jnp.array([1.0])
         )
 
 

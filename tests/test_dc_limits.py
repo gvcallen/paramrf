@@ -161,7 +161,7 @@ def test_material_is_finite_at_dc(material, dc_freq):
 
 
 def test_immittance_l_and_c_carry_the_lowest_frequency(dc_freq):
-    """The existing `_per_w` guard: DC inherits the lowest non-zero point."""
+    """The existing `_per_omega` guard: DC inherits the lowest non-zero point."""
     line = RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.1)
     immittance = line.immittance(dc_freq)
 

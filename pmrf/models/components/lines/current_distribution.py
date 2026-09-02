@@ -27,21 +27,13 @@ CrossSectionT = TypeVar("CrossSectionT", bound=AbstractPlanarCrossSection)
 class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
     r"""Surface-current distribution for a transmission-line cross-section.
 
-    A strategy returns ``(shape, weight)`` pairs.  The shape supplies the
-    material's surface impedance and the weight, in inverse metres, charges
-    that impedance into the line's series impedance.  Weights are evaluated
-    at the requested frequency because current crowding may be frequency
-    dependent.  A strategy chooses shapes and weights only: the
-    cross-section dimensions a shape needs reach it from the record at call
-    time, so no strategy ever hands a shape a number derived from its own
-    weight.
+    Returns ``(shape, weight)`` pairs used to calculate conductor series
+    impedance. Each shape supplies a surface impedance; its weight converts
+    that value to impedance per unit length. Weights may depend on frequency.
 
-    A strategy is written for one planar family and declares it in
-    :attr:`cross_section_type`.  It receives that family's frozen
-    cross-section record together with the solved quasi-static state, so a
-    model that consumes solved intermediates rather than dimensions needs no
-    new record field.  :meth:`distribute` checks the record against the
-    declared type, which is where a wrong-family pairing fails.
+    :attr:`cross_section_type` identifies the supported line family.
+    :meth:`distribute` validates the supplied cross-section before evaluating
+    the distribution.
     """
 
     #: The cross-section record family this strategy is written for.
@@ -60,11 +52,10 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
         freq : Frequency
             The frequency axis.
         cross_section : AbstractPlanarCrossSection
-            The line's frozen cross-section record. It must be an instance of
-            this strategy's :attr:`cross_section_type`.
+            Cross-section record. It must be an instance of
+            :attr:`cross_section_type`.
         quasi_static : PlanarQuasiStaticResult
-            The solved quasi-static state of the line, as the conversion to
-            immittance has it.
+            Solved quasi-static line properties.
 
         Returns
         -------
@@ -98,29 +89,18 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
 class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSection]):
     r"""Wheeler's incremental-inductance current distribution.
 
-    This is Wheeler's 1942 skin-effect rule, and it is the default
-    ``current_distribution`` of every microstrip. It is a different paper
-    from :class:`~pmrf.models.components.lines.formulations.WheelerMicrostripFormulation`
-    (Wheeler 1977), which is the quasi-static impedance approximation and is
-    *not* the default formulation -- Hammerstad--Jensen is. The two share only
-    an author.
+    This implements Wheeler's 1942 skin-effect rule. It is distinct from the
+    1977 quasi-static impedance approximation implemented by
+    :class:`~pmrf.models.components.lines.formulations.WheelerMicrostripFormulation`.
 
     **Mathematical Formulation**
 
     $$k_c = \frac{2}{W}\exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right]$$
 
-    The weight charges the sheet impedance over the physical trace width $W$,
-    not a dispersion-widened one: the rule sums over every receded conductor
-    surface, and those terms do not vanish as $t\to0$.  $Z_c$ is the
-    characteristic impedance of the solved state it is given, so on a
-    dispersive line it is the dispersed one; only its real part enters, since
-    the exponent is a lossless current-crowding correction.
-
-    The trace is represented by a half-space surface and the returned weight
-    is Wheeler's geometry factor in inverse metres.
-
-    A trace of unspecified thickness is a half-space; a trace of stated
-    thickness is charged through :attr:`slab_shape`.
+    Here $W$ is the physical trace width and $Z_c$ is the solved
+    characteristic impedance. An unspecified thickness uses
+    :class:`HalfSpaceShape`; otherwise, the distribution uses
+    :attr:`slab_shape`. The returned weight is in inverse metres.
 
     References
     ----------
@@ -130,16 +110,10 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
 
     cross_section_type: ClassVar[type] = MicrostripCrossSection
 
-    #: The finite-thickness cross-section entry used when a thickness is
-    #: stated.  The default,
-    #: :class:`~pmrf.materials.conductor_shape.RootSumSquareSlabShape`, is
-    #: the only entry that is right at both asymptotes under this
-    #: distribution's frequency-independent weight;
-    #: :class:`~pmrf.materials.conductor_shape.HollowayKuesterSlabShape` is
-    #: the exact strip-diffusion result but is normalised to the total strip
-    #: current and so wants a weight of $1/(2W)$ rather than Wheeler's.
-    #: Neither is the better entry in general -- see the normalisation note
-    #: on :class:`~pmrf.materials.conductor_shape.AbstractConductorShape`.
+    #: Finite-thickness conductor shape. The default matches the dc and
+    #: strong-skin limits under Wheeler's geometry weight. See
+    #: :class:`~pmrf.materials.conductor_shape.AbstractConductorShape` for
+    #: normalisation details.
     slab_shape: AbstractConductorShape = eqx.field(
         default_factory=RootSumSquareSlabShape
     )
@@ -157,11 +131,12 @@ class CohnCurrentDistribution(AbstractCurrentDistribution[StriplineCrossSection]
 
     **Mathematical Formulation**
 
-    The returned weight is $k_c=2(\alpha_c/R_s)Z_c$: Cohn gives the
-    attenuation per unit length, and the immittance the weight is charged
-    into is a series impedance, so the low-loss inversion of
-    $\alpha_c=\Re(Z_s k_c)/(2\Re(Z_c))$ puts the $Z_c$ back.  A zero-thickness
-    strip has no finite conductor-loss weight in this model.
+    Cohn gives conductor attenuation per unit length. Inverting
+    $$\alpha_c=\frac{\Re(Z_s k_c)}{2\Re(Z_c)}$$
+    gives the geometry weight
+    $$k_c=2(\alpha_c/R_s)\Re(Z_c).$$
+    The model assigns zero conductor-loss weight when the strip thickness is
+    unspecified.
 
     References
     ----------

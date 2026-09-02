@@ -31,7 +31,7 @@ class ImmittanceResult(eqx.Module):
         Series impedance per unit length, $Z = R + j\omega L$, in ohm/m.
     Y : jnp.ndarray
         Shunt admittance per unit length, $Y = G + j\omega C$, in S/m.
-    w : jnp.ndarray
+    omega : jnp.ndarray
         Angular frequency axis, kept so that `L` and `C` can be recovered.
     """
     #: Series impedance per unit length in ohm/m
@@ -41,16 +41,16 @@ class ImmittanceResult(eqx.Module):
     Y: jnp.ndarray
 
     #: Angular frequency axis in rad/s
-    w: jnp.ndarray
+    omega: jnp.ndarray
 
     @classmethod
-    def from_rlgc(cls, R, L, G, C, w) -> "ImmittanceResult":
+    def from_rlgc(cls, R, L, G, C, omega) -> "ImmittanceResult":
         r"""Build an immittance from per-unit-length $R$, $L$, $G$ and $C$."""
-        w = jnp.asarray(w)
-        return cls(Z=R + 1j * w * L, Y=G + 1j * w * C, w=w)
+        omega = jnp.asarray(omega)
+        return cls(Z=R + 1j * omega * L, Y=G + 1j * omega * C, omega=omega)
 
     @classmethod
-    def from_zc_gamma(cls, zc, gamma, w) -> "ImmittanceResult":
+    def from_zc_gamma(cls, zc, gamma, omega) -> "ImmittanceResult":
         r"""Invert characteristic impedance and propagation constant exactly.
 
         The per-unit-length quantities are the exact bijection
@@ -72,7 +72,7 @@ class ImmittanceResult(eqx.Module):
         Y = eqx.error_if(
             Y, jnp.any(jnp.real(Y) < -y_tol), "inversion produced Re(Y) < 0"
         )
-        return cls(Z=Z, Y=Y, w=jnp.asarray(w))
+        return cls(Z=Z, Y=Y, omega=jnp.asarray(omega))
 
     @property
     def R(self) -> jnp.ndarray:
@@ -87,23 +87,23 @@ class ImmittanceResult(eqx.Module):
     @property
     def L(self) -> jnp.ndarray:
         r"""Series inductance per unit length in H/m, $\Im(Z)/\omega$."""
-        return self._per_w(jnp.imag(self.Z))
+        return self._per_omega(jnp.imag(self.Z))
 
     @property
     def C(self) -> jnp.ndarray:
         r"""Shunt capacitance per unit length in F/m, $\Im(Y)/\omega$."""
-        return self._per_w(jnp.imag(self.Y))
+        return self._per_omega(jnp.imag(self.Y))
 
-    def _per_w(self, x: jnp.ndarray) -> jnp.ndarray:
+    def _per_omega(self, x: jnp.ndarray) -> jnp.ndarray:
         # The DC limit is finite but reached as 0/0. Use the double-`where`
         # pattern so both the value and its gradient stay well defined, then
         # carry the lowest non-zero frequency into any DC entry, which is exact
         # whenever the reactance is linear in omega there.
-        w = self.w
-        safe_w = jnp.where(w > 0, w, 1.0)
-        ratio = jnp.where(w > 0, x / safe_w, 0.0)
-        first = jnp.take(ratio, jnp.argmax(w > 0))
-        return jnp.where(w > 0, ratio, first)
+        omega = self.omega
+        safe_omega = jnp.where(omega > 0, omega, 1.0)
+        ratio = jnp.where(omega > 0, x / safe_omega, 0.0)
+        first = jnp.take(ratio, jnp.argmax(omega > 0))
+        return jnp.where(omega > 0, ratio, first)
 
 
 class TransmissionLine(Model):
@@ -281,7 +281,7 @@ class AbstractImmittanceLine(AbstractUniformLine):
         immittance = self.immittance(frequency)
         Z, Y = immittance.Z, immittance.Y
 
-        w = immittance.w
+        omega = immittance.omega
 
         # A vanishing ZY makes sqrt(ZY) sit on the branch point, where the
         # derivative diverges, and sqrt(Z/Y) a raw 0/0. Both are guarded with
@@ -292,7 +292,7 @@ class AbstractImmittanceLine(AbstractUniformLine):
         # The predicate is anchored on omega rather than on the product alone,
         # matching the materials package: at omega > 0 a vanishing product is
         # not a physical degeneracy, and its sqrt gradient is large but finite.
-        degenerate = (w <= 0) & (product == 0)
+        degenerate = (omega <= 0) & (product == 0)
         safe_product = jnp.where(degenerate, 1.0, product)
         gamma = jnp.where(degenerate, 0.0, jnp.sqrt(safe_product))
 
@@ -302,6 +302,6 @@ class AbstractImmittanceLine(AbstractUniformLine):
         # A sweep of nothing but DC has no frequency to continue from, and
         # `argmax` then selects the guarded entry itself. That axis carries no
         # information about the line, so its Zc is left unspecified.
-        zc = jnp.where(degenerate, jnp.take(zc, jnp.argmax(w > 0)), zc)
+        zc = jnp.where(degenerate, jnp.take(zc, jnp.argmax(omega > 0)), zc)
 
         return zc, gamma * self.length

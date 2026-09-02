@@ -1,6 +1,4 @@
-"""
-Physical transmission lines (general, coaxial, microstrip, stripline)
-"""
+"""Physical transmission-line models."""
 from scipy.constants import c
 import jax.numpy as jnp
 import equinox as eqx
@@ -54,8 +52,7 @@ _DEFAULT_DISPERSION = object()
 
 class PhysicalLine(AbstractImmittanceLine):
     r"""
-    Transmission line defined by nominal characteristic impedance, relative permittivity, 
-    conductor attenuation, and dielectric loss tangent.
+    Line defined by nominal impedance, permittivity, and loss coefficients.
     
     **Mathematical Formulation**
 
@@ -63,7 +60,7 @@ class PhysicalLine(AbstractImmittanceLine):
     $$\alpha_c = A \cdot \sqrt{\frac{f}{f_A}} \cdot \frac{\ln(10)}{20}$$
     $$\alpha_d = \frac{\pi f \sqrt{\varepsilon_r}}{c} \cdot \tan\delta$$
 
-    Which yield the per-unit-length parameters:
+    The per-unit-length parameters are
     $$R = 2 z_n \alpha_c$$
     $$L = \frac{z_n \sqrt{\varepsilon_r}}{c}$$
     $$G = \frac{2 \alpha_d}{z_n}$$
@@ -143,18 +140,15 @@ class PhysicalLine(AbstractImmittanceLine):
 
 class DatasheetLine(AbstractImmittanceLine):
     r"""
-    Transmission line defined by common datasheet parameters (nominal impedance
-    and velocity/loss factors). Includes skin effect (`k1`) and 
-    dielectric loss (`k2`).
+    Line defined by nominal impedance, velocity factor, and loss coefficients.
 
     **Mathematical Formulation**
 
-    The normalized loss coefficients ($k_{1,norm}$, $k_{2,norm}$) depend on `loss_coeffs_normalized`. 
-    Attenuation variables scale natively with $\sqrt{\omega}$ and $\omega$:
+    With normalized coefficients $k_{1,norm}$ and $k_{2,norm}$,
     $$\alpha_c = k_{1,norm} \cdot \frac{\ln(10)}{20} \cdot \sqrt{\omega}$$
     $$\alpha_d = k_{2,norm} \cdot \frac{\ln(10)}{20} \cdot \omega$$
 
-    Resulting in the per-unit-length components:
+    and the per-unit-length parameters are
     $$R = 2 z_n \alpha_c$$
     $$L = \frac{z_n}{v_f c}$$
     $$G = \frac{2 \alpha_d}{z_n}$$
@@ -189,7 +183,8 @@ class DatasheetLine(AbstractImmittanceLine):
     k2 : Param, default=0.0
         Dielectric loss factor.
     loss_coeffs_normalized : bool, default=False
-        If True, k1 and k2 are evaluated directly without normalizing to 100MHz references.
+        If true, use ``k1`` and ``k2`` directly. Otherwise, normalize them to
+        the 100 MHz reference convention.
     """
     #: Nominal characteristic impedance
     zn: Param = param(default=50.0, constraint=Positive())
@@ -238,11 +233,11 @@ class DatasheetLine(AbstractImmittanceLine):
 
 class CoaxialLine(AbstractImmittanceLine):
     r"""
-    Coaxial line defined directly by its physical geometry and material modules.
+    Coaxial line defined by geometry and materials.
     
-    Uses :class:`SchelkunoffCoaxialFormulation` -- the exact cylindrical solution --
-    as the default mathematical formulation. :class:`TescheCoaxialFormulation` remains
-    selectable as the cheaper, Bessel-free alternative and as an independent cross-check.
+    The default :class:`SchelkunoffCoaxialFormulation` is the exact cylindrical
+    solution. :class:`TescheCoaxialFormulation` provides a Bessel-free
+    approximation.
 
     Example
     --------
@@ -334,87 +329,32 @@ class CoaxialLine(AbstractImmittanceLine):
     
 class MicrostripLine(AbstractImmittanceLine):
     r"""
-    Microstrip line defined by standard geometry and material modules.
-    
-    Uses :class:`HammerstadJensenMicrostripFormulation` for the default
-    mathematical formulation: it is thickness-aware, and the
-    Kirschning-Jansen dispersion it is paired with was itself fitted against
-    its effective width. :class:`WheelerMicrostripFormulation` (Wheeler 1977)
-    remains available and accepts a thickness, ignoring it in
-    $\varepsilon_e$ and $Z_c$. Neither choice touches the conductor-loss
-    rule, which is Wheeler's *1942* skin-effect result
-    (:class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`)
-    and is still the default ``current_distribution``.
+    Microstrip line defined by geometry and materials.
 
-    The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`.
-    :meth:`PlanarQuasiStaticResult.to_immittance` converts it directly whether
-    modal dispersion is disabled or not: with dispersion enabled, the dispersed
-    $(\varepsilon_e, Z_c)$ replace the quasi-static ones in a fresh
-    :class:`PlanarQuasiStaticResult` first, so both paths report the same
-    genuine RLGC $Z_c=\sqrt{Z/Y}$ rather than the dispersion path tautologically
-    reproducing Kirschning-Jansen's modal $Z_c$.
+    The defaults are :class:`HammerstadJensenMicrostripFormulation`,
+    :class:`KirschningJansenMicrostripDispersion`, and
+    :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`.
+    :class:`WheelerMicrostripFormulation` is available as a zero-thickness
+    quasi-static alternative.
 
     **Mathematical Formulation**
 
-    The line evaluates material permittivity, a quasi-static formulation, and
-    then the optional modal-dispersion formulation. ParamRF carries the complex
-    permittivity through the quasi-static and modal-dispersion formulations. This
-    keeps dielectric loss self-consistent with the effective-permittivity model:
-    the loss is carried directly by the effective permittivity and needs no
-    separate attenuation term:
+    Complex permittivity is propagated through the quasi-static and dispersion
+    formulations, so $\varepsilon_e$ includes dielectric loss:
     $$\gamma_m=\frac{j\omega}{c}\sqrt{\varepsilon_e(f)}.$$
 
-    Static bulk conductivity is not folded into that permittivity, which would
-    make it singular at DC. It is applied separately as a shunt conductance
-    $G = \sigma K_g$, where $K_g$ is the geometric
-    ``shunt_conductance_factor`` of the quasi-static result, so the line keeps a
-    finite, nonzero conductance down to DC.
+    Static conductivity contributes separately as $G=\sigma K_g$, avoiding a
+    singular permittivity at dc. Microstrip formulations require
+    $\mu_r=1$.
 
-    The substrate must be nonmagnetic. No cited microstrip formulation covers
-    magnetic media, so $\mu_r \neq 1$ is rejected rather than silently ignored.
-
-    This treatment is consistent with ADS's documented treatment of permittivity
-    as a complex material property (ADS 2011.01, *Distributed Components*,
-    ``About Dielectric Loss Models``), but the vendor documentation does not
-    establish the dielectric-loss expression used here. The complex evaluation
-    is the exact loss perturbation of the effective-permittivity model, following
-    Schneider's energy-perturbation derivation.
-
-    Wheeler's incremental-inductance rule
-    (:class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`,
-    the default ``current_distribution``) is the single conductor-loss term
-    charged on both paths:
+    Wheeler's current distribution gives
     $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
     \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
-    applied unconditionally, over the physical width $W$ rather than any
-    thickness-widened one. So ``dispersion=None`` is a pure dispersion toggle:
-    the distribution charges the same rule at $Z_{c,loss}=Z_{c,0}$ on the
-    quasi-static path and at the dispersed $Z_{c,loss}$ on the other, because
-    it reads $Z_c$ off whichever solved state it is handed. The rule contains no $t$: it sums
-    over every receded conductor surface, and the broad-face terms do not
-    vanish as $t\to0$. So $t=\text{None}$ ("thickness unspecified") is not
-    the same input as $t=0$; it is read as skin effect being in operation
-    regardless, which is the good-faith default since Wheeler's $R_s$ is
-    itself a thick-conductor result. $t$ only refines the geometry (through
-    the quasi-static formulation, where supported), it does not gate whether
-    conductor loss is applied. This is a ParamRF convention, not a correction
-    of Kirschning-Jansen: K-J's $Z_c$ is a power-current quasi-TEM modal
-    quantity, chosen by Jansen & Koster for its weak frequency dependence, and
-    NIST (Williams, Alpert, Arz et al., *Causal Characteristic Impedance of
-    Planar Transmission Lines*) establishes that microstrip has no unique
-    $Z_c$.
-
-    The sheet model above gives $R\to0$ as $f\to0$, which is wrong for a
-    trace of known thickness: a finite $t$ gets a dc floor
-    $R_{dc}=1/(\sigma Wt)$, blended smoothly with the skin-effect term as
-    $R=\sqrt{R_{dc}^2+R_{ac}^2}$ (see
-    :meth:`~pmrf.models.components.lines.formulations.PlanarQuasiStaticResult.to_immittance`).
-    $t=\text{None}$ gets no floor: it asserts skin effect in operation at
-    every frequency including dc, so there is no dc regime for a floor to
-    describe, matching ADS, which applies no floor at all. The blend itself
-    is a ParamRF convention rather than a rule any cited source prescribes
-    -- mcalc/wcalc hard-switch to a dc solution once skin depth exceeds
-    thickness instead, an equally defensible alternative.
+    using the physical width $W$ and the active quasi-static or dispersed
+    $Z_c$. With finite thickness, the default slab shape adds
+    $R_{dc}=1/(\sigma Wt)$ through
+    $R=\sqrt{R_{dc}^2+R_{ac}^2}$. An unspecified thickness applies the
+    half-space skin-effect model without a dc floor.
 
     Example
     --------
@@ -435,18 +375,14 @@ class MicrostripLine(AbstractImmittanceLine):
         freq = prf.Frequency(start=1, stop=20, npoints=101, unit='ghz')
         s_phys = phys_microstrip.s(freq)    
 
-    The substrate can be given as one :class:`~pmrf.materials.Substrate`, or as
-    its loose fields. Both build the same canonical substrate, so the two
-    idioms produce identical PyTrees; they may not be mixed in one call.
+    Supply either ``substrate`` or its individual fields, not both.
 
     Parameters
     ----------
     w : Param, default=3e-3
         Width of the microstrip trace in meters.
     substrate : Substrate, optional
-        The substrate carrying the trace, as a single grouped module. Sharing
-        one substrate between several traces is what dedupes their permittivity
-        into a single parameter; see :class:`~pmrf.materials.Substrate`.
+        Substrate carrying the trace.
     h : Param, default=1.6e-3
         Height of the dielectric substrate in meters. Loose form of
         ``substrate.h``.
@@ -457,16 +393,9 @@ class MicrostripLine(AbstractImmittanceLine):
         The material of the trace and ground plane. A scalar conductivity in
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     t : Param | None, default=None
-        Thickness of the conductor. ``None`` means the thickness is
-        unspecified, not that it is zero: skin effect is assumed to be in
-        operation regardless, and Wheeler's conductor-loss correction (which
-        does not depend on `t`) is applied unconditionally. A positive value
-        gets a dc resistance floor $R_{dc}=1/(\sigma W t)$. Wheeler's
-        quasi-static formulation accepts a thickness and ignores it in
-        $\varepsilon_e$ and $Z_c$; thickness-aware
-        formulations such as Hammerstad--Jensen (the default) use a positive
-        value to refine the geometry; thickness reaches the conductor-loss
-        term regardless of which formulation is selected.
+        Conductor thickness. A positive value supplies a dc resistance floor
+        and may refine the quasi-static geometry. ``None`` uses the half-space
+        conductor model without a dc floor.
     formulation : AbstractMicrostripFormulation, default=HammerstadJensenMicrostripFormulation()
         The closed-form physics used to compute the quasi-static solution.
     dispersion : AbstractMicrostripDispersion | None, default=KirschningJansenMicrostripDispersion()
@@ -555,12 +484,7 @@ class MicrostripLine(AbstractImmittanceLine):
         self.metadata = metadata
 
     def _resolved_quasi_static(self, freq: Frequency) -> PlanarQuasiStaticResult:
-        """The quasi-static solution actually in force, dispersed when ``dispersion`` is set.
-
-        Both :meth:`immittance` and the public :meth:`ep_eff`/:meth:`w_eff`
-        accessors route through this single pipeline, so the accessors cannot
-        drift from what ``immittance`` actually charges.
-        """
+        """Return the quasi-static state after optional modal dispersion."""
         substrate = self.substrate
         dielectric = substrate.dielectric.properties(freq)
         ep_r = eqx.error_if(
@@ -621,13 +545,10 @@ class MicrostripLine(AbstractImmittanceLine):
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
         r"""
-        Complex effective relative permittivity the line actually ends up with.
+        Return the effective relative permittivity used by :meth:`immittance`.
 
-        Dispersed via ``dispersion`` when it is set, quasi-static otherwise —
-        the same value :meth:`immittance` uses internally, so it is exposed
-        here rather than recomputed by the caller. The imaginary part carries
-        the dielectric loss because ParamRF carries complex permittivity through
-        the model (see the class docstring and #79).
+        This includes modal dispersion when ``dispersion`` is set. Its
+        imaginary part carries dielectric loss.
 
         Parameters
         ----------
@@ -643,11 +564,7 @@ class MicrostripLine(AbstractImmittanceLine):
 
     def w_eff(self, freq: Frequency) -> jnp.ndarray:
         r"""
-        Effective conductor width the line actually ends up with.
-
-        Dispersed via ``dispersion`` when it is set, quasi-static otherwise —
-        the same value :meth:`immittance` uses internally, so it is exposed
-        here rather than recomputed by the caller.
+        Return the effective conductor width used by :meth:`immittance`.
 
         Parameters
         ----------
@@ -666,14 +583,9 @@ class StriplineLine(AbstractImmittanceLine):
     r"""
     Stripline defined by its geometry and material modules.
 
-    Uses :class:`CohnStriplineFormulation` as the default mathematical
-    formulation.
-
-    Stripline is homogeneously filled, so it has no modal dispersion and
-    therefore no ``dispersion`` field: the effective permittivity is the
-    permittivity of the filling itself, at every frequency. Material dispersion
-    still applies, and needs nothing stripline-specific — it arrives through the
-    dielectric module exactly as it does for any other line.
+    The default is :class:`CohnStriplineFormulation`. Homogeneous filling gives
+    $\varepsilon_e=\varepsilon_r$ without a separate modal-dispersion model.
+    Material dispersion remains available through the dielectric.
 
     **Mathematical Formulation**
 
