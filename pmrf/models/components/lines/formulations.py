@@ -1,7 +1,9 @@
 """
 Closed-form physics for transmission lines (coaxial, microstrip, stripline).
 
-Three distinct strategy roles appear on a line model, each with its own field:
+Five distinct strategy roles appear across the line models, each with its own
+field. The vocabulary is defined once in ``CONTEXT.md`` at the repo root; the
+architectural decisions behind it are in ``docs/adr/``.
 
 - A **Formulation** (`formulation`) produces the complete electrical state a
   model needs to reach S-parameters: either a per-unit-length immittance
@@ -12,6 +14,16 @@ Three distinct strategy roles appear on a line model, each with its own field:
   exists where the cross-section is inhomogeneous and the mode is therefore not
   strictly TEM -- microstrip has one, homogeneously filled coaxial and stripline
   do not.
+- A **ConductorShape**
+  (:mod:`pmrf.materials.conductor_shape`) gives the surface impedance per
+  square of one conductor cross-section: pure numerics over an evaluated
+  material and a set of named dimensions, with the inverse-metre geometry
+  weight left to the caller.
+- A **CurrentDistribution** (`current_distribution`, in
+  :mod:`pmrf.models.components.lines.current_distribution`) says how a line's
+  surface current divides across its conductors, pairing shapes with those
+  geometry weights. Planar lines carry one; a coaxial line does not, because
+  its weights are exact constants rather than a fitted rule.
 - A **Roughness** (`roughness`, in :mod:`pmrf.materials.conductor`) modifies
   conductor behaviour rather than line state: it scales a surface impedance,
   and so belongs to the conductor material, not to the geometry.
