@@ -508,10 +508,8 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     construction bit for bit.
     """
     from pmrf.models import HammerstadJensenMicrostripFormulation, KirschningJansenMicrostripDispersion
-    from pmrf.models.components.lines.formulations import (
-        PlanarQuasiStaticResult,
-        _wheeler_conductor_loss_factor,
-    )
+    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
+    from pmrf.models.components.lines.formulations import PlanarQuasiStaticResult
 
     freq = Frequency(start=1.0, stop=50.0, npoints=51, unit="GHz")
     formulation = HammerstadJensenMicrostripFormulation()
@@ -548,7 +546,9 @@ def test_dispersive_microstrip_routes_through_planar_quasi_static_to_immittance(
     ).to_immittance(
         freq, dielectric, conductor,
         current_distribution=line.current_distribution,
-        w=line.w, t=line.substrate.t,
+        cross_section=MicrostripCrossSection(
+            w=line.w, h=line.substrate.h, t=line.substrate.t
+        ),
     )
 
     actual = line.immittance(freq)
@@ -573,6 +573,8 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         length=0.1,
     )
 
+    from pmrf.models.components.lines.cross_section import MicrostripCrossSection
+
     ep_r = line.substrate.dielectric.properties(freq).ep_r
     zs = line.substrate.conductor.properties(freq).zs
     quasi_static = line.formulation.quasi_static(
@@ -584,6 +586,10 @@ def test_microstrip_without_dispersion_preserves_quasi_static_immittance():
         freq,
         line.substrate.dielectric.properties(freq),
         line.substrate.conductor.properties(freq),
+        current_distribution=line.current_distribution,
+        cross_section=MicrostripCrossSection(
+            w=line.w, h=line.substrate.h, t=line.substrate.t
+        ),
     )
     assert jnp.array_equal(actual.Z, expected.Z)
     assert jnp.array_equal(actual.Y, expected.Y)
@@ -629,6 +635,69 @@ def test_microstrip_dispersion_is_a_pure_dispersion_toggle():
     alpha_identity_dispersion = alpha(IdentityDispersion())
 
     assert jnp.allclose(alpha_quasi_static, alpha_identity_dispersion, rtol=1e-2)
+
+
+def test_microstrip_defaults_to_hammerstad_jensen():
+    """#117: the thickness-aware formulation is the microstrip default.
+
+    Hammerstad-Jensen quotes better than 0.2% on effective permittivity and
+    0.01-0.03% on impedance, and the default Kirschning-Jansen dispersion was
+    fitted against its effective width.
+    """
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    assert isinstance(
+        MicrostripLine(length=0.1).formulation, HammerstadJensenMicrostripFormulation
+    )
+
+
+def test_default_microstrip_finite_thickness_has_dc_resistance_floor():
+    """#117: thickness reaches conductor loss on a default-constructed line.
+
+    The issue's worked number: 35 um copper under a 1.55 mm trace gives
+    1/(sigma*W*t) = 0.31781 ohm/m, with no formulation passed by the user.
+    """
+    w, t, sigma = 1.55e-3, 35e-6, 5.8e7
+    line = MicrostripLine(
+        w=w, h=0.8e-3, t=t, conductor=BulkConductor(sigma=sigma), length=0.1
+    )
+    dc = Frequency.from_f(jnp.array([0.0]))
+
+    assert jnp.allclose(line.immittance(dc).R, 1 / (sigma * w * t), rtol=1e-9)
+
+
+def test_wheeler_formulation_accepts_and_ignores_thickness():
+    """#117: a zero-thickness-derived formulation declines t silently.
+
+    Wheeler 1977 is derived for a zero-thickness strip, so t enters neither
+    ep_eff nor zc; rejecting the input would stop the *loss* model from
+    seeing a thickness it can use, so the formulation ignores it instead.
+    """
+    from pmrf.models import WheelerMicrostripFormulation
+
+    ep_r = np.full(4, 4.3 - 0.086j)
+    kwargs = dict(w=3.0e-3, h=1.6e-3, ep_r=ep_r)
+
+    thin = WheelerMicrostripFormulation().quasi_static(t=None, **kwargs)
+    thick = WheelerMicrostripFormulation().quasi_static(t=35e-6, **kwargs)
+
+    assert jnp.allclose(thin.ep_eff, thick.ep_eff)
+    assert jnp.allclose(thin.zc, thick.zc)
+    assert jnp.allclose(thin.w_eff, thick.w_eff)
+
+
+def test_wheeler_microstrip_line_with_thickness_still_gets_dc_floor():
+    """#117: the loss floor is available whatever quasi-static choice is made."""
+    from pmrf.models import WheelerMicrostripFormulation
+
+    w, t, sigma = 1.55e-3, 35e-6, 5.8e7
+    line = MicrostripLine(
+        w=w, h=0.8e-3, t=t, conductor=BulkConductor(sigma=sigma),
+        formulation=WheelerMicrostripFormulation(), length=0.1,
+    )
+    dc = Frequency.from_f(jnp.array([0.0]))
+
+    assert jnp.allclose(line.immittance(dc).R, 1 / (sigma * w * t), rtol=1e-9)
 
 
 def test_microstrip_defaults_to_kirschning_jansen():

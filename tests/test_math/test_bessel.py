@@ -13,8 +13,11 @@ from scipy.special import ive, kve
 from pmrf.math.bessel import (
     I0_OVER_I1_SERIES_CUTOFF,
     K0_OVER_K1_SERIES_CUTOFF,
+    K1E_SERIES_CUTOFF,
     i0_over_i1,
+    i1e,
     k0_over_k1,
+    k1e,
 )
 
 
@@ -112,3 +115,75 @@ def test_k0_over_k1_gradient_is_finite_across_the_branch_switch():
     )
 
     assert jnp.all(jnp.isfinite(grads))
+
+
+@pytest.mark.parametrize(
+    "lo, hi, rtol",
+    [
+        (1e-3, 19.9, 1e-13),
+        (19.9, 20.1, 2e-8),
+        (20.1, 1e4, 2e-8),
+    ],
+)
+def test_i1e_matches_scipy_over_conductor_arguments(lo, hi, rtol):
+    """The scaled I1 is what keeps a thick tube wall evaluable.
+
+    ``scipy.special.ive`` scales by ``exp(-|Re x|)`` for complex arguments
+    while this module scales by ``exp(-x)``, so the reference carries the
+    remaining unit-magnitude phase factor.
+    """
+    magnitude = np.logspace(np.log10(lo), np.log10(hi), 400)
+    x = magnitude * np.exp(1j * np.pi / 4)
+
+    got = np.asarray(i1e(jnp.asarray(x)))
+    expected = ive(1, x) * np.exp(np.abs(x.real) - x)
+
+    assert np.abs(got / expected - 1).max() < rtol
+
+
+@pytest.mark.parametrize(
+    "lo, hi, rtol",
+    [
+        (1e-3, 11.9, 5e-8),
+        (11.9, 12.1, 1e-7),
+        (12.1, 1e4, 2e-9),
+    ],
+)
+def test_k1e_matches_scipy_over_conductor_arguments(lo, hi, rtol):
+    """The scaled K1 uses the same scaling convention as ``kve``.
+
+    The tolerance below the seam is the logarithmic series' own
+    cancellation, which grows to 3.5e-8 as |x| approaches 12; the ten-term
+    expansion above it is 1.3e-9. Both are the accuracy of the evaluation,
+    not a physics allowance.
+    """
+    magnitude = np.logspace(np.log10(lo), np.log10(hi), 400)
+    x = magnitude * np.exp(1j * np.pi / 4)
+
+    got = np.asarray(k1e(jnp.asarray(x)))
+    expected = kve(1, x)
+
+    assert np.abs(got / expected - 1).max() < rtol
+
+
+def test_scaled_bessels_do_not_overflow_for_a_thick_wall():
+    """Unscaled I1 overflows long before the physics stops making sense.
+
+    A 30 mm copper wall at 500 MHz is ~10^4 skin depths, where I1 is e^{1e4};
+    the scaled pair stays O(1) and their ratio is what the tube shape needs.
+    """
+    x = jnp.asarray(1e4 * np.exp(1j * np.pi / 4))
+
+    assert jnp.isfinite(i1e(x)) and i1e(x) != 0
+    assert jnp.isfinite(k1e(x)) and k1e(x) != 0
+
+
+def test_scaled_bessel_gradients_are_finite_across_the_branch_switch():
+    """Safe branch arguments prevent an unused series from poisoning gradients."""
+    magnitudes = jnp.asarray([1e-3, 1.0, K1E_SERIES_CUTOFF, I0_OVER_I1_SERIES_CUTOFF, 1e4])
+
+    for function in (i1e, k1e):
+        def real_part(m, function=function):
+            return jnp.real(function(m * jnp.exp(1j * jnp.pi / 4)))
+
+        assert jnp.all(jnp.isfinite(jax.vmap(jax.grad(real_part))(magnitudes)))

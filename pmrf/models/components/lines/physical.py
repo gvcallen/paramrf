@@ -27,11 +27,16 @@ from pmrf.models.components.lines.formulations import (
     AbstractMicrostripFormulation,
     AbstractStriplineFormulation,
     CohnStriplineFormulation,
+    HammerstadJensenMicrostripFormulation,
     KirschningJansenMicrostripDispersion,
     PlanarQuasiStaticResult,
     SchelkunoffCoaxialFormulation,
     TescheCoaxialFormulation,
     WheelerMicrostripFormulation,
+)
+from pmrf.models.components.lines.cross_section import (
+    MicrostripCrossSection,
+    StriplineCrossSection,
 )
 from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
@@ -269,7 +274,7 @@ class CoaxialLine(AbstractImmittanceLine):
         permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
         coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
         filling sets that material's ``mu_r``.
-        conductor : AbstractConductor, default=BulkConductor()
+    conductor : AbstractConductor, default=BulkConductor()
         The inner conductor material. A scalar conductivity in
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     outer_conductor : AbstractConductor | None, default=None
@@ -331,7 +336,15 @@ class MicrostripLine(AbstractImmittanceLine):
     r"""
     Microstrip line defined by standard geometry and material modules.
     
-    Uses :class:`WheelerMicrostripFormulation` for the default mathematical formulation.
+    Uses :class:`HammerstadJensenMicrostripFormulation` for the default
+    mathematical formulation: it is thickness-aware, and the
+    Kirschning-Jansen dispersion it is paired with was itself fitted against
+    its effective width. :class:`WheelerMicrostripFormulation` (Wheeler 1977)
+    remains available and accepts a thickness, ignoring it in
+    $\varepsilon_e$ and $Z_c$. Neither choice touches the conductor-loss
+    rule, which is Wheeler's *1942* skin-effect result
+    (:class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`)
+    and is still the default ``current_distribution``.
 
     The quasi-static formulation returns a :class:`PlanarQuasiStaticResult`.
     :meth:`PlanarQuasiStaticResult.to_immittance` converts it directly whether
@@ -367,15 +380,17 @@ class MicrostripLine(AbstractImmittanceLine):
     is the exact loss perturbation of the effective-permittivity model, following
     Schneider's energy-perturbation derivation.
 
-    Wheeler's incremental-inductance rule (:func:`_wheeler_conductor_loss_factor`)
-    is the single conductor-loss term charged on both paths:
+    Wheeler's incremental-inductance rule
+    (:class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`,
+    the default ``current_distribution``) is the single conductor-loss term
+    charged on both paths:
     $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
     \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
     applied unconditionally, over the physical width $W$ rather than any
     thickness-widened one. So ``dispersion=None`` is a pure dispersion toggle:
-    the quasi-static formulation's own `conductor_loss_factor` charges the
-    same rule at $Z_{c,loss}=Z_{c,0}$, and the dispersion path charges it
-    again at the dispersed $Z_{c,loss}$. The rule contains no $t$: it sums
+    the distribution charges the same rule at $Z_{c,loss}=Z_{c,0}$ on the
+    quasi-static path and at the dispersed $Z_{c,loss}$ on the other, because
+    it reads $Z_c$ off whichever solved state it is handed. The rule contains no $t$: it sums
     over every receded conductor surface, and the broad-face terms do not
     vanish as $t\to0$. So $t=\text{None}$ ("thickness unspecified") is not
     the same input as $t=0$; it is read as skin effect being in operation
@@ -445,11 +460,14 @@ class MicrostripLine(AbstractImmittanceLine):
         Thickness of the conductor. ``None`` means the thickness is
         unspecified, not that it is zero: skin effect is assumed to be in
         operation regardless, and Wheeler's conductor-loss correction (which
-        does not depend on `t`) is applied unconditionally. Wheeler's
-        quasi-static formulation requires ``None``; thickness-aware
-        formulations such as Hammerstad--Jensen use a positive value to
-        refine the geometry.
-    formulation : AbstractMicrostripFormulation, default=WheelerMicrostripFormulation()
+        does not depend on `t`) is applied unconditionally. A positive value
+        gets a dc resistance floor $R_{dc}=1/(\sigma W t)$. Wheeler's
+        quasi-static formulation accepts a thickness and ignores it in
+        $\varepsilon_e$ and $Z_c$; thickness-aware
+        formulations such as Hammerstad--Jensen (the default) use a positive
+        value to refine the geometry; thickness reaches the conductor-loss
+        term regardless of which formulation is selected.
+    formulation : AbstractMicrostripFormulation, default=HammerstadJensenMicrostripFormulation()
         The closed-form physics used to compute the quasi-static solution.
     dispersion : AbstractMicrostripDispersion | None, default=KirschningJansenMicrostripDispersion()
         The modal-dispersion correction. ``None`` disables modal dispersion and
@@ -481,7 +499,9 @@ class MicrostripLine(AbstractImmittanceLine):
     substrate: Substrate = field(default_factory=Substrate, converter=as_substrate)
 
     #: The underlying physics formulation
-    formulation: AbstractMicrostripFormulation = field(default_factory=WheelerMicrostripFormulation)
+    formulation: AbstractMicrostripFormulation = field(
+        default_factory=HammerstadJensenMicrostripFormulation
+    )
 
     #: The modal-dispersion formulation, or None to disable it
     dispersion: AbstractMicrostripDispersion | None = field(
@@ -520,7 +540,7 @@ class MicrostripLine(AbstractImmittanceLine):
         self.w = w
         self.substrate = Substrate(**given) if substrate is None else substrate
         self.formulation = (
-            WheelerMicrostripFormulation() if formulation is None else formulation
+            HammerstadJensenMicrostripFormulation() if formulation is None else formulation
         )
         self.dispersion = (
             KirschningJansenMicrostripDispersion()
@@ -592,11 +612,11 @@ class MicrostripLine(AbstractImmittanceLine):
         substrate = self.substrate
         conductor = substrate.conductor.properties(freq)
         dielectric = substrate.dielectric.properties(freq)
-        t = substrate.t
+        cross_section = MicrostripCrossSection(w=self.w, h=substrate.h, t=substrate.t)
         return self._resolved_quasi_static(freq).to_immittance(
             freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w, t=t,
+            cross_section=cross_section,
         )
 
     def ep_eff(self, freq: Frequency) -> jnp.ndarray:
@@ -754,5 +774,7 @@ class StriplineLine(AbstractImmittanceLine):
         return quasi_static.to_immittance(
             freq, dielectric, conductor,
             current_distribution=self.current_distribution,
-            w=self.w, b=self.b, t=self.t, ep_r=dielectric.ep_r,
+            cross_section=StriplineCrossSection(
+                w=self.w, b=self.b, t=self.t, ep_r=dielectric.ep_r
+            ),
         )

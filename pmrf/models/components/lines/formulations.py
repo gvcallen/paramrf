@@ -1,7 +1,9 @@
 """
 Closed-form physics for transmission lines (coaxial, microstrip, stripline).
 
-Three distinct strategy roles appear on a line model, each with its own field:
+Five distinct strategy roles appear across the line models, each with its own
+field. The vocabulary is defined once in ``CONTEXT.md`` at the repo root; the
+architectural decisions behind it are in ``docs/adr/``.
 
 - A **Formulation** (`formulation`) produces the complete electrical state a
   model needs to reach S-parameters: either a per-unit-length immittance
@@ -12,6 +14,16 @@ Three distinct strategy roles appear on a line model, each with its own field:
   exists where the cross-section is inhomogeneous and the mode is therefore not
   strictly TEM -- microstrip has one, homogeneously filled coaxial and stripline
   do not.
+- A **ConductorShape**
+  (:mod:`pmrf.materials.conductor_shape`) gives the surface impedance per
+  square of one conductor cross-section: pure numerics over an evaluated
+  material and a set of named dimensions, with the inverse-metre geometry
+  weight left to the caller.
+- A **CurrentDistribution** (`current_distribution`, in
+  :mod:`pmrf.models.components.lines.current_distribution`) says how a line's
+  surface current divides across its conductors, pairing shapes with those
+  geometry weights. Planar lines carry one; a coaxial line does not, because
+  its weights are exact constants rather than a fitted rule.
 - A **Roughness** (`roughness`, in :mod:`pmrf.materials.conductor`) modifies
   conductor behaviour rather than line state: it scales a surface impedance,
   and so belongs to the conductor material, not to the geometry.
@@ -30,14 +42,12 @@ from pmrf.frequency import Frequency
 from pmrf.materials import ConductorProperties, DielectricProperties
 from pmrf.materials.conductor_shape import (
     AbstractConductorShape,
-    HalfSpaceShape,
     SchelkunoffRodShape,
     SchelkunoffTubeShape,
-    SchelkunoffCothTubeShape,
-    SchelkunoffInfiniteTubeShape,
     TescheRodShape,
     TescheTubeShape,
 )
+from pmrf.models.components.lines.cross_section import AbstractPlanarCrossSection
 from pmrf.models.components.lines.current_distribution import (
     AbstractCurrentDistribution,
     CohnCurrentDistribution,
@@ -66,9 +76,6 @@ class PlanarQuasiStaticResult(eqx.Module):
         Quasi-static characteristic impedance in ohms, $Z_a/\sqrt{\varepsilon_e}$.
     w_eff : jnp.ndarray
         Electromagnetic effective conductor width in meters.
-    conductor_loss_factor : jnp.ndarray | None
-        Legacy scalar geometry factor retained for direct callers. Line models
-        use a current-distribution strategy instead.
     shunt_conductance_factor : jnp.ndarray
         Geometry factor multiplying static conductivity, in meters.
     """
@@ -84,14 +91,11 @@ class PlanarQuasiStaticResult(eqx.Module):
     #: Geometry factor multiplying static conductivity
     shunt_conductance_factor: jnp.ndarray
 
-    #: Legacy geometry factor for callers predating current distributions
-    conductor_loss_factor: jnp.ndarray | None = None
-
     def to_immittance(
         self, freq: Frequency, dielectric: DielectricProperties,
         conductor: ConductorProperties,
-        current_distribution: AbstractCurrentDistribution | None = None,
-        **geometry,
+        current_distribution: AbstractCurrentDistribution,
+        cross_section: AbstractPlanarCrossSection,
     ) -> ImmittanceResult:
         r"""
         Converts the quasi-static solution into a per-unit-length immittance.
@@ -114,8 +118,15 @@ class PlanarQuasiStaticResult(eqx.Module):
         ----------
         freq : Frequency
             The frequency axis.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square.
+        dielectric : DielectricProperties
+            Evaluated relative permittivity and permeability.
+        conductor : ConductorProperties
+            Evaluated conductor properties.
+        current_distribution : AbstractCurrentDistribution
+            The strategy that charges surface impedance into $Z$. It must be
+            written for the family ``cross_section`` belongs to.
+        cross_section : AbstractPlanarCrossSection
+            The line's frozen cross-section record.
 
         Returns
         -------
@@ -126,27 +137,28 @@ class PlanarQuasiStaticResult(eqx.Module):
         ----------
         Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.
         """
-        w = freq.w
+        omega = freq.w
         sqrt_ep_eff_mu = jnp.sqrt(self.ep_eff * dielectric.mu_r)
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
-        Z = 1j * w * self.zc * sqrt_ep_eff_mu / c
-        if current_distribution is None:
-            if self.conductor_loss_factor is None:
-                raise ValueError("current_distribution is required")
-            Z_cond = conductor.zs * self.conductor_loss_factor
-        else:
-            Z_cond = sum(
-                shape.impedance(w, conductor) * weight
-                for shape, weight in current_distribution.distribute(
-                    freq, zc=self.zc, **geometry
-                )
+        Z = 1j * omega * self.zc * sqrt_ep_eff_mu / c
+        # Cross-section dimensions reach the shape from the typed record, and
+        # the weight the shape is about to be multiplied by travels with
+        # them: an entry whose dc floor is fixed in per-unit-length terms
+        # needs it to express that floor in this caller's normalisation.
+        # Every other entry ignores it.
+        dimensions = cross_section.dimensions()
+        Z_cond = sum(
+            shape.impedance(omega, conductor, weight=weight, **dimensions) * weight
+            for shape, weight in current_distribution.distribute(
+                freq, cross_section, self
             )
+        )
         Z = Z + Z_cond
-        Y = 1j * w * sqrt_ep_eff_over_mu / (self.zc * c)
+        Y = 1j * omega * sqrt_ep_eff_over_mu / (self.zc * c)
         Y = Y + dielectric.sigma * self.shunt_conductance_factor
 
-        return ImmittanceResult(Z=Z, Y=Y, w=w)
+        return ImmittanceResult(Z=Z, Y=Y, w=omega)
 
 
 class AbstractCoaxialFormulation(eqx.Module):
@@ -188,12 +200,11 @@ class AbstractCoaxialFormulation(eqx.Module):
 
 
 def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_shape: AbstractConductorShape, shield_shape: AbstractConductorShape) -> ImmittanceResult:
-    """Assemble a coaxial line's immittance around a choice of inner-conductor shape.
+    """Assemble a coaxial line's immittance around a choice of cross-section shapes.
 
-    Everything but the inner rod is common to every coaxial formulation here:
-    the external inductance and the shunt admittance are pure geometry, and
-    the shield's contribution is selected from the cylindrical tube shapes. The formulations
-    differ only in how the solid centre conductor's cross-section is solved.
+    The external inductance and the shunt admittance are pure geometry and are
+    common to every coaxial formulation here; the two conductors differ only
+    in which cross-section shape solves them, which the formulation supplies.
     """
     eps = epsilon_0 * dielectric.ep_r
     mu = mu_0 * dielectric.mu_r
@@ -205,21 +216,13 @@ def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricP
 
     L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
-    rod_zs = inner_shape.impedance(w, conductor, a=a)
-    Z_int = rod_zs / (2 * jnp.pi * a)
-    # An unspecified wall is the infinite-wall cylindrical limit. A finite wall
-    # uses Schelkunoff's tube solution; its cheaper coth-plus-curvature sibling
-    # remains available as a public cross-section entry for large sweeps.
+    Z_int = inner_shape.impedance(w, conductor, a=a) / (2 * jnp.pi * a)
+    # An unmodelled wall is an infinitely thick one, which every tube shape
+    # takes analytically -- so the shield is one call whatever shape it is,
+    # with no branch on the shape's type or on whether a wall was given.
     shield_conductor = conductor if outer_conductor is None else outer_conductor
-    if shield_thickness is None:
-        if isinstance(shield_shape, HalfSpaceShape):
-            shield_zs = shield_shape.impedance(w, shield_conductor)
-        else:
-            shield_zs = shield_shape.impedance(w, shield_conductor, a=b)
-    else:
-        shield_zs = shield_shape.impedance(
-            w, shield_conductor, a=b, t=shield_thickness
-        )
+    wall = jnp.inf if shield_thickness is None else shield_thickness
+    shield_zs = shield_shape.impedance(w, shield_conductor, a=b, t=wall)
     Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
     Z = 1j * w * L_ext + Z_int
@@ -246,12 +249,14 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     $G = -2\pi\omega\Im(\varepsilon)/\ln(b/a)$. Each conductor's series
     impedance is a shape's surface impedance charged over its circumference,
     $Z = Z_s/2\pi r$: the inner conductor is a
-    :class:`~pmrf.materials.conductor_shape.TescheRodShape`, and the outer
-    shield -- treated as infinitely thick because only its inner diameter is
-    part of :class:`CoaxialLine` -- is the
-    :class:`~pmrf.materials.conductor_shape.HalfSpaceShape` limit that Tesche's
-    tube circuit approaches as its wall thickens; the finite-wall form is
-    :class:`~pmrf.materials.conductor_shape.TescheTubeShape`.
+    :class:`~pmrf.materials.conductor_shape.TescheRodShape` by default and
+    the shield a :class:`~pmrf.materials.conductor_shape.TescheTubeShape`.
+    An unspecified ``shield_thickness`` is an infinite wall, which the tube
+    circuit takes analytically: its dc resistance vanishes and its internal
+    inductance diverges, leaving the
+    :class:`~pmrf.materials.conductor_shape.HalfSpaceShape` impedance
+    $\zeta_c$. Both shapes are fields, so either conductor's cross-section
+    can be swapped without subclassing.
 
     A magnetic filling needs no special case. With complex $\mu_r$ the external
     term $j\omega L'$ acquires the real part $\omega\mu''\ln(b/a)/2\pi$, so
@@ -282,12 +287,18 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
+    #: Cross-section shape of the inner conductor
+    inner_shape: AbstractConductorShape = TescheRodShape()
+    #: Cross-section shape of the shield, called with the shield's inner
+    #: radius and its wall thickness, infinite when none is given
+    shield_shape: AbstractConductorShape = TescheTubeShape()
+
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
             conductor=conductor, outer_conductor=outer_conductor,
-            shield_thickness=shield_thickness, inner_shape=TescheRodShape(),
-            shield_shape=(HalfSpaceShape() if shield_thickness is None else TescheTubeShape()),
+            shield_thickness=shield_thickness, inner_shape=self.inner_shape,
+            shield_shape=self.shield_shape,
         )
 
 
@@ -309,31 +320,40 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     \frac{I_0(\gamma a)}{I_1(\gamma a)},\qquad
     \gamma = \sqrt{j\omega\mu\sigma}.$$
 
-    An unspecified shield thickness uses the matching infinite-wall tube
-    solution, $Z_{outer}=\zeta_c K_0(\gamma b)/(2\pi bK_1(\gamma b))$;
-    a specified thickness uses Schelkunoff's finite-tube equation.
+    The shield is a :class:`~pmrf.materials.conductor_shape.SchelkunoffTubeShape`,
+    Schelkunoff's eq. (74) referred to the tube's inner surface. An
+    unspecified ``shield_thickness`` is an infinite wall, which that
+    expression takes analytically, leaving
+    $Z_{outer}=\zeta_c K_0(\gamma b)/(2\pi bK_1(\gamma b))$. Both shapes
+    are fields, so either conductor's cross-section can be swapped without
+    subclassing.
 
     **Validity**
 
-    Exact for the inner conductor at every frequency, dc included, so unlike
+    Exact for both conductors at every frequency, dc included, so unlike
     Tesche it leaves no frequency-shaped residual for a conductivity fit to
-    absorb. The shield remains infinitely thick, since only its inner
-    diameter is part of :class:`CoaxialLine`. The transmission-line
-    description is still the outer limit: it assumes the TEM mode, so it
-    holds below the TE11 cutoff
+    absorb. The transmission-line description is still the outer limit: it
+    assumes the TEM mode, so it holds below the TE11 cutoff
     $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.
 
     References
     ----------
     Schelkunoff, S. A. (1934). The Electromagnetic Theory of Coaxial Transmission Lines
-    and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579. Eq. (65).
+    and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
+    Eq. (65), (74).
     """
+    #: Cross-section shape of the inner conductor
+    inner_shape: AbstractConductorShape = SchelkunoffRodShape()
+    #: Cross-section shape of the shield, called with the shield's inner
+    #: radius and its wall thickness, infinite when none is given
+    shield_shape: AbstractConductorShape = SchelkunoffTubeShape()
+
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
             conductor=conductor, outer_conductor=outer_conductor,
-            shield_thickness=shield_thickness, inner_shape=SchelkunoffRodShape(),
-            shield_shape=(SchelkunoffInfiniteTubeShape() if shield_thickness is None else SchelkunoffTubeShape()),
+            shield_thickness=shield_thickness, inner_shape=self.inner_shape,
+            shield_shape=self.shield_shape,
         )
 
 
@@ -352,19 +372,18 @@ class AbstractMicrostripFormulation(eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
-            The frequency axis.
         w : ArrayLike
             Width of the microstrip trace in meters.
         h : ArrayLike
             Height of the dielectric substrate in meters.
         t : ArrayLike | None
-            Thickness of the trace in meters, or None for a zero-thickness trace.
+            Thickness of the trace in meters, or ``None`` when it is
+            unspecified. A formulation derived for a zero-thickness strip
+            accepts it and ignores it rather than rejecting it; thickness
+            reaches conductor loss through the line's cross-section either
+            way.
         ep_r : jnp.ndarray
             Complex relative permittivity of the substrate, shape ``(npoints,)``.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square,
-            shape ``(npoints,)``.
 
         Returns
         -------
@@ -377,6 +396,13 @@ class AbstractMicrostripFormulation(eqx.Module):
 class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     r"""
     Microstrip line formulation using the standard Wheeler approximations.
+
+    This is Wheeler's 1977 quasi-static impedance approximation. It is not
+    the ParamRF default -- :class:`HammerstadJensenMicrostripFormulation` is.
+    It is a different paper from
+    :class:`~pmrf.models.components.lines.current_distribution.WheelerCurrentDistribution`
+    (Wheeler 1942), the skin-effect conductor-loss rule, which *is* the default
+    current distribution and is unaffected by the choice of formulation.
 
     **Mathematical Formulation**
 
@@ -391,16 +417,20 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     $\varepsilon_r$ is complex, and $\varepsilon_e$ is linear in it, so the
     dielectric loss carries through the same filling factor as the real part and
     needs no separate loss-tangent term. The effective width is $W$: the
-    approximation is derived for a zero-thickness strip, so `zs` does not enter
-    here. Conductor loss is charged separately, through
-    `conductor_loss_factor`, by Wheeler's own incremental-inductance rule
-    (see :func:`_wheeler_conductor_loss_factor`), applied over the physical
-    width $W$ rather than a thickness-widened one.
+    approximation is derived for a zero-thickness strip, so conductor properties
+    do not enter here. Conductor loss is not produced by this formulation at
+    all: the line charges it through its
+    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
 
     **Validity**
 
-    Derived for a zero-thickness strip on an isotropic, non-magnetic substrate,
-    which is why finite thickness is rejected rather than ignored. It is a
+    Derived for a zero-thickness strip on an isotropic, non-magnetic substrate.
+    A finite thickness is accepted and ignored: it does not enter this
+    formulation's $\varepsilon_e$ or $Z_c$, and the line applies it to
+    conductor loss instead, through the cross-section it hands its
+    current distribution. Use
+    :class:`HammerstadJensenMicrostripFormulation` -- the ParamRF default --
+    when the thickness should also widen the strip electrically. It is a
     quasi-static result and carries no modal dispersion, so it describes the
     line only well below the frequency at which $\varepsilon_e$ begins to rise
     towards $\varepsilon_r$; pair it with an
@@ -414,9 +444,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     IEEE Transactions on Microwave Theory and Techniques.
     """
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
-        if t is not None:
-            raise ValueError("Wheeler microstrip approximation does not support finite thickness")
-
+        # t is accepted and ignored: the 1977 result is derived for a
+        # zero-thickness strip, so thickness enters neither ep_eff nor zc. It
+        # still reaches the current distribution through the line's
+        # cross-section, where it refines conductor loss.
         W, H = w, h
         u = W / H
 
@@ -438,10 +469,7 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
         zc = Za / jnp.sqrt(ep_eff)
         w_eff = W * jnp.ones_like(ep_r)
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        return PlanarQuasiStaticResult(
-            ep_eff, zc, w_eff, conductance_factor,
-            _wheeler_conductor_loss_factor(W, zc),
-        )
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductance_factor)
 
 
 class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
@@ -476,11 +504,9 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     \qquad W_{eff}=u_rH,$$
     where $e$ denotes the bracketed permittivity expression before its
     thickness correction. $W_{eff}$ is the electromagnetic fringing width and
-    feeds the dispersion formulation; conductor loss is charged separately,
-    through `conductor_loss_factor`, by Wheeler's incremental-inductance rule
-    (see :func:`_wheeler_conductor_loss_factor`) over the physical width $W$,
-    which is the correct one for that rule regardless of which formulation
-    supplied the quasi-static solution.
+    feeds the dispersion formulation; conductor loss is not produced here at all,
+    but charged separately by the line's
+    :class:`~pmrf.models.components.lines.current_distribution.AbstractCurrentDistribution`.
 
     The fractional power in $b$ is evaluated through the principal logarithm.
     The dielectric constraint $\Re(\varepsilon_r)>1$ keeps its argument away
@@ -536,10 +562,7 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         ep_eff = e * (z1 / zr) ** 2
         w_eff = ur * h
         conductance_factor = _microstrip_conductance_factor(ep_r, ep_eff, zc)
-        return PlanarQuasiStaticResult(
-            ep_eff, zc, w_eff, conductance_factor,
-            _wheeler_conductor_loss_factor(w, zc),
-        )
+        return PlanarQuasiStaticResult(ep_eff, zc, w_eff, conductance_factor)
 
     @staticmethod
     def _homogeneous_impedance(u):
@@ -739,8 +762,6 @@ class AbstractStriplineFormulation(eqx.Module):
 
         Parameters
         ----------
-        freq : Frequency
-            The frequency axis.
         w : ArrayLike
             Width of the centre strip in meters.
         b : ArrayLike
@@ -749,9 +770,6 @@ class AbstractStriplineFormulation(eqx.Module):
             Thickness of the strip in meters, or None for a zero-thickness strip.
         ep_r : jnp.ndarray
             Complex relative permittivity of the filling, shape ``(npoints,)``.
-        zs : jnp.ndarray
-            Complex surface impedance of the conductor in ohm per square,
-            shape ``(npoints,)``.
 
         Returns
         -------
@@ -776,29 +794,12 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     the characteristic impedance of the zero-thickness strip is
     $$Z_c = \frac{30\pi}{\sqrt{\varepsilon_r}}\frac{b}{W_e + 0.441b}.$$
 
-    Conductor loss follows Cohn's incremental-inductance result, which unlike
-    the impedance does depend on the strip thickness $T$:
-    $$\frac{\alpha_c}{R_s} = \begin{cases}
-    \dfrac{2.7\times10^{-3}\,\varepsilon_r Z_c}{30\pi(b-T)}A,
-        & \sqrt{\varepsilon_r}Z_c < 120,\\[2ex]
-    \dfrac{0.16}{Z_c b}B, & \sqrt{\varepsilon_r}Z_c \geq 120,
-    \end{cases}$$
-    $$A = 1 + \frac{2W}{b-T}
-    + \frac{1}{\pi}\frac{b+T}{b-T}\ln\frac{2b-T}{T}$$
-    $$B = 1 + \frac{b}{0.5W + 0.7T}
-    \left(0.5 + \frac{0.7T}{W} + \frac{1}{2\pi}\ln\frac{4\pi W}{T}\right).$$
-
-    That attenuation is returned directly as the conductor-loss factor, not
-    disguised as a width. A per-unit-length series resistance is
-    $R = 2\alpha_c Z_c$, so the factor multiplying the surface impedance is
-    $$K_c = 2\frac{\alpha_c}{R_s}Z_c,$$
-    which is independent of $R_s$. The returned $W_e$ stays the genuine
+    Conductor loss is not produced here: this formulation returns no loss
+    factor, and Cohn's attenuation lives in
+    :class:`~pmrf.models.components.lines.current_distribution.CohnCurrentDistribution`,
+    which the line pairs with it by default. The returned $W_e$ is the genuine
     electromagnetic fringing width and is not reused for loss. Dielectric loss
     needs no separate term: $\varepsilon_e$ is complex, and carries it.
-
-    The formulas are the standard piecewise fits, discontinuous by a fraction of
-    a percent at $\sqrt{\varepsilon_r}Z_c = 120$; the branch is selected on the
-    real parts.
 
     **Validity**
 
@@ -806,11 +807,8 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
     there is no fit range on the permittivity and no modal dispersion below the
     first higher-order mode. The impedance expression is Cohn's zero-thickness
     result with a fringing correction whose two branches meet at $W/b = 0.35$;
-    the attenuation fit is piecewise in $\sqrt{\varepsilon_r} Z_c$ and is
-    discontinuous there by a fraction of a percent. Finite thickness must
-    satisfy $0 < T < b$, which is enforced, and the attenuation diverges
-    logarithmically as $T \to 0$, so a zero-thickness strip is given no
-    conductor loss rather than an infinite one.
+    finite thickness must satisfy $0 < T < b$, which is enforced. The impedance
+    itself does not depend on $T$.
 
     References
     ----------
@@ -834,36 +832,6 @@ class CohnStriplineFormulation(AbstractStriplineFormulation):
         return PlanarQuasiStaticResult(
             ep_eff, zc, w_e * ones, shunt_conductance_factor,
         )
-
-def _wheeler_conductor_loss_factor(w, zc):
-    r"""Wheeler's incremental-inductance rule, as a `conductor_loss_factor`.
-
-    $$k_c = \frac{2}{W}\exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right]$$
-
-    charges the sheet impedance over the physical trace width $W$, not the
-    dispersion-widened $W_{eff}$: the rule sums over every receded conductor
-    surface, and those terms do not vanish as $t\to0$, so the effective width
-    used to widen the current-carrying geometry is not the right one here.
-    $Z_c$ is the (possibly dispersed) characteristic impedance at the point in
-    the line's pipeline where the factor is evaluated; only its real part
-    enters, since the exponent is a lossless current-crowding correction.
-
-    This is the low-loss linearisation shared by both callers: charged
-    directly onto $\gamma$ it reproduces the rule's own $\alpha_c$, and
-    charged onto $Z$ through :meth:`PlanarQuasiStaticResult.to_immittance` it
-    reduces to the same $\alpha_c$ once $Z=\gamma Z_c$ is inverted, using
-    $\Re(\gamma) \approx \Re(Z_s k_c)/(2\Re(Z_c))$ for a small series
-    perturbation on an otherwise lossless line.
-
-    References
-    ----------
-    Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
-    IRE, 30(9), 412-424.
-    """
-    z0 = jnp.sqrt(mu_0 / epsilon_0)
-    current_distribution = jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-    return 2 / w * current_distribution
-
 
 def _microstrip_conductance_factor(ep_r, ep_eff, zc):
     """Convert static substrate conductivity through the quasi-static fill."""

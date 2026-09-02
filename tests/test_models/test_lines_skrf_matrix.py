@@ -184,9 +184,16 @@ _COAX_MODELS = {
 }
 
 
-def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche"):
-    """A ParamRF/scikit-rf builder pair for one coaxial geometry."""
+def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche",
+               rho_shield=None, shield_thickness=None):
+    """A ParamRF/scikit-rf builder pair for one coaxial geometry.
+
+    ``rho_shield`` gives the shield a metal of its own, and
+    ``shield_thickness`` a finite wall; leaving either out keeps scikit-rf on
+    its own defaults, so the existing cases are unaffected.
+    """
     sigma = _sigma_of_rho(rho)
+    sigma_shield = None if rho_shield is None else _sigma_of_rho(rho_shield)
     formulation = _COAX_MODELS[model]()
 
     def line(length):
@@ -194,13 +201,25 @@ def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche"):
             d_in=d_in, d_out=d_out, dielectric=dielectric,
             conductor=BulkConductor(sigma=sigma), length=length,
             formulation=formulation,
+            outer_conductor=(
+                None if sigma_shield is None else BulkConductor(sigma=sigma_shield)
+            ),
+            shield_thickness=shield_thickness,
         )
 
     def media(freq, z0_port=None):
+        conductors = {}
+        if sigma_shield is not None:
+            # scikit-rf warns unless both conductors are described together.
+            conductors = dict(
+                inner_conductor={"sigma": sigma},
+                outer_conductor={"sigma": sigma_shield},
+            )
         return Coaxial(
             freq, Dint=d_in, Dout=d_out, model=model, z0_port=z0_port,
-            sigma=sigma,
+            sigma=sigma, tout=shield_thickness,
             dielectric={"ep_r": ep_r_of_f(np.asarray(freq.f))},
+            **conductors,
         )
 
     return {"line": line, "media": media}
@@ -317,6 +336,33 @@ COAX_CASES += [
                     RHO_COPPER, lambda f: _coax_ep_r(1.2, 1e-4, f=f),
                     model="schelkunoff"),
         length=0.2, z0=75.0,
+        tol=_SCHELKUNOFF_EXACT,
+    ),
+    Case(
+        id="dissimilar_metals_finite_shield_schelkunoff",
+        purpose="The outstanding criterion of #98: a copper centre conductor "
+                "inside a 25 um stainless shield, so the two conductors carry "
+                "different metals and the shield's finite wall is in play. "
+                "This is the case that pins Schelkunoff's eq. (74) for the "
+                "tube, whose weak-skin limit the kilohertz end of the sweep "
+                "sits in -- the regime a strong-skin approximation gets wrong "
+                "by a factor approaching two.",
+        **_coax_pair(0.9e-3, 2.95e-3, ConstantDielectric(ep_r=2.25, tand=1e-3),
+                    RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
+                    model="schelkunoff", rho_shield=RHO_STEEL,
+                    shield_thickness=25e-6),
+        length=0.5, z0=50.0,
+        tol=_SCHELKUNOFF_EXACT,
+    ),
+    Case(
+        id="thick_wall_shield_schelkunoff",
+        purpose="A 0.5 mm copper wall, thick enough that the shield is a "
+                "curved half-space above a megahertz and strongly coupled "
+                "below it, so the tube's transition is swept end to end.",
+        **_coax_pair(0.9e-3, 2.95e-3, ConstantDielectric(ep_r=2.25, tand=1e-3),
+                    RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
+                    model="schelkunoff", shield_thickness=0.5e-3),
+        length=0.5, z0=50.0,
         tol=_SCHELKUNOFF_EXACT,
     ),
 ]
