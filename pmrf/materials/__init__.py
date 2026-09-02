@@ -1,10 +1,9 @@
 """
 Frequency-dependent materials.
 
-Materials are :class:`pmrf.Module` sub-modules rather than string flags, so
-every dispersion coefficient is a :class:`pmrf.Param`: fittable, constrainable
-and sweepable. A dielectric owns the shunt terms (permittivity, loss tangent,
-static conductivity); a conductor owns the series terms (surface impedance).
+Materials are :class:`pmrf.Module` sub-modules.
+Dielectrics refer to the shunt terms (permittivity, loss tangent, static conductivity),
+while conductors refer to the series terms (surface impedance).
 """
 from pmrf.materials.dielectric import (
     AbstractDielectric as AbstractDielectric,
