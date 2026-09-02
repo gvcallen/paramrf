@@ -15,7 +15,7 @@ from scipy.constants import mu_0
 
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
-from pmrf.materials.roughness import AbstractRoughness
+from pmrf.materials import roughness as _roughness
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
 from pmrf.materials.properties import ConductorProperties
@@ -32,55 +32,6 @@ class AbstractConductor(Module):
     @abstractmethod
     def properties(self, freq: Frequency) -> ConductorProperties:
         """Evaluate surface impedance, conductivity, and permeability."""
-
-
-class HammerstadRoughness(AbstractRoughness):
-    r"""
-    Hammerstad-Jensen surface-roughness correction.
-
-    **Mathematical Formulation**
-
-    $$K(\omega) = 1 + \frac{2}{\pi}\arctan\left(1.4\left(\frac{\Delta}{\delta}\right)^2\right)$$
-
-    where $\Delta$ is the RMS surface roughness and $\delta$ the skin depth. The
-    factor saturates at $2$, which is the well-known limitation of the model.
-
-    **Validity**
-
-    A Roughness is a correction to conductor behaviour, not a line formulation:
-    it scales a smooth surface impedance and produces no state of its own. The
-    skin depth is derived here from frequency, conductivity and permeability
-    rather than being part of the conductor interface, so the correction is
-    meaningful only for a conductor whose loss is genuinely skin-effect
-    limited -- :class:`RoughConductor` therefore extends :class:`BulkConductor`
-    rather than the abstract conductor, and a non-bulk conductor cannot silently
-    acquire one. The arctangent fit is empirical and saturates at $2$: it
-    understates loss once $\Delta/\delta$ exceeds roughly unity, which is the
-    documented limitation of the Hammerstad-Jensen form rather than a rejected
-    input.
-
-    References
-    ----------
-    Hammerstad, E., & Jensen, O. (1980). Accurate Models for Microstrip
-    Computer-Aided Design. IEEE MTT-S International Microwave Symposium Digest,
-    407-409.
-
-    Parameters
-    ----------
-    roughness : Param, default=0.0
-        RMS surface roughness in meters.
-    """
-    #: RMS surface roughness in meters
-    roughness: Param = param(default=0.0, constraint=Positive())
-
-    def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
-        w = jnp.asarray(freq.w)
-        safe_w = jnp.where(w > 0, w, 1.0)
-        skin_depth = jnp.where(
-            w > 0, jnp.sqrt(2 / (safe_w * mu_0 * mu_r * sigma)), jnp.inf
-        )
-        ratio = self.roughness / skin_depth
-        return 1 + (2 / jnp.pi) * jnp.arctan(1.4 * ratio**2)
 
 
 class BulkConductor(AbstractConductor):
@@ -149,7 +100,8 @@ class RoughConductor(BulkConductor):
     $$Z_s(\omega) = K(\omega) \sqrt{\frac{j\omega\mu}{\sigma}}$$
 
     where $K$ is supplied by the `roughness` formulation, and equals $1$ for a
-    perfectly smooth surface. See :class:`HammerstadRoughness` for the default.
+    perfectly smooth surface. See
+    :class:`~pmrf.materials.roughness.HammerstadRoughness` for the default.
 
     References
     ----------
@@ -165,12 +117,14 @@ class RoughConductor(BulkConductor):
         Relative permeability of the conductor.
     roughness : AbstractRoughness, default=HammerstadRoughness()
         The roughness correction formulation. A scalar RMS roughness in meters
-        is coerced into a :class:`HammerstadRoughness` correction.
+        is coerced into a
+        :class:`~pmrf.materials.roughness.HammerstadRoughness` correction.
     """
     #: The roughness correction formulation
-    roughness: AbstractRoughness = field(
-        default_factory=HammerstadRoughness,
-        converter=lambda x: x if isinstance(x, AbstractRoughness) else HammerstadRoughness(x),
+    roughness: _roughness.AbstractRoughness = field(
+        default_factory=_roughness.HammerstadRoughness,
+        converter=lambda x: x if isinstance(x, _roughness.AbstractRoughness)
+        else _roughness.HammerstadRoughness(x),
     )
 
     def properties(self, freq: Frequency) -> ConductorProperties:
