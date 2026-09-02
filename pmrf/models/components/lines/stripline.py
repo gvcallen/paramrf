@@ -11,7 +11,7 @@ from scipy.constants import c, epsilon_0
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import AbstractConductor, AbstractDielectric, BulkConductor, ConstantDielectric, as_conductor, as_dielectric
-from pmrf.materials.surface_impedance import HalfSpaceShape
+from pmrf.materials.surface_impedance import HalfSpaceSurfaceImpedance
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.models.components.lines.planar import AbstractCurrentDistribution, AbstractPlanarCrossSection, PlanarQuasiStaticResult
 from pmrf.parameters import Param, as_param, param
@@ -84,7 +84,7 @@ class CohnCurrentDistribution(AbstractCurrentDistribution[StriplineCrossSection]
             alpha_high = 0.16 / (zc_real * b) * beta
             alpha_over_rs = jnp.where(jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high)
             weight = 2 * alpha_over_rs * zc_real
-        return ((HalfSpaceShape(), weight),)
+        return ((HalfSpaceSurfaceImpedance(), weight),)
 
 
 class AbstractStriplineFormulation(eqx.Module):

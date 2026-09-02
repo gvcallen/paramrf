@@ -8,11 +8,11 @@ import pmrf as prf
 from pmrf.frequency import Frequency
 from pmrf.materials import (
     DielectricProperties,
-    ColeCole,
+    ColeColeDielectric,
     ConstantDielectric,
     DebyePole,
-    DjordjevicSarkar,
-    MultipoleDebye,
+    DjordjevicSarkarDielectric,
+    MultipoleDebyeDielectric,
     TabulatedDielectric,
     as_dielectric,
 )
@@ -96,20 +96,20 @@ def test_djordjevic_sarkar_matches_skrf(wideband_freq):
         None, ep_r=ep_r, tand=tand, f_low=f_low, f_high=f_high,
         f_epr_tand=f_ref, f=f, diel='djordjevicsvensson',
     )
-    got = DjordjevicSarkar(ep_r, tand, f_low, f_high, f_ref).properties(wideband_freq).ep_r
+    got = DjordjevicSarkarDielectric(ep_r, tand, f_low, f_high, f_ref).properties(wideband_freq).ep_r
 
     assert jnp.allclose(got, jnp.asarray(expected), rtol=1e-10, atol=0.0)
 
 
 def test_djordjevic_sarkar_matches_target_at_reference():
     freq = Frequency.from_f(jnp.array([1e9]))
-    eps = DjordjevicSarkar(4.3, 0.02, f_ref=1e9).properties(freq).ep_r
+    eps = DjordjevicSarkarDielectric(4.3, 0.02, f_ref=1e9).properties(freq).ep_r
     assert jnp.allclose(jnp.real(eps), 4.3, rtol=1e-6)
     assert jnp.allclose(-jnp.imag(eps) / jnp.real(eps), 0.02, rtol=1e-6)
 
 
 def test_djordjevic_sarkar_is_dispersive(wideband_freq):
-    eps = DjordjevicSarkar(4.3, 0.02).properties(wideband_freq).ep_r
+    eps = DjordjevicSarkarDielectric(4.3, 0.02).properties(wideband_freq).ep_r
     # Permittivity falls monotonically with frequency inside the relaxation band.
     assert jnp.all(jnp.diff(jnp.real(eps)) < 0)
 
@@ -117,27 +117,27 @@ def test_djordjevic_sarkar_is_dispersive(wideband_freq):
 def test_multipole_debye_limits():
     lo = Frequency.from_f(jnp.array([1e3]))
     hi = Frequency.from_f(jnp.array([1e15]))
-    material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+    material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
 
     assert jnp.allclose(jnp.real(material.properties(lo).ep_r), 3.5, rtol=1e-5)
     assert jnp.allclose(jnp.real(material.properties(hi).ep_r), 2.0, rtol=1e-5)
 
 
 def test_multipole_debye_coerces_pairs():
-    material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)])
+    material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)])
     assert isinstance(material.poles[0], DebyePole)
     assert jnp.allclose(material.poles[0].dep_r, 1.0)
 
 
 def test_cole_cole_reduces_to_debye(freq):
-    cole = ColeCole(ep_inf=2.0, dep_r=1.0, f_relax=1e9, alpha=0.0)
-    debye = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)])
+    cole = ColeColeDielectric(ep_inf=2.0, dep_r=1.0, f_relax=1e9, alpha=0.0)
+    debye = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)])
     assert jnp.allclose(cole.properties(freq).ep_r, debye.properties(freq).ep_r)
 
 
 def test_cole_cole_finite_at_dc():
     dc = Frequency.from_f(jnp.array([0.0, 1e9]))
-    eps = ColeCole(2.0, 1.0, 1e9, 0.3).properties(dc).ep_r
+    eps = ColeColeDielectric(2.0, 1.0, 1e9, 0.3).properties(dc).ep_r
     assert jnp.all(jnp.isfinite(eps))
     assert jnp.allclose(eps[0], 3.0)
 
@@ -188,9 +188,9 @@ def test_as_dielectric_converters():
 
 @pytest.mark.parametrize("material", [
     ConstantDielectric(4.3, 0.02, 0.01),
-    DjordjevicSarkar(4.3, 0.02),
-    MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)]),
-    ColeCole(2.0, 1.0, 1e9, 0.3),
+    DjordjevicSarkarDielectric(4.3, 0.02),
+    MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)]),
+    ColeColeDielectric(2.0, 1.0, 1e9, 0.3),
 ])
 def test_gradients_are_finite(material, wideband_freq):
     def loss(m):
@@ -205,9 +205,9 @@ def test_dielectrics_are_non_magnetic_by_default(freq):
     """Permeability lives on the medium, and defaults to free space."""
     for material in (
         ConstantDielectric(4.3, 0.02),
-        DjordjevicSarkar(4.3, 0.02),
-        MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9)]),
-        ColeCole(2.0, 1.0, 1e9, 0.3),
+        DjordjevicSarkarDielectric(4.3, 0.02),
+        MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)]),
+        ColeColeDielectric(2.0, 1.0, 1e9, 0.3),
     ):
         mu_r = material.properties(freq).mu_r
         assert mu_r.shape == (freq.npoints,)

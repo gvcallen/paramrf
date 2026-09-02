@@ -16,11 +16,11 @@ import pytest
 from pmrf.frequency import Frequency
 from pmrf.parameters import Param
 from pmrf.materials import (
-    ColeCole,
+    ColeColeDielectric,
     ConstantDielectric,
-    DjordjevicSarkar,
+    DjordjevicSarkarDielectric,
     HammerstadRoughness,
-    MultipoleDebye,
+    MultipoleDebyeDielectric,
     BulkConductor,
     DebyePole,
     RoughConductor,
@@ -105,11 +105,11 @@ LINES = {
 
 MATERIALS = {
     "ConstantDielectric": ConstantDielectric(ep_r=4.3, tand=0.02, sigma=1e-3),
-    "DjordjevicSarkar": DjordjevicSarkar(sigma=1e-3),
-    "MultipoleDebye": MultipoleDebye(
+    "DjordjevicSarkarDielectric": DjordjevicSarkarDielectric(sigma=1e-3),
+    "MultipoleDebyeDielectric": MultipoleDebyeDielectric(
         poles=(DebyePole(dep_r=0.5, f_relax=1e9),), sigma=1e-3
     ),
-    "ColeCole": ColeCole(dep_r=0.5, f_relax=1e9, alpha=0.3, sigma=1e-3),
+    "ColeColeDielectric": ColeColeDielectric(dep_r=0.5, f_relax=1e9, alpha=0.3, sigma=1e-3),
     "TabulatedDielectric": TabulatedDielectric(
         f=jnp.array([0.0, 5e9, 10e9]),
         ep_r=jnp.array([4.3 - 0.1j, 4.2 - 0.1j, 4.1 - 0.1j]),

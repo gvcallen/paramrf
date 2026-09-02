@@ -51,7 +51,7 @@ class ConstantDielectric(AbstractDielectric):
     This is the default material. It is not causal - a constant loss tangent
     cannot satisfy the Kramers-Kronig relations - but it is the conventional
     choice in a frequency-domain package. For a popular causal wideband alternative,
-    see :class:`DjordjevicSarkar`.
+    see :class:`DjordjevicSarkarDielectric`.
 
     **Mathematical Formulation**
 
@@ -103,7 +103,7 @@ class ConstantDielectric(AbstractDielectric):
         return DielectricProperties(eps, self.mu_r * ones, self.sigma * ones)
 
 
-class DjordjevicSarkar(AbstractDielectric):
+class DjordjevicSarkarDielectric(AbstractDielectric):
     r"""
     Causal wideband Debye (Djordjevic-Sarkar / Svensson-Dermer) dielectric.
 
@@ -218,7 +218,7 @@ def _as_poles(poles) -> tuple[DebyePole, ...]:
     )
 
 
-class MultipoleDebye(AbstractDielectric):
+class MultipoleDebyeDielectric(AbstractDielectric):
     r"""
     N-pole Debye dielectric, with every coefficient fittable.
 
@@ -232,9 +232,9 @@ class MultipoleDebye(AbstractDielectric):
     --------
     .. code-block:: python
 
-        from pmrf.materials import MultipoleDebye
+        from pmrf.materials import MultipoleDebyeDielectric
 
-        material = MultipoleDebye(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+        material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
 
     References
     ----------
@@ -266,7 +266,7 @@ class MultipoleDebye(AbstractDielectric):
         return DielectricProperties(eps, ones, self.sigma * ones)
 
 
-class ColeCole(AbstractDielectric):
+class ColeColeDielectric(AbstractDielectric):
     r"""
     Cole-Cole dielectric: a single relaxation broadened by the exponent $\alpha$.
 

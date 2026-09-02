@@ -22,10 +22,10 @@ from pmrf.materials import (
     ConductorProperties,
     ConstantDielectric,
     DielectricProperties,
-    DjordjevicSarkar,
+    DjordjevicSarkarDielectric,
     RoughConductor,
 )
-from pmrf.materials.surface_impedance import TescheTubeShape
+from pmrf.materials.surface_impedance import TescheTubeSurfaceImpedance
 from pmrf.models.components.lines.coaxial import TescheCoaxialFormulation
 from pmrf.models.components.lines.microstrip import KirschningJansenMicrostripDispersion
 
@@ -405,7 +405,7 @@ def test_coaxial_internal_impedance_tube():
     )
     expected = reference._conductor_impedance(radius, thickness, None)
     conductor = ConductorProperties(zs, sigma, mu)
-    zs_sq = TescheTubeShape().impedance(freq.w, conductor, a=radius, t=thickness)
+    zs_sq = TescheTubeSurfaceImpedance().impedance(freq.w, conductor, a=radius, t=thickness)
     actual = zs_sq / (2 * jnp.pi * radius)
     assert jnp.allclose(actual, expected)
 
@@ -460,7 +460,7 @@ def test_dispersive_dielectric_is_grid_independent():
     line = CoaxialLine(
         d_in=0.9e-3,
         d_out=2.95e-3,
-        dielectric=DjordjevicSarkar(ep_r=4.3, tand=0.02),
+        dielectric=DjordjevicSarkarDielectric(ep_r=4.3, tand=0.02),
         conductor=BulkConductor(sigma=1 / 1.68e-8),
         length=0.1,
     )
@@ -928,7 +928,7 @@ def test_stripline_accepts_a_dispersive_dielectric():
     from pmrf.models import CohnStriplineFormulation, StriplineLine
 
     freq = Frequency(start=1.0, stop=20.0, npoints=11, unit="GHz")
-    dielectric = DjordjevicSarkar(ep_r=3.9, tand=0.02, f_ref=1e9)
+    dielectric = DjordjevicSarkarDielectric(ep_r=3.9, tand=0.02, f_ref=1e9)
     line = StriplineLine(w=2.655e-3, b=3.2e-3, dielectric=dielectric, length=0.1)
 
     ep_r = dielectric.properties(freq).ep_r

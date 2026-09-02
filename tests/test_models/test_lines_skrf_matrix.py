@@ -51,7 +51,7 @@ import pytest
 from scipy.constants import epsilon_0
 
 from pmrf.frequency import Frequency
-from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkar
+from pmrf.materials import BulkConductor, ConstantDielectric, DjordjevicSarkarDielectric
 from pmrf.models import (
     CoaxialLine,
     HammerstadJensenMicrostripFormulation,
@@ -159,7 +159,7 @@ def _skrf_djordjevic_sarkar(*, ep_r, tand):
     irrelevant to the filling: the dielectric stage runs before any of it. This
     is the only place scikit-rf implements the model, and borrowing it here is
     what makes the coaxial case a cross-check of ParamRF's
-    :class:`~pmrf.materials.DjordjevicSarkar` rather than of itself.
+    :class:`~pmrf.materials.DjordjevicSarkarDielectric` rather than of itself.
     """
     def ep_r_of_f(f):
         return MLine(
@@ -284,7 +284,7 @@ COAX_CASES = [
                 "Djordjevic-Svensson implementation.",
         **_coax_pair(
             0.9e-3, 2.95e-3,
-            DjordjevicSarkar(ep_r=4.3, tand=0.02, f_low=DS_BAND["f_low"],
+            DjordjevicSarkarDielectric(ep_r=4.3, tand=0.02, f_low=DS_BAND["f_low"],
                              f_high=DS_BAND["f_high"], f_ref=DS_BAND["f_ref"]),
             RHO_COPPER,
             _skrf_djordjevic_sarkar(ep_r=4.3, tand=0.02),
@@ -409,7 +409,7 @@ def _microstrip_pair(*, w, h, t, ep_r, tand, rho, dispersion, diel, formulation,
     def line(length):
         dielectric = (
             ConstantDielectric(ep_r=ep_r, tand=tand) if diel == "frequencyinvariant"
-            else DjordjevicSarkar(ep_r=ep_r, tand=tand, f_low=DS_BAND["f_low"],
+            else DjordjevicSarkarDielectric(ep_r=ep_r, tand=tand, f_low=DS_BAND["f_low"],
                                   f_high=DS_BAND["f_high"], f_ref=DS_BAND["f_ref"])
         )
         return MicrostripLine(

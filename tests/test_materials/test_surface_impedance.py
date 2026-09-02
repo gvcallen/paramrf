@@ -8,13 +8,13 @@ from scipy.special import ive, kve
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConductorProperties, RoughConductor
 from pmrf.materials.surface_impedance import (
-    HalfSpaceShape,
-    HollowayKuesterSlabShape,
-    RootSumSquareSlabShape,
-    SchelkunoffRodShape,
-    SchelkunoffTubeShape,
-    TescheRodShape,
-    TescheTubeShape,
+    HalfSpaceSurfaceImpedance,
+    HollowayKuesterSlabSurfaceImpedance,
+    RootSumSquareSlabSurfaceImpedance,
+    SchelkunoffRodSurfaceImpedance,
+    SchelkunoffTubeSurfaceImpedance,
+    TescheRodSurfaceImpedance,
+    TescheTubeSurfaceImpedance,
 )
 from pmrf.models.components.lines.microstrip import (
     MicrostripCrossSection,
@@ -46,7 +46,7 @@ def test_half_space_is_the_trivial_shape_factor(freq):
     """Leontovich's half-space carries no shape factor: Z_s == zeta_c exactly."""
     conductor = _conductor(freq, sigma=5.8e7)
 
-    zs = HalfSpaceShape().impedance(freq.w, conductor)
+    zs = HalfSpaceSurfaceImpedance().impedance(freq.w, conductor)
 
     assert jnp.allclose(zs, conductor.zs)
 
@@ -57,7 +57,7 @@ def test_holloway_kuester_slab_matches_half_thickness_coth():
     freq = Frequency.from_f(jnp.array([10e6, 30e6, 100e6, 500e6]))
     conductor = _conductor(freq, sigma)
 
-    actual = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
+    actual = HollowayKuesterSlabSurfaceImpedance().impedance(freq.w, conductor, t=t)
 
     gamma = np.sqrt(1j * np.asarray(freq.w) * mu_0 * sigma)
     expected = np.asarray(conductor.zs) / np.tanh(gamma * t / 2)
@@ -70,7 +70,7 @@ def test_holloway_kuester_slab_has_dc_and_strong_skin_limits():
     freq = Frequency.from_f(jnp.array([0.0, 1e12]))
     conductor = _conductor(freq, sigma)
 
-    zs = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
+    zs = HollowayKuesterSlabSurfaceImpedance().impedance(freq.w, conductor, t=t)
 
     assert jnp.allclose(zs[0], 2 / (sigma * t))
     assert jnp.allclose(zs[1], conductor.zs[1], rtol=1e-6)
@@ -82,7 +82,7 @@ def test_root_sum_square_slab_blends_resistance_and_keeps_half_space_reactance()
     freq = Frequency.from_f(jnp.array([0.0, 10e6, 500e6]))
     conductor = _conductor(freq, sigma)
 
-    zs = RootSumSquareSlabShape().impedance(freq.w, conductor, w=w, t=t, weight=weight)
+    zs = RootSumSquareSlabSurfaceImpedance().impedance(freq.w, conductor, w=w, t=t, weight=weight)
 
     r_dc_sq = 1 / (sigma * w * t * weight)
     expected_r = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
@@ -130,7 +130,7 @@ def test_exact_slab_wants_a_different_weight_from_wheelers():
     assert jnp.allclose(slab_weight, 322.6, rtol=1e-4)
     assert jnp.allclose(wheeler_weight / slab_weight, 2.99, rtol=2e-3)
 
-    zs = HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t)
+    zs = HollowayKuesterSlabSurfaceImpedance().impedance(freq.w, conductor, t=t)
     assert jnp.allclose(zs * slab_weight, 1 / (sigma * w * t), rtol=1e-12)
     assert jnp.allclose(zs * wheeler_weight, 0.925, rtol=2e-3)
     assert jnp.allclose(1 / (sigma * w * t), 0.3097, rtol=2e-3)
@@ -156,7 +156,7 @@ def test_root_sum_square_slab_overstates_internal_inductance_below_one_skin_dept
     assert jnp.allclose(t / delta, jnp.array([0.17, 0.54, 1.20, 1.70, 3.79]), atol=5e-3)
 
     blend_x = jnp.imag(conductor.zs)
-    exact_x = jnp.imag(HollowayKuesterSlabShape().impedance(freq.w, conductor, t=t))
+    exact_x = jnp.imag(HollowayKuesterSlabSurfaceImpedance().impedance(freq.w, conductor, t=t))
 
     ratio = blend_x / exact_x
     assert jnp.allclose(ratio, jnp.array([17.7, 5.6, 2.5, 1.8, 1.01]), atol=0.05)
@@ -210,10 +210,10 @@ def test_tabulated_planar_entries_record_transition_error(w, h, zc, expected, rt
     actual = jnp.stack(
         [
             jnp.real(
-                HollowayKuesterSlabShape().impedance(freq.w, conductor, **geometry)
+                HollowayKuesterSlabSurfaceImpedance().impedance(freq.w, conductor, **geometry)
                 * weight
             ),
-            jnp.real(HalfSpaceShape().impedance(freq.w, conductor, **geometry) * weight),
+            jnp.real(HalfSpaceSurfaceImpedance().impedance(freq.w, conductor, **geometry) * weight),
             jnp.real(blend.impedance(freq.w, conductor, **geometry) * weight),
         ],
         axis=1,
@@ -237,7 +237,7 @@ def test_tesche_rod_matches_its_own_strong_skin_asymptote():
     freq = Frequency.from_f(jnp.array([1e20]))
     conductor = _conductor(freq, sigma)
 
-    zs = TescheRodShape().impedance(freq.w, conductor, a=a)
+    zs = TescheRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
 
     r_dc_sq = 2 / (a * sigma)
     expected_factor = 1 + r_dc_sq / conductor.zs
@@ -250,7 +250,7 @@ def test_tesche_tube_matches_its_own_strong_skin_asymptote():
     freq = Frequency.from_f(jnp.array([1e20]))
     conductor = _conductor(freq, sigma)
 
-    zs = TescheTubeShape().impedance(freq.w, conductor, a=a, t=t)
+    zs = TescheTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=t)
 
     r_dc_sq = 1 / (t * sigma)
     expected_factor = 1 + r_dc_sq / conductor.zs
@@ -272,7 +272,7 @@ def test_tesche_shape_factors_tend_to_one_as_skin_effect_strengthens():
 
     def departure(freq):
         conductor = _conductor(freq, sigma)
-        zs = TescheRodShape().impedance(freq.w, conductor, a=a)
+        zs = TescheRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
         return jnp.abs(zs / conductor.zs - 1)
 
     departure_low, departure_high = departure(low)[0], departure(high)[0]
@@ -282,7 +282,7 @@ def test_tesche_shape_factors_tend_to_one_as_skin_effect_strengthens():
 
 
 def test_tesche_tube_approaches_half_space_as_the_wall_thickens():
-    """A very thick tube is a half-space: TescheTubeShape's own limit.
+    """A very thick tube is a half-space: TescheTubeSurfaceImpedance's own limit.
 
     $R_{dc,sq}=1/(t\\sigma)$ vanishes as the wall thickens, and $L_{int,sq}$
     diverges (only logarithmically in $t$, so the wall must be made very
@@ -292,8 +292,8 @@ def test_tesche_tube_approaches_half_space_as_the_wall_thickens():
     freq = Frequency.from_f(jnp.array([1e9]))
     conductor = _conductor(freq, sigma)
 
-    thick_tube = TescheTubeShape().impedance(freq.w, conductor, a=a, t=1e6)
-    half_space = HalfSpaceShape().impedance(freq.w, conductor)
+    thick_tube = TescheTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=1e6)
+    half_space = HalfSpaceSurfaceImpedance().impedance(freq.w, conductor)
 
     assert jnp.allclose(thick_tube, half_space, rtol=1e-3)
 
@@ -304,7 +304,7 @@ def test_schelkunoff_rod_matches_scipy_bessel_ratio():
     freq = Frequency(start=1.0, stop=20.0, npoints=20, unit='GHz')
     conductor = _conductor(freq, sigma)
 
-    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+    zs = SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
 
     gamma_a = np.sqrt(1j * np.asarray(freq.w) * mu_0 * sigma) * a
     expected = np.asarray(conductor.zs) * ive(0, gamma_a) / ive(1, gamma_a)
@@ -322,7 +322,7 @@ def test_schelkunoff_rod_reproduces_the_dc_resistance_without_a_special_case():
     freq = Frequency.from_f(jnp.array([0.0, 1.0]))
     conductor = _conductor(freq, sigma)
 
-    z = SchelkunoffRodShape().impedance(freq.w, conductor, a=a) / (2 * jnp.pi * a)
+    z = SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=a) / (2 * jnp.pi * a)
 
     r_dc = 1 / (jnp.pi * a**2 * sigma)
     assert jnp.allclose(jnp.real(z), r_dc, rtol=1e-9)
@@ -331,7 +331,7 @@ def test_schelkunoff_rod_reproduces_the_dc_resistance_without_a_special_case():
 def test_schelkunoff_rod_tends_to_the_half_space_plus_curvature():
     """The strong-skin limit is $\\zeta_c(1 + 1/2\\gamma a)$, not $\\zeta_c$.
 
-    This curvature term is exactly what :class:`TescheRodShape` cannot
+    This curvature term is exactly what :class:`TescheRodSurfaceImpedance` cannot
     produce, and it is a real effect: at 20 GHz it is still 0.05% of the
     shape factor for a 0.455 mm radius.
     """
@@ -339,7 +339,7 @@ def test_schelkunoff_rod_tends_to_the_half_space_plus_curvature():
     freq = Frequency.from_f(jnp.array([20e9]))
     conductor = _conductor(freq, sigma)
 
-    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+    zs = SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
 
     gamma_a = conductor.sigma * conductor.zs * a
     assert jnp.allclose(zs / conductor.zs, 1 + 1 / (2 * gamma_a), rtol=1e-4)
@@ -358,8 +358,8 @@ def test_tesche_rod_departs_from_schelkunoff_by_a_shape_error():
     freq = Frequency(start=10.0, stop=500.0, npoints=51, unit='MHz')
     conductor = _conductor(freq, sigma)
 
-    tesche = TescheRodShape().impedance(freq.w, conductor, a=a)
-    exact = SchelkunoffRodShape().impedance(freq.w, conductor, a=a)
+    tesche = TescheRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
+    exact = SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=a)
 
     ratio = jnp.real(tesche) / jnp.real(exact)
     residual = jnp.max(jnp.abs(ratio / jnp.mean(ratio) - 1))
@@ -379,7 +379,7 @@ def test_schelkunoff_rod_gradients_are_finite_including_at_dc():
     def resistance(sigma, f):
         freq = Frequency.from_f(jnp.atleast_1d(f))
         conductor = BulkConductor(sigma=sigma).properties(freq)
-        return jnp.real(SchelkunoffRodShape().impedance(freq.w, conductor, a=a))[0]
+        return jnp.real(SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=a))[0]
 
     for f in [0.0, 1e3, 1e9]:
         d_sigma, d_f = jax.grad(resistance, argnums=(0, 1))(5.8e7, f)
@@ -395,7 +395,7 @@ def test_schelkunoff_rod_is_lossless_for_a_perfect_conductor():
     freq = Frequency.from_f(jnp.array([0.0, 1e9]))
     conductor = _conductor(freq, sigma=jnp.inf)
 
-    zs = SchelkunoffRodShape().impedance(freq.w, conductor, a=0.455e-3)
+    zs = SchelkunoffRodSurfaceImpedance().impedance(freq.w, conductor, a=0.455e-3)
 
     assert jnp.all(zs == 0)
 
@@ -445,7 +445,7 @@ def test_schelkunoff_tube_matches_scipy_evaluation_of_eq_74(f, t, rtol):
     freq = Frequency.from_f(jnp.array([f]))
     conductor = _conductor(freq, sigma)
 
-    zs = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t)
+    zs = SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=t)
 
     expected = _schelkunoff_eq_74(np.asarray(freq.w), sigma, a, t)
     assert np.allclose(zs, expected, rtol=rtol)
@@ -465,7 +465,7 @@ def test_schelkunoff_tube_dc_limit_is_the_tube_resistance_and_is_continuous():
     freq = Frequency.from_f(jnp.array([0.0, 1e-3]))
     conductor = _conductor(freq, sigma)
 
-    zs = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t)
+    zs = SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=t)
 
     exact_dc = 2 * a / (sigma * ((a + t) ** 2 - a**2))
     assert np.allclose(np.real(zs), exact_dc, rtol=1e-9)
@@ -482,11 +482,11 @@ def test_schelkunoff_tube_infinite_wall_is_the_infinite_wall_limit():
     conductor = _conductor(freq, 5.8e7)
     a = 1.475e-3
 
-    infinite = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=jnp.inf)
+    infinite = SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=jnp.inf)
 
     # 30 mm of copper is more than 10^4 skin depths at 10 MHz, so a finite
     # wall that thick must reproduce the analytic infinite-wall branch.
-    thick = SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=30e-3)
+    thick = SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=30e-3)
     assert jnp.all(jnp.isfinite(infinite))
     assert jnp.allclose(infinite, thick, rtol=1e-12)
 
@@ -508,7 +508,7 @@ def test_schelkunoff_tube_gradients_are_finite_at_dc_and_for_a_perfect_conductor
     def resistance(sigma, f):
         freq = Frequency.from_f(jnp.atleast_1d(f))
         conductor = BulkConductor(sigma=sigma).properties(freq)
-        return jnp.real(SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t))[0]
+        return jnp.real(SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=t))[0]
 
     for f in (0.0, 1e3, 1e9):
         d_sigma, d_f = jax.grad(resistance, argnums=(0, 1))(5.8e7, f)
@@ -520,11 +520,11 @@ def test_schelkunoff_tube_gradients_are_finite_at_dc_and_for_a_perfect_conductor
             jnp.zeros_like(freq.w, dtype=complex), jnp.inf, 1.0
         )
         assert jnp.all(
-            SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=t) == 0
+            SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=t) == 0
         )
         wall_gradient = jax.grad(
             lambda wall: jnp.real(
-                SchelkunoffTubeShape().impedance(freq.w, conductor, a=a, t=wall)
+                SchelkunoffTubeSurfaceImpedance().impedance(freq.w, conductor, a=a, t=wall)
             )[0]
         )(t)
         assert jnp.isfinite(wall_gradient)
@@ -533,10 +533,10 @@ def test_schelkunoff_tube_gradients_are_finite_at_dc_and_for_a_perfect_conductor
 @pytest.mark.parametrize(
     'shape, geometry',
     [
-        (HollowayKuesterSlabShape(), dict(t=18e-6)),
-        (SchelkunoffRodShape(), dict(a=20e-6)),
-        (SchelkunoffTubeShape(), dict(a=1.475e-3, t=25e-6)),
-        (SchelkunoffTubeShape(), dict(a=1.475e-3, t=jnp.inf)),
+        (HollowayKuesterSlabSurfaceImpedance(), dict(t=18e-6)),
+        (SchelkunoffRodSurfaceImpedance(), dict(a=20e-6)),
+        (SchelkunoffTubeSurfaceImpedance(), dict(a=1.475e-3, t=25e-6)),
+        (SchelkunoffTubeSurfaceImpedance(), dict(a=1.475e-3, t=jnp.inf)),
     ],
 )
 def test_roughness_scales_the_prefactor_and_not_the_shape_factor(shape, geometry):

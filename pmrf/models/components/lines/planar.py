@@ -17,7 +17,7 @@ class AbstractPlanarCrossSection(eqx.Module):
     """Cross-section geometry for a planar line family."""
 
     def dimensions(self) -> dict:
-        """Return dimensions accepted by conductor-shape formulations."""
+        """Return dimensions accepted by surface-impedance formulations."""
         raise NotImplementedError
 
 
@@ -99,15 +99,15 @@ class PlanarQuasiStaticResult(eqx.Module):
         sqrt_ep_eff_over_mu = jnp.sqrt(self.ep_eff / dielectric.mu_r)
 
         Z = 1j * omega * self.zc * sqrt_ep_eff_mu / c
-        # Cross-section dimensions reach the shape from the typed record, and
-        # the weight the shape is about to be multiplied by travels with
+        # Cross-section dimensions reach the formulation from the typed record,
+        # and the weight the formulation is about to be multiplied by travels with
         # them: an entry whose dc floor is fixed in per-unit-length terms
         # needs it to express that floor in this caller's normalisation.
         # Every other entry ignores it.
         dimensions = cross_section.dimensions()
         Z_cond = sum(
-            shape.impedance(omega, conductor, weight=weight, **dimensions) * weight
-            for shape, weight in current_distribution.distribute(
+            impedance.impedance(omega, conductor, weight=weight, **dimensions) * weight
+            for impedance, weight in current_distribution.distribute(
                 freq, cross_section, self
             )
         )
@@ -123,8 +123,8 @@ CrossSectionT = TypeVar("CrossSectionT", bound=AbstractPlanarCrossSection)
 class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
     r"""Surface-current distribution for a transmission-line cross-section.
 
-    Returns ``(shape, weight)`` pairs used to calculate conductor series
-    impedance. Each shape supplies a surface impedance; its weight converts
+    Returns ``(impedance, weight)`` pairs used to calculate conductor series
+    impedance. Each entry supplies a surface impedance; its weight converts
     that value to impedance per unit length. Weights may depend on frequency.
 
     :attr:`cross_section_type` identifies the supported line family.
@@ -141,7 +141,7 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
         cross_section: CrossSectionT,
         quasi_static: "PlanarQuasiStaticResult",
     ):
-        r"""Return the conductor-shape and geometry-weight pairs.
+        r"""Return the surface-impedance and geometry-weight pairs.
 
         Parameters
         ----------
@@ -156,7 +156,7 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
         Returns
         -------
         tuple
-            ``(shape, weight)`` pairs.
+            ``(impedance, weight)`` pairs.
 
         Raises
         ------

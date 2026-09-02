@@ -135,7 +135,7 @@ def test_abstract_conductor_is_an_abc():
 def test_roughness_formulation_is_swappable():
     conductor = RoughConductor(1 / 1.68e-8, roughness=HammerstadRoughness(2e-6))
     assert isinstance(conductor.roughness, HammerstadRoughness)
-    assert jnp.allclose(conductor.roughness.roughness, 2e-6)
+    assert jnp.allclose(conductor.roughness.rms, 2e-6)
 
 
 def test_as_conductor_converters():

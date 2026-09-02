@@ -1,7 +1,7 @@
 r"""
 Surface-impedance formulations for conductor cross-sections.
 
-Shape formulations convert material properties and cross-section dimensions
+Surface-impedance formulations convert material properties and cross-section dimensions
 into surface impedance in ohm per square. The caller supplies the geometry
 weight that converts this value to per-unit-length series impedance.
 """
@@ -19,24 +19,24 @@ class AbstractSurfaceImpedance(eqx.Module):
     r"""
     Abstract base class for a conductor surface-impedance formulation.
 
-    Shape formulations operate on evaluated arrays. Required geometry varies
-    by shape, so only the material argument is common to the interface.
+    Formulations operate on evaluated arrays. Required geometry varies by
+    cross-section, so only the material argument is common to the interface.
 
     **Normalisation convention**
 
     Each formulation returns an impedance in ohm per square. The caller
     multiplies it by a geometry weight $k$ in inverse metres to obtain the
     per-unit-length series impedance. For example,
-    :class:`SchelkunoffRodShape` is referred to the total rod current and is
+    :class:`SchelkunoffRodSurfaceImpedance` is referred to the total rod current and is
     paired with $k=1/(2\pi a)$.
 
     Planar formulations require care because Wheeler's
     incremental-inductance weight includes the ground plane and edge-current
-    crowding. By contrast, :class:`HollowayKuesterSlabShape` describes
+    crowding. By contrast, :class:`HollowayKuesterSlabSurfaceImpedance` describes
     one-dimensional diffusion in the strip and is normalised to the total
     strip current. Its dc limit requires $k=1/(2W)$; using Wheeler's weight
     cannot reproduce both the dc resistance and strong-skin asymptote.
-    :class:`RootSumSquareSlabShape` uses the optional ``weight`` argument to
+    :class:`RootSumSquareSlabSurfaceImpedance` uses the optional ``weight`` argument to
     match both limits and is therefore the planar default. A full
     Holloway--Kuester treatment would require separate strip and ground-plane
     weights, which ParamRF does not implement.
@@ -44,7 +44,7 @@ class AbstractSurfaceImpedance(eqx.Module):
     @abstractmethod
     def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
         r"""
-        Return the surface impedance of this shape, in ohm per square.
+        Return the surface impedance of this cross-section, in ohm per square.
 
         Parameters
         ----------
@@ -57,11 +57,11 @@ class AbstractSurfaceImpedance(eqx.Module):
             them as independent: $\gamma=\sigma\zeta_c$ holds only for a
             smooth bulk conductor.
         **geometry
-            Shape-specific dimensions in metres. Implementations ignore
+            Cross-section-specific dimensions in metres. Implementations ignore
             dimensions they do not use.
         weight : ArrayLike, optional
             Caller's geometry weight in inverse metres. Only
-            :class:`RootSumSquareSlabShape` uses it to express its dc limit
+            :class:`RootSumSquareSlabSurfaceImpedance` uses it to express its dc limit
             in the caller's normalisation.
 
         Returns
@@ -72,7 +72,7 @@ class AbstractSurfaceImpedance(eqx.Module):
         raise NotImplementedError
 
 
-class HalfSpaceShape(AbstractSurfaceImpedance):
+class HalfSpaceSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Leontovich half-space boundary.
 
@@ -94,12 +94,12 @@ class HalfSpaceShape(AbstractSurfaceImpedance):
     """
     def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
         # Cross-section dimensions are accepted and ignored: a half-space has
-        # none, and a caller choosing between shapes should not have to know
+        # none, and a caller choosing between formulations should not have to know
         # which of them take a radius or a wall thickness.
         return conductor.zs
 
 
-class HollowayKuesterSlabShape(AbstractSurfaceImpedance):
+class HollowayKuesterSlabSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Exact finite-thickness impedance for the total current in a planar strip.
 
@@ -150,7 +150,7 @@ class HollowayKuesterSlabShape(AbstractSurfaceImpedance):
         return jnp.where(evaluable, zs, dc)
 
 
-class RootSumSquareSlabShape(AbstractSurfaceImpedance):
+class RootSumSquareSlabSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Resistance-only blend for a finite planar conductor.
 
@@ -166,7 +166,7 @@ class RootSumSquareSlabShape(AbstractSurfaceImpedance):
 
     **Why it is the planar default**
 
-    Unlike :class:`HollowayKuesterSlabShape`, this formulation uses the
+    Unlike :class:`HollowayKuesterSlabSurfaceImpedance`, this formulation uses the
     caller's ``weight`` and therefore matches both asymptotes under a
     frequency-independent planar weight. See :class:`AbstractSurfaceImpedance`.
 
@@ -207,7 +207,7 @@ def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, omega):
     return jnp.where(omega > 0, z, r_dc_sq)
 
 
-class TescheRodShape(AbstractSurfaceImpedance):
+class TescheRodSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Solid round conductor, via Tesche's equivalent circuit.
 
@@ -225,7 +225,7 @@ class TescheRodShape(AbstractSurfaceImpedance):
     This is an interpolation, not an exact finite-frequency solution. Its
     strong-skin limit is $\zeta_c+R_{dc,sq}$ and omits the
     $1/(2\gamma a)$ curvature term in the exact
-    :class:`SchelkunoffRodShape` expansion. Prefer the exact formulation
+    :class:`SchelkunoffRodSurfaceImpedance` expansion. Prefer the exact formulation
     unless Bessel evaluation cost is prohibitive.
 
     References
@@ -240,7 +240,7 @@ class TescheRodShape(AbstractSurfaceImpedance):
         return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
-class TescheTubeShape(AbstractSurfaceImpedance):
+class TescheTubeSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Tubular conductor of finite wall thickness, via Tesche's equivalent circuit.
 
@@ -258,10 +258,10 @@ class TescheTubeShape(AbstractSurfaceImpedance):
 
     **Validity**
 
-    This formulation has the same approximation as :class:`TescheRodShape`:
+    This formulation has the same approximation as :class:`TescheRodSurfaceImpedance`:
     its strong-skin limit is $\zeta_c+R_{dc,sq}$ rather than $\zeta_c$.
     For $t\to\infty$, $R_{dc,sq}\to0$ and $L_{int,sq}\to\infty$, reducing
-    the result to :class:`HalfSpaceShape`. This limit is used by
+    the result to :class:`HalfSpaceSurfaceImpedance`. This limit is used by
     :class:`~pmrf.models.components.lines.coaxial.TescheCoaxialFormulation`
     when the outer-shield thickness is unspecified.
 
@@ -287,7 +287,7 @@ class TescheTubeShape(AbstractSurfaceImpedance):
         return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
-class SchelkunoffRodShape(AbstractSurfaceImpedance):
+class SchelkunoffRodSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Solid round conductor, exact.
 
@@ -304,8 +304,8 @@ class SchelkunoffRodShape(AbstractSurfaceImpedance):
     As $\gamma a\to0$,
     $I_0/I_1\to2/\gamma a$ and $Z_s\to2/a\sigma$, which is the exact dc
     limit. As
-    $\gamma a\to\infty$, $I_0/I_1\to1+1/2\gamma a$, so the shape
-    approaches :class:`HalfSpaceShape` with the leading curvature correction.
+    $\gamma a\to\infty$, $I_0/I_1\to1+1/2\gamma a$, so the shape factor
+    approaches :class:`HalfSpaceSurfaceImpedance` with the leading curvature correction.
 
     **Validity**
 
@@ -337,7 +337,7 @@ class SchelkunoffRodShape(AbstractSurfaceImpedance):
         return jnp.where(omega > 0, zs, r_dc_sq)
 
 
-class SchelkunoffTubeShape(AbstractSurfaceImpedance):
+class SchelkunoffTubeSurfaceImpedance(AbstractSurfaceImpedance):
     r"""
     Cylindrical tube of finite wall thickness, exact.
 
@@ -361,7 +361,7 @@ class SchelkunoffTubeShape(AbstractSurfaceImpedance):
     walls.
 
     Under strong skin effect,
-    $\rho\to e^{-2\gamma t}$ and the shape becomes
+    $\rho\to e^{-2\gamma t}$ and the shape factor becomes
     $\zeta_c\coth(\gamma t)$ with the cylindrical curvature corrections
     retained. As $\gamma\to0$, the exact dc limit is
     $$Z_s \to \frac{2a}{\sigma(b^2-a^2)} = \frac{1}{\sigma t}

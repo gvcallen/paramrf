@@ -20,10 +20,10 @@ docstrings, and is not repeated here.
 A surface-impedance formulation returns ohm/square, referred to the current
 *its own* cross-section carries; the caller multiplies by an inverse-metre
 geometry weight. For round conductors the two normalisations agree exactly:
-`SchelkunoffRodShape` is referred to the total rod current and the caller's
+`SchelkunoffRodSurfaceImpedance` is referred to the total rod current and the caller's
 weight is $1/2\pi a$.
 
-The planar case has no such agreement. `HollowayKuesterSlabShape` is the exact
+The planar case has no such agreement. `HollowayKuesterSlabSurfaceImpedance` is the exact
 finite-thickness strip result, referred to the total strip current, so it wants
 a weight of $1/(2W)$ — for a 1.55 mm trace, $322.6\,\mathrm{m^{-1}}$. Wheeler's
 incremental-inductance weight, which the microstrip current distribution
@@ -39,7 +39,7 @@ result containing neither. Under Wheeler's weight the exact slab returns
 strong-skin asymptote by the same factor.
 
 Under a *frequency-independent* weight, therefore, exactly one entry is right
-at both asymptotes — `RootSumSquareSlabShape`, which reaches into the caller's
+at both asymptotes — `RootSumSquareSlabSurfaceImpedance`, which reaches into the caller's
 normalisation through the optional `weight` argument to express its dc floor
 in per-unit-length terms. It is the planar default for that reason, not as a
 compatibility shim and not because it is the industry convention.
@@ -108,8 +108,8 @@ crowd across a cross-section — a fitted rule. In a coaxial line the current is
 where the geometry puts it: the inner conductor's whole current on its surface
 at radius $a$, the shield's return on its inner surface at radius $b$. The
 weights are therefore exact constants, $1/2\pi a$ and $1/2\pi b$, folded into
-the coaxial formulation, which selects shapes through `inner_shape` and
-`shield_shape` fields instead. Adding a distribution layer would wrap two
+the coaxial formulation, which selects shapes through `inner_impedance` and
+`shield_impedance` fields instead. Adding a distribution layer would wrap two
 constants in a strategy interface to satisfy symmetry with the planar lines,
 which is contortion, not architecture.
 

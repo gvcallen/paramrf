@@ -11,7 +11,7 @@ from scipy.constants import c, epsilon_0, mu_0
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConstantDielectric, Substrate, as_substrate
-from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, HalfSpaceShape, RootSumSquareSlabShape
+from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, HalfSpaceSurfaceImpedance, RootSumSquareSlabSurfaceImpedance
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.models.components.lines.planar import AbstractCurrentDistribution, AbstractPlanarCrossSection, PlanarQuasiStaticResult
 from pmrf.parameters import Param, param
@@ -58,8 +58,8 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
 
     Here $W$ is the physical trace width and $Z_c$ is the solved
     characteristic impedance. An unspecified thickness uses
-    :class:`HalfSpaceShape`; otherwise, the distribution uses
-    :attr:`slab_shape`. The returned weight is in inverse metres.
+    :class:`HalfSpaceSurfaceImpedance`; otherwise, the distribution uses
+    :attr:`slab_impedance`. The returned weight is in inverse metres.
 
     References
     ----------
@@ -73,16 +73,16 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
     #: strong-skin limits under Wheeler's geometry weight. See
     #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
     #: normalisation details.
-    slab_shape: AbstractSurfaceImpedance = eqx.field(
-        default_factory=RootSumSquareSlabShape
+    slab_impedance: AbstractSurfaceImpedance = eqx.field(
+        default_factory=RootSumSquareSlabSurfaceImpedance
     )
 
     def _distribute(self, freq, cross_section, quasi_static):
         z0 = jnp.sqrt(mu_0 / epsilon_0)
         zc = quasi_static.zc
         weight = 2 / cross_section.w * jnp.exp(-1.2 * (jnp.real(zc) / z0) ** 0.7)
-        shape = HalfSpaceShape() if cross_section.t is None else self.slab_shape
-        return ((shape, weight),)
+        impedance = HalfSpaceSurfaceImpedance() if cross_section.t is None else self.slab_impedance
+        return ((impedance, weight),)
 
 
 class AbstractMicrostripFormulation(eqx.Module):
@@ -469,7 +469,7 @@ class MicrostripLine(AbstractImmittanceLine):
     $$\alpha_c=\frac{\Re(Z_s)}{\Re(Z_{c,loss})W}
     \exp\left[-1.2\left(\frac{\Re(Z_{c,loss})}{Z_0}\right)^{0.7}\right],$$
     using the physical width $W$ and the active quasi-static or dispersed
-    $Z_c$. With finite thickness, the default slab shape adds
+    $Z_c$. With finite thickness, the default slab formulation adds
     $R_{dc}=1/(\sigma Wt)$ through
     $R=\sqrt{R_{dc}^2+R_{ac}^2}$. An unspecified thickness applies the
     half-space skin-effect model without a dc floor.

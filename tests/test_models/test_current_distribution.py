@@ -6,9 +6,9 @@ from pmrf.frequency import Frequency
 from pmrf.materials import (
     BulkConductor,
     ConstantDielectric,
-    HalfSpaceShape,
-    HollowayKuesterSlabShape,
-    RootSumSquareSlabShape,
+    HalfSpaceSurfaceImpedance,
+    HollowayKuesterSlabSurfaceImpedance,
+    RootSumSquareSlabSurfaceImpedance,
 )
 from pmrf.models import (
     CohnCurrentDistribution,
@@ -40,7 +40,7 @@ def test_wheeler_distribution_returns_a_shape_and_frequency_resolved_weight():
     z0 = jnp.sqrt(mu_0 / epsilon_0)
     expected = 2 / 3e-3 * jnp.exp(-1.2 * (zc / z0) ** 0.7)
     shape, weight = pairs[0]
-    assert isinstance(shape, HalfSpaceShape)
+    assert isinstance(shape, HalfSpaceSurfaceImpedance)
     assert jnp.allclose(weight, expected)
 
 
@@ -66,7 +66,7 @@ def test_cohn_distribution_uses_a_surface_pair():
         _solved(zc),
     )
 
-    assert isinstance(pairs[0][0], HalfSpaceShape)
+    assert isinstance(pairs[0][0], HalfSpaceSurfaceImpedance)
     assert pairs[0][1].shape == (1,)
     assert jnp.all(pairs[0][1] > 0)
 
@@ -82,23 +82,23 @@ def test_wheeler_finite_thickness_slab_entry_is_a_selectable_field():
     freq = Frequency.from_f(jnp.array([10e6]))
     zc = jnp.array([50.0])
 
-    assert isinstance(WheelerCurrentDistribution().slab_shape, RootSumSquareSlabShape)
+    assert isinstance(WheelerCurrentDistribution().slab_impedance, RootSumSquareSlabSurfaceImpedance)
 
     cross_section = MicrostripCrossSection(w=1.55e-3, h=1.6e-3, t=35e-6)
     default_shape, _ = WheelerCurrentDistribution().distribute(
         freq, cross_section, _solved(zc)
     )[0]
-    assert isinstance(default_shape, RootSumSquareSlabShape)
+    assert isinstance(default_shape, RootSumSquareSlabSurfaceImpedance)
 
-    chosen = WheelerCurrentDistribution(slab_shape=HollowayKuesterSlabShape())
+    chosen = WheelerCurrentDistribution(slab_impedance=HollowayKuesterSlabSurfaceImpedance())
     chosen_shape, _ = chosen.distribute(freq, cross_section, _solved(zc))[0]
-    assert isinstance(chosen_shape, HollowayKuesterSlabShape)
+    assert isinstance(chosen_shape, HollowayKuesterSlabSurfaceImpedance)
 
     # An unspecified thickness is still a half-space: there is no slab.
     unspecified, _ = chosen.distribute(
         freq, MicrostripCrossSection(w=1.55e-3, h=1.6e-3), _solved(zc)
     )[0]
-    assert isinstance(unspecified, HalfSpaceShape)
+    assert isinstance(unspecified, HalfSpaceSurfaceImpedance)
 
 
 def test_pairing_a_distribution_with_the_wrong_family_is_a_typed_failure():

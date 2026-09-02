@@ -51,11 +51,11 @@ class HammerstadRoughness(AbstractRoughness):
 
     Parameters
     ----------
-    roughness : Param, default=0.0
+    rms : Param, default=0.0
         RMS surface roughness in meters.
     """
     #: RMS surface roughness in meters
-    roughness: Param = param(default=0.0, constraint=Positive())
+    rms: Param = param(default=0.0, constraint=Positive())
 
     def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
         w = jnp.asarray(freq.w)
@@ -63,5 +63,5 @@ class HammerstadRoughness(AbstractRoughness):
         skin_depth = jnp.where(
             w > 0, jnp.sqrt(2 / (safe_w * mu_0 * mu_r * sigma)), jnp.inf
         )
-        ratio = self.roughness / skin_depth
+        ratio = self.rms / skin_depth
         return 1 + (2 / jnp.pi) * jnp.arctan(1.4 * ratio**2)
