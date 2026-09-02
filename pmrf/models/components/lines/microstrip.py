@@ -11,7 +11,7 @@ from scipy.constants import c, epsilon_0, mu_0
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConstantDielectric, Substrate, as_substrate
-from pmrf.materials.conductor_shape import AbstractConductorShape, HalfSpaceShape, RootSumSquareSlabShape
+from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, HalfSpaceShape, RootSumSquareSlabShape
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.models.components.lines.planar import AbstractCurrentDistribution, AbstractPlanarCrossSection, PlanarQuasiStaticResult
 from pmrf.parameters import Param, param
@@ -69,11 +69,11 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
 
     cross_section_type: ClassVar[type] = MicrostripCrossSection
 
-    #: Finite-thickness conductor shape. The default matches the dc and
+    #: Finite-thickness surface impedance. The default matches the dc and
     #: strong-skin limits under Wheeler's geometry weight. See
-    #: :class:`~pmrf.materials.conductor_shape.AbstractConductorShape` for
+    #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
     #: normalisation details.
-    slab_shape: AbstractConductorShape = eqx.field(
+    slab_shape: AbstractSurfaceImpedance = eqx.field(
         default_factory=RootSumSquareSlabShape
     )
 

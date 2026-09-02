@@ -27,13 +27,13 @@ inhomogeneous and the mode is therefore not strictly TEM: microstrip has one
 (`KirschningJansenMicrostripDispersion`), homogeneously filled coax and
 stripline do not. `None` disables it.
 
-### ConductorShape
+### SurfaceImpedance
 
 Surface impedance per square for one conductor cross-section, as the metal's
 surface prefactor times a dimensionless shape factor. Pure numerics over an
 evaluated `ConductorProperties` and a set of named dimensions; the
 inverse-metre geometry weight that turns it into a per-unit-length impedance
-is the caller's. See `pmrf.materials.conductor_shape.AbstractConductorShape`
+is the caller's. See `pmrf.materials.surface_impedance.AbstractSurfaceImpedance`
 for the normalisation convention that couples the two.
 
 ### CurrentDistribution

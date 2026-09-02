@@ -10,7 +10,7 @@ from scipy.constants import c
 
 from pmrf.frequency import Frequency
 from pmrf.materials import ConductorProperties, DielectricProperties
-from pmrf.materials.conductor_shape import AbstractConductorShape
+from pmrf.materials.surface_impedance import AbstractSurfaceImpedance
 from pmrf.models.components.lines.base import ImmittanceResult
 
 class AbstractPlanarCrossSection(eqx.Module):
@@ -67,7 +67,7 @@ class PlanarQuasiStaticResult(eqx.Module):
         \qquad
         Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}$$
 
-        The current distribution supplies conductor shapes and geometry
+        The current distribution supplies surface impedances and geometry
         weights. Complex $\varepsilon_e$ contributes dielectric loss through
         the real part of $Y$.
 
@@ -180,4 +180,3 @@ class AbstractCurrentDistribution(eqx.Module, Generic[CrossSectionT]):
     ):
         r"""Return the pairs for an already type-checked cross-section."""
         raise NotImplementedError
-

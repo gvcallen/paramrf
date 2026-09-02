@@ -25,7 +25,7 @@ from pmrf.materials import (
     DjordjevicSarkar,
     RoughConductor,
 )
-from pmrf.materials.conductor_shape import TescheTubeShape
+from pmrf.materials.surface_impedance import TescheTubeShape
 from pmrf.models.components.lines.coaxial import TescheCoaxialFormulation
 from pmrf.models.components.lines.microstrip import KirschningJansenMicrostripDispersion
 

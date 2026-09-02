@@ -7,7 +7,7 @@ from scipy.special import ive, kve
 
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConductorProperties, RoughConductor
-from pmrf.materials.conductor_shape import (
+from pmrf.materials.surface_impedance import (
     HalfSpaceShape,
     HollowayKuesterSlabShape,
     RootSumSquareSlabShape,

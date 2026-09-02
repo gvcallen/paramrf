@@ -8,7 +8,7 @@ from scipy.constants import epsilon_0, mu_0
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import AbstractConductor, AbstractDielectric, BulkConductor, ConstantDielectric, ConductorProperties, DielectricProperties, as_conductor, as_dielectric
-from pmrf.materials.conductor_shape import AbstractConductorShape, SchelkunoffRodShape, SchelkunoffTubeShape, TescheRodShape, TescheTubeShape
+from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, SchelkunoffRodShape, SchelkunoffTubeShape, TescheRodShape, TescheTubeShape
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.parameters import Param, as_param, param
 from pmrf.utils import field
@@ -45,8 +45,8 @@ class AbstractCoaxialFormulation(eqx.Module):
         raise NotImplementedError
 
 
-def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_shape: AbstractConductorShape, shield_shape: AbstractConductorShape) -> ImmittanceResult:
-    """Calculate coaxial immittance for the supplied conductor shapes."""
+def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_shape: AbstractSurfaceImpedance, shield_shape: AbstractSurfaceImpedance) -> ImmittanceResult:
+    """Calculate coaxial immittance for the supplied surface impedances."""
     eps = epsilon_0 * dielectric.ep_r
     mu = mu_0 * dielectric.mu_r
     omega = freq.w
@@ -87,8 +87,8 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)}$$
 
     Each conductor contributes $Z_s/(2\pi r)$. The defaults are
-    :class:`~pmrf.materials.conductor_shape.TescheRodShape` and
-    :class:`~pmrf.materials.conductor_shape.TescheTubeShape`. An unspecified
+    :class:`~pmrf.materials.surface_impedance.TescheRodShape` and
+    :class:`~pmrf.materials.surface_impedance.TescheTubeShape`. An unspecified
     shield thickness uses the infinite-wall limit. Complex $\varepsilon_r$
     and $\mu_r$ account for dielectric and magnetic loss.
 
@@ -110,10 +110,10 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     and Cylindrical Shields. Bell System Technical Journal, 13(4), 532-579.
     """
     #: Cross-section shape of the inner conductor
-    inner_shape: AbstractConductorShape = TescheRodShape()
+    inner_shape: AbstractSurfaceImpedance = TescheRodShape()
     #: Cross-section shape of the shield, called with the shield's inner
     #: radius and its wall thickness, infinite when none is given
-    shield_shape: AbstractConductorShape = TescheTubeShape()
+    shield_shape: AbstractSurfaceImpedance = TescheTubeShape()
 
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
@@ -135,7 +135,7 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     \qquad
     Y = \frac{j\omega 2\pi\varepsilon}{\ln(b/a)},$$
     The inner conductor uses
-    :class:`~pmrf.materials.conductor_shape.SchelkunoffRodShape` --
+    :class:`~pmrf.materials.surface_impedance.SchelkunoffRodShape` --
     Schelkunoff's eq. (65) rather than an equivalent circuit:
     $$Z_{inner} = \frac{\zeta_c}{2\pi a}\,
     \frac{I_0(\gamma a)}{I_1(\gamma a)},\qquad
@@ -159,10 +159,10 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     Eq. (65), (74).
     """
     #: Cross-section shape of the inner conductor
-    inner_shape: AbstractConductorShape = SchelkunoffRodShape()
+    inner_shape: AbstractSurfaceImpedance = SchelkunoffRodShape()
     #: Cross-section shape of the shield, called with the shield's inner
     #: radius and its wall thickness, infinite when none is given
-    shield_shape: AbstractConductorShape = SchelkunoffTubeShape()
+    shield_shape: AbstractSurfaceImpedance = SchelkunoffTubeShape()
 
     def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
         return _coaxial_immittance(
@@ -267,4 +267,3 @@ class CoaxialLine(AbstractImmittanceLine):
                 None if self.shield_thickness is None else self.shield_thickness
             ),
         )
-

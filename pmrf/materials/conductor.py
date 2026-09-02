@@ -15,6 +15,7 @@ from scipy.constants import mu_0
 
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
+from pmrf.materials.roughness import AbstractRoughness
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
 from pmrf.materials.properties import ConductorProperties
@@ -31,14 +32,6 @@ class AbstractConductor(Module):
     @abstractmethod
     def properties(self, freq: Frequency) -> ConductorProperties:
         """Evaluate surface impedance, conductivity, and permeability."""
-
-
-class AbstractRoughness(Module):
-    """Abstract base class for a surface-roughness correction."""
-
-    @abstractmethod
-    def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
-        """The multiplicative correction applied to a smooth surface impedance."""
 
 
 class HammerstadRoughness(AbstractRoughness):

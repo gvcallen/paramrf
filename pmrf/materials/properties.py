@@ -58,7 +58,7 @@ class ConductorProperties(eqx.Module):
         makes $\gamma a$ and $\gamma t$ the dimensionless "how many skin
         depths across is this cross-section" arguments of the Bessel and
         $\coth$ expressions of
-        :mod:`~pmrf.materials.conductor_shape`. Despite the name it is not
+        :mod:`~pmrf.materials.surface_impedance`. Despite the name it is not
         the propagation constant of the line.
 
         It is deliberately computed from $\sigma$ and $\mu_r$ rather than

@@ -5,8 +5,9 @@ Status: accepted (2026-09)
 ## Context
 
 Transmission-line models grew from single closed-form functions into a layered
-set of strategy objects: a formulation, an optional dispersion, a conductor
-shape, a current distribution, and a roughness correction on the material.
+set of strategy objects: a formulation, an optional dispersion, a surface-
+impedance formulation, a current distribution, and a roughness correction on
+the material.
 That layering forced a batch of decisions — several of them deliberate
 compromises — whose reasoning lived nowhere but in review threads. This record
 holds them. The vocabulary is in `CONTEXT.md`; the maths is in the class
@@ -16,9 +17,9 @@ docstrings, and is not repeated here.
 
 ### 1. Cross-section normalisation: the RSS blend is the planar default, and the exact slab cannot be
 
-A conductor shape returns ohm/square, referred to the current *its own*
-cross-section carries; the caller multiplies by an inverse-metre geometry
-weight. For round conductors the two normalisations agree exactly:
+A surface-impedance formulation returns ohm/square, referred to the current
+*its own* cross-section carries; the caller multiplies by an inverse-metre
+geometry weight. For round conductors the two normalisations agree exactly:
 `SchelkunoffRodShape` is referred to the total rod current and the caller's
 weight is $1/2\pi a$.
 

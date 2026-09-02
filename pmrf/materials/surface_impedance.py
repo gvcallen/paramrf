@@ -1,5 +1,5 @@
 r"""
-Conductor cross-section shapes.
+Surface-impedance formulations for conductor cross-sections.
 
 Shape formulations convert material properties and cross-section dimensions
 into surface impedance in ohm per square. The caller supplies the geometry
@@ -15,9 +15,9 @@ from pmrf.materials.properties import ConductorProperties
 from pmrf.math.bessel import i0_over_i1, i1e, k0_over_k1, k1e
 
 
-class AbstractConductorShape(eqx.Module):
+class AbstractSurfaceImpedance(eqx.Module):
     r"""
-    Abstract base class for a conductor cross-section shape formulation.
+    Abstract base class for a conductor surface-impedance formulation.
 
     Shape formulations operate on evaluated arrays. Required geometry varies
     by shape, so only the material argument is common to the interface.
@@ -72,7 +72,7 @@ class AbstractConductorShape(eqx.Module):
         raise NotImplementedError
 
 
-class HalfSpaceShape(AbstractConductorShape):
+class HalfSpaceShape(AbstractSurfaceImpedance):
     r"""
     Leontovich half-space boundary.
 
@@ -99,7 +99,7 @@ class HalfSpaceShape(AbstractConductorShape):
         return conductor.zs
 
 
-class HollowayKuesterSlabShape(AbstractConductorShape):
+class HollowayKuesterSlabShape(AbstractSurfaceImpedance):
     r"""
     Exact finite-thickness impedance for the total current in a planar strip.
 
@@ -129,7 +129,7 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
     :class:`~pmrf.models.components.lines.microstrip.WheelerCurrentDistribution`
     because Wheeler's model also includes the ground plane and edge-current
     crowding. Use this formulation only with a compatible weight; see
-    :class:`AbstractConductorShape`.
+    :class:`AbstractSurfaceImpedance`.
 
     References
     ----------
@@ -150,7 +150,7 @@ class HollowayKuesterSlabShape(AbstractConductorShape):
         return jnp.where(evaluable, zs, dc)
 
 
-class RootSumSquareSlabShape(AbstractConductorShape):
+class RootSumSquareSlabShape(AbstractSurfaceImpedance):
     r"""
     Resistance-only blend for a finite planar conductor.
 
@@ -168,7 +168,7 @@ class RootSumSquareSlabShape(AbstractConductorShape):
 
     Unlike :class:`HollowayKuesterSlabShape`, this formulation uses the
     caller's ``weight`` and therefore matches both asymptotes under a
-    frequency-independent planar weight. See :class:`AbstractConductorShape`.
+    frequency-independent planar weight. See :class:`AbstractSurfaceImpedance`.
 
     **Validity**
 
@@ -207,7 +207,7 @@ def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, omega):
     return jnp.where(omega > 0, z, r_dc_sq)
 
 
-class TescheRodShape(AbstractConductorShape):
+class TescheRodShape(AbstractSurfaceImpedance):
     r"""
     Solid round conductor, via Tesche's equivalent circuit.
 
@@ -240,7 +240,7 @@ class TescheRodShape(AbstractConductorShape):
         return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
-class TescheTubeShape(AbstractConductorShape):
+class TescheTubeShape(AbstractSurfaceImpedance):
     r"""
     Tubular conductor of finite wall thickness, via Tesche's equivalent circuit.
 
@@ -287,7 +287,7 @@ class TescheTubeShape(AbstractConductorShape):
         return _tesche_circuit_impedance(conductor.zs, r_dc_sq, inverse_l_int_sq, omega)
 
 
-class SchelkunoffRodShape(AbstractConductorShape):
+class SchelkunoffRodShape(AbstractSurfaceImpedance):
     r"""
     Solid round conductor, exact.
 
@@ -337,7 +337,7 @@ class SchelkunoffRodShape(AbstractConductorShape):
         return jnp.where(omega > 0, zs, r_dc_sq)
 
 
-class SchelkunoffTubeShape(AbstractConductorShape):
+class SchelkunoffTubeShape(AbstractSurfaceImpedance):
     r"""
     Cylindrical tube of finite wall thickness, exact.
 

@@ -25,14 +25,14 @@ from pmrf.materials.substrate import (
 )
 from pmrf.materials.conductor import (
     AbstractConductor as AbstractConductor,
-    AbstractRoughness as AbstractRoughness,
     BulkConductor as BulkConductor,
     HammerstadRoughness as HammerstadRoughness,
     RoughConductor as RoughConductor,
     as_conductor as as_conductor,
 )
-from pmrf.materials.conductor_shape import (
-    AbstractConductorShape as AbstractConductorShape,
+from pmrf.materials.roughness import AbstractRoughness as AbstractRoughness
+from pmrf.materials.surface_impedance import (
+    AbstractSurfaceImpedance as AbstractSurfaceImpedance,
     HalfSpaceShape as HalfSpaceShape,
     HollowayKuesterSlabShape as HollowayKuesterSlabShape,
     RootSumSquareSlabShape as RootSumSquareSlabShape,
@@ -59,7 +59,7 @@ __all__ = [
     "HammerstadRoughness",
     "RoughConductor",
     "as_conductor",
-    "AbstractConductorShape",
+    "AbstractSurfaceImpedance",
     "HalfSpaceShape",
     "HollowayKuesterSlabShape",
     "RootSumSquareSlabShape",
