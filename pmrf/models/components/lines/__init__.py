@@ -13,7 +13,6 @@ from pmrf.models.components.lines.microstrip import (
     WheelerCurrentDistribution as WheelerCurrentDistribution,
     IncrementalInductanceCurrentDistribution as IncrementalInductanceCurrentDistribution,
     TraceGroundCurrentDistribution as TraceGroundCurrentDistribution,
-    microstrip_ground_effective_width as microstrip_ground_effective_width,
 )
 from pmrf.models.components.lines.stripline import (
     StriplineCrossSection as StriplineCrossSection,

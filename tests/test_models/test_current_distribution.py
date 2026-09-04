@@ -19,9 +19,11 @@ from pmrf.models import (
     TraceGroundCurrentDistribution,
     WheelerCurrentDistribution,
     WheelerMicrostripFormulation,
-    microstrip_ground_effective_width,
 )
-from pmrf.models.components.lines.microstrip import MicrostripCrossSection
+from pmrf.models.components.lines.microstrip import (
+    MicrostripCrossSection,
+    _ground_return_effective_width,
+)
 from pmrf.models.components.lines.planar import PlanarQuasiStaticResult
 from pmrf.models.components.lines.stripline import StriplineCrossSection
 
@@ -340,7 +342,7 @@ def test_ground_effective_width_reproduces_the_holloway_kuester_table(
     that integral agrees with it to five significant figures.
     """
     h = 1.6e-3
-    ratio = microstrip_ground_effective_width(u * h, h) / (u * h)
+    ratio = _ground_return_effective_width(u * h, h) / (u * h)
 
     assert jnp.abs(ratio / wg_over_w - 1) <= rtol
 
@@ -349,13 +351,13 @@ def test_ground_effective_width_has_the_right_narrow_and_wide_limits():
     """Filament at 2*pi*H when narrow; confined to the trace when wide."""
     h = 1.6e-3
 
-    narrow = microstrip_ground_effective_width(1e-4 * h, h)
+    narrow = _ground_return_effective_width(1e-4 * h, h)
     assert jnp.abs(narrow / (2 * jnp.pi * h) - 1) <= 1e-6
 
     # Convergence to W is only logarithmic -- the residual is
     # 4 ln(u/2)/(pi u), still 1.2e-3 at u = 1e4 -- so the limit is checked
     # where that residual is small rather than by loosening the tolerance.
-    wide = microstrip_ground_effective_width(1e6 * h, h)
+    wide = _ground_return_effective_width(1e6 * h, h)
     assert jnp.abs(wide / (1e6 * h) - 1) <= 3e-5
 
 
@@ -378,7 +380,7 @@ def test_trace_ground_emits_one_pair_per_surface_with_independent_weights():
 
     # K_i is a strip-edge fit and is deliberately not applied to the ground
     # term, so the ground weight is flat in Zc where the trace weight is not.
-    expected_ground = 1 / microstrip_ground_effective_width(3e-3, 1.6e-3)
+    expected_ground = 1 / _ground_return_effective_width(3e-3, 1.6e-3)
     assert jnp.allclose(ground_weight, expected_ground)
     assert not jnp.allclose(ground_weight[0], ground_weight[0] * crowding[0])
 

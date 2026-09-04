@@ -414,7 +414,7 @@ class IncrementalInductanceCurrentDistribution(
         return ((self.slab_impedance, weight * ones),)
 
 
-def microstrip_ground_effective_width(w, h):
+def _ground_return_effective_width(w, h):
     r"""Effective width of the ground-plane return current, in metres.
 
     **Mathematical Formulation**
@@ -491,51 +491,41 @@ class TraceGroundCurrentDistribution(
     $$k_g = \frac{1}{W_g},$$
 
     with $W_g$ the effective width of the ground-plane return current from
-    :func:`microstrip_ground_effective_width`. The two pairs are summed by the
+    :func:`_ground_return_effective_width`. The two pairs are summed by the
     caller, so the total weight is $k_t + k_g$.
 
-    **Resolved choice: $K_i$ is applied to the trace only**
+    **Resolved choices**
 
-    Wheeler's exponential is a fit to current crowding at the *strip's* edges,
-    so applying it to the ground plane would be convenient rather than
-    justified. It is therefore not applied there. The choice is worth about
-    4-5% of the total weight: at $\Re(Z_c)$ = 48.9 ohm the total is
-    $1.773/W$ as implemented against $1.705/W$ with $K_i$ on both terms.
+    $K_i$ is applied to the trace only: Wheeler's exponential is a fit to
+    crowding at the *strip's* edges, so charging the ground plane with it
+    would be convenient rather than justified. It is worth 4-5% of the total
+    weight -- at $\Re(Z_c)$ = 48.9 ohm, $1.773/W$ as implemented against
+    $1.705/W$ with $K_i$ on both terms.
 
-    **Resolved choice: the ground term has no dc limit of its own**
-
-    The trace anchors cleanly at $1/(\sigma W T)$. The ground plane does not:
-    at dc the return current spreads over the whole plane rather than over the
-    substrate-height-scale distribution above, so its dc resistance depends on
-    the plane's extent and copper weight, neither of which is an input to a
-    microstrip cross-section. The ground term is therefore held at its
-    strong-skin form -- :class:`HalfSpaceSurfaceImpedance` by default, which
-    vanishes as $\sqrt{\omega}$ and contributes nothing at dc. The dc limit of
-    the default configuration is exactly the trace's dc resistance. A user who
-    knows the plane geometry can supply a different
-    :attr:`ground_impedance`. This choice only became visible once the weight
-    was split; it was previously hidden inside Wheeler's constant.
+    The ground term has no dc limit of its own. At dc the return current
+    spreads over the whole plane, so its resistance depends on the plane's
+    extent and copper weight, neither of which is a cross-section input. It is
+    therefore held at its strong-skin form -- :class:`HalfSpaceSurfaceImpedance`
+    by default, which vanishes as $\sqrt{\omega}$ -- making the dc limit
+    exactly the trace's. Supply a different :attr:`ground_impedance` if the
+    plane geometry is known.
 
     **Departures, with their signs**
 
     At $W$ = 4 mm, $H$ = 1.6 mm, $T$ = 35 um, $\varepsilon_r$ = 4.335
-    ($W/H$ = 2.5, $\Re(Z_c)$ = 42.28 ohm), the strong-skin weights are
+    ($W/H$ = 2.5), the strong-skin weights are 468.4 per metre for this split,
+    385.7 for :class:`WheelerCurrentDistribution` and 318.3 for
+    :class:`IncrementalInductanceCurrentDistribution` -- so the split is 21.4%
+    **high** against Wheeler's 1942 fit and 47.1% **high** against the
+    recession derivative.
 
-    - this split, $k_t + k_g$: 468.4 per metre
-    - :class:`WheelerCurrentDistribution` (the 1942 fit): 385.7 per metre, so
-      the split is 21.4% **high** against it
-    - :class:`IncrementalInductanceCurrentDistribution` (the recession
-      derivative): 318.3 per metre, so the split is 47.1% **high** against it
-
-    So this split reports Wheeler's fit as *low* at strong skin effect,
-    consistent with Holloway and Kuester's reported 12-30% underprediction of
-    measured loss, while
-    :class:`IncrementalInductanceCurrentDistribution` -- developed from the
-    same source, and backed by an independent 2D field solve, a power-loss
-    surface-impedance integral and a volumetric PEEC solve -- reports it as
-    *high*. **The two cannot both be right.** The contradiction is recorded
-    rather than resolved, neither strategy is described as more accurate than
-    the other, and the microstrip default remains
+    This split therefore reports Wheeler's fit as *low*, consistent with
+    Holloway and Kuester's reported 12-30% underprediction of measured loss,
+    while :class:`IncrementalInductanceCurrentDistribution` -- from the same
+    source, backed by an independent 2D field solve, a power-loss integral and
+    a volumetric PEEC solve -- reports it as *high*. **The two cannot both be
+    right.** The contradiction is recorded rather than resolved; neither is
+    described as the more accurate, and the microstrip default remains
     :class:`WheelerCurrentDistribution` until it is settled.
 
     **Validity**
@@ -580,7 +570,7 @@ class TraceGroundCurrentDistribution(
         crowding = jnp.exp(-1.2 * (jnp.real(quasi_static.zc) / z0) ** 0.7)
         trace_weight = 2 / w * crowding
         ground_weight = jnp.ones_like(trace_weight) / (
-            microstrip_ground_effective_width(w, h)
+            _ground_return_effective_width(w, h)
         )
 
         trace_impedance = (
