@@ -100,6 +100,7 @@ from pmrf.models.components.lines.microstrip import (
     KirschningJansenMicrostripDispersion as KirschningJansenMicrostripDispersion,
     MicrostripCrossSection as MicrostripCrossSection,
     WheelerCurrentDistribution as WheelerCurrentDistribution,
+    IncrementalInductanceCurrentDistribution as IncrementalInductanceCurrentDistribution,
 )
 
 from pmrf.models.components.lines.stripline import (

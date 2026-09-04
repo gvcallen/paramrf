@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import ClassVar
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 from scipy.constants import c, epsilon_0, mu_0
 
@@ -86,7 +87,20 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
 
 
 class AbstractMicrostripFormulation(eqx.Module):
-    """Abstract base class for a closed-form microstrip formulation."""
+    """Abstract base class for a closed-form microstrip formulation.
+
+    :attr:`thickness_aware` declares whether ``quasi_static`` actually
+    responds to ``t``. It is opt-in: a formulation that ignores thickness
+    leaves it ``False``, which lets
+    :class:`IncrementalInductanceCurrentDistribution` refuse a pairing whose
+    recession derivative would silently miss the strip's top face and
+    sidewalls.
+    """
+
+    #: Whether ``quasi_static`` responds to the ``t`` argument. Opt-in: a
+    #: formulation derived for a zero-thickness strip leaves this ``False``.
+    thickness_aware: ClassVar[bool] = False
+
     @abstractmethod
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         r"""
@@ -145,6 +159,10 @@ class WheelerMicrostripFormulation(AbstractMicrostripFormulation):
     Wheeler, H. A. (1977). Transmission-Line Properties of a Strip on a Dielectric Sheet on a Plane.
     IEEE Transactions on Microwave Theory and Techniques.
     """
+
+    #: The 1977 result is derived for a zero-thickness strip.
+    thickness_aware: ClassVar[bool] = False
+
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         # t is accepted and ignored: the 1977 result is derived for a
         # zero-thickness strip, so thickness enters neither ep_eff nor zc. It
@@ -226,6 +244,9 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
     407-409.
     """
 
+    #: Finite thickness enters through the normalized-width corrections.
+    thickness_aware: ClassVar[bool] = True
+
     def quasi_static(self, *, w, h, t, ep_r) -> PlanarQuasiStaticResult:
         u = w / h
         thickness = None if t is None else t / h
@@ -263,6 +284,133 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
         z0 = jnp.sqrt(mu_0 / epsilon_0)
         f_u = 6 + (2 * jnp.pi - 6) * jnp.exp(-(30.666 / u) ** 0.7528)
         return z0 / (2 * jnp.pi) * jnp.log(f_u / u + jnp.sqrt(1 + (2 / u) ** 2))
+
+
+class IncrementalInductanceCurrentDistribution(
+    AbstractCurrentDistribution[MicrostripCrossSection]
+):
+    r"""Wheeler's incremental-inductance rule, evaluated by autodiff.
+
+    This evaluates the rule itself rather than Wheeler's 1942 closed-form fit
+    to it, which is what :class:`WheelerCurrentDistribution` implements. It is
+    also distinct from :class:`WheelerMicrostripFormulation`, the 1977
+    quasi-static impedance approximation, which is a formulation and not a
+    current distribution.
+
+    **Mathematical Formulation**
+
+    The geometry weight is the rate of change of the air-filled impedance as
+    every conductor surface recedes into the metal by a distance $n$:
+
+    $$k_c = \frac{1}{Z_0}\frac{\partial}{\partial n}
+    Z_a(W-2n,\ H+2n,\ T-2n)\bigg|_{n=0}$$
+
+    The strip narrows by $2n$ and thins by $2n$, and the strip-to-ground gap
+    grows by $2n$ -- $n$ from the ground plane receding and $n$ from the
+    strip's underside. $Z_a$ is :attr:`formulation` evaluated at
+    $\varepsilon_r = 1$, so the derivative is taken on the same closed form
+    that supplies the line's impedance. It is taken with :func:`jax.grad`,
+    which is exact for a closed-form $Z_a$ and avoids the step-size problem a
+    finite difference would have here ($\partial Z_a/\partial n$ is of order
+    $10^5\ \Omega/\mathrm{m}$ against a $Z_a$ of order $10^2\ \Omega$).
+
+    The weight is real, frequency-independent, and differentiable in $W$, $H$
+    and $T$, exactly as Wheeler's fit is.
+
+    **Validity**
+
+    The derivative is taken on :attr:`formulation`'s own $Z_a$, so a
+    formulation that ignores $T$ cannot respond to the strip thinning and the
+    top face and sidewalls drop out of the weight entirely -- an
+    under-prediction of about 30% at $W/H = 2.5$. Both that pairing and an
+    unspecified thickness raise rather than degrade silently; supply a
+    thickness-aware formulation such as
+    :class:`HammerstadJensenMicrostripFormulation` and a cross-section with
+    ``t`` set.
+
+    **Departure from Wheeler's 1942 fit**
+
+    Against this derivative, the 1942 fit is *high*: 385.7 against 318.3 per
+    metre at $W/H = 2.5$ ($W$ = 4 mm, $H$ = 1.6 mm, $T$ = 35 um,
+    $\varepsilon_r$ = 4.335), a ratio of 0.825, closing to 0.958 by
+    $W/H = 50$. An independent 2D quasi-static field solve, a power-loss
+    surface-impedance integral, and a volumetric PEEC solve all land in
+    306-320 for that case.
+
+    This sign is disputed. A separate trace/ground current split, developed
+    from the same Holloway and Kuester source, reports the 1942 fit as 12-18%
+    *low* at strong skin effect. The two cannot both be right; the
+    contradiction is unresolved and is recorded rather than papered over.
+    Neither result changes the microstrip default, which remains
+    :class:`WheelerCurrentDistribution`.
+
+    Note also that the wide-line limit does not recover the $2/W$ prefactor of
+    the 1942 fit: at $W/H = 50$ the weight is 22.9 against $2/W$ = 25.0. The
+    $2/W$ argument assumes a zero-thickness strip and neglects fringing, and
+    with fringing $C_{air}$ is larger, so
+    $k_c = -\varepsilon_0 C^{-2}\,\partial C/\partial n$ falls below it.
+
+    References
+    ----------
+    Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
+    IRE, 30(9), 412-424.
+
+    Hammerstad, E., & Jensen, O. (1980). Accurate Models for Microstrip
+    Computer-Aided Design. IEEE MTT-S International Microwave Symposium
+    Digest, 407-409.
+    """
+
+    cross_section_type: ClassVar[type] = MicrostripCrossSection
+
+    #: The closed form supplying $Z_a$. It must be thickness-aware; see
+    #: **Validity**. This is deliberately a field of the distribution rather
+    #: than an argument of ``_distribute``, so that which $Z_a$ the derivative
+    #: is taken on is explicit.
+    formulation: AbstractMicrostripFormulation = eqx.field(
+        default_factory=HammerstadJensenMicrostripFormulation
+    )
+
+    #: Finite-thickness surface impedance. See
+    #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
+    #: normalisation details.
+    slab_impedance: AbstractSurfaceImpedance = eqx.field(
+        default_factory=RootSumSquareSlabSurfaceImpedance
+    )
+
+    def _distribute(self, freq, cross_section, quasi_static):
+        if cross_section.t is None:
+            raise ValueError(
+                f"{type(self).__name__} needs a specified strip thickness: the "
+                "recession derivative is taken over the strip's top face and "
+                "sidewalls as well as its underside, and without t those "
+                "surfaces are absent from the weight (about 30% low at "
+                "w/h = 2.5). Set t on the cross-section, or use "
+                "WheelerCurrentDistribution."
+            )
+        if not type(self.formulation).thickness_aware:
+            raise ValueError(
+                f"{type(self).__name__} needs a thickness-aware formulation, "
+                f"but {type(self.formulation).__name__} ignores t, so the "
+                "recession derivative cannot see the strip thin (about 30% "
+                "low at w/h = 2.5). Use "
+                "HammerstadJensenMicrostripFormulation, or another "
+                "formulation declaring thickness_aware = True."
+            )
+
+        z0 = jnp.sqrt(mu_0 / epsilon_0)
+        w, h, t = cross_section.w, cross_section.h, cross_section.t
+        ones = jnp.ones_like(jnp.real(quasi_static.ep_eff))
+
+        def z_air(n):
+            # eps_r = 1 makes eps_eff = 1, so zc is Za, the air-filled
+            # impedance of the receded cross-section.
+            result = self.formulation.quasi_static(
+                w=w - 2 * n, h=h + 2 * n, t=t - 2 * n, ep_r=jnp.ones(())
+            )
+            return jnp.real(result.zc).reshape(-1)[0]
+
+        weight = jax.grad(z_air)(jnp.zeros(())) / z0
+        return ((self.slab_impedance, weight * ones),)
 
 
 class AbstractMicrostripDispersion(eqx.Module):
