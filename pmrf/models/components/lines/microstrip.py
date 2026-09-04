@@ -66,16 +66,20 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
 
     :attr:`slab_impedance` defaults to
     :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
-    strip thickness. At least one widely used commercial 3D solver applies a
-    plain half-space
+    strip thickness. 3D solvers commonly run with a skin-effect approximation
+    that neglects thickness in the current distribution, applying a plain
+    half-space
 
     $$Z_s = (1+j)\sqrt{\pi f \mu_0 / \sigma}$$
 
-    and ignores thickness entirely. Over $t/\delta$ = 3.7-6.0 the two models
-    differ by 2-5%, so a cross-tool comparison that leaves the default in
-    place charges the solver for a thickness correction it never applied and
-    attributes the resulting 2-5% discrepancy to one tool or the other when it
-    is purely a difference in surface-impedance model. Pass
+    instead; this has been confirmed on the exported surface impedance of at
+    least one widely used commercial tool. It is not universal, and most
+    solvers allow the approximation to be turned off, so check what the tool
+    was actually run with. Where it is in force, over $t/\delta$ = 3.7-6.0 the
+    two models differ by 2-5%, so a cross-tool comparison that leaves the
+    default in place charges the solver for a thickness correction it never
+    applied and attributes the resulting 2-5% discrepancy to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
     ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
     comparison, and check where your band sits relative to that
     $t/\delta$ range before deciding whether it matters.
@@ -379,11 +383,13 @@ class IncrementalInductanceCurrentDistribution(
 
     :attr:`slab_impedance` defaults to
     :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
-    strip thickness, while at least one widely used commercial 3D solver
-    applies a plain half-space $Z_s$ and ignores thickness entirely. The two
-    differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison that
-    leaves the default in place attributes that 2-5% to one tool or the other
-    when it is purely a difference in surface-impedance model. Pass
+    strip thickness, while a 3D solver run with its skin-effect approximation
+    neglects thickness in the current distribution and applies a plain
+    half-space $Z_s$ instead. Most solvers allow that approximation to be
+    turned off, so check what the tool was run with. Where it is in force the
+    two differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison
+    that leaves the default in place attributes that 2-5% to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
     ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
     comparison. See :class:`WheelerCurrentDistribution` for the full note; the
     default is unchanged here.
@@ -571,11 +577,13 @@ class TraceGroundCurrentDistribution(
 
     The trace's :attr:`slab_impedance` defaults to
     :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
-    strip thickness, while at least one widely used commercial 3D solver
-    applies a plain half-space $Z_s$ and ignores thickness entirely. The two
-    differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison that
-    leaves the default in place attributes that 2-5% to one tool or the other
-    when it is purely a difference in surface-impedance model. Pass
+    strip thickness, while a 3D solver run with its skin-effect approximation
+    neglects thickness in the current distribution and applies a plain
+    half-space $Z_s$ instead. Most solvers allow that approximation to be
+    turned off, so check what the tool was run with. Where it is in force the
+    two differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison
+    that leaves the default in place attributes that 2-5% to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
     ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
     comparison. See :class:`WheelerCurrentDistribution` for the full note; the
     default is unchanged here.
