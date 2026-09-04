@@ -62,6 +62,32 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
     :class:`HalfSpaceSurfaceImpedance`; otherwise, the distribution uses
     :attr:`slab_impedance`. The returned weight is in inverse metres.
 
+    **Validating against an external 3D solver**
+
+    :attr:`slab_impedance` defaults to
+    :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
+    strip thickness. 3D solvers commonly run with a skin-effect approximation
+    that neglects thickness in the current distribution, applying a plain
+    half-space
+
+    $$Z_s = (1+j)\sqrt{\pi f \mu_0 / \sigma}$$
+
+    instead; this has been confirmed on the exported surface impedance of at
+    least one widely used commercial tool. It is not universal, and most
+    solvers allow the approximation to be turned off, so check what the tool
+    was actually run with. Where it is in force, over $t/\delta$ = 3.7-6.0 the
+    two models differ by 2-5%, so a cross-tool comparison that leaves the
+    default in place charges the solver for a thickness correction it never
+    applied and attributes the resulting 2-5% discrepancy to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
+    ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
+    comparison, and check where your band sits relative to that
+    $t/\delta$ range before deciding whether it matters.
+
+    This is not a defect in the default:
+    :class:`RootSumSquareSlabSurfaceImpedance` is the more defensible physics
+    and remains the default. It is a trap only for cross-tool validation.
+
     References
     ----------
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
@@ -71,7 +97,9 @@ class WheelerCurrentDistribution(AbstractCurrentDistribution[MicrostripCrossSect
     cross_section_type: ClassVar[type] = MicrostripCrossSection
 
     #: Finite-thickness surface impedance. The default matches the dc and
-    #: strong-skin limits under Wheeler's geometry weight. See
+    #: strong-skin limits under Wheeler's geometry weight. Validating against
+    #: an external half-space solver needs ``HalfSpaceSurfaceImpedance()``
+    #: passed here explicitly; see the class docstring. See
     #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
     #: normalisation details.
     slab_impedance: AbstractSurfaceImpedance = eqx.field(
@@ -351,6 +379,21 @@ class IncrementalInductanceCurrentDistribution(
     with fringing $C_{air}$ is larger, so
     $k_c = -\varepsilon_0 C^{-2}\,\partial C/\partial n$ falls below it.
 
+    **Validating against an external 3D solver**
+
+    :attr:`slab_impedance` defaults to
+    :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
+    strip thickness, while a 3D solver run with its skin-effect approximation
+    neglects thickness in the current distribution and applies a plain
+    half-space $Z_s$ instead. Most solvers allow that approximation to be
+    turned off, so check what the tool was run with. Where it is in force the
+    two differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison
+    that leaves the default in place attributes that 2-5% to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
+    ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
+    comparison. See :class:`WheelerCurrentDistribution` for the full note; the
+    default is unchanged here.
+
     References
     ----------
     Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
@@ -371,7 +414,9 @@ class IncrementalInductanceCurrentDistribution(
         default_factory=HammerstadJensenMicrostripFormulation
     )
 
-    #: Finite-thickness surface impedance. See
+    #: Finite-thickness surface impedance. Validating against an external
+    #: half-space solver needs ``HalfSpaceSurfaceImpedance()`` passed here
+    #: explicitly; see **Validating against an external 3D solver**. See
     #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
     #: normalisation details.
     slab_impedance: AbstractSurfaceImpedance = eqx.field(
@@ -528,6 +573,21 @@ class TraceGroundCurrentDistribution(
     described as the more accurate, and the microstrip default remains
     :class:`WheelerCurrentDistribution` until it is settled.
 
+    **Validating against an external 3D solver**
+
+    The trace's :attr:`slab_impedance` defaults to
+    :class:`RootSumSquareSlabSurfaceImpedance`, which corrects for finite
+    strip thickness, while a 3D solver run with its skin-effect approximation
+    neglects thickness in the current distribution and applies a plain
+    half-space $Z_s$ instead. Most solvers allow that approximation to be
+    turned off, so check what the tool was run with. Where it is in force the
+    two differ by 2-5% over $t/\delta$ = 3.7-6.0, so a cross-tool comparison
+    that leaves the default in place attributes that 2-5% to one tool or the
+    other when it is purely a difference in surface-impedance model. Pass
+    ``slab_impedance=HalfSpaceSurfaceImpedance()`` explicitly for such a
+    comparison. See :class:`WheelerCurrentDistribution` for the full note; the
+    default is unchanged here.
+
     **Validity**
 
     $W_g$ is quasi-static and assumes a uniform strip current, so it degrades
@@ -550,6 +610,9 @@ class TraceGroundCurrentDistribution(
 
     #: Finite-thickness surface impedance for the trace. Its dc floor is what
     #: anchors the default configuration's dc resistance at $1/(\sigma WT)$.
+    #: Validating against an external half-space solver needs
+    #: ``HalfSpaceSurfaceImpedance()`` passed here explicitly; see
+    #: **Validating against an external 3D solver**.
     slab_impedance: AbstractSurfaceImpedance = eqx.field(
         default_factory=RootSumSquareSlabSurfaceImpedance
     )
