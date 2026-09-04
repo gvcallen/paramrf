@@ -337,8 +337,9 @@ class IncrementalInductanceCurrentDistribution(
     surface-impedance integral, and a volumetric PEEC solve all land in
     306-320 for that case.
 
-    This sign is disputed. A separate trace/ground current split, developed
-    from the same Holloway and Kuester source, reports the 1942 fit as 12-18%
+    This sign is disputed. :class:`TraceGroundCurrentDistribution`, a
+    trace/ground current split developed from the same Holloway and Kuester
+    source, reports the 1942 fit as 12-18%
     *low* at strong skin effect. The two cannot both be right; the
     contradiction is unresolved and is recorded rather than papered over.
     Neither result changes the microstrip default, which remains
@@ -411,6 +412,186 @@ class IncrementalInductanceCurrentDistribution(
 
         weight = jax.grad(z_air)(jnp.zeros(())) / z0
         return ((self.slab_impedance, weight * ones),)
+
+
+def microstrip_ground_effective_width(w, h):
+    r"""Effective width of the ground-plane return current, in metres.
+
+    **Mathematical Formulation**
+
+    Holloway and Kuester's quasi-static ground-plane current density for a
+    strip of width $W$ at height $H$ is the strip's own current convolved
+    with the image-filament kernel $\,[\pi H(1+(x/H)^2)]^{-1}$. Referring the
+    ground loss to the total line current defines an effective width
+    $W_g = I^2\big/\!\int J_g^2\,\mathrm{d}x$, which Parseval's theorem
+    reduces in closed form. With $u = W/H$,
+
+    $$\frac{W_g}{W} = \frac{\pi u}
+    {2\left[u\arctan(u/2) - \ln\!\left(1 + u^2/4\right)\right]}.$$
+
+    The limits are $W_g \to 2\pi H$ for a narrow strip -- the filament result,
+    independent of $W$ -- and $W_g \to W$ for a wide one, where the return
+    current is confined under the trace. Representative values are
+    $W_g/W$ = 3.667, 3.896 and 14.394 at $u$ = 1.94, 1.80 and 0.44.
+
+    Parameters
+    ----------
+    w : ArrayLike
+        Width of the strip in meters.
+    h : ArrayLike
+        Substrate height in meters.
+
+    Returns
+    -------
+    jnp.ndarray
+        Effective ground-plane width in meters.
+
+    References
+    ----------
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip
+    lines. Radio Science, 29(3), 539-559.
+    """
+    u = w / h
+    return jnp.pi * w * u / (
+        2 * (u * jnp.arctan(u / 2) - jnp.log1p(u**2 / 4))
+    )
+
+
+class TraceGroundCurrentDistribution(
+    AbstractCurrentDistribution[MicrostripCrossSection]
+):
+    r"""Trace and ground plane charged as separate surfaces.
+
+    Wheeler's rule bundles the strip faces, the edge-current crowding and the
+    ground plane into a single geometry weight, so the ground plane's share of
+    conductor loss is invisible inside it. This strategy emits one
+    ``(impedance, weight)`` pair per surface -- the trace and the ground plane
+    -- each with its own surface impedance and its own width scaling, so the
+    two can carry different frequency behaviour and different dc limits.
+
+    It is a **peer** of :class:`WheelerCurrentDistribution` and of
+    :class:`IncrementalInductanceCurrentDistribution`, not a correction of
+    either, and it is not the microstrip default; see **Departures** below.
+
+    **Mathematical Formulation**
+
+    The trace keeps Wheeler's incremental-inductance weight, which is the
+    quantity his exponential was fitted for,
+
+    $$k_t = \frac{2}{W}K_i,\qquad
+    K_i = \exp\left[-1.2\left(\frac{\Re(Z_c)}{Z_0}\right)^{0.7}\right],$$
+
+    paired with :attr:`slab_impedance`, whose dc floor is expressed in the
+    caller's normalisation and therefore returns the trace's exact dc
+    resistance $1/(\sigma W T)$ whatever $k_t$ is.
+
+    The ground plane is charged separately at
+
+    $$k_g = \frac{1}{W_g},$$
+
+    with $W_g$ the effective width of the ground-plane return current from
+    :func:`microstrip_ground_effective_width`. The two pairs are summed by the
+    caller, so the total weight is $k_t + k_g$.
+
+    **Resolved choice: $K_i$ is applied to the trace only**
+
+    Wheeler's exponential is a fit to current crowding at the *strip's* edges,
+    so applying it to the ground plane would be convenient rather than
+    justified. It is therefore not applied there. The choice is worth about
+    4-5% of the total weight: at $\Re(Z_c)$ = 48.9 ohm the total is
+    $1.773/W$ as implemented against $1.705/W$ with $K_i$ on both terms.
+
+    **Resolved choice: the ground term has no dc limit of its own**
+
+    The trace anchors cleanly at $1/(\sigma W T)$. The ground plane does not:
+    at dc the return current spreads over the whole plane rather than over the
+    substrate-height-scale distribution above, so its dc resistance depends on
+    the plane's extent and copper weight, neither of which is an input to a
+    microstrip cross-section. The ground term is therefore held at its
+    strong-skin form -- :class:`HalfSpaceSurfaceImpedance` by default, which
+    vanishes as $\sqrt{\omega}$ and contributes nothing at dc. The dc limit of
+    the default configuration is exactly the trace's dc resistance. A user who
+    knows the plane geometry can supply a different
+    :attr:`ground_impedance`. This choice only became visible once the weight
+    was split; it was previously hidden inside Wheeler's constant.
+
+    **Departures, with their signs**
+
+    At $W$ = 4 mm, $H$ = 1.6 mm, $T$ = 35 um, $\varepsilon_r$ = 4.335
+    ($W/H$ = 2.5, $\Re(Z_c)$ = 42.28 ohm), the strong-skin weights are
+
+    - this split, $k_t + k_g$: 468.4 per metre
+    - :class:`WheelerCurrentDistribution` (the 1942 fit): 385.7 per metre, so
+      the split is 21.4% **high** against it
+    - :class:`IncrementalInductanceCurrentDistribution` (the recession
+      derivative): 318.3 per metre, so the split is 47.1% **high** against it
+
+    So this split reports Wheeler's fit as *low* at strong skin effect,
+    consistent with Holloway and Kuester's reported 12-30% underprediction of
+    measured loss, while
+    :class:`IncrementalInductanceCurrentDistribution` -- developed from the
+    same source, and backed by an independent 2D field solve, a power-loss
+    surface-impedance integral and a volumetric PEEC solve -- reports it as
+    *high*. **The two cannot both be right.** The contradiction is recorded
+    rather than resolved, neither strategy is described as more accurate than
+    the other, and the microstrip default remains
+    :class:`WheelerCurrentDistribution` until it is settled.
+
+    **Validity**
+
+    $W_g$ is quasi-static and assumes a uniform strip current, so it degrades
+    where the strip's own edge singularity dominates the ground distribution.
+    The ground term carries no dc physics at all; see above. An unspecified
+    thickness falls back to :class:`HalfSpaceSurfaceImpedance` on the trace,
+    which removes the dc floor with it.
+
+    References
+    ----------
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip
+    lines. Radio Science, 29(3), 539-559.
+
+    Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
+    IRE, 30(9), 412-424.
+    """
+
+    cross_section_type: ClassVar[type] = MicrostripCrossSection
+
+    #: Finite-thickness surface impedance for the trace. Its dc floor is what
+    #: anchors the default configuration's dc resistance at $1/(\sigma WT)$.
+    slab_impedance: AbstractSurfaceImpedance = eqx.field(
+        default_factory=RootSumSquareSlabSurfaceImpedance
+    )
+
+    #: Surface impedance of the ground plane. The default is the strong-skin
+    #: half-space, which carries no dc floor -- a deliberate choice, since the
+    #: plane's dc resistance is not a function of the cross-section.
+    ground_impedance: AbstractSurfaceImpedance = eqx.field(
+        default_factory=HalfSpaceSurfaceImpedance
+    )
+
+    def _distribute(self, freq, cross_section, quasi_static):
+        z0 = jnp.sqrt(mu_0 / epsilon_0)
+        w, h = cross_section.w, cross_section.h
+
+        # K_i is a strip-edge crowding fit and is deliberately not applied to
+        # the ground term; see the class docstring.
+        crowding = jnp.exp(-1.2 * (jnp.real(quasi_static.zc) / z0) ** 0.7)
+        trace_weight = 2 / w * crowding
+        ground_weight = jnp.ones_like(trace_weight) / (
+            microstrip_ground_effective_width(w, h)
+        )
+
+        trace_impedance = (
+            HalfSpaceSurfaceImpedance()
+            if cross_section.t is None
+            else self.slab_impedance
+        )
+        return (
+            (trace_impedance, trace_weight),
+            (self.ground_impedance, ground_weight),
+        )
 
 
 class AbstractMicrostripDispersion(eqx.Module):

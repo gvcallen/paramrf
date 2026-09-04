@@ -38,8 +38,10 @@ class AbstractSurfaceImpedance(eqx.Module):
     cannot reproduce both the dc resistance and strong-skin asymptote.
     :class:`RootSumSquareSlabSurfaceImpedance` uses the optional ``weight`` argument to
     match both limits and is therefore the planar default. A full
-    Holloway--Kuester treatment would require separate strip and ground-plane
-    weights, which ParamRF does not implement.
+    Holloway--Kuester treatment charges the strip and the ground plane on
+    separate weights; that is
+    :class:`~pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution`,
+    which emits one pair per surface.
     """
     @abstractmethod
     def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
