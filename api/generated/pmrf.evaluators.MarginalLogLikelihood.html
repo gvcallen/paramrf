@@ -1,0 +1,359 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarginalLogLikelihood &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="GibbsMarginalLogLikelihood" href="pmrf.evaluators.GibbsMarginalLogLikelihood.html" />
+    <link rel="prev" title="TargetLoss" href="pmrf.evaluators.TargetLoss.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.AbstractEvaluator.html">AbstractEvaluator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.Feature.html">Feature</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.TargetLoss.html">TargetLoss</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">MarginalLogLikelihood</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.GibbsMarginalLogLikelihood.html">GibbsMarginalLogLikelihood</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.Negated.html">Negated</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.evaluators.Goal.html">Goal</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+      <li class="breadcrumb-item active">MarginalLogLikelihood</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.evaluators.MarginalLogLikelihood.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="marginalloglikelihood">
+<h1>MarginalLogLikelihood<a class="headerlink" href="#marginalloglikelihood" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.evaluators.</span></span><span class="sig-name descname"><span class="pre">MarginalLogLikelihood</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">predictor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">PyTree</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><span class="pre">Frequency</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jnp.ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likelihood</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">jnp.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dist.AbstractDistribution</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dist.AbstractDistribution</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">discrepancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">jnp.ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jnp.ndarray</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dist.AbstractDistribution</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_orthogonal_discrepancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orthogonal_basis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrthogonalBasis</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orthogonal_rcond</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orthogonal_recompute</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bij.AbstractBijector</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">jnp.ndarray</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bij.AbstractBijector</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_ndims</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.evaluators.AbstractEvaluator.html#pmrf.evaluators.AbstractEvaluator" title="pmrf.evaluators.AbstractEvaluator"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractEvaluator</span></code></a></p>
+<p>Computes the log of the probability of observed data
+by conditioning a likelihood function on a model prediction
+while marginalizing out a potential discrepancy model.</p>
+<p>Includes a mapping from model “observation space” to “event space”.
+By default, this defines the frequency axis as the probabilistic event,
+by moving it to the last axis before passing it to the likelihood/discrepancy.
+However, an bijective transform can be applied to model probability
+in an arbitrary latent space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>predictor</strong> (<em>Callable</em><em>[</em><em>[</em><em>jaxtyping.PyTree</em><em>, </em><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><em>pmrf.frequency.Frequency</em></a><em>]</em><em>, </em><em>jax.jaxlib._jax.Array</em><em>]</em>) – The predictor (e.g. another Evaluator) that extracts model features.
+Can be a function or a PyTree with optional parameters.</p></li>
+<li><p><strong>observed</strong> (<em>numpy.ndarray</em>) – The observed data that the log probability will be computed of.
+Must have a shape that matches the shape of the predictor output.</p></li>
+<li><p><strong>likelihood</strong> (<em>Callable</em><em>[</em><em>[</em><em>jax.jaxlib._jax.Array</em><em> | </em><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><em>distreqx.distributions._distribution.AbstractDistribution</em></a><em>]</em><em>, </em><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><em>distreqx.distributions._distribution.AbstractDistribution</em></a><em>]</em>) – The likelihood function that takes the model prediction and returns the probability of observing some data.
+Can be a function or a PyTree with optional parameters.
+See <a class="reference internal" href="pmrf.likelihoods.html#module-pmrf.likelihoods" title="pmrf.likelihoods"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.likelihoods</span></code></a> for common likelihoods.</p></li>
+<li><p><strong>discrepancy</strong> (<em>Callable</em><em>[</em><em>[</em><em>jax.jaxlib._jax.Array</em><em>, </em><em>jax.jaxlib._jax.Array</em><em>]</em><em>, </em><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><em>distreqx.distributions._distribution.AbstractDistribution</em></a><em>] </em><em>| </em><em>None</em>) – An optional discrepancy model to cater for model misspecification.
+Can be a function or a PyTree with optional parameters.
+See <a class="reference internal" href="pmrf.discrepancy_models.html#module-pmrf.discrepancy_models" title="pmrf.discrepancy_models"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.discrepancy_models</span></code></a> for common discrepancy models.</p></li>
+<li><p><strong>use_orthogonal_discrepancy</strong> (<em>bool</em>) – Constrain a Gaussian-process discrepancy to the complement of the free-parameter
+tangent space. This retains the full-data likelihood; it is not REML.</p></li>
+<li><p><strong>orthogonal_basis</strong> (<em>pmrf.evaluators.OrthogonalBasis</em><em> | </em><em>None</em>) – A fixed tangent basis. Prefer creating it with
+<a class="reference internal" href="#pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference" title="pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_orthogonal_reference()</span></code></a> rather than constructing it directly.</p></li>
+<li><p><strong>orthogonal_rcond</strong> (<em>float</em><em> | </em><em>None</em>) – Required relative singular-value cutoff for the column-scaled Jacobian SVD.
+The cutoff is applied independently to each batch element.</p></li>
+<li><p><strong>orthogonal_recompute</strong> (<em>bool</em>) – If true, recompute the basis at every evaluation and differentiate through it.
+The default is false: a fixed reference is faster and defines a stable,
+normalized density. Configure it once with <a class="reference internal" href="#pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference" title="pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_orthogonal_reference()</span></code></a>.</p></li>
+<li><p><strong>event_transform</strong> (<em>distreqx.bijectors._bijector.AbstractBijector</em><em> | </em><em>Callable</em><em>[</em><em>[</em><em>jax.jaxlib._jax.Array</em><em>]</em><em>, </em><em>distreqx.bijectors._bijector.AbstractBijector</em><em>]</em>) – <p>A bijective transform that maps from “observation space” (predicted features) to “event space” (probability).
+Can be:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>, to use the default mapping (frequency as the event axis and independant real/imag);</p></li>
+<li><p>an <code class="xref py py-class docutils literal notranslate"><span class="pre">distreqx.bijectors.AbstractBijector</span></code>, applied as a fixed (“static”)
+transform to both the prediction and the observation;</p></li>
+<li><p>a callable taking the prediction in observation space and returning an
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distreqx.bijectors.AbstractBijector</span></code> (a “conditional” transform).
+The returned bijector is resolved once per evaluation and applied to <strong>both</strong>
+the prediction and the observation, so the residual is expressed in the
+prediction’s own frame. This lets the residual basis depend on the prediction.</p></li>
+</ul>
+<p>A conditional transform must be static in the PyTree sense: it is stored as a
+static field, so it should be a plain function or another hashable callable that
+holds no traced parameters. Any inferred parameters belong in the likelihood.</p>
+<p><strong>Normalization.</strong> A prediction-dependent change of variables introduces a
+Jacobian determinant. This class <strong>adds the log-determinant term properly</strong>:
+when the transform is conditional, <code class="docutils literal notranslate"><span class="pre">jnp.sum(transform.forward_log_det_jacobian(observed))</span></code>
+of the resolved bijector is added to the returned log-likelihood. Conditional
+transforms are therefore <em>not</em> required to be volume preserving; for a
+volume-preserving transform (such as a unitary rotation) the term is exactly
+zero and contributes nothing.</p>
+<p>The sum follows <cite>distreqx</cite>’s own convention, in that the bijector is trusted to
+report its log-determinant with one contribution per independent coordinate it
+transforms. A bijector parameterized by scalars may report a single scalar that
+<cite>distreqx</cite> does not broadcast over the input, in which case the summed term
+counts that contribution once rather than once per element.</p>
+<p>The term is deliberately <strong>not</strong> added for a static (or default) transform,
+where it is a constant offset independent of the model. Omitting it keeps the
+default behaviour unchanged and shifts the log-likelihood only by a constant,
+which affects neither optimization nor posterior sampling.</p>
+</p></li>
+<li><p><strong>event_ndims</strong> (<em>int</em>) – The number of trailing event dimensions in event space to use as the event shape. Defaults to 1.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.__call__" title="Link to this definition"></a></dt>
+<dd><p>Evaluate the model response over the specified frequency range.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<em>PyTree</em>) – The parameter PyTree to evaluate.</p></li>
+<li><p><strong>freq</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – The frequency object defining the evaluation points.</p></li>
+<li><p><strong>**kwargs</strong> (<em>dict</em>) – Additional keyword arguments for the evaluation process.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The evaluated model response.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.predictive_distribution">
+<span class="sig-name descname"><span class="pre">predictive_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.predictive_distribution" title="Link to this definition"></a></dt>
+<dd><p>Returns the full predictive distribution of an observed event for a given model.</p>
+<p>The returned distribution is in event space. To draw a sample from this distribution in
+observation space, see <a class="reference internal" href="#pmrf.evaluators.MarginalLogLikelihood.sample_observation" title="pmrf.evaluators.MarginalLogLikelihood.sample_observation"><code class="xref py py-meth docutils literal notranslate"><span class="pre">MarginalLogLikelihood.sample_observation()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.resolve_event_transform">
+<span class="sig-name descname"><span class="pre">resolve_event_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y_pred</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">AbstractBijector</span></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.resolve_event_transform" title="Link to this definition"></a></dt>
+<dd><p>Resolve <cite>event_transform</cite> to a concrete bijector for a given prediction.</p>
+<p>A static transform is returned unchanged. A conditional transform is called with
+the prediction in observation space and must return an
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distreqx.bijectors.AbstractBijector</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>y_pred</strong> (<em>jnp.ndarray</em>) – The model prediction in observation space.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The resolved transform, to be applied to both prediction and observation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bij.AbstractBijector</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.sample_observation">
+<span class="sig-name descname"><span class="pre">sample_observation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.sample_observation" title="Link to this definition"></a></dt>
+<dd><p>Returns a sample from the predictive distribution in observation space.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference">
+<span class="sig-name descname"><span class="pre">with_orthogonal_reference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.evaluators.MarginalLogLikelihood" title="pmrf.evaluators.MarginalLogLikelihood"><span class="pre">MarginalLogLikelihood</span></a></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference" title="Link to this definition"></a></dt>
+<dd><p>Return a copy with its tangent basis fixed at <code class="docutils literal notranslate"><span class="pre">model</span></code> and <code class="docutils literal notranslate"><span class="pre">frequency</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.discrepancy">
+<span class="sig-name descname"><span class="pre">discrepancy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.discrepancy" title="Link to this definition"></a></dt>
+<dd><p>The optional discrepancy model.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.event_ndims">
+<span class="sig-name descname"><span class="pre">event_ndims</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.event_ndims" title="Link to this definition"></a></dt>
+<dd><p>The number of trailing event dimensions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.event_transform">
+<span class="sig-name descname"><span class="pre">event_transform</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractBijector</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">AbstractBijector</span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.event_transform" title="Link to this definition"></a></dt>
+<dd><p>The bijective event transform, or a callable resolving one from the prediction.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.has_conditional_event_transform">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">has_conditional_event_transform</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.has_conditional_event_transform" title="Link to this definition"></a></dt>
+<dd><p>Whether <cite>event_transform</cite> is prediction-dependent (“conditional”).</p>
+<p>True when <cite>event_transform</cite> is a callable that resolves to a bijector from the
+prediction, rather than being a bijector itself.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.likelihood">
+<span class="sig-name descname"><span class="pre">likelihood</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.likelihood" title="Link to this definition"></a></dt>
+<dd><p>The active likelihood function.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.observed">
+<span class="sig-name descname"><span class="pre">observed</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.observed" title="Link to this definition"></a></dt>
+<dd><p>The observed data.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.orthogonal_basis">
+<span class="sig-name descname"><span class="pre">orthogonal_basis</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">OrthogonalBasis</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.orthogonal_basis" title="Link to this definition"></a></dt>
+<dd><p>Fixed tangent basis, normally populated by <a class="reference internal" href="#pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference" title="pmrf.evaluators.MarginalLogLikelihood.with_orthogonal_reference"><code class="xref py py-meth docutils literal notranslate"><span class="pre">with_orthogonal_reference()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.orthogonal_rcond">
+<span class="sig-name descname"><span class="pre">orthogonal_rcond</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.orthogonal_rcond" title="Link to this definition"></a></dt>
+<dd><p>Relative singular-value cutoff used to determine tangent rank.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.orthogonal_recompute">
+<span class="sig-name descname"><span class="pre">orthogonal_recompute</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.orthogonal_recompute" title="Link to this definition"></a></dt>
+<dd><p>Recompute the tangent basis at every call, including its exact derivative.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.predictor">
+<span class="sig-name descname"><span class="pre">predictor</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">PyTree</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.predictor" title="Link to this definition"></a></dt>
+<dd><p>The active predictor instance.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.evaluators.MarginalLogLikelihood.use_orthogonal_discrepancy">
+<span class="sig-name descname"><span class="pre">use_orthogonal_discrepancy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#pmrf.evaluators.MarginalLogLikelihood.use_orthogonal_discrepancy" title="Link to this definition"></a></dt>
+<dd><p>Flag for orthogonal discrepancy.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.evaluators.TargetLoss.html" class="btn btn-neutral float-left" title="TargetLoss" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.evaluators.GibbsMarginalLogLikelihood.html" class="btn btn-neutral float-right" title="GibbsMarginalLogLikelihood" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

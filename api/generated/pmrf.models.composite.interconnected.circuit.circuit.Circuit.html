@@ -1,0 +1,378 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circuit &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="compute_unique_nets" href="pmrf.models.composite.interconnected.circuit.circuit.compute_unique_nets.html" />
+    <link rel="prev" title="circuit" href="pmrf.models.composite.interconnected.circuit.circuit.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.composite.html">composite</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.composite.interconnected.html">interconnected</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.composite.interconnected.circuit.html">circuit</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.composite.interconnected.circuit.circuit.html">circuit</a></li>
+      <li class="breadcrumb-item active">Circuit</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.composite.interconnected.circuit.circuit.Circuit.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="circuit">
+<h1>Circuit<a class="headerlink" href="#circuit" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.composite.interconnected.circuit.circuit.</span></span><span class="sig-name descname"><span class="pre">Circuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">connections</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dataclasses.InitVar[list[list[tuple[pmrf.models.base.Model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">int]]]]</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><span class="pre">AbstractScatteringCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><span class="pre">AbstractAdmittanceCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><span class="pre">AbstractMNACircuitSolver</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">circuit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexed_connections</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list[list[tuple[int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">int]]]</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a></p>
+<p>Represents an arbitrary interconnection of multiple models.</p>
+<p>This container connects multiple models together based on a specified list
+of nodes. Each node connects one or more ports of the constituent models
+to form a composite network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>connections</strong> (<em>list</em><em>[</em><em>list</em><em>[</em><em>tuple</em><em>[</em><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><em>Model</em></a><em>, </em><em>int</em><em>]</em><em>]</em><em>]</em>) – A list representing the nodes of the circuit. Each node is a list of
+tuples, where each tuple contains a model and the integer
+index of the port to connect to that node.</p></li>
+<li><p><strong>flatten</strong> (<em>bool</em><em>, </em><em>default=True</em>) – Flattens sub-circuits and sub-cascades to perform a single solve.
+Defaults to True.</p></li>
+<li><p><strong>solver</strong> (<em>AbstractCircuitSolver</em><em>, </em><em>default=GlobalScatteringCircuitSolver</em><em>(</em><em>)</em>) – The circuit solver to use. Available solvers can be found in <a class="reference internal" href="pmrf.models.html#module-pmrf.models" title="pmrf.models"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.models</span></code></a>.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Create a two-port PI-CLC network. External nodes are defined using <cite>Port</cite>,
+and common nodes using <cite>Ground</cite>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Capacitor</span><span class="p">,</span> <span class="n">Inductor</span><span class="p">,</span> <span class="n">Circuit</span><span class="p">,</span> <span class="n">Port</span><span class="p">,</span> <span class="n">Ground</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Instantiate the elements, ports, and ground</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">C1</span><span class="p">,</span> <span class="n">C2</span> <span class="o">=</span> <span class="n">Capacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">2e-12</span><span class="p">),</span> <span class="n">Capacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">1.5e-12</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">L</span> <span class="o">=</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="mf">3e-9</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p0</span><span class="p">,</span> <span class="n">p1</span><span class="p">,</span> <span class="n">ground</span> <span class="o">=</span> <span class="n">Port</span><span class="p">(),</span> <span class="n">Port</span><span class="p">(),</span> <span class="n">Ground</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create the connections list</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">connections</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>    <span class="p">[(</span><span class="n">p0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">C1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">)],</span>         <span class="c1"># Node 0 -&gt; Port 1</span>
+<span class="gp">... </span>    <span class="p">[(</span><span class="n">p1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">C2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>         <span class="c1"># Node 1 -&gt; Port 2</span>
+<span class="gp">... </span>    <span class="p">[(</span><span class="n">ground</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">C1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">C2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>    <span class="c1"># Node 2 -&gt; Ground</span>
+<span class="gp">... </span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create the circuit model</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pi_clc</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="n">connections</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_chain">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">models</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_chain" title="Link to this definition"></a></dt>
+<dd><p>Creates a flattened Circuit from a chain of models connected in cascade.
+The final model may act as a termination by having N ports instead of 2N ports.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>models</strong> (<em>tuple</em><em>[</em><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><em>Model</em></a><em>, </em><em>...</em><em>]</em>) – The sequence of models to connect end-to-end.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments to pass to the Circuit constructor.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_connection">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">port_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">port_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><span class="pre">AbstractScatteringCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><span class="pre">AbstractAdmittanceCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><span class="pre">AbstractMNACircuitSolver</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_connection" title="Link to this definition"></a></dt>
+<dd><p>Creates a Circuit representing a direct port-to-port connection between one or two models.</p>
+<p>This handles both standard connections (connecting port <cite>a</cite> on <cite>model_a</cite> to port <cite>b</cite>
+on <cite>model_b</cite>) and inner connections (closing a loop by connecting two ports on the
+same model instance).</p>
+<p>The resultant external ports maintain the expected order: the unconnected ports
+of <cite>model_a</cite> followed by the unconnected ports of <cite>model_b</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_a</strong> (<a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><em>Model</em></a>) – The first model.</p></li>
+<li><p><strong>port_a</strong> (<em>int</em>) – The integer index of the port on <cite>model_a</cite> to connect.</p></li>
+<li><p><strong>model_b</strong> (<a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><em>Model</em></a>) – The second model. If <cite>model_a</cite> and <cite>model_b</cite> are the exact same instance,
+an inner-connection is performed.</p></li>
+<li><p><strong>port_b</strong> (<em>int</em>) – The integer index of the port on <cite>model_b</cite> to connect.</p></li>
+<li><p><strong>solver</strong> (<em>AbstractCircuitSolver</em><em>, </em><em>optional</em>) – The solver to use. Defaults to SequentialScatteringCircuitSolver.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments passed to the Circuit constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Connect port 1 of a 2-port attenuator to port 0 of a 2-port amplifier:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">atten</span><span class="p">,</span> <span class="n">amp</span> <span class="o">=</span> <span class="n">Attenuator</span><span class="p">(</span><span class="n">loss</span><span class="o">=</span><span class="mf">3.0</span><span class="p">),</span> <span class="n">Amplifier</span><span class="p">(</span><span class="n">gain</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chain</span> <span class="o">=</span> <span class="n">Circuit</span><span class="o">.</span><span class="n">from_connected</span><span class="p">(</span><span class="n">atten</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">amp</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_parallel">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_parallel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">models</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><span class="pre">AbstractScatteringCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><span class="pre">AbstractAdmittanceCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><span class="pre">AbstractMNACircuitSolver</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.from_parallel" title="Link to this definition"></a></dt>
+<dd><p>Creates a Circuit representing a parallel connection of two or more <cite>Model</cite> objects.</p>
+<p>Port <cite>i</cite> of every model is connected to port <cite>i</cite> of every other model, forming
+a single composite network with the same number of ports as the individual models.
+All models must have the exact same number of ports.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>models</strong> (<em>tuple</em><em>[</em><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><em>Model</em></a><em>, </em><em>...</em><em>]</em>) – The sequence of models in parallel.</p></li>
+<li><p><strong>solver</strong> (<em>AbstractCircuitSolver</em><em>, </em><em>optional</em>) – The solver to use. Defaults to HierarchicalScatteringCircuitSolver.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments passed to the Circuit constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Create a parallel RLC tank circuit:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">res</span><span class="p">,</span> <span class="n">cap</span><span class="p">,</span> <span class="n">ind</span> <span class="o">=</span> <span class="n">Resistor</span><span class="p">(</span><span class="mf">50.0</span><span class="p">),</span> <span class="n">Capacitor</span><span class="p">(</span><span class="mf">1e-12</span><span class="p">),</span> <span class="n">Inductor</span><span class="p">(</span><span class="mf">1e-9</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rlc_tank</span> <span class="o">=</span> <span class="n">Circuit</span><span class="o">.</span><span class="n">from_parallel</span><span class="p">((</span><span class="n">res</span><span class="p">,</span> <span class="n">cap</span><span class="p">,</span> <span class="n">ind</span><span class="p">))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.expand">
+<span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.expand" title="Link to this definition"></a></dt>
+<dd><p>Expands this model into its internal graph representation for circuit flattening.</p>
+<p>This method is used by graph algorithms (like the solver in <cite>Circuit.flattened</cite>)
+to unpack composite models, wrappers, and nested hierarchies into a
+single flat netlist. This allows global matrix solves to be used, where desired.</p>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code> delegates this method to its built
+model. The legacy direct <code class="docutils literal notranslate"><span class="pre">Model.build()</span></code> override does the same. Most
+user classes therefore do not need to implement topology expansion
+manually; it is mainly intended for built-in composite models such as
+<code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.Cascade</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.Renumbered</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><p>If the model is a composite or routing container, it returns a tuple of:
+- <cite>port_mapping</cite>: A list of length <cite>nports</cite> mapping each external port index</p>
+<blockquote>
+<div><p>of this model to an internal <cite>(Model, port_index)</cite> tuple.</p>
+</div></blockquote>
+<ul class="simple">
+<li><p><cite>internal_connections</cite>: A list of sub-nodes (connections) to add to the
+netlist. Each node is a list of <cite>(Model, port_index)</cite> tuples.</p></li>
+</ul>
+<p>If the model is a fundamental leaf component, it returns <cite>None</cite>.</p>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple or None</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Imagine a custom 2-port model that internally connects an Inductor and Capacitor
+in series. When asked to expand, it exposes the inner components and their wiring:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">expand</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="c1"># 1. Grab internal components</span>
+<span class="gp">... </span>    <span class="n">L</span><span class="p">,</span> <span class="n">C</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inductor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacitor</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># 2. Map our external ports to the internal components</span>
+<span class="gp">... </span>    <span class="n">port_mapping</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># External port 0 maps to Inductor port 0</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># External port 1 maps to Capacitor port 1</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># 3. Define the internal connections (the netlist)</span>
+<span class="gp">... </span>    <span class="c1"># Connect Inductor port 1 to Capacitor port 0</span>
+<span class="gp">... </span>    <span class="n">internal_connections</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>        <span class="p">[(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="n">port_mapping</span><span class="p">,</span> <span class="n">internal_connections</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.flattened">
+<span class="sig-name descname"><span class="pre">flattened</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit" title="pmrf.models.composite.interconnected.circuit.circuit.Circuit"><span class="pre">Circuit</span></a></span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.flattened" title="Link to this definition"></a></dt>
+<dd><p>Returns a newly compiled Circuit instance where all sub-circuits,
+cascades, and builder models have been fully unwrapped into a flat netlist.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.circuit">
+<span class="sig-name descname"><span class="pre">circuit</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.circuit" title="Link to this definition"></a></dt>
+<dd><p>The models in the connections.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.connections">
+<span class="sig-name descname"><span class="pre">connections</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.InitVar.html#pmrf.InitVar" title="dataclasses.InitVar"><span class="pre">dataclasses.InitVar</span></a><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">pmrf.models.base.Model</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.connections" title="Link to this definition"></a></dt>
+<dd><p>The connections.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.flatten">
+<span class="sig-name descname"><span class="pre">flatten</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.flatten" title="Link to this definition"></a></dt>
+<dd><p>Flatten sub-circuits.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.indexed_connections">
+<span class="sig-name descname"><span class="pre">indexed_connections</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.indexed_connections" title="Link to this definition"></a></dt>
+<dd><p>The collated indices of the connections.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.mna_representation">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mna_representation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.MNARepresentation.html#pmrf.models.composite.interconnected.circuit.base.MNARepresentation" title="pmrf.models.composite.interconnected.circuit.base.MNARepresentation"><span class="pre">MNARepresentation</span></a></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.mna_representation" title="Link to this definition"></a></dt>
+<dd><p>Generates the static topological map for MNA assembly and reduction.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.nodal_representation">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nodal_representation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.NodalRepresentation.html#pmrf.models.composite.interconnected.circuit.base.NodalRepresentation" title="pmrf.models.composite.interconnected.circuit.base.NodalRepresentation"><span class="pre">NodalRepresentation</span></a></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.nodal_representation" title="Link to this definition"></a></dt>
+<dd><p>Generates the static topological map for nodal admittance assembly and reduction.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.number_of_ports">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">number_of_ports</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.number_of_ports" title="Link to this definition"></a></dt>
+<dd><p>Computes the number of external ports exposed by this circuit.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.port_representation">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">port_representation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.PortRepresentation.html#pmrf.models.composite.interconnected.circuit.base.PortRepresentation" title="pmrf.models.composite.interconnected.circuit.base.PortRepresentation"><span class="pre">PortRepresentation</span></a></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.port_representation" title="Link to this definition"></a></dt>
+<dd><p>Generates the static topological map for scattering connection and reduction.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.composite.interconnected.circuit.circuit.Circuit.solver">
+<span class="sig-name descname"><span class="pre">solver</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><span class="pre">AbstractScatteringCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><span class="pre">AbstractAdmittanceCircuitSolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><span class="pre">AbstractMNACircuitSolver</span></a></span><a class="headerlink" href="#pmrf.models.composite.interconnected.circuit.circuit.Circuit.solver" title="Link to this definition"></a></dt>
+<dd><p>The circuit solver.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.composite.interconnected.circuit.circuit.html" class="btn btn-neutral float-left" title="circuit" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.composite.interconnected.circuit.circuit.compute_unique_nets.html" class="btn btn-neutral float-right" title="compute_unique_nets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

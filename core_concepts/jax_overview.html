@@ -1,0 +1,195 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JAX Overview &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Examples" href="../examples/index.html" />
+    <link rel="prev" title="Optimization and Inference" href="optimization_and_inference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Core Concepts</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="core_primitives.html">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="optimization_and_inference.html">Optimization and Inference</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">JAX Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#jit-compilation-and-xla">JIT Compilation and XLA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#differentiability-and-autodifferentiation">Differentiability and Autodifferentiation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vectorization-with-vmap">Vectorization with vmap</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#equinox-and-batched-models">Equinox and Batched Models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parax-and-unwrapping">Parax and Unwrapping</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Core Concepts</a></li>
+      <li class="breadcrumb-item active">JAX Overview</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core_concepts/jax_overview.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="jax-overview">
+<h1>JAX Overview<a class="headerlink" href="#jax-overview" title="Link to this heading"></a></h1>
+<p>ParamRF is built on top of <a class="reference external" href="https://github.com/google/jax">JAX</a>, a high-performance numerical computing library. If you are familiar with standard scientific Python, JAX will feel very natural: its core array object, <code class="xref py py-class docutils literal notranslate"><span class="pre">jnp.ndarray</span></code>, shares an almost identical API to <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code>. However, JAX arrays have additional transformation capabilities and restrictions.</p>
+<p>Understanding a few core JAX concepts may be helpful when building or debugging custom models in ParamRF. This section provides a high-level overview of Just-In-Time (JIT) compilation, the XLA graph, autodifferentiation, and vectorization.</p>
+<section id="jit-compilation-and-xla">
+<h2>JIT Compilation and XLA<a class="headerlink" href="#jit-compilation-and-xla" title="Link to this heading"></a></h2>
+<p>Standard Python is interpreted, which can introduce significant overhead. JAX bypasses this by compiling Python functions into optimized machine code using <strong>Just-In-Time (JIT)</strong> compilation, accessed via <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jit()</span></code>.</p>
+<p>When a JIT-compiled function is called, it is not immediately executed. Instead, JAX “traces” the function’s execution using abstract values. This trace builds a static computation graph in an intermediate representation called <strong>XLA</strong> (Accelerated Linear Algebra). The XLA compiler then optimizes this graph by merging operations, reducing memory allocation, and compiling it to a specific hardware architecture (CPU, GPU, or TPU).</p>
+<p>In ParamRF, all models and evaluators are designed to be JIT-compatible. Because JAX relies on this static tracing mechanism, functions passed to the JIT compiler must be <em>pure</em> (stateless and lacking side-effects). This functional paradigm is the underlying reason why ParamRF models are immutable; rather than modifying a model’s attributes in-place, methods like <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.at()</span></code> should be used.</p>
+</section>
+<section id="differentiability-and-autodifferentiation">
+<h2>Differentiability and Autodifferentiation<a class="headerlink" href="#differentiability-and-autodifferentiation" title="Link to this heading"></a></h2>
+<p>One of the benefits of leveraging JAX is its advanced <strong>autodifferentiation</strong> (autodiff) capabilities. Unlike numerical differentiation (which is slow and prone to truncation/rounding errors) or symbolic differentiation (which scales poorly and leads to expression swell), autodiff sequentially applies the chain rule to the operations in the XLA computation graph. Using transformations like <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.grad()</span></code> (for gradients of scalar-valued functions) or <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jacfwd()</span></code> and <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jacrev()</span></code> (for Jacobians of vector-valued functions), JAX computes exact mathematical derivatives:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">objective</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+<span class="n">grad_fn</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">objective</span><span class="p">)</span>
+<span class="n">gradient</span> <span class="o">=</span> <span class="n">grad_fn</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]))</span>  <span class="c1"># Returns [2.0, 4.0, 6.0]</span>
+</pre></div>
+</div>
+<p>In ParamRF, this means you can take gradients with respect to any parameter or frequency. This improves optimization efficiency and stability, since the gradient is immediately known at each iteration.</p>
+</section>
+<section id="vectorization-with-vmap">
+<h2>Vectorization with vmap<a class="headerlink" href="#vectorization-with-vmap" title="Link to this heading"></a></h2>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">jax.vmap()</span></code> provides automatic vectorization (or batching) of functions. If you write a function designed to operate on a single set of inputs, wrapping it in <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.vmap()</span></code> automatically transforms it to operate over arrays of inputs without the need for Python <code class="docutils literal notranslate"><span class="pre">for</span></code> loops.</p>
+</section>
+<section id="equinox-and-batched-models">
+<h2>Equinox and Batched Models<a class="headerlink" href="#equinox-and-batched-models" title="Link to this heading"></a></h2>
+<p>While <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.vmap()</span></code> and <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jit()</span></code> are incredibly powerful, they are designed to operate exclusively on JAX arrays. ParamRF models, however, are complex “PyTrees” containing a mix of arrays (parameters) and non-arrays (metadata, strings, or Python booleans). Standard JAX transformations will raise errors when they encounter these non-array elements.</p>
+<p>To solve this, ParamRF relies on <a class="reference external" href="https://docs.kidger.site/equinox/">Equinox</a>, which provides “filtered” versions of standard JAX transformations. Functions like <code class="xref py py-func docutils literal notranslate"><span class="pre">eqx.filter_vmap()</span></code> and <code class="xref py py-func docutils literal notranslate"><span class="pre">eqx.filter_jit()</span></code> inspect the PyTree, safely pass the non-arrays through unchanged, and only apply the transformation to the JAX arrays.</p>
+<p>This allows you to easily create and evaluate entire batches of models simultaneously. To demonstrate this, we can sample a batch of random capacitors. Note that JAX handles randomness differently than standard Python; it requires an explicit pseudo-random number generator (PRNG) state, called a <strong>key</strong> (created via <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.random.key()</span></code>), which is passed to random functions and guarantees reproducibility.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Capacitor</span>
+
+<span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">C_values</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,),</span> <span class="n">minval</span><span class="o">=</span><span class="mf">1.0e-12</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="mf">5.0e-12</span><span class="p">)</span>
+<span class="n">batched_capacitors</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">filter_vmap</span><span class="p">(</span><span class="n">Capacitor</span><span class="p">)(</span><span class="n">C_values</span><span class="p">)</span>
+
+<span class="n">freq</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s1">'MHz'</span><span class="p">)</span>
+<span class="nd">@eqx</span><span class="o">.</span><span class="n">filter_jit</span>
+<span class="nd">@eqx</span><span class="o">.</span><span class="n">filter_vmap</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate_batch</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">freq</span><span class="p">)</span>
+
+<span class="n">s_params</span> <span class="o">=</span> <span class="n">evaluate_batch</span><span class="p">(</span><span class="n">batched_capacitors</span><span class="p">)</span>
+<span class="n">s_params</span><span class="o">.</span><span class="n">shape</span>  <span class="c1"># (10, 100, 2, 2)</span>
+</pre></div>
+</div>
+</section>
+<section id="parax-and-unwrapping">
+<h2>Parax and Unwrapping<a class="headerlink" href="#parax-and-unwrapping" title="Link to this heading"></a></h2>
+<p>ParamRF builds on top of the JAX library <a class="reference external" href="https://github.com/gvcallen/parax">Parax</a> for parameters and constraints. Parax allows parameters (and entire models) to be manipulated in powerful ways, such as being fixed, scaled, constrained, or tied together. To accomplish this, Parax makes use of a concept known as <em>unwrapping</em>. To initialize a <em>wrapper</em>, the relevant parameter or object is <em>wrapped</em> in the desired class (for example, a “scale” wrapper). Then, to apply the wrapper, the object is <em>unwrapped</em>. This mechanism is what allows parameters to be tied together using <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.tied" title="pmrf.Model.tied"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.tied()</span></code></a>, or for parameters to remain bounded, <em>even</em> when using an unbounded optimization algorithm.</p>
+<p>In ParamRF, unwrapping can be done manually using <a class="reference internal" href="../api/generated/pmrf.unwrap.html#pmrf.unwrap" title="pmrf.unwrap"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap()</span></code></a> (which is an alias to <code class="xref py py-func docutils literal notranslate"><span class="pre">parax.unwrap()</span></code>). It is also automatically applied in ParamRF for RF response methods such as <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a> via the <a class="reference internal" href="../api/generated/pmrf.unwrap_self.html#pmrf.unwrap_self" title="pmrf.unwrap_self"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap_self()</span></code></a> annotation, as well as internally during optimization and inference. However, if you are using non-standard methods on your models and simply want to evaluate them (for example in a Jupyter notebook), then you should manually unwrap using <a class="reference internal" href="../api/generated/pmrf.unwrap.html#pmrf.unwrap" title="pmrf.unwrap"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap()</span></code></a>, or annotate your method using <a class="reference internal" href="../api/generated/pmrf.unwrap_self.html#pmrf.unwrap_self" title="pmrf.unwrap_self"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap_self()</span></code></a> where relevant.</p>
+<p>For more information, visit the <a class="reference external" href="https://gvcallen.github.io/parax">Parax</a> documentation.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="optimization_and_inference.html" class="btn btn-neutral float-left" title="Optimization and Inference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../examples/index.html" class="btn btn-neutral float-right" title="Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

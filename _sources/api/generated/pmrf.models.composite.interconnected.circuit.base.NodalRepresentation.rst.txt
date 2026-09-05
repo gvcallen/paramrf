@@ -1,0 +1,12 @@
+
+
+
+NodalRepresentation
+===================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.base
+
+.. autoclass:: NodalRepresentation
+   :members:
+   :show-inheritance:
+   :inherited-members:

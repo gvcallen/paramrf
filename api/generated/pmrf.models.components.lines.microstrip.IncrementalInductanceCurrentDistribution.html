@@ -1,0 +1,252 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IncrementalInductanceCurrentDistribution &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="KirschningJansenMicrostripDispersion" href="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.html" />
+    <link rel="prev" title="HammerstadJensenMicrostripFormulation" href="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.microstrip.html">microstrip</a></li>
+      <li class="breadcrumb-item active">IncrementalInductanceCurrentDistribution</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="incrementalinductancecurrentdistribution">
+<h1>IncrementalInductanceCurrentDistribution<a class="headerlink" href="#incrementalinductancecurrentdistribution" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.microstrip.</span></span><span class="sig-name descname"><span class="pre">IncrementalInductanceCurrentDistribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">formulation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation.html#pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation" title="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation"><span class="pre">AbstractMicrostripFormulation</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slab_impedance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.materials.AbstractSurfaceImpedance.html#pmrf.materials.AbstractSurfaceImpedance" title="pmrf.materials.AbstractSurfaceImpedance"><span class="pre">AbstractSurfaceImpedance</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.models.components.lines.planar.AbstractCurrentDistribution.html#pmrf.models.components.lines.planar.AbstractCurrentDistribution" title="pmrf.models.components.lines.planar.AbstractCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractCurrentDistribution</span></code></a>[<a class="reference internal" href="pmrf.models.components.lines.microstrip.MicrostripCrossSection.html#pmrf.models.components.lines.microstrip.MicrostripCrossSection" title="pmrf.models.components.lines.microstrip.MicrostripCrossSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">MicrostripCrossSection</span></code></a>]</p>
+<p>Wheeler’s incremental-inductance rule, evaluated by autodiff.</p>
+<p>This evaluates the rule itself rather than Wheeler’s 1942 closed-form fit
+to it, which is what <a class="reference internal" href="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution.html#pmrf.models.components.lines.microstrip.WheelerCurrentDistribution" title="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code></a> implements. It is
+also distinct from <a class="reference internal" href="pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation.html#pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation" title="pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerMicrostripFormulation</span></code></a>, the 1977
+quasi-static impedance approximation, which is a formulation and not a
+current distribution.</p>
+<p><strong>Mathematical Formulation</strong></p>
+<p>The geometry weight is the rate of change of the air-filled impedance as
+every conductor surface recedes into the metal by a distance <span class="math notranslate nohighlight">\(n\)</span>:</p>
+<p><div class="math notranslate nohighlight">
+\[k_c = \frac{1}{Z_0}\frac{\partial}{\partial n}
+Z_a(W-2n,\ H+2n,\ T-2n)\bigg|_{n=0}\]</div>
+</p>
+<p>The strip narrows by <span class="math notranslate nohighlight">\(2n\)</span> and thins by <span class="math notranslate nohighlight">\(2n\)</span>, and the strip-to-ground gap
+grows by <span class="math notranslate nohighlight">\(2n\)</span> – <span class="math notranslate nohighlight">\(n\)</span> from the ground plane receding and <span class="math notranslate nohighlight">\(n\)</span> from the
+strip’s underside. <span class="math notranslate nohighlight">\(Z_a\)</span> is <a class="reference internal" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation" title="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">formulation</span></code></a> evaluated at
+<span class="math notranslate nohighlight">\(\varepsilon_r = 1\)</span>, so the derivative is taken on the same closed form
+that supplies the line’s impedance. It is taken with <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.grad()</span></code>,
+which is exact for a closed-form <span class="math notranslate nohighlight">\(Z_a\)</span> and avoids the step-size problem a
+finite difference would have here (<span class="math notranslate nohighlight">\(\partial Z_a/\partial n\)</span> is of order
+<span class="math notranslate nohighlight">\(10^5\ \Omega/\mathrm{m}\)</span> against a <span class="math notranslate nohighlight">\(Z_a\)</span> of order <span class="math notranslate nohighlight">\(10^2\ \Omega\)</span>).</p>
+<p>The weight is real, frequency-independent, and differentiable in <span class="math notranslate nohighlight">\(W\)</span>, <span class="math notranslate nohighlight">\(H\)</span>
+and <span class="math notranslate nohighlight">\(T\)</span>, exactly as Wheeler’s fit is.</p>
+<p><strong>Validity</strong></p>
+<p>The derivative is taken on <a class="reference internal" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation" title="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">formulation</span></code></a>’s own <span class="math notranslate nohighlight">\(Z_a\)</span>, so a
+formulation that ignores <span class="math notranslate nohighlight">\(T\)</span> cannot respond to the strip thinning and the
+top face and sidewalls drop out of the weight entirely – an
+under-prediction of about 30% at <span class="math notranslate nohighlight">\(W/H = 2.5\)</span>. Both that pairing and an
+unspecified thickness raise rather than degrade silently; supply a
+thickness-aware formulation such as
+<a class="reference internal" href="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation.html#pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation" title="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">HammerstadJensenMicrostripFormulation</span></code></a> and a cross-section with
+<code class="docutils literal notranslate"><span class="pre">t</span></code> set.</p>
+<p><strong>Departure from Wheeler’s 1942 fit</strong></p>
+<p>Against this derivative, the 1942 fit is <em>high</em>: 385.7 against 318.3 per
+metre at <span class="math notranslate nohighlight">\(W/H = 2.5\)</span> (<span class="math notranslate nohighlight">\(W\)</span> = 4 mm, <span class="math notranslate nohighlight">\(H\)</span> = 1.6 mm, <span class="math notranslate nohighlight">\(T\)</span> = 35 um,
+<span class="math notranslate nohighlight">\(\varepsilon_r\)</span> = 4.335), a ratio of 0.825, closing to 0.958 by
+<span class="math notranslate nohighlight">\(W/H = 50\)</span>. An independent 2D quasi-static field solve, a power-loss
+surface-impedance integral, and a volumetric PEEC solve all land in
+306-320 for that case.</p>
+<p>This sign is disputed. <a class="reference internal" href="pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution.html#pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution" title="pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code></a>, a
+trace/ground current split developed from the same Holloway and Kuester
+source, reports the 1942 fit as 12-18%
+<em>low</em> at strong skin effect. The two cannot both be right; the
+contradiction is unresolved and is recorded rather than papered over.
+Neither result changes the microstrip default, which remains
+<a class="reference internal" href="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution.html#pmrf.models.components.lines.microstrip.WheelerCurrentDistribution" title="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code></a>.</p>
+<p>Note also that the wide-line limit does not recover the <span class="math notranslate nohighlight">\(2/W\)</span> prefactor of
+the 1942 fit: at <span class="math notranslate nohighlight">\(W/H = 50\)</span> the weight is 22.9 against <span class="math notranslate nohighlight">\(2/W\)</span> = 25.0. The
+<span class="math notranslate nohighlight">\(2/W\)</span> argument assumes a zero-thickness strip and neglects fringing, and
+with fringing <span class="math notranslate nohighlight">\(C_{air}\)</span> is larger, so
+<span class="math notranslate nohighlight">\(k_c = -\varepsilon_0 C^{-2}\,\partial C/\partial n\)</span> falls below it.</p>
+<p><strong>Validating against an external 3D solver</strong></p>
+<p><a class="reference internal" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.slab_impedance" title="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.slab_impedance"><code class="xref py py-attr docutils literal notranslate"><span class="pre">slab_impedance</span></code></a> defaults to
+<code class="xref py py-class docutils literal notranslate"><span class="pre">RootSumSquareSlabSurfaceImpedance</span></code>, which corrects for finite
+strip thickness, while a 3D solver run with its skin-effect approximation
+neglects thickness in the current distribution and applies a plain
+half-space <span class="math notranslate nohighlight">\(Z_s\)</span> instead. Most solvers allow that approximation to be
+turned off, so check what the tool was run with. Where it is in force the
+two differ by 2-5% over <span class="math notranslate nohighlight">\(t/\delta\)</span> = 3.7-6.0, so a cross-tool comparison
+that leaves the default in place attributes that 2-5% to one tool or the
+other when it is purely a difference in surface-impedance model. Pass
+<code class="docutils literal notranslate"><span class="pre">slab_impedance=HalfSpaceSurfaceImpedance()</span></code> explicitly for such a
+comparison. See <a class="reference internal" href="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution.html#pmrf.models.components.lines.microstrip.WheelerCurrentDistribution" title="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code></a> for the full note; the
+default is unchanged here.</p>
+<p class="rubric">References</p>
+<p>Wheeler, H. A. (1942). Formulas for the Skin Effect. Proceedings of the
+IRE, 30(9), 412-424.</p>
+<p>Hammerstad, E., &amp; Jensen, O. (1980). Accurate Models for Microstrip
+Computer-Aided Design. IEEE MTT-S International Microwave Symposium
+Digest, 407-409.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.cross_section_type">
+<span class="sig-name descname"><span class="pre">cross_section_type</span></span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.cross_section_type" title="Link to this definition"></a></dt>
+<dd><p>alias of <a class="reference internal" href="pmrf.models.components.lines.microstrip.MicrostripCrossSection.html#pmrf.models.components.lines.microstrip.MicrostripCrossSection" title="pmrf.models.components.lines.microstrip.MicrostripCrossSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">MicrostripCrossSection</span></code></a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation">
+<span class="sig-name descname"><span class="pre">formulation</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation.html#pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation" title="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation"><span class="pre">AbstractMicrostripFormulation</span></a></span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.formulation" title="Link to this definition"></a></dt>
+<dd><p>The closed form supplying <span class="math notranslate nohighlight">\(Z_a\)</span>. It must be thickness-aware; see
+<strong>Validity</strong>. This is deliberately a field of the distribution rather
+than an argument of <code class="docutils literal notranslate"><span class="pre">_distribute</span></code>, so that which <span class="math notranslate nohighlight">\(Z_a\)</span> the derivative
+is taken on is explicit.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.slab_impedance">
+<span class="sig-name descname"><span class="pre">slab_impedance</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.materials.AbstractSurfaceImpedance.html#pmrf.materials.AbstractSurfaceImpedance" title="pmrf.materials.surface_impedance.AbstractSurfaceImpedance"><span class="pre">AbstractSurfaceImpedance</span></a></span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.slab_impedance" title="Link to this definition"></a></dt>
+<dd><p>Finite-thickness surface impedance. Validating against an external
+half-space solver needs <code class="docutils literal notranslate"><span class="pre">HalfSpaceSurfaceImpedance()</span></code> passed here
+explicitly; see <strong>Validating against an external 3D solver</strong>. See
+<a class="reference internal" href="pmrf.materials.AbstractSurfaceImpedance.html#pmrf.materials.AbstractSurfaceImpedance" title="pmrf.materials.surface_impedance.AbstractSurfaceImpedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSurfaceImpedance</span></code></a> for
+normalisation details.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation.html" class="btn btn-neutral float-left" title="HammerstadJensenMicrostripFormulation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.html" class="btn btn-neutral float-right" title="KirschningJansenMicrostripDispersion" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

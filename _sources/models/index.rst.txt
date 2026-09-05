@@ -1,0 +1,264 @@
+Model Hierarchy
+===============
+
+* **adapters** (:mod:`~pmrf.models.adapters`)
+    * :class:`~pmrf.models.adapters.static.AModel`
+    * :class:`~pmrf.models.adapters.delegated.AbstractBuilder`
+    * :class:`~pmrf.models.adapters.base.AbstractDiscrete`
+    * :class:`~pmrf.models.adapters.bridge.AbstractHost`
+    * :class:`~pmrf.models.adapters.base.AbstractSingleDiscreteDomain`
+    * :class:`~pmrf.models.adapters.base.AbstractSingleDomain`
+    * :class:`~pmrf.models.adapters.callable.ContinuousCallable`
+    * :class:`~pmrf.models.adapters.callable.DiscreteCallable`
+    * :class:`~pmrf.models.adapters.static.SModel`
+    * :class:`~pmrf.models.adapters.static.SkrfNetwork`
+    * :class:`~pmrf.models.adapters.static.Touchstone`
+    * :class:`~pmrf.models.adapters.wrapped.Wrapped`
+    * :class:`~pmrf.models.adapters.static.YModel`
+    * :class:`~pmrf.models.adapters.static.ZModel`
+* **base** (:mod:`~pmrf.models.base`)
+    * :class:`~pmrf.models.base.Model`
+* **components** (:mod:`~pmrf.models.components`)
+    * **ideal** (:mod:`~pmrf.models.components.ideal`)
+        * :class:`~pmrf.models.components.ideal.Amplifier`
+        * :class:`~pmrf.models.components.ideal.Attenuator`
+        * :class:`~pmrf.models.components.ideal.Autotransformer`
+        * :class:`~pmrf.models.components.ideal.Balun`
+        * :class:`~pmrf.models.components.ideal.CentreTappedTransformer`
+        * :class:`~pmrf.models.components.ideal.DirectionalCoupler`
+        * :class:`~pmrf.models.components.ideal.Ground`
+        * :class:`~pmrf.models.components.ideal.Isolator`
+        * :class:`~pmrf.models.components.ideal.Load`
+        * :class:`~pmrf.models.components.ideal.Match`
+        * :class:`~pmrf.models.components.ideal.MixedModeConverter`
+        * :class:`~pmrf.models.components.ideal.Open`
+        * :class:`~pmrf.models.components.ideal.Port`
+        * :class:`~pmrf.models.components.ideal.Short`
+        * :class:`~pmrf.models.components.ideal.SourceConverter`
+        * :class:`~pmrf.models.components.ideal.Splitter`
+        * :class:`~pmrf.models.components.ideal.Tee`
+        * :class:`~pmrf.models.components.ideal.Transformer`
+    * **lines** (:mod:`~pmrf.models.components.lines`)
+        * :class:`~pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation`
+        * :class:`~pmrf.models.components.lines.planar.AbstractCurrentDistribution`
+        * :class:`~pmrf.models.components.lines.base.AbstractImmittanceLine`
+        * :class:`~pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion`
+        * :class:`~pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation`
+        * :class:`~pmrf.models.components.lines.planar.AbstractPlanarCrossSection`
+        * :class:`~pmrf.models.components.lines.stripline.AbstractStriplineFormulation`
+        * :class:`~pmrf.models.components.lines.base.AbstractUniformLine`
+        * :class:`~pmrf.models.components.lines.coaxial.CoaxialLine`
+        * :class:`~pmrf.models.components.lines.stripline.CohnCurrentDistribution`
+        * :class:`~pmrf.models.components.lines.stripline.CohnStriplineFormulation`
+        * :class:`~pmrf.models.components.lines.empirical.DatasheetLine`
+        * :class:`~pmrf.models.components.lines.nodal.FloatingLine`
+        * :class:`~pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation`
+        * :class:`~pmrf.models.components.lines.base.ImmittanceResult`
+        * :class:`~pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution`
+        * :class:`~pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion`
+        * :class:`~pmrf.models.components.lines.microstrip.MicrostripCrossSection`
+        * :class:`~pmrf.models.components.lines.microstrip.MicrostripLine`
+        * :class:`~pmrf.models.components.lines.ideal.PhaseLine`
+        * :class:`~pmrf.models.components.lines.empirical.PhysicalLine`
+        * :class:`~pmrf.models.components.lines.planar.PlanarQuasiStaticResult`
+        * :class:`~pmrf.models.components.lines.ideal.RLGCLine`
+        * :class:`~pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation`
+        * :class:`~pmrf.models.components.lines.stripline.StriplineCrossSection`
+        * :class:`~pmrf.models.components.lines.stripline.StriplineLine`
+        * :class:`~pmrf.models.components.lines.coaxial.TescheCoaxialFormulation`
+        * :class:`~pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution`
+        * :class:`~pmrf.models.components.lines.base.TransmissionLine`
+        * :class:`~pmrf.models.components.lines.microstrip.WheelerCurrentDistribution`
+        * :class:`~pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation`
+    * **lumped** (:mod:`~pmrf.models.components.lumped`)
+        * :class:`~pmrf.models.components.lumped.Admittance`
+        * :class:`~pmrf.models.components.lumped.Capacitor`
+        * :class:`~pmrf.models.components.lumped.CapacitorQ`
+        * :class:`~pmrf.models.components.lumped.CoupledInductors`
+        * :class:`~pmrf.models.components.lumped.Impedance`
+        * :class:`~pmrf.models.components.lumped.Inductor`
+        * :class:`~pmrf.models.components.lumped.InductorQ`
+        * :class:`~pmrf.models.components.lumped.Resistor`
+        * :class:`~pmrf.models.components.lumped.SeriesRL`
+        * :class:`~pmrf.models.components.lumped.ShuntCapacitor`
+        * :class:`~pmrf.models.components.lumped.ShuntInductor`
+        * :class:`~pmrf.models.components.lumped.ShuntResistor`
+    * **sections** (:mod:`~pmrf.models.components.sections`)
+        * :class:`~pmrf.models.components.sections.BoxSection`
+        * :class:`~pmrf.models.components.sections.BoxSectionCLCC`
+        * :class:`~pmrf.models.components.sections.LSection`
+        * :class:`~pmrf.models.components.sections.LSectionLC`
+        * :class:`~pmrf.models.components.sections.PiSection`
+        * :class:`~pmrf.models.components.sections.PiSectionCLC`
+        * :class:`~pmrf.models.components.sections.TSection`
+        * :class:`~pmrf.models.components.sections.TSectionLCL`
+* **composite** (:mod:`~pmrf.models.composite`)
+    * **interconnected** (:mod:`~pmrf.models.composite.interconnected`)
+        * **cascade** (:mod:`~pmrf.models.composite.interconnected.cascade`)
+            * :class:`~pmrf.models.composite.interconnected.cascade.Cascade`
+        * **circuit** (:mod:`~pmrf.models.composite.interconnected.circuit`)
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.AdmittanceResult`
+            * :class:`~pmrf.models.composite.interconnected.circuit.circuit.Circuit`
+            * :class:`~pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.MNARepresentation`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.NodalRepresentation`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.PortRepresentation`
+            * :class:`~pmrf.models.composite.interconnected.circuit.base.ScatteringResult`
+            * :class:`~pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver`
+        * **terminated** (:mod:`~pmrf.models.composite.interconnected.terminated`)
+            * :class:`~pmrf.models.composite.interconnected.terminated.Terminated`
+    * **nodal** (:mod:`~pmrf.models.composite.nodal`)
+        * :class:`~pmrf.models.composite.nodal.CoupledOnePorts`
+        * :class:`~pmrf.models.composite.nodal.CoupledTwoPorts`
+        * :class:`~pmrf.models.composite.nodal.FloatingTwoPort`
+        * :class:`~pmrf.models.composite.nodal.GroundExposed`
+        * :class:`~pmrf.models.composite.nodal.GroundLifted`
+        * :class:`~pmrf.models.composite.nodal.Shunt`
+    * **topological** (:mod:`~pmrf.models.composite.topological`)
+        * :class:`~pmrf.models.composite.topological.LTopology`
+        * :class:`~pmrf.models.composite.topological.PiTopology`
+        * :class:`~pmrf.models.composite.topological.TTopology`
+    * **transformed** (:mod:`~pmrf.models.composite.transformed`)
+        * :class:`~pmrf.models.composite.transformed.Flipped`
+        * :class:`~pmrf.models.composite.transformed.Renumbered`
+* **surrogates** (:mod:`~pmrf.models.surrogates`)
+    * :class:`~pmrf.models.surrogates.rational.BarycentricRational`
+    * :class:`~pmrf.models.surrogates.rational.PoleResidue`
+    * :class:`~pmrf.models.surrogates.rational.PolynomialRatio`
+    * :class:`~pmrf.models.surrogates.rational.StateSpace`
+    * :class:`~pmrf.models.surrogates.expansion.VectorExpansion`
+
+.. raw:: html
+
+   <div style="display: none;">
+
+.. autosummary::
+   :toctree: generated/
+
+   pmrf.models.adapters.static.AModel
+   pmrf.models.adapters.delegated.AbstractBuilder
+   pmrf.models.adapters.base.AbstractDiscrete
+   pmrf.models.adapters.bridge.AbstractHost
+   pmrf.models.adapters.base.AbstractSingleDiscreteDomain
+   pmrf.models.adapters.base.AbstractSingleDomain
+   pmrf.models.adapters.callable.ContinuousCallable
+   pmrf.models.adapters.callable.DiscreteCallable
+   pmrf.models.adapters.static.SModel
+   pmrf.models.adapters.static.SkrfNetwork
+   pmrf.models.adapters.static.Touchstone
+   pmrf.models.adapters.wrapped.Wrapped
+   pmrf.models.adapters.static.YModel
+   pmrf.models.adapters.static.ZModel
+   pmrf.models.base.Model
+   pmrf.models.components.ideal.Amplifier
+   pmrf.models.components.ideal.Attenuator
+   pmrf.models.components.ideal.Autotransformer
+   pmrf.models.components.ideal.Balun
+   pmrf.models.components.ideal.CentreTappedTransformer
+   pmrf.models.components.ideal.DirectionalCoupler
+   pmrf.models.components.ideal.Ground
+   pmrf.models.components.ideal.Isolator
+   pmrf.models.components.ideal.Load
+   pmrf.models.components.ideal.Match
+   pmrf.models.components.ideal.MixedModeConverter
+   pmrf.models.components.ideal.Open
+   pmrf.models.components.ideal.Port
+   pmrf.models.components.ideal.Short
+   pmrf.models.components.ideal.SourceConverter
+   pmrf.models.components.ideal.Splitter
+   pmrf.models.components.ideal.Tee
+   pmrf.models.components.ideal.Transformer
+   pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation
+   pmrf.models.components.lines.planar.AbstractCurrentDistribution
+   pmrf.models.components.lines.base.AbstractImmittanceLine
+   pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion
+   pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation
+   pmrf.models.components.lines.planar.AbstractPlanarCrossSection
+   pmrf.models.components.lines.stripline.AbstractStriplineFormulation
+   pmrf.models.components.lines.base.AbstractUniformLine
+   pmrf.models.components.lines.coaxial.CoaxialLine
+   pmrf.models.components.lines.stripline.CohnCurrentDistribution
+   pmrf.models.components.lines.stripline.CohnStriplineFormulation
+   pmrf.models.components.lines.empirical.DatasheetLine
+   pmrf.models.components.lines.nodal.FloatingLine
+   pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation
+   pmrf.models.components.lines.base.ImmittanceResult
+   pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution
+   pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion
+   pmrf.models.components.lines.microstrip.MicrostripCrossSection
+   pmrf.models.components.lines.microstrip.MicrostripLine
+   pmrf.models.components.lines.ideal.PhaseLine
+   pmrf.models.components.lines.empirical.PhysicalLine
+   pmrf.models.components.lines.planar.PlanarQuasiStaticResult
+   pmrf.models.components.lines.ideal.RLGCLine
+   pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation
+   pmrf.models.components.lines.stripline.StriplineCrossSection
+   pmrf.models.components.lines.stripline.StriplineLine
+   pmrf.models.components.lines.coaxial.TescheCoaxialFormulation
+   pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution
+   pmrf.models.components.lines.base.TransmissionLine
+   pmrf.models.components.lines.microstrip.WheelerCurrentDistribution
+   pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation
+   pmrf.models.components.lumped.Admittance
+   pmrf.models.components.lumped.Capacitor
+   pmrf.models.components.lumped.CapacitorQ
+   pmrf.models.components.lumped.CoupledInductors
+   pmrf.models.components.lumped.Impedance
+   pmrf.models.components.lumped.Inductor
+   pmrf.models.components.lumped.InductorQ
+   pmrf.models.components.lumped.Resistor
+   pmrf.models.components.lumped.SeriesRL
+   pmrf.models.components.lumped.ShuntCapacitor
+   pmrf.models.components.lumped.ShuntInductor
+   pmrf.models.components.lumped.ShuntResistor
+   pmrf.models.components.sections.BoxSection
+   pmrf.models.components.sections.BoxSectionCLCC
+   pmrf.models.components.sections.LSection
+   pmrf.models.components.sections.LSectionLC
+   pmrf.models.components.sections.PiSection
+   pmrf.models.components.sections.PiSectionCLC
+   pmrf.models.components.sections.TSection
+   pmrf.models.components.sections.TSectionLCL
+   pmrf.models.composite.interconnected.cascade.Cascade
+   pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver
+   pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver
+   pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver
+   pmrf.models.composite.interconnected.circuit.base.AdmittanceResult
+   pmrf.models.composite.interconnected.circuit.circuit.Circuit
+   pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver
+   pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver
+   pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver
+   pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver
+   pmrf.models.composite.interconnected.circuit.base.MNARepresentation
+   pmrf.models.composite.interconnected.circuit.base.NodalRepresentation
+   pmrf.models.composite.interconnected.circuit.base.PortRepresentation
+   pmrf.models.composite.interconnected.circuit.base.ScatteringResult
+   pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver
+   pmrf.models.composite.interconnected.terminated.Terminated
+   pmrf.models.composite.nodal.CoupledOnePorts
+   pmrf.models.composite.nodal.CoupledTwoPorts
+   pmrf.models.composite.nodal.FloatingTwoPort
+   pmrf.models.composite.nodal.GroundExposed
+   pmrf.models.composite.nodal.GroundLifted
+   pmrf.models.composite.nodal.Shunt
+   pmrf.models.composite.topological.LTopology
+   pmrf.models.composite.topological.PiTopology
+   pmrf.models.composite.topological.TTopology
+   pmrf.models.composite.transformed.Flipped
+   pmrf.models.composite.transformed.Renumbered
+   pmrf.models.surrogates.rational.BarycentricRational
+   pmrf.models.surrogates.rational.PoleResidue
+   pmrf.models.surrogates.rational.PolynomialRatio
+   pmrf.models.surrogates.rational.StateSpace
+   pmrf.models.surrogates.expansion.VectorExpansion
+
+.. raw:: html
+
+   </div>
+

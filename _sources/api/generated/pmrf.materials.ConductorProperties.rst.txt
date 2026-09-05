@@ -1,0 +1,12 @@
+
+
+
+ConductorProperties
+===================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: ConductorProperties
+   :members:
+   :show-inheritance:
+   :inherited-members:

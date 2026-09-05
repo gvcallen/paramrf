@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0001: Line-modelling architecture &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0001: Line-modelling architecture</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0001-line-modelling-architecture.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0001-line-modelling-architecture">
+<h1>ADR-0001: Line-modelling architecture<a class="headerlink" href="#adr-0001-line-modelling-architecture" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>Transmission-line models grew from single closed-form functions into a layered
+set of strategy objects: a formulation, an optional dispersion, a surface-
+impedance formulation, a current distribution, and a roughness correction on
+the material.
+That layering forced a batch of decisions — several of them deliberate
+compromises — whose reasoning lived nowhere but in review threads. This record
+holds them. The vocabulary is in <code class="docutils literal notranslate"><span class="pre">CONTEXT.md</span></code>; the maths is in the class
+docstrings, and is not repeated here.</p>
+</section>
+<section id="decisions">
+<h2>Decisions<a class="headerlink" href="#decisions" title="Link to this heading"></a></h2>
+<section id="cross-section-normalisation-the-rss-blend-is-the-planar-default-and-the-exact-slab-cannot-be">
+<h3>1. Cross-section normalisation: the RSS blend is the planar default, and the exact slab cannot be<a class="headerlink" href="#cross-section-normalisation-the-rss-blend-is-the-planar-default-and-the-exact-slab-cannot-be" title="Link to this heading"></a></h3>
+<p>A surface-impedance formulation returns ohm/square, referred to the current
+<em>its own</em> cross-section carries; the caller multiplies by an inverse-metre
+geometry weight. For round conductors the two normalisations agree exactly:
+<code class="docutils literal notranslate"><span class="pre">SchelkunoffRodSurfaceImpedance</span></code> is referred to the total rod current and the caller’s
+weight is <span class="math notranslate nohighlight">\(1/2\pi a\)</span>.</p>
+<p>The planar case has no such agreement. <code class="docutils literal notranslate"><span class="pre">HollowayKuesterSlabSurfaceImpedance</span></code> is the exact
+finite-thickness strip result, referred to the total strip current, so it wants
+a weight of <span class="math notranslate nohighlight">\(1/(2W)\)</span> — for a 1.55 mm trace, <span class="math notranslate nohighlight">\(322.6\,\mathrm{m^{-1}}\)</span>. Wheeler’s
+incremental-inductance weight, which the microstrip current distribution
+supplies, is <span class="math notranslate nohighlight">\(963.7\,\mathrm{m^{-1}}\)</span> for that trace: a factor of <strong>2.99</strong>.</p>
+<p>That factor is physics, not a scale error. The two are different
+decompositions of the same problem: Wheeler’s weight is an
+incremental-inductance result covering the ground plane and the edge crowding
+as well as the strip, while the slab is a one-dimensional strip-diffusion
+result containing neither. Under Wheeler’s weight the exact slab returns
+0.925 ohm/m at dc for 35 um copper on that trace where the true value is
+0.3097 ohm/m. No rescaling repairs it: halving the slab to fix dc breaks the
+strong-skin asymptote by the same factor.</p>
+<p>Under a <em>frequency-independent</em> weight, therefore, exactly one entry is right
+at both asymptotes — <code class="docutils literal notranslate"><span class="pre">RootSumSquareSlabSurfaceImpedance</span></code>, which reaches into the caller’s
+normalisation through the optional <code class="docutils literal notranslate"><span class="pre">weight</span></code> argument to express its dc floor
+in per-unit-length terms. It is the planar default for that reason, not as a
+compatibility shim and not because it is the industry convention.</p>
+<p><strong>Known limitation.</strong> The blend is right at both ends and wrong in between,
+and the error is in the reactance. Its internal inductance is 17.7x too large
+at 100 kHz for 35 um copper. Measured against the exact slab as <span class="math notranslate nohighlight">\(t/\delta\)</span>
+rises:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Frequency</p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(t/\delta\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(X\)</span> ratio (RSS / exact)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>100 kHz</p></td>
+<td><p>0.17</p></td>
+<td><p>17.7</p></td>
+</tr>
+<tr class="row-odd"><td><p>1 MHz</p></td>
+<td><p>0.54</p></td>
+<td><p>5.6</p></td>
+</tr>
+<tr class="row-even"><td><p>5 MHz</p></td>
+<td><p>1.20</p></td>
+<td><p>2.5</p></td>
+</tr>
+<tr class="row-odd"><td><p>10 MHz</p></td>
+<td><p>1.70</p></td>
+<td><p>1.8</p></td>
+</tr>
+<tr class="row-even"><td><p>50 MHz</p></td>
+<td><p>3.79</p></td>
+<td><p>1.01</p></td>
+</tr>
+</tbody>
+</table>
+<p>So the default is accurate in resistance and in the strong-skin regime, and
+its internal reactance should not be trusted below roughly <span class="math notranslate nohighlight">\(t/\delta \approx 2\)</span>.
+The alternatives were: make the exact slab the default (rejected — it is
+wrong at dc by 2.99x under the only weight available); rescale the slab
+(rejected — fixes one asymptote and breaks the other); or split the weight
+into separate strip and ground-plane terms in the Holloway–Kuester manner,
+which is the only fix that is actually honest, and which ParamRF does not
+implement.</p>
+</section>
+<section id="the-metal-propagation-constant-is-an-explicit-conductor-property">
+<h3>2. The metal propagation constant is an explicit conductor property<a class="headerlink" href="#the-metal-propagation-constant-is-an-explicit-conductor-property" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">ConductorProperties</span></code> carries <code class="docutils literal notranslate"><span class="pre">zs</span></code> (the surface prefactor) and <code class="docutils literal notranslate"><span class="pre">gamma(omega)</span></code>
+(the bulk diffusion constant) as independent inputs, with <code class="docutils literal notranslate"><span class="pre">gamma</span></code> computed
+from <span class="math notranslate nohighlight">\(\sigma\)</span> and <span class="math notranslate nohighlight">\(\mu_r\)</span> rather than recovered from <code class="docutils literal notranslate"><span class="pre">zs</span></code> as <span class="math notranslate nohighlight">\(\sigma\zeta_c\)</span>.</p>
+<p>The alternative — deriving one from the other — is an identity that holds only
+for a smooth bulk metal. A <code class="docutils literal notranslate"><span class="pre">RoughConductor</span></code> scales <code class="docutils literal notranslate"><span class="pre">zs</span></code> by the roughness
+factor <span class="math notranslate nohighlight">\(K\)</span>; recovering <span class="math notranslate nohighlight">\(\gamma\)</span> from it would push <span class="math notranslate nohighlight">\(K\)</span> into every <span class="math notranslate nohighlight">\(\gamma a\)</span>
+and <span class="math notranslate nohighlight">\(\gamma t\)</span> in the cross-section physics, changing the <em>diffusion</em> inside
+the metal because its <em>surface</em> was treated. Roughness multiplies the
+prefactor only.</p>
+</section>
+<section id="a-typed-cross-section-record-per-planar-family">
+<h3>3. A typed cross-section record per planar family<a class="headerlink" href="#a-typed-cross-section-record-per-planar-family" title="Link to this heading"></a></h3>
+<p>A current distribution receives a frozen <code class="docutils literal notranslate"><span class="pre">MicrostripCrossSection</span></code> or
+<code class="docutils literal notranslate"><span class="pre">StriplineCrossSection</span></code> and declares which it accepts. Two alternatives were
+weighed:</p>
+<ul class="simple">
+<li><p><strong>One flat record with optional fields for every family.</strong> Rejected: no
+stable set of cross-section quantities exists across families — coplanar
+waveguide brings a gap width, suspended substrate an air gap, offset
+stripline an offset — so the record would grow a nullable field per family
+and every strategy would re-check which ones are populated.</p></li>
+<li><p><strong>Loose keyword arguments.</strong> Rejected: pairing a strategy with the wrong
+family then fails as a missing-argument error deep in a call, instead of a
+type error at the boundary.</p></li>
+</ul>
+<p>The comparable tools (scikit-rf, qucsator, wcalc) all use flat per-line-type
+parameter sets. That is workable in a procedural API where the line type
+selects the function; it does not survive strategies that are swappable
+independently of the line. Adopting the typed seam let the legacy
+conductor-loss path be deleted outright, closing the outstanding criterion of
+#99.</p>
+</section>
+<section id="coax-has-no-current-distribution-layer">
+<h3>4. Coax has no current-distribution layer<a class="headerlink" href="#coax-has-no-current-distribution-layer" title="Link to this heading"></a></h3>
+<p>Deliberately. A current distribution exists to model how current <em>chooses</em> to
+crowd across a cross-section — a fitted rule. In a coaxial line the current is
+where the geometry puts it: the inner conductor’s whole current on its surface
+at radius <span class="math notranslate nohighlight">\(a\)</span>, the shield’s return on its inner surface at radius <span class="math notranslate nohighlight">\(b\)</span>. The
+weights are therefore exact constants, <span class="math notranslate nohighlight">\(1/2\pi a\)</span> and <span class="math notranslate nohighlight">\(1/2\pi b\)</span>, folded into
+the coaxial formulation, which selects shapes through <code class="docutils literal notranslate"><span class="pre">inner_impedance</span></code> and
+<code class="docutils literal notranslate"><span class="pre">shield_impedance</span></code> fields instead. Adding a distribution layer would wrap two
+constants in a strategy interface to satisfy symmetry with the planar lines,
+which is contortion, not architecture.</p>
+</section>
+<section id="hammerstadjensen-is-the-default-microstrip-formulation">
+<h3>5. Hammerstad–Jensen is the default microstrip formulation<a class="headerlink" href="#hammerstadjensen-is-the-default-microstrip-formulation" title="Link to this heading"></a></h3>
+<p>This is a breaking numeric change: existing microstrip results move, and no
+compatibility shim or opt-out flag was added. This ADR is the migration note.
+<code class="docutils literal notranslate"><span class="pre">WheelerMicrostripFormulation</span></code> (Wheeler 1977) remains available and selectable.</p>
+<p>The accuracy argument outweighs Wheeler’s familiarity on two counts.
+Hammerstad–Jensen is thickness-aware, and quotes fit errors below 0.2% in
+<span class="math notranslate nohighlight">\(\varepsilon_e\)</span> and 0.01–0.03% in <span class="math notranslate nohighlight">\(Z_L\)</span> over its stated range. More
+decisively, Kirschning–Jansen dispersion — the default <code class="docutils literal notranslate"><span class="pre">dispersion</span></code> — was
+itself fitted against Hammerstad–Jensen’s effective width, so the previous
+default paired a zero-thickness quasi-static formulation with a dispersion
+model fitted to a different one.</p>
+<p>Two related decisions:</p>
+<ul class="simple">
+<li><p><strong>A formulation that cannot use an input declines it silently and locally.</strong>
+Wheeler 1977 accepts a stated thickness and ignores it in <span class="math notranslate nohighlight">\(\varepsilon_e\)</span>
+and <span class="math notranslate nohighlight">\(Z_c\)</span>; the thickness still reaches the conductor-loss term. Emitting a
+warning was rejected: under <code class="docutils literal notranslate"><span class="pre">jit</span></code> it fires at trace time, so it appears once
+during compilation, not on the call the user made, and is silent on every
+subsequent evaluation.</p></li>
+<li><p><strong>The Wheeler name collides.</strong> <code class="docutils literal notranslate"><span class="pre">WheelerMicrostripFormulation</span></code> is Wheeler
+1977, a quasi-static impedance approximation; <code class="docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code>
+is Wheeler 1942, the skin-effect loss rule and still the microstrip default.
+They share only an author, and changing the formulation default does not
+touch the loss rule.</p></li>
+</ul>
+</section>
+<section id="characteristic-impedance-is-sqrt-z-y-not-kirschningjansen-s-modal-value">
+<h3>6. Characteristic impedance is <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span>, not Kirschning–Jansen’s modal value<a class="headerlink" href="#characteristic-impedance-is-sqrt-z-y-not-kirschningjansen-s-modal-value" title="Link to this heading"></a></h3>
+<p>Both the quasi-static and dispersed paths report <span class="math notranslate nohighlight">\(Z_c=\sqrt{Z/Y}\)</span> from the
+line’s own RLGC state. With dispersion enabled, the dispersed
+<span class="math notranslate nohighlight">\((\varepsilon_e, Z_c)\)</span> replace the quasi-static ones in a fresh
+<code class="docutils literal notranslate"><span class="pre">PlanarQuasiStaticResult</span></code> before conversion, so the dispersion path does not
+tautologically reproduce Kirschning–Jansen’s modal <span class="math notranslate nohighlight">\(Z_c\)</span>.</p>
+<p>The alternative — reporting K–J’s value directly — was rejected because
+microstrip has no unique characteristic impedance (NIST: Williams, Alpert,
+Arz et al., <em>Causal Characteristic Impedance of Planar Transmission Lines</em>).
+K–J’s is a power-current quasi-TEM modal quantity, chosen by Jansen &amp; Kirschning
+for its weak frequency dependence, which is a good property for a fitting
+target and not a reason to prefer it as the reported impedance of a circuit
+element. <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span> is at least the impedance the rest of the simulator
+actually uses.</p>
+</section>
+<section id="complex-permittivity-carries-dielectric-loss-static-conductivity-stays-separate">
+<h3>7. Complex permittivity carries dielectric loss; static conductivity stays separate<a class="headerlink" href="#complex-permittivity-carries-dielectric-loss-static-conductivity-stays-separate" title="Link to this heading"></a></h3>
+<p>Dielectric loss is carried through the quasi-static and dispersion
+formulations as a complex permittivity, so it arrives in <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> and
+needs no separate attenuation term. Static bulk conductivity is <em>not</em> folded
+into that permittivity: as a <span class="math notranslate nohighlight">\(\sigma/j\omega\varepsilon_0\)</span> term it is singular
+at dc. It is applied separately as <span class="math notranslate nohighlight">\(G=\sigma K_g\)</span>, using the geometric
+<code class="docutils literal notranslate"><span class="pre">shunt_conductance_factor</span></code> of the quasi-static result, which keeps the shunt
+conductance finite and nonzero down to dc.</p>
+<p>This matches ADS’s documented treatment of permittivity as a complex material
+property, though the vendor documentation does not establish the expression
+used; the complex evaluation is the exact loss perturbation of the
+effective-permittivity model, following Schneider’s energy-perturbation
+derivation.</p>
+</section>
+<section id="unspecified-thickness-is-not-zero-thickness">
+<h3>8. Unspecified thickness is not zero thickness<a class="headerlink" href="#unspecified-thickness-is-not-zero-thickness" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">t=None</span></code> means the thickness was not stated, not that it is zero. It asserts
+that skin effect is in operation at every frequency, which is the good-faith
+default given that the underlying <span class="math notranslate nohighlight">\(R_s\)</span> is itself a thick-conductor result, and
+it takes no dc resistance floor: there is no dc regime for a floor to describe.
+A stated positive <span class="math notranslate nohighlight">\(t\)</span> gets the floor <span class="math notranslate nohighlight">\(R_{dc}=1/(\sigma W t)\)</span>, blended with the
+skin-effect term.</p>
+<p>The alternative reading — <code class="docutils literal notranslate"><span class="pre">None</span></code> as <span class="math notranslate nohighlight">\(t=0\)</span>, hence no conductor loss — would make
+an unstated dimension silently switch off physics. ADS likewise applies no
+floor at all. The blend used for a stated thickness is a ParamRF convention
+rather than a rule any cited source prescribes; mcalc and wcalc hard-switch to
+a dc solution once skin depth exceeds thickness, an equally defensible
+alternative.</p>
+</section>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Microstrip numbers change with the Hammerstad–Jensen default; there is no
+opt-out beyond passing <code class="docutils literal notranslate"><span class="pre">WheelerMicrostripFormulation()</span></code> explicitly.</p></li>
+<li><p>Planar internal inductance below <span class="math notranslate nohighlight">\(t/\delta \approx 2\)</span> is not trustworthy, and
+will not be until separate strip and ground-plane weights exist.</p></li>
+<li><p>A new planar family needs a cross-section record, not a new optional field.</p></li>
+<li><p>A new conductor treatment scales <code class="docutils literal notranslate"><span class="pre">zs</span></code> and leaves <code class="docutils literal notranslate"><span class="pre">gamma</span></code> alone.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

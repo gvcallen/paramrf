@@ -1,0 +1,12 @@
+
+
+
+Matern52Kernel
+==============
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: Matern52Kernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

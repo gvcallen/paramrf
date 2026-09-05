@@ -1,0 +1,12 @@
+
+
+
+PortRepresentation
+==================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.base
+
+.. autoclass:: PortRepresentation
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+﻿
+
+
+**freeze** (pmrf.freeze)
+========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: freeze

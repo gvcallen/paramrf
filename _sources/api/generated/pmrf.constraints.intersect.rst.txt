@@ -1,0 +1,9 @@
+
+
+
+intersect
+=========
+
+.. currentmodule:: pmrf.constraints
+
+.. autofunction:: intersect

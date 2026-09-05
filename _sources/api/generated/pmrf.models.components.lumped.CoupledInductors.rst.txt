@@ -1,0 +1,12 @@
+
+
+
+CoupledInductors
+================
+
+.. currentmodule:: pmrf.models.components.lumped
+
+.. autoclass:: CoupledInductors
+   :members:
+   :show-inheritance:
+   :inherited-members:

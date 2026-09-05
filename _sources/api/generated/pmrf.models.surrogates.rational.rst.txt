@@ -1,0 +1,36 @@
+
+
+
+rational
+========
+
+.. automodule:: pmrf.models.surrogates.rational
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   BarycentricRational
+
+   PoleResidue
+
+   PolynomialRatio
+
+   StateSpace
+
+
+
+
+
+

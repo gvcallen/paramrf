@@ -1,0 +1,12 @@
+
+
+
+KirschningJansenMicrostripDispersion
+====================================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: KirschningJansenMicrostripDispersion
+   :members:
+   :show-inheritance:
+   :inherited-members:

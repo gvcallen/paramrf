@@ -1,0 +1,9 @@
+
+
+
+_i_ratio_asymptotic
+===================
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _i_ratio_asymptotic

@@ -1,0 +1,12 @@
+
+
+
+AbstractImmittanceLine
+======================
+
+.. currentmodule:: pmrf.models.components.lines.base
+
+.. autoclass:: AbstractImmittanceLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

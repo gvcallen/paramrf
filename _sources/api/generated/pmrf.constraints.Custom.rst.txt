@@ -1,0 +1,12 @@
+
+
+
+Custom
+======
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: Custom
+   :members:
+   :show-inheritance:
+   :inherited-members:

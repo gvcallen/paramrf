@@ -1,0 +1,9 @@
+
+
+
+magnitude_2_db
+==============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: magnitude_2_db

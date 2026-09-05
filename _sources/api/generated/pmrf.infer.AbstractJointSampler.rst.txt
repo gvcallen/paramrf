@@ -1,0 +1,12 @@
+
+
+
+AbstractJointSampler
+====================
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: AbstractJointSampler
+   :members:
+   :show-inheritance:
+   :inherited-members:

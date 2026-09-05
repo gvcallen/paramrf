@@ -1,0 +1,9 @@
+﻿
+
+
+**unwrap_self** (pmrf.unwrap_self)
+==================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: unwrap_self

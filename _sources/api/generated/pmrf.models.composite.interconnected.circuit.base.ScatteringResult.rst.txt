@@ -1,0 +1,12 @@
+
+
+
+ScatteringResult
+================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.base
+
+.. autoclass:: ScatteringResult
+   :members:
+   :show-inheritance:
+   :inherited-members:

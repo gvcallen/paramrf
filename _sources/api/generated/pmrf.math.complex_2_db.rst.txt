@@ -1,0 +1,9 @@
+
+
+
+complex_2_db
+============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: complex_2_db

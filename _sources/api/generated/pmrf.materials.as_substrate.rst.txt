@@ -1,0 +1,9 @@
+
+
+
+as_substrate
+============
+
+.. currentmodule:: pmrf.materials
+
+.. autofunction:: as_substrate

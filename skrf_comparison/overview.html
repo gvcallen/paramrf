@@ -1,0 +1,170 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Performance" href="performance.html" />
+    <link rel="prev" title="scikit-rf Comparison" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">scikit-rf Comparison</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#core-philosophy">Core Philosophy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#concrete-comparison">Concrete Comparison</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-use-scikit-rf">When to use scikit-rf</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-use-paramrf">When to use ParamRF</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html">Performance</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">scikit-rf Comparison</a></li>
+      <li class="breadcrumb-item active">Overview</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/skrf_comparison/overview.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h1>
+<p><strong>ParamRF</strong> is designed to complement <strong>scikit-rf</strong> and not replace it, offering a fundamentally different approach to RF modeling. A very brief summary of the differences, strengths and weakness of the libraries is presented below.</p>
+<section id="core-philosophy">
+<h2>Core Philosophy<a class="headerlink" href="#core-philosophy" title="Link to this heading"></a></h2>
+<p>scikit-rf is built around the static <code class="docutils literal notranslate"><span class="pre">skrf.Network</span></code> class. While this is excellent for manipulating measurement data (e.g. for calibration) or for generating simple circuits at a given frequency, its structure is such that parameters are simply inputs to functions. For complex, deeply nested architectures, it becomes tedious to manually propagate variables down multiple layers of sub-circuit functions in order to arrive at a final network.</p>
+<p>Because of this approach, any analysis or control over parameters, such as deciding which should be fixed, adding constraints for optimization etc., is left to the user. This is not only tedious, but can add lots of overhead (the author knows!) since the control logic is ultimately in Python. Such overhead can reduce performance both of once-off circuit simulations and during optimization.</p>
+<p>ParamRF is built around the parametric <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> class. This provides an object-oriented scaffold, where model parameters are stored internally, as opposed to their S-parameter matrix and frequency. Parameter bounds, constraints etc. are then stored alongside these parameters and propagated across any complex hierarchy of models, making it trivial to work with deeply nested models. This makes modular fitting, optimization, and sampling much more convenient.</p>
+</section>
+<section id="concrete-comparison">
+<h2>Concrete Comparison<a class="headerlink" href="#concrete-comparison" title="Link to this heading"></a></h2>
+<p>In scikit-rf, as a consequence of the core class being <code class="docutils literal notranslate"><span class="pre">skrf.Network</span></code> (which holds its static S-parameters), scikit-rf uses a helper class <code class="docutils literal notranslate"><span class="pre">skrf.Media</span></code> which defines some propagation media. Transmission lines and components are then created <em>from</em> this media using e.g. <code class="docutils literal notranslate"><span class="pre">res</span> <span class="pre">=</span> <span class="pre">media.resistor(10)</span></code> or <code class="docutils literal notranslate"><span class="pre">line</span> <span class="pre">=</span> <span class="pre">media.line(10,</span> <span class="pre">unit='m')</span></code>. This makes components (such as resistors) feel like “second-class” citizens - the resultant <code class="docutils literal notranslate"><span class="pre">res</span></code> and <code class="docutils literal notranslate"><span class="pre">line</span></code> objects in these examples are now just <code class="docutils literal notranslate"><span class="pre">skrf.Network</span></code> objects storing their S-matrix, and have no access to their original parameters.</p>
+<p>The scikit-rf approach is somewhat in contrast to traditional circuit modeling packages, where the user thinks of the resistor <em>itself</em> as the first-class citizen. In ParamRF, components <em>themselves</em> are therefore the core classes (such as <a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Resistor.html#pmrf.models.components.lumped.Resistor" title="pmrf.models.components.lumped.Resistor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Resistor</span></code></a> or <code class="xref py py-class docutils literal notranslate"><span class="pre">PhysicalLine</span></code>) and their S-parameters are simply a result of evaluating the model. This is similar to the approach taken in machine learning. Specifically, the user instantiates model instances <em>directly</em> (using e.g. <code class="docutils literal notranslate"><span class="pre">res</span> <span class="pre">=</span> <span class="pre">Resistor(10)</span></code> or <code class="docutils literal notranslate"><span class="pre">line</span> <span class="pre">=</span> <span class="pre">PhysicalLine(length=10)</span></code>) and combines them to create <em>new</em> models. The resultant model outputs (e.g. S-parameters) are then <em>lazily</em> evaluated when needed.</p>
+<p>This approach not only feels more intuitive, but also allows for more complex modeling, computational simplifications, and model manipulation (i.e. modifying parameters after a model is constructed). Further, since ParamRF builds on top of the <code class="docutils literal notranslate"><span class="pre">jax</span></code> library (instead of <code class="docutils literal notranslate"><span class="pre">numpy</span></code>), models can be just-in-time compiled, as well as differentiated with respect to either parameters or frequency using <em>auto-differentiation</em>.</p>
+</section>
+<section id="when-to-use-scikit-rf">
+<h2>When to use scikit-rf<a class="headerlink" href="#when-to-use-scikit-rf" title="Link to this heading"></a></h2>
+<p>If your workflow involves standard microwave engineering tasks or static measurements, scikit-rf remains the go-to choice. It excels at:</p>
+<ul class="simple">
+<li><p><strong>Data I/O &amp; Calibration</strong>: Reading Touchstone files, applying VNA calibrations (TRL, SOLT), de-embedding network data.</p></li>
+<li><p><strong>Static Network Manipulation</strong>: Cascading measurements, port impedance transformations, and standard plotting (e.g., Smith charts).</p></li>
+<li><p><strong>Static Network Analysis</strong>: Analyzing existing networks, such as using time-domain reflectometry or checking networks for passivity/causality.</p></li>
+<li><p><strong>Flat Circuit Generation</strong>: Quickly generating analytical components or simple, flat circuit models where continuous, high-dimensional parameter optimization or analysis is not the primary goal.</p></li>
+</ul>
+</section>
+<section id="when-to-use-paramrf">
+<h2>When to use ParamRF<a class="headerlink" href="#when-to-use-paramrf" title="Link to this heading"></a></h2>
+<p>If your workflow requires the use of complex or high-dimensional RF models or state-of-the-art optimization techniques, ParamRF provides the architecture to do this both conveniently and efficiently. It excels at:</p>
+<ul class="simple">
+<li><p><strong>Deeply Nested Modeling</strong>: Building complex, hierarchical models without the boilerplate of manually passing variables through sub-circuit functions.</p></li>
+<li><p><strong>Differentiability</strong>: Using JAX, models can be differentiated with respect to both parameter and frequency.</p></li>
+<li><p><strong>Analytical and Numerical Modeling</strong>: The <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> class is easy to extend to implement custom equation-based models. Further, since ParamRF integrates with the machine-learning focused library <code class="docutils literal notranslate"><span class="pre">Equinox</span></code>, numerical/surrogate/ML models can be built natively.</p></li>
+<li><p><strong>High-Speed Fitting</strong>: Leveraging JAX Just-In-Time (JIT) compilation to fit models to target data is much faster than standard Python loops.</p></li>
+<li><p><strong>Statistical Analysis</strong>: Running automated Monte Carlo or Latin Hypercube sampling across your model’s entire parameter space.</p></li>
+</ul>
+<p>Also note that <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> instances can easily be converted to <code class="docutils literal notranslate"><span class="pre">skrf.Network</span></code> objects by simply passing a frequency to <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.to_skrf" title="pmrf.Model.to_skrf"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.to_skrf()</span></code></a>, allowing, for example, models to be defined and optimized in ParamRF and then further analyzed in scikit-rf.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="scikit-rf Comparison" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="performance.html" class="btn btn-neutral float-right" title="Performance" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,342 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transformed &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="LogNormal" href="pmrf.distributions.LogNormal.html" />
+    <link rel="prev" title="Gamma" href="pmrf.distributions.Gamma.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html">AbstractDistribution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Normal.html">Normal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Uniform.html">Uniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Gamma.html">Gamma</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Transformed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.LogNormal.html">LogNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.TruncatedNormal.html">TruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Joint.html">Joint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.CenteredUniform.html">CenteredUniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.RelativeNormal.html">RelativeNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.RelativeTruncatedNormal.html">RelativeTruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.truncate.html">truncate</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+      <li class="breadcrumb-item active">Transformed</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.distributions.Transformed.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="transformed">
+<h1>Transformed<a class="headerlink" href="#transformed" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.distributions.</span></span><span class="sig-name descname"><span class="pre">Transformed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distribution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">bijector</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AbstractBijector</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.distributions.Transformed" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractTransformed</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSTDDistribution</span></code></p>
+<p>Distribution of a random variable transformed by a bijective function.</p>
+<p>Let <span class="math notranslate nohighlight">\(X\)</span> be a continuous random variable and <span class="math notranslate nohighlight">\(Y = f(X)\)</span> be a random variable
+transformed by a differentiable bijection <span class="math notranslate nohighlight">\(f\)</span> (a “bijector”). Given the
+distribution of <span class="math notranslate nohighlight">\(X\)</span> (the “base distribution”) and the bijector <span class="math notranslate nohighlight">\(f\)</span>, this class
+implements the distribution of <span class="math notranslate nohighlight">\(Y\)</span> (also known as the pushforward of the base
+distribution through <span class="math notranslate nohighlight">\(f\)</span>).</p>
+<p>The probability density of <span class="math notranslate nohighlight">\(Y\)</span> can be computed by:</p>
+<p><div class="math notranslate nohighlight">
+\[\log p(y) = \log p(x) - \log|\det J(f)(x)|\]</div>
+</p>
+<p>where <span class="math notranslate nohighlight">\(p(x)\)</span> is the probability density of <span class="math notranslate nohighlight">\(X\)</span> (the “base density”) and
+<span class="math notranslate nohighlight">\(J(f)(x)\)</span> is the Jacobian matrix of <span class="math notranslate nohighlight">\(f\)</span>, both evaluated at <span class="math notranslate nohighlight">\(x = f^{-1}(y)\)</span>.</p>
+<p>Sampling from a Transformed distribution involves two steps: sampling from the
+base distribution <span class="math notranslate nohighlight">\(x \sim p(x)\)</span> and then evaluating <span class="math notranslate nohighlight">\(y = f(x)\)</span>. For example:</p>
+<dl class="simple">
+<dt><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>python</dt><dd><p>dist = distrax.Normal(loc=0., scale=1.)
+bij = distrax.ScalarAffine(shift=jnp.asarray([3., 3., 3.]))
+transformed_dist = distrax.Transformed(distribution=dist, bijector=bij)
+samples = transformed_dist.sample(jax.random.key(0))
+print(samples)  # [2.7941577, 2.7941577, 2.7941577]</p>
+</dd>
+</dl>
+<p><a href="#id5"><span class="problematic" id="id6">``</span></a><a href="#id7"><span class="problematic" id="id8">`</span></a></p>
+<p>This assumes that the <cite>forward</cite> function of the bijector is traceable; that is,
+it is a pure function that does not contain run-time branching. Functions that
+do not strictly meet this requirement can still be used, but we cannot guarantee
+that the shapes, dtype, and KL computations involving the transformed distribution
+can be correctly obtained.</p>
+<p>!!! tip</p>
+<blockquote>
+<div><p><cite>Transformed</cite> is the foundation for building normalizing flows. Chain
+together multiple bijectors using [<cite>distreqx.bijectors.Chain</cite>][] to create
+complex transformations.</p>
+</div></blockquote>
+<p>!!! warning</p>
+<blockquote>
+<div><p>Computing <cite>entropy</cite>, <cite>mean</cite>, and <cite>mode</cite> only works when the bijector has
+a constant Jacobian determinant. For bijectors with non-constant Jacobians
+(e.g., neural network-based flows), these methods will raise
+<cite>NotImplementedError</cite>.</p>
+</div></blockquote>
+<p>Initializes a Transformed distribution.</p>
+<p><strong>Arguments:</strong>
+- <cite>distribution</cite>: the base distribution.
+- <cite>bijector</cite>: a differentiable bijective transformation. Can be a bijector or</p>
+<blockquote>
+<div><p>a callable to be wrapped by <cite>Lambda</cite> bijector.</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.cdf">
+<span class="sig-name descname"><span class="pre">cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.cdf" title="Link to this definition"></a></dt>
+<dd><p>Evaluates the cumulative distribution function at <cite>value</cite>.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>value</cite>: An event.</p></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul class="simple">
+<li><p>The CDF evaluated at value, i.e. P[X &lt;= value].</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.icdf">
+<span class="sig-name descname"><span class="pre">icdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.icdf" title="Link to this definition"></a></dt>
+<dd><p>Evaluates the inverse cumulative distribution function at <cite>value</cite>.</p>
+<p>For a given probability <cite>u</cite>, returns the value <cite>x</cite> such that
+<cite>P[X &lt;= x] = u</cite>.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>value</cite>: A probability value in [0, 1].</p></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul class="simple">
+<li><p>The ICDF evaluated at value, i.e. <cite>x</cite> such that <cite>CDF(x) = value</cite>.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.kl_divergence">
+<span class="sig-name descname"><span class="pre">kl_divergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other_dist</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.kl_divergence" title="Link to this definition"></a></dt>
+<dd><p>Obtains the KL divergence between two Transformed distributions.</p>
+<p>This computes the KL divergence between two Transformed distributions with the
+same bijector. If the two Transformed distributions do not have the same
+bijector, an error is raised. To determine if the bijectors are equal, this
+method proceeds as follows:</p>
+<ul class="simple">
+<li><p>If both bijectors are the same instance of a distreqx bijector, then they are</p></li>
+</ul>
+<p>declared equal.</p>
+<ul class="simple">
+<li><p>If not the same instance, we check if they are equal according to their</p></li>
+</ul>
+<p><cite>same_as</cite> predicate.</p>
+<ul class="simple">
+<li><p>Otherwise, the string representation of the Jaxpr of the <cite>forward</cite> method</p></li>
+</ul>
+<p>of each bijector is compared. If both string representations are equal, the
+bijectors are declared equal.</p>
+<ul class="simple">
+<li><p>Otherwise, the bijectors cannot be guaranteed to be equal and an error is</p></li>
+</ul>
+<p>raised.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>other_dist</cite>: A Transformed distribution.</p></li>
+<li><dl class="simple">
+<dt><cite>input_hint</cite>: keyword argument, an example sample from the base distribution,</dt><dd><p>used to trace the <cite>forward</cite> method. If not specified, it is computed using
+a zero array of the shape and dtype of a sample from the base distribution.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul class="simple">
+<li><p><cite>KL(dist1 || dist2)</cite>.</p></li>
+</ul>
+<p><strong>Raises:</strong></p>
+<ul class="simple">
+<li><p><cite>NotImplementedError</cite>: If bijectors are not known to be equal.</p></li>
+<li><p><cite>ValueError</cite>: If the base distributions do not have the same <cite>event_shape</cite>.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.log_cdf">
+<span class="sig-name descname"><span class="pre">log_cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.log_cdf" title="Link to this definition"></a></dt>
+<dd><p>Evaluates the log cumulative distribution function at
+<cite>value</cite> i.e. log P[X &lt;= value].</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.mean" title="Link to this definition"></a></dt>
+<dd><p>Calculates the mean.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.median">
+<span class="sig-name descname"><span class="pre">median</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.median" title="Link to this definition"></a></dt>
+<dd><p>Calculates the median.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.mode" title="Link to this definition"></a></dt>
+<dd><p>Calculates the mode.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.variance">
+<span class="sig-name descname"><span class="pre">variance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">PyTree</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.jaxlib._jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.variance" title="Link to this definition"></a></dt>
+<dd><p>Calculates the variance.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.bijector">
+<span class="sig-name descname"><span class="pre">bijector</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractBijector</span></span><a class="headerlink" href="#pmrf.distributions.Transformed.bijector" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.distribution">
+<span class="sig-name descname"><span class="pre">distribution</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a></span><a class="headerlink" href="#pmrf.distributions.Transformed.distribution" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.distributions.Transformed.support">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">support</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.distributions.Transformed.support" title="Link to this definition"></a></dt>
+<dd><p>Range <cite>(lower, upper)</cite> spanning the distribution’s support.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.distributions.Gamma.html" class="btn btn-neutral float-left" title="Gamma" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.distributions.LogNormal.html" class="btn btn-neutral float-right" title="LogNormal" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

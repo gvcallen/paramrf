@@ -1,0 +1,9 @@
+﻿
+
+
+**batch_axes** (pmrf.batch_axes)
+================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: batch_axes

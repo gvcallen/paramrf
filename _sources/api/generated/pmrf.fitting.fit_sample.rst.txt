@@ -1,0 +1,9 @@
+
+
+
+fit_sample
+==========
+
+.. currentmodule:: pmrf.fitting
+
+.. autofunction:: fit_sample

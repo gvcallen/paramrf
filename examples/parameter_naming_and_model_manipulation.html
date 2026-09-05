@@ -1,0 +1,206 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parameter Naming and Model Manipulation &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Derivatives and Sweeps" href="derivatives_and_sweeps.html" />
+    <link rel="prev" title="Model Optimization" href="model_optimization.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cascading_and_terminating.html">Cascading and Terminating</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit_models.html">Circuit Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model_optimization.html">Model Optimization</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Parameter Naming and Model Manipulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#naming-parameters-and-models">Naming Parameters and Models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#defining-the-base-model">Defining the Base Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#modifying-specific-fields">Modifying Specific Fields</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tied-parameters">Tied Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="derivatives_and_sweeps.html">Derivatives and Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_models.html">Custom Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="multiple_models_one_parameter_set.html">Fitting Multiple Models from One Parameter Set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shared_substrates.html">Sharing a Substrate Between Traces</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Examples</a></li>
+      <li class="breadcrumb-item active">Parameter Naming and Model Manipulation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/examples/parameter_naming_and_model_manipulation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="parameter-naming-and-model-manipulation">
+<h1>Parameter Naming and Model Manipulation<a class="headerlink" href="#parameter-naming-and-model-manipulation" title="Link to this heading"></a></h1>
+<p>All models store their parameters internally. Although it is usually easiest to modify these parameters before you construct the model, it is sometimes convenient to manipulate parameters or swap components already inside a model, or place constraints over multiple parameters.</p>
+<p>Since models are <em>immutable</em> and cannot reference each other (to align with JAX’s requirements), parameters and sub-models cannot be edited directly (e.g., <code class="docutils literal notranslate"><span class="pre">model.R</span> <span class="pre">=</span> <span class="pre">50</span></code> will fail), and also cannot point to the same objects in memory.</p>
+<p>Instead, ParamRF models expose three methods to manipulate parameters and sub-models: <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.at()</span></code>, <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.tied" title="pmrf.Model.tied"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.tied()</span></code></a>, and <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.map()</span></code>. These methods accept structural callables or resolved parameter names.</p>
+<section id="naming-parameters-and-models">
+<h2>Naming Parameters and Models<a class="headerlink" href="#naming-parameters-and-models" title="Link to this heading"></a></h2>
+<p>Parameters and models can be explicitly named upon construction. ParamRF uses these names to map a model into a flat dictionary via <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.named_params()</span></code>. The naming convention resolves dynamically based on your preferences:</p>
+<ol class="arabic simple">
+<li><p>If no custom names are present, the standard Python attribute path is used (e.g., <code class="docutils literal notranslate"><span class="pre">'res.R'</span></code>).</p></li>
+<li><p>If models within the structural path have names, they are joined using a separator (default <code class="docutils literal notranslate"><span class="pre">_</span></code>) to form a namespace prefix.</p></li>
+<li><p>If the parameter itself is named, it is appended to this namespace prefix, dropping the generic attribute paths.</p></li>
+</ol>
+<p>This approach gives you the flexibility to use a flat naming convention (naming only the parameters), a namespace convention (naming only the models), a fully nested convention, or a combination of these.</p>
+</section>
+<section id="defining-the-base-model">
+<h2>Defining the Base Model<a class="headerlink" href="#defining-the-base-model" title="Link to this heading"></a></h2>
+<p>Let’s define an RLC model with explicit names to demonstrate how naming and manipulation work together:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resistor</span><span class="p">,</span> <span class="n">Inductor</span><span class="p">,</span> <span class="n">Capacitor</span><span class="p">,</span> <span class="n">Short</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">Resistor</span><span class="p">(</span><span class="n">R</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"myR"</span><span class="p">)</span>
+<span class="n">ind</span> <span class="o">=</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-9</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"L_val"</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">"myL"</span><span class="p">)</span>
+<span class="n">cap</span> <span class="o">=</span> <span class="n">Capacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"C_global"</span><span class="p">))</span>
+
+<span class="n">rlc</span> <span class="o">=</span> <span class="n">res</span> <span class="o">**</span> <span class="n">ind</span> <span class="o">**</span> <span class="n">cap</span>
+</pre></div>
+</div>
+</section>
+<section id="modifying-specific-fields">
+<h2>Modifying Specific Fields<a class="headerlink" href="#modifying-specific-fields" title="Link to this heading"></a></h2>
+<p>Using <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.at()</span></code>, we can focus on specific parameters and sub-models. This returns a lens that allows <code class="docutils literal notranslate"><span class="pre">.get()</span></code> or <code class="docutils literal notranslate"><span class="pre">.set()</span></code> operations, returning an updated model.</p>
+<p>You can pass a single parameter name, an iterable of parameter names, or a functional target:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Updating a single value via its string name</span>
+<span class="n">rlc_R200</span> <span class="o">=</span> <span class="n">rlc</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="s2">"myR.R"</span><span class="p">)</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">200.0</span><span class="p">))</span>
+
+<span class="c1"># Updating multiple values simultaneously by passing a tuple of names</span>
+<span class="n">rlc_fixed</span> <span class="o">=</span> <span class="n">rlc</span><span class="o">.</span><span class="n">at</span><span class="p">((</span><span class="s2">"myL_L_val"</span><span class="p">,</span> <span class="s2">"C_global"</span><span class="p">))</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">xs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">freeze</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xs</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Because the model’s structure is not rigid, we can also swap entire sub-models. Since sub-models themselves aren’t extracted by <cite>.named_params()</cite>, we use functional targets to replace them:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Swapping a component out for a Short</span>
+<span class="n">rlc_shorted</span> <span class="o">=</span> <span class="n">rlc</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">Short</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+<section id="tied-parameters">
+<h2>Tied Parameters<a class="headerlink" href="#tied-parameters" title="Link to this heading"></a></h2>
+<p>Sub-models and parameters can be <em>tied together</em> using <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.tied" title="pmrf.Model.tied"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.tied()</span></code></a>. The tied result remains an RF model, so methods such as <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a> remain available. You can define the target and source using string names or callables.</p>
+<p>For example, to set the resistor’s value to always be 100e12 times the capacitor’s value:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using generated parameter names</span>
+<span class="n">rlc_tied</span> <span class="o">=</span> <span class="n">rlc</span><span class="o">.</span><span class="n">tied</span><span class="p">(</span>
+    <span class="n">target</span><span class="o">=</span><span class="s2">"myR.R"</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="s2">"C_global"</span><span class="p">,</span>
+    <span class="n">tie_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span> <span class="o">*</span> <span class="mf">100e12</span>
+<span class="p">)</span>
+
+<span class="c1"># Alternatively, using callables</span>
+<span class="n">rlc_tied_func</span> <span class="o">=</span> <span class="n">rlc</span><span class="o">.</span><span class="n">tied</span><span class="p">(</span>
+    <span class="n">target</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">R</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">C</span><span class="p">,</span>
+    <span class="n">tie_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span> <span class="o">*</span> <span class="mf">100e12</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This provides a powerful API for more advanced optimization constraints.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="model_optimization.html" class="btn btn-neutral float-left" title="Model Optimization" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="derivatives_and_sweeps.html" class="btn btn-neutral float-right" title="Derivatives and Sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,234 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ImmittanceResult &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="TransmissionLine" href="pmrf.models.components.lines.base.TransmissionLine.html" />
+    <link rel="prev" title="AbstractUniformLine" href="pmrf.models.components.lines.base.AbstractUniformLine.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.base.html">base</a></li>
+      <li class="breadcrumb-item active">ImmittanceResult</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.base.ImmittanceResult.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="immittanceresult">
+<h1>ImmittanceResult<a class="headerlink" href="#immittanceresult" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.base.</span></span><span class="sig-name descname"><span class="pre">ImmittanceResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Z</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<p>Per-unit-length series impedance and shunt admittance of a line.</p>
+<p>Immittance is the internal currency between a formulation and a line.
+<span class="math notranslate nohighlight">\(R\)</span>, <span class="math notranslate nohighlight">\(L\)</span>, <span class="math notranslate nohighlight">\(G\)</span> and <span class="math notranslate nohighlight">\(C\)</span> are derived views on it rather than the primary form,
+because <span class="math notranslate nohighlight">\(L = \Im(Z)/\omega\)</span> and <span class="math notranslate nohighlight">\(C = \Im(Y)/\omega\)</span> both carry a removable
+<span class="math notranslate nohighlight">\(0/0\)</span> at DC that <span class="math notranslate nohighlight">\((Z, Y)\)</span> does not, and because
+<a class="reference internal" href="pmrf.models.components.lines.base.AbstractImmittanceLine.html#pmrf.models.components.lines.base.AbstractImmittanceLine.zc_and_gammaL" title="pmrf.models.components.lines.base.AbstractImmittanceLine.zc_and_gammaL"><code class="xref py py-meth docutils literal notranslate"><span class="pre">AbstractImmittanceLine.zc_and_gammaL()</span></code></a> then reduces to <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span> and
+<span class="math notranslate nohighlight">\(\sqrt{ZY}\)</span> with no division by <span class="math notranslate nohighlight">\(\omega\)</span> anywhere.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Z</strong> (<em>jnp.ndarray</em>) – Series impedance per unit length, <span class="math notranslate nohighlight">\(Z = R + j\omega L\)</span>, in ohm/m.</p></li>
+<li><p><strong>Y</strong> (<em>jnp.ndarray</em>) – Shunt admittance per unit length, <span class="math notranslate nohighlight">\(Y = G + j\omega C\)</span>, in S/m.</p></li>
+<li><p><strong>omega</strong> (<em>jnp.ndarray</em>) – Angular frequency axis, kept so that <cite>L</cite> and <cite>C</cite> can be recovered.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.from_rlgc">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_rlgc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">R</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">L</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">G</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><span class="pre">ImmittanceResult</span></a></span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.from_rlgc" title="Link to this definition"></a></dt>
+<dd><p>Build an immittance from per-unit-length <span class="math notranslate nohighlight">\(R\)</span>, <span class="math notranslate nohighlight">\(L\)</span>, <span class="math notranslate nohighlight">\(G\)</span> and <span class="math notranslate nohighlight">\(C\)</span>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.from_zc_gamma">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_zc_gamma</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><span class="pre">ImmittanceResult</span></a></span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.from_zc_gamma" title="Link to this definition"></a></dt>
+<dd><p>Invert characteristic impedance and propagation constant exactly.</p>
+<p>The per-unit-length quantities are the exact bijection
+<div class="math notranslate nohighlight">
+\[Z = \gamma Z_c \qquad Y = \frac{\gamma}{Z_c}.\]</div>
+</p>
+<p>A passive line must have non-negative series resistance and shunt
+conductance. Violating that condition indicates that an empirical
+formulation has been evaluated outside its physical regime.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.C">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">C</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.C" title="Link to this definition"></a></dt>
+<dd><p>Shunt capacitance per unit length in F/m, <span class="math notranslate nohighlight">\(\Im(Y)/\omega\)</span>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.G">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">G</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.G" title="Link to this definition"></a></dt>
+<dd><p>Shunt conductance per unit length in S/m.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.L">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">L</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.L" title="Link to this definition"></a></dt>
+<dd><p>Series inductance per unit length in H/m, <span class="math notranslate nohighlight">\(\Im(Z)/\omega\)</span>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.R">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">R</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.R" title="Link to this definition"></a></dt>
+<dd><p>Series resistance per unit length in ohm/m.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.Y">
+<span class="sig-name descname"><span class="pre">Y</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.Y" title="Link to this definition"></a></dt>
+<dd><p>Shunt admittance per unit length in S/m</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.Z">
+<span class="sig-name descname"><span class="pre">Z</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.Z" title="Link to this definition"></a></dt>
+<dd><p>Series impedance per unit length in ohm/m</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.base.ImmittanceResult.omega">
+<span class="sig-name descname"><span class="pre">omega</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.base.ImmittanceResult.omega" title="Link to this definition"></a></dt>
+<dd><p>Angular frequency axis in rad/s</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.base.AbstractUniformLine.html" class="btn btn-neutral float-left" title="AbstractUniformLine" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.base.TransmissionLine.html" class="btn btn-neutral float-right" title="TransmissionLine" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

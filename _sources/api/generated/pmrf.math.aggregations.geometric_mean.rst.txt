@@ -1,0 +1,9 @@
+
+
+
+geometric_mean
+==============
+
+.. currentmodule:: pmrf.math.aggregations
+
+.. autofunction:: geometric_mean

@@ -1,0 +1,581 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conductor-loss models characterised but not implemented &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Conductor-loss models characterised but not implemented</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/research/conductor-loss-alternatives.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="conductor-loss-models-characterised-but-not-implemented">
+<h1>Conductor-loss models characterised but not implemented<a class="headerlink" href="#conductor-loss-models-characterised-but-not-implemented" title="Link to this heading"></a></h1>
+<p>Reference note. It records the microstrip conductor-loss models that were evaluated and
+deliberately <strong>not</strong> shipped, each with its physical coverage, its cost, and the specific
+reason it was left out; and it carries the standing record of a contradiction between two
+models that <em>were</em> shipped.</p>
+<p>Two existing documents are assumed and <strong>not</strong> repeated here:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/adr/0001-line-modelling-architecture.md</span></code> — the surface-impedance normalisation
+argument, the 2.99x weight factor between Wheeler’s weight and the exact slab, and why
+<code class="docutils literal notranslate"><span class="pre">RootSumSquareSlabSurfaceImpedance</span></code> is the planar default. Decision 1 there also names
+the trace/ground split as the only honest fix; that fix has since landed as
+<code class="docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code>, so the ADR’s “which ParamRF does not implement” is now
+out of date on that clause alone.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/research/microstrip-loss-conventions.md</span></code> — dielectric-attenuation conventions,
+conductor loss at <span class="math notranslate nohighlight">\(t\to0\)</span>, and <span class="math notranslate nohighlight">\(Z_c\)</span> at low frequency.</p></li>
+</ul>
+<p>Every claim below is labelled <em>established</em> (traced to a primary source that was read),
+<em>as-implemented</em> (computed against this repository), or <em>inferred</em>.</p>
+<hr class="docutils" />
+<section id="which-layer-each-alternative-would-slot-into">
+<h2>Which layer each alternative would slot into<a class="headerlink" href="#which-layer-each-alternative-would-slot-into" title="Link to this heading"></a></h2>
+<p>ParamRF’s line modelling has five strategy roles (<code class="docutils literal notranslate"><span class="pre">CONTEXT.md</span></code>, “Line modelling”):
+<strong>Formulation</strong>, <strong>Dispersion</strong>, <strong>SurfaceImpedance</strong>, <strong>CurrentDistribution</strong>, and
+<strong>Roughness</strong>. Conductor loss is produced by the last three: a <code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code>
+returns <code class="docutils literal notranslate"><span class="pre">(SurfaceImpedance,</span> <span class="pre">weight)</span></code> pairs — one per conductor surface, weight in inverse
+metres — and the line multiplies and sums them. This is the vocabulary used throughout
+below, and it is what decides whether an alternative is even expressible.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>alternative</p></th>
+<th class="head"><p>layer it would occupy</p></th>
+<th class="head"><p>expressible in ParamRF?</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Holloway–Kuester stopping distance</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> (a weight)</p></td>
+<td><p>yes, if <span class="math notranslate nohighlight">\(\Delta(t/2\delta_{sk})\)</span> were available in closed form</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rautio–Demir <span class="math notranslate nohighlight">\(n\)</span>-layer</p></td>
+<td><p>none — it is a solver, not a strategy</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p>Rautio–Demir two-layer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> emitting two pairs</p></td>
+<td><p>yes in shape; the split fractions are not closed-form</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rautio–Demir one-layer with <span class="math notranslate nohighlight">\(\alpha,\beta\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> (one pair, rescaled)</p></td>
+<td><p>yes in shape; <span class="math notranslate nohighlight">\(\beta\)</span> is not closed-form</p></td>
+</tr>
+<tr class="row-even"><td><p>Patel–Triverio surface admittance + CIM</p></td>
+<td><p>replaces Formulation <em>and</em> the loss layers</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p>Kiang–Ali–Kong full wave</p></td>
+<td><p>replaces the whole line model</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p>side-wall current</p></td>
+<td><p>a <span class="math notranslate nohighlight">\(t/(t+W)\)</span> correction on a <code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> weight</p></td>
+<td><p>yes, trivially</p></td>
+</tr>
+</tbody>
+</table>
+<p>What ships instead, all three as peers in
+<code class="docutils literal notranslate"><span class="pre">pmrf/models/components/lines/microstrip.py</span></code>:
+<code class="docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code> (the default), <code class="docutils literal notranslate"><span class="pre">IncrementalInductanceCurrentDistribution</span></code>
+and <code class="docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code>.</p>
+</section>
+<hr class="docutils" />
+<section id="the-open-question-the-sign-of-wheeler-s-error">
+<h2>The open question: the sign of Wheeler’s error<a class="headerlink" href="#the-open-question-the-sign-of-wheeler-s-error" title="Link to this heading"></a></h2>
+<p>The two non-default distributions correct the same 1942 geometry weight by different
+routes and <strong>disagree on the direction of its error</strong>. This is unresolved. It is recorded
+here rather than smoothed over, because the resolution decides which distribution should
+eventually become the microstrip default — a decision deliberately deferred.</p>
+<section id="why-the-error-is-invisible-in-a-fit">
+<h3>Why the error is invisible in a fit<a class="headerlink" href="#why-the-error-is-invisible-in-a-fit" title="Link to this heading"></a></h3>
+<p>The conductor channel enters <span class="math notranslate nohighlight">\(Z\)</span> only through the product <span class="math notranslate nohighlight">\(Z_s k_c\)</span>, and
+<span class="math notranslate nohighlight">\(Z_s \propto \sigma^{-1/2}\)</span>. A fit with free <span class="math notranslate nohighlight">\(\sigma\)</span> therefore absorbs <em>any</em> <span class="math notranslate nohighlight">\(k_c\)</span> error
+exactly: a 22% error in <span class="math notranslate nohighlight">\(k_c\)</span> surfaces as <span class="math notranslate nohighlight">\(1.22^2 = 1.49\times\)</span> copper and nothing else.
+That degeneracy is why a wrong geometry weight can survive indefinitely — it never looks
+like a bad <span class="math notranslate nohighlight">\(k_c\)</span>, only like an implausible conductivity. <em>Established, by inspection of
+the model.</em></p>
+</section>
+<section id="the-as-implemented-numbers">
+<h3>The as-implemented numbers<a class="headerlink" href="#the-as-implemented-numbers" title="Link to this heading"></a></h3>
+<p>At <span class="math notranslate nohighlight">\(W\)</span> = 4 mm, <span class="math notranslate nohighlight">\(H\)</span> = 1.6 mm, <span class="math notranslate nohighlight">\(T\)</span> = 35 um, <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> = 4.335 (<span class="math notranslate nohighlight">\(W/H\)</span> = 2.5,
+<span class="math notranslate nohighlight">\(\Re Z_c\)</span> = 42.28 ohm), the strong-skin geometry weights are:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>distribution</p></th>
+<th class="head text-right"><p>weight [1/m]</p></th>
+<th class="head text-right"><p>vs. Wheeler 1942</p></th>
+<th class="head text-right"><p>vs. the derivative</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code></p></td>
+<td class="text-right"><p>468.39 (= 385.69 trace + 82.71 ground)</p></td>
+<td class="text-right"><p>+21.4%</p></td>
+<td class="text-right"><p>+47.1%</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code> (1942 fit)</p></td>
+<td class="text-right"><p>385.69</p></td>
+<td class="text-right"><p>—</p></td>
+<td class="text-right"><p>+21.2%</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IncrementalInductanceCurrentDistribution</span></code></p></td>
+<td class="text-right"><p>318.34</p></td>
+<td class="text-right"><p>−17.5%</p></td>
+<td class="text-right"><p>—</p></td>
+</tr>
+</tbody>
+</table>
+<p><em>As-implemented</em>: these reproduce exactly against this tree
+(<code class="docutils literal notranslate"><span class="pre">HammerstadJensenMicrostripFormulation</span></code>, x64 enabled). <strong>They are larger than the 12–18%
+quoted in the originating issue</strong>, whose departure table was internally inconsistent: it
+compared the split’s trace-plus-ground total against a Wheeler weight evaluated at a
+different <span class="math notranslate nohighlight">\(Z_c\)</span>. The as-implemented spread against Wheeler is 21.4%, not 12–18%.</p>
+</section>
+<section id="the-two-cases">
+<h3>The two cases<a class="headerlink" href="#the-two-cases" title="Link to this heading"></a></h3>
+<p><strong>The trace/ground split says Wheeler is low.</strong> Summing the physical surfaces — trace at
+<span class="math notranslate nohighlight">\(2K_i/W\)</span> plus ground at <span class="math notranslate nohighlight">\(1/W_g\)</span>, with <span class="math notranslate nohighlight">\(W_g\)</span> from Holloway and Kuester’s ground-plane
+current density — lands <em>above</em> Wheeler’s single bundled constant, by 21.4% as
+implemented. That is inside the 12–30% band by which Holloway and Kuester report
+Wheeler’s rule to underpredict, which reads as partial corroboration. Its evidence is one
+closed-form integration of a published current density.</p>
+<p><strong>The incremental-inductance derivative says Wheeler is high.</strong> Evaluating the recession
+derivative
+<span class="math notranslate nohighlight">\(k_c = Z_0^{-1}\,\partial_n Z_a(W-2n, H+2n, T-2n)|_{n=0}\)</span>
+by <code class="docutils literal notranslate"><span class="pre">jax.grad</span></code> gives 318.34 against Wheeler’s 385.69, a ratio of 0.825, closing to 0.958 by
+<span class="math notranslate nohighlight">\(W/H = 50\)</span>. Its evidence is four independent routes landing in 306–320 for the same case:
+the Hammerstad–Jensen derivative (318.3), the same derivative taken numerically on an
+independent 2D quasi-static field solve that meshes the real cross-section (316.0), a
+power-loss surface-impedance integral <span class="math notranslate nohighlight">\(k_c = \int\rho_s^2\,dl / Q^2\)</span> on that same
+air-filled problem (310–320), and a volumetric PEEC solve with no surface-impedance
+approximation anywhere (~306). <em>The last three are external-solver results: they are
+recorded, not reproduced, and per the chain’s house rules they are deliberately not turned
+into tests.</em></p>
+</section>
+<section id="which-is-better-supported">
+<h3>Which is better supported<a class="headerlink" href="#which-is-better-supported" title="Link to this heading"></a></h3>
+<p><strong>The incremental-inductance derivative.</strong> Three reasons:</p>
+<ol class="arabic simple">
+<li><p>Its four routes are genuinely independent — two different <span class="math notranslate nohighlight">\(Z_a\)</span> formulations, a
+power-loss integral, and a volumetric solve that makes no surface-impedance
+approximation at all — and they agree to within 5%. The split’s case rests on a single
+analytic integration.</p></li>
+<li><p>Rautio and Demir supply a third, unrelated data point with the same sign: their
+two-layer model converges to 0.07 dB (about 15%) <em>more</em> loss than their converged
+81-layer model at high frequency, and 15–30% more resistance than their one-layer
+model, and they attribute the excess to a missing physical term (side current) rather
+than to a defect in the reference. A model that sums surfaces without the terms that
+redistribute current between them tends to run high — which is structurally the same
+criticism as applies to the split. <em>Established</em> (Rautio &amp; Demir 2003, §IV–V).</p></li>
+<li><p>The split’s agreement with Holloway and Kuester’s 12–30% band is weaker than it looks:
+the band is a comparison against <em>measured</em> loss over lines at <span class="math notranslate nohighlight">\(Z_0\)</span> = 50, 80 and 86
+ohm at microwave frequencies, whereas the split’s excess is against Wheeler’s own
+analytic weight for one 42 ohm geometry, and it shrinks to a few percent at higher
+<span class="math notranslate nohighlight">\(Z_c\)</span>. Landing inside a band is not the same as reproducing what generated it.</p></li>
+</ol>
+<p>None of this settles the question, and neither result changes the microstrip default,
+which remains <code class="docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code>. Wheeler’s disputed level error stays <strong>open</strong>,
+with three sources on the record: Holloway and Kuester (Wheeler low by 12–30%), Rautio and
+Demir’s 15%-high two-layer finding (surface-summed models run high), and the derivative’s
+four field solves (Wheeler high by 21%).</p>
+</section>
+<section id="what-the-derivative-supersedes">
+<h3>What the derivative supersedes<a class="headerlink" href="#what-the-derivative-supersedes" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">IncrementalInductanceCurrentDistribution</span></code> evaluates Wheeler’s incremental-inductance
+<em>rule</em>; <code class="docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code> evaluates his 1942 <em>closed-form fit</em> to it,
+<span class="math notranslate nohighlight">\(k_c = (2/W)\exp[-1.2(\Re Z_c/Z_0)^{0.7}]\)</span>. The derivative <strong>replaces that fit’s
+edge-crowding exponential outright</strong> — the <span class="math notranslate nohighlight">\(2/W\)</span> prefactor and the <span class="math notranslate nohighlight">\(K_i\)</span> factor both
+disappear into a single computed number.</p>
+<p>The consequence for this page: <strong>any alternative built on the 1942 fit inherits the fit’s
+error and is not independent evidence about it.</strong> That includes
+<code class="docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code>, whose trace term is <span class="math notranslate nohighlight">\(2K_i/W\)</span> verbatim, so its
+disagreement with the derivative is partly a disagreement about <span class="math notranslate nohighlight">\(K_i\)</span> rather than about
+the trace/ground split as such. It also rules out treating the wide-line limit <span class="math notranslate nohighlight">\(k_c\to2/W\)</span>
+as a check: the derivative does not recover it (22.9 against 25.0 at <span class="math notranslate nohighlight">\(W/H = 50\)</span>), because
+<span class="math notranslate nohighlight">\(2/W\)</span> assumes a zero-thickness strip and neglects fringing.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="holloway-and-kuester-s-stopping-distance-1994">
+<h2>Holloway and Kuester’s stopping distance (1994)<a class="headerlink" href="#holloway-and-kuester-s-stopping-distance-1994" title="Link to this heading"></a></h2>
+<p><em>Primary source read in full:</em> C. L. Holloway and E. F. Kuester, “Edge shape effects and
+quasi-closed form expressions for the conductor loss of microstrip lines”, <em>Radio Science</em>
+29(3), 539–559, 1994, <a class="reference external" href="https://doi.org/10.1029/93RS03062">https://doi.org/10.1029/93RS03062</a>. A copy is at
+<code class="docutils literal notranslate"><span class="pre">docs/research/holloway1994.pdf</span></code>.</p>
+<section id="what-it-is">
+<h3>What it is<a class="headerlink" href="#what-it-is" title="Link to this heading"></a></h3>
+<p>The perturbation integral <span class="math notranslate nohighlight">\(\alpha_c \propto \oint |J_s|^2\,dl\)</span> diverges logarithmically on
+an infinitely thin strip, because <span class="math notranslate nohighlight">\(J_s\sim1/\sqrt{x}\)</span> at the edge. Lewin
+(<a class="reference external" href="https://doi.org/10.1109/TMTT.1984.1132762">https://doi.org/10.1109/TMTT.1984.1132762</a>) and Vainshtein &amp; Zhurav independently
+proposed stopping the integral a short distance <span class="math notranslate nohighlight">\(\Delta\)</span> before the edge, with <span class="math notranslate nohighlight">\(\Delta\)</span> a
+function of the local edge geometry only. Holloway and Kuester replace the original
+high-frequency-only <span class="math notranslate nohighlight">\(\Delta\)</span> with one obtained from a finite-element eddy-current solve of
+the fields in and around the edge, valid for any <span class="math notranslate nohighlight">\(t/\delta_{sk}\)</span> and any edge shape. This
+is the <strong>only</strong> published route to their reported 12–30% figure: “Wheeler’s rule predicts
+losses between 12% and 30% lower than those obtained from both our model and from
+experimental results” (§6). <em>Established.</em></p>
+<p>It would sit in the <code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> layer — it produces a weight — and is the
+natural home for the ground-plane term ParamRF already takes from the same paper via
+<code class="docutils literal notranslate"><span class="pre">_ground_return_effective_width</span></code>.</p>
+</section>
+<section id="why-it-was-not-taken-where-our-band-lands-on-figure-5">
+<h3>Why it was not taken: where our band lands on Figure 5<a class="headerlink" href="#why-it-was-not-taken-where-our-band-lands-on-figure-5" title="Link to this heading"></a></h3>
+<p><span class="math notranslate nohighlight">\(\Delta\)</span> exists only as <strong>Figure 5</strong>, a raster plot of <span class="math notranslate nohighlight">\(t/\Delta\)</span> against <span class="math notranslate nohighlight">\(t/(2\delta_{sk})\)</span>.
+(The paper’s body text discusses the same curves in terms of <span class="math notranslate nohighlight">\(t/\delta_{sk}\)</span> while the
+figure’s abscissa is labelled <span class="math notranslate nohighlight">\(t/(2\delta_{sk})\)</span>; the placement below uses the figure’s own
+axis.) Read off the 90° curve, it runs from <span class="math notranslate nohighlight">\(t/\Delta = 9.2\)</span> at dc, through a sharp
+resonant peak of roughly 330 near <span class="math notranslate nohighlight">\(t/(2\delta_{sk})\approx1.4\)</span>, collapses to a plateau
+around 170 by 3.5, and only creeps back toward the Lewin/Vainshtein high-frequency
+asymptote of 290.8 — a value the text says “is not attained until <span class="math notranslate nohighlight">\(T/\delta_{sk}\)</span> is of
+the order of 40 or above”. The peak height and its abscissa are a <strong>digitisation read of a
+raster figure</strong>, not quoted numbers; the 9.2, the 290.8 and the 40 are quoted. <em>Mixed:
+established for the quoted values, inferred for the peak.</em></p>
+<p>For copper at 10–500 MHz, on the figure’s own axis:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>copper weight</p></th>
+<th class="head text-right"><p><span class="math notranslate nohighlight">\(T\)</span></p></th>
+<th class="head text-right"><p><span class="math notranslate nohighlight">\(t/(2\delta_{sk})\)</span> at 10 MHz</p></th>
+<th class="head text-right"><p>at 500 MHz</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>one ounce</p></td>
+<td class="text-right"><p>35 um</p></td>
+<td class="text-right"><p>0.84</p></td>
+<td class="text-right"><p>5.92</p></td>
+</tr>
+<tr class="row-odd"><td><p>half ounce</p></td>
+<td class="text-right"><p>17.5 um</p></td>
+<td class="text-right"><p>0.42</p></td>
+<td class="text-right"><p>2.96</p></td>
+</tr>
+</tbody>
+</table>
+<p>(<em>As-implemented arithmetic</em>, <span class="math notranslate nohighlight">\(\delta_{sk}=(\pi f\mu_0\sigma)^{-1/2}\)</span>, <span class="math notranslate nohighlight">\(\sigma\)</span> = 5.8e7
+S/m: 20.90 um at 10 MHz, 2.955 um at 500 MHz.)</p>
+<p><strong>The band sits directly on the resonance and its collapse.</strong> This is the one region of
+the curve where a small horizontal read error off a raster figure maps to a several-fold
+error in <span class="math notranslate nohighlight">\(\Delta\)</span>, and it is also exactly the region Zhurav’s closed-form fallback
+provably gets wrong: the paper states Zhurav’s expression does a decent job only for
+<span class="math notranslate nohighlight">\(T/\delta_{sk} &gt; 5\)</span>, does not reproduce the resonance below that, and predicts a dc value
+of <span class="math notranslate nohighlight">\(t/\Delta = 160\)</span> against the numerical 9.2. So neither the figure nor the published
+closed form is usable here.</p>
+<p>The sensitivity is soft, which is what makes this a judgement rather than an
+impossibility. <span class="math notranslate nohighlight">\(\Delta\)</span> is the cutoff on a logarithmically divergent integral, so
+<span class="math notranslate nohighlight">\(\alpha\propto\ln(W/\Delta)\)</span>: a 2x error in <span class="math notranslate nohighlight">\(\Delta\)</span> is about 7% in attenuation, a 5x
+error about 18%. <em>Inferred</em> from the integral’s form. Introducing ~18% of unverifiable
+error in order to fix a <em>disputed</em> 12–30% defect is not a good trade in this band.</p>
+<p><strong>This decision is band-specific and should be revisited for a different one.</strong> Above
+roughly 2 GHz for one-ounce copper the curve is flat and the same digitisation would be
+sound. The disqualifying criterion is not “digitised, therefore unusable” — it is that the
+digitisation error here is comparable to the defect being fixed. Note also the paper’s own
+edge-shape result: the 45° and 90° curves are essentially identical for <span class="math notranslate nohighlight">\(t/\delta_{sk}&lt;3\)</span>
+and diverge above it, so edge profile is a further term that only matters at the high end.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="rautio-and-demir-2003-n-layer-two-layer-and-one-layer-models">
+<h2>Rautio and Demir (2003): <span class="math notranslate nohighlight">\(n\)</span>-layer, two-layer and one-layer models<a class="headerlink" href="#rautio-and-demir-2003-n-layer-two-layer-and-one-layer-models" title="Link to this heading"></a></h2>
+<p><em>Primary source read:</em> J. C. Rautio and V. Demir, “Microstrip conductor loss models for
+electromagnetic analysis”, <em>IEEE Trans. MTT</em> 51(3), 915–921, 2003,
+<a class="reference external" href="https://doi.org/10.1109/TMTT.2003.808693">https://doi.org/10.1109/TMTT.2003.808693</a> (author copy:
+<a class="reference external" href="https://www.sonnetsoftware.com/support/downloads/techdocs/MicCondLoss_Mar03.pdf">https://www.sonnetsoftware.com/support/downloads/techdocs/MicCondLoss_Mar03.pdf</a>).</p>
+<section id="coverage-and-cost">
+<h3>Coverage and cost<a class="headerlink" href="#coverage-and-cost" title="Link to this heading"></a></h3>
+<p>The <span class="math notranslate nohighlight">\(n\)</span>-layer model divides the conductor volume into <span class="math notranslate nohighlight">\(n\)</span> sheets inside a 2-D method-of-
+moments solve and lets Maxwell’s equations decide the current split, with no assumed
+frequency dependence. Validated against measurement and converged at 81 layers. Its cost
+is a full EM solve per frequency (34 s per frequency for the two-layer model on the
+paper’s hardware; the 81-layer model far more), and its accuracy depends on cell width
+across the strip — the 81-layer result does not converge until the width is subdivided
+into 128 cells, because side current is confined within one skin depth of the surface.
+<em>Established.</em></p>
+</section>
+<section id="why-not-shipped">
+<h3>Why not shipped<a class="headerlink" href="#why-not-shipped" title="Link to this heading"></a></h3>
+<p><strong>The <span class="math notranslate nohighlight">\(n\)</span>-layer model has no layer to slot into.</strong> It is a field solver, not a strategy
+object: it does not produce a <code class="docutils literal notranslate"><span class="pre">(SurfaceImpedance,</span> <span class="pre">weight)</span></code> pair, it produces a solved
+current distribution. Adopting it means adopting an EM solver, and with it the loss of the
+closed-form differentiability that the fitting path depends on.</p>
+<p><strong>The reduced models need coefficients that are not closed form.</strong> The one-layer reduction
+rescales the sheet impedance by fractional top- and bottom-side currents <span class="math notranslate nohighlight">\(\alpha\)</span> and
+<span class="math notranslate nohighlight">\(\beta\)</span>. The paper is explicit that “with the incorrect selection of <span class="math notranslate nohighlight">\(\alpha\)</span> and <span class="math notranslate nohighlight">\(\beta\)</span>,
+the one-layer model can be in error for loss by as much as a factor of two”, that <span class="math notranslate nohighlight">\(\beta\)</span>
+“can sometimes approach zero and is frequency- and geometry-dependent”, and that these
+factors “do not appear to have been previously considered in the literature”. For the
+microstrip they study, the bottom-surface current is about 1.5x the top. A ParamRF
+<code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> could emit exactly this shape — it is one pair with a rescaled
+impedance — but there is no closed form for <span class="math notranslate nohighlight">\(\beta\)</span>, so shipping it would mean shipping a
+knob whose wrong setting is a 2x loss error. <em>Established.</em></p>
+</section>
+<section id="their-transition-frequencies-and-why-edge-crowding-is-fully-developed-in-our-band">
+<h3>Their transition frequencies, and why edge crowding is fully developed in our band<a class="headerlink" href="#their-transition-frequencies-and-why-edge-crowding-is-fully-developed-in-our-band" title="Link to this heading"></a></h3>
+<p>The paper defines three regimes separated by two transition frequencies. Below
+<span class="math notranslate nohighlight">\(f_1 = R/2\pi L\)</span> the conductor is electrically thin, current fills the volume, the edge
+singularity is absent and loss is flat. Between <span class="math notranslate nohighlight">\(f_1\)</span> and <span class="math notranslate nohighlight">\(f_2\)</span> (where <span class="math notranslate nohighlight">\(t = 2\delta_{sk}\)</span>)
+the edge singularity emerges. Above <span class="math notranslate nohighlight">\(f_2\)</span> the classic <span class="math notranslate nohighlight">\(\sqrt f\)</span> behaviour sets in. The
+paper notes <span class="math notranslate nohighlight">\(f_1\)</span> is “based purely on empirical observation”. <em>Established.</em></p>
+<p>For representative ParamRF geometries, with <span class="math notranslate nohighlight">\(R=\rho/(Wt)\)</span> and <span class="math notranslate nohighlight">\(L=Z_c/v_p\)</span>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>geometry (<span class="math notranslate nohighlight">\(H\)</span> = 1.6 mm, <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> = 4.335)</p></th>
+<th class="head text-right"><p><span class="math notranslate nohighlight">\(\Re Z_c\)</span></p></th>
+<th class="head text-right"><p><span class="math notranslate nohighlight">\(f_1\)</span></p></th>
+<th class="head text-right"><p><span class="math notranslate nohighlight">\(f_2\)</span> (<span class="math notranslate nohighlight">\(t=2\delta_{sk}\)</span>)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(W\)</span> = 1.55 mm, <span class="math notranslate nohighlight">\(T\)</span> = 35 um</p></td>
+<td class="text-right"><p>71.6 ohm</p></td>
+<td class="text-right"><p>0.121 MHz</p></td>
+<td class="text-right"><p>14.3 MHz</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(W\)</span> = 4 mm, <span class="math notranslate nohighlight">\(T\)</span> = 35 um</p></td>
+<td class="text-right"><p>42.3 ohm</p></td>
+<td class="text-right"><p>0.076 MHz</p></td>
+<td class="text-right"><p>14.3 MHz</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(W\)</span> = 1.55 mm, <span class="math notranslate nohighlight">\(T\)</span> = 17.5 um</p></td>
+<td class="text-right"><p>72.0 ohm</p></td>
+<td class="text-right"><p>0.239 MHz</p></td>
+<td class="text-right"><p>57.0 MHz</p></td>
+</tr>
+</tbody>
+</table>
+<p>(<em>As-implemented arithmetic</em> from the paper’s own definitions, evaluated against this tree
+with <code class="docutils literal notranslate"><span class="pre">HammerstadJensenMicrostripFormulation</span></code>; <span class="math notranslate nohighlight">\(f_2\)</span> depends only on <span class="math notranslate nohighlight">\(t\)</span>.)</p>
+<p>The consequence is that <strong>10–500 MHz is entirely above <span class="math notranslate nohighlight">\(f_1\)</span></strong>: the edge singularity is
+fully developed across the whole band, which is why a geometry weight that omits edge
+crowding is never adequate here, and why the band straddles <span class="math notranslate nohighlight">\(f_2\)</span> rather than sitting in
+one clean regime.</p>
+</section>
+<section id="a-third-data-point-on-the-sign-question">
+<h3>A third data point on the sign question<a class="headerlink" href="#a-third-data-point-on-the-sign-question" title="Link to this heading"></a></h3>
+<p>At high frequency their two-layer model converges to 0.07 dB — about 15% — <em>more</em> loss
+than the converged 81-layer model, and 15–30% more resistance than the one-layer model.
+They attribute this to side current, absent from the two-layer model, whose absence lets a
+stronger edge singularity form. <em>Established.</em> This is used above as independent evidence
+that a surface-summed model tends to run high.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="patel-triverio-and-hum-surface-admittance-operator-with-the-contour-integral-method">
+<h2>Patel, Triverio and Hum: surface admittance operator with the contour integral method<a class="headerlink" href="#patel-triverio-and-hum-surface-admittance-operator-with-the-contour-integral-method" title="Link to this heading"></a></h2>
+<p><em>Sources:</em> U. R. Patel and P. Triverio, “Skin effect modeling in conductors of arbitrary
+shape through a surface admittance operator and the contour integral method”, <em>IEEE Trans.
+MTT</em> 64(9), 2708–2717, 2016, <a class="reference external" href="https://doi.org/10.1109/TMTT.2016.2593721">https://doi.org/10.1109/TMTT.2016.2593721</a> (preprint:
+<a class="reference external" href="https://arxiv.org/abs/1509.08357">https://arxiv.org/abs/1509.08357</a>); and U. R. Patel, S. V. Hum and P. Triverio, “Fast
+parameter extraction for transmission lines with arbitrarily-shaped conductors and
+dielectrics”, <em>IEEE EPEPS</em> 2016, <a class="reference external" href="https://doi.org/10.1109/EPEPS.2016.7835448">https://doi.org/10.1109/EPEPS.2016.7835448</a>.</p>
+<p><strong>Coverage.</strong> A Dirichlet-to-Neumann surface operator relating longitudinal <span class="math notranslate nohighlight">\(E\)</span> to
+tangential <span class="math notranslate nohighlight">\(H\)</span> on each conductor boundary, obtained by the contour integral method. It
+handles genuinely arbitrary cross-sections — trapezoidal etch profiles, curved and
+V-shaped edges, rough profiles — which is precisely the geometry class every closed form
+on this page assumes away. It is far cheaper than volume meshing, because it discretises
+only the boundary.</p>
+<p><strong>Cost, and why not shipped.</strong> It is still a numerical solve, per frequency and per
+geometry, with no analytic derivative in <span class="math notranslate nohighlight">\(W\)</span>, <span class="math notranslate nohighlight">\(H\)</span> or <span class="math notranslate nohighlight">\(T\)</span>. That is disqualifying at the
+<code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> seam, which exists to hand the line a differentiable closed-form
+weight; a solver there breaks <code class="docutils literal notranslate"><span class="pre">jax.grad</span></code> through the geometry, which the fitting and
+inference paths require. Its right role in this project is as a <strong>validation oracle</strong> —
+an independent answer to check a shipped weight against, in the same category as the field
+solves quoted above — not as a formulation. <em>Inferred from the method’s cost structure;
+the papers themselves make no claim either way about differentiability.</em></p>
+</section>
+<hr class="docutils" />
+<section id="kiang-ali-and-kong-1991-full-wave-lossy-microstrip-with-finite-thickness">
+<h2>Kiang, Ali and Kong (1991): full-wave lossy microstrip with finite thickness<a class="headerlink" href="#kiang-ali-and-kong-1991-full-wave-lossy-microstrip-with-finite-thickness" title="Link to this heading"></a></h2>
+<p><em>Source:</em> J. F. Kiang, S. M. Ali and J. A. Kong, “Modelling of lossy microstrip lines with
+finite thickness”, <em>Progress In Electromagnetics Research</em> PIER 4, 85–117, <strong>1991</strong>,
+<a class="reference external" href="https://doi.org/10.2528/PIER89060600">https://doi.org/10.2528/PIER89060600</a>.</p>
+<p>Listed for completeness as the full-wave reference treatment of the same problem: it
+solves the actual finite-thickness lossy strip rather than perturbing a lossless solution,
+so it is not subject to any of the surface-impedance or stopping-point approximations
+above. It is not shippable for the same reason as the <span class="math notranslate nohighlight">\(n\)</span>-layer model — it replaces the
+whole line model with a solve, and there is no layer in ParamRF’s architecture that a
+full-wave solver fits into.</p>
+<p><strong>Note the year.</strong> The DOI slug <code class="docutils literal notranslate"><span class="pre">PIER89060600</span></code> encodes a 1989 submission date and the
+paper is frequently miscited as 1989. The publication is PIER volume 4, 1991 (confirmed
+against the Crossref record for that DOI).</p>
+</section>
+<hr class="docutils" />
+<section id="side-wall-current">
+<h2>Side-wall current<a class="headerlink" href="#side-wall-current" title="Link to this heading"></a></h2>
+<p>Rautio and Demir find empirically that the one-layer/32-layer resistance difference, swept
+over stripline widths from 16 to 200 um, tracks <span class="math notranslate nohighlight">\(t/(t+W)\)</span> closely, and suggest a <span class="math notranslate nohighlight">\(t/(t+W)\)</span>
+modification to compensate for current on the lateral sides. <em>Established</em> (their Fig. 9
+and surrounding text).</p>
+<p>For a 35 um trace at 1.55 mm width that is <span class="math notranslate nohighlight">\(35/(35+1550)\)</span> = <strong>2.2%</strong> — an order of
+magnitude below the disputed 21% on the geometry weight, and below the 2–5%
+surface-impedance-model difference already documented in the shipped docstrings. It is
+also entirely uncharacterised at 10–500 MHz: their sweep is at 10 GHz on lines two orders
+of magnitude narrower, where <span class="math notranslate nohighlight">\(t/(t+W)\)</span> reaches 35%.</p>
+<p>It would be trivial to express — a scalar factor on a <code class="docutils literal notranslate"><span class="pre">CurrentDistribution</span></code> weight — so
+this is a priority judgement, not an architectural one. It is worth revisiting once the
+sign question above is settled, since below that it is noise.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">IncrementalInductanceCurrentDistribution</span></code> already includes the side walls, by
+construction: its recession derivative thins the strip by <span class="math notranslate nohighlight">\(2n\)</span> as well as narrowing it,
+which is exactly why it requires a thickness-aware formulation and refuses to run without
+one (pairing it with a thickness-blind formulation under-predicts by about 30%). The
+<span class="math notranslate nohighlight">\(t/(t+W)\)</span> term above is about how side current <em>redistributes</em> the edge singularity, which
+is a different effect and is not captured by any weight on this page.</p>
+</section>
+<hr class="docutils" />
+<section id="source-list">
+<h2>Source list<a class="headerlink" href="#source-list" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>source</p></th>
+<th class="head"><p>DOI / stable link</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Wheeler, H. A., “Formulas for the Skin Effect”, <em>Proc. IRE</em> 30(9), 412–424, 1942</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/JRPROC.1942.232015">https://doi.org/10.1109/JRPROC.1942.232015</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Hammerstad, E. &amp; Jensen, O., “Accurate Models for Microstrip Computer-Aided Design”, <em>IEEE MTT-S Digest</em>, 407–409, 1980</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/MWSYM.1980.1124303">https://doi.org/10.1109/MWSYM.1980.1124303</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Lewin, L., “A Method of Avoiding the Edge Current Divergence in Perturbation Loss Calculations”, <em>IEEE Trans. MTT</em> 32(7), 717–719, 1984</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/TMTT.1984.1132762">https://doi.org/10.1109/TMTT.1984.1132762</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Vainshtein, L. A. &amp; Zhurav, S. M., “Strong skin effect at the edges of metal plates”, <em>Sov. Tech. Phys. Lett.</em> 13(6), 298–299, 1987</p></td>
+<td><p>no DOI; cited via Holloway &amp; Kuester 1994, ref. list</p></td>
+</tr>
+<tr class="row-even"><td><p>Zhurav, S. M., “Edge loss in metal plates of rectangular cross section”, <em>Sov. Tech. Phys. Lett.</em> 13(3), 147–148, 1987</p></td>
+<td><p>no DOI; cited via Holloway &amp; Kuester 1994, ref. list</p></td>
+</tr>
+<tr class="row-odd"><td><p>Barsotti, E. L., Kuester, E. F. &amp; Dunn, J. M., “A simple method to account for edge shape in the conductor loss in microstrip”, <em>IEEE Trans. MTT</em> 39(1), 98–106, 1991</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/22.64611">https://doi.org/10.1109/22.64611</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Holloway, C. L. &amp; Kuester, E. F., “Edge shape effects and quasi-closed form expressions for the conductor loss of microstrip lines”, <em>Radio Science</em> 29(3), 539–559, 1994</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1029/93RS03062">https://doi.org/10.1029/93RS03062</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Rautio, J. C. &amp; Demir, V., “Microstrip conductor loss models for electromagnetic analysis”, <em>IEEE Trans. MTT</em> 51(3), 915–921, 2003</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/TMTT.2003.808693">https://doi.org/10.1109/TMTT.2003.808693</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Patel, U. R. &amp; Triverio, P., “Skin Effect Modeling in Conductors of Arbitrary Shape Through a Surface Admittance Operator and the Contour Integral Method”, <em>IEEE Trans. MTT</em> 64(9), 2708–2717, 2016</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/TMTT.2016.2593721">https://doi.org/10.1109/TMTT.2016.2593721</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Patel, U. R., Hum, S. V. &amp; Triverio, P., “Fast parameter extraction for transmission lines with arbitrarily-shaped conductors and dielectrics”, <em>IEEE EPEPS</em>, 2016</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.1109/EPEPS.2016.7835448">https://doi.org/10.1109/EPEPS.2016.7835448</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Kiang, J. F., Ali, S. M. &amp; Kong, J. A., “Modelling of Lossy Microstrip Lines with Finite Thickness”, <em>PIER</em> 4, 85–117, 1991</p></td>
+<td><p><a class="reference external" href="https://doi.org/10.2528/PIER89060600">https://doi.org/10.2528/PIER89060600</a></p></td>
+</tr>
+</tbody>
+</table>
+<p>The two Soviet-journal references are the only entries without a DOI. Both are cited here
+only for facts stated <em>about</em> them in Holloway and Kuester 1994 (the 290.8 asymptote and
+Zhurav’s dc value of 160), which was read in full; neither was read directly.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

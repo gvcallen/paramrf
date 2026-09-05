@@ -1,0 +1,12 @@
+
+
+
+Interval
+========
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: Interval
+   :members:
+   :show-inheritance:
+   :inherited-members:

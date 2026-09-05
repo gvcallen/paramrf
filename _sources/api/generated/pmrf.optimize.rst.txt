@@ -1,0 +1,62 @@
+﻿
+
+
+**optimize** (pmrf.optimize)
+============================
+
+.. automodule:: pmrf.optimize
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractBoundedMinimizer
+
+   AbstractUnconstrainedMinimizer
+
+   OptimizeResult
+
+   ScipyMinimize
+
+   OptimistixMinimise
+
+   LBFGSB
+
+   NelderMead
+
+   LBFGS
+
+   BFGS
+
+   GradientDescent
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   is_optimizer
+
+   is_minimizer
+
+   minimize
+
+

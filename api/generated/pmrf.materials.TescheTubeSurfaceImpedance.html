@@ -1,0 +1,231 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TescheTubeSurfaceImpedance &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Substrate" href="pmrf.materials.Substrate.html" />
+    <link rel="prev" title="TescheRodSurfaceImpedance" href="pmrf.materials.TescheRodSurfaceImpedance.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.AbstractDielectric.html">AbstractDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.ConstantDielectric.html">ConstantDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.DjordjevicSarkarDielectric.html">DjordjevicSarkarDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.DebyePole.html">DebyePole</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.MultipoleDebyeDielectric.html">MultipoleDebyeDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.ColeColeDielectric.html">ColeColeDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.TabulatedDielectric.html">TabulatedDielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.DielectricProperties.html">DielectricProperties</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.ConductorProperties.html">ConductorProperties</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.AbstractConductor.html">AbstractConductor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.AbstractRoughness.html">AbstractRoughness</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.BulkConductor.html">BulkConductor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.HammerstadRoughness.html">HammerstadRoughness</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.RoughConductor.html">RoughConductor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.AbstractSurfaceImpedance.html">AbstractSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.HalfSpaceSurfaceImpedance.html">HalfSpaceSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.HollowayKuesterSlabSurfaceImpedance.html">HollowayKuesterSlabSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.RootSumSquareSlabSurfaceImpedance.html">RootSumSquareSlabSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.SchelkunoffRodSurfaceImpedance.html">SchelkunoffRodSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.SchelkunoffTubeSurfaceImpedance.html">SchelkunoffTubeSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.TescheRodSurfaceImpedance.html">TescheRodSurfaceImpedance</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">TescheTubeSurfaceImpedance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.Substrate.html">Substrate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.as_dielectric.html">as_dielectric</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.as_conductor.html">as_conductor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.materials.as_substrate.html">as_substrate</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+      <li class="breadcrumb-item active">TescheTubeSurfaceImpedance</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.materials.TescheTubeSurfaceImpedance.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="teschetubesurfaceimpedance">
+<h1>TescheTubeSurfaceImpedance<a class="headerlink" href="#teschetubesurfaceimpedance" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.materials.TescheTubeSurfaceImpedance">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.materials.</span></span><span class="sig-name descname"><span class="pre">TescheTubeSurfaceImpedance</span></span><a class="headerlink" href="#pmrf.materials.TescheTubeSurfaceImpedance" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.materials.AbstractSurfaceImpedance.html#pmrf.materials.AbstractSurfaceImpedance" title="pmrf.materials.surface_impedance.AbstractSurfaceImpedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSurfaceImpedance</span></code></a></p>
+<p>Tubular conductor of finite wall thickness, via Tesche’s equivalent circuit.</p>
+<p><strong>Mathematical Formulation</strong></p>
+<p>With <span class="math notranslate nohighlight">\(q=(a/(a+t))^2\)</span>, the tube’s per-unit-length dc resistance and
+internal inductance are
+<div class="math notranslate nohighlight">
+\[R_{dc} = \frac{1}{2\pi a t\sigma},\qquad
+L_{int} = \frac{\mu}{2\pi}\left[\frac{\ln(1+t/a)}{(1-q)^2}
++ \frac{q-3}{4(1-q)}\right],\]</div>
+
+combined as for the solid rod. The equivalent surface impedance is
+<div class="math notranslate nohighlight">
+\[Z_s = R_{dc,sq} + \frac{\zeta_c}{1+\zeta_c/(j\omega L_{int,sq})},
+\qquad R_{dc,sq}=\frac{1}{t\sigma},\quad
+L_{int,sq}=\mu a\left[\frac{\ln(1+t/a)}{(1-q)^2}+\frac{q-3}{4(1-q)}\right].\]</div>
+</p>
+<p><strong>Validity</strong></p>
+<p>This formulation has the same approximation as <a class="reference internal" href="pmrf.materials.TescheRodSurfaceImpedance.html#pmrf.materials.TescheRodSurfaceImpedance" title="pmrf.materials.TescheRodSurfaceImpedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">TescheRodSurfaceImpedance</span></code></a>:
+its strong-skin limit is <span class="math notranslate nohighlight">\(\zeta_c+R_{dc,sq}\)</span> rather than <span class="math notranslate nohighlight">\(\zeta_c\)</span>.
+For <span class="math notranslate nohighlight">\(t\to\infty\)</span>, <span class="math notranslate nohighlight">\(R_{dc,sq}\to0\)</span> and <span class="math notranslate nohighlight">\(L_{int,sq}\to\infty\)</span>, reducing
+the result to <a class="reference internal" href="pmrf.materials.HalfSpaceSurfaceImpedance.html#pmrf.materials.HalfSpaceSurfaceImpedance" title="pmrf.materials.HalfSpaceSurfaceImpedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">HalfSpaceSurfaceImpedance</span></code></a>. This limit is used by
+<a class="reference internal" href="pmrf.models.components.lines.coaxial.TescheCoaxialFormulation.html#pmrf.models.components.lines.coaxial.TescheCoaxialFormulation" title="pmrf.models.components.lines.coaxial.TescheCoaxialFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">TescheCoaxialFormulation</span></code></a>
+when the outer-shield thickness is unspecified.</p>
+<p class="rubric">References</p>
+<p>Tesche, F. M. (2007). A Simple Model for the Line Parameters of a Lossy
+Coaxial Cable Filled With a Nondispersive Dielectric. IEEE Transactions
+on Electromagnetic Compatibility, 49(1), 12-17.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.materials.TescheTubeSurfaceImpedance.impedance">
+<span class="sig-name descname"><span class="pre">impedance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">omega</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conductor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.materials.ConductorProperties.html#pmrf.materials.ConductorProperties" title="pmrf.materials.properties.ConductorProperties"><span class="pre">ConductorProperties</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">geometry</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.materials.TescheTubeSurfaceImpedance.impedance" title="Link to this definition"></a></dt>
+<dd><p>Return the surface impedance of this cross-section, in ohm per square.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>omega</strong> (<em>ArrayLike</em>) – Angular frequency in rad/s. <code class="docutils literal notranslate"><span class="pre">w</span></code> is reserved for strip width.</p></li>
+<li><p><strong>conductor</strong> (<a class="reference internal" href="pmrf.materials.ConductorProperties.html#pmrf.materials.ConductorProperties" title="pmrf.materials.ConductorProperties"><em>ConductorProperties</em></a>) – Evaluated metal properties. <code class="docutils literal notranslate"><span class="pre">conductor.zs</span></code> is the surface
+prefactor, including any surface treatment, and
+<code class="docutils literal notranslate"><span class="pre">conductor.gamma(omega)</span></code> is the bulk diffusion constant. Treat
+them as independent: <span class="math notranslate nohighlight">\(\gamma=\sigma\zeta_c\)</span> holds only for a
+smooth bulk conductor.</p></li>
+<li><p><strong>**geometry</strong> – Cross-section-specific dimensions in metres. Implementations ignore
+dimensions they do not use.</p></li>
+<li><p><strong>weight</strong> (<em>ArrayLike</em><em>, </em><em>optional</em>) – Caller’s geometry weight in inverse metres. Only
+<a class="reference internal" href="pmrf.materials.RootSumSquareSlabSurfaceImpedance.html#pmrf.materials.RootSumSquareSlabSurfaceImpedance" title="pmrf.materials.RootSumSquareSlabSurfaceImpedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">RootSumSquareSlabSurfaceImpedance</span></code></a> uses it to express its dc limit
+in the caller’s normalisation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Surface impedance in ohm per square.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.materials.TescheRodSurfaceImpedance.html" class="btn btn-neutral float-left" title="TescheRodSurfaceImpedance" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.materials.Substrate.html" class="btn btn-neutral float-right" title="Substrate" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,245 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sharing a Substrate Between Traces &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
+    <link rel="prev" title="Fitting Multiple Models from One Parameter Set" href="multiple_models_one_parameter_set.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cascading_and_terminating.html">Cascading and Terminating</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit_models.html">Circuit Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model_optimization.html">Model Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameter_naming_and_model_manipulation.html">Parameter Naming and Model Manipulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="derivatives_and_sweeps.html">Derivatives and Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_models.html">Custom Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="multiple_models_one_parameter_set.html">Fitting Multiple Models from One Parameter Set</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Sharing a Substrate Between Traces</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#one-substrate-two-traces">One Substrate, Two Traces</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-contrast-a-shared-param-object">The Contrast: A Shared <code class="docutils literal notranslate"><span class="pre">Param</span></code> Object</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#two-idioms-one-pytree">Two Idioms, One PyTree</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Examples</a></li>
+      <li class="breadcrumb-item active">Sharing a Substrate Between Traces</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/examples/shared_substrates.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="sharing-a-substrate-between-traces">
+<h1>Sharing a Substrate Between Traces<a class="headerlink" href="#sharing-a-substrate-between-traces" title="Link to this heading"></a></h1>
+<p>A board has one substrate and many traces on it. If each trace carried its own
+copy of the permittivity, fitting the board would fit the same physical quantity
+several times over, once per trace, with nothing keeping the answers consistent.</p>
+<p>ParamRF needs no special machinery for this. A <a class="reference internal" href="../api/generated/pmrf.materials.Substrate.html#pmrf.materials.Substrate" title="pmrf.materials.Substrate"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.materials.Substrate</span></code></a>
+groups the height, dielectric, conductor and metallization thickness into one
+module, and a <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code> holding one substrate and
+injecting it into each line in <code class="docutils literal notranslate"><span class="pre">build</span></code> is what makes the sharing real.</p>
+<section id="one-substrate-two-traces">
+<h2>One Substrate, Two Traces<a class="headerlink" href="#one-substrate-two-traces" title="Link to this heading"></a></h2>
+<div class="jupyter_cell jupyter_container docutils container">
+<div class="cell_input code_cell docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstantDielectric</span><span class="p">,</span> <span class="n">Substrate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractBuilder</span><span class="p">,</span> <span class="n">MicrostripLine</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Board</span><span class="p">(</span><span class="n">AbstractBuilder</span><span class="p">):</span>
+    <span class="n">substrate</span><span class="p">:</span> <span class="n">Substrate</span>
+    <span class="n">w1</span><span class="p">:</span> <span class="n">prf</span><span class="o">.</span><span class="n">Param</span>
+    <span class="n">w2</span><span class="p">:</span> <span class="n">prf</span><span class="o">.</span><span class="n">Param</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">w1</span><span class="p">,</span> <span class="n">substrate</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">substrate</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+            <span class="o">**</span> <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">w2</span><span class="p">,</span> <span class="n">substrate</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">substrate</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="p">)</span>
+
+<span class="n">board</span> <span class="o">=</span> <span class="n">Board</span><span class="p">(</span>
+    <span class="n">substrate</span><span class="o">=</span><span class="n">Substrate</span><span class="p">(</span><span class="n">h</span><span class="o">=</span><span class="mf">1.6e-3</span><span class="p">,</span> <span class="n">dielectric</span><span class="o">=</span><span class="n">ConstantDielectric</span><span class="p">(</span><span class="n">ep_r</span><span class="o">=</span><span class="mf">4.3</span><span class="p">,</span> <span class="n">tand</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)),</span>
+    <span class="n">w1</span><span class="o">=</span><span class="mf">1.0e-3</span><span class="p">,</span>
+    <span class="n">w2</span><span class="o">=</span><span class="mf">2.0e-3</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">list</span><span class="p">(</span><span class="n">board</span><span class="o">.</span><span class="n">named_params</span><span class="p">())</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-none notranslate"><div class="highlight"><pre><span></span>['substrate.h',
+ 'substrate.dielectric.ep_r',
+ 'substrate.dielectric.tand',
+ 'substrate.dielectric.sigma',
+ 'substrate.dielectric.mu_r',
+ 'substrate.conductor.sigma',
+ 'substrate.conductor.mu_r']
+</pre></div>
+</div>
+</div>
+</div>
+<p>There is one <code class="docutils literal notranslate"><span class="pre">ep_r</span></code>, not two. <code class="docutils literal notranslate"><span class="pre">build</span></code> is lazy and uncached, so the substrate
+is a leaf of the builder and both lines are reconstructed on every call from the
+same already-traced values. Fitting <code class="docutils literal notranslate"><span class="pre">board</span></code> therefore fits a single
+permittivity, shared by construction.</p>
+</section>
+<section id="the-contrast-a-shared-param-object">
+<h2>The Contrast: A Shared <code class="docutils literal notranslate"><span class="pre">Param</span></code> Object<a class="headerlink" href="#the-contrast-a-shared-param-object" title="Link to this heading"></a></h2>
+<p>Handing the <em>same</em> <a class="reference internal" href="../api/generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a> object to two separately-constructed
+lines looks like sharing, but is not:</p>
+<div class="jupyter_cell jupyter_container docutils container">
+<div class="cell_input code_cell docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">ep_r</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mf">4.3</span><span class="p">)</span>
+<span class="n">lines</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="mf">1.6e-3</span><span class="p">,</span> <span class="n">dielectric</span><span class="o">=</span><span class="n">ConstantDielectric</span><span class="p">(</span><span class="n">ep_r</span><span class="o">=</span><span class="n">ep_r</span><span class="p">),</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+    <span class="o">**</span> <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mf">2e-3</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="mf">1.6e-3</span><span class="p">,</span> <span class="n">dielectric</span><span class="o">=</span><span class="n">ConstantDielectric</span><span class="p">(</span><span class="n">ep_r</span><span class="o">=</span><span class="n">ep_r</span><span class="p">),</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">lines</span><span class="o">.</span><span class="n">named_params</span><span class="p">()</span> <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"ep_r"</span><span class="p">)]</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-none notranslate"><div class="highlight"><pre><span></span>['cascade[0].substrate.dielectric.ep_r',
+ 'cascade[1].substrate.dielectric.ep_r']
+</pre></div>
+</div>
+</div>
+</div>
+<p>PyTree flattening gives one leaf per line regardless of the object identity that
+went in, so the optimizer sees two independent permittivities that are free to
+drift apart. The builder pattern above is the one that dedupes.</p>
+</section>
+<section id="two-idioms-one-pytree">
+<h2>Two Idioms, One PyTree<a class="headerlink" href="#two-idioms-one-pytree" title="Link to this heading"></a></h2>
+<p>A line may be given a grouped <code class="docutils literal notranslate"><span class="pre">substrate=</span></code>, or the loose <code class="docutils literal notranslate"><span class="pre">h</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dielectric</span></code>, <code class="docutils literal notranslate"><span class="pre">conductor</span></code> and <code class="docutils literal notranslate"><span class="pre">t</span></code> fields. Both build the same canonical
+<a class="reference internal" href="../api/generated/pmrf.materials.Substrate.html#pmrf.materials.Substrate" title="pmrf.materials.Substrate"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.materials.Substrate</span></code></a>, so the two forms are the same model:</p>
+<div class="jupyter_cell jupyter_container docutils container">
+<div class="cell_input code_cell docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+
+<span class="n">loose</span> <span class="o">=</span> <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mf">3e-3</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="mf">1.6e-3</span><span class="p">,</span> <span class="n">dielectric</span><span class="o">=</span><span class="mf">4.3</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="n">grouped</span> <span class="o">=</span> <span class="n">MicrostripLine</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mf">3e-3</span><span class="p">,</span> <span class="n">substrate</span><span class="o">=</span><span class="n">Substrate</span><span class="p">(</span><span class="n">h</span><span class="o">=</span><span class="mf">1.6e-3</span><span class="p">,</span> <span class="n">dielectric</span><span class="o">=</span><span class="mf">4.3</span><span class="p">),</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_structure</span><span class="p">(</span><span class="n">loose</span><span class="p">)</span> <span class="o">==</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_structure</span><span class="p">(</span><span class="n">grouped</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-none notranslate"><div class="highlight"><pre><span></span>True
+</pre></div>
+</div>
+</div>
+</div>
+<p>The loose form stays convenient for a single line; the grouped form is what a
+board shares. They may not be mixed in one call.</p>
+<p>A coaxial line has no substrate, and keeps its <code class="docutils literal notranslate"><span class="pre">dielectric</span></code> and <code class="docutils literal notranslate"><span class="pre">conductor</span></code>
+fields directly.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="multiple_models_one_parameter_set.html" class="btn btn-neutral float-left" title="Fitting Multiple Models from One Parameter Set" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../tutorials/index.html" class="btn btn-neutral float-right" title="Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

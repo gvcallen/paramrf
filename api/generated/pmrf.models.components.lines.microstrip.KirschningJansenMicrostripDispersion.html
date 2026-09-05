@@ -1,0 +1,269 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KirschningJansenMicrostripDispersion &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="MicrostripCrossSection" href="pmrf.models.components.lines.microstrip.MicrostripCrossSection.html" />
+    <link rel="prev" title="IncrementalInductanceCurrentDistribution" href="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.microstrip.html">microstrip</a></li>
+      <li class="breadcrumb-item active">KirschningJansenMicrostripDispersion</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="kirschningjansenmicrostripdispersion">
+<h1>KirschningJansenMicrostripDispersion<a class="headerlink" href="#kirschningjansenmicrostripdispersion" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.microstrip.</span></span><span class="sig-name descname"><span class="pre">KirschningJansenMicrostripDispersion</span></span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion.html#pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion" title="pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractMicrostripDispersion</span></code></a></p>
+<p>Kirschning–Jansen modal dispersion for microstrip.</p>
+<p><strong>Mathematical Formulation</strong></p>
+<p>The model expresses the dispersed effective permittivity as
+<div class="math notranslate nohighlight">
+\[\varepsilon_e(f) = \varepsilon_r
+- \frac{\varepsilon_r-\varepsilon_e(0)}{1 + P(f)},\]</div>
+
+where <span class="math notranslate nohighlight">\(P=P_1P_2(0.1844+P_3P_4)^{1.5763}f_n^{1.5763}\)</span> and the <span class="math notranslate nohighlight">\(P_i\)</span>
+are
+<div class="math notranslate nohighlight">
+\[P_1=0.27488+\left[0.6315+\frac{0.525}{(1+0.0157f_n)^{20}}\right]u
+-0.065683e^{-8.7513u}\]</div>
+
+<div class="math notranslate nohighlight">
+\[P_2=0.33622(1-e^{-0.03442\varepsilon_r}),\quad
+P_3=0.0363e^{-4.6u}[1-e^{-(f_n/38.7)^{4.97}}]\]</div>
+
+<div class="math notranslate nohighlight">
+\[P_4=1+2.751[1-e^{-(\varepsilon_r/15.916)^8}].\]</div>
+
+The normalized frequency is
+<span class="math notranslate nohighlight">\(f_n=f[\mathrm{Hz}]H[\mathrm{m}]10^{-6}\)</span> (GHz-mm).
+The normalized width is the thickness-corrected <span class="math notranslate nohighlight">\(u = W_{eff}/H\)</span>.</p>
+<p>Characteristic impedance is corrected by
+<div class="math notranslate nohighlight">
+\[Z_c(f)=Z_c(0)\left(\frac{R_{13}}{R_{14}}\right)^{R_{17}},\]</div>
+
+with
+<div class="math notranslate nohighlight">
+\[R_1=\min(0.03891\varepsilon_r^{1.4},20),\quad
+R_2=\min(0.2671u^7,20),\quad R_3=4.766e^{-3.228u^{0.641}}\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_4=0.016+(0.0514\varepsilon_r)^{4.524},\quad
+R_5=(f_n/28.843)^{12},\quad R_6=\min(22.20u^{1.92},20)\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_7=1.206-0.3144e^{-R_1}(1-e^{-R_2})\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_8=1+1.275\left[1-e^{-0.004625R_3\varepsilon_r^{1.674}
+(f_n/18.365)^{2.745}}\right]\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_9=\frac{5.086R_4R_5e^{-R_6}}{(0.3838+0.386R_4)(1+1.2992R_5)}
+\frac{(\varepsilon_r-1)^6}{1+10(\varepsilon_r-1)^6}\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_{10}=0.00044\varepsilon_r^{2.136}+0.0184,\quad
+R_{11}=\frac{(f_n/19.47)^6}{1+0.0962(f_n/19.47)^6},\quad
+R_{12}=\frac{1}{1+0.00245u^2}\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_{13}=0.9408\varepsilon_e(f)^{R_8}-0.9603,\quad
+R_{14}=(0.9408-R_9)\varepsilon_e(0)^{R_8}-0.9603\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_{15}=0.707R_{10}(f_n/12.3)^{1.097},\quad
+R_{16}=1+0.0503\varepsilon_r^2R_{11}[1-e^{-(u/15)^6}]\]</div>
+
+<div class="math notranslate nohighlight">
+\[R_{17}=R_7\left[1-\frac{1.1241R_{12}}{R_{16}}
+e^{-0.026f_n^{1.15656}-R_{15}}\right].\]</div>
+</p>
+<p>The papers validate the fit from <span class="math notranslate nohighlight">\(\varepsilon_r=2.2\)</span>, while modal
+dispersion must vanish at the homogeneous <span class="math notranslate nohighlight">\(\varepsilon_r=1\)</span> limit. In the
+extrapolation interval ParamRF therefore applies the smooth weight
+<div class="math notranslate nohighlight">
+\[x=\operatorname{clip}\left(\frac{\Re(\varepsilon_r)-1}{1.2},0,1\right),
+\qquad q=x^2(3-2x),\]</div>
+
+<div class="math notranslate nohighlight">
+\[\varepsilon_e=(1-q)\varepsilon_e(0)+q\varepsilon_{e,KJ},\qquad
+Z_c=(1-q)Z_c(0)+qZ_{c,KJ}.\]</div>
+
+This smooth extension to the homogeneous limit is specific to ParamRF.</p>
+<p><strong>Validity</strong></p>
+<p>The published fits cover <span class="math notranslate nohighlight">\(1\leq\varepsilon_r\leq20\)</span>,
+<span class="math notranslate nohighlight">\(0.1\leq W/H\leq100\)</span>, and <span class="math notranslate nohighlight">\(0\leq H/\lambda_0\leq0.13\)</span>, with numerical
+fits anchored at <span class="math notranslate nohighlight">\(\varepsilon_r\geq2.2\)</span>. ParamRF uses the extension above
+for <span class="math notranslate nohighlight">\(1&lt;\varepsilon_r&lt;2.2\)</span> and extrapolates outside the remaining ranges.</p>
+<p class="rubric">References</p>
+<p>Kirschning, M., &amp; Jansen, R. H. (1982). Accurate Model for Effective
+Dielectric Constant of Microstrip with Validity up to Millimeter-Wave
+Frequencies. Electronics Letters, 18(6), 272-273.</p>
+<p>Jansen, R. H., &amp; Kirschning, M. (1983). Arguments and an Accurate Model for
+the Power-Current Formulation of Microstrip Characteristic Impedance.
+Archiv fuer Elektronik und Uebertragungstechnik, 37, 108-112.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.disperse">
+<span class="sig-name descname"><span class="pre">disperse</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">ep_eff_0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zc_0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ep_r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">w_eff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.disperse" title="Link to this definition"></a></dt>
+<dd><p>Return frequency-dependent <span class="math notranslate nohighlight">\((\varepsilon_e, Z_c)\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>freq</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – The frequency axis.</p></li>
+<li><p><strong>ep_eff_0</strong> (<em>jnp.ndarray</em>) – Quasi-static complex effective relative permittivity.</p></li>
+<li><p><strong>zc_0</strong> (<em>jnp.ndarray</em>) – Quasi-static characteristic impedance in ohms.</p></li>
+<li><p><strong>ep_r</strong> (<em>jnp.ndarray</em>) – Complex relative permittivity of the substrate.</p></li>
+<li><p><strong>w_eff</strong> (<em>jnp.ndarray</em>) – Electromagnetic effective conductor width in meters.</p></li>
+<li><p><strong>h</strong> (<em>ArrayLike</em>) – Substrate height in meters.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dispersed effective permittivity and characteristic impedance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.html" class="btn btn-neutral float-left" title="IncrementalInductanceCurrentDistribution" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.microstrip.MicrostripCrossSection.html" class="btn btn-neutral float-right" title="MicrostripCrossSection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

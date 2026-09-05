@@ -1,0 +1,9 @@
+
+
+
+i1e
+===
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: i1e

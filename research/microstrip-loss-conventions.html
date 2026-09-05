@@ -1,0 +1,567 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Microstrip loss conventions: dielectric attenuation, conductor loss at t→0, and Z_c at low frequency &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Microstrip loss conventions: dielectric attenuation, conductor loss at t→0, and Z_c at low frequency</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/research/microstrip-loss-conventions.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="microstrip-loss-conventions-dielectric-attenuation-conductor-loss-at-t0-and-z-c-at-low-frequency">
+<h1>Microstrip loss conventions: dielectric attenuation, conductor loss at t→0, and Z_c at low frequency<a class="headerlink" href="#microstrip-loss-conventions-dielectric-attenuation-conductor-loss-at-t0-and-z-c-at-low-frequency" title="Link to this heading"></a></h1>
+<p>Research note. Sources are primary where they could be reached (vendor manuals, NIST
+publications, standards-grade textbooks, library source code); paywalled IEEE/AEÜ papers
+are cited but were <strong>not</strong> read in full and are marked as such. Every claim below is
+labelled <em>established</em>, <em>inferred</em>, or <em>unverified</em>.</p>
+<hr class="docutils" />
+<section id="question-1-dielectric-attenuation-complex-permittivity-vs-the-filling-factor-form">
+<h2>Question 1 — Dielectric attenuation: complex permittivity vs. the filling-factor form<a class="headerlink" href="#question-1-dielectric-attenuation-complex-permittivity-vs-the-filling-factor-form" title="Link to this heading"></a></h2>
+<section id="the-two-expressions">
+<h3>The two expressions<a class="headerlink" href="#the-two-expressions" title="Link to this heading"></a></h3>
+<p>ParamRF evaluates the Hammerstad–Jensen quasi-static model at a complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>,
+so its dielectric attenuation is the exact derivative of the model actually in use:</p>
+<div class="math notranslate nohighlight">
+\[\alpha_d=\frac{\omega}{2c}\,\varepsilon_r\tan\delta\,
+\frac{1}{\sqrt{\varepsilon_e}}\frac{\partial\varepsilon_e}{\partial\varepsilon_r}.\]</div>
+<p>scikit-rf uses the classical filling-factor form
+(<a class="reference external" href="https://scikit-rf.readthedocs.io/en/latest/_modules/skrf/media/mline.html"><code class="docutils literal notranslate"><span class="pre">skrf/media/mline.py</span></code>, <code class="docutils literal notranslate"><span class="pre">analyse_loss</span></code></a>):</p>
+<div class="math notranslate nohighlight">
+\[\alpha_d=\frac{\pi\,\varepsilon_r(\varepsilon_e-1)\tan\delta}
+{(\varepsilon_r-1)\sqrt{\varepsilon_e}\,\lambda_0},\]</div>
+<p>i.e. the same expression with <span class="math notranslate nohighlight">\((\varepsilon_e-1)/(\varepsilon_r-1)\)</span> standing in for
+<span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span>.</p>
+</section>
+<section id="what-the-sources-establish">
+<h3>What the sources establish<a class="headerlink" href="#what-the-sources-establish" title="Link to this heading"></a></h3>
+<p><strong>The derivative form is the original, and the filling-factor form is its linearised
+surrogate.</strong> Schneider’s 1969 Bell System Technical Journal papers derive microstrip
+dielectric loss from a perturbation of the stored electric energy, <span class="math notranslate nohighlight">\(\partial U/\partial
+\varepsilon_r\)</span>, giving an <em>effective loss tangent</em> set by
+<span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span> — not by a filling ratio
+(M. V. Schneider, “Dielectric Loss in Integrated Microwave Circuits”, BSTJ 48(7), 1969,
+<a class="reference external" href="https://onlinelibrary.wiley.com/doi/abs/10.1002/j.1538-7305.1969.tb01175.x">https://onlinelibrary.wiley.com/doi/abs/10.1002/j.1538-7305.1969.tb01175.x</a>; and
+“Microstrip Lines for Microwave Integrated Circuits”, BSTJ 48(5), 1969, pp. 1421–1444,
+full text at <a class="reference external" href="https://archive.org/details/bstj48-5-1421">https://archive.org/details/bstj48-5-1421</a>). The earlier loss measurement
+work is Welch &amp; Pratt, “Losses in Microstrip Transmission Systems for Integrated Microwave
+Circuits” (1966). <em>Established for the existence of the derivative-based derivation; the
+exact algebra of Schneider’s equations was read via the abstract/summary, not the typeset
+paper — see confidence table.</em></p>
+<p><strong>The filling factor is <em>defined</em> by assuming linearity.</strong> Steer, <em>Microwave and RF
+Design II — Transmission Lines</em>, §3.5 (Engineering LibreTexts,
+<a class="reference external" href="https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Electronics/Microwave_and_RF_Design_II_-_Transmission_Lines_(Steer)/03:_Planar_Transmission_Lines/3.05:_Microstrip_Transmission_Lines">https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Electronics/Microwave_and_RF_Design_II_-_Transmission_Lines_(Steer)/03:_Planar_Transmission_Lines/3.05:_Microstrip_Transmission_Lines</a>)
+introduces <span class="math notranslate nohighlight">\(q\)</span> by <span class="math notranslate nohighlight">\(\varepsilon_e = 1 + q(\varepsilon_r - 1)\)</span> (eq. 17), with
+<span class="math notranslate nohighlight">\(\tfrac12 \le q \le 1\)</span>, and then gives exactly the scikit-rf expression,
+<span class="math notranslate nohighlight">\(\alpha_d=\frac{\omega}{c}\tan\delta\,\frac{\varepsilon_r(\varepsilon_e-1)}
+{2\sqrt{\varepsilon_e}(\varepsilon_r-1)}\)</span> (eq. 26). So <span class="math notranslate nohighlight">\(q=(\varepsilon_e-1)/(\varepsilon_r-1)\)</span>
+is a <em>definition</em> that coincides with <span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span> only if
+<span class="math notranslate nohighlight">\(\varepsilon_e\)</span> is affine in <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>. Steer states the result “applies to any TEM
+transmission line configuration” — a TEM/static-partition argument, not a Hammerstad–Jensen
+one. <strong>Established.</strong></p>
+<p><strong>Hammerstad–Jensen is not affine in <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>, but the error is ~1 %, not 3–9 %.</strong>
+Evaluated directly against scikit-rf’s own <code class="docutils literal notranslate"><span class="pre">hammerstad_ab</span></code>/<code class="docutils literal notranslate"><span class="pre">hammerstad_er</span></code>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><span class="math notranslate nohighlight">\(u=W/h\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(\varepsilon_r\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(\varepsilon_e\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\((\varepsilon_e-1)/(\varepsilon_r-1)\)</span></p></th>
+<th class="head"><p>surrogate/derivative</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p>4.3</p></td>
+<td><p>3.1045</p></td>
+<td><p>0.63286</p></td>
+<td><p>0.63774</p></td>
+<td><p>1.0077</p></td>
+</tr>
+<tr class="row-odd"><td><p>10</p></td>
+<td><p>10</p></td>
+<td><p>8.5565</p></td>
+<td><p>0.83754</p></td>
+<td><p>0.83961</p></td>
+<td><p>1.0025</p></td>
+</tr>
+<tr class="row-even"><td><p>0.5</p></td>
+<td><p>2.2</p></td>
+<td><p>1.7302</p></td>
+<td><p>0.60238</p></td>
+<td><p>0.60847</p></td>
+<td><p>1.0101</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>9.8</p></td>
+<td><p>7.3547</p></td>
+<td><p>0.71925</p></td>
+<td><p>0.72213</p></td>
+<td><p>1.0040</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Finding that contradicts the premise as stated:</strong> the linearity surrogate alone accounts
+for only <strong>0.25 %–1.0 %</strong> of attenuation difference over this range, not 3–9 %. The u=10,
+ε_r=10 numbers (0.8375 vs 0.8396) are confirmed, but that is a 0.25 % gap. A 3–9 %
+observed gap therefore has a <em>different</em> dominant cause. Candidates, in order of likely
+size, all <em>inferred</em> and worth confirming numerically before the docstring claims anything:</p>
+<ol class="arabic simple">
+<li><p>scikit-rf feeds the <strong>dispersed</strong> <span class="math notranslate nohighlight">\(\varepsilon_{e}(f)\)</span> into a formula whose <span class="math notranslate nohighlight">\(q\)</span> was
+derived quasi-statically, while ParamRF differentiates the quasi-static model and then
+disperses. These diverge as soon as Kirschning–Jansen dispersion is active.</p></li>
+<li><p>ParamRF’s complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> propagates through the <em>dispersion</em> model as well as
+the quasi-static one; scikit-rf takes <code class="docutils literal notranslate"><span class="pre">real(ep_reff_f)</span></code> for <span class="math notranslate nohighlight">\(\beta\)</span> and adds
+<span class="math notranslate nohighlight">\(\alpha_d\)</span> separately, so the dispersion model’s own sensitivity to <span class="math notranslate nohighlight">\(\tan\delta\)</span> is
+dropped.</p></li>
+<li><p>Higher-order <span class="math notranslate nohighlight">\(\tan\delta\)</span> terms: ParamRF’s complex evaluation is exact in <span class="math notranslate nohighlight">\(\tan\delta\)</span>,
+the derivative form is first-order.</p></li>
+</ol>
+<p><strong>ADS: complex permittivity is a material property applied globally; the microstrip loss
+formula is not published.</strong> From the primary manual, <em>Advanced Design System 2011.01 —
+Distributed Components</em> (<code class="docutils literal notranslate"><span class="pre">ccdist.pdf</span></code>,
+<a class="reference external" href="https://edadownload.software.keysight.com/eedl/ads/2011_01/pdf/ccdist.pdf">https://edadownload.software.keysight.com/eedl/ads/2011_01/pdf/ccdist.pdf</a>):</p>
+<ul class="simple">
+<li><p>“About Dielectric Loss Models”, p. 11: “Substrate loss is traditionally modeled by the
+frequency independent imaginary part of permittivity via the loss tangent (TanD)
+parameter.” Since ADS 2009 the default is the causal Svensson/Djordjevic complex
+<span class="math notranslate nohighlight">\(\varepsilon(f)\)</span> (refs: Svensson &amp; Dermer, <em>IEEE Trans. Adv. Packaging</em> 24(2), 2001;
+Djordjevic et al.).</p></li>
+<li><p>MSUB Notes/Equations, note 8: “If the values of both DielectricLossModel and TanD are
+greater than zero then the real and the imaginary parts of the complex permittivity are
+frequency dependent. <strong>This, as a material property, is applied regardless of whether a
+specific component calculates dielectric losses or not.</strong>”</p></li>
+<li><p>MLIN Notes/Equations, note 1: “The frequency-domain analytical model uses the Hammerstad
+and Jensen formula to calculate the static impedance, Zo, and effective dielectric
+constant, Εeff. The attenuation factor, α, is calculated using the incremental
+inductance rule by Wheeler. … <strong>Dielectric loss is also included in the loss
+calculation.</strong>” No formula, no separate dielectric-loss reference. MLIN’s reference list
+is Getsinger 1983, Hammerstad–Jensen 1980, Kirschning–Jansen 1982, Kobayashi, Yamashita,
+Wheeler 1942 — <strong>no Schneider, no Welch &amp; Pratt, no filling-factor source.</strong></p></li>
+</ul>
+<p>So ADS documents (a) permittivity as a complex material property applied globally, and
+(b) <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> computed by Hammerstad–Jensen — but it <strong>never states</strong> that H–J is
+evaluated at the complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>, and it <strong>never gives</strong> the dielectric attenuation
+expression. The vendor documentation is <strong>vague on precisely the point at issue</strong>. The
+absence of any dielectric-loss citation alongside an explicit Wheeler citation for
+conductor loss is <em>suggestive</em> that dielectric loss falls out of the complex permittivity
+rather than from a separate cited formula, but that is <strong>inference, not established</strong>.</p>
+<p><strong>Corroborating secondary evidence for the ADS reading — scikit-rf’s own source.</strong>
+<code class="docutils literal notranslate"><span class="pre">skrf/media/mline.py</span></code> splits behaviour by <code class="docutils literal notranslate"><span class="pre">compatibility_mode</span></code>, with the in-source comments:
+“qucs use real-valued ep_r giving real-valued impedance” / “<strong>ads use complex permittivity
+giving complex impedance and effective permittivity</strong>”, and default (non-qucs) mode passes
+the complex <code class="docutils literal notranslate"><span class="pre">ep_r_f</span></code> into <code class="docutils literal notranslate"><span class="pre">analyse_quasi_static</span></code> and <code class="docutils literal notranslate"><span class="pre">analyse_dispersion</span></code>. This is an
+independent implementer’s statement that carrying <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> complex through the
+quasi-static/dispersion models <em>is</em> the ADS convention. Note the internal inconsistency:
+scikit-rf then discards the resulting imaginary part (<code class="docutils literal notranslate"><span class="pre">real(self.ep_reff_f)</span></code> in <code class="docutils literal notranslate"><span class="pre">gamma</span></code>)
+and adds the classical filling-factor <span class="math notranslate nohighlight">\(\alpha_d\)</span> on top. <strong>Established as a fact about
+scikit-rf; secondary as evidence about ADS.</strong></p>
+<p><strong>Qucs — the source scikit-rf follows.</strong> The Qucs technical documentation, “Single
+microstrip line” (<a class="reference external" href="https://qucs.sourceforge.net/tech/node75.html">https://qucs.sourceforge.net/tech/node75.html</a>) gives the
+filling-factor <span class="math notranslate nohighlight">\(\alpha_d\)</span> and attributes both loss expressions to Hammerstad &amp; Jensen.
+Qucs deliberately keeps <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> real. <strong>Established</strong> (page read through a fetch
+proxy; the equations are rendered as images, so the transcription of the exact grouping
+should be treated with mild caution).</p>
+<p><strong>AWR / Cadence Microwave Office: not obtainable.</strong> <code class="docutils literal notranslate"><span class="pre">awrcorp.com/download/faq/.../Elements/MLIN.htm</span></code>
+and the “Microstrip Line Models” user-guide page are behind a Cloudflare challenge (HTTP
+403 to both WebFetch and curl). Search snippets say only that MLIN “includ[es] conductor
+loss, dielectric loss and dispersion” and that AWR’s FEM elements output “complex
+characteristic impedances and complex effective dielectric constants”. <strong>No verifiable
+primary statement about AWR’s microstrip dielectric loss formulation was obtained.</strong> The
+“ADS/AWR convention” phrasing is therefore unsupported on the AWR half.</p>
+<p><strong>Hammerstad &amp; Jensen 1980 itself.</strong> IEEE MTT-S Int. Microwave Symp. Digest, May 1980,
+pp. 407–409 (also cited as 154–). The abstract states the paper gives “impedances,
+effective dielectric constants, and <strong>attenuation</strong> including the effect of anisotropy”,
+and for single microstrip “dispersion and non-zero strip thickness”
+(<a class="reference external" href="https://ui.adsabs.harvard.edu/abs/1980mwsy.conf..154H/abstract">https://ui.adsabs.harvard.edu/abs/1980mwsy.conf..154H/abstract</a>,
+<a class="reference external" href="https://www.semanticscholar.org/paper/2d551661d4d5207d0db3cf57d462e9421e9dccf4">https://www.semanticscholar.org/paper/2d551661d4d5207d0db3cf57d462e9421e9dccf4</a>).
+<strong>Not established:</strong> whether the paper contains a <em>dielectric</em> attenuation formula, or only
+the conductor-loss <span class="math notranslate nohighlight">\(K_i\)</span>/roughness terms. The paper is a 3-page digest and was not
+obtainable in full text. Two data points cut against attributing <span class="math notranslate nohighlight">\(\alpha_d\)</span> to it: ADS,
+which explicitly cites H–J for <span class="math notranslate nohighlight">\(Z_0\)</span>/<span class="math notranslate nohighlight">\(\varepsilon_e\)</span> and Wheeler for <span class="math notranslate nohighlight">\(\alpha\)</span>, cites
+neither for dielectric loss; and Qucs’s attribution of <span class="math notranslate nohighlight">\(\alpha_d\)</span> to H–J may be a
+convenience citation to the Hammerstad &amp; Bekkadal <em>Microstrip Handbook</em> (ELAB report
+STF44 A74169, Univ. of Trondheim, 1975), which is the usual home of these engineering
+formulas and is not available online. <strong>Unverified — flag as an open question.</strong></p>
+<p><strong>Gupta, Garg, Bahl &amp; Bhartia.</strong> <em>Microstrip Lines and Slotlines</em> is the canonical home
+of the filling-factor <span class="math notranslate nohighlight">\(\alpha_d\)</span> and of the generalised incremental-inductance rule. The
+book is not available in full text online and could not be read; its statement of the
+derivation and validity conditions is <strong>unverified here</strong>. Wikipedia’s article on the
+incremental inductance rule quotes Gupta’s generalised form (see Q2), which is consistent
+but secondary.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="question-2-conductor-loss-at-zero-unspecified-strip-thickness">
+<h2>Question 2 — Conductor loss at zero / unspecified strip thickness<a class="headerlink" href="#question-2-conductor-loss-at-zero-unspecified-strip-thickness" title="Link to this heading"></a></h2>
+<section id="id1">
+<h3>What the sources establish<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<p><strong>The incremental-inductance rule is a sum over receded conductor surfaces, and it is
+defined only for <span class="math notranslate nohighlight">\(t \gg \delta\)</span>.</strong> Wheeler’s rule
+(H. A. Wheeler, “Formulas for the Skin Effect”, <em>Proc. IRE</em> 30(9), 1942, pp. 412–424) in
+Gupta’s generalised form is
+$<span class="math notranslate nohighlight">\(R_\text{skin}=\sum_m \frac{R_{sm}}{\mu_0}\frac{\partial L}{\partial n_m},\)</span><span class="math notranslate nohighlight">\(
+the derivative being &quot;the differential change in inductance as surface \)</span>m<span class="math notranslate nohighlight">\( is receded in
+the \)</span>n_m<span class="math notranslate nohighlight">\( direction&quot;. Its stated validity condition is that &quot;thickness and corner radius
+of the conductors should be large with respect to the skin depth&quot;, more strictly
+\)</span>t \ge 4\delta$ (<a class="reference external" href="https://en.wikipedia.org/wiki/Wheeler_incremental_inductance_rule">https://en.wikipedia.org/wiki/Wheeler_incremental_inductance_rule</a>,
+citing Wheeler 1942, Gupta et al., and Paul, <em>Analysis of Multiconductor Transmission
+Lines</em>, 2007). Pucel, Massé &amp; Hartwig, “Losses in Microstrip”, <em>IEEE Trans. MTT</em> 16, 1968,
+pp. 342–350 (plus corrigendum p. 1064) applied the rule to microstrip “taking into account
+the finite thickness of the strip conductor”; secondary summaries state their expressions
+are valid for conductors “at least four skin depths” thick. <strong>Established</strong> (the Pucel
+paper itself is paywalled and was not read).</p>
+<p><strong>Consequences for <span class="math notranslate nohighlight">\(t\to 0\)</span>:</strong></p>
+<ol class="arabic simple">
+<li><p>The sum runs over <em>every</em> conductor surface — the strip’s top and bottom broad faces,
+its two side walls, and the ground plane. The broad-face terms are non-zero for any
+<span class="math notranslate nohighlight">\(t\)</span>, because <span class="math notranslate nohighlight">\(\partial L/\partial n\)</span> for recession of the top and bottom faces does not
+vanish as <span class="math notranslate nohighlight">\(t\to0\)</span>. So the rule’s own structure gives a <strong>finite, non-zero</strong> <span class="math notranslate nohighlight">\(\alpha_c\)</span>
+in the <span class="math notranslate nohighlight">\(t\to0\)</span> limit at fixed <span class="math notranslate nohighlight">\(R_s\)</span>; only the two side-wall contributions vanish.
+<strong>Inferred from the rule’s definition — sound, but not a quotation.</strong></p></li>
+<li><p><span class="math notranslate nohighlight">\(t\to 0\)</span> is <em>outside</em> the rule’s stated domain (<span class="math notranslate nohighlight">\(t \ge 4\delta\)</span>), so the limit is
+formally undefined rather than physically zero. <strong>Established.</strong></p></li>
+<li><p>The closed form <span class="math notranslate nohighlight">\(\alpha_c=\frac{R_s}{Z_c W}K_i\)</span>, <span class="math notranslate nohighlight">\(K_i=e^{-1.2(Z_c/Z_0)^{0.7}}\)</span>, as
+given by Qucs (<a class="reference external" href="https://qucs.sourceforge.net/tech/node75.html">https://qucs.sourceforge.net/tech/node75.html</a>) with the explicit
+validity note “<span class="math notranslate nohighlight">\(t &gt; 3\delta\)</span>”, <strong>contains no <span class="math notranslate nohighlight">\(t\)</span> at all</strong>: it is the broad-face /
+thin-strip form of the rule, with side-wall recession folded into the empirical current
+distribution factor <span class="math notranslate nohighlight">\(K_i\)</span>. Its independence from <span class="math notranslate nohighlight">\(t\)</span> is a modelling choice, not a
+statement that loss vanishes at <span class="math notranslate nohighlight">\(t=0\)</span>. <strong>Established.</strong></p></li>
+</ol>
+<p><strong>Verdict on the premise:</strong> <em>verified</em>. Thickness enters the incremental-inductance rule
+only through the side-wall terms and through the validity condition <span class="math notranslate nohighlight">\(t\gg\delta\)</span>;
+<span class="math notranslate nohighlight">\(\alpha_c \to 0\)</span> as <span class="math notranslate nohighlight">\(t\to0\)</span> is not physically defensible, and no source asserts it.
+The physical <span class="math notranslate nohighlight">\(t\to0\)</span> behaviour at <em>fixed frequency</em> is that the sheet resistance
+<span class="math notranslate nohighlight">\(\rho/t\)</span> diverges, so the true loss <strong>diverges</strong>, not vanishes — the opposite of what a
+<code class="docutils literal notranslate"><span class="pre">zeros()</span></code> return implies.</p>
+<p><strong>What the tools actually do (convention, not physics):</strong></p>
+<ul class="simple">
+<li><p>scikit-rf: <code class="docutils literal notranslate"><span class="pre">analyse_loss</span></code> returns <code class="docutils literal notranslate"><span class="pre">a_conductor</span> <span class="pre">=</span> <span class="pre">zeros(f.shape)</span></code> whenever <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">is</span> <span class="pre">None</span> <span class="pre">or</span> <span class="pre">t</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code>, silently ignoring <code class="docutils literal notranslate"><span class="pre">rho</span></code>. (<code class="docutils literal notranslate"><span class="pre">skrf/media/mline.py</span></code>.) <strong>Established.</strong></p></li>
+<li><p><strong>ADS does the same</strong>, and documents it: MSUB Notes/Equations note 2, “Conductor losses
+are accounted for when Cond &lt; 4.1×10¹⁷ S/m <strong>and T &gt; 10⁻⁹</strong>” (ccdist.pdf). MSUB’s
+default is <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">=</span> <span class="pre">0</span> <span class="pre">mil</span></code>, i.e. lossless by default. So scikit-rf’s behaviour matches the
+dominant vendor convention. <strong>Established, primary.</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">wcalc</span></code>/<code class="docutils literal notranslate"><span class="pre">mcalc</span></code> take the opposite tack and stay physical:
+“the loss equations included here assume that the conductor thickness is at least several
+skin depths thick” and “<strong>when the skin depth is larger than the metal thickness, a dc
+solution is used for loss calculations</strong>”
+(<a class="reference external" href="https://web.mit.edu/~geda/arch/i386_rhel3/versions/20050830/html/mcalc-1.5/">https://web.mit.edu/~geda/arch/i386_rhel3/versions/20050830/html/mcalc-1.5/</a>,
+<a class="reference external" href="https://wcalc.sourceforge.net/microstrip.html">https://wcalc.sourceforge.net/microstrip.html</a>). <strong>Established.</strong></p></li>
+</ul>
+<p><strong>Conflict to record:</strong> vendor/library convention (zero loss when <span class="math notranslate nohighlight">\(t\)</span> unspecified) and
+physics (loss finite-to-divergent as <span class="math notranslate nohighlight">\(t\to0\)</span>) disagree. Both positions are defensible as
+long as the choice is documented; “<span class="math notranslate nohighlight">\(\alpha_c=0\)</span> because <span class="math notranslate nohighlight">\(t\)</span> is unknown” is a <em>missing-input
+policy</em>, not a limit.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="question-3-characteristic-impedance-definition-at-low-frequency">
+<h2>Question 3 — Characteristic impedance definition at low frequency<a class="headerlink" href="#question-3-characteristic-impedance-definition-at-low-frequency" title="Link to this heading"></a></h2>
+<section id="id2">
+<h3>What the sources establish<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<p><strong>There is no unique <span class="math notranslate nohighlight">\(Z_c\)</span> for microstrip, and the choice is a definition, not a
+measurement.</strong> Williams, Alpert, Arz, Walker &amp; Grabinski, “Causal Characteristic Impedance
+of Planar Transmission Lines”, NIST (public domain,
+<a class="reference external" href="https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=30758">https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=30758</a>) opens: “Classic waveguide
+circuit theories cannot be applied in planar transmission lines because they do not have a
+unique wave impedance. This has led to an animated debate in the literature over the
+relative merits of various definitions.” It then reviews Knorr &amp; Tufekcioglu (1975),
+Jansen (1978), Bianco et al. (1978), Getsinger (1979), Jansen &amp; Koster (1982), Rautio
+(1991). <strong>Established, primary.</strong></p>
+<p><strong>The power-current definition was chosen for weak frequency dependence — an explicitly
+pragmatic criterion.</strong> “In 1982, Jansen and Koster argued that the definition of
+characteristic impedance with the weakest frequency dependence is best. On that basis,
+Jansen and Koster recommended using the power-current definition.” (NIST, ibid.) This is
+the definition behind Jansen &amp; Kirschning, “Arguments and an Accurate Model for the
+Power-Current Formulation of Microstrip Characteristic Impedance”, <em>AEÜ</em> 37, 1983,
+pp. 108–112 — i.e. <strong>exactly the <span class="math notranslate nohighlight">\(Z_c\)</span> that ParamRF’s Kirschning–Jansen dispersion model
+produces</strong>. It is defined from modal fields, <span class="math notranslate nohighlight">\(Z_{PI}=2P/|I|^2\)</span> with <span class="math notranslate nohighlight">\(P\)</span> the complex power
+of the forward mode, and it is a <em>quasi-TEM modal</em> quantity, not an RLGC quantity.
+<strong>Established</strong> (definition and rationale from NIST; the AEÜ paper itself is paywalled and
+was not read).</p>
+<p><strong>Is it meaningful below the quasi-TEM band?</strong> The NIST paper’s answer is indirect but
+usable: the phase of <span class="math notranslate nohighlight">\(Z_{PV}\)</span> and <span class="math notranslate nohighlight">\(Z_{PI}\)</span> is <em>forced</em> to equal <span class="math notranslate nohighlight">\(\arg p_0\)</span> by power
+normalisation, and the causal theory adds a minimum-phase (Hilbert-transform) constraint
+linking <span class="math notranslate nohighlight">\(|Z_C|\)</span> to that phase. Definitions that violate it (e.g. the power/oxide-voltage
+path) are demonstrably non-causal. The paper also shows that on lossy substrates the
+various definitions agree at low frequency and diverge at high frequency. <strong>What the
+sources do <em>not</em> establish:</strong> they say nothing about the <span class="math notranslate nohighlight">\(f\to0\)</span> limit of the
+Kirschning–Jansen <em>closed-form</em> <span class="math notranslate nohighlight">\(Z_c\)</span>, which is a curve fit whose stated validity band
+(per ADS: <span class="math notranslate nohighlight">\(1\le\varepsilon_r\le20\)</span>, <span class="math notranslate nohighlight">\(0.1h\le W\le100h\)</span>) carries no lower frequency bound
+and whose <span class="math notranslate nohighlight">\(f\to0\)</span> value is by construction the quasi-static Hammerstad–Jensen <span class="math notranslate nohighlight">\(Z_0\)</span>.
+<strong>Inference:</strong> the modal <span class="math notranslate nohighlight">\(Z_c\)</span> held constant at low frequency is the conventional reported
+quantity; the RLGC <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span> with an <span class="math notranslate nohighlight">\(R\propto\sqrt f\)</span> series term and no dc floor is a
+<em>different</em> quantity, and its <span class="math notranslate nohighlight">\(|Z_c|\sim f^{-1/4}\)</span>, <span class="math notranslate nohighlight">\(\arg Z_c\to-22.5^\circ\)</span> behaviour is
+an artefact of the missing dc floor, not a property of microstrip.</p>
+<p><strong>What the tools report.</strong> scikit-rf’s <code class="docutils literal notranslate"><span class="pre">z0_characteristic</span></code> is <code class="docutils literal notranslate"><span class="pre">_z_characteristic</span></code>, the
+output of <code class="docutils literal notranslate"><span class="pre">analyse_dispersion</span></code> — the dispersed <strong>modal</strong> impedance. It is <em>not</em>
+<span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span>: <span class="math notranslate nohighlight">\(\alpha_c\)</span> and <span class="math notranslate nohighlight">\(\alpha_d\)</span> are added to <span class="math notranslate nohighlight">\(\gamma\)</span> separately and never enter
+<span class="math notranslate nohighlight">\(Z_c\)</span>. In ADS-compatibility mode it is complex only because <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> was complex,
+never because of <span class="math notranslate nohighlight">\(R\)</span>. <strong>Established</strong> (source read directly). This is a direct precedent
+for holding <span class="math notranslate nohighlight">\(Z_c\)</span> at its modal value at low frequency.</p>
+</section>
+<section id="the-dc-resistance-floor">
+<h3>The dc-resistance floor<a class="headerlink" href="#the-dc-resistance-floor" title="Link to this heading"></a></h3>
+<p><strong>Established:</strong> a physical per-unit-length <span class="math notranslate nohighlight">\(R\)</span> must have a dc floor <span class="math notranslate nohighlight">\(R_{dc}=\rho/(Wt)\)</span>;
+the skin-effect <span class="math notranslate nohighlight">\(\sqrt f\)</span> law only takes over above the frequency where <span class="math notranslate nohighlight">\(\delta \approx t\)</span>.
+Johnson &amp; Graham, <em>High-Speed Signal Propagation</em>, “Skin-Effect Region”
+(<a class="reference external" href="https://www.informit.com/articles/article.aspx?p=101149&amp;seqNum=7">https://www.informit.com/articles/article.aspx?p=101149&amp;seqNum=7</a>) places the region
+boundary precisely where “the real part of the skin-effect resistance <span class="math notranslate nohighlight">\(R_{AC}\)</span> equals the
+dc resistance <span class="math notranslate nohighlight">\(R_{DC}\)</span>”, and treats the regions separately rather than blending them.
+NIST measurements on lossy silicon lines report the skin effect “increasing the resistance
+per unit length of the line from its dc value by approximately a factor of 5 at 25 GHz”
+(Williams et al., ibid.) — i.e. the dc value is the reference floor.</p>
+<p><strong>Not established:</strong> no source found states a <em>standard</em> smoothing rule. The two
+candidates in the question, <span class="math notranslate nohighlight">\(R=\max(R_{dc},R_{skin})\)</span> and
+<span class="math notranslate nohighlight">\(R=\sqrt{R_{dc}^2+R_{skin}^2}\)</span>, are both engineering conventions; neither is prescribed by
+any primary reference located here. The concrete practices actually documented are:</p>
+<ul class="simple">
+<li><p>ADS: no dc floor for microstrip conductor loss — loss is simply switched off below
+<span class="math notranslate nohighlight">\(T=10^{-9}\)</span> (ccdist.pdf, MSUB note 2). <em>Established.</em></p></li>
+<li><p>mcalc/wcalc: “when the skin depth is larger than the metal thickness, a dc solution is
+used” — effectively a hard switch, i.e. the <span class="math notranslate nohighlight">\(\max(\cdot)\)</span> style. <em>Established.</em></p></li>
+<li><p>Ansys circuit microstrip: the reference list cites Wheeler, Pucel et al., Schneider,
+Getsinger, Hammerstad–Jensen, but the documentation “does not specify which particular
+loss mechanisms are implemented”
+(<a class="reference external" href="https://ansyshelp.ansys.com/public/Views/Secured/Electronics/v242/en/Subsystems/Circuit/Content/Circuit/TRLMicrostripReferences.htm">https://ansyshelp.ansys.com/public/Views/Secured/Electronics/v242/en/Subsystems/Circuit/Content/Circuit/TRLMicrostripReferences.htm</a>).
+<em>Vague — do not cite as support for any convention.</em></p></li>
+<li><p>IPC / SI literature: nothing primary located. The <span class="math notranslate nohighlight">\(\sqrt{R_{dc}^2+R_{ac}^2}\)</span> blend is
+widely used in SI practice but I could not trace it to an owning primary source.
+<strong>Only secondary evidence exists.</strong></p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="confidence-summary">
+<h2>Confidence summary<a class="headerlink" href="#confidence-summary" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Claim</p></th>
+<th class="head"><p>Status</p></th>
+<th class="head"><p>Best source</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Filling-factor <span class="math notranslate nohighlight">\(q\)</span> is <em>defined</em> by assuming <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> affine in <span class="math notranslate nohighlight">\(\varepsilon_r\)</span></p></td>
+<td><p>Established</p></td>
+<td><p>Steer, <em>Microwave &amp; RF Design II</em> §3.5, eqs. 17/26</p></td>
+</tr>
+<tr class="row-odd"><td><p>Original derivation of <span class="math notranslate nohighlight">\(\alpha_d\)</span> is a <span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span> energy perturbation</p></td>
+<td><p>Established (algebra unread)</p></td>
+<td><p>Schneider, BSTJ 1969 (both papers); Welch &amp; Pratt 1966</p></td>
+</tr>
+<tr class="row-even"><td><p>H–J <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> is non-affine in <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>; surrogate error ≈0.25–1 %</p></td>
+<td><p>Established (computed here)</p></td>
+<td><p>scikit-rf <code class="docutils literal notranslate"><span class="pre">hammerstad_er</span></code>, direct numerics</p></td>
+</tr>
+<tr class="row-odd"><td><p>The 3–9 % attenuation gap is caused by non-linearity alone</p></td>
+<td><p><strong>Refuted</strong> — non-linearity gives ≤1 %</p></td>
+<td><p>this note’s table</p></td>
+</tr>
+<tr class="row-even"><td><p>ADS models substrate loss as a complex permittivity applied as a global material property</p></td>
+<td><p>Established</p></td>
+<td><p>ADS 2011.01 <code class="docutils literal notranslate"><span class="pre">ccdist.pdf</span></code>, “About Dielectric Loss Models”; MSUB note 8</p></td>
+</tr>
+<tr class="row-odd"><td><p>ADS evaluates H–J <em>at</em> that complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> to obtain dielectric loss</p></td>
+<td><p><strong>Inferred only — docs are vague</strong></p></td>
+<td><p>ADS MLIN note 1 (says only “dielectric loss is also included”)</p></td>
+</tr>
+<tr class="row-even"><td><p>“Carrying <span class="math notranslate nohighlight">\(\varepsilon\)</span> complex through H–J is the ADS convention”</p></td>
+<td><p>Secondary</p></td>
+<td><p>scikit-rf <code class="docutils literal notranslate"><span class="pre">mline.py</span></code> in-source comments</p></td>
+</tr>
+<tr class="row-odd"><td><p>Same claim for AWR</p></td>
+<td><p><strong>Unverified — docs unreachable (Cloudflare 403)</strong></p></td>
+<td><p>—</p></td>
+</tr>
+<tr class="row-even"><td><p>H&amp;J 1980 contains a dielectric attenuation formula</p></td>
+<td><p><strong>Unverified</strong></p></td>
+<td><p>digest abstract only; Qucs attributes it there, ADS does not</p></td>
+</tr>
+<tr class="row-odd"><td><p>Gupta et al.’s stated derivation/validity of the filling-factor form</p></td>
+<td><p><strong>Unverified — book unavailable</strong></p></td>
+<td><p>—</p></td>
+</tr>
+<tr class="row-even"><td><p>Incremental-inductance rule sums over all receded surfaces; needs <span class="math notranslate nohighlight">\(t\gtrsim4\delta\)</span></p></td>
+<td><p>Established</p></td>
+<td><p>Wheeler 1942 via Gupta’s generalised form; Paul 2007</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(\alpha_c\to0\)</span> as <span class="math notranslate nohighlight">\(t\to0\)</span> is not physically defensible</p></td>
+<td><p>Established (inference from the rule + <span class="math notranslate nohighlight">\(R_s=\rho/t\)</span>)</p></td>
+<td><p>as above; mcalc’s dc-solution fallback</p></td>
+</tr>
+<tr class="row-even"><td><p>ADS also zeroes conductor loss for <span class="math notranslate nohighlight">\(T\le10^{-9}\)</span></p></td>
+<td><p>Established</p></td>
+<td><p>ADS <code class="docutils literal notranslate"><span class="pre">ccdist.pdf</span></code>, MSUB note 2</p></td>
+</tr>
+<tr class="row-odd"><td><p>Microstrip <span class="math notranslate nohighlight">\(Z_c\)</span> is definition-dependent; K–J uses power-current</p></td>
+<td><p>Established</p></td>
+<td><p>Williams et al., NIST, <em>Causal Characteristic Impedance of Planar Transmission Lines</em></p></td>
+</tr>
+<tr class="row-even"><td><p>Reported <span class="math notranslate nohighlight">\(Z_c\)</span> is the modal value, not <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span>, in scikit-rf</p></td>
+<td><p>Established</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">skrf/media/mline.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(f^{-1/4}\)</span> / <span class="math notranslate nohighlight">\(-22.5^\circ\)</span> low-frequency <span class="math notranslate nohighlight">\(Z_c\)</span> is a missing-dc-floor artefact</p></td>
+<td><p>Inferred</p></td>
+<td><p>Johnson &amp; Graham region boundary at <span class="math notranslate nohighlight">\(R_{AC}=R_{DC}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>A <em>standard</em> <span class="math notranslate nohighlight">\(R_{dc}\)</span>/<span class="math notranslate nohighlight">\(R_{skin}\)</span> blending rule exists</p></td>
+<td><p><strong>Not established</strong></p></td>
+<td><p>tools use hard switches or nothing</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr class="docutils" />
+<section id="implications-for-paramrf">
+<h2>Implications for ParamRF<a class="headerlink" href="#implications-for-paramrf" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Fix the docstring’s provenance claim.</strong> <code class="docutils literal notranslate"><span class="pre">MicrostripLine</span></code>’s “following the ADS/AWR
+convention” is over-stated on both halves. ADS documents complex permittivity as a
+global material property but never states that Hammerstad–Jensen is evaluated at the
+complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>, and never publishes its dielectric-loss expression; AWR’s
+documentation could not be obtained at all. Suggested wording: cite the <em>physics</em>
+(Schneider’s <span class="math notranslate nohighlight">\(\partial\varepsilon_e/\partial\varepsilon_r\)</span> perturbation, of which the
+complex evaluation is the exact form) as the justification, and mention ADS only as
+“consistent with ADS’s treatment of permittivity as a complex material property
+(ADS 2011.01 Distributed Components, ‘About Dielectric Loss Models’)”. Drop AWR.</p></li>
+<li><p><strong>ParamRF’s formulation is the better-founded one</strong>, and that can be said plainly: the
+complex evaluation is exact for the model in use, whereas the filling-factor form is
+its first-order linearisation about <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>, with <span class="math notranslate nohighlight">\(q\)</span> defined by an affineness
+assumption that Hammerstad–Jensen does not satisfy. This is a case of “scikit-rf makes
+an approximation ParamRF does not”, not of ParamRF being wrong.</p></li>
+<li><p><strong>Re-derive the validation-matrix gap before setting tolerances.</strong> The linearity
+argument justifies ~1 %, not 3–9 %. The remaining discrepancy needs a separate
+explanation — most likely quasi-static-vs-dispersed <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> in the <span class="math notranslate nohighlight">\(q\)</span> factor,
+or the imaginary part that scikit-rf discards at <code class="docutils literal notranslate"><span class="pre">real(self.ep_reff_f)</span></code>. Per the repo’s
+testing policy, do not widen a tolerance to cover the unexplained portion; isolate it by
+comparing with dispersion disabled first.</p></li>
+<li><p><strong>Conductor loss at <code class="docutils literal notranslate"><span class="pre">t=None</span></code>.</strong> ParamRF currently mirrors scikit-rf (and, as it turns
+out, ADS) in producing no conductor loss without a thickness. That matches vendor
+convention, so it is a defensible default — but the code comment “scikit-rf defines this
+empirical correction as zero” should say <em>why</em>: it is a missing-input policy, since the
+physical <span class="math notranslate nohighlight">\(t\to0\)</span> limit at fixed <span class="math notranslate nohighlight">\(\rho\)</span> diverges. If a thickness-free conductor loss is
+ever wanted, mcalc’s precedent (fall back to a dc-sheet solution when <span class="math notranslate nohighlight">\(\delta&gt;t\)</span>) is the
+documented alternative.</p></li>
+<li><p><strong>Characteristic impedance.</strong> Reporting the Kirschning–Jansen power-current modal <span class="math notranslate nohighlight">\(Z_c\)</span>,
+held at its quasi-static value as <span class="math notranslate nohighlight">\(f\to0\)</span>, is the mainstream convention and matches
+scikit-rf. If ParamRF’s internal <span class="math notranslate nohighlight">\(Z=\gamma Z_c\)</span>, <span class="math notranslate nohighlight">\(Y=\gamma/Z_c\)</span> inversion ever exposes
+an RLGC <span class="math notranslate nohighlight">\(\sqrt{Z/Y}\)</span> as “the” characteristic impedance, the two must be kept distinct in
+the docs — they are different quantities, and the <span class="math notranslate nohighlight">\(f^{-1/4}\)</span> low-frequency rise of the
+latter is an artefact of an <span class="math notranslate nohighlight">\(R\)</span> model with no dc floor.</p></li>
+<li><p><strong>If a dc floor is added</strong>, note in the docstring that no primary source prescribes a
+blending rule; a smooth <span class="math notranslate nohighlight">\(\sqrt{R_{dc}^2+R_{skin}^2}\)</span> is a defensible
+differentiability-motivated choice for a JAX-native library (the hard <span class="math notranslate nohighlight">\(\max\)</span> has a kink),
+but it should be labelled as ParamRF’s choice, not attributed to a reference.</p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

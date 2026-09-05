@@ -1,0 +1,9 @@
+
+
+
+is_module
+=========
+
+.. currentmodule:: pmrf.modules
+
+.. autofunction:: is_module

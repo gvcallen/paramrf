@@ -1,0 +1,9 @@
+
+
+
+aggregate
+=========
+
+.. currentmodule:: pmrf.math.aggregations
+
+.. autofunction:: aggregate

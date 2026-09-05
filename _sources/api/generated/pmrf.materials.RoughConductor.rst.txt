@@ -1,0 +1,12 @@
+
+
+
+RoughConductor
+==============
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: RoughConductor
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,674 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model (pmrf.Model) &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Module (pmrf.Module)" href="pmrf.Module.html" />
+    <link rel="prev" title="API" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#"><strong>Model</strong> (pmrf.Model)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#pmrf.Model"><code class="docutils literal notranslate"><span class="pre">Model</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Module.html"><strong>Module</strong> (pmrf.Module)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Frequency.html"><strong>Frequency</strong> (pmrf.Frequency)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Param.html"><strong>Param</strong> (pmrf.Param)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Unconstrained.html"><strong>Unconstrained</strong> (pmrf.Unconstrained)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Fixed.html"><strong>Fixed</strong> (pmrf.Fixed)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Bounded.html"><strong>Bounded</strong> (pmrf.Bounded)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Constrained.html"><strong>Constrained</strong> (pmrf.Constrained)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.Random.html"><strong>Random</strong> (pmrf.Random)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+      <li class="breadcrumb-item active"><strong>Model</strong> (pmrf.Model)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.Model.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="model-pmrf-model">
+<h1><strong>Model</strong> (pmrf.Model)<a class="headerlink" href="#model-pmrf-model" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.Model">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.</span></span><span class="sig-name descname"><span class="pre">Model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.Model" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.modules.Module.html#pmrf.modules.Module" title="pmrf.modules.base.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></a></p>
+<p>Base class for RF models.</p>
+<p>Derived from this class to define your own, custom model.</p>
+<p>This class should not be instantiated directly. It is created internally in ParamRF when models are
+built compositionally, or can be inherited from. When inheriting, at least one primary matrix method,
+such as or <a class="reference internal" href="#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a>, <a class="reference internal" href="#pmrf.Model.a" title="pmrf.Model.a"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.a()</span></code></a>, <a class="reference internal" href="#pmrf.Model.y" title="pmrf.Model.y"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.y()</span></code></a>, <a class="reference internal" href="#pmrf.Model.z" title="pmrf.Model.z"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.z()</span></code></a>,
+or <a class="reference internal" href="#pmrf.Model.primary_matrix" title="pmrf.Model.primary_matrix"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.primary_matrix()</span></code></a>, must be overridden. To implement a
+model by returning another model, inherit from
+<code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code>. Legacy classes may still override
+<a class="reference internal" href="#pmrf.Model.build" title="pmrf.Model.build"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.build()</span></code></a> directly, but that interface is deprecated.</p>
+<p>The model is a Equinox <a class="reference external" href="https://docs.kidger.site/equinox/api/module/module/">Module</a>
+(an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
+field syntax and should be annotated with type <a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-type docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a> and field specifier <a class="reference internal" href="pmrf.param.html#pmrf.param" title="pmrf.param"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.param()</span></code></a>.
+For more details in parameter definitions, see <a class="reference internal" href="pmrf.parameters.html#module-pmrf.parameters" title="pmrf.parameters"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.parameters</span></code></a>.</p>
+<p>Note that this class is not marked as “abstract” since it should be treated more like a mix-in
+than an ABC class with specific methods to implement.</p>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Define new models by sub-classing the model and adding custom parameters and/or sub-models</p></li>
+<li><p>Construct models by passing parameters and/or submodels to the initializer (like a dataclass).</p></li>
+<li><p>Use <code class="xref py py-attr docutils literal notranslate"><span class="pre">pmrf.Model.at</span></code> and methods such as <a class="reference internal" href="#pmrf.Model.terminated" title="pmrf.Model.terminated"><code class="xref py py-meth docutils literal notranslate"><span class="pre">terminated()</span></code></a> and <a class="reference internal" href="#pmrf.Model.flipped" title="pmrf.Model.flipped"><code class="xref py py-meth docutils literal notranslate"><span class="pre">flipped()</span></code></a> to create modified versions of your model.</p></li>
+</ul>
+</section>
+<section id="methods-properties-summary">
+<h2>Methods &amp; Properties Summary<a class="headerlink" href="#methods-properties-summary" title="Link to this heading"></a></h2>
+<p><strong>Core Methods</strong></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">s()</span></code></a></p></td>
+<td><p>Scattering (S) parameter matrix at impedance z0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.a" title="pmrf.Model.a"><code class="xref py py-meth docutils literal notranslate"><span class="pre">a()</span></code></a></p></td>
+<td><p>ABCD parameter matrix.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.z" title="pmrf.Model.z"><code class="xref py py-meth docutils literal notranslate"><span class="pre">z()</span></code></a></p></td>
+<td><p>Impedance (Z) parameter matrix.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.y" title="pmrf.Model.y"><code class="xref py py-meth docutils literal notranslate"><span class="pre">y()</span></code></a></p></td>
+<td><p>Admittance (Y) parameter matrix.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.mna" title="pmrf.Model.mna"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mna()</span></code></a></p></td>
+<td><p>Modified Nodal Analysis (MNA) stamp matrices.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.primary_matrix" title="pmrf.Model.primary_matrix"><code class="xref py py-meth docutils literal notranslate"><span class="pre">primary_matrix()</span></code></a></p></td>
+<td><p>Return the primary matrix. Can be overridden for dynamic dispatch.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.primary_domain" title="pmrf.Model.primary_domain"><code class="xref py py-attr docutils literal notranslate"><span class="pre">primary_domain</span></code></a></p></td>
+<td><p>The domain of the primary matrix as a string (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;s&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;a&quot;</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.build" title="pmrf.Model.build"><code class="xref py py-meth docutils literal notranslate"><span class="pre">build()</span></code></a></p></td>
+<td><p>Deprecated here; use <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.expand" title="pmrf.Model.expand"><code class="xref py py-meth docutils literal notranslate"><span class="pre">expand()</span></code></a></p></td>
+<td><p>Expands the model’s topology. Used for circuit model flattening.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Helper Methods</strong></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.number_of_ports" title="pmrf.Model.number_of_ports"><code class="xref py py-attr docutils literal notranslate"><span class="pre">number_of_ports</span></code></a></p></td>
+<td><p>Number of ports.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.nports" title="pmrf.Model.nports"><code class="xref py py-attr docutils literal notranslate"><span class="pre">nports</span></code></a></p></td>
+<td><p>Alias of <a class="reference internal" href="#pmrf.Model.number_of_ports" title="pmrf.Model.number_of_ports"><code class="xref py py-attr docutils literal notranslate"><span class="pre">number_of_ports</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.port_tuples" title="pmrf.Model.port_tuples"><code class="xref py py-attr docutils literal notranslate"><span class="pre">port_tuples</span></code></a></p></td>
+<td><p>All (m, n) port index pairs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">named_params()</span></code></p></td>
+<td><p>Extracts all named parameters in the model.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Model Transformation</strong></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">at()</span></code></p></td>
+<td><p>Modify, filter or inspect a value at some path in the model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.flipped" title="pmrf.Model.flipped"><code class="xref py py-meth docutils literal notranslate"><span class="pre">flipped()</span></code></a></p></td>
+<td><p>Return a version of the model with ports flipped.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.renumbered" title="pmrf.Model.renumbered"><code class="xref py py-meth docutils literal notranslate"><span class="pre">renumbered()</span></code></a></p></td>
+<td><p>Return a version of the model with ports renumbered.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.terminated" title="pmrf.Model.terminated"><code class="xref py py-meth docutils literal notranslate"><span class="pre">terminated()</span></code></a></p></td>
+<td><p>Return a new model terminated by another (e.g. load).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.tied" title="pmrf.Model.tied"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tied()</span></code></a></p></td>
+<td><p>Tie certain parameters/sub-models together.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>File &amp; Conversion Utilities</strong></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#pmrf.Model.to_skrf" title="pmrf.Model.to_skrf"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_skrf()</span></code></a></p></td>
+<td><p>Convert the model at frequencies to an <code class="xref py py-class docutils literal notranslate"><span class="pre">skrf.Network</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pmrf.Model.export_touchstone" title="pmrf.Model.export_touchstone"><code class="xref py py-meth docutils literal notranslate"><span class="pre">export_touchstone()</span></code></a></p></td>
+<td><p>Export the model response to a Touchstone file.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<p>A general <code class="docutils literal notranslate"><span class="pre">PiCLC</span></code> network model:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">PiCLC</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">C1</span><span class="p">:</span> <span class="n">prf</span><span class="o">.</span><span class="n">Param</span>
+    <span class="n">L</span><span class="p">:</span>  <span class="n">prf</span><span class="o">.</span><span class="n">Param</span>
+    <span class="n">C2</span><span class="p">:</span> <span class="n">prf</span><span class="o">.</span><span class="n">Param</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">a</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">freq</span><span class="p">:</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">freq</span><span class="o">.</span><span class="n">w</span>
+        <span class="n">Y1</span><span class="p">,</span> <span class="n">Y2</span><span class="p">,</span> <span class="n">Y3</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="n">w</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">C1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="n">w</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">C2</span><span class="p">),</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="n">w</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+            <span class="p">[</span><span class="mi">1</span> <span class="o">+</span> <span class="n">Y2</span> <span class="o">/</span> <span class="n">Y3</span><span class="p">,</span>        <span class="mi">1</span> <span class="o">/</span> <span class="n">Y3</span><span class="p">],</span>
+            <span class="p">[</span><span class="n">Y1</span> <span class="o">+</span> <span class="n">Y2</span> <span class="o">+</span> <span class="n">Y1</span><span class="o">*</span><span class="n">Y2</span><span class="o">/</span><span class="n">Y3</span><span class="p">,</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">Y1</span> <span class="o">/</span> <span class="n">Y3</span><span class="p">],</span>
+        <span class="p">])</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.a">
+<span class="sig-name descname"><span class="pre">a</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.Model.a" title="Link to this definition"></a></dt>
+<dd><p>ABCD parameter matrix.</p>
+<p>If a different parameter type is primary, this converts it to A.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – Frequency grid.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>ABCD matrix with shape <code class="docutils literal notranslate"><span class="pre">(nf,</span> <span class="pre">2,</span> <span class="pre">2)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.build">
+<span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.build" title="Link to this definition"></a></dt>
+<dd><p>Build the model (deprecated on direct <code class="docutils literal notranslate"><span class="pre">Model</span></code> subclasses).</p>
+<p>Inherit from <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code> to define a supported
+model-returning <code class="docutils literal notranslate"><span class="pre">build()</span></code> hook. This method remains temporarily
+available here for compatibility with existing classes that override it
+directly.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>NotImplementedError</strong> – In the base class; override in derived classes to build
+    a compositional representation.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.cascaded">
+<span class="sig-name descname"><span class="pre">cascaded</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.cascaded" title="Link to this definition"></a></dt>
+<dd><p>Cascade this model with another, returning a new model.</p>
+<p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.Cascade</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.expand">
+<span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="headerlink" href="#pmrf.Model.expand" title="Link to this definition"></a></dt>
+<dd><p>Expands this model into its internal graph representation for circuit flattening.</p>
+<p>This method is used by graph algorithms (like the solver in <cite>Circuit.flattened</cite>)
+to unpack composite models, wrappers, and nested hierarchies into a
+single flat netlist. This allows global matrix solves to be used, where desired.</p>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.AbstractBuilder</span></code> delegates this method to its built
+model. The legacy direct <code class="docutils literal notranslate"><span class="pre">Model.build()</span></code> override does the same. Most
+user classes therefore do not need to implement topology expansion
+manually; it is mainly intended for built-in composite models such as
+<code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.Cascade</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.Renumbered</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><p>If the model is a composite or routing container, it returns a tuple of:
+- <cite>port_mapping</cite>: A list of length <cite>nports</cite> mapping each external port index</p>
+<blockquote>
+<div><p>of this model to an internal <cite>(Model, port_index)</cite> tuple.</p>
+</div></blockquote>
+<ul class="simple">
+<li><p><cite>internal_connections</cite>: A list of sub-nodes (connections) to add to the
+netlist. Each node is a list of <cite>(Model, port_index)</cite> tuples.</p></li>
+</ul>
+<p>If the model is a fundamental leaf component, it returns <cite>None</cite>.</p>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple or None</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Imagine a custom 2-port model that internally connects an Inductor and Capacitor
+in series. When asked to expand, it exposes the inner components and their wiring:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">expand</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="c1"># 1. Grab internal components</span>
+<span class="gp">... </span>    <span class="n">L</span><span class="p">,</span> <span class="n">C</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inductor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacitor</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># 2. Map our external ports to the internal components</span>
+<span class="gp">... </span>    <span class="n">port_mapping</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># External port 0 maps to Inductor port 0</span>
+<span class="gp">... </span>        <span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># External port 1 maps to Capacitor port 1</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># 3. Define the internal connections (the netlist)</span>
+<span class="gp">... </span>    <span class="c1"># Connect Inductor port 1 to Capacitor port 0</span>
+<span class="gp">... </span>    <span class="n">internal_connections</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>        <span class="p">[(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="n">port_mapping</span><span class="p">,</span> <span class="n">internal_connections</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.export_touchstone">
+<span class="sig-name descname"><span class="pre">export_touchstone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">skrf_kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.Model.export_touchstone" title="Link to this definition"></a></dt>
+<dd><p>Export the model response to a Touchstone file via scikit-rf.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<em>str</em>)</p></li>
+<li><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a><em> | </em><em>skrf.Frequency</em>)</p></li>
+<li><p><strong>sigma</strong> (<em>float</em><em>, </em><em>default=0.0</em>) – Additive complex noise std for S-parameters.</p></li>
+<li><p><strong>**skrf_kwargs</strong> – Forwarded to <code class="xref py py-meth docutils literal notranslate"><span class="pre">skrf.Network.write_touchstone()</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Return value of <code class="docutils literal notranslate"><span class="pre">Network.write_touchstone</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.flipped">
+<span class="sig-name descname"><span class="pre">flipped</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.flipped" title="Link to this definition"></a></dt>
+<dd><p>Return a version of the model with ports flipped.</p>
+<p>See <a class="reference internal" href="pmrf.models.composite.transformed.Flipped.html#pmrf.models.composite.transformed.Flipped" title="pmrf.models.composite.transformed.Flipped"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.composite.transformed.Flipped</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.mna">
+<span class="sig-name descname"><span class="pre">mna</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.rf.MNAStamp.html#pmrf.rf.MNAStamp" title="pmrf.rf.mna.MNAStamp"><span class="pre">MNAStamp</span></a></span></span><a class="headerlink" href="#pmrf.Model.mna" title="Link to this definition"></a></dt>
+<dd><p>(experimental) Modified Nodal Analysis (MNA) stamp.</p>
+<p>Can be overridden in sub-classes.</p>
+<p>If the model does not explicitly define an MNA stamp, this automatically
+delegates to the appropriate conversion utility (<cite>s2mna</cite>, <cite>z2mna</cite>, etc.).
+Explicitly defined Y-matrices are prioritized to maximize matrix sparsity,
+while other domains fall back to auxiliary variables to guarantee stability.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.primary_matrix">
+<span class="sig-name descname"><span class="pre">primary_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.Model.primary_matrix" title="Link to this definition"></a></dt>
+<dd><p>The primary matrix (e.g. <code class="docutils literal notranslate"><span class="pre">s</span></code>, <code class="docutils literal notranslate"><span class="pre">a</span></code> etc.) as a function of frequency.</p>
+<p>The primary matrix represents the matrix returned by <a class="reference internal" href="#pmrf.Model.primary_domain" title="pmrf.Model.primary_domain"><code class="xref py py-attr docutils literal notranslate"><span class="pre">pmrf.Model.primary_domain</span></code></a>,
+which is either overridden by sub-classes, or is the first proprerty directly overriden
+out of <a class="reference internal" href="#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a>, <a class="reference internal" href="#pmrf.Model.a" title="pmrf.Model.a"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.a()</span></code></a>, <a class="reference internal" href="#pmrf.Model.y" title="pmrf.Model.y"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.y()</span></code></a>, <a class="reference internal" href="#pmrf.Model.z" title="pmrf.Model.z"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.z()</span></code></a>
+(in that order), unless :meth:<code class="docutils literal notranslate"><span class="pre">pmrf.Model.build</span></code> is overridden, in which case the primary matrix
+of the built model is returned.</p>
+<p>This method can also be overriden itself in order to to dynamically
+implement one of the matrices as opposed to overriding it explicitly.</p>
+<p>If this method is called and <cite>self.primary_domain</cite> is ‘s’,
+then ‘z0’ should be passed in <cite>kwargs</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>freq</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – Frequency grid.</p></li>
+<li><p><strong>kwargs</strong> – Key-word arguments forwarded to the primary matrix function, such as z0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jnp.ndarray</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>NotImplementedError</strong> – If no primary property is overridden.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.renumbered">
+<span class="sig-name descname"><span class="pre">renumbered</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">from_ports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_ports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.renumbered" title="Link to this definition"></a></dt>
+<dd><p>Return a version of the model with ports renumbered.</p>
+<p>See <a class="reference internal" href="pmrf.models.composite.transformed.Renumbered.html#pmrf.models.composite.transformed.Renumbered" title="pmrf.models.composite.transformed.Renumbered"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.composite.transformed.Renumbered</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>from_ports</strong> (<em>tuple</em><em>[</em><em>int</em><em>]</em>) – The original port indices that map to <cite>to_ports</cite>.</p></li>
+<li><p><strong>to_ports</strong> (<em>tuple</em><em>[</em><em>int</em><em>]</em>) – The new port indices.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.s">
+<span class="sig-name descname"><span class="pre">s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">z0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.Model.s" title="Link to this definition"></a></dt>
+<dd><p>Scattering parameter matrix at port impedance z0.</p>
+<p>If a different parameter type (a, z, y) is primary, this converts it to S.</p>
+<p>To convert between port impedances, use <a class="reference internal" href="pmrf.rf.renormalize_s.html#pmrf.rf.renormalize_s" title="pmrf.rf.renormalize_s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.rf.renormalize_s()</span></code></a>.</p>
+<p>Note that, derived classes should use the <strong>power wave</strong> definition of S-parameters
+when implementing components using S-parameters.
+If you have a formulation in terms of another definition
+(such as traveling waves), simply use <a class="reference internal" href="pmrf.rf.s2s.html#pmrf.rf.s2s" title="pmrf.rf.s2s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.rf.s2s()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – Frequency grid.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>S-parameter matrix with shape <code class="docutils literal notranslate"><span class="pre">(nf,</span> <span class="pre">n,</span> <span class="pre">n)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.terminated">
+<span class="sig-name descname"><span class="pre">terminated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'short'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.terminated" title="Link to this definition"></a></dt>
+<dd><p>Terminate this model in another, returning a new model.</p>
+<p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.composite.transformed.Terminated</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>other</strong> (<a class="reference internal" href="#pmrf.Model" title="pmrf.Model"><em>Model</em></a><em> | </em><em>str</em><em>, </em><em>optional</em>) – The model to terminate this one in. Can be literals ‘short’, ‘open’
+or any model with half the ports of this one.
+Defaults to a ‘short’.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.tied">
+<span class="sig-name descname"><span class="pre">tied</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">target:</span> <span class="pre">~typing.Callable[[~typing.Any],</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">tuple[str,</span> <span class="pre">...]</span> <span class="pre">|</span> <span class="pre">list[str],</span> <span class="pre">source:</span> <span class="pre">~typing.Callable[[~typing.Any],</span> <span class="pre">~typing.Any]</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">tuple[str,</span> <span class="pre">...]</span> <span class="pre">|</span> <span class="pre">list[str],</span> <span class="pre">tie_fn:</span> <span class="pre">~typing.Callable[[~typing.Any],</span> <span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;function</span> <span class="pre">Model.&lt;lambda&gt;&gt;,</span> <span class="pre">**kwargs</span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a></span></span><a class="headerlink" href="#pmrf.Model.tied" title="Link to this definition"></a></dt>
+<dd><p>Tie parameters or sub-models within this model together.</p>
+<p>See <a class="reference internal" href="pmrf.modules.Tied.html#pmrf.modules.Tied" title="pmrf.modules.Tied"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.modules.Tied</span></code></a> and <code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.models.Wrapped</span></code>.</p>
+<p>Note that if a model is tied that has already been tied,
+the target and source location/name refers to the original, untied model.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resistor</span><span class="p">,</span> <span class="n">Capacitor</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rc</span> <span class="o">=</span> <span class="n">Resistor</span><span class="p">(</span><span class="n">R</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"res"</span><span class="p">)</span> <span class="o">**</span> <span class="n">Capacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">1.0e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"cap"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Tie the resistor's R to always be 50e12 times the capacitor's C</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tied_rc</span> <span class="o">=</span> <span class="n">rc</span><span class="o">.</span><span class="n">tied</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">target</span><span class="o">=</span><span class="s2">"res.R"</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s2">"cap.C"</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">tie_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span> <span class="o">*</span> <span class="mf">50e12</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># The optimizer will now only see the Capacitor's C parameter.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># When evaluated, R will automatically track C.</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target</strong> (<em>callable</em><em> | </em><em>str</em><em> | </em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>] </em><em>| </em><em>list</em><em>[</em><em>str</em><em>]</em>) – A callable extracting the parameter to be overwritten
+(e.g., <cite>lambda m: m.resistor.R</cite>), or the parameter’s name.</p></li>
+<li><p><strong>source</strong> (<em>callable</em><em> | </em><em>str</em><em> | </em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>...</em><em>] </em><em>| </em><em>list</em><em>[</em><em>str</em><em>]</em>) – A callable extracting the parameter to draw the value from
+(e.g., <cite>lambda m: m.capacitor.C</cite>), or the parameter’s name.</p></li>
+<li><p><strong>tie_fn</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional transformation function applied to the source
+before injecting it into the target. Defaults to the identity
+function (<cite>lambda x: x</cite>).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#pmrf.Model" title="pmrf.Model">Model</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.to_skrf">
+<span class="sig-name descname"><span class="pre">to_skrf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Network</span></span></span><a class="headerlink" href="#pmrf.Model.to_skrf" title="Link to this definition"></a></dt>
+<dd><p>Convert the model at frequencies to an <code class="xref py py-class docutils literal notranslate"><span class="pre">skrf.Network</span></code>.</p>
+<p>The active primary property (<code class="docutils literal notranslate"><span class="pre">self.primary_domain</span></code>) is used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><em>pmrf.frequency.Frequency</em></a><em> | </em><em>skrf.Frequency</em>) – Frequency grid.</p></li>
+<li><p><strong>z0</strong> (<em>ArrayLike</em><em>, </em><em>default=50.0</em>) – The charactestic impedance.</p></li>
+<li><p><strong>sigma</strong> (<em>float</em><em>, </em><em>default=0.0</em>) – If nonzero, add complex Gaussian noise with stdev <code class="docutils literal notranslate"><span class="pre">sigma</span></code> to <code class="docutils literal notranslate"><span class="pre">s</span></code>.</p></li>
+<li><p><strong>**kwargs</strong> – Forwarded to <code class="xref py py-class docutils literal notranslate"><span class="pre">skrf.Network</span></code> constructor.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>skrf.Network</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.y">
+<span class="sig-name descname"><span class="pre">y</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.Model.y" title="Link to this definition"></a></dt>
+<dd><p>Admittance (Y) parameter matrix.</p>
+<p>If a different parameter type is primary, this converts it to Y.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – Frequency grid.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Y matrix with shape <code class="docutils literal notranslate"><span class="pre">(nf,</span> <span class="pre">n,</span> <span class="pre">n)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.Model.z">
+<span class="sig-name descname"><span class="pre">z</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.Model.z" title="Link to this definition"></a></dt>
+<dd><p>Impedance (Z) parameter matrix.</p>
+<p>If a different parameter type is primary, this converts it to Z.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – Frequency grid.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Z matrix with shape <code class="docutils literal notranslate"><span class="pre">(nf,</span> <span class="pre">n,</span> <span class="pre">n)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jnp.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.Model.nports">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nports</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#pmrf.Model.nports" title="Link to this definition"></a></dt>
+<dd><p>Alias of <a class="reference internal" href="#pmrf.Model.number_of_ports" title="pmrf.Model.number_of_ports"><code class="xref py py-attr docutils literal notranslate"><span class="pre">number_of_ports</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.Model.number_of_ports">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">number_of_ports</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#pmrf.Model.number_of_ports" title="Link to this definition"></a></dt>
+<dd><p>Number of ports.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.Model.port_tuples">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">port_tuples</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.Model.port_tuples" title="Link to this definition"></a></dt>
+<dd><p>All (m, n) port index pairs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[tuple[int, int]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.Model.primary_domain">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">primary_domain</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#pmrf.Model.primary_domain" title="Link to this definition"></a></dt>
+<dd><p>The primary domain (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;s&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;a&quot;</span></code>) as a string.</p>
+<p>The primary property is the first overridden among
+<code class="xref py py-data docutils literal notranslate"><span class="pre">PRIMARY_DOMAINS</span></code>, unless <code class="docutils literal notranslate"><span class="pre">build</span></code> is overridden,
+in which case the primary property of the built model is returned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>NotImplementedError</strong> – If no primary property is overridden.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.Module.html" class="btn btn-neutral float-right" title="Module (pmrf.Module)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

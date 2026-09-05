@@ -1,0 +1,219 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fit_minimize &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="fit_sample" href="pmrf.fitting.fit_sample.html" />
+    <link rel="prev" title="FitResult" href="pmrf.fitting.FitResult.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.fitting.FitResult.html">FitResult</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">fit_minimize</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.fitting.fit_sample.html">fit_sample</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.fitting.fit.html">fit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.fitting.fit_sequential.html">fit_sequential</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.fitting.fit_joint.html">fit_joint</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+      <li class="breadcrumb-item active">fit_minimize</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.fitting.fit_minimize.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="fit-minimize">
+<h1>fit_minimize<a class="headerlink" href="#fit-minimize" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pmrf.fitting.fit_minimize">
+<span class="sig-prename descclassname"><span class="pre">pmrf.fitting.</span></span><span class="sig-name descname"><span class="pre">fit_minimize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PyTreeT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Network</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.NetworkCollection.html#pmrf.NetworkCollection" title="pmrf.network_collection.NetworkCollection"><span class="pre">NetworkCollection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.optimize.AbstractUnconstrainedMinimizer.html#pmrf.optimize.AbstractUnconstrainedMinimizer" title="pmrf.optimize.base.AbstractUnconstrainedMinimizer"><span class="pre">AbstractUnconstrainedMinimizer</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="pmrf.optimize.AbstractBoundedMinimizer.html#pmrf.optimize.AbstractBoundedMinimizer" title="pmrf.optimize.base.AbstractBoundedMinimizer"><span class="pre">AbstractBoundedMinimizer</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">features</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'s'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'frequentist'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">loss</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likelihood</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">discrepancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.fitting.FitResult.html#pmrf.fitting.FitResult" title="pmrf.fitting.result.FitResult"><span class="pre">FitResult</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PyTreeT</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.fitting.fit_minimize" title="Link to this definition"></a></dt>
+<dd><p>Fits a parameter-aware module to measured data using non-linear optimization.</p>
+<p>This high-level function handles data formatting (e.g., extracting arrays
+from the scikit-rf Networks) and forwards to <a class="reference internal" href="pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.optimize.minimize()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<em>PyTree</em>) – The parameter PyTree to fit.</p></li>
+<li><p><strong>data</strong> (<em>np.ndarray</em><em> | </em><em>jnp.ndarray</em><em> | </em><em>skrf.Network</em><em> | </em><a class="reference internal" href="pmrf.NetworkCollection.html#pmrf.NetworkCollection" title="pmrf.NetworkCollection"><em>NetworkCollection</em></a>) – The data to fit to. Can either be a JAX array,
+a <code class="xref py py-class docutils literal notranslate"><span class="pre">skrf.Network</span></code>, or a <a class="reference internal" href="pmrf.NetworkCollection.html#pmrf.NetworkCollection" title="pmrf.NetworkCollection"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.NetworkCollection</span></code></a>.</p></li>
+<li><p><strong>frequency</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a><em> | </em><em>None</em><em>, </em><em>default=None</em>) – The frequency sweep. Required if <cite>data</cite> is a raw array; otherwise automatically
+extracted from the Network object.</p></li>
+<li><p><strong>solver</strong> (<em>AbstractMinimizer</em><em>, </em><em>optional</em>) – The optimizer to use.
+See <a class="reference internal" href="pmrf.optimize.html#module-pmrf.optimize" title="pmrf.optimize"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.optimize</span></code></a> for available solvers.</p></li>
+<li><p><strong>features</strong> (<em>str</em><em> | </em><em>list</em><em>[</em><em>str</em><em>] </em><em>| </em><em>Callable</em><em>[</em><em>[</em><em>PyTree</em><em>, </em><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a><em>]</em><em>, </em><em>jnp.ndarray</em><em>]</em><em>, </em><em>default='s'</em>) – The RF features to fit.
+Can either be function, a callable PyTree with optional parameters, or a string,
+in which case a feature evaluator is created (see <a class="reference internal" href="pmrf.evaluators.Feature.html#pmrf.evaluators.Feature" title="pmrf.evaluators.Feature"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.evaluators.Feature</span></code></a>).
+Defaults to all S-parameters.</p></li>
+<li><p><strong>inference</strong> (<em>str</em>) – The type of inference to use, either ‘frequentist’ or ‘bayesian’.
+See <cite>loss</cite> and <cite>likelihood</cite> for more information.</p></li>
+<li><p><strong>loss</strong> (<em>str</em><em> | </em><em>Callable</em><em>, </em><em>optional</em>) – A loss function between the model prediction and the data.
+Can be a function or a callable PyTree with optional parameters.
+Used to internally create a <a class="reference internal" href="pmrf.evaluators.TargetLoss.html#pmrf.evaluators.TargetLoss" title="pmrf.evaluators.TargetLoss"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.evaluators.TargetLoss</span></code></a> evaluator.
+Mutually exclusive with <cite>likelihood</cite>. If neither <cite>loss</cite> nor <cite>likelihood</cite> is passed,
+<a class="reference internal" href="pmrf.losses.RMSELoss.html#pmrf.losses.RMSELoss" title="pmrf.losses.RMSELoss"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.losses.RMSELoss</span></code></a> is used for <cite>loss</cite> if <cite>inference</cite> is ‘frequentist’,
+otherwise <a class="reference internal" href="pmrf.likelihoods.GaussianLikelihood.html#pmrf.likelihoods.GaussianLikelihood" title="pmrf.likelihoods.GaussianLikelihood"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.likelihoods.GaussianLikelihood</span></code></a> is used for <cite>likelihood</cite>.
+See <a class="reference internal" href="pmrf.losses.html#module-pmrf.losses" title="pmrf.losses"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.losses</span></code></a> for common losses.</p></li>
+<li><p><strong>likelihood</strong> (<em>str</em><em> | </em><em>Callable</em><em>, </em><em>optional</em>) – A likelihood model representing the probability of observing the data.
+Can be a function or a callable PyTree with optional parameters.
+Used to internally create a <a class="reference internal" href="pmrf.evaluators.MarginalLogLikelihood.html#pmrf.evaluators.MarginalLogLikelihood" title="pmrf.evaluators.MarginalLogLikelihood"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.evaluators.MarginalLogLikelihood</span></code></a>,
+wrapped in a <a class="reference internal" href="pmrf.evaluators.Negated.html#pmrf.evaluators.Negated" title="pmrf.evaluators.Negated"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.evaluators.Negated</span></code></a> evaluator.
+Mutually exclusive with <cite>loss</cite>. If neither <cite>loss</cite> nor <cite>likelihood</cite> is passed,
+<a class="reference internal" href="pmrf.losses.RMSELoss.html#pmrf.losses.RMSELoss" title="pmrf.losses.RMSELoss"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.losses.RMSELoss</span></code></a> is used for <cite>loss</cite> if <cite>inference</cite> is ‘frequentist’,
+otherwise <a class="reference internal" href="pmrf.likelihoods.GaussianLikelihood.html#pmrf.likelihoods.GaussianLikelihood" title="pmrf.likelihoods.GaussianLikelihood"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.likelihoods.GaussianLikelihood</span></code></a> is used for <cite>likelihood</cite>.
+See <a class="reference internal" href="pmrf.losses.html#module-pmrf.losses" title="pmrf.losses"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.losses</span></code></a> for common losses.</p></li>
+<li><p><strong>noise</strong> (<em>prf.Param</em><em> | </em><em>Callable</em><em>[</em><em>[</em><em>jnp.ndarray</em><em>]</em><em>, </em><em>jnp.ndarray</em><em>]</em><em>, </em><em>optional</em>) – <p>Likelihood noise (variance), either a fixed parameter, or a callable that accepts
+a model prediction (in event space) and returns noise parameters
+for a Gaussian likelihood. Mutually exclusive with <cite>likelihood</cite>.
+For the function case, can be a callable PyTree with optional parameters.
+See <a class="reference internal" href="pmrf.noise_models.html#module-pmrf.noise_models" title="pmrf.noise_models"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.noise_models</span></code></a> for built-in noise models.
+Defaults to <cite>None</cite>, in which case uniform variance from 0.0 to 0.1 is constructed internally.
+Only allowed if <cite>likelihood</cite> is passed and/or <cite>inference</cite> is ‘bayesian’.</p>
+<p>When <cite>data</cite> is a collection, each network is fitted by its own likelihood, so
+each receives its own copy of this noise, free to take a different value and
+carrying its own prior. This suits datasets of differing quality, which is the
+common case for a collection. To share one noise across them, pass a
+<cite>likelihood</cite> built around a single parameter instead.</p>
+</p></li>
+<li><p><strong>discrepancy</strong> (<em>Callable</em><em>[</em><em>[</em><em>jnp.ndarray</em><em>, </em><em>jnp.ndarray</em><em>]</em><em>, </em><em>jnp.ndarray</em><em> | </em><em>dist.AbstractDistribution</em><em>]</em><em>, </em><em>optional</em>) – A discrepancy model, which caters for the discrepancy between the model and measured data.
+Can either be a function, or a callable PyTree with optional parameters.
+To use a Gaussian process as a discrepancy model,
+see <a class="reference internal" href="pmrf.discrepancy_models.GaussianProcess.html#pmrf.discrepancy_models.GaussianProcess" title="pmrf.discrepancy_models.GaussianProcess"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.discrepancy_models.GaussianProcess</span></code></a>.
+Only allowed if <cite>likelihood</cite> is passed and/or <cite>inference</cite> is ‘bayesian’.</p></li>
+<li><p><strong>temperature</strong> (<em>float</em><em>, </em><em>optional</em>) – The temperature value for generalized Bayesian optimization.
+Only allowed if <cite>inference</cite> is ‘bayesian’ and <cite>loss</cite> is not None.
+Defaults to 1.0 internally.</p></li>
+<li><p><strong>**kwargs</strong> (<em>dict</em>) – Additional keyword arguments passed to <a class="reference internal" href="pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.optimize.minimize()</span></code></a>
+and then underlying solver.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The optimization result containing the fitted parameter PyTree.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="pmrf.fitting.FitResult.html#pmrf.fitting.FitResult" title="pmrf.fitting.FitResult">FitResult</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.fitting.FitResult.html" class="btn btn-neutral float-left" title="FitResult" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.fitting.fit_sample.html" class="btn btn-neutral float-right" title="fit_sample" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

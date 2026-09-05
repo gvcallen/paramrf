@@ -1,0 +1,303 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uniform &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Gamma" href="pmrf.distributions.Gamma.html" />
+    <link rel="prev" title="Normal" href="pmrf.distributions.Normal.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html">AbstractDistribution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Normal.html">Normal</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Uniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Gamma.html">Gamma</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Transformed.html">Transformed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.LogNormal.html">LogNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.TruncatedNormal.html">TruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.Joint.html">Joint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.CenteredUniform.html">CenteredUniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.RelativeNormal.html">RelativeNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.RelativeTruncatedNormal.html">RelativeTruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.distributions.truncate.html">truncate</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+      <li class="breadcrumb-item active">Uniform</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.distributions.Uniform.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="uniform">
+<h1>Uniform<a class="headerlink" href="#uniform" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.distributions.</span></span><span class="sig-name descname"><span class="pre">Uniform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">low</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Float</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'...'</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Float</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'...'</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.distributions.Uniform" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSTDDistribution</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSurvivalDistribution</span></code></p>
+<p>Uniform distribution with <cite>low</cite> and <cite>high</cite> parameters.</p>
+<p>Initializes a Uniform distribution.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>low</cite>: Lower bound of the distribution.</p></li>
+<li><p><cite>high</cite>: Upper bound of the distribution.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.cdf">
+<span class="sig-name descname"><span class="pre">cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.cdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.cdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.entropy">
+<span class="sig-name descname"><span class="pre">entropy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.entropy" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.entropy</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.icdf">
+<span class="sig-name descname"><span class="pre">icdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.icdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.icdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.kl_divergence">
+<span class="sig-name descname"><span class="pre">kl_divergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other_dist</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.kl_divergence" title="Link to this definition"></a></dt>
+<dd><p>Calculates the KL divergence to another distribution.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>other_dist</cite>: A compatible disteqx distribution.</p></li>
+<li><p><cite>kwargs</cite>: Additional kwargs.</p></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The KL divergence <cite>KL(self || other_dist)</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.log_cdf">
+<span class="sig-name descname"><span class="pre">log_cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.log_cdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.log_cdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.log_prob">
+<span class="sig-name descname"><span class="pre">log_prob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.log_prob" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.log_prob</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.mean" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.mean</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.median">
+<span class="sig-name descname"><span class="pre">median</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.median" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.median</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.mode" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.probs</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.prob">
+<span class="sig-name descname"><span class="pre">prob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.prob" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.prob</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Key</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">''</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.sample" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.sample</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.sample_and_log_prob">
+<span class="sig-name descname"><span class="pre">sample_and_log_prob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Key</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">''</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.sample_and_log_prob" title="Link to this definition"></a></dt>
+<dd><p>Returns sample and its log prob.</p>
+<p>By default, it just calls <cite>log_prob</cite> on the generated samples. However, for
+many distributions it’s more efficient to compute the log prob of samples
+than of arbitrary events (for example, there’s no need to check that a
+sample is within the distribution’s domain). If that’s the case, a subclass
+may override this method with a more efficient implementation.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>key</cite>: PRNG key.</p></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul class="simple">
+<li><p>A tuple of a sample and their log probs.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.variance">
+<span class="sig-name descname"><span class="pre">variance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.variance" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.variance</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.event_shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">event_shape</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.event_shape" title="Link to this definition"></a></dt>
+<dd><p>Shape of event of distribution samples.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.high">
+<span class="sig-name descname"><span class="pre">high</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Float</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'...'</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.high" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.low">
+<span class="sig-name descname"><span class="pre">low</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Float</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'...'</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.low" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.range">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">range</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.distributions.Uniform.range" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.distributions.Uniform.support">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">support</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.distributions.Uniform.support" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.support</cite>.</p>
+<p>Unlike most distributions, the bounds vary per element and are
+returned as arrays of shape <cite>event_shape</cite>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.distributions.Normal.html" class="btn btn-neutral float-left" title="Normal" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.distributions.Gamma.html" class="btn btn-neutral float-right" title="Gamma" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

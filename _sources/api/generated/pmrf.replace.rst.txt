@@ -1,0 +1,9 @@
+﻿
+
+
+**replace** (pmrf.replace)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: replace

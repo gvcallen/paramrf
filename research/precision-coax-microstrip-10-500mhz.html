@@ -1,0 +1,668 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Precision coaxial and microstrip modelling from 10–500 MHz &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Precision coaxial and microstrip modelling from 10–500 MHz</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/research/precision-coax-microstrip-10-500mhz.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="precision-coaxial-and-microstrip-modelling-from-10500-mhz">
+<h1>Precision coaxial and microstrip modelling from 10–500 MHz<a class="headerlink" href="#precision-coaxial-and-microstrip-modelling-from-10500-mhz" title="Link to this heading"></a></h1>
+<p><strong>Audit date:</strong> 2026-09-01</p>
+<p><strong>ParamRF revision:</strong> <code class="docutils literal notranslate"><span class="pre">e96bb863</span></code></p>
+<p><strong>Application:</strong> fitted instrument models for global 21 cm experiments</p>
+<section id="executive-conclusion">
+<h2>Executive conclusion<a class="headerlink" href="#executive-conclusion" title="Link to this heading"></a></h2>
+<p>The updated finite-thickness microstrip model is now a credible fitting model for
+10–500 MHz. A known trace thickness gives the correct trace DC resistance,</p>
+<div class="math notranslate nohighlight">
+\[R_{dc}=\frac{\rho}{Wt},\]</div>
+<p>and ParamRF blends it smoothly into the strong-skin-effect resistance. This removes the
+previously unphysical <span class="math notranslate nohighlight">\(R\rightarrow0\)</span> limit and makes low-frequency roll-off expressible.
+It does <strong>not</strong> make the transition an exact finite-thickness electromagnetic solution:
+the root-sum-square resistance blend is a ParamRF convention, the conductor reactance is
+still the semi-infinite <span class="math notranslate nohighlight">\(\sqrt f\)</span> term, and the DC ground-return geometry is absent.
+The accurate description is therefore <strong>correct resistance endpoints, smooth and
+fit-friendly transition</strong>, not “validated exact DC-to-skin transition.”</p>
+<p>For a precision fitted microstrip model, the best current basis is:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">MicrostripLine</span><span class="p">(</span>
+    <span class="o">...</span><span class="p">,</span>
+    <span class="n">t</span><span class="o">=&lt;</span><span class="n">known</span> <span class="n">copper</span> <span class="n">thickness</span><span class="o">&gt;</span><span class="p">,</span>
+    <span class="n">formulation</span><span class="o">=</span><span class="n">HammerstadJensenMicrostripFormulation</span><span class="p">(),</span>
+    <span class="n">dispersion</span><span class="o">=</span><span class="n">KirschningJansenMicrostripDispersion</span><span class="p">(),</span>
+    <span class="n">dielectric</span><span class="o">=&lt;</span><span class="n">fitted</span> <span class="n">causal</span> <span class="n">dielectric</span><span class="o">&gt;</span><span class="p">,</span>
+    <span class="n">conductor</span><span class="o">=&lt;</span><span class="n">fitted</span> <span class="n">conductor</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This configuration is <strong>not</strong> obtained from a default-constructed
+<code class="docutils literal notranslate"><span class="pre">MicrostripLine</span></code>: the current default is the zero-thickness Wheeler formulation with
+<code class="docutils literal notranslate"><span class="pre">t=None</span></code>, so the new DC floor is inactive. Precision use must select
+Hammerstad–Jensen and provide a finite measured thickness explicitly.</p>
+<p>Hammerstad–Jensen remains preferable to Wheeler. Kirschning–Jansen modal dispersion is
+small for an ordinary 1–2 mm PCB substrate in this band, but it is not universally
+negligible and is inexpensive to retain. Material dispersion, board construction,
+roughness, launches, and reflections can all matter more. A causal dielectric model is
+particularly important for FR-4-like materials.</p>
+<p>The coaxial model is stronger: Tesche gives the correct solid-inner-conductor DC and
+high-frequency limits and is smooth for fitting. Its intermediate-frequency conductor
+impedance remains an approximation to Schelkunoff’s cylindrical Bessel-function
+solution, and ParamRF still treats the shield as infinitely thick. Exact Schelkunoff plus
+a finite, separately specified outer conductor remains the main accuracy upgrade.</p>
+<p>No formulation-level percentage can by itself prove adequacy for a global-signal
+experiment. Reflections convert small phase and impedance errors into spectral ripple.
+Adequacy has to be tested as the residual complex <span class="math notranslate nohighlight">\(S\)</span>-parameter response of the actual
+line length and mismatch network against an allocated systematic-error budget.</p>
+</section>
+<section id="evidence-labels-and-audit-method">
+<h2>Evidence labels and audit method<a class="headerlink" href="#evidence-labels-and-audit-method" title="Link to this heading"></a></h2>
+<p>This report distinguishes:</p>
+<ul class="simple">
+<li><p><strong>Published:</strong> stated or derived in the cited primary paper.</p></li>
+<li><p><strong>Verified in source:</strong> directly observed in the live ParamRF or official scikit-rf
+implementation.</p></li>
+<li><p><strong>Computed:</strong> evaluated from revision <code class="docutils literal notranslate"><span class="pre">e96bb863</span></code> or from the stated equations for the
+representative geometries below. These are not measurements.</p></li>
+<li><p><strong>Inference:</strong> an engineering consequence of the published equations or computations.</p></li>
+</ul>
+<p>The audit covered the live line, material, and test sources, commits <code class="docutils literal notranslate"><span class="pre">d5dbafbc</span></code>,
+<code class="docutils literal notranslate"><span class="pre">9b6ea4ae</span></code>, and <code class="docutils literal notranslate"><span class="pre">8df6ef53</span></code>, and the installed scikit-rf 2.1.0 source. On the clean
+<code class="docutils literal notranslate"><span class="pre">e96bb863</span></code> revision, the full suite passed with <strong>459 passed and 28 skipped</strong>, and the
+focused suite</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>tests/test_models/test_lines.py
+tests/test_models/test_lines_skrf_matrix.py
+</pre></div>
+</div>
+<p>passed <strong>77/77 tests</strong>. Those tests are valuable equation and regression checks; they do
+not turn scikit-rf into experimental ground truth.</p>
+<p>During final report review, a concurrent uncommitted refactor changed
+<code class="docutils literal notranslate"><span class="pre">pmrf/materials/properties.py</span></code> from <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> records to Equinox modules. That change
+was not part of this research task and was preserved. A fresh focused rerun against that
+later worktree produced <strong>5 failures and 84 passes</strong> because existing conductor code and
+tests still call the removed <code class="docutils literal notranslate"><span class="pre">._replace()</span></code> method. This does not alter the formulation
+analysis below, but the final worktree was not green at handoff.</p>
+</section>
+<section id="what-changed-in-the-live-microstrip-model">
+<h2>What changed in the live microstrip model<a class="headerlink" href="#what-changed-in-the-live-microstrip-model" title="Link to this heading"></a></h2>
+<section id="one-consistent-dispersed-rlgc-path">
+<h3>One consistent dispersed RLGC path<a class="headerlink" href="#one-consistent-dispersed-rlgc-path" title="Link to this heading"></a></h3>
+<p><strong>Verified in source.</strong> <code class="docutils literal notranslate"><span class="pre">MicrostripLine._resolved_quasi_static()</span></code> now supplies the same
+effective permittivity and width used by <code class="docutils literal notranslate"><span class="pre">immittance()</span></code>, <code class="docutils literal notranslate"><span class="pre">ep_eff()</span></code>, and <code class="docutils literal notranslate"><span class="pre">w_eff()</span></code>.
+With dispersion enabled, ParamRF applies Kirschning–Jansen to the quasi-static state and
+then constructs physical per-unit-length <span class="math notranslate nohighlight">\(Z\)</span> and <span class="math notranslate nohighlight">\(Y\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[Z=\frac{j\omega Z_{c,m}\sqrt{\varepsilon_e}}{c}+Z_sK_c,\]</div>
+<div class="math notranslate nohighlight">
+\[Y=\frac{j\omega\sqrt{\varepsilon_e}}{Z_{c,m}c}+\sigma_dK_g.\]</div>
+<p>The observable telegrapher quantities are then</p>
+<div class="math notranslate nohighlight">
+\[Z_c=\sqrt{Z/Y},\qquad \gamma=\sqrt{ZY}.\]</div>
+<p>This is more expressive than treating conductor loss as an attenuation added after the
+modal impedance has been fixed: loss can affect both propagation and the line impedance.
+It also means ParamRF’s lossy <span class="math notranslate nohighlight">\(Z_c\)</span> will deliberately differ from scikit-rf <code class="docutils literal notranslate"><span class="pre">MLine</span></code>,
+whose official source builds <code class="docutils literal notranslate"><span class="pre">gamma</span></code> by adding conductor and dielectric attenuation to a
+phase term and leaves its modal characteristic impedance independent of conductor loss.
+The <a class="reference external" href="https://github.com/scikit-rf/scikit-rf/blob/master/skrf/media/mline.py">official <code class="docutils literal notranslate"><span class="pre">MLine</span></code> source</a>
+also warns that its conductor-loss calculation is invalid below three skin depths and
+may fall below the physical DC resistance.</p>
+<p>Planar transmission lines do not have a unique characteristic-impedance definition.
+NIST compares power-voltage, power-current, and causal definitions explicitly in
+<a class="reference external" href="https://www.nist.gov/publications/causal-characteristic-impedance-planar-transmission-lines">Williams et al.</a>.
+Consequently, disagreement in lossy low-frequency <span class="math notranslate nohighlight">\(Z_c\)</span> is not automatically an error;
+the definition and the resulting measurable network response matter.</p>
+</section>
+<section id="finite-thickness-dc-resistance-floor">
+<h3>Finite-thickness DC resistance floor<a class="headerlink" href="#finite-thickness-dc-resistance-floor" title="Link to this heading"></a></h3>
+<p><strong>Verified in source.</strong> For finite <code class="docutils literal notranslate"><span class="pre">t</span></code>, ParamRF computes</p>
+<div class="math notranslate nohighlight">
+\[R_{ac}=\Re(Z_sK_c),\qquad
+R=\sqrt{R_{dc}^2+R_{ac}^2},\]</div>
+<p>while preserving <span class="math notranslate nohighlight">\(\Im(Z_sK_c)\)</span> unchanged. For <code class="docutils literal notranslate"><span class="pre">t=None</span></code>, no floor is applied; that input
+means thickness is unknown and strong skin effect is asserted throughout the sweep.
+Precision work should therefore provide a finite, physically known <code class="docutils literal notranslate"><span class="pre">t</span></code>.</p>
+<p>The blend guarantees:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(R\to R_{dc}\)</span> when <span class="math notranslate nohighlight">\(R_{ac}\ll R_{dc}\)</span>;</p></li>
+<li><p><span class="math notranslate nohighlight">\(R\to R_{ac}\)</span> when <span class="math notranslate nohighlight">\(R_{ac}\gg R_{dc}\)</span>;</p></li>
+<li><p>a smooth derivative, useful for optimisation and inference.</p></li>
+</ul>
+<p>Neither Hammerstad–Jensen nor Wheeler prescribes this blend. The finite-thickness
+microstrip loss treatment of
+<a class="reference external" href="https://doi.org/10.1109/TMTT.1968.1126691">Pucel, Massé, and Hartwig</a>
+is a more physical reference, while the exact planar-slab surface impedance has a
+hyperbolic-cotangent transition. Applying a slab impedance to microstrip is itself only a
+proxy because edge currents and the ground return still require the two-dimensional
+field problem.</p>
+</section>
+<section id="size-of-the-correction-in-the-requested-band">
+<h3>Size of the correction in the requested band<a class="headerlink" href="#size-of-the-correction-in-the-requested-band" title="Link to this heading"></a></h3>
+<p><strong>Computed.</strong> For copper with <span class="math notranslate nohighlight">\(\rho=1.68\times10^{-8}\ \Omega\,\mathrm m\)</span>,
+<span class="math notranslate nohighlight">\(W=3\)</span> mm, <span class="math notranslate nohighlight">\(h=1.6\)</span> mm, and Hammerstad–Jensen plus Kirschning–Jansen, the ratio of the new
+blended resistance to the former strong-skin resistance is:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Copper thickness</p></th>
+<th class="head text-right"><p>10 MHz</p></th>
+<th class="head text-right"><p>50 MHz</p></th>
+<th class="head text-right"><p>100 MHz</p></th>
+<th class="head text-right"><p>500 MHz</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>18 µm</p></td>
+<td class="text-right"><p>1.262</p></td>
+<td class="text-right"><p>1.0576</p></td>
+<td class="text-right"><p>1.029</p></td>
+<td class="text-right"><p>1.0059</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>35 µm</p></td>
+<td class="text-right"><p>1.075</p></td>
+<td class="text-right"><p>1.0155</p></td>
+<td class="text-right"><p>1.0078</p></td>
+<td class="text-right"><p>1.0016</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>70 µm</p></td>
+<td class="text-right"><p>1.019</p></td>
+<td class="text-right"><p>1.0039</p></td>
+<td class="text-right"><p>1.0019</p></td>
+<td class="text-right"><p>1.0004</p></td>
+</tr>
+</tbody>
+</table>
+<p>The <span class="math notranslate nohighlight">\(R_{dc}=R_{ac}\)</span> crossover lies below 10 MHz in all three cases (approximately
+5.9, 1.6, and 0.39 MHz respectively). Thus the update is very important to the DC
+asymptote, material for 18 µm copper at the 10 MHz band edge, and modest for ordinary
+35–70 µm copper over most of 10–500 MHz.</p>
+<p>Width changes the balance. At 10 MHz in the same substrate, the resistance uplift for
+18 µm copper is about 38% at <span class="math notranslate nohighlight">\(W=0.5\)</span> mm, 31% at 1.5 mm, 26% at 3 mm, and 21% at 10 mm.
+The floor therefore cannot be dismissed from frequency alone.</p>
+<p><strong>Computed proxy, not ground truth.</strong> Replacing the semi-infinite sheet impedance by a
+finite-slab <code class="docutils literal notranslate"><span class="pre">coth</span></code> impedance but retaining ParamRF’s same <span class="math notranslate nohighlight">\(K_c\)</span> gives the following
+comparison at 10 MHz:</p>
+<ul class="simple">
+<li><p>35 µm: the slab’s real sheet impedance is 0.921 times the semi-infinite value,
+whereas ParamRF’s blend is 1.075 times it—about 16.8% high relative to this proxy;</p></li>
+<li><p>18 µm: ParamRF is about 4.8% high relative to the proxy;</p></li>
+<li><p>70 µm: ParamRF is about 1.6% high relative to the proxy.</p></li>
+</ul>
+<p>This non-monotonic-looking comparison is exactly why correct endpoints must not be
+confused with a validated transition shape. A coupon measurement or a full-wave/2-D
+field solution is needed to decide which transition best represents a particular stackup.</p>
+</section>
+<section id="what-low-frequency-roll-off-can-now-be-expressed">
+<h3>What low-frequency roll-off can now be expressed<a class="headerlink" href="#what-low-frequency-roll-off-can-now-be-expressed" title="Link to this heading"></a></h3>
+<p>With finite <code class="docutils literal notranslate"><span class="pre">t</span></code>, zero substrate conductivity, and sufficiently low frequency,
+<span class="math notranslate nohighlight">\(Z\simeq R_{dc}\)</span> and <span class="math notranslate nohighlight">\(Y\simeq j\omega C\)</span>. Therefore</p>
+<div class="math notranslate nohighlight">
+\[\gamma\simeq\sqrt{j\omega R_{dc}C},\qquad
+|Z_c|\simeq\sqrt{\frac{R_{dc}}{\omega C}},\]</div>
+<p>so attenuation and phase constant scale as <span class="math notranslate nohighlight">\(\sqrt f\)</span>, while <span class="math notranslate nohighlight">\(|Z_c|\propto f^{-1/2}\)</span>
+with phase approaching <span class="math notranslate nohighlight">\(-45^\circ\)</span>. <strong>Inference:</strong> this is the correct distributed RC
+limit for the model and gives a genuine low-frequency roll-off rather than the previous
+vanishing-resistance artefact.</p>
+<p>Static substrate conductivity is represented separately as <span class="math notranslate nohighlight">\(G=\sigma_dK_g\)</span>. If both
+<span class="math notranslate nohighlight">\(R\)</span> and <span class="math notranslate nohighlight">\(G\)</span> remain nonzero at DC, <span class="math notranslate nohighlight">\(\gamma\to\sqrt{RG}\)</span> and
+<span class="math notranslate nohighlight">\(Z_c\to\sqrt{R/G}\)</span>. This is physically distinct from a constant loss tangent and from
+conductor skin effect. Keeping these mechanisms separate improves extrapolation, but
+they can still be highly correlated in a short, nearly matched <span class="math notranslate nohighlight">\(S_{21}\)</span> fit.</p>
+<p>Remaining limitations are important:</p>
+<ol class="arabic simple">
+<li><p>Only resistance is transitioned. The reactive conductor term still follows the
+semi-infinite <span class="math notranslate nohighlight">\((1+j)\sqrt f\)</span> law rather than approaching a finite internal inductance
+with reactance proportional to <span class="math notranslate nohighlight">\(f\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(R_{dc}=\rho/(Wt)\)</span> represents the trace only. Finite ground-plane width, thickness,
+plating, and return-current spreading are absent.</p></li>
+<li><p>The same bulk conductor and roughness law serve trace and ground. Plating stacks,
+copper-treatment asymmetry, temperature coefficients, and frequency-dependent
+permeability are not independently expressible.</p></li>
+<li><p>Wheeler’s incremental-inductance geometry factor is retained through the transition.
+Its strong-skin current distribution is not re-solved at low frequency.</p></li>
+</ol>
+<p>For fitting, these are model-discrepancy terms, not reasons to discard the model. The
+transition should be constrained by known thickness and resistivity, and residual freedom
+should be validated against more than one line length.</p>
+</section>
+</section>
+<section id="quasi-static-microstrip-geometry">
+<h2>Quasi-static microstrip geometry<a class="headerlink" href="#quasi-static-microstrip-geometry" title="Link to this heading"></a></h2>
+<section id="hammerstadjensen">
+<h3>Hammerstad–Jensen<a class="headerlink" href="#hammerstadjensen" title="Link to this heading"></a></h3>
+<p><strong>Published and verified in source.</strong> ParamRF implements the homogeneous-impedance,
+effective-permittivity, and finite-thickness width corrections from
+<a class="reference external" href="https://doi.org/10.1109/MWSYM.1980.1124303">Hammerstad and Jensen</a>. The paper’s quoted
+fit errors are better than 0.2% for effective permittivity over
+<span class="math notranslate nohighlight">\(\varepsilon_r&lt;128\)</span> and <span class="math notranslate nohighlight">\(0.01\le W/h\le100\)</span>, and better than 0.01–0.03% for the
+homogeneous impedance over its stated width ranges.</p>
+<p>Those are errors of an empirical closed form against the authors’ reference calculation,
+not total manufacturing or forward-model accuracy. The formulation does not include
+solder mask, copper weave/anisotropy, finite board or ground width, enclosure sidewalls,
+surface finish, launches, connectors, or cross-section variation.</p>
+</section>
+<section id="wheeler">
+<h3>Wheeler<a class="headerlink" href="#wheeler" title="Link to this heading"></a></h3>
+<p>ParamRF’s Wheeler option is a zero-thickness, simpler quasi-static approximation and
+rejects finite <code class="docutils literal notranslate"><span class="pre">t</span></code>. It remains useful as a compact baseline or deliberately simplified
+fit, but it cannot use the new DC floor because finite thickness is unavailable.
+<strong>Recommendation:</strong> use Hammerstad–Jensen for the precision model. It exposes known
+thickness to both the geometry correction and DC resistance, starts nearer the physical
+cross-section, and reduces degeneracy among width, permittivity, length, and impedance.</p>
+</section>
+<section id="complex-permittivity-caveat">
+<h3>Complex permittivity caveat<a class="headerlink" href="#complex-permittivity-caveat" title="Link to this heading"></a></h3>
+<p>ParamRF carries complex <span class="math notranslate nohighlight">\(\varepsilon_r\)</span> through Hammerstad–Jensen and
+Kirschning–Jansen. This gives a self-consistent complex RLGC model and is attractive for
+fitting, but it is an analytic continuation of empirical formulas principally fitted for
+real, low-loss permittivity. The cited papers do not establish sub-percent accuracy for
+that complex continuation. Treat scikit-rf agreement on the same continuation as an
+implementation cross-check, not independent physical validation.</p>
+</section>
+</section>
+<section id="modal-versus-material-dispersion">
+<h2>Modal versus material dispersion<a class="headerlink" href="#modal-versus-material-dispersion" title="Link to this heading"></a></h2>
+<section id="kirschningjansen-modal-dispersion">
+<h3>Kirschning–Jansen modal dispersion<a class="headerlink" href="#kirschningjansen-modal-dispersion" title="Link to this heading"></a></h3>
+<p>The effective-permittivity fit is from
+<a class="reference external" href="https://doi.org/10.1049/el:19820186">Kirschning and Jansen (1982)</a>; the accompanying
+power-current impedance fit is from Jansen and Kirschning (1983). Its normalized
+frequency is</p>
+<div class="math notranslate nohighlight">
+\[f_n=f[\mathrm{GHz}]h[\mathrm{mm}].\]</div>
+<p>The published domain commonly reported with the fit is
+<span class="math notranslate nohighlight">\(1\le\varepsilon_r\le20\)</span>, <span class="math notranslate nohighlight">\(0.1\le W/h\le100\)</span>, and
+<span class="math notranslate nohighlight">\(h/\lambda_0\le0.13\)</span>, with the numerical fit anchored from about
+<span class="math notranslate nohighlight">\(\varepsilon_r=2.2\)</span>. ParamRF’s smooth connection from <span class="math notranslate nohighlight">\(\varepsilon_r=1\)</span> to 2.2 is its
+own documented extension.</p>
+<p><strong>Computed representative result.</strong> For <span class="math notranslate nohighlight">\(W=3\)</span> mm, <span class="math notranslate nohighlight">\(h=1.6\)</span> mm,
+<span class="math notranslate nohighlight">\(t=35\)</span> µm, <span class="math notranslate nohighlight">\(\varepsilon_r=4.3(1-j0.02)\)</span>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Frequency</p></th>
+<th class="head text-right"><p>K–J change in <span class="math notranslate nohighlight">\(\Re(\varepsilon_{eff})\)</span></p></th>
+<th class="head text-right"><p>change in phase per metre</p></th>
+<th class="head text-right"><p>change in <span class="math notranslate nohighlight">\(\Re(Z_c)\)</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>10 MHz</p></td>
+<td class="text-right"><p>0.00039%</p></td>
+<td class="text-right"><p>0.00004°/m</p></td>
+<td class="text-right"><p>negligible</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>100 MHz</p></td>
+<td class="text-right"><p>0.0143%</p></td>
+<td class="text-right"><p>0.0155°/m</p></td>
+<td class="text-right"><p>−0.0023%</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>500 MHz</p></td>
+<td class="text-right"><p>0.168%</p></td>
+<td class="text-right"><p>0.905°/m</p></td>
+<td class="text-right"><p>−0.0217%</p></td>
+</tr>
+</tbody>
+</table>
+<p>This supports a narrow statement: <strong>for this ordinary 1.6 mm geometry, K–J modal
+dispersion is small through 500 MHz.</strong> It does not support a universal statement.
+<span class="math notranslate nohighlight">\(f_n\)</span> grows directly with substrate height, and reflected ripple scales with the actual
+electrical length and mismatch. Keep K–J enabled unless a complex-network residual test
+demonstrates that removing it is below the experiment’s systematic allocation.</p>
+</section>
+<section id="dielectric-dispersion">
+<h3>Dielectric dispersion<a class="headerlink" href="#dielectric-dispersion" title="Link to this heading"></a></h3>
+<p>FR-4 is not one reproducible material. The measurements and causal wideband model in
+<a class="reference external" href="https://doi.org/10.1109/15.974647">Djordjevic et al.</a> show why a constant loss tangent
+and constant real permittivity are not a precision-wideband default.</p>
+<p>ParamRF currently offers:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Dielectric model</p></th>
+<th class="head"><p>Benefit for fitting</p></th>
+<th class="head"><p>Principal risk</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ConstantDielectric</span></code></p></td>
+<td><p>few parameters; useful control model</p></td>
+<td><p>constant loss tangent is noncausal and cannot express linked phase dispersion</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">DjordjevicSarkarDielectric</span></code></p></td>
+<td><p>compact, causal, FR-4-like logarithmic trend</p></td>
+<td><p>relaxation bounds and reference point must describe the actual laminate</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MultipoleDebyeDielectric</span></code></p></td>
+<td><p>passive causal flexibility with interpretable poles</p></td>
+<td><p>pole degeneracy without priors or adequate bandwidth</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ColeColeDielectric</span></code></p></td>
+<td><p>one broadened relaxation</p></td>
+<td><p>may be too restrictive for a heterogeneous laminate</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TabulatedDielectric</span></code></p></td>
+<td><p>maximal interpolation freedom</p></td>
+<td><p>causality/passivity and extrapolation are not guaranteed</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Computed illustration, not a laminate specification.</strong> With ParamRF’s default
+Djordjevic–Sarkar relaxation bounds and an input measurement
+<span class="math notranslate nohighlight">\(\varepsilon_r=4.3\)</span>, <span class="math notranslate nohighlight">\(\tan\delta=0.02\)</span> at 1 GHz, the representative microstrip’s
+<span class="math notranslate nohighlight">\(\Re(\varepsilon_{eff})\)</span> is 3.403, 3.319, and 3.265 at 10, 100, and 500 MHz,
+versus approximately 3.234 for the constant material. The resulting phase difference is
+about 0.57°, 2.82°, and 4.27° per metre. In this example material dispersion is much
+larger than K–J modal dispersion at the low and middle parts of the band.</p>
+<p><strong>Recommendation:</strong> start with Djordjevic–Sarkar when there is a credible reference
+measurement and fit its material constants with priors. Escalate to a small multipole
+Debye model only when multi-length data show repeatable residual structure. Do not let a
+free static conductivity silently absorb missing conductor or launch physics.</p>
+</section>
+</section>
+<section id="conductor-roughness-and-other-microstrip-omissions">
+<h2>Conductor roughness and other microstrip omissions<a class="headerlink" href="#conductor-roughness-and-other-microstrip-omissions" title="Link to this heading"></a></h2>
+<p>ParamRF’s <code class="docutils literal notranslate"><span class="pre">RoughConductor</span></code> uses the Hammerstad correction. It is a compact nuisance
+parameter and can be valuable in a fit, but it saturates, scales the full complex surface
+impedance together, and cannot represent a measured foil profile or separate treated and
+smooth faces. At 10–500 MHz, skin depths are comparatively large, so ordinary submicron
+roughness may be weak at the low end; several-micron electrodeposited foil can still alter
+loss substantially toward 500 MHz.</p>
+<p>The following effects are likely to dominate before a sub-percent closed-form fit error
+does in a real 21 cm receiver:</p>
+<ul class="simple">
+<li><p>solder-mask and adhesive layers;</p></li>
+<li><p>finite ground and enclosure geometry;</p></li>
+<li><p>connector, launch, via, bend, and pad discontinuities;</p></li>
+<li><p>cross-section tolerances and copper etch shape;</p></li>
+<li><p>separate trace/ground plating and roughness;</p></li>
+<li><p>laminate anisotropy and weave;</p></li>
+<li><p>temperature dependence;</p></li>
+<li><p>radiation or coupling to nearby conductors.</p></li>
+</ul>
+<p>These should generally be represented as explicit discontinuity networks, additional
+material layers/models, or model discrepancy—not forced into <span class="math notranslate nohighlight">\(\varepsilon_r\)</span>, <span class="math notranslate nohighlight">\(\rho\)</span>,
+or <span class="math notranslate nohighlight">\(\tan\delta\)</span>.</p>
+</section>
+<section id="coaxial-line-assessment">
+<h2>Coaxial line assessment<a class="headerlink" href="#coaxial-line-assessment" title="Link to this heading"></a></h2>
+<section id="what-paramrf-implements">
+<h3>What ParamRF implements<a class="headerlink" href="#what-paramrf-implements" title="Link to this heading"></a></h3>
+<p><strong>Published and verified in source.</strong> <code class="docutils literal notranslate"><span class="pre">TescheCoaxialFormulation</span></code> implements Tesche’s
+equivalent circuit for the solid inner conductor,</p>
+<div class="math notranslate nohighlight">
+\[Z_i=R_{dc}+\frac{Z_{hf}}{1+Z_{hf}/(j\omega L_{int})},\]</div>
+<p>with <span class="math notranslate nohighlight">\(R_{dc}=1/(\pi a^2\sigma)\)</span>, <span class="math notranslate nohighlight">\(L_{int}=\mu/(8\pi)\)</span>, and
+<span class="math notranslate nohighlight">\(Z_{hf}=Z_s/(2\pi a)\)</span>. See
+<a class="reference external" href="https://doi.org/10.1109/TEMC.2006.888185">Tesche</a>. The model reaches the exact DC and
+strong-skin asymptotes and is smooth and inexpensive.</p>
+<p>The exact cylindrical conductor solution is Schelkunoff’s Bessel-function field theory;
+see the <a class="reference external" href="https://doi.org/10.1002/j.1538-7305.1934.tb00679.x">original paper</a> and
+<a class="reference external" href="https://www.worldradiohistory.com/Archive-Bell-System-Technical-Journal/30s/Bell-1934d.o.pdf">open Bell System scan</a>.
+Tesche is an interpolation between limiting circuits, not that exact intermediate
+solution.</p>
+<p>For a homogeneous coax below higher-mode cutoff, the dominant mode is TEM: there is no
+microstrip-like geometric/modal dispersion. Dielectric and conductor dispersion remain.
+ParamRF’s stated estimate</p>
+<div class="math notranslate nohighlight">
+\[f_c\approx\frac{c}{\pi(a+b)\sqrt{\varepsilon_r\mu_r}}\]</div>
+<p>is about 33 GHz for the representative 0.9/2.95 mm, <span class="math notranslate nohighlight">\(\varepsilon_r=2.25\)</span> cable, safely
+above 500 MHz. This conclusion is geometry-specific but decisive for that geometry.</p>
+</section>
+<section id="tesche-error-against-exact-schelkunoff-in-the-installed-reference">
+<h3>Tesche error against exact Schelkunoff in the installed reference<a class="headerlink" href="#tesche-error-against-exact-schelkunoff-in-the-installed-reference" title="Link to this heading"></a></h3>
+<p><strong>Computed.</strong> The installed scikit-rf 2.1.0 includes both <code class="docutils literal notranslate"><span class="pre">tesche</span></code> and
+<code class="docutils literal notranslate"><span class="pre">schelkunoff</span></code> conductor models. For a 0.9 mm inner diameter, 2.95 mm shield inner
+diameter, copper, <span class="math notranslate nohighlight">\(\varepsilon_r=2.25\)</span>, and <span class="math notranslate nohighlight">\(\tan\delta=10^{-3}\)</span>, ParamRF agrees with
+scikit-rf’s independent Tesche implementation to numerical precision. Relative to
+scikit-rf’s Schelkunoff option, ParamRF’s attenuation is:</p>
+<p>| Frequency | Tesche attenuation error | <span class="math notranslate nohighlight">\(|Z_c|\)</span> implication |
+|—:|—:|—:|
+| 10 MHz | −6.97% | about 0.09% complex-impedance difference |
+| 100 MHz | −2.30% | about 0.01% |
+| 500 MHz | −0.93% | about 0.002% |</p>
+<p>The versioned
+<a class="reference external" href="https://scikit-rf.readthedocs.io/en/v2.1.0/_modules/skrf/media/coaxial.html">scikit-rf 2.1.0 coaxial source</a>
+is the source relevant to these numbers. The upstream <code class="docutils literal notranslate"><span class="pre">master</span></code> source visible during this
+audit exposes a different resistance-only interpolation, illustrating why “matches
+scikit-rf” must always name the version and model.</p>
+</section>
+<section id="remaining-coax-limitations">
+<h3>Remaining coax limitations<a class="headerlink" href="#remaining-coax-limitations" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>The outer shield is infinitely thick in ParamRF. Its DC resistance and internal-
+inductance transition are omitted; only its high-frequency inner-surface impedance is
+charged.</p></li>
+<li><p>Inner and outer conductors share one material and roughness law.</p></li>
+<li><p>Finite shield wall, braid coverage and transfer impedance, plating stacks, eccentricity,
+connector discontinuities, and temperature dependence are absent.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BulkConductor</span></code> supplies the semi-infinite surface impedance to Tesche. The equivalent
+circuit handles the solid inner rod’s transition, but layered or magnetic conductors
+need richer surface-impedance models.</p></li>
+</ul>
+<p><strong>Recommendation:</strong> Tesche is suitable as the fitted default across 10–500 MHz and is
+much better founded at low frequency than a bare <span class="math notranslate nohighlight">\(\sqrt f\)</span> law. For a precision cable
+loss prior, add an exact Schelkunoff formulation and separate finite inner/outer conductor
+descriptions. For braided flexible coax, a fitted uniform coax model should be treated as
+an effective propagation model, not a construction-exact one.</p>
+</section>
+</section>
+<section id="fitting-strategy-for-a-global-21-cm-instrument">
+<h2>Fitting strategy for a global 21 cm instrument<a class="headerlink" href="#fitting-strategy-for-a-global-21-cm-instrument" title="Link to this heading"></a></h2>
+<p>Global-signal calibration is unusually sensitive to structured reflection residuals.
+As one scale example—not a universal requirement—the simulation in
+<a class="reference external" href="https://arxiv.org/abs/2405.17742">Sun et al., <em>Calibration Error in 21-centimeter Global Spectrum Experiments</em></a>
+found that reflection-coefficient magnitude errors of order <span class="math notranslate nohighlight">\(10^{-3}\)</span> and sub-degree
+phase errors could generate tens to hundreds of millikelvin of recovered-spectrum error
+in their setup. This is why “only 0.17% in effective permittivity” cannot establish
+negligibility by itself.</p>
+<p>A defensible fitting programme is:</p>
+<ol class="arabic simple">
+<li><p><strong>Fix or tightly constrain measured geometry:</strong> length, <span class="math notranslate nohighlight">\(W\)</span>, <span class="math notranslate nohighlight">\(h\)</span>, and <span class="math notranslate nohighlight">\(t\)</span>.
+Use Hammerstad–Jensen and finite <code class="docutils literal notranslate"><span class="pre">t</span></code>.</p></li>
+<li><p><strong>Use a causal dielectric prior:</strong> begin with Djordjevic–Sarkar; add only enough Debye
+poles to remove repeatable multi-length residuals.</p></li>
+<li><p><strong>Fit conductor scale with physical priors:</strong> resistivity and roughness should not be
+allowed to compensate freely for dielectric loss or connector loss. Include
+temperature information where available.</p></li>
+<li><p><strong>Keep K–J enabled:</strong> its effect is small for ordinary thin substrates, but keeping it
+avoids a preventable phase bias and costs no additional fit parameters unless a custom
+scale is introduced.</p></li>
+<li><p><strong>Model launches/connectors separately:</strong> use short fixtures or explicit networks.</p></li>
+<li><p><strong>Fit at least two, preferably three, line lengths from the same construction.</strong> Length
+differences identify uniform propagation; common residuals identify launches. A
+single matched <span class="math notranslate nohighlight">\(S_{21}\)</span> trace cannot reliably separate <span class="math notranslate nohighlight">\(R\)</span>, dielectric loss, leakage,
+length, and mismatch.</p></li>
+<li><p><strong>Validate outside the fit partition:</strong> hold out frequencies, temperatures, line
+lengths, or reflection standards. Evaluate residual complex <span class="math notranslate nohighlight">\(S\)</span>-parameters and the
+propagated sky-temperature bias, not only RLGC parameter plausibility.</p></li>
+<li><p><strong>Carry model discrepancy:</strong> for thin copper near the band edge, include uncertainty
+for the resistance-transition shape and conductor reactance until validated against
+coupons or a field solver.</p></li>
+</ol>
+<section id="identifiability-cautions">
+<h3>Identifiability cautions<a class="headerlink" href="#identifiability-cautions" title="Link to this heading"></a></h3>
+<p>In a nearly matched line, conductor loss, dielectric loss, static leakage, and connector
+loss can all reduce <span class="math notranslate nohighlight">\(|S_{21}|\)</span>. They become distinguishable through their frequency law,
+phase, mismatch response, temperature dependence, and scaling with length. A more
+expressive model helps only when the data contain those distinctions; otherwise it turns
+physical parameters into interchangeable nuisance parameters.</p>
+<p>Useful hierarchy:</p>
+<ol class="arabic simple">
+<li><p>known geometry and length;</p></li>
+<li><p>compact causal dielectric plus copper resistivity;</p></li>
+<li><p>roughness or one conductor-discrepancy parameter;</p></li>
+<li><p>explicit launch networks;</p></li>
+<li><p>additional Debye poles or transition-shape freedom only after multi-length residuals
+demand them.</p></li>
+</ol>
+</section>
+</section>
+<section id="updated-recommendations-ranked">
+<h2>Updated recommendations, ranked<a class="headerlink" href="#updated-recommendations-ranked" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Adopt H–J + K–J + finite <code class="docutils literal notranslate"><span class="pre">t</span></code> + a causal dielectric as the precision microstrip
+baseline.</strong> The previous recommendation to first add a DC floor has been satisfied.</p></li>
+<li><p><strong>Describe the new conductor treatment precisely:</strong> asymptotically physical,
+differentiable, and fit-friendly; not an exact finite-thickness solution.</p></li>
+<li><p><strong>Prioritise validation of the transition over further modal-dispersion refinement.</strong>
+For ordinary substrates, K–J is already small below 500 MHz, while 18 µm copper can
+receive a 26% resistance correction at 10 MHz and the remaining transition-shape
+uncertainty is measurable.</p></li>
+<li><p><strong>Prioritise real laminate characterization.</strong> In the representative FR-4-like
+example, material dispersion produces degrees per metre of phase shift and exceeds
+K–J modal dispersion through much of the band.</p></li>
+<li><p><strong>Add exact finite-thickness conductor physics when a forward-model precision claim is
+required:</strong> at minimum a complex finite-slab transition as an alternative strategy,
+ideally a validated microstrip conductor formulation including edge and return
+currents.</p></li>
+<li><p><strong>Add exact Schelkunoff and finite/separate shield conductors for coax accuracy.</strong>
+Tesche remains an excellent fitting default, but its attenuation error is about 7% at
+10 MHz for the representative RG-58-like geometry.</p></li>
+<li><p><strong>Base “negligible” claims on propagated residuals.</strong> For a specified line, compute
+<span class="math notranslate nohighlight">\(\Delta\beta L\)</span>, <span class="math notranslate nohighlight">\(\Delta Z_c\)</span>, the complete mismatched <span class="math notranslate nohighlight">\(S\)</span>-parameter residual, and
+finally the inferred global-spectrum bias. Without the geometry, length, reflection
+coefficients, and error allocation, a definitive experiment-level negligibility claim
+is impossible.</p></li>
+</ol>
+</section>
+<section id="source-and-implementation-index">
+<h2>Source and implementation index<a class="headerlink" href="#source-and-implementation-index" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>ParamRF implementation:
+<a class="reference download internal" download="" href="../_downloads/7b2e9c35b2f6819fb5ca4258f66cf2c0/coaxial.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">pmrf/models/components/lines/coaxial.py</span></code></span></a>,
+<a class="reference download internal" download="" href="../_downloads/faf546a1584b078b1d5107fd01ecf8ba/microstrip.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">pmrf/models/components/lines/microstrip.py</span></code></span></a>,
+<a class="reference download internal" download="" href="../_downloads/d1b768e3597394c3c6c1ab992ee67c8d/planar.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">pmrf/models/components/lines/planar.py</span></code></span></a>,
+<a class="reference download internal" download="" href="../_downloads/914a8e3d7bf343068df107c540b94a45/conductor.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">pmrf/materials/conductor.py</span></code></span></a>, and
+<a class="reference download internal" download="" href="../_downloads/ab2df04fbc717c1b0c9545002722cc44/dielectric.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">pmrf/materials/dielectric.py</span></code></span></a>.</p></li>
+<li><p>ParamRF validation:
+<a class="reference download internal" download="" href="../_downloads/5202b396e69086af5b7ffe601ae4cb89/test_lines.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">tests/test_models/test_lines.py</span></code></span></a> and
+<a class="reference download internal" download="" href="../_downloads/cc740c355612a7a9f026471b8c79c8f7/test_lines_skrf_matrix.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">tests/test_models/test_lines_skrf_matrix.py</span></code></span></a>.</p></li>
+<li><p>Hammerstad &amp; Jensen, 1980:
+<a class="reference external" href="https://doi.org/10.1109/MWSYM.1980.1124303">https://doi.org/10.1109/MWSYM.1980.1124303</a>.</p></li>
+<li><p>Kirschning &amp; Jansen, 1982:
+<a class="reference external" href="https://doi.org/10.1049/el:19820186">https://doi.org/10.1049/el:19820186</a>.</p></li>
+<li><p>Jansen &amp; Kirschning, 1983, <em>Arguments and an accurate model for the
+power-current formulation of microstrip characteristic impedance</em>, AEU 37(3/4),
+108–112: <a class="reference external" href="https://jglobal.jst.go.jp/en/detail?JGLOBAL_ID=200902061502838645">bibliographic record</a>.</p></li>
+<li><p>Pucel, Massé &amp; Hartwig, 1968:
+<a class="reference external" href="https://doi.org/10.1109/TMTT.1968.1126691">https://doi.org/10.1109/TMTT.1968.1126691</a>.</p></li>
+<li><p>Djordjevic et al., 2001:
+<a class="reference external" href="https://doi.org/10.1109/15.974647">https://doi.org/10.1109/15.974647</a>.</p></li>
+<li><p>Tesche, 2007:
+<a class="reference external" href="https://doi.org/10.1109/TEMC.2006.888185">https://doi.org/10.1109/TEMC.2006.888185</a>.</p></li>
+<li><p>Schelkunoff, 1934:
+<a class="reference external" href="https://doi.org/10.1002/j.1538-7305.1934.tb00679.x">https://doi.org/10.1002/j.1538-7305.1934.tb00679.x</a>.</p></li>
+<li><p>NIST planar characteristic impedance:
+<a class="reference external" href="https://www.nist.gov/publications/causal-characteristic-impedance-planar-transmission-lines">https://www.nist.gov/publications/causal-characteristic-impedance-planar-transmission-lines</a>.</p></li>
+<li><p>Official scikit-rf sources:
+<a class="reference external" href="https://github.com/scikit-rf/scikit-rf/blob/master/skrf/media/mline.py">https://github.com/scikit-rf/scikit-rf/blob/master/skrf/media/mline.py</a> and
+<a class="reference external" href="https://scikit-rf.readthedocs.io/en/v2.1.0/_modules/skrf/media/coaxial.html">https://scikit-rf.readthedocs.io/en/v2.1.0/_modules/skrf/media/coaxial.html</a>.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

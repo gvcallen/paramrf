@@ -1,0 +1,12 @@
+
+
+
+AbstractConductor
+=================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: AbstractConductor
+   :members:
+   :show-inheritance:
+   :inherited-members:

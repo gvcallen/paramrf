@@ -1,0 +1,201 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>complex_2_radian &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="complex_2_degree" href="pmrf.math.complex_2_degree.html" />
+    <link rel="prev" title="complex_2_db10" href="pmrf.math.complex_2_db10.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.aggregations.html">aggregations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.bessel.html">bessel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.losses.html">losses</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.i0_over_i1.html">i0_over_i1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.k0_over_k1.html">k0_over_k1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_magnitude.html">complex_2_magnitude</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_db.html">complex_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_db10.html">complex_2_db10</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">complex_2_radian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_degree.html">complex_2_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_quadrature.html">complex_2_quadrature</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_reim.html">complex_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_components.html">complex_components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.magnitude_2_db.html">magnitude_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.mag_2_db.html">mag_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.mag_2_db10.html">mag_2_db10</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_magnitude.html">db_2_magnitude</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_mag.html">db_2_mag</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db10_2_mag.html">db10_2_mag</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.magdeg_2_reim.html">magdeg_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.dbdeg_2_reim.html">dbdeg_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_np.html">db_2_np</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.np_2_db.html">np_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.radian_2_degree.html">radian_2_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.degree_2_radian.html">degree_2_radian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.feet_2_meter.html">feet_2_meter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.meter_2_feet.html">meter_2_feet</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_per_100feet_2_db_per_100meter.html">db_per_100feet_2_db_per_100meter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.polar_2_rect.html">polar_2_rect</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.rect_2_polar.html">rect_2_polar</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.sqrt_phase_unwrap.html">sqrt_phase_unwrap</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complexify.html">complexify</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+      <li class="breadcrumb-item active">complex_2_radian</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.math.complex_2_radian.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="complex-2-radian">
+<h1>complex_2_radian<a class="headerlink" href="#complex-2-radian" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pmrf.math.complex_2_radian">
+<span class="sig-prename descclassname"><span class="pre">pmrf.math.</span></span><span class="sig-name descname"><span class="pre">complex_2_radian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.math.complex_2_radian" title="Link to this definition"></a></dt>
+<dd><p>Return the angle complex argument in radian.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>z</strong> (<em>number</em><em> or </em><em>array_like</em>) – A complex number or sequence of complex numbers.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ang_rad</strong> – The counterclockwise angle from the positive real axis on the complex
+plane in the range <code class="docutils literal notranslate"><span class="pre">(-pi,</span> <span class="pre">pi]</span></code>, with dtype as numpy.float64.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray or scalar</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.math.complex_2_db10.html" class="btn btn-neutral float-left" title="complex_2_db10" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.math.complex_2_degree.html" class="btn btn-neutral float-right" title="complex_2_degree" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

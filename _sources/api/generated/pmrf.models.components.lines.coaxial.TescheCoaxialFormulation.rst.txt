@@ -1,0 +1,12 @@
+
+
+
+TescheCoaxialFormulation
+========================
+
+.. currentmodule:: pmrf.models.components.lines.coaxial
+
+.. autoclass:: TescheCoaxialFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

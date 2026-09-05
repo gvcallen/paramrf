@@ -1,0 +1,12 @@
+
+
+
+AbstractNoiseModel
+==================
+
+.. currentmodule:: pmrf.noise_models
+
+.. autoclass:: AbstractNoiseModel
+   :members:
+   :show-inheritance:
+   :inherited-members:

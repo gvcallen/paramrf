@@ -1,0 +1,450 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fitting a Cable from 1 to 10 GHz (Part 1) &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Fitting on Chip Inductors (1-40 GHz)" href="2_chip_inductor_fitting.html" />
+    <link rel="prev" title="Tutorials" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Fitting a Cable from 1 to 10 GHz (Part 1)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Setting-up-the-environment">1. Setting up the environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-Preparing-the-data">2. Preparing the data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Selecting-a-model">3. Selecting a model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Specifying-parameters">4. Specifying parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-Adding-parasitics">5. Adding parasitics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#6.-Final-optimization">6. Final optimization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="2_chip_inductor_fitting.html">Fitting on Chip Inductors (1-40 GHz)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">Fitting a Cable from 1 to 10 GHz (Part 1)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/tutorials/1_cable_fitting.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Fitting-a-Cable-from-1-to-10-GHz-(Part-1)">
+<h1>Fitting a Cable from 1 to 10 GHz (Part 1)<a class="headerlink" href="#Fitting-a-Cable-from-1-to-10-GHz-(Part-1)" title="Link to this heading"></a></h1>
+<p>This tutorial demonstrates an end-to-end workflow for fitting a physically-motivated model to a high-frequency (1 to 10 GHz) measurement of a 1.5 ft <code class="docutils literal notranslate"><span class="pre">CBN-1.5FT-SMSM</span></code> cable from Mini-Circuits. The cable’s datasheet is available at <code class="docutils literal notranslate"><span class="pre">https://www.minicircuits.com/pdfs/CBN-xx-SMSM+.pdf</span></code>.</p>
+<p>We will start by fitting an ideal transmission line model, and then add losses and parasitics to cater for effects such as attenuation and connector mismatch. The tutorial can be followed either directly in the documentation, or as port of a Jupyter notebook under docs/tutorials.</p>
+<p>Note that this is part 1 of a two-part tutorial. Part 2 (Bayesian inference) will be added soon.</p>
+<section id="1.-Setting-up-the-environment">
+<h2>1. Setting up the environment<a class="headerlink" href="#1.-Setting-up-the-environment" title="Link to this heading"></a></h2>
+<p>We only need a few packages for this tutorial. Make sure the following all import correctly:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>     <span class="c1"># for plotting</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">skrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rf</span>                   <span class="c1"># for touchstone reading</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>                  <span class="c1"># ParamRF</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="2.-Preparing-the-data">
+<h2>2. Preparing the data<a class="headerlink" href="#2.-Preparing-the-data" title="Link to this heading"></a></h2>
+<p>We begin by loading the measurement data. For this tutorial, we will download a sample <code class="docutils literal notranslate"><span class="pre">.s2p</span></code> file directly from the ParamRF repository and load it into a <code class="docutils literal notranslate"><span class="pre">scikit-rf</span></code> Network. The original file as available at <a class="reference external" href="https://www.minicircuits.com/WebStore/dashboard.html?model=CBN-1.5FT-SMSM%2B">https://www.minicircuits.com/WebStore/dashboard.html?model=CBN-1.5FT-SMSM%2B</a></p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">urllib.request</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">skrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rf</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+
+<span class="n">base_url</span> <span class="o">=</span> <span class="s2">"https://raw.githubusercontent.com/gvcallen/paramrf/main/docs/tutorials/data/"</span>
+<span class="n">file_name</span> <span class="o">=</span> <span class="s2">"CBN-1.5FT-SMSM.s2p"</span>
+<span class="n">full_url</span> <span class="o">=</span> <span class="n">base_url</span> <span class="o">+</span> <span class="n">file_name</span>
+<span class="n">local_dir</span> <span class="o">=</span> <span class="s2">"data"</span>
+<span class="n">local_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">local_dir</span><span class="p">,</span> <span class="n">file_name</span><span class="p">)</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">local_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">local_filename</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Downloading </span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">local_dir</span><span class="si">}</span><span class="s2">/..."</span><span class="p">)</span>
+    <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlretrieve</span><span class="p">(</span><span class="n">full_url</span><span class="p">,</span> <span class="n">local_filename</span><span class="p">)</span>
+
+<span class="c1"># Load the measured data into skrf using the new local path</span>
+<span class="n">measured</span> <span class="o">=</span> <span class="n">rf</span><span class="o">.</span><span class="n">Network</span><span class="p">(</span><span class="n">local_filename</span><span class="p">,</span> <span class="n">f_unit</span><span class="o">=</span><span class="s1">'GHz'</span><span class="p">)</span>
+<span class="n">measured</span> <span class="o">=</span> <span class="n">measured</span><span class="p">[</span><span class="n">measured</span><span class="o">.</span><span class="n">frequency</span><span class="o">.</span><span class="n">f_scaled</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">]</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="n">measured</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_1_cable_fitting_5_0.png" src="../_images/tutorials_1_cable_fitting_5_0.png" />
+</div>
+</div>
+</section>
+<section id="3.-Selecting-a-model">
+<h2>3. Selecting a model<a class="headerlink" href="#3.-Selecting-a-model" title="Link to this heading"></a></h2>
+<p>ParamRF provides a few transmission line models, such as <code class="docutils literal notranslate"><span class="pre">PhysicalLine</span></code>, <code class="docutils literal notranslate"><span class="pre">CoaxialLine</span></code> and <code class="docutils literal notranslate"><span class="pre">DatasheetLine</span></code>. Looking at the datasheet, we see no mention of physical parameters like loss tangent, conductor loss or detailed geometry dimensions. However, there is a velocity factor, as well as loss factors <code class="docutils literal notranslate"><span class="pre">k1</span></code> and <code class="docutils literal notranslate"><span class="pre">k2</span></code>. This is just what <code class="docutils literal notranslate"><span class="pre">DatasheetLine</span></code> was meant for.</p>
+<p>Let’s try fitting the model with its expected length and default parameters as a quick check. Note that if we construct a default model or pass in float values, all parameters in the model are seen as fixed (non-tunable). For demonstration purposes, if we want to optimize the default model but don’t have an initial guess, we can set all the parameters to be free (tunable) using <code class="docutils literal notranslate"><span class="pre">pmrf.as_free</span></code>.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">default_model</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">DatasheetLine</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">feet_2_meter</span><span class="p">(</span><span class="mf">1.5</span><span class="p">))</span>
+
+<span class="c1"># Free all parameters</span>
+<span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">default_model</span><span class="o">.</span><span class="n">named_params</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+    <span class="n">default_model</span> <span class="o">=</span> <span class="n">default_model</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">as_free</span><span class="p">)</span>
+
+<span class="c1"># We could also have used a map</span>
+<span class="c1"># default_model = default_model.map(prf.as_free, predicate=prf.is_param)</span>
+
+<span class="n">default_results</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">fitting</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">default_model</span><span class="p">,</span> <span class="n">measured</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">ax1</span><span class="p">,</span> <span class="n">ax2</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="n">default_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax1</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">default_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax2</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "e1506dadd4d1482f94bbffebaa53f80f", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+/home/gvcallen/Masters/Python/paramrf/pmrf/optimize/base.py:204: UserWarning: Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.
+  warnings.warn(&#34;Optimization failed to converge. Trying increasing the maximum number of iterations or loosening the solver tolerances.&#34;)
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_1_cable_fitting_8_2.png" src="../_images/tutorials_1_cable_fitting_8_2.png" />
+</div>
+</div>
+<p>…it failed to converge, though the results are still not horrible. However, we can definitely do better by providing the optimizer with a better starting point!</p>
+</section>
+<section id="4.-Specifying-parameters">
+<h2>4. Specifying parameters<a class="headerlink" href="#4.-Specifying-parameters" title="Link to this heading"></a></h2>
+<p>In ParamRF, parameter bounds and scales can be specified using methods such as <code class="docutils literal notranslate"><span class="pre">pmrf.Bounded</span></code> or <code class="docutils literal notranslate"><span class="pre">pmrf.Fixed</span></code> (available in <code class="docutils literal notranslate"><span class="pre">pmrf.parameters</span></code>). In this example, we use <code class="docutils literal notranslate"><span class="pre">pmrf.Bounded</span></code>.</p>
+<p>Looking at the datasheet, we find the cable is 50 ohm with a velocity factor <code class="docutils literal notranslate"><span class="pre">vf</span></code> of 0.74, skin effect loss <code class="docutils literal notranslate"><span class="pre">k1</span></code> of around 1.137 dbB/100m, and dielectric loss <code class="docutils literal notranslate"><span class="pre">k2</span></code> of around 0.00253 dB/100m. We use this information directly to specify initial parameters for <code class="docutils literal notranslate"><span class="pre">DatasheetLine</span></code>. We fix the velocity factory (dielectric constant), since there is a known correlation between it and the cable’s length (explored further in part 2 of this tutorial!).</p>
+<p>We fit the model using both the gradient-based <code class="docutils literal notranslate"><span class="pre">L-BFGS-B</span></code> as well as the robust <code class="docutils literal notranslate"><span class="pre">Nelder-Mead</span></code> (which can work better when you are unsure of your initial parameters).</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[19]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScipyMinimize</span>
+
+<span class="c1"># Specify model parameters. We give the model a name to easily reference its parameters</span>
+<span class="n">baseline_model</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">DatasheetLine</span><span class="p">(</span>
+    <span class="n">length</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">feet_2_meter</span><span class="p">(</span><span class="mf">1.4</span><span class="p">),</span> <span class="n">prf</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">feet_2_meter</span><span class="p">(</span><span class="mf">1.6</span><span class="p">)),</span>
+    <span class="n">zn</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">45.0</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">),</span>
+    <span class="n">vf</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">0.74</span><span class="p">),</span>
+    <span class="n">k1</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">),</span>
+    <span class="n">k2</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">'line'</span>
+<span class="p">)</span>
+<span class="c1"># Fit the model</span>
+<span class="n">baseline_lbfgs_results</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">fitting</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">baseline_model</span><span class="p">,</span> <span class="n">measured</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="n">ScipyMinimize</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">'L-BFGS-B'</span><span class="p">))</span>
+<span class="n">baseline_nelder_results</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">fitting</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">baseline_model</span><span class="p">,</span> <span class="n">measured</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="n">ScipyMinimize</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">'Nelder-Mead'</span><span class="p">))</span>
+
+<span class="c1"># Plot the results. We pass a separate frequency to plot the model at a higher resolution</span>
+<span class="n">freq_plot</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span>
+    <span class="n">measured</span><span class="o">.</span><span class="n">frequency</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="n">measured</span><span class="o">.</span><span class="n">frequency</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+    <span class="mi">1001</span><span class="p">,</span>
+    <span class="s1">'GHz'</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">baseline_lbfgs_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">model_frequency</span><span class="o">=</span><span class="n">freq_plot</span><span class="p">)</span>
+<span class="n">baseline_lbfgs_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_frequency</span><span class="o">=</span><span class="n">freq_plot</span><span class="p">)</span>
+<span class="n">baseline_nelder_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">model_frequency</span><span class="o">=</span><span class="n">freq_plot</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">baseline_nelder_results</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">model_frequency</span><span class="o">=</span><span class="n">freq_plot</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'L-BFGS S11 [dB]'</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'L-BFGS S21 [dB]'</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'Nelder-Mead S11 [dB]'</span><span class="p">)</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'Nelder-Mead S21 [dB]'</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "7cc1b48b550e49d2b4e24931a2251f3a", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "f815f5ff31da4feb9ea16b7eab163721", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+/home/gvcallen/Masters/Python/.venv/lib/python3.12/site-packages/jaxopt/_src/scipy_wrappers.py:343: RuntimeWarning: Method Nelder-Mead does not use gradient information (jac).
+  res = osp.optimize.minimize(scipy_fun, jnp_to_onp(init_params, self.dtype),
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_1_cable_fitting_12_3.png" src="../_images/tutorials_1_cable_fitting_12_3.png" />
+</div>
+</div>
+<p>While Nelder-Mead appears to fit the S11 better, L-BFGS-B achieves a better S21 fit. This can easily be affected by the type of loss function, parameter starting point, the specific model, as well as many other factors, so it is important to experiment. However, do note that L-BFGS-B is generally much faster since it obtained gradients directly from JAX, which may be more important for large models.</p>
+</section>
+<section id="5.-Adding-parasitics">
+<h2>5. Adding parasitics<a class="headerlink" href="#5.-Adding-parasitics" title="Link to this heading"></a></h2>
+<p>Now that we know that we are in the right ballpark with our initial parameters and Nelder-Mead is working for us, it is clear that S11 drifts over frequency. This can be explained by parasitic capacitance in the cable connectors. We should model this!</p>
+<p>To polish this tutorial off, we therefore add two shunt capacitors to both sides of the cable model using the <code class="docutils literal notranslate"><span class="pre">**</span></code> operator.</p>
+<p>We print out the composite model before continuing to view its parameters.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Define a parasitic connector capacitor</span>
+<span class="c1"># We initialize it at 0.1 pF and constrain it to physical (positive) values</span>
+<span class="c1"># We give the parameters themselves names to reference them directly</span>
+<span class="n">shunt_cap1</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">ShuntCapacitor</span><span class="p">(</span>
+    <span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'C1'</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">shunt_cap2</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">ShuntCapacitor</span><span class="p">(</span>
+    <span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'C2'</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># Create the composite model by cascading Cap -&gt; Coax -&gt; Cap</span>
+<span class="n">composite_model</span> <span class="o">=</span> <span class="n">shunt_cap1</span> <span class="o">**</span> <span class="n">baseline_model</span> <span class="o">**</span> <span class="n">shunt_cap2</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Composite Model:"</span><span class="p">)</span>
+<span class="n">composite_model</span><span class="o">.</span><span class="n">named_params</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Composite Model:
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+{&#39;C1&#39;: 1.0000000000000002e-13,
+ &#39;line.length&#39;: 0.45720000000000005,
+ &#39;line.zn&#39;: 50.0,
+ &#39;line.vf&#39;: 0.7399999999999999,
+ &#39;line.k1&#39;: 1.15,
+ &#39;line.k2&#39;: 0.0025000000000000014,
+ &#39;C2&#39;: 1.0000000000000002e-13}
+</pre></div></div>
+</div>
+<p>Since we know that the capacitors should have similar values, we should tie them together using <code class="docutils literal notranslate"><span class="pre">prf.models.Model.tied</span></code> to eliminate a degree of freedom:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[21]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">final_model</span> <span class="o">=</span> <span class="n">composite_model</span><span class="o">.</span><span class="n">tied</span><span class="p">(</span>
+    <span class="s1">'C2'</span><span class="p">,</span>
+    <span class="s1">'C1'</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="6.-Final-optimization">
+<h2>6. Final optimization<a class="headerlink" href="#6.-Final-optimization" title="Link to this heading"></a></h2>
+<p>Finally, we optimize the composite model and print out its best parameters. The model captures the high-frequency drift extremely well, while maintaining reasonable parameter values.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[22]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Fit the composite model</span>
+<span class="n">results_composite</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">fitting</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">final_model</span><span class="p">,</span> <span class="n">measured</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="n">ScipyMinimize</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">'Nelder-Mead'</span><span class="p">))</span>
+<span class="n">composite_fitted</span> <span class="o">=</span> <span class="n">results_composite</span><span class="o">.</span><span class="n">model</span>
+
+<span class="c1"># Plot the final comparison</span>
+<span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">ax1</span><span class="p">,</span> <span class="n">ax2</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+<span class="n">measured</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Measured S11'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'k'</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">baseline_nelder_results</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">freq_plot</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Baseline S11'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'gray'</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">':'</span><span class="p">)</span>
+<span class="n">composite_fitted</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">freq_plot</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Composite S11 (with Parasitics)'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'b'</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'--'</span><span class="p">)</span>
+
+<span class="n">measured</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax2</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Measured S21'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'k'</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">baseline_nelder_results</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">freq_plot</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax2</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Baseline S21'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'gray'</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">':'</span><span class="p">)</span>
+<span class="n">composite_fitted</span><span class="o">.</span><span class="n">plot_s_db</span><span class="p">(</span><span class="n">freq_plot</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax2</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'Composite S21 (with Parasitics)'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'b'</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'--'</span><span class="p">)</span>
+
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'Return Loss: Baseline vs Composite'</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">'Insertion Loss: Baseline vs Composite'</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1"># Inspect the final resolved parameters</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Final Model:"</span><span class="p">)</span>
+<span class="n">composite_fitted</span><span class="o">.</span><span class="n">named_params</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "046ce5c7372a43d89fe7b2cd96f06717", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_1_cable_fitting_21_1.png" src="../_images/tutorials_1_cable_fitting_21_1.png" />
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Final Model:
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[22]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+{&#39;C1&#39;: 1.8444119268717662e-14,
+ &#39;line.length&#39;: 0.44353803945821296,
+ &#39;line.zn&#39;: 50.707883195249934,
+ &#39;line.vf&#39;: 0.7399999999999999,
+ &#39;line.k1&#39;: 1.3,
+ &#39;line.k2&#39;: 0.0002131683427168843}
+</pre></div></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="2_chip_inductor_fitting.html" class="btn btn-neutral float-right" title="Fitting on Chip Inductors (1-40 GHz)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

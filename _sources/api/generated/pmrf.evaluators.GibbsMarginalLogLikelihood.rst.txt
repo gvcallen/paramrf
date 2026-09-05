@@ -1,0 +1,12 @@
+
+
+
+GibbsMarginalLogLikelihood
+==========================
+
+.. currentmodule:: pmrf.evaluators
+
+.. autoclass:: GibbsMarginalLogLikelihood
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+RootSumSquareSlabSurfaceImpedance
+=================================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: RootSumSquareSlabSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

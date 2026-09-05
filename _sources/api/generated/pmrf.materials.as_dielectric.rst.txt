@@ -1,0 +1,9 @@
+
+
+
+as_dielectric
+=============
+
+.. currentmodule:: pmrf.materials
+
+.. autofunction:: as_dielectric

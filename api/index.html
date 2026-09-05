@@ -1,0 +1,375 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Model (pmrf.Model)" href="generated/pmrf.Model.html" />
+    <link rel="prev" title="Model Hierarchy" href="../models/index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#core-primitives">Core Primitives</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Model.html"><strong>Model</strong> (pmrf.Model)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Module.html"><strong>Module</strong> (pmrf.Module)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Frequency.html"><strong>Frequency</strong> (pmrf.Frequency)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Param.html"><strong>Param</strong> (pmrf.Param)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Unconstrained.html"><strong>Unconstrained</strong> (pmrf.Unconstrained)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Fixed.html"><strong>Fixed</strong> (pmrf.Fixed)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Bounded.html"><strong>Bounded</strong> (pmrf.Bounded)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Constrained.html"><strong>Constrained</strong> (pmrf.Constrained)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Random.html"><strong>Random</strong> (pmrf.Random)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#main-modules">Main Modules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#other-modules">Other Modules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#utilities">Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.NetworkCollection.html"><strong>NetworkCollection</strong> (pmrf.NetworkCollection)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Partial.html"><strong>Partial</strong> (pmrf.Partial)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Attrgetter.html"><strong>Attrgetter</strong> (pmrf.Attrgetter)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.Pathgetter.html"><strong>Pathgetter</strong> (pmrf.Pathgetter)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.InitVar.html"><strong>InitVar</strong> (pmrf.InitVar)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.is_param.html"><strong>is_param</strong> (pmrf.is_param)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.as_param.html"><strong>as_param</strong> (pmrf.as_param)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.param.html"><strong>param</strong> (pmrf.param)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.partition.html"><strong>partition</strong> (pmrf.partition)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.combine.html"><strong>combine</strong> (pmrf.combine)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.batch_axes.html"><strong>batch_axes</strong> (pmrf.batch_axes)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.batch_mask.html"><strong>batch_mask</strong> (pmrf.batch_mask)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.field.html"><strong>field</strong> (pmrf.field)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.load.html"><strong>load</strong> (pmrf.load)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.save.html"><strong>save</strong> (pmrf.save)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.derivative.html"><strong>derivative</strong> (pmrf.derivative)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.sweep.html"><strong>sweep</strong> (pmrf.sweep)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.freeze.html"><strong>freeze</strong> (pmrf.freeze)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.unfreeze.html"><strong>unfreeze</strong> (pmrf.unfreeze)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.replace.html"><strong>replace</strong> (pmrf.replace)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.unwrap.html"><strong>unwrap</strong> (pmrf.unwrap)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/pmrf.unwrap_self.html"><strong>unwrap_self</strong> (pmrf.unwrap_self)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api">
+<h1>API<a class="headerlink" href="#api" title="Link to this heading"></a></h1>
+<p>This page contains the main API reference.</p>
+<section id="core-primitives">
+<h2>Core Primitives<a class="headerlink" href="#core-primitives" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a>(*[, name, metadata])</p></td>
+<td><p>Base class for RF models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Module.html#pmrf.Module" title="pmrf.Module"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Module</span></code></a>(*[, name, metadata])</p></td>
+<td><p>Base class for parameter-aware objects in ParamRF.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Frequency</span></code></a>([start, stop, npoints, unit])</p></td>
+<td><p>A frequency axis used to evaluate models over.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a>(*[, value, distribution, ...])</p></td>
+<td><p>The canonical parameter container for ParamRF.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Unconstrained.html#pmrf.Unconstrained" title="pmrf.Unconstrained"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Unconstrained</span></code></a>(value, *[, fixed, scale, ...])</p></td>
+<td><p>Create an unconstrained free parameter.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Fixed.html#pmrf.Fixed" title="pmrf.Fixed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Fixed</span></code></a>(value, *[, name, scale, metadata])</p></td>
+<td><p>Create a fixed parameter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Bounded.html#pmrf.Bounded" title="pmrf.Bounded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Bounded</span></code></a>(lower, upper, *[, value, ...])</p></td>
+<td><p>Create a free parameter constrained within a specific interval.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Constrained.html#pmrf.Constrained" title="pmrf.Constrained"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Constrained</span></code></a>(constraint, value, *[, ...])</p></td>
+<td><p>Create a free parameter constrained to a specific domain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Random.html#pmrf.Random" title="pmrf.Random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Random</span></code></a>(distribution, *[, constraint, ...])</p></td>
+<td><p>Create a free parameter with an associated probability distribution.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="main-modules">
+<h2>Main Modules<a class="headerlink" href="#main-modules" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.models.html#module-pmrf.models" title="pmrf.models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models</span></code></a></p></td>
+<td><p>RF models, components, surrogates, and adapters, and their solvers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.modules.html#module-pmrf.modules" title="pmrf.modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.modules</span></code></a></p></td>
+<td><p>Parameter-aware wrappers for ParamRF modules.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.materials.html#module-pmrf.materials" title="pmrf.materials"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.materials</span></code></a></p></td>
+<td><p>Frequency-dependent materials.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.optimize.html#module-pmrf.optimize" title="pmrf.optimize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.optimize</span></code></a></p></td>
+<td><p>Non-linear optimization of RF models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.infer.html#module-pmrf.infer" title="pmrf.infer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.infer</span></code></a></p></td>
+<td><p>Bayesian inference of RF models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.fitting.html#module-pmrf.fitting" title="pmrf.fitting"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.fitting</span></code></a></p></td>
+<td><p>Higher-level fitting utilities.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="other-modules">
+<h2>Other Modules<a class="headerlink" href="#other-modules" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.constraints.html#module-pmrf.constraints" title="pmrf.constraints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.constraints</span></code></a></p></td>
+<td><p>Constraints for parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.covariance_kernels.html#module-pmrf.covariance_kernels" title="pmrf.covariance_kernels"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.covariance_kernels</span></code></a></p></td>
+<td><p>Covariance kernels for Gaussian processes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.discrepancy_models.html#module-pmrf.discrepancy_models" title="pmrf.discrepancy_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.discrepancy_models</span></code></a></p></td>
+<td><p>Discrepancy modeling between an RF model and actual data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.distributions.html#module-pmrf.distributions" title="pmrf.distributions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.distributions</span></code></a></p></td>
+<td><p>Probability distribution classes and factories.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.evaluators.html#module-pmrf.evaluators" title="pmrf.evaluators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.evaluators</span></code></a></p></td>
+<td><p>Callables that evaluate a model over frequency.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.problems.html#module-pmrf.problems" title="pmrf.problems"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.problems</span></code></a></p></td>
+<td><p>A callable to be &quot;solved&quot; (i.e. minimized or sampled).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.terms.html#module-pmrf.terms" title="pmrf.terms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.terms</span></code></a></p></td>
+<td><p>Callables that evaluate a parameter PyTree, which form the summands of a problem.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.likelihoods.html#module-pmrf.likelihoods" title="pmrf.likelihoods"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.likelihoods</span></code></a></p></td>
+<td><p>Likelihood models for statistical fitting.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.losses.html#module-pmrf.losses" title="pmrf.losses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.losses</span></code></a></p></td>
+<td><p>Loss models for optimizer fitting or generalized Bayesian inference.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.math.html#module-pmrf.math" title="pmrf.math"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.math</span></code></a></p></td>
+<td><p>Core maths functions.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.noise_models.html#module-pmrf.noise_models" title="pmrf.noise_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.noise_models</span></code></a></p></td>
+<td><p>Measurement noise models for likelihood functions.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.parameters.html#module-pmrf.parameters" title="pmrf.parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.parameters</span></code></a></p></td>
+<td><p>Parameter factories, converters, and field specifiers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.rf.html#module-pmrf.rf" title="pmrf.rf"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.rf</span></code></a></p></td>
+<td><p>Core RF conversions and system representations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.serialization.html#module-pmrf.serialization" title="pmrf.serialization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.serialization</span></code></a></p></td>
+<td><p>Model loading and saving.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.viz.html#module-pmrf.viz" title="pmrf.viz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.viz</span></code></a></p></td>
+<td><p>Plotting and vizualization.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="utilities">
+<h2>Utilities<a class="headerlink" href="#utilities" title="Link to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.NetworkCollection.html#pmrf.NetworkCollection" title="pmrf.NetworkCollection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.NetworkCollection</span></code></a>([networks, name, params])</p></td>
+<td><p>A container for a collection of scikit-rf Networks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Partial.html#pmrf.Partial" title="pmrf.Partial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Partial</span></code></a>(func, /, *args, **kwargs)</p></td>
+<td><p>(experimental) Like <cite>functools.partial</cite>, but JAX-compatible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.Attrgetter.html#pmrf.Attrgetter" title="pmrf.Attrgetter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Attrgetter</span></code></a>(*attrs)</p></td>
+<td><p>(experimental) Like <cite>operator.attrgetter</cite>, but registered as a PyTree.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.Pathgetter.html#pmrf.Pathgetter" title="pmrf.Pathgetter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.Pathgetter</span></code></a>(*paths)</p></td>
+<td><p>(experimental) Retrieves values from a PyTree given JAX tree paths.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.InitVar.html#pmrf.InitVar" title="pmrf.InitVar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.InitVar</span></code></a>(type)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.is_param.html#pmrf.is_param" title="pmrf.is_param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.is_param</span></code></a>(x)</p></td>
+<td><p>Returns if <cite>x</cite> is an instance of <a class="reference internal" href="generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.as_param.html#pmrf.as_param" title="pmrf.as_param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.as_param</span></code></a>([value, constraint, scale, ...])</p></td>
+<td><p>Coerces a value into a parameter.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.param.html#pmrf.param" title="pmrf.param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.param</span></code></a>(*, default, as_free, as_fixed, ...)</p></td>
+<td><p>A field specifier for registering parameters within a model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.partition.html#pmrf.partition" title="pmrf.partition"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.partition</span></code></a>(pytree, filter_spec[, is_leaf])</p></td>
+<td><p>Splits a PyTree into two halves based on a filtering rule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.combine.html#pmrf.combine" title="pmrf.combine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.combine</span></code></a>(*pytrees[, is_leaf])</p></td>
+<td><p>Recombines previously partitioned PyTrees into a single, functional PyTree.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.batch_axes.html#pmrf.batch_axes" title="pmrf.batch_axes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.batch_axes</span></code></a>(batched, template, *[, is_leaf])</p></td>
+<td><p>Generates an <cite>in_axes</cite> PyTree by comparing a batched model to a template.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.batch_mask.html#pmrf.batch_mask" title="pmrf.batch_mask"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.batch_mask</span></code></a>(batched, template, *[, is_leaf])</p></td>
+<td><p>Generates a boolean PyTree mask identifying which leaves have a batch dimension.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.field.html#pmrf.field" title="pmrf.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.field</span></code></a>(*[, converter, static])</p></td>
+<td><p>Equinox supports extra functionality on top of the default dataclasses.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.load.html#pmrf.load" title="pmrf.load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.load</span></code></a>(source)</p></td>
+<td><p>(experimental) Load a ParamRF Model (or any Parax PyTree) from a file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.save.html#pmrf.save" title="pmrf.save"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.save</span></code></a>(target, tree)</p></td>
+<td><p>(experimental) Save a ParamRF Model (or any Parax PyTree) to a file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.derivative.html#pmrf.derivative" title="pmrf.derivative"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.derivative</span></code></a>(eval_fn, *args)</p></td>
+<td><p>Computes the exact derivative of a function.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.sweep.html#pmrf.sweep" title="pmrf.sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.sweep</span></code></a>(eval_fn, *args[, grid, template])</p></td>
+<td><p>Vectorizes a function over the given input arguments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.freeze.html#pmrf.freeze" title="pmrf.freeze"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.freeze</span></code></a>(value)</p></td>
+<td><p>Freezes/fixes a parameter or entire model and returns the frozen model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.unfreeze.html#pmrf.unfreeze" title="pmrf.unfreeze"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.unfreeze</span></code></a>(value)</p></td>
+<td><p>Unfreezes/unfixes a potentially frozen parameter or model and returns the unfrozen model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.replace.html#pmrf.replace" title="pmrf.replace"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.replace</span></code></a>(obj, /, **changes)</p></td>
+<td><p>Return a new object replacing specified fields with new values.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/pmrf.unwrap.html#pmrf.unwrap" title="pmrf.unwrap"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.unwrap</span></code></a>(tree[, only_if, cascade])</p></td>
+<td><p>Recursively resolves <cite>AbstractUnwrappable</cite> nodes within a PyTree.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/pmrf.unwrap_self.html#pmrf.unwrap_self" title="pmrf.unwrap_self"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.unwrap_self</span></code></a>(method)</p></td>
+<td><p>Decorator for Equinox module methods.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../models/index.html" class="btn btn-neutral float-left" title="Model Hierarchy" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="generated/pmrf.Model.html" class="btn btn-neutral float-right" title="Model (pmrf.Model)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+
+
+PeriodicKernel
+==============
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: PeriodicKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

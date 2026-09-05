@@ -1,0 +1,291 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>math (pmrf.math) &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="aggregations" href="pmrf.math.aggregations.html" />
+    <link rel="prev" title="HingeLoss" href="pmrf.losses.HingeLoss.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#"><strong>math</strong> (pmrf.math)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.aggregations.html">aggregations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.bessel.html">bessel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.losses.html">losses</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.i0_over_i1.html">i0_over_i1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.k0_over_k1.html">k0_over_k1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_magnitude.html">complex_2_magnitude</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_db.html">complex_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_db10.html">complex_2_db10</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_radian.html">complex_2_radian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_degree.html">complex_2_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_quadrature.html">complex_2_quadrature</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_2_reim.html">complex_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complex_components.html">complex_components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.magnitude_2_db.html">magnitude_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.mag_2_db.html">mag_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.mag_2_db10.html">mag_2_db10</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_magnitude.html">db_2_magnitude</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_mag.html">db_2_mag</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db10_2_mag.html">db10_2_mag</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.magdeg_2_reim.html">magdeg_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.dbdeg_2_reim.html">dbdeg_2_reim</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_2_np.html">db_2_np</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.np_2_db.html">np_2_db</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.radian_2_degree.html">radian_2_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.degree_2_radian.html">degree_2_radian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.feet_2_meter.html">feet_2_meter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.meter_2_feet.html">meter_2_feet</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.db_per_100feet_2_db_per_100meter.html">db_per_100feet_2_db_per_100meter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.polar_2_rect.html">polar_2_rect</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.rect_2_polar.html">rect_2_polar</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.sqrt_phase_unwrap.html">sqrt_phase_unwrap</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.math.complexify.html">complexify</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+      <li class="breadcrumb-item active"><strong>math</strong> (pmrf.math)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.math.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-pmrf.math">
+<span id="math-pmrf-math"></span><h1><strong>math</strong> (pmrf.math)<a class="headerlink" href="#module-pmrf.math" title="Link to this heading"></a></h1>
+<p>Core maths functions.</p>
+<p class="rubric">Modules</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.aggregations.html#module-pmrf.math.aggregations" title="pmrf.math.aggregations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">aggregations</span></code></a></p></td>
+<td><p>Aggregations of arrays (vectors, tensors) into lower dimensions.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.bessel.html#module-pmrf.math.bessel" title="pmrf.math.bessel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bessel</span></code></a></p></td>
+<td><p>Modified Bessel functions for complex arguments.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.losses.html#module-pmrf.math.losses" title="pmrf.math.losses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">losses</span></code></a></p></td>
+<td><p>Common loss functions for optimization.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.i0_over_i1.html#pmrf.math.i0_over_i1" title="pmrf.math.i0_over_i1"><code class="xref py py-obj docutils literal notranslate"><span class="pre">i0_over_i1</span></code></a>(x)</p></td>
+<td><p>Ratio $I_0(x)/I_1(x)$ of modified Bessel functions, for complex $x$.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.k0_over_k1.html#pmrf.math.k0_over_k1" title="pmrf.math.k0_over_k1"><code class="xref py py-obj docutils literal notranslate"><span class="pre">k0_over_k1</span></code></a>(x)</p></td>
+<td><p>Ratio $K_0(x)/K_1(x)$ of modified Bessel functions for complex $x$.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.complex_2_magnitude.html#pmrf.math.complex_2_magnitude" title="pmrf.math.complex_2_magnitude"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_magnitude</span></code></a>(z)</p></td>
+<td><p>Return the magnitude of the complex argument.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.complex_2_db.html#pmrf.math.complex_2_db" title="pmrf.math.complex_2_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_db</span></code></a>(z)</p></td>
+<td><p>Return the magnitude in dB of a complex number (as <span class="math notranslate nohighlight">\(20\log_{10}(|z|)\)</span>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.complex_2_db10.html#pmrf.math.complex_2_db10" title="pmrf.math.complex_2_db10"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_db10</span></code></a>(z)</p></td>
+<td><p>Return the magnitude in dB of a complex number (as <span class="math notranslate nohighlight">\(10\log_{10}(|z|)\)</span>).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.complex_2_radian.html#pmrf.math.complex_2_radian" title="pmrf.math.complex_2_radian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_radian</span></code></a>(z)</p></td>
+<td><p>Return the angle complex argument in radian.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.complex_2_degree.html#pmrf.math.complex_2_degree" title="pmrf.math.complex_2_degree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_degree</span></code></a>(z)</p></td>
+<td><p>Returns the angle complex argument in degrees.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.complex_2_quadrature.html#pmrf.math.complex_2_quadrature" title="pmrf.math.complex_2_quadrature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_quadrature</span></code></a>(z)</p></td>
+<td><p>Take a complex number and returns quadrature, which is (length, arc-length from real axis).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.complex_2_reim.html#pmrf.math.complex_2_reim" title="pmrf.math.complex_2_reim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_2_reim</span></code></a>(z)</p></td>
+<td><p>Return real and imaginary parts of a complex number.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.complex_components.html#pmrf.math.complex_components" title="pmrf.math.complex_components"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex_components</span></code></a>(z)</p></td>
+<td><p>Break up a complex array into all possible scalar components.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.magnitude_2_db.html#pmrf.math.magnitude_2_db" title="pmrf.math.magnitude_2_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">magnitude_2_db</span></code></a>(z[, zero_nan])</p></td>
+<td><p>Convert linear magnitude to dB.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.mag_2_db.html#pmrf.math.mag_2_db" title="pmrf.math.mag_2_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mag_2_db</span></code></a>(z[, zero_nan])</p></td>
+<td><p>Convert linear magnitude to dB.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.mag_2_db10.html#pmrf.math.mag_2_db10" title="pmrf.math.mag_2_db10"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mag_2_db10</span></code></a>(z[, zero_nan])</p></td>
+<td><p>Convert linear magnitude to dB (factor 10).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.db_2_magnitude.html#pmrf.math.db_2_magnitude" title="pmrf.math.db_2_magnitude"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_2_magnitude</span></code></a>(z)</p></td>
+<td><p>Convert dB to linear magnitude.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.db_2_mag.html#pmrf.math.db_2_mag" title="pmrf.math.db_2_mag"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_2_mag</span></code></a>(z)</p></td>
+<td><p>Convert dB to linear magnitude.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.db10_2_mag.html#pmrf.math.db10_2_mag" title="pmrf.math.db10_2_mag"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db10_2_mag</span></code></a>(z)</p></td>
+<td><p>Convert dB (factor 10) to linear magnitude.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.magdeg_2_reim.html#pmrf.math.magdeg_2_reim" title="pmrf.math.magdeg_2_reim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">magdeg_2_reim</span></code></a>(mag, deg)</p></td>
+<td><p>Convert linear magnitude and phase (in deg) arrays into a complex array.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.dbdeg_2_reim.html#pmrf.math.dbdeg_2_reim" title="pmrf.math.dbdeg_2_reim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dbdeg_2_reim</span></code></a>(db, deg)</p></td>
+<td><p>Convert dB magnitude and phase (in deg) arrays into a complex array.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.db_2_np.html#pmrf.math.db_2_np" title="pmrf.math.db_2_np"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_2_np</span></code></a>(db)</p></td>
+<td><p>Convert a value in decibel (dB) to neper (Np).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.np_2_db.html#pmrf.math.np_2_db" title="pmrf.math.np_2_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_2_db</span></code></a>(x)</p></td>
+<td><p>Convert a value in Nepers (Np) to decibel (dB).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.radian_2_degree.html#pmrf.math.radian_2_degree" title="pmrf.math.radian_2_degree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radian_2_degree</span></code></a>(rad)</p></td>
+<td><p>Convert angles from radians to degrees.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.degree_2_radian.html#pmrf.math.degree_2_radian" title="pmrf.math.degree_2_radian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">degree_2_radian</span></code></a>(deg)</p></td>
+<td><p>Convert angles from degrees to radians.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.feet_2_meter.html#pmrf.math.feet_2_meter" title="pmrf.math.feet_2_meter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">feet_2_meter</span></code></a>([feet])</p></td>
+<td><p>Convert length in feet to meter.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.meter_2_feet.html#pmrf.math.meter_2_feet" title="pmrf.math.meter_2_feet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meter_2_feet</span></code></a>([meter])</p></td>
+<td><p>Convert length in meter to feet.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.db_per_100feet_2_db_per_100meter.html#pmrf.math.db_per_100feet_2_db_per_100meter" title="pmrf.math.db_per_100feet_2_db_per_100meter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_per_100feet_2_db_per_100meter</span></code></a>([...])</p></td>
+<td><p>Convert attenuation values given in dB/100ft to dB/100m.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.polar_2_rect.html#pmrf.math.polar_2_rect" title="pmrf.math.polar_2_rect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polar_2_rect</span></code></a>(radii, angles[, deg])</p></td>
+<td><p>Convert polar coordinates to rectangular (complex) coordinates.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.rect_2_polar.html#pmrf.math.rect_2_polar" title="pmrf.math.rect_2_polar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rect_2_polar</span></code></a>(x[, deg])</p></td>
+<td><p>Convert rectangular (complex) coordinates to polar coordinates.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="pmrf.math.sqrt_phase_unwrap.html#pmrf.math.sqrt_phase_unwrap" title="pmrf.math.sqrt_phase_unwrap"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sqrt_phase_unwrap</span></code></a>(z)</p></td>
+<td><p>Take the square root of a complex number with unwrapped phase.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="pmrf.math.complexify.html#pmrf.math.complexify" title="pmrf.math.complexify"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complexify</span></code></a>(f[, name])</p></td>
+<td><p>Make a function f(scalar) into f(complex).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.losses.HingeLoss.html" class="btn btn-neutral float-left" title="HingeLoss" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.math.aggregations.html" class="btn btn-neutral float-right" title="aggregations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

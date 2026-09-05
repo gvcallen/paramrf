@@ -1,0 +1,231 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlanarQuasiStaticResult &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="stripline" href="pmrf.models.components.lines.stripline.html" />
+    <link rel="prev" title="AbstractPlanarCrossSection" href="pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.planar.html">planar</a></li>
+      <li class="breadcrumb-item active">PlanarQuasiStaticResult</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.planar.PlanarQuasiStaticResult.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="planarquasistaticresult">
+<h1>PlanarQuasiStaticResult<a class="headerlink" href="#planarquasistaticresult" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.planar.</span></span><span class="sig-name descname"><span class="pre">PlanarQuasiStaticResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ep_eff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jnp.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jnp.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">w_eff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jnp.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shunt_conductance_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jnp.ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<p>Quasi-static solution of a single-conductor planar line over a ground plane.</p>
+<p>Contains the effective permittivity, characteristic impedance, effective
+conductor width, and static-conductivity geometry factor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ep_eff</strong> (<em>jnp.ndarray</em>) – Complex effective relative permittivity, shape <code class="docutils literal notranslate"><span class="pre">(npoints,)</span></code>.</p></li>
+<li><p><strong>zc</strong> (<em>jnp.ndarray</em>) – Quasi-static characteristic impedance in ohms, <span class="math notranslate nohighlight">\(Z_a/\sqrt{\varepsilon_e}\)</span>.</p></li>
+<li><p><strong>w_eff</strong> (<em>jnp.ndarray</em>) – Electromagnetic effective conductor width in meters.</p></li>
+<li><p><strong>shunt_conductance_factor</strong> (<em>jnp.ndarray</em>) – Geometry factor multiplying static conductivity, in meters.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult.to_immittance">
+<span class="sig-name descname"><span class="pre">to_immittance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dielectric</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.materials.DielectricProperties.html#pmrf.materials.DielectricProperties" title="pmrf.materials.properties.DielectricProperties"><span class="pre">DielectricProperties</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">conductor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.materials.ConductorProperties.html#pmrf.materials.ConductorProperties" title="pmrf.materials.properties.ConductorProperties"><span class="pre">ConductorProperties</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_distribution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.components.lines.planar.AbstractCurrentDistribution.html#pmrf.models.components.lines.planar.AbstractCurrentDistribution" title="pmrf.models.components.lines.planar.AbstractCurrentDistribution"><span class="pre">AbstractCurrentDistribution</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cross_section</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html#pmrf.models.components.lines.planar.AbstractPlanarCrossSection" title="pmrf.models.components.lines.planar.AbstractPlanarCrossSection"><span class="pre">AbstractPlanarCrossSection</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><span class="pre">ImmittanceResult</span></a></span></span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult.to_immittance" title="Link to this definition"></a></dt>
+<dd><p>Convert the quasi-static solution to per-unit-length immittance.</p>
+<p>The external inductance and the shunt admittance follow from the
+quasi-static impedance and effective permittivity. Surface impedance
+is charged through the supplied current-distribution strategy:
+<div class="math notranslate nohighlight">
+\[Z = \frac{j\omega Z_c \sqrt{\varepsilon_e}}{c} + Z_s K_c
+\qquad
+Y = \frac{j\omega \sqrt{\varepsilon_e}}{Z_c c}\]</div>
+</p>
+<p>The current distribution supplies surface impedances and geometry
+weights. Complex <span class="math notranslate nohighlight">\(\varepsilon_e\)</span> contributes dielectric loss through
+the real part of <span class="math notranslate nohighlight">\(Y\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>freq</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – The frequency axis.</p></li>
+<li><p><strong>dielectric</strong> (<a class="reference internal" href="pmrf.materials.DielectricProperties.html#pmrf.materials.DielectricProperties" title="pmrf.materials.DielectricProperties"><em>DielectricProperties</em></a>) – Evaluated relative permittivity and permeability.</p></li>
+<li><p><strong>conductor</strong> (<a class="reference internal" href="pmrf.materials.ConductorProperties.html#pmrf.materials.ConductorProperties" title="pmrf.materials.ConductorProperties"><em>ConductorProperties</em></a>) – Evaluated conductor properties.</p></li>
+<li><p><strong>current_distribution</strong> (<a class="reference internal" href="pmrf.models.components.lines.planar.AbstractCurrentDistribution.html#pmrf.models.components.lines.planar.AbstractCurrentDistribution" title="pmrf.models.components.lines.planar.AbstractCurrentDistribution"><em>AbstractCurrentDistribution</em></a>) – The strategy that charges surface impedance into <span class="math notranslate nohighlight">\(Z\)</span>. It must be
+written for the family <code class="docutils literal notranslate"><span class="pre">cross_section</span></code> belongs to.</p></li>
+<li><p><strong>cross_section</strong> (<a class="reference internal" href="pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html#pmrf.models.components.lines.planar.AbstractPlanarCrossSection" title="pmrf.models.components.lines.planar.AbstractPlanarCrossSection"><em>AbstractPlanarCrossSection</em></a>) – The line’s frozen cross-section record.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The series impedance and shunt admittance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult">ImmittanceResult</a></p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.8. Wiley.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult.ep_eff">
+<span class="sig-name descname"><span class="pre">ep_eff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult.ep_eff" title="Link to this definition"></a></dt>
+<dd><p>Complex effective relative permittivity</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult.shunt_conductance_factor">
+<span class="sig-name descname"><span class="pre">shunt_conductance_factor</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult.shunt_conductance_factor" title="Link to this definition"></a></dt>
+<dd><p>Geometry factor multiplying static conductivity</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult.w_eff">
+<span class="sig-name descname"><span class="pre">w_eff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult.w_eff" title="Link to this definition"></a></dt>
+<dd><p>Effective conductor width in meters</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.planar.PlanarQuasiStaticResult.zc">
+<span class="sig-name descname"><span class="pre">zc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.models.components.lines.planar.PlanarQuasiStaticResult.zc" title="Link to this definition"></a></dt>
+<dd><p>Quasi-static characteristic impedance in ohms</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html" class="btn btn-neutral float-left" title="AbstractPlanarCrossSection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.stripline.html" class="btn btn-neutral float-right" title="stripline" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

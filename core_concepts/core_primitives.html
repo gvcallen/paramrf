@@ -1,0 +1,165 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Core Primitives &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Optimization and Inference" href="optimization_and_inference.html" />
+    <link rel="prev" title="Core Concepts" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Core Concepts</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Core Primitives</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#the-model">The Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#frequency-parameters-and-jnp-ndarray">Frequency, Parameters, and jnp.ndarray</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-evaluator-and-other-classes">The Evaluator and other classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="optimization_and_inference.html">Optimization and Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jax_overview.html">JAX Overview</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Core Concepts</a></li>
+      <li class="breadcrumb-item active">Core Primitives</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core_concepts/core_primitives.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="core-primitives">
+<h1>Core Primitives<a class="headerlink" href="#core-primitives" title="Link to this heading"></a></h1>
+<p>The core primitives in ParamRF are the <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Frequency</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a> classes. Other classes, such as JAX arrays and <a class="reference internal" href="../api/generated/pmrf.evaluators.html#module-pmrf.evaluators" title="pmrf.evaluators"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.evaluators</span></code></a>, help bring the rest of the library together.</p>
+<section id="the-model">
+<h2>The Model<a class="headerlink" href="#the-model" title="Link to this heading"></a></h2>
+<p><a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> represents the base class for any RF model. All built-in models and components, such as <a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Resistor.html#pmrf.models.components.lumped.Resistor" title="pmrf.models.components.lumped.Resistor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Resistor</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PhaseLine</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">CoaxialLine</span></code> etc. inherit from this class.</p>
+<p>Under the hood, ParamRF uses the <a class="reference external" href="https://docs.kidger.site/equinox/api/module/module/">Equinox</a> library to interoperate with JAX. This means that <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> is an <a class="reference external" href="https://docs.kidger.site/equinox/api/module/module/">Equinox Module</a>, a <a class="reference external" href="https://docs.jax.dev/en/latest/pytrees.html">JAX PyTree</a> and a Python <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclass</a>. If these concepts are completely foreign to you, do not worry. The practical consequences of this are:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>Models are immutable</strong>. Models cannot be mutated (<code class="docutils literal notranslate"><span class="pre">model.x</span> <span class="pre">=</span> <span class="pre">5.0</span></code> will throw an error). Rather, they represent “pure functions” which store their parameters alongside. This means that models should <em>never</em> contain any fields that can be derived from other fields (state should be “pure”), and should also not reference other objects in the model (using the same parameter object twice will result in two separate parameters!). Instead, <code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.at()</span></code> can be used to manipulate a model. Although this approach may feel new to some, the end result is improved optimization performance, differentiation capabilities, and added flexibility.</p></li>
+<li><p><strong>Models are lazy</strong>. Since models only store their parameters (and not their S-matrix or frequency), they do not perform any computation at initialization. Rather, their response is only evaluated when one of their methods (e.g. <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a>) is passed a <a class="reference internal" href="../api/generated/pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><code class="xref py py-class docutils literal notranslate"><span class="pre">Frequency</span></code></a> object <em>as input</em>. This is in contrast to other, purely object-oriented libraries (such as <code class="xref py py-mod docutils literal notranslate"><span class="pre">scikit-rf</span></code>).</p></li>
+<li><p><strong>Models are JAX-native</strong>. Models are simply JAX <a class="reference external" href="https://docs.jax.dev/en/latest/pytrees.html">PyTrees</a>, meaning they can be passed around in any JAX context. This means that they can be compiled <em>just-in-time</em> (JIT) for enhanced performance and simulation on other platforms (GPUs, TPUs etc) and also used for many advanced JAX features (such as for vectorization via <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.vmap()</span></code> and differentiation via <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jacfwd()</span></code>). See the <a class="reference internal" href="jax_overview.html"><span class="doc">JAX Overview</span></a> section for more details.</p></li>
+</ul>
+</div></blockquote>
+<p>For more information on how to combine and build custom models, see the <a class="reference internal" href="../examples/index.html"><span class="doc">Examples</span></a> page.</p>
+</section>
+<section id="frequency-parameters-and-jnp-ndarray">
+<h2>Frequency, Parameters, and jnp.ndarray<a class="headerlink" href="#frequency-parameters-and-jnp-ndarray" title="Link to this heading"></a></h2>
+<p>The <a class="reference internal" href="../api/generated/pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Frequency</span></code></a> class defines the axis over which models are evaluated. Ultimately, this is a lightweight wrapper around a JAX array (commonly imported as <code class="xref py py-class docutils literal notranslate"><span class="pre">jnp.ndarray</span></code>). Those unfamiliar with JAX can see either the <a class="reference internal" href="jax_overview.html"><span class="doc">JAX Overview</span></a> section or have a look at JAX’s own <a class="reference external" href="https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html">quickstart</a> guide. However, for those seeking a TLDR: the API is very similar to NumPy’s <code class="xref py py-class docutils literal notranslate"><span class="pre">np.ndarray</span></code>, with a few “rough edges”, for example <a class="reference external" href="https://docs.jax.dev/en/latest/control-flow.html">control flow</a> is handled quite differently.</p>
+<p>All JAX arrays are treated as potential free parameters in ParamRF. However, in RF modeling, it is very common to want to specify parameter scaling, bounds, constraints or a prior probability distribution. To accomplish this, ParamRF exposes a parameter wrapper class <a class="reference internal" href="../api/generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a>. This class eagerly casts to a <code class="xref py py-class docutils literal notranslate"><span class="pre">jnp.ndarray</span></code>, meaning that you can conveniently treat parameters as if they were regular arrays in your equations.</p>
+<p>Power users may want to have a look at the <a class="reference external" href="https://github.com/gvcallen/parax">Parax</a> and <a class="reference external" href="https://lockwo.github.io/distreqx/">distreqx</a> documentation, which ParamRF uses for parameters and constraints under the hood.</p>
+</section>
+<section id="the-evaluator-and-other-classes">
+<h2>The Evaluator and other classes<a class="headerlink" href="#the-evaluator-and-other-classes" title="Link to this heading"></a></h2>
+<p><a class="reference internal" href="../api/generated/pmrf.evaluators.AbstractEvaluator.html#pmrf.evaluators.AbstractEvaluator" title="pmrf.evaluators.AbstractEvaluator"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractEvaluator</span></code></a> is an interface for a callable class that can be used to “evaluate” a model over frequency. Its output is a <code class="xref py py-class docutils literal notranslate"><span class="pre">jnp.ndarray</span></code> (tensor or scalar). Evaluators can be used for extraction of model features, encapsulating loss/error/likelihood functions, and more. For example, to create a goal-oriented objective function for an optimization, the <a class="reference internal" href="../api/generated/pmrf.evaluators.Goal.html#pmrf.evaluators.Goal" title="pmrf.evaluators.Goal"><code class="xref py py-class docutils literal notranslate"><span class="pre">Goal</span></code></a> evaluator can be used.</p>
+<p>Evaluators are created automatically when fitting routines are called, such as <a class="reference internal" href="../api/generated/pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-func docutils literal notranslate"><span class="pre">minimize()</span></code></a> or <a class="reference internal" href="../api/generated/pmrf.infer.sample.html#pmrf.infer.sample" title="pmrf.infer.sample"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample()</span></code></a>. For example, specifying <code class="docutils literal notranslate"><span class="pre">'s21_db'</span></code> as a fitting feature for <a class="reference internal" href="../api/generated/pmrf.fitting.fit.html#pmrf.fitting.fit" title="pmrf.fitting.fit"><code class="xref py py-func docutils literal notranslate"><span class="pre">fit()</span></code></a> creates a <a class="reference internal" href="../api/generated/pmrf.evaluators.Feature.html#pmrf.evaluators.Feature" title="pmrf.evaluators.Feature"><code class="xref py py-class docutils literal notranslate"><span class="pre">Feature</span></code></a> evaluator, whilst specifying a loss or likelihood function creates a <a class="reference internal" href="../api/generated/pmrf.evaluators.TargetLoss.html#pmrf.evaluators.TargetLoss" title="pmrf.evaluators.TargetLoss"><code class="xref py py-class docutils literal notranslate"><span class="pre">TargetLoss</span></code></a> or <a class="reference internal" href="../api/generated/pmrf.evaluators.MarginalLogLikelihood.html#pmrf.evaluators.MarginalLogLikelihood" title="pmrf.evaluators.MarginalLogLikelihood"><code class="xref py py-class docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code></a> evaluator respectively.</p>
+<p>Since an evaluator takes frequency <em>as input</em>, the same evaluator can be re-used over different sweeps. For example, an evaluator can be fitted over a coarse sweep of measured data, and then plotted over a much finer one.</p>
+<p>When a model is solved, an evaluator is paired with the sweep it should be evaluated over using <a class="reference internal" href="../api/generated/pmrf.terms.BoundEvaluator.html#pmrf.terms.BoundEvaluator" title="pmrf.terms.BoundEvaluator"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.terms.BoundEvaluator</span></code></a>, which optionally also accepts a relative weight. The result is a <em>term</em>, which is any callable that takes a model and returns a result. A <a class="reference internal" href="../api/generated/pmrf.problems.SummedTerms.html#pmrf.problems.SummedTerms" title="pmrf.problems.SummedTerms"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.problems.SummedTerms</span></code></a> problem is then simply a model together with the terms to be summed over it. Where an evaluator takes a model and a frequency, and a term takes a model, a <a class="reference internal" href="../api/generated/pmrf.problems.AbstractProblem.html#pmrf.problems.AbstractProblem" title="pmrf.problems.AbstractProblem"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.problems.AbstractProblem</span></code></a> takes nothing further and returns the result directly.</p>
+<p>Terms that do not require a frequency, such as a penalty on the model’s parameters, can be written as a plain function of the model. The built-in terms inherit from <a class="reference internal" href="../api/generated/pmrf.terms.AbstractTerm.html#pmrf.terms.AbstractTerm" title="pmrf.terms.AbstractTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.terms.AbstractTerm</span></code></a>, but this is a convenience and not a requirement. In most cases these classes do not need to be created manually, as <a class="reference internal" href="../api/generated/pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-func docutils literal notranslate"><span class="pre">minimize()</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.infer.sample.html#pmrf.infer.sample" title="pmrf.infer.sample"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample()</span></code></a> create them automatically.</p>
+<p>Priors are parameter metadata, and are stripped when a tree is unwrapped for a solver, so they cannot be read from inside an evaluator or a term. Instead, <a class="reference internal" href="../api/generated/pmrf.problems.PriorPenalized.html#pmrf.problems.PriorPenalized" title="pmrf.problems.PriorPenalized"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.problems.PriorPenalized</span></code></a> extracts them once when it is constructed and evaluates them against the parameter values on each call. This is what separates a maximum a posteriori estimate from a maximum likelihood one, and it is selected automatically when <cite>inference</cite> is ‘bayesian’ in <a class="reference internal" href="../api/generated/pmrf.fitting.fit.html#pmrf.fitting.fit" title="pmrf.fitting.fit"><code class="xref py py-func docutils literal notranslate"><span class="pre">fit()</span></code></a>.</p>
+<p>Other core class interfaces include those in <a class="reference internal" href="../api/generated/pmrf.losses.html#module-pmrf.losses" title="pmrf.losses"><code class="xref py py-class docutils literal notranslate"><span class="pre">losses</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.likelihoods.html#module-pmrf.likelihoods" title="pmrf.likelihoods"><code class="xref py py-class docutils literal notranslate"><span class="pre">likelihoods</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.discrepancy_models.html#module-pmrf.discrepancy_models" title="pmrf.discrepancy_models"><code class="xref py py-class docutils literal notranslate"><span class="pre">discrepancy_models</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.noise_models.html#module-pmrf.noise_models" title="pmrf.noise_models"><code class="xref py py-class docutils literal notranslate"><span class="pre">noise_models</span></code></a>. These help glue the rest of the library together, as well as enable more advanced features such as hyperparameter-based optimization and Gaussian process discrepancy modeling. See the <a class="reference internal" href="../tutorials/index.html"><span class="doc">Tutorials</span></a> section for more information.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Core Concepts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="optimization_and_inference.html" class="btn btn-neutral float-right" title="Optimization and Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

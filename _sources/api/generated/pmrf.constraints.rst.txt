@@ -1,0 +1,56 @@
+﻿
+
+
+**constraints** (pmrf.constraints)
+==================================
+
+.. automodule:: pmrf.constraints
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractConstraint
+
+   RealLine
+
+   Positive
+
+   Negative
+
+   Interval
+
+   GreaterThan
+
+   LessThan
+
+   Custom
+
+   Transformed
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   intersect
+
+

@@ -1,0 +1,12 @@
+
+
+
+BFGS
+====
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: BFGS
+   :members:
+   :show-inheritance:
+   :inherited-members:

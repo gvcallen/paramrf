@@ -1,0 +1,690 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model Hierarchy &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="API" href="../api/index.html" />
+    <link rel="prev" title="Fitting on Chip Inductors (1-40 GHz)" href="../tutorials/2_chip_inductor_fitting.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Model Hierarchy</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/models/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="model-hierarchy">
+<h1>Model Hierarchy<a class="headerlink" href="#model-hierarchy" title="Link to this heading"></a></h1>
+<ul class="simple">
+<li><dl class="simple">
+<dt><strong>adapters</strong> (<a class="reference internal" href="../api/generated/pmrf.models.adapters.html#module-pmrf.models.adapters" title="pmrf.models.adapters"><code class="xref py py-mod docutils literal notranslate"><span class="pre">adapters</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.AModel.html#pmrf.models.adapters.static.AModel" title="pmrf.models.adapters.static.AModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">AModel</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.delegated.AbstractBuilder.html#pmrf.models.adapters.delegated.AbstractBuilder" title="pmrf.models.adapters.delegated.AbstractBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractBuilder</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractDiscrete.html#pmrf.models.adapters.base.AbstractDiscrete" title="pmrf.models.adapters.base.AbstractDiscrete"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractDiscrete</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.bridge.AbstractHost.html#pmrf.models.adapters.bridge.AbstractHost" title="pmrf.models.adapters.bridge.AbstractHost"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractHost</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractSingleDiscreteDomain.html#pmrf.models.adapters.base.AbstractSingleDiscreteDomain" title="pmrf.models.adapters.base.AbstractSingleDiscreteDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSingleDiscreteDomain</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractSingleDomain.html#pmrf.models.adapters.base.AbstractSingleDomain" title="pmrf.models.adapters.base.AbstractSingleDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSingleDomain</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.callable.ContinuousCallable.html#pmrf.models.adapters.callable.ContinuousCallable" title="pmrf.models.adapters.callable.ContinuousCallable"><code class="xref py py-class docutils literal notranslate"><span class="pre">ContinuousCallable</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.callable.DiscreteCallable.html#pmrf.models.adapters.callable.DiscreteCallable" title="pmrf.models.adapters.callable.DiscreteCallable"><code class="xref py py-class docutils literal notranslate"><span class="pre">DiscreteCallable</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.SModel.html#pmrf.models.adapters.static.SModel" title="pmrf.models.adapters.static.SModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">SModel</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.SkrfNetwork.html#pmrf.models.adapters.static.SkrfNetwork" title="pmrf.models.adapters.static.SkrfNetwork"><code class="xref py py-class docutils literal notranslate"><span class="pre">SkrfNetwork</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.Touchstone.html#pmrf.models.adapters.static.Touchstone" title="pmrf.models.adapters.static.Touchstone"><code class="xref py py-class docutils literal notranslate"><span class="pre">Touchstone</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.wrapped.Wrapped.html#pmrf.models.adapters.wrapped.Wrapped" title="pmrf.models.adapters.wrapped.Wrapped"><code class="xref py py-class docutils literal notranslate"><span class="pre">Wrapped</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.YModel.html#pmrf.models.adapters.static.YModel" title="pmrf.models.adapters.static.YModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">YModel</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.ZModel.html#pmrf.models.adapters.static.ZModel" title="pmrf.models.adapters.static.ZModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ZModel</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>base</strong> (<code class="xref py py-mod docutils literal notranslate"><span class="pre">base</span></code>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>components</strong> (<a class="reference internal" href="../api/generated/pmrf.models.components.html#module-pmrf.models.components" title="pmrf.models.components"><code class="xref py py-mod docutils literal notranslate"><span class="pre">components</span></code></a>)</dt><dd><ul>
+<li><dl class="simple">
+<dt><strong>ideal</strong> (<a class="reference internal" href="../api/generated/pmrf.models.components.ideal.html#module-pmrf.models.components.ideal" title="pmrf.models.components.ideal"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ideal</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Amplifier.html#pmrf.models.components.ideal.Amplifier" title="pmrf.models.components.ideal.Amplifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">Amplifier</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Attenuator.html#pmrf.models.components.ideal.Attenuator" title="pmrf.models.components.ideal.Attenuator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Attenuator</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Autotransformer.html#pmrf.models.components.ideal.Autotransformer" title="pmrf.models.components.ideal.Autotransformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Autotransformer</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Balun.html#pmrf.models.components.ideal.Balun" title="pmrf.models.components.ideal.Balun"><code class="xref py py-class docutils literal notranslate"><span class="pre">Balun</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.CentreTappedTransformer.html#pmrf.models.components.ideal.CentreTappedTransformer" title="pmrf.models.components.ideal.CentreTappedTransformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">CentreTappedTransformer</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.DirectionalCoupler.html#pmrf.models.components.ideal.DirectionalCoupler" title="pmrf.models.components.ideal.DirectionalCoupler"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectionalCoupler</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Ground.html#pmrf.models.components.ideal.Ground" title="pmrf.models.components.ideal.Ground"><code class="xref py py-class docutils literal notranslate"><span class="pre">Ground</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Isolator.html#pmrf.models.components.ideal.Isolator" title="pmrf.models.components.ideal.Isolator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Isolator</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Load.html#pmrf.models.components.ideal.Load" title="pmrf.models.components.ideal.Load"><code class="xref py py-class docutils literal notranslate"><span class="pre">Load</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Match.html#pmrf.models.components.ideal.Match" title="pmrf.models.components.ideal.Match"><code class="xref py py-class docutils literal notranslate"><span class="pre">Match</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.MixedModeConverter.html#pmrf.models.components.ideal.MixedModeConverter" title="pmrf.models.components.ideal.MixedModeConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixedModeConverter</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Open.html#pmrf.models.components.ideal.Open" title="pmrf.models.components.ideal.Open"><code class="xref py py-class docutils literal notranslate"><span class="pre">Open</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Port.html#pmrf.models.components.ideal.Port" title="pmrf.models.components.ideal.Port"><code class="xref py py-class docutils literal notranslate"><span class="pre">Port</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Short.html#pmrf.models.components.ideal.Short" title="pmrf.models.components.ideal.Short"><code class="xref py py-class docutils literal notranslate"><span class="pre">Short</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.SourceConverter.html#pmrf.models.components.ideal.SourceConverter" title="pmrf.models.components.ideal.SourceConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">SourceConverter</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Splitter.html#pmrf.models.components.ideal.Splitter" title="pmrf.models.components.ideal.Splitter"><code class="xref py py-class docutils literal notranslate"><span class="pre">Splitter</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Tee.html#pmrf.models.components.ideal.Tee" title="pmrf.models.components.ideal.Tee"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tee</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Transformer.html#pmrf.models.components.ideal.Transformer" title="pmrf.models.components.ideal.Transformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Transformer</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>lines</strong> (<a class="reference internal" href="../api/generated/pmrf.models.components.lines.html#module-pmrf.models.components.lines" title="pmrf.models.components.lines"><code class="xref py py-mod docutils literal notranslate"><span class="pre">lines</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation.html#pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation" title="pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractCoaxialFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.AbstractCurrentDistribution.html#pmrf.models.components.lines.planar.AbstractCurrentDistribution" title="pmrf.models.components.lines.planar.AbstractCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractCurrentDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.AbstractImmittanceLine.html#pmrf.models.components.lines.base.AbstractImmittanceLine" title="pmrf.models.components.lines.base.AbstractImmittanceLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractImmittanceLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion.html#pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion" title="pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractMicrostripDispersion</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation.html#pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation" title="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractMicrostripFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html#pmrf.models.components.lines.planar.AbstractPlanarCrossSection" title="pmrf.models.components.lines.planar.AbstractPlanarCrossSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractPlanarCrossSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.AbstractStriplineFormulation.html#pmrf.models.components.lines.stripline.AbstractStriplineFormulation" title="pmrf.models.components.lines.stripline.AbstractStriplineFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractStriplineFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.AbstractUniformLine.html#pmrf.models.components.lines.base.AbstractUniformLine" title="pmrf.models.components.lines.base.AbstractUniformLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractUniformLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.CoaxialLine.html#pmrf.models.components.lines.coaxial.CoaxialLine" title="pmrf.models.components.lines.coaxial.CoaxialLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">CoaxialLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.CohnCurrentDistribution.html#pmrf.models.components.lines.stripline.CohnCurrentDistribution" title="pmrf.models.components.lines.stripline.CohnCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">CohnCurrentDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.CohnStriplineFormulation.html#pmrf.models.components.lines.stripline.CohnStriplineFormulation" title="pmrf.models.components.lines.stripline.CohnStriplineFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">CohnStriplineFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.empirical.DatasheetLine.html#pmrf.models.components.lines.empirical.DatasheetLine" title="pmrf.models.components.lines.empirical.DatasheetLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">DatasheetLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.nodal.FloatingLine.html#pmrf.models.components.lines.nodal.FloatingLine" title="pmrf.models.components.lines.nodal.FloatingLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">FloatingLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation.html#pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation" title="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">HammerstadJensenMicrostripFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImmittanceResult</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.html#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution" title="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">IncrementalInductanceCurrentDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.html#pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion" title="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion"><code class="xref py py-class docutils literal notranslate"><span class="pre">KirschningJansenMicrostripDispersion</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.MicrostripCrossSection.html#pmrf.models.components.lines.microstrip.MicrostripCrossSection" title="pmrf.models.components.lines.microstrip.MicrostripCrossSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">MicrostripCrossSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.MicrostripLine.html#pmrf.models.components.lines.microstrip.MicrostripLine" title="pmrf.models.components.lines.microstrip.MicrostripLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">MicrostripLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.ideal.PhaseLine.html#pmrf.models.components.lines.ideal.PhaseLine" title="pmrf.models.components.lines.ideal.PhaseLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhaseLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.empirical.PhysicalLine.html#pmrf.models.components.lines.empirical.PhysicalLine" title="pmrf.models.components.lines.empirical.PhysicalLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysicalLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.PlanarQuasiStaticResult.html#pmrf.models.components.lines.planar.PlanarQuasiStaticResult" title="pmrf.models.components.lines.planar.PlanarQuasiStaticResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">PlanarQuasiStaticResult</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.ideal.RLGCLine.html#pmrf.models.components.lines.ideal.RLGCLine" title="pmrf.models.components.lines.ideal.RLGCLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">RLGCLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation.html#pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation" title="pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">SchelkunoffCoaxialFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.StriplineCrossSection.html#pmrf.models.components.lines.stripline.StriplineCrossSection" title="pmrf.models.components.lines.stripline.StriplineCrossSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">StriplineCrossSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.StriplineLine.html#pmrf.models.components.lines.stripline.StriplineLine" title="pmrf.models.components.lines.stripline.StriplineLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">StriplineLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.TescheCoaxialFormulation.html#pmrf.models.components.lines.coaxial.TescheCoaxialFormulation" title="pmrf.models.components.lines.coaxial.TescheCoaxialFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">TescheCoaxialFormulation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution.html#pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution" title="pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">TraceGroundCurrentDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.TransmissionLine.html#pmrf.models.components.lines.base.TransmissionLine" title="pmrf.models.components.lines.base.TransmissionLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransmissionLine</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.WheelerCurrentDistribution.html#pmrf.models.components.lines.microstrip.WheelerCurrentDistribution" title="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerCurrentDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation.html#pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation" title="pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">WheelerMicrostripFormulation</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>lumped</strong> (<a class="reference internal" href="../api/generated/pmrf.models.components.lumped.html#module-pmrf.models.components.lumped" title="pmrf.models.components.lumped"><code class="xref py py-mod docutils literal notranslate"><span class="pre">lumped</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Admittance.html#pmrf.models.components.lumped.Admittance" title="pmrf.models.components.lumped.Admittance"><code class="xref py py-class docutils literal notranslate"><span class="pre">Admittance</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Capacitor.html#pmrf.models.components.lumped.Capacitor" title="pmrf.models.components.lumped.Capacitor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Capacitor</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.CapacitorQ.html#pmrf.models.components.lumped.CapacitorQ" title="pmrf.models.components.lumped.CapacitorQ"><code class="xref py py-class docutils literal notranslate"><span class="pre">CapacitorQ</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.CoupledInductors.html#pmrf.models.components.lumped.CoupledInductors" title="pmrf.models.components.lumped.CoupledInductors"><code class="xref py py-class docutils literal notranslate"><span class="pre">CoupledInductors</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Impedance.html#pmrf.models.components.lumped.Impedance" title="pmrf.models.components.lumped.Impedance"><code class="xref py py-class docutils literal notranslate"><span class="pre">Impedance</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Inductor.html#pmrf.models.components.lumped.Inductor" title="pmrf.models.components.lumped.Inductor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Inductor</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.InductorQ.html#pmrf.models.components.lumped.InductorQ" title="pmrf.models.components.lumped.InductorQ"><code class="xref py py-class docutils literal notranslate"><span class="pre">InductorQ</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Resistor.html#pmrf.models.components.lumped.Resistor" title="pmrf.models.components.lumped.Resistor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Resistor</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.SeriesRL.html#pmrf.models.components.lumped.SeriesRL" title="pmrf.models.components.lumped.SeriesRL"><code class="xref py py-class docutils literal notranslate"><span class="pre">SeriesRL</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntCapacitor.html#pmrf.models.components.lumped.ShuntCapacitor" title="pmrf.models.components.lumped.ShuntCapacitor"><code class="xref py py-class docutils literal notranslate"><span class="pre">ShuntCapacitor</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntInductor.html#pmrf.models.components.lumped.ShuntInductor" title="pmrf.models.components.lumped.ShuntInductor"><code class="xref py py-class docutils literal notranslate"><span class="pre">ShuntInductor</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntResistor.html#pmrf.models.components.lumped.ShuntResistor" title="pmrf.models.components.lumped.ShuntResistor"><code class="xref py py-class docutils literal notranslate"><span class="pre">ShuntResistor</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>sections</strong> (<a class="reference internal" href="../api/generated/pmrf.models.components.sections.html#module-pmrf.models.components.sections" title="pmrf.models.components.sections"><code class="xref py py-mod docutils literal notranslate"><span class="pre">sections</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.BoxSection.html#pmrf.models.components.sections.BoxSection" title="pmrf.models.components.sections.BoxSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">BoxSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.BoxSectionCLCC.html#pmrf.models.components.sections.BoxSectionCLCC" title="pmrf.models.components.sections.BoxSectionCLCC"><code class="xref py py-class docutils literal notranslate"><span class="pre">BoxSectionCLCC</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.LSection.html#pmrf.models.components.sections.LSection" title="pmrf.models.components.sections.LSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">LSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.LSectionLC.html#pmrf.models.components.sections.LSectionLC" title="pmrf.models.components.sections.LSectionLC"><code class="xref py py-class docutils literal notranslate"><span class="pre">LSectionLC</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.PiSection.html#pmrf.models.components.sections.PiSection" title="pmrf.models.components.sections.PiSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">PiSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.PiSectionCLC.html#pmrf.models.components.sections.PiSectionCLC" title="pmrf.models.components.sections.PiSectionCLC"><code class="xref py py-class docutils literal notranslate"><span class="pre">PiSectionCLC</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.TSection.html#pmrf.models.components.sections.TSection" title="pmrf.models.components.sections.TSection"><code class="xref py py-class docutils literal notranslate"><span class="pre">TSection</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.TSectionLCL.html#pmrf.models.components.sections.TSectionLCL" title="pmrf.models.components.sections.TSectionLCL"><code class="xref py py-class docutils literal notranslate"><span class="pre">TSectionLCL</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>composite</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.html#module-pmrf.models.composite" title="pmrf.models.composite"><code class="xref py py-mod docutils literal notranslate"><span class="pre">composite</span></code></a>)</dt><dd><ul>
+<li><dl class="simple">
+<dt><strong>interconnected</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.html#module-pmrf.models.composite.interconnected" title="pmrf.models.composite.interconnected"><code class="xref py py-mod docutils literal notranslate"><span class="pre">interconnected</span></code></a>)</dt><dd><ul>
+<li><dl class="simple">
+<dt><strong>cascade</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.cascade.html#module-pmrf.models.composite.interconnected.cascade" title="pmrf.models.composite.interconnected.cascade"><code class="xref py py-mod docutils literal notranslate"><span class="pre">cascade</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.cascade.Cascade.html#pmrf.models.composite.interconnected.cascade.Cascade" title="pmrf.models.composite.interconnected.cascade.Cascade"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cascade</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>circuit</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.html#module-pmrf.models.composite.interconnected.circuit" title="pmrf.models.composite.interconnected.circuit"><code class="xref py py-mod docutils literal notranslate"><span class="pre">circuit</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractAdmittanceCircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractMNACircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractScatteringCircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AdmittanceResult.html#pmrf.models.composite.interconnected.circuit.base.AdmittanceResult" title="pmrf.models.composite.interconnected.circuit.base.AdmittanceResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">AdmittanceResult</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.circuit.Circuit.html#pmrf.models.composite.interconnected.circuit.circuit.Circuit" title="pmrf.models.composite.interconnected.circuit.circuit.Circuit"><code class="xref py py-class docutils literal notranslate"><span class="pre">Circuit</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">GlobalMNACircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">GlobalNodalCircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">GlobalScatteringCircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">HierarchicalScatteringCircuitSolver</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.MNARepresentation.html#pmrf.models.composite.interconnected.circuit.base.MNARepresentation" title="pmrf.models.composite.interconnected.circuit.base.MNARepresentation"><code class="xref py py-class docutils literal notranslate"><span class="pre">MNARepresentation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.NodalRepresentation.html#pmrf.models.composite.interconnected.circuit.base.NodalRepresentation" title="pmrf.models.composite.interconnected.circuit.base.NodalRepresentation"><code class="xref py py-class docutils literal notranslate"><span class="pre">NodalRepresentation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.PortRepresentation.html#pmrf.models.composite.interconnected.circuit.base.PortRepresentation" title="pmrf.models.composite.interconnected.circuit.base.PortRepresentation"><code class="xref py py-class docutils literal notranslate"><span class="pre">PortRepresentation</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.ScatteringResult.html#pmrf.models.composite.interconnected.circuit.base.ScatteringResult" title="pmrf.models.composite.interconnected.circuit.base.ScatteringResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">ScatteringResult</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">SequentialScatteringCircuitSolver</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>terminated</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.terminated.html#module-pmrf.models.composite.interconnected.terminated" title="pmrf.models.composite.interconnected.terminated"><code class="xref py py-mod docutils literal notranslate"><span class="pre">terminated</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.terminated.Terminated.html#pmrf.models.composite.interconnected.terminated.Terminated" title="pmrf.models.composite.interconnected.terminated.Terminated"><code class="xref py py-class docutils literal notranslate"><span class="pre">Terminated</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>nodal</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.html#module-pmrf.models.composite.nodal" title="pmrf.models.composite.nodal"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nodal</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.CoupledOnePorts.html#pmrf.models.composite.nodal.CoupledOnePorts" title="pmrf.models.composite.nodal.CoupledOnePorts"><code class="xref py py-class docutils literal notranslate"><span class="pre">CoupledOnePorts</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.CoupledTwoPorts.html#pmrf.models.composite.nodal.CoupledTwoPorts" title="pmrf.models.composite.nodal.CoupledTwoPorts"><code class="xref py py-class docutils literal notranslate"><span class="pre">CoupledTwoPorts</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.FloatingTwoPort.html#pmrf.models.composite.nodal.FloatingTwoPort" title="pmrf.models.composite.nodal.FloatingTwoPort"><code class="xref py py-class docutils literal notranslate"><span class="pre">FloatingTwoPort</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.GroundExposed.html#pmrf.models.composite.nodal.GroundExposed" title="pmrf.models.composite.nodal.GroundExposed"><code class="xref py py-class docutils literal notranslate"><span class="pre">GroundExposed</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.GroundLifted.html#pmrf.models.composite.nodal.GroundLifted" title="pmrf.models.composite.nodal.GroundLifted"><code class="xref py py-class docutils literal notranslate"><span class="pre">GroundLifted</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.Shunt.html#pmrf.models.composite.nodal.Shunt" title="pmrf.models.composite.nodal.Shunt"><code class="xref py py-class docutils literal notranslate"><span class="pre">Shunt</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>topological</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.topological.html#module-pmrf.models.composite.topological" title="pmrf.models.composite.topological"><code class="xref py py-mod docutils literal notranslate"><span class="pre">topological</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.LTopology.html#pmrf.models.composite.topological.LTopology" title="pmrf.models.composite.topological.LTopology"><code class="xref py py-class docutils literal notranslate"><span class="pre">LTopology</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.PiTopology.html#pmrf.models.composite.topological.PiTopology" title="pmrf.models.composite.topological.PiTopology"><code class="xref py py-class docutils literal notranslate"><span class="pre">PiTopology</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.TTopology.html#pmrf.models.composite.topological.TTopology" title="pmrf.models.composite.topological.TTopology"><code class="xref py py-class docutils literal notranslate"><span class="pre">TTopology</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>transformed</strong> (<a class="reference internal" href="../api/generated/pmrf.models.composite.transformed.html#module-pmrf.models.composite.transformed" title="pmrf.models.composite.transformed"><code class="xref py py-mod docutils literal notranslate"><span class="pre">transformed</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.transformed.Flipped.html#pmrf.models.composite.transformed.Flipped" title="pmrf.models.composite.transformed.Flipped"><code class="xref py py-class docutils literal notranslate"><span class="pre">Flipped</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.composite.transformed.Renumbered.html#pmrf.models.composite.transformed.Renumbered" title="pmrf.models.composite.transformed.Renumbered"><code class="xref py py-class docutils literal notranslate"><span class="pre">Renumbered</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>surrogates</strong> (<a class="reference internal" href="../api/generated/pmrf.models.surrogates.html#module-pmrf.models.surrogates" title="pmrf.models.surrogates"><code class="xref py py-mod docutils literal notranslate"><span class="pre">surrogates</span></code></a>)</dt><dd><ul>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.BarycentricRational.html#pmrf.models.surrogates.rational.BarycentricRational" title="pmrf.models.surrogates.rational.BarycentricRational"><code class="xref py py-class docutils literal notranslate"><span class="pre">BarycentricRational</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.PoleResidue.html#pmrf.models.surrogates.rational.PoleResidue" title="pmrf.models.surrogates.rational.PoleResidue"><code class="xref py py-class docutils literal notranslate"><span class="pre">PoleResidue</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.PolynomialRatio.html#pmrf.models.surrogates.rational.PolynomialRatio" title="pmrf.models.surrogates.rational.PolynomialRatio"><code class="xref py py-class docutils literal notranslate"><span class="pre">PolynomialRatio</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.StateSpace.html#pmrf.models.surrogates.rational.StateSpace" title="pmrf.models.surrogates.rational.StateSpace"><code class="xref py py-class docutils literal notranslate"><span class="pre">StateSpace</span></code></a></p></li>
+<li><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.expansion.VectorExpansion.html#pmrf.models.surrogates.expansion.VectorExpansion" title="pmrf.models.surrogates.expansion.VectorExpansion"><code class="xref py py-class docutils literal notranslate"><span class="pre">VectorExpansion</span></code></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<div style="display: none;"><table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.AModel.html#pmrf.models.adapters.static.AModel" title="pmrf.models.adapters.static.AModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.AModel</span></code></a>(a_matrix, ...)</p></td>
+<td><p>A model storing static ABCD-parameters (cascade) as raw arrays.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.delegated.AbstractBuilder.html#pmrf.models.adapters.delegated.AbstractBuilder" title="pmrf.models.adapters.delegated.AbstractBuilder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.delegated.AbstractBuilder</span></code></a>(*)</p></td>
+<td><p>Abstract base for an RF model implemented by building another model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractDiscrete.html#pmrf.models.adapters.base.AbstractDiscrete" title="pmrf.models.adapters.base.AbstractDiscrete"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.base.AbstractDiscrete</span></code></a>(...)</p></td>
+<td><p>(experimental) A model whose properties are defined on a discrete (tabulated) frequency grid.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.bridge.AbstractHost.html#pmrf.models.adapters.bridge.AbstractHost" title="pmrf.models.adapters.bridge.AbstractHost"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.bridge.AbstractHost</span></code></a>(*)</p></td>
+<td><p>An abstract base class for models where computation occurs on the Host (CPU/Python) rather than the Device (XLA/GPU).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractSingleDiscreteDomain.html#pmrf.models.adapters.base.AbstractSingleDiscreteDomain" title="pmrf.models.adapters.base.AbstractSingleDiscreteDomain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.base.AbstractSingleDiscreteDomain</span></code></a>(...)</p></td>
+<td><p>(experimental) Base model providing a single dynamic domain from a discrete grid.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.base.AbstractSingleDomain.html#pmrf.models.adapters.base.AbstractSingleDomain" title="pmrf.models.adapters.base.AbstractSingleDomain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.base.AbstractSingleDomain</span></code></a>(*)</p></td>
+<td><p>(experimental) Base model wrapping a single known domain type.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.callable.ContinuousCallable.html#pmrf.models.adapters.callable.ContinuousCallable" title="pmrf.models.adapters.callable.ContinuousCallable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.callable.ContinuousCallable</span></code></a>(fn, ...)</p></td>
+<td><p>A model that predicts its output at an arbitrary frequency using an arbitrary callable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.callable.DiscreteCallable.html#pmrf.models.adapters.callable.DiscreteCallable" title="pmrf.models.adapters.callable.DiscreteCallable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.callable.DiscreteCallable</span></code></a>(...)</p></td>
+<td><p>A model that predicts its output at a discrete set of frequencies already known to the model using an arbitrary callable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.SModel.html#pmrf.models.adapters.static.SModel" title="pmrf.models.adapters.static.SModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.SModel</span></code></a>(s_matrix, ...)</p></td>
+<td><p>A model storing static S-parameters (scattering) as raw arrays.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.SkrfNetwork.html#pmrf.models.adapters.static.SkrfNetwork" title="pmrf.models.adapters.static.SkrfNetwork"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.SkrfNetwork</span></code></a>(network)</p></td>
+<td><p>A model wrapping a static <code class="xref py py-class docutils literal notranslate"><span class="pre">skrf.Network</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">NetworkCollection</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.Touchstone.html#pmrf.models.adapters.static.Touchstone" title="pmrf.models.adapters.static.Touchstone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.Touchstone</span></code></a>(file)</p></td>
+<td><p>A model for a touchstone file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.wrapped.Wrapped.html#pmrf.models.adapters.wrapped.Wrapped" title="pmrf.models.adapters.wrapped.Wrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.wrapped.Wrapped</span></code></a>(wrapped, *)</p></td>
+<td><p>Adapt a module that unwraps to a model to the RF model interface.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.YModel.html#pmrf.models.adapters.static.YModel" title="pmrf.models.adapters.static.YModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.YModel</span></code></a>(y_matrix, ...)</p></td>
+<td><p>A model storing static Y-parameters (admittance) as raw arrays.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.adapters.static.ZModel.html#pmrf.models.adapters.static.ZModel" title="pmrf.models.adapters.static.ZModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.adapters.static.ZModel</span></code></a>(z_matrix, ...)</p></td>
+<td><p>A model storing static Z-parameters (impedance) as raw arrays.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.base.Model</span></code></a>(*[, name, metadata])</p></td>
+<td><p>Base class for RF models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Amplifier.html#pmrf.models.components.ideal.Amplifier" title="pmrf.models.components.ideal.Amplifier"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Amplifier</span></code></a>(gain, *)</p></td>
+<td><p>(experimental) An ideal, matched, unilateral 2-port amplifier.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Attenuator.html#pmrf.models.components.ideal.Attenuator" title="pmrf.models.components.ideal.Attenuator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Attenuator</span></code></a>(loss, *)</p></td>
+<td><p>(experimental) A matched, 2-port physical attenuator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Autotransformer.html#pmrf.models.components.ideal.Autotransformer" title="pmrf.models.components.ideal.Autotransformer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Autotransformer</span></code></a>([...])</p></td>
+<td><p>(experimental) An ideal, lossless, frequency-independent 3-port 1:N autotransformer.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Balun.html#pmrf.models.components.ideal.Balun" title="pmrf.models.components.ideal.Balun"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Balun</span></code></a>([N, ...])</p></td>
+<td><p>(experimental) An ideal, lossless, frequency-independent 3-port 1:N balun.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.CentreTappedTransformer.html#pmrf.models.components.ideal.CentreTappedTransformer" title="pmrf.models.components.ideal.CentreTappedTransformer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.CentreTappedTransformer</span></code></a>([...])</p></td>
+<td><p>(experimental) An ideal, lossless, frequency-independent 5-port 1:N transformer with a tapped primary winding.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.DirectionalCoupler.html#pmrf.models.components.ideal.DirectionalCoupler" title="pmrf.models.components.ideal.DirectionalCoupler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.DirectionalCoupler</span></code></a>(...)</p></td>
+<td><p>(experimental) An ideal 4-port tunable directional coupler.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Ground.html#pmrf.models.components.ideal.Ground" title="pmrf.models.components.ideal.Ground"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Ground</span></code></a>(*[, ...])</p></td>
+<td><p>Represents a ground connection.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Isolator.html#pmrf.models.components.ideal.Isolator" title="pmrf.models.components.ideal.Isolator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Isolator</span></code></a>([...])</p></td>
+<td><p>(experimental) An ideal 2-port isolator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Load.html#pmrf.models.components.ideal.Load" title="pmrf.models.components.ideal.Load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Load</span></code></a>(gamma[, ...])</p></td>
+<td><p>A class for ideal N-port loads defined by their reflection coefficient.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Match.html#pmrf.models.components.ideal.Match" title="pmrf.models.components.ideal.Match"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Match</span></code></a>([nports, ...])</p></td>
+<td><p>A standard ideal matched circuit load (gamma = 0.0).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.MixedModeConverter.html#pmrf.models.components.ideal.MixedModeConverter" title="pmrf.models.components.ideal.MixedModeConverter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.MixedModeConverter</span></code></a>(*)</p></td>
+<td><p>(experimental) An ideal, lossless, frequency-independent 4-port mixed-mode converter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Open.html#pmrf.models.components.ideal.Open" title="pmrf.models.components.ideal.Open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Open</span></code></a>([nports, ...])</p></td>
+<td><p>A standard ideal open circuit load (gamma = 1.0).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Port.html#pmrf.models.components.ideal.Port" title="pmrf.models.components.ideal.Port"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Port</span></code></a>([z0, ...])</p></td>
+<td><p>Represents a circuit port with a specific characteristic impedance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Short.html#pmrf.models.components.ideal.Short" title="pmrf.models.components.ideal.Short"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Short</span></code></a>([nports, ...])</p></td>
+<td><p>A standard ideal short circuit load (gamma = -1.0).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.SourceConverter.html#pmrf.models.components.ideal.SourceConverter" title="pmrf.models.components.ideal.SourceConverter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.SourceConverter</span></code></a>(*)</p></td>
+<td><p>(experimental) An ideal 3-port source converter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Splitter.html#pmrf.models.components.ideal.Splitter" title="pmrf.models.components.ideal.Splitter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Splitter</span></code></a>([...])</p></td>
+<td><p>(experimental) An ideal n-way parallel node (lossless junction).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Tee.html#pmrf.models.components.ideal.Tee" title="pmrf.models.components.ideal.Tee"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Tee</span></code></a>(*[, name, ...])</p></td>
+<td><p>(experimental) An ideal, lossless 3-port Tee junction.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.ideal.Transformer.html#pmrf.models.components.ideal.Transformer" title="pmrf.models.components.ideal.Transformer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.ideal.Transformer</span></code></a>([...])</p></td>
+<td><p>(experimental) An ideal, lossless, frequency-independent 4-port 1:N transformer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation.html#pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation" title="pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.coaxial.AbstractCoaxialFormulation</span></code></a>()</p></td>
+<td><p>Abstract base class for a closed-form coaxial formulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.AbstractCurrentDistribution.html#pmrf.models.components.lines.planar.AbstractCurrentDistribution" title="pmrf.models.components.lines.planar.AbstractCurrentDistribution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.planar.AbstractCurrentDistribution</span></code></a>()</p></td>
+<td><p>Surface-current distribution for a transmission-line cross-section.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.AbstractImmittanceLine.html#pmrf.models.components.lines.base.AbstractImmittanceLine" title="pmrf.models.components.lines.base.AbstractImmittanceLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.base.AbstractImmittanceLine</span></code></a>(...)</p></td>
+<td><p>Abstract base class for a transmission line defined by its per-unit-length series impedance and shunt admittance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion.html#pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion" title="pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.AbstractMicrostripDispersion</span></code></a>()</p></td>
+<td><p>Abstract modal-dispersion formulation for an inhomogeneous microstrip.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation.html#pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation" title="pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.AbstractMicrostripFormulation</span></code></a>()</p></td>
+<td><p>Abstract base class for a closed-form microstrip formulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.AbstractPlanarCrossSection.html#pmrf.models.components.lines.planar.AbstractPlanarCrossSection" title="pmrf.models.components.lines.planar.AbstractPlanarCrossSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.planar.AbstractPlanarCrossSection</span></code></a>()</p></td>
+<td><p>Cross-section geometry for a planar line family.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.AbstractStriplineFormulation.html#pmrf.models.components.lines.stripline.AbstractStriplineFormulation" title="pmrf.models.components.lines.stripline.AbstractStriplineFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.stripline.AbstractStriplineFormulation</span></code></a>()</p></td>
+<td><p>Abstract base class for a closed-form stripline formulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.AbstractUniformLine.html#pmrf.models.components.lines.base.AbstractUniformLine" title="pmrf.models.components.lines.base.AbstractUniformLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.base.AbstractUniformLine</span></code></a>(*)</p></td>
+<td><p>Abstract base class for all uniform transmission line models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.CoaxialLine.html#pmrf.models.components.lines.coaxial.CoaxialLine" title="pmrf.models.components.lines.coaxial.CoaxialLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.coaxial.CoaxialLine</span></code></a>(...)</p></td>
+<td><p>Coaxial line defined by geometry and materials.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.CohnCurrentDistribution.html#pmrf.models.components.lines.stripline.CohnCurrentDistribution" title="pmrf.models.components.lines.stripline.CohnCurrentDistribution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.stripline.CohnCurrentDistribution</span></code></a>()</p></td>
+<td><p>Cohn's stripline current distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.CohnStriplineFormulation.html#pmrf.models.components.lines.stripline.CohnStriplineFormulation" title="pmrf.models.components.lines.stripline.CohnStriplineFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.stripline.CohnStriplineFormulation</span></code></a>()</p></td>
+<td><p>Cohn's stripline formulation, in the form tabulated by Pozar.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.empirical.DatasheetLine.html#pmrf.models.components.lines.empirical.DatasheetLine" title="pmrf.models.components.lines.empirical.DatasheetLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.empirical.DatasheetLine</span></code></a>(length)</p></td>
+<td><p>Line defined by nominal impedance, velocity factor, and loss coefficients.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.nodal.FloatingLine.html#pmrf.models.components.lines.nodal.FloatingLine" title="pmrf.models.components.lines.nodal.FloatingLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.nodal.FloatingLine</span></code></a>(...)</p></td>
+<td><p>A wrapper that converts a 2-port single-ended transmission line into a 4-port floating line with an explicit return path.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation.html#pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation" title="pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.HammerstadJensenMicrostripFormulation</span></code></a>()</p></td>
+<td><p>Hammerstad--Jensen quasi-static microstrip formulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.base.ImmittanceResult</span></code></a>(Z, ...)</p></td>
+<td><p>Per-unit-length series impedance and shunt admittance of a line.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution.html#pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution" title="pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.IncrementalInductanceCurrentDistribution</span></code></a>(...)</p></td>
+<td><p>Wheeler's incremental-inductance rule, evaluated by autodiff.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion.html#pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion" title="pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.KirschningJansenMicrostripDispersion</span></code></a>()</p></td>
+<td><p>Kirschning--Jansen modal dispersion for microstrip.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.MicrostripCrossSection.html#pmrf.models.components.lines.microstrip.MicrostripCrossSection" title="pmrf.models.components.lines.microstrip.MicrostripCrossSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.MicrostripCrossSection</span></code></a>(w, h)</p></td>
+<td><p>Cross-section of a strip on a grounded dielectric sheet.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.MicrostripLine.html#pmrf.models.components.lines.microstrip.MicrostripLine" title="pmrf.models.components.lines.microstrip.MicrostripLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.MicrostripLine</span></code></a>(w, ...)</p></td>
+<td><p>Microstrip line defined by geometry and materials.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.ideal.PhaseLine.html#pmrf.models.components.lines.ideal.PhaseLine" title="pmrf.models.components.lines.ideal.PhaseLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.ideal.PhaseLine</span></code></a>([...])</p></td>
+<td><p>Ideal, lossless, and dispersionless transmission line defined by electrical length at a reference frequency.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.empirical.PhysicalLine.html#pmrf.models.components.lines.empirical.PhysicalLine" title="pmrf.models.components.lines.empirical.PhysicalLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.empirical.PhysicalLine</span></code></a>(length)</p></td>
+<td><p>Line defined by nominal impedance, permittivity, and loss coefficients.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.planar.PlanarQuasiStaticResult.html#pmrf.models.components.lines.planar.PlanarQuasiStaticResult" title="pmrf.models.components.lines.planar.PlanarQuasiStaticResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.planar.PlanarQuasiStaticResult</span></code></a>(...)</p></td>
+<td><p>Quasi-static solution of a single-conductor planar line over a ground plane.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.ideal.RLGCLine.html#pmrf.models.components.lines.ideal.RLGCLine" title="pmrf.models.components.lines.ideal.RLGCLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.ideal.RLGCLine</span></code></a>(length)</p></td>
+<td><p>Transmission line with specified RLGC parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation.html#pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation" title="pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.coaxial.SchelkunoffCoaxialFormulation</span></code></a>([...])</p></td>
+<td><p>Coaxial line formulation using Schelkunoff's exact cylindrical solution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.StriplineCrossSection.html#pmrf.models.components.lines.stripline.StriplineCrossSection" title="pmrf.models.components.lines.stripline.StriplineCrossSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.stripline.StriplineCrossSection</span></code></a>(w, b)</p></td>
+<td><p>Cross-section of a centre strip between two ground planes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.stripline.StriplineLine.html#pmrf.models.components.lines.stripline.StriplineLine" title="pmrf.models.components.lines.stripline.StriplineLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.stripline.StriplineLine</span></code></a>(...)</p></td>
+<td><p>Stripline defined by its geometry and material modules.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.coaxial.TescheCoaxialFormulation.html#pmrf.models.components.lines.coaxial.TescheCoaxialFormulation" title="pmrf.models.components.lines.coaxial.TescheCoaxialFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.coaxial.TescheCoaxialFormulation</span></code></a>([...])</p></td>
+<td><p>Coaxial line formulation using Tesche's equivalent-circuit approximation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution.html#pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution" title="pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution</span></code></a>(...)</p></td>
+<td><p>Trace and ground plane charged as separate surfaces.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.base.TransmissionLine.html#pmrf.models.components.lines.base.TransmissionLine" title="pmrf.models.components.lines.base.TransmissionLine"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.base.TransmissionLine</span></code></a>(*)</p></td>
+<td><p>Abstract base interface for transmission lines.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.WheelerCurrentDistribution.html#pmrf.models.components.lines.microstrip.WheelerCurrentDistribution" title="pmrf.models.components.lines.microstrip.WheelerCurrentDistribution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.WheelerCurrentDistribution</span></code></a>(...)</p></td>
+<td><p>Wheeler's incremental-inductance current distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation.html#pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation" title="pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lines.microstrip.WheelerMicrostripFormulation</span></code></a>()</p></td>
+<td><p>Microstrip line formulation using the standard Wheeler approximations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Admittance.html#pmrf.models.components.lumped.Admittance" title="pmrf.models.components.lumped.Admittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.Admittance</span></code></a>(G, B, *)</p></td>
+<td><p>A 2-port model of a generic series admittance (G + jB).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Capacitor.html#pmrf.models.components.lumped.Capacitor" title="pmrf.models.components.lumped.Capacitor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.Capacitor</span></code></a>(C, *)</p></td>
+<td><p>A 2-port model of a series capacitor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.CapacitorQ.html#pmrf.models.components.lumped.CapacitorQ" title="pmrf.models.components.lumped.CapacitorQ"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.CapacitorQ</span></code></a>(C, Q, *)</p></td>
+<td><p>A 2-port model of a series capacitor with a finite Quality Factor (Q).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.CoupledInductors.html#pmrf.models.components.lumped.CoupledInductors" title="pmrf.models.components.lumped.CoupledInductors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.CoupledInductors</span></code></a>(L1, ...)</p></td>
+<td><p>A 4-port model of two inductors sharing a mutual inductance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Impedance.html#pmrf.models.components.lumped.Impedance" title="pmrf.models.components.lumped.Impedance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.Impedance</span></code></a>(R, X, *)</p></td>
+<td><p>A 2-port model of a generic series impedance (R + jX).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Inductor.html#pmrf.models.components.lumped.Inductor" title="pmrf.models.components.lumped.Inductor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.Inductor</span></code></a>(L, *)</p></td>
+<td><p>A 2-port model of a series inductor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.InductorQ.html#pmrf.models.components.lumped.InductorQ" title="pmrf.models.components.lumped.InductorQ"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.InductorQ</span></code></a>(L, Q, *)</p></td>
+<td><p>A 2-port model of a series inductor with a finite Quality Factor (Q).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.Resistor.html#pmrf.models.components.lumped.Resistor" title="pmrf.models.components.lumped.Resistor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.Resistor</span></code></a>(R, *)</p></td>
+<td><p>A 2-port model of a series resistor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.SeriesRL.html#pmrf.models.components.lumped.SeriesRL" title="pmrf.models.components.lumped.SeriesRL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.SeriesRL</span></code></a>(R, L, *)</p></td>
+<td><p>A 2-port model of a series resistor and inductor (Z = R + j*w*L).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntCapacitor.html#pmrf.models.components.lumped.ShuntCapacitor" title="pmrf.models.components.lumped.ShuntCapacitor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.ShuntCapacitor</span></code></a>(C, *)</p></td>
+<td><p>A 2-port model of a shunt capacitor shunting to ground.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntInductor.html#pmrf.models.components.lumped.ShuntInductor" title="pmrf.models.components.lumped.ShuntInductor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.ShuntInductor</span></code></a>(L, *)</p></td>
+<td><p>A 2-port model of a shunt inductor shunting to ground.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.lumped.ShuntResistor.html#pmrf.models.components.lumped.ShuntResistor" title="pmrf.models.components.lumped.ShuntResistor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.lumped.ShuntResistor</span></code></a>(R, *)</p></td>
+<td><p>A 2-port model of a shunt resistor shunting to ground.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.BoxSection.html#pmrf.models.components.sections.BoxSection" title="pmrf.models.components.sections.BoxSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.BoxSection</span></code></a>(Y1, ...)</p></td>
+<td><p>A 4-port model of a general Box-network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.BoxSectionCLCC.html#pmrf.models.components.sections.BoxSectionCLCC" title="pmrf.models.components.sections.BoxSectionCLCC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.BoxSectionCLCC</span></code></a>(C1, ...)</p></td>
+<td><p>A 4-port model of a Box-network with a Capacitor-Inductor-Capacitor-Capacitor topology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.LSection.html#pmrf.models.components.sections.LSection" title="pmrf.models.components.sections.LSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.LSection</span></code></a>(Z, Y, *)</p></td>
+<td><p>A 2-port model of a general L-section impedance matching network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.LSectionLC.html#pmrf.models.components.sections.LSectionLC" title="pmrf.models.components.sections.LSectionLC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.LSectionLC</span></code></a>(L, C, *)</p></td>
+<td><p>A 2-port model of an L-section impedance matching network.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.PiSection.html#pmrf.models.components.sections.PiSection" title="pmrf.models.components.sections.PiSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.PiSection</span></code></a>(Y1, ...)</p></td>
+<td><p>A 2-port model of a general Pi-network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.PiSectionCLC.html#pmrf.models.components.sections.PiSectionCLC" title="pmrf.models.components.sections.PiSectionCLC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.PiSectionCLC</span></code></a>(C1, ...)</p></td>
+<td><p>A 2-port model of a Pi-network with a Capacitor-Inductor-Capacitor topology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.TSection.html#pmrf.models.components.sections.TSection" title="pmrf.models.components.sections.TSection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.TSection</span></code></a>(Z1, ...)</p></td>
+<td><p>A 2-port model of a general Tee-network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.components.sections.TSectionLCL.html#pmrf.models.components.sections.TSectionLCL" title="pmrf.models.components.sections.TSectionLCL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.components.sections.TSectionLCL</span></code></a>(L1, ...)</p></td>
+<td><p>A 2-port model of a Tee-network with an Inductor-Capacitor-Inductor topology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.cascade.Cascade.html#pmrf.models.composite.interconnected.cascade.Cascade" title="pmrf.models.composite.interconnected.cascade.Cascade"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.cascade.Cascade</span></code></a>(...)</p></td>
+<td><p>Represents a cascade, or series connection, of two or more <cite>Model</cite> objects.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.AbstractAdmittanceCircuitSolver</span></code></a>()</p></td>
+<td><p>Abstract base class for solvers that resolve arbitrary circuit networks in the Admittance domain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.AbstractMNACircuitSolver</span></code></a>()</p></td>
+<td><p>Abstract base class for solvers that resolve arbitrary circuits using MNA.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.AbstractScatteringCircuitSolver</span></code></a>()</p></td>
+<td><p>Abstract base class for solvers that resolve arbitrary circuit networks in the Scattering domain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.AdmittanceResult.html#pmrf.models.composite.interconnected.circuit.base.AdmittanceResult" title="pmrf.models.composite.interconnected.circuit.base.AdmittanceResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.AdmittanceResult</span></code></a>(y)</p></td>
+<td><p>Data container for the result of an admittance simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.circuit.Circuit.html#pmrf.models.composite.interconnected.circuit.circuit.Circuit" title="pmrf.models.composite.interconnected.circuit.circuit.Circuit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.circuit.Circuit</span></code></a>(...)</p></td>
+<td><p>Represents an arbitrary interconnection of multiple models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalMNACircuitSolver</span></code></a>([...])</p></td>
+<td><p>Global Modified Nodal Analysis (MNA) circuit solver.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.solvers.nodal.GlobalNodalCircuitSolver</span></code></a>([...])</p></td>
+<td><p>Global Y-domain Nodal Admittance circuit solver.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.solvers.scattering.GlobalScatteringCircuitSolver</span></code></a>([...])</p></td>
+<td><p>Global S-parameter reduction solver.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.solvers.scattering.HierarchicalScatteringCircuitSolver</span></code></a>([...])</p></td>
+<td><p>Hierarchical S-parameter reduction solver.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.MNARepresentation.html#pmrf.models.composite.interconnected.circuit.base.MNARepresentation" title="pmrf.models.composite.interconnected.circuit.base.MNARepresentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.MNARepresentation</span></code></a>(...)</p></td>
+<td><p>Static topological representation for Modified Nodal Analysis (MNA) assembly and reduction.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.NodalRepresentation.html#pmrf.models.composite.interconnected.circuit.base.NodalRepresentation" title="pmrf.models.composite.interconnected.circuit.base.NodalRepresentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.NodalRepresentation</span></code></a>(...)</p></td>
+<td><p>Static topological representation for nodal admittance assembly and reduction.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.PortRepresentation.html#pmrf.models.composite.interconnected.circuit.base.PortRepresentation" title="pmrf.models.composite.interconnected.circuit.base.PortRepresentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.PortRepresentation</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.base.ScatteringResult.html#pmrf.models.composite.interconnected.circuit.base.ScatteringResult" title="pmrf.models.composite.interconnected.circuit.base.ScatteringResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.base.ScatteringResult</span></code></a>(s, z0)</p></td>
+<td><p>Data container for the result of a scattering simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver.html#pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver" title="pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.circuit.solvers.scattering.SequentialScatteringCircuitSolver</span></code></a>([...])</p></td>
+<td><p>Sequential S-parameter reduction solver (Matrix Contraction).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.interconnected.terminated.Terminated.html#pmrf.models.composite.interconnected.terminated.Terminated" title="pmrf.models.composite.interconnected.terminated.Terminated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.interconnected.terminated.Terminated</span></code></a>(...)</p></td>
+<td><p>Represents one network terminated in another.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.CoupledOnePorts.html#pmrf.models.composite.nodal.CoupledOnePorts" title="pmrf.models.composite.nodal.CoupledOnePorts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.CoupledOnePorts</span></code></a>(...)</p></td>
+<td><p>(experimental) Wraps N 1-port models (e.g. inductors) and couples them via a given K-matrix.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.CoupledTwoPorts.html#pmrf.models.composite.nodal.CoupledTwoPorts" title="pmrf.models.composite.nodal.CoupledTwoPorts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.CoupledTwoPorts</span></code></a>(...)</p></td>
+<td><p>(experimental) Wraps N 2-port models (e.g., Inductors) and couples them via a given K-matrix.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.FloatingTwoPort.html#pmrf.models.composite.nodal.FloatingTwoPort" title="pmrf.models.composite.nodal.FloatingTwoPort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.FloatingTwoPort</span></code></a>(...)</p></td>
+<td><p>Lift a two-port model into a canonical floating four-terminal model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.GroundExposed.html#pmrf.models.composite.nodal.GroundExposed" title="pmrf.models.composite.nodal.GroundExposed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.GroundExposed</span></code></a>(...)</p></td>
+<td><p>A wrapper that converts an N-port grounded model into an (N+1)-port model by exposing the global ground as a single, accessible terminal.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.GroundLifted.html#pmrf.models.composite.nodal.GroundLifted" title="pmrf.models.composite.nodal.GroundLifted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.GroundLifted</span></code></a>(...)</p></td>
+<td><p>A wrapper that converts an N-port grounded model into a 2N-port ungrounded model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.nodal.Shunt.html#pmrf.models.composite.nodal.Shunt" title="pmrf.models.composite.nodal.Shunt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.nodal.Shunt</span></code></a>(shunt, *)</p></td>
+<td><p>Represents a 1-port network connected in parallel (shunt) across a 2-port line.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.LTopology.html#pmrf.models.composite.topological.LTopology" title="pmrf.models.composite.topological.LTopology"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.topological.LTopology</span></code></a>(M1, ...)</p></td>
+<td><p>(experimental) A 2-port L-section network built from nested sub-models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.PiTopology.html#pmrf.models.composite.topological.PiTopology" title="pmrf.models.composite.topological.PiTopology"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.topological.PiTopology</span></code></a>(M1, ...)</p></td>
+<td><p>(experimental) A 2-port Pi-network built from nested sub-models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.topological.TTopology.html#pmrf.models.composite.topological.TTopology" title="pmrf.models.composite.topological.TTopology"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.topological.TTopology</span></code></a>(M1, ...)</p></td>
+<td><p>(experimental) A 2-port Tee-network built from nested sub-models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.transformed.Flipped.html#pmrf.models.composite.transformed.Flipped" title="pmrf.models.composite.transformed.Flipped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.transformed.Flipped</span></code></a>(...)</p></td>
+<td><p>A model container that flips the ports of a multi-port network.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.composite.transformed.Renumbered.html#pmrf.models.composite.transformed.Renumbered" title="pmrf.models.composite.transformed.Renumbered"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.composite.transformed.Renumbered</span></code></a>(...)</p></td>
+<td><p>A container that re-numbers the ports of a given <cite>Model</cite>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.BarycentricRational.html#pmrf.models.surrogates.rational.BarycentricRational" title="pmrf.models.surrogates.rational.BarycentricRational"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.surrogates.rational.BarycentricRational</span></code></a>([...])</p></td>
+<td><p>(experimental) A highly numerically stable rational model defined by a barycentric expansion: H(s) = [ sum( w_i * f_i / (s - s_i) ) ] / [ sum( w_i / (s - s_i) ) ]</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.PoleResidue.html#pmrf.models.surrogates.rational.PoleResidue" title="pmrf.models.surrogates.rational.PoleResidue"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.surrogates.rational.PoleResidue</span></code></a>(...)</p></td>
+<td><p>(experimental) A general N-port model defined by a pole-residue expansion: H(s) = D + sum( R_i / (s - p_i) )</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.PolynomialRatio.html#pmrf.models.surrogates.rational.PolynomialRatio" title="pmrf.models.surrogates.rational.PolynomialRatio"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.surrogates.rational.PolynomialRatio</span></code></a>(A, B, *)</p></td>
+<td><p>(experimental) A general N-port model defined by a ratio of polynomials H(s) = A(s) / B(s) where s = j*w.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.rational.StateSpace.html#pmrf.models.surrogates.rational.StateSpace" title="pmrf.models.surrogates.rational.StateSpace"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.surrogates.rational.StateSpace</span></code></a>(A, ...)</p></td>
+<td><p>(experimental) A general N-port model defined by continuous-time state-space matrices: H(s) = C * (sI - A)^-1 * B + D</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/generated/pmrf.models.surrogates.expansion.VectorExpansion.html#pmrf.models.surrogates.expansion.VectorExpansion" title="pmrf.models.surrogates.expansion.VectorExpansion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pmrf.models.surrogates.expansion.VectorExpansion</span></code></a>(...)</p></td>
+<td><p>(experimental) A model where the output is a linear expansion of vector/matrix basis functions with an optional offset.</p></td>
+</tr>
+</tbody>
+</table>
+</div></section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../tutorials/2_chip_inductor_fitting.html" class="btn btn-neutral float-left" title="Fitting on Chip Inductors (1-40 GHz)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../api/index.html" class="btn btn-neutral float-right" title="API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

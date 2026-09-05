@@ -1,0 +1,12 @@
+
+
+
+LogNormal
+=========
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: LogNormal
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+_constraint_s
+=============
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autofunction:: _constraint_s

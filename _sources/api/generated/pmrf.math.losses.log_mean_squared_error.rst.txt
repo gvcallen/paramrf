@@ -1,0 +1,9 @@
+
+
+
+log_mean_squared_error
+======================
+
+.. currentmodule:: pmrf.math.losses
+
+.. autofunction:: log_mean_squared_error

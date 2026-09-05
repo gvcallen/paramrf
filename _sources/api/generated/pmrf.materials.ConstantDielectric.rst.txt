@@ -1,0 +1,12 @@
+
+
+
+ConstantDielectric
+==================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: ConstantDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

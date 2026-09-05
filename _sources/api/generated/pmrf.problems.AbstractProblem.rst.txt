@@ -1,0 +1,12 @@
+
+
+
+AbstractProblem
+===============
+
+.. currentmodule:: pmrf.problems
+
+.. autoclass:: AbstractProblem
+   :members:
+   :show-inheritance:
+   :inherited-members:

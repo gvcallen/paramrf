@@ -1,0 +1,261 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Derivatives and Sweeps &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Custom Models" href="custom_models.html" />
+    <link rel="prev" title="Parameter Naming and Model Manipulation" href="parameter_naming_and_model_manipulation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cascading_and_terminating.html">Cascading and Terminating</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit_models.html">Circuit Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model_optimization.html">Model Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameter_naming_and_model_manipulation.html">Parameter Naming and Model Manipulation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Derivatives and Sweeps</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#model-setup">Model Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scalar-derivatives">Scalar Derivatives</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vector-jacobians">Vector Jacobians</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parallel-sweeps">Parallel Sweeps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#grid-sweeps">Grid Sweeps</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="custom_models.html">Custom Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="multiple_models_one_parameter_set.html">Fitting Multiple Models from One Parameter Set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shared_substrates.html">Sharing a Substrate Between Traces</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Examples</a></li>
+      <li class="breadcrumb-item active">Derivatives and Sweeps</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/examples/derivatives_and_sweeps.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="derivatives-and-sweeps">
+<h1>Derivatives and Sweeps<a class="headerlink" href="#derivatives-and-sweeps" title="Link to this heading"></a></h1>
+<p>ParamRF provides built-in utilities for the calculation of analytical derivatives, as well as for performing vectorized parameter and function sweeps.</p>
+<section id="model-setup">
+<h2>Model Setup<a class="headerlink" href="#model-setup" title="Link to this heading"></a></h2>
+<p>Derivatives and sweeps can be performed across any <em>variable</em> parameters in a model. Let’s set up a base low-pass filter example model with named sub-models and unconstrained parameters:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShuntCapacitor</span><span class="p">,</span> <span class="n">Inductor</span><span class="p">,</span> <span class="n">Cascade</span>
+
+<span class="n">c1</span> <span class="o">=</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">1.0e-12</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'c1'</span><span class="p">)</span>
+<span class="n">l1</span> <span class="o">=</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">1.0e-9</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'l1'</span><span class="p">)</span>
+<span class="n">c2</span> <span class="o">=</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">1.0e-12</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'c2'</span><span class="p">)</span>
+
+<span class="n">lpf</span> <span class="o">=</span> <span class="n">Cascade</span><span class="p">([</span><span class="n">c1</span><span class="p">,</span> <span class="n">l1</span><span class="p">,</span> <span class="n">c2</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
+<section id="scalar-derivatives">
+<h2>Scalar Derivatives<a class="headerlink" href="#scalar-derivatives" title="Link to this heading"></a></h2>
+<p>To differentiate a model’s parameters, we can pass any differentiable function to <a class="reference internal" href="../api/generated/pmrf.derivative.html#pmrf.derivative" title="pmrf.derivative"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.derivative()</span></code></a> alongside its nominal arguments:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+
+<span class="n">freq</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mf">2.4</span><span class="p">,</span> <span class="mf">2.4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">'GHz'</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">s21_mag</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">s_mag</span><span class="p">(</span><span class="n">freq</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="p">(</span><span class="n">derivatives</span><span class="p">,)</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">derivative</span><span class="p">(</span><span class="n">s21_mag</span><span class="p">,</span> <span class="n">lpf</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Sensitivity to C1: </span><span class="si">{</span><span class="n">derivatives</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="s1">'c1.C'</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1e-12</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> / pF"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Sensitivity to L: </span><span class="si">{</span><span class="n">derivatives</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="s1">'l1.L'</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1e-9</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> / nH"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Sensitivity to C1: -0.106 / pF
+Sensitivity to L: 0.086 / nH
+</pre></div>
+</div>
+<p>The value returned by <code class="xref py py-func docutils literal notranslate"><span class="pre">prf.derivative()</span></code> is a tuple matching the same shape as our input arguments (after unwrapping using <a class="reference internal" href="../api/generated/pmrf.unwrap.html#pmrf.unwrap" title="pmrf.unwrap"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap()</span></code></a>). We can pass in individual parameters, regular JAX arrays, or entire models (as in the above example).</p>
+</section>
+<section id="vector-jacobians">
+<h2>Vector Jacobians<a class="headerlink" href="#vector-jacobians" title="Link to this heading"></a></h2>
+<p>We can also evaluate derivatives/sensitivity across an entire frequency band, known as computing the <em>jacobian</em>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+
+<span class="n">band</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">201</span><span class="p">,</span> <span class="s1">'GHz'</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">s21_mag_array</span><span class="p">(</span><span class="n">c1_val</span><span class="p">,</span> <span class="n">l_val</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">c1_val</span><span class="p">)</span> <span class="o">**</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">l_val</span><span class="p">)</span> <span class="o">**</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">1.0e-12</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">s_mag</span><span class="p">(</span><span class="n">band</span><span class="p">)[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="n">c_nom</span><span class="p">,</span> <span class="n">l_nom</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0e-12</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0e-9</span><span class="p">)</span>
+<span class="n">ds21_dc</span><span class="p">,</span> <span class="n">ds21_dl</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">derivative</span><span class="p">(</span><span class="n">s21_mag_array</span><span class="p">,</span> <span class="n">c_nom</span><span class="p">,</span> <span class="n">l_nom</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the above example, we passed JAX arrays as opposed to explicitly creating unconstrained parameters. We can plot the results as a function of frequency to visualize their behaviour:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+
+<span class="n">ax1</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">band</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">,</span> <span class="n">ds21_dc</span> <span class="o">*</span> <span class="mf">1e-12</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'tab:blue'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'C1 Sensitivity / pF'</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">'Frequency (GHz)'</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">'$\partial |S_</span><span class="si">{21}</span><span class="s1">| / \partial C$'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'tab:blue'</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">'y'</span><span class="p">,</span> <span class="n">labelcolor</span><span class="o">=</span><span class="s1">'tab:blue'</span><span class="p">)</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">twinx</span><span class="p">()</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">band</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">,</span> <span class="n">ds21_dl</span> <span class="o">*</span> <span class="mf">1e-9</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'tab:red'</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">'--'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'L Sensitivity / nH'</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">'$\partial |S_</span><span class="si">{21}</span><span class="s1">| / \partial L$'</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">'tab:red'</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">'y'</span><span class="p">,</span> <span class="n">labelcolor</span><span class="o">=</span><span class="s1">'tab:red'</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">'Sensitivity of $S_</span><span class="si">{21}</span><span class="s1">$ Magnitude'</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+<figure class="align-default">
+<img alt="../_images/derivatives_and_sweeps-4.png" class="plot-directive" src="../_images/derivatives_and_sweeps-4.png" />
+</figure>
+</section>
+<section id="parallel-sweeps">
+<h2>Parallel Sweeps<a class="headerlink" href="#parallel-sweeps" title="Link to this heading"></a></h2>
+<p>We can perform vectorized sweeps using <a class="reference internal" href="../api/generated/pmrf.sweep.html#pmrf.sweep" title="pmrf.sweep"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.sweep()</span></code></a>. By default, this is done in a parallel (zip-like) manner across the leading dimension of input JAX arrays. For example, lets sweep <span class="math notranslate nohighlight">\(C_1\)</span> and <span class="math notranslate nohighlight">\(L_1\)</span> simultaneously over a 1D range of values to evaluate the filter’s insertion loss (<span class="math notranslate nohighlight">\(S_{21}\)</span>) at 2.4 GHz:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">c_sweep</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.5e-12</span><span class="p">,</span> <span class="mf">1.5e-12</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="n">l_sweep</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.5e-9</span><span class="p">,</span> <span class="mf">1.5e-9</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">eval_s21_mag</span><span class="p">(</span><span class="n">c_val</span><span class="p">,</span> <span class="n">l_val</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">c_val</span><span class="p">)</span> <span class="o">**</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">l_val</span><span class="p">)</span> <span class="o">**</span> <span class="n">ShuntCapacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">1.0e-12</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">s_mag</span><span class="p">(</span><span class="n">freq</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+<span class="n">s21_parallel</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">sweep</span><span class="p">(</span><span class="n">eval_s21_mag</span><span class="p">,</span> <span class="n">c_sweep</span><span class="p">,</span> <span class="n">l_sweep</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Parallel sweep output shape: </span><span class="si">{</span><span class="n">s21_parallel</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Parallel sweep output shape: (50,)
+</pre></div>
+</div>
+</section>
+<section id="grid-sweeps">
+<h2>Grid Sweeps<a class="headerlink" href="#grid-sweeps" title="Link to this heading"></a></h2>
+<p>If we instead want to evaluate the function across <em>every possible combination</em> of inputs, we can pass <code class="docutils literal notranslate"><span class="pre">grid=True</span></code>. The output will be reshaped into an N-dimensional array corresponding to the swept dimensions. Let’s use this to visualize the <span class="math notranslate nohighlight">\(S_{21}\)</span> magnitude as a 2D surface across our component values:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">s21_grid</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">sweep</span><span class="p">(</span><span class="n">eval_s21_mag</span><span class="p">,</span> <span class="n">c_sweep</span><span class="p">,</span> <span class="n">l_sweep</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+
+<span class="n">C</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">c_sweep</span> <span class="o">*</span> <span class="mf">1e12</span><span class="p">,</span> <span class="n">l_sweep</span> <span class="o">*</span> <span class="mf">1e9</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s1">'ij'</span><span class="p">)</span>
+
+<span class="n">surface</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">s21_grid</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">'viridis'</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">surface</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'$|S_</span><span class="si">{21}</span><span class="s1">|$ Magnitude'</span><span class="p">)</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">'C1 Capacitance (pF)'</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">'L1 Inductance (nH)'</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">'$S_</span><span class="si">{21}</span><span class="s1">$ Response vs. Component Values at 2.4 GHz'</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+<figure class="align-default">
+<img alt="../_images/derivatives_and_sweeps-6.png" class="plot-directive" src="../_images/derivatives_and_sweeps-6.png" />
+</figure>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="parameter_naming_and_model_manipulation.html" class="btn btn-neutral float-left" title="Parameter Naming and Model Manipulation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="custom_models.html" class="btn btn-neutral float-right" title="Custom Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

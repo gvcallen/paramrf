@@ -1,0 +1,12 @@
+
+
+
+SumKernel
+=========
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: SumKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

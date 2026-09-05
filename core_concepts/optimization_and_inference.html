@@ -1,0 +1,181 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Optimization and Inference &mdash; paramrf 0.34.4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=47bf68f5"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="JAX Overview" href="jax_overview.html" />
+    <link rel="prev" title="Core Primitives" href="core_primitives.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Core Concepts</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="core_primitives.html">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Optimization and Inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#multiple-objectives">Multiple Objectives</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#jax-vs-cpu">JAX vs CPU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#frequentist-vs-bayesian">Frequentist vs Bayesian</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#available-solvers">Available Solvers</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="jax_overview.html">JAX Overview</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Core Concepts</a></li>
+      <li class="breadcrumb-item active">Optimization and Inference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core_concepts/optimization_and_inference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="optimization-and-inference">
+<h1>Optimization and Inference<a class="headerlink" href="#optimization-and-inference" title="Link to this heading"></a></h1>
+<p>ParamRF provides a higher-level interface for model optimization and inference. Models can be optimized using <a class="reference internal" href="../api/generated/pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.optimize.minimize</span></code></a>, sampled for statistical inference using <a class="reference internal" href="../api/generated/pmrf.infer.sample.html#pmrf.infer.sample" title="pmrf.infer.sample"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.infer.sample</span></code></a>, or fit to measured data using the high-level routines in <a class="reference internal" href="../api/generated/pmrf.fitting.html#module-pmrf.fitting" title="pmrf.fitting"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.fitting</span></code></a>.</p>
+<section id="multiple-objectives">
+<h2>Multiple Objectives<a class="headerlink" href="#multiple-objectives" title="Link to this heading"></a></h2>
+<p>Both <a class="reference internal" href="../api/generated/pmrf.optimize.minimize.html#pmrf.optimize.minimize" title="pmrf.optimize.minimize"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.optimize.minimize()</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.infer.sample.html#pmrf.infer.sample" title="pmrf.infer.sample"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.infer.sample()</span></code></a> accept a list of objectives, which are summed together. By default, each objective is evaluated over the frequency sweep passed alongside them:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">([</span><span class="n">match_goal</span><span class="p">,</span> <span class="n">isolation_goal</span><span class="p">],</span> <span class="n">model</span><span class="p">,</span> <span class="n">passband</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>An objective can also be paired with its own frequency sweep. This allows a single set of model parameters to be optimized over several bands at once, which is useful when different measurements cover different frequency ranges, or when a design goal only applies within a certain band:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">([</span>
+    <span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">evaluators</span><span class="o">.</span><span class="n">Goal</span><span class="p">(</span><span class="s1">'s11_db'</span><span class="p">,</span> <span class="s1">'&lt;'</span><span class="p">,</span> <span class="o">-</span><span class="mi">20</span><span class="p">),</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">130</span><span class="p">,</span> <span class="mi">101</span><span class="p">,</span> <span class="s1">'MHz'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">evaluators</span><span class="o">.</span><span class="n">Goal</span><span class="p">(</span><span class="s1">'s21_db'</span><span class="p">,</span> <span class="s1">'&gt;'</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">401</span><span class="p">,</span> <span class="s1">'MHz'</span><span class="p">)),</span>
+<span class="p">],</span> <span class="n">model</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To weight the objectives against one another, the pairing can be created explicitly using <a class="reference internal" href="../api/generated/pmrf.terms.BoundEvaluator.html#pmrf.terms.BoundEvaluator" title="pmrf.terms.BoundEvaluator"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.terms.BoundEvaluator</span></code></a>. Any callable that accepts only a model, such as a penalty on the parameters that requires no frequency, can also be summed in directly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">([</span>
+    <span class="n">prf</span><span class="o">.</span><span class="n">BoundEvaluator</span><span class="p">(</span><span class="n">s11_goal</span><span class="p">,</span> <span class="n">passband</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">2.0</span><span class="p">),</span>
+    <span class="n">prf</span><span class="o">.</span><span class="n">BoundEvaluator</span><span class="p">(</span><span class="n">s21_goal</span><span class="p">,</span> <span class="n">wideband</span><span class="p">),</span>
+    <span class="k">lambda</span> <span class="n">model</span><span class="p">:</span> <span class="mf">1e-3</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">L</span> <span class="o">**</span> <span class="mi">2</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">model</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="jax-vs-cpu">
+<h2>JAX vs CPU<a class="headerlink" href="#jax-vs-cpu" title="Link to this heading"></a></h2>
+<p>ParamRF provides two types of solvers, namely <em>JAX-native</em>, and <em>CPU-native</em> solvers. JAX-native solvers are implemented fully in JAX code, while CPU-native solvers are simply regular solvers wrapped in a JAX callback interface. These solvers act fundamentally differently, and it is important to understand their strengths and weaknesses.</p>
+<p>The entire optimization loop for JAX-native solvers can be just-in-time (JIT) compiled. This means that they can run on different platforms (CPU, GPU etc.). However, they are structured slightly differently to standard solvers. For example, JAX code <em>does not allow any dynamic memory allocation</em> after compilation. This means that JIT-compiled optimizers, for example, will always run for a <em>fixed number of iterations</em> before terminating.</p>
+<p>Conversely, CPU-native solvers <em>only compile the forward pass</em> (such as the objective function), meaning they can be early-stopped, but <em>cannot be reused</em> without recompiling the forward pass. For simple models, this overhead may be negligible, but complicated models likely should prefer JAX-native solutions to avoid model recompilation.</p>
+</section>
+<section id="frequentist-vs-bayesian">
+<h2>Frequentist vs Bayesian<a class="headerlink" href="#frequentist-vs-bayesian" title="Link to this heading"></a></h2>
+<p>While “frequentist” optimization provides a single best set of parameters for your model, “Bayesian” inference provides a full probability distribution over your parameters. This can be useful for when you want to explore the full possibility of parameters that satisfy your goal function or fit your data with some probability. ParamRF provides Bayesian inference out-of-the box, and applying it to circuit modeling is an active area of research. We recommend <a class="reference external" href="https://www.stat.cmu.edu/~larry/=sml/Bayes.pdf">this source</a> for a brief introduction to Bayesian inference and Bayesian sampling approaches.</p>
+</section>
+<section id="available-solvers">
+<h2>Available Solvers<a class="headerlink" href="#available-solvers" title="Link to this heading"></a></h2>
+<p>ParamRF allows for optimization and inference using a number of built-in backends, namely <code class="xref py py-func docutils literal notranslate"><span class="pre">scipy()</span></code>, <code class="xref py py-func docutils literal notranslate"><span class="pre">optimistix()</span></code>, <code class="xref py py-mod docutils literal notranslate"><span class="pre">jaxopt</span></code>, <code class="xref py py-func docutils literal notranslate"><span class="pre">pypolychord()</span></code> and <code class="xref py py-mod docutils literal notranslate"><span class="pre">blackjax</span></code>. These can be found in <a class="reference internal" href="../api/generated/pmrf.optimize.html#module-pmrf.optimize" title="pmrf.optimize"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.optimize</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.infer.html#module-pmrf.infer" title="pmrf.infer"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.infer</span></code></a>.</p>
+<ul class="simple">
+<li><p><strong>Optimistix</strong>: JAX-native optimization algorithms, such as <a class="reference internal" href="../api/generated/pmrf.optimize.LBFGS.html#pmrf.optimize.LBFGS" title="pmrf.optimize.LBFGS"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.LBFGS</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.optimize.NelderMead.html#pmrf.optimize.NelderMead" title="pmrf.optimize.NelderMead"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.NelderMead</span></code></a>.</p></li>
+<li><p><strong>JAXopt</strong>: More JAX-native algorithms, such as <a class="reference internal" href="../api/generated/pmrf.optimize.LBFGSB.html#pmrf.optimize.LBFGSB" title="pmrf.optimize.LBFGSB"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.LBFGSB</span></code></a>.</p></li>
+<li><p><strong>Scipy</strong>: A wrapper around CPU-native gradient-based and gradient-free optimization algorithms from <code class="xref py py-func docutils literal notranslate"><span class="pre">scipy.optimize.minimize()</span></code> in <a class="reference internal" href="../api/generated/pmrf.optimize.ScipyMinimize.html#pmrf.optimize.ScipyMinimize" title="pmrf.optimize.ScipyMinimize"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.ScipyMinimize</span></code></a>. This includes algorithms such as <em>SLSQP</em>, <em>Nelder-Mead</em> and <em>L-BFGS</em>. These are often more robust than their JAX counterparts.</p></li>
+<li><p><strong>BlackJAX</strong>: JAX-native Bayesian inference algorithms, e.g. <a class="reference internal" href="../api/generated/pmrf.infer.NUTS.html#pmrf.infer.NUTS" title="pmrf.infer.NUTS"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.infer.NUTS</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.infer.HMC.html#pmrf.infer.HMC" title="pmrf.infer.HMC"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.infer.HMC</span></code></a>.</p></li>
+<li><p><strong>PolyChord</strong>: A wrapper around the CPU-native PolyChord nested sampling algorithm from <code class="xref py py-func docutils literal notranslate"><span class="pre">pypolychord.run()</span></code> in <a class="reference internal" href="../api/generated/pmrf.infer.PolyChord.html#pmrf.infer.PolyChord" title="pmrf.infer.PolyChord"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.infer.PolyChord</span></code></a>.</p></li>
+</ul>
+<p>Custom solvers can also be implemented by overriding the relevant abstract interface, such as <a class="reference internal" href="../api/generated/pmrf.optimize.AbstractUnconstrainedMinimizer.html#pmrf.optimize.AbstractUnconstrainedMinimizer" title="pmrf.optimize.AbstractUnconstrainedMinimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.AbstractUnconstrainedMinimizer</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.optimize.AbstractBoundedMinimizer.html#pmrf.optimize.AbstractBoundedMinimizer" title="pmrf.optimize.AbstractBoundedMinimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.optimize.AbstractBoundedMinimizer</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.infer.AbstractJointSampler.html#pmrf.infer.AbstractJointSampler" title="pmrf.infer.AbstractJointSampler"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.infer.AbstractJointSampler</span></code></a>, etc.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="core_primitives.html" class="btn btn-neutral float-left" title="Core Primitives" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="jax_overview.html" class="btn btn-neutral float-right" title="JAX Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
