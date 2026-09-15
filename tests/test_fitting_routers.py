@@ -27,9 +27,11 @@ def freq():
 
 @pytest.fixture
 def starting_model():
+    # Solvers move through raw values, and a value on a bound has no raw
+    # counterpart the solver can move away from, so start inside the bounds.
     return CompositeModel(
-        sub1=SubModel(val=Bounded(0.0, 10.0, value=0.0)),
-        sub2=SubModel(val=Bounded(0.0, 10.0, value=0.0))
+        sub1=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
+        sub2=SubModel(val=Bounded(0.0, 10.0, value=1.0))
     )
 
 @pytest.fixture

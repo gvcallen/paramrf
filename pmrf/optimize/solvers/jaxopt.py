@@ -20,13 +20,13 @@ class LBFGSB(AbstractBoundedMinimizer):
     ----------
     gtol : float, default=1e-3
         The gradient norm tolerance for termination.
-    stepsize : float, default=1.0
-        Initial step size for the line search.
+    stepsize : float, default=0.0
+        A fixed step size. At 0.0 or below, `linesearch` chooses each step instead.
     linesearch : str, default="zoom"
         Type of line search to use.
     """
     gtol: float = eqx.field(static=True, default=1e-3)
-    stepsize: float = eqx.field(static=True, default=1.0)
+    stepsize: float = eqx.field(static=True, default=0.0)
     linesearch: str = eqx.field(static=True, default="zoom")
     
     def run(
