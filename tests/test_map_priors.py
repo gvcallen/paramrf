@@ -41,10 +41,10 @@ def fit(model, **kwargs):
 
 def fitted_value(result):
     # These tests compare against a closed form in physical units, so read the
-    # physical value. `named_params` returns declared values, which differ by the
-    # scale whenever a parameter declares one.
-    param = list(result.model.named_params(full_params=True).values())[0]
-    return float(np.asarray(param.physical_value).ravel()[0])
+    # physical space. Values are declared by default, which differs by the scale
+    # whenever a parameter declares one.
+    values = prf.param_values(result.model, space='physical')
+    return float(np.asarray(list(values.values())[0]).ravel()[0])
 
 
 def log_prior(model):
@@ -153,7 +153,7 @@ def test_array_parameter_can_be_fitted():
         inference="bayesian", noise=VARIANCE,
         solver=prf.optimize.ScipyMinimize(method="trust-constr"), max_iter=2000)
 
-    assert np.all(np.isfinite(np.asarray(list(result.model.named_params().values())[0])))
+    assert np.all(np.isfinite(np.asarray(list(prf.param_values(result.model).values())[0])))
 
 
 # ==========================================
