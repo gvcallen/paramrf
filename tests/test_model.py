@@ -84,7 +84,6 @@ def test_build_deprecation_warns_once_per_class():
         warnings.simplefilter("always")
         assert isinstance(OnceCompositional().build(), DummyModelS)
         assert isinstance(OnceCompositional().build(), DummyModelS)
-        OnceCompositional().build()
         OtherCompositional().build()
 
     messages = [
@@ -92,7 +91,8 @@ def test_build_deprecation_warns_once_per_class():
         if issubclass(w.category, FutureWarning) and "Model.build() is deprecated" in str(w.message)
     ]
     assert len(messages) == 2
-    assert "plain function" in messages[0]
+    assert messages[0].startswith("OnceCompositional:")
+    assert messages[1].startswith("OtherCompositional:")
 
 def test_primary_matrix_execution(model_s, basic_freq):
     """Test that calling .primary_matrix() routes to the correct evaluation method."""

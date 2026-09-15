@@ -1,15 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Complete Tesche coaxial conductor physics across the low-frequency regime,
-  and pass evaluated material properties to pure coaxial formulations.
-- Correct microstrip results by enabling Kirschning--Jansen modal dispersion by
-  default. Set `dispersion=None` on `MicrostripLine` to retain the quasi-static
-  pipeline explicitly.
-- Add the Hammerstad--Jensen microstrip formulation and selectable complex
-  (ADS-like) and real (QUCS-like) permittivity conventions.
-
 ## 0.35.0
 
 Parameter names, values and serialisation (#138). Downstream users pinning an
@@ -33,7 +23,8 @@ exact version: every breaking change below ships in **0.35.0**. `prf.flatten`
   `distribution` or `constraint`.
 - **Save format (#136):** prf files carry a header
   (`{"format": "prf", "schema_version": 1, "paramrf_version": ..., "tree": ...}`).
-  `prf.load` rejects files without it, so files saved by earlier versions
+  `prf.load` rejects files without it, or with a `schema_version`
+  other than 1, so files saved by earlier versions
   cannot be loaded.
 - **Save format (#136):** `prf.save` writes every field, defaults included.
 
@@ -60,3 +51,13 @@ exact version: every breaking change below ships in **0.35.0**. `prf.flatten`
 
 - `Module` and `Substrate` explain that passing the same instance to two
   sibling fields gives independent parameters, and how to share one (#137).
+
+## Unreleased
+
+- Complete Tesche coaxial conductor physics across the low-frequency regime,
+  and pass evaluated material properties to pure coaxial formulations.
+- Correct microstrip results by enabling Kirschning--Jansen modal dispersion by
+  default. Set `dispersion=None` on `MicrostripLine` to retain the quasi-static
+  pipeline explicitly.
+- Add the Hammerstad--Jensen microstrip formulation and selectable complex
+  (ADS-like) and real (QUCS-like) permittivity conventions.
