@@ -66,35 +66,6 @@ into separate strip and ground-plane terms in the Holloway–Kuester manner,
 which is the only fix that is actually honest, and which ParamRF does not
 implement.
 
-**Amendment (2026-09, #123): a second entry is right at both asymptotes.**
-The three alternatives weighed above missed one. Rescaling the *whole* exact
-slab does break an asymptote, as recorded — but the slab has two exact modes,
-not one. `EvenOddSlabSurfaceImpedance` carries only the even
-(total-current) mode into the caller's normalisation, at
-$\alpha=1/(2Wk)$, and puts the odd (difference-current) mode on the
-remaining $1-\alpha$:
-
-$$Z_s=\zeta_c\left[\alpha\coth(\gamma_c t/2)+(1-\alpha)\tanh(\gamma_c t/2)\right].$$
-
-At dc only the even mode survives, so $k$ recovers $1/(\sigma Wt)$ exactly;
-under strong skin effect both modes tend to $\zeta_c$ and the coefficients
-sum to 1, so the strong-skin weight is untouched. Both asymptotes therefore
-hold under a frequency-independent weight, as they do for the root-sum-square
-blend — but because both modes are analytic in $\gamma_c t$, the internal
-reactance is proportional to $\omega$ rather than $\sqrt{\omega}$, which is
-the known limitation tabulated above. It is 4.9x the exact slab reactance at
-$t/\delta=0.17$ against the blend's 41x at the same point, on a 2.655 mm,
-35 um strip under Cohn's weight.
-
-It is not free: the odd mode's coefficient is fixed by normalisation rather
-than by mode excitation, so the reactance is bounded rather than exact, and
-the form requires $\alpha\le1$ — true for any weight charging more than
-one-dimensional strip diffusion, which is every weight ParamRF supplies
-within its source's validity. This makes it the **stripline** default, under
-Cohn's weight. The microstrip default is deliberately **not** changed here:
-that is a numeric change to the most-used line in the library and belongs to
-its own decision, not to a stripline ticket.
-
 ### 2. The metal propagation constant is an explicit conductor property
 
 `ConductorProperties` carries `zs` (the surface prefactor) and `gamma(omega)`

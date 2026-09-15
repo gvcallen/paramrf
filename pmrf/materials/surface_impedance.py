@@ -42,12 +42,6 @@ class AbstractSurfaceImpedance(eqx.Module):
     separate weights; that is
     :class:`~pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution`,
     which emits one pair per surface.
-
-    :class:`EvenOddSlabSurfaceImpedance` reaches into the caller's
-    normalisation the same way, but mixes the two exact slab modes instead of
-    blending resistances, so it matches both limits *and* keeps the slab's
-    $\omega$-proportional internal reactance rather than the half-space
-    $\sqrt{\omega}$ one. It is the stripline default.
     """
     @abstractmethod
     def impedance(self, omega, conductor: ConductorProperties, **geometry) -> jnp.ndarray:
@@ -68,11 +62,9 @@ class AbstractSurfaceImpedance(eqx.Module):
             Cross-section-specific dimensions in metres. Implementations ignore
             dimensions they do not use.
         weight : ArrayLike, optional
-            Caller's geometry weight in inverse metres.
-            :class:`RootSumSquareSlabSurfaceImpedance` and
-            :class:`EvenOddSlabSurfaceImpedance` use it to express their dc
-            limit in the caller's normalisation; every other formulation
-            ignores it.
+            Caller's geometry weight in inverse metres. Only
+            :class:`RootSumSquareSlabSurfaceImpedance` uses it to express its dc limit
+            in the caller's normalisation.
 
         Returns
         -------
@@ -186,8 +178,7 @@ class RootSumSquareSlabSurfaceImpedance(AbstractSurfaceImpedance):
     reactance $\Im(\zeta_c)\propto\sqrt{\omega}$, whereas a finite slab's
     low-frequency reactance approaches $\omega\mu t/6$. Internal inductance
     is therefore inaccurate when the thickness is comparable to or less
-    than the skin depth; :class:`EvenOddSlabSurfaceImpedance` matches the
-    same two asymptotes without that defect.
+    than the skin depth.
 
     References
     ----------
@@ -205,96 +196,6 @@ class RootSumSquareSlabSurfaceImpedance(AbstractSurfaceImpedance):
         r_dc_sq = 1 / (conductor.sigma * w * t * weight)
         resistance = jnp.sqrt(r_dc_sq**2 + jnp.real(conductor.zs) ** 2)
         return resistance + 1j * jnp.imag(conductor.zs)
-
-
-class EvenOddSlabSurfaceImpedance(AbstractSurfaceImpedance):
-    r"""
-    Weight-matched mix of the two exact slab modes for a finite planar conductor.
-
-    **Mathematical Formulation**
-
-    Holloway and Kuester's eq. (45) gives a strip of thickness $t$ two exact
-    mode impedances: the even (total-current) mode
-    $\zeta_c\coth(\gamma_c t/2)$ and the odd (difference-current) mode
-    $\zeta_c\tanh(\gamma_c t/2)$, with $\gamma_c=\sqrt{j\omega\mu\sigma}$.
-    This formulation mixes them,
-
-    $$Z_s=\zeta_c\left[\alpha\coth\!\left(\frac{\gamma_c t}{2}\right)
-    +(1-\alpha)\tanh\!\left(\frac{\gamma_c t}{2}\right)\right],\qquad
-    \alpha=\frac{1}{2Wk},$$
-
-    where $W$ is the strip width and $k$ the caller's geometry weight in
-    inverse metres. $\alpha$ is the ratio of the even mode's own weight
-    $1/(2W)$ to the caller's, so it carries the even mode into the caller's
-    normalisation and does nothing else.
-
-    Both asymptotes are then exact. At dc only the even mode survives,
-    leaving $\alpha\,2/(\sigma t)$, which multiplied by $k$ is the strip's
-    true dc resistance $1/(\sigma Wt)$ whatever $k$ is. Under strong skin
-    effect both modes tend to $\zeta_c$ and the mix collapses to
-    $\alpha+(1-\alpha)=1$, leaving $Z_s=\zeta_c$ and the caller's weight
-    untouched.
-
-    The mixing fraction is fixed by normalisation rather than by mode
-    excitation, so the *mix* is a ParamRF convention; the two impedances
-    mixed are not.
-
-    **Why it is preferred over the root-sum-square blend**
-
-    :class:`RootSumSquareSlabSurfaceImpedance` matches the same two
-    asymptotes but blends resistances only, and keeps the half-space
-    reactance $\Im(\zeta_c)\propto\sqrt{\omega}$ throughout. Here both modes
-    are analytic in $\gamma_c t$, so below the skin-effect knee the reactance
-    is $\omega\mu t\,[\alpha/6+(1-\alpha)/2]$ -- proportional to $\omega$, as
-    a slab's internal reactance must be, rather than to $\sqrt{\omega}$. The
-    even mode alone contributes the slab's exact $\alpha\,\omega\mu t/6$; the
-    odd mode's $\omega\mu t/2$ is a real slab inductance too, but it is
-    carried here at a fraction chosen for the resistance asymptotes, so that
-    coefficient is a bound rather than an exact value. For a 2.655 mm wide,
-    35 um thick stripline strip under Cohn's weight ($\alpha=0.433$) it is
-    4.9x the exact slab reactance at $t/\delta=0.17$, against 41x for the
-    root-sum-square blend at the same point.
-
-    **Validity**
-
-    Requires $\alpha\le1$, that is, a caller weight of at least $1/(2W)$.
-    This holds for any weight that charges more than one-dimensional
-    diffusion in the strip -- edge crowding, a ground plane, or both -- which
-    is every planar weight ParamRF supplies, within its source's own validity.
-    Above $\alpha=1$ the odd-mode coefficient turns negative and the
-    resistance dips below its own dc floor: 5% low at $\alpha=1.2$ and 26%
-    low at $\alpha=1.56$, the extreme reached by Cohn's stripline weight only
-    at $t/b=0.4$, far outside the thin-strip regime his formulas are fitted
-    for. For $\alpha\le1$ both $R$ and $X$ are monotone in frequency.
-
-    Like every slab formulation here this one is one-dimensional: it
-    describes diffusion through the thickness and says nothing about
-    crowding at the strip edges, which lives in the caller's weight.
-
-    References
-    ----------
-    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
-    quasi-closed form expressions for the conductor loss of microstrip
-    lines. Radio Science, 29(3), 539-559. Eq. (45).
-
-    ParamRF convention for the mixing fraction; no source paper.
-    """
-    def impedance(self, omega, conductor: ConductorProperties, *, w, t, weight, **geometry) -> jnp.ndarray:
-        # alpha carries the even mode's own normalisation, 1/(2W), into the
-        # caller's: multiplying its dc value alpha*2/(sigma*t) by the caller's
-        # weight restores 1/(sigma*W*t) exactly, whatever the weight is.
-        alpha = 1 / (2 * w * weight)
-        half_gamma_t = conductor.gamma(omega) * t / 2
-        # dc and a perfect conductor are the two unevaluable arguments: coth
-        # has a pole at the first that zeta_c's zero cancels, so that limit is
-        # taken analytically and the argument is kept away from the pole.
-        evaluable = (omega > 0) & jnp.isfinite(conductor.sigma)
-        safe_argument = jnp.where(evaluable, half_gamma_t, 1.0)
-        zs = conductor.zs * (
-            alpha / jnp.tanh(safe_argument) + (1 - alpha) * jnp.tanh(safe_argument)
-        )
-        dc = alpha * 2 / (conductor.sigma * t)
-        return jnp.where(evaluable, zs, dc)
 
 
 def _tesche_circuit_impedance(zeta_c, r_dc_sq, inverse_l_int_sq, omega):

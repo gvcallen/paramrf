@@ -7,7 +7,6 @@ from pmrf.frequency import Frequency
 from pmrf.materials import (
     BulkConductor,
     ConstantDielectric,
-    EvenOddSlabSurfaceImpedance,
     HalfSpaceSurfaceImpedance,
     HollowayKuesterSlabSurfaceImpedance,
     RootSumSquareSlabSurfaceImpedance,
@@ -74,58 +73,9 @@ def test_cohn_distribution_uses_a_surface_pair():
         _solved(zc),
     )
 
-    assert len(pairs) == 1
-    assert isinstance(pairs[0][0], EvenOddSlabSurfaceImpedance)
+    assert isinstance(pairs[0][0], HalfSpaceSurfaceImpedance)
     assert pairs[0][1].shape == (1,)
     assert jnp.all(pairs[0][1] > 0)
-
-
-def test_cohn_finite_thickness_slab_entry_is_a_selectable_field():
-    """#123: which slab entry charges a stated thickness is a field, not a literal.
-
-    The default is the even-odd mix, the only entry that satisfies both
-    asymptotes under Cohn's frequency-independent weight *and* keeps the
-    conductor's internal reactance off the semi-infinite law. A caller
-    validating against a solver run with a thickness-free skin-effect
-    approximation can put the half-space back.
-    """
-    freq = Frequency.from_f(jnp.array([10e6]))
-    cross_section = StriplineCrossSection(
-        w=2.655e-3, b=3.2e-3, t=35e-6, ep_r=jnp.array([2.2])
-    )
-    solved = _solved(jnp.array([50.0]))
-
-    assert isinstance(CohnCurrentDistribution().slab_impedance, EvenOddSlabSurfaceImpedance)
-
-    chosen = CohnCurrentDistribution(slab_impedance=HalfSpaceSurfaceImpedance())
-    shape, weight = chosen.distribute(freq, cross_section, solved)[0]
-    assert isinstance(shape, HalfSpaceSurfaceImpedance)
-    # Choosing the entry does not move the weight: it is Cohn's either way.
-    assert jnp.allclose(
-        weight, CohnCurrentDistribution().distribute(freq, cross_section, solved)[0][1]
-    )
-
-
-def test_cohn_unspecified_thickness_keeps_its_zero_weight():
-    """#123 regression: t=None still means no conductor loss at all, deliberately.
-
-    Cohn's alpha_c carries log(1/T) terms and diverges as T -> 0, and the dc
-    floor 1/(sigma*W*T) diverges with it, so a zero-thickness strip has no
-    defined conductor loss anywhere in the band. The zero weight says so; it
-    is not a placeholder waiting for a dc floor. The half-space entry is kept
-    with it so that the pair carries no thickness-dependent term either.
-    """
-    freq = Frequency.from_f(jnp.array([0.0, 10e9]))
-    pairs = CohnCurrentDistribution().distribute(
-        freq,
-        StriplineCrossSection(w=2.655e-3, b=3.2e-3, t=None, ep_r=jnp.full((2,), 2.2)),
-        _solved(jnp.array([50.0, 50.0])),
-    )
-
-    assert len(pairs) == 1
-    shape, weight = pairs[0]
-    assert isinstance(shape, HalfSpaceSurfaceImpedance)
-    assert jnp.allclose(weight, 0.0)
 
 
 def test_wheeler_finite_thickness_slab_entry_is_a_selectable_field():
