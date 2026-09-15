@@ -25,7 +25,7 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
     Linearly interpolate network data onto a new frequency grid.
 
     Every port pair shares one interval lookup and one gather, so the traced
-    program has the same size at any port count (#130). Linear interpolation of
+    program has the same size at any port count. Linear interpolation of
     a complex value is the same as interpolating its real and imaginary parts
     independently.
 
@@ -55,16 +55,16 @@ def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: j
     f_new = jnp.asarray(f_new)
     data_old = jnp.asarray(data_old)
 
-    interval = jnp.clip(
+    lower_index = jnp.clip(
         jnp.searchsorted(f_old, f_new, side="right") - 1, 0, f_old.shape[0] - 2
     )
-    f_lo = f_old[interval]
-    weight = ((f_new - f_lo) / (f_old[interval + 1] - f_lo))[:, None, None]
-    data_lo = data_old[interval]
-    data_new = data_lo + weight * (data_old[interval + 1] - data_lo)
+    f_lo = f_old[lower_index]
+    weight = ((f_new - f_lo) / (f_old[lower_index + 1] - f_lo))[:, None, None]
+    data_lo = data_old[lower_index]
+    data_new = data_lo + weight * (data_old[lower_index + 1] - data_lo)
 
     outside_range = (f_new < f_old[0]) | (f_new > f_old[-1])
-    nan = jnp.asarray(complex(np.nan, np.nan), dtype=data_new.dtype)
+    nan = jnp.asarray(np.nan).astype(data_new.dtype)
     return jnp.where(outside_range[:, None, None], nan, data_new)
 
 
@@ -106,17 +106,17 @@ def _interpolate_network_data_cubic(
     f_normalized = (f_old - f_old[0]) / (f_old[-1] - f_old[0])
     f_new_normalized = (f_new - f_old[0]) / (f_old[-1] - f_old[0])
 
-    interval = jnp.searchsorted(f_normalized, f_new_normalized, side="right") - 1
-    interval = jnp.clip(interval, 0, f_old.shape[0] - 2)
-    offset = (f_new_normalized - f_normalized[interval])[:, None, None]
+    lower_index = jnp.searchsorted(f_normalized, f_new_normalized, side="right") - 1
+    lower_index = jnp.clip(lower_index, 0, f_old.shape[0] - 2)
+    offset = (f_new_normalized - f_normalized[lower_index])[:, None, None]
 
-    selected = coefficients[:, interval, :, :]
+    selected = coefficients[:, lower_index, :, :]
     data_new = (
         (selected[0] * offset + selected[1]) * offset + selected[2]
     ) * offset + selected[3]
     outside_range = (f_new < f_old[0]) | (f_new > f_old[-1])
-    complex_nan = jnp.asarray(complex(np.nan, np.nan), dtype=data_new.dtype)
-    return jnp.where(outside_range[:, None, None], complex_nan, data_new)
+    nan = jnp.asarray(np.nan).astype(data_new.dtype)
+    return jnp.where(outside_range[:, None, None], nan, data_new)
 
 
 def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jnp.ndarray) -> jnp.ndarray:
@@ -139,17 +139,20 @@ def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jn
 
 
 class _ByIdentity:
-    """A static-field holder compared by identity.
+    """
+    A static-field holder compared by identity.
 
-    `eqx.filter_jit` compares static fields with `==`. `skrf.Network.__eq__`
+    ``eqx.filter_jit`` compares static fields with ``==``. ``skrf.Network.__eq__``
     broadcasts the S-parameter arrays of both networks, which is O(data) on every
-    call and raises for networks of different shapes. Identity is exact here,
-    because a `SkrfNetwork` owns a private copy of its network.
+    call and raises for networks of different shapes. The cost is that two
+    models built from equal but distinct networks compile separately; a model
+    updated with ``prf.update`` keeps its holder and so its compiled code.
     """
 
+    # ``value`` is the wrapped object; it is compared by identity, never by ``==``.
     __slots__ = ("value",)
 
-    def __init__(self, value):
+    def __init__(self, value: object):
         self.value = value
 
     def __eq__(self, other):
@@ -171,15 +174,18 @@ class SkrfNetwork(Model):
     network : skrf.Network | NetworkCollection
         The static network data containing S-parameters and frequency information.
     interpolation_kind : {"linear", "cubic"}, default="linear"
-        Interpolation applied independently to the real and imaginary parts of
-        the S-parameters.
+        How the S-parameters are interpolated onto the requested grid.
+        ``"linear"`` interpolates the complex matrices directly; ``"cubic"``
+        evaluates not-a-knot splines fitted to the real and imaginary parts
+        separately at construction time. Both give NaN outside the source band.
     """
     #: The underlying network data, compared by identity in the jit cache key.
-    _network: "_ByIdentity" = field(static=True, repr=False)
+    _network: _ByIdentity = field(static=True, repr=False)
 
     #: The interpolation used when evaluating at a new frequency grid.
     interpolation_kind: Literal["linear", "cubic"] = field(static=True)
 
+    #: Precomputed cubic spline coefficients, or None for linear interpolation.
     _spline_coefficients: prx.Static[
         tuple[tuple[int, ...], str, bytes]
     ] | None = field(repr=False)

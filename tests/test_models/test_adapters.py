@@ -396,12 +396,13 @@ def test_measured_network_collection_getattr(coarse_freq):
 
 
 # ---------------------------------------------------------
-# Vectorised interpolation of network data (#130)
+# Vectorised interpolation of network data
 # ---------------------------------------------------------
 
 def _per_pair_linear_reference(f_old, f_new, data_old):
-    """The implementation replaced in #152: one `jnp.interp` per port pair,
-    for the real and imaginary parts separately."""
+    """The replaced per-pair implementation: one `jnp.interp` per port pair, for
+    the real and imaginary parts. A refactor-equivalence check only; physics is
+    validated against scikit-rf in the next test."""
     n_ports = data_old.shape[1]
 
     def component(data):
@@ -441,29 +442,34 @@ def test_linear_interpolation_matches_per_pair_implementation(n_ports):
     result = np.asarray(interpolate_network_data(f_old, f_new, data))
     expected = np.asarray(_per_pair_linear_reference(f_old, f_new, data))
 
-    # Both compute the same lerp in float32 with a differently ordered formula,
-    # so they agree to a few float32 ulps of |s| ~ 1, not bit for bit.
-    np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-6)
+    # Same lerp, a differently ordered formula. pmrf enables jax_enable_x64, so
+    # both sides evaluate in complex128; the measured worst case over these three
+    # port counts is 1.1e-16, a couple of float64 ulps at |s| <~ 1.
+    np.testing.assert_allclose(result, expected, rtol=0, atol=1e-14)
     assert np.isnan(result[[0, -1]]).all()
     assert np.isfinite(result[1:-1]).all()
 
 
+@pytest.mark.parametrize("kind", ["linear", "cubic"])
 @pytest.mark.parametrize("n_ports", [2, 4, 8])
-def test_skrf_network_interpolation_matches_skrf(n_ports):
+def test_skrf_network_interpolation_matches_skrf(n_ports, kind):
     network = _random_network(n_ports)
     requested = Frequency.from_f(_REQUESTED_GHZ[1:-1], unit="GHz")
 
-    for kind in ("linear", "cubic"):
-        model = SkrfNetwork(network, interpolation_kind=kind)
-        expected = network.interpolate(requested.to_skrf(), kind=kind).s
-        # float32 evaluation against scikit-rf's float64 scipy interpolation;
-        # |s| ~ 1 so 1e-5 is a few float32 ulps after the cubic's Horner steps.
-        np.testing.assert_allclose(
-            np.asarray(model.s(requested)), expected, rtol=1e-5, atol=1e-5
-        )
+    # The cubic evaluation was already vectorised and is unchanged, so scikit-rf
+    # is its reference here rather than a copy of the old code.
+    model = SkrfNetwork(network, interpolation_kind=kind)
+    expected = network.interpolate(requested.to_skrf(), kind=kind).s
+    # Both sides are complex128 (pmrf enables jax_enable_x64), so this is a
+    # float64-vs-float64 comparison against scipy's interpolation. Measured worst
+    # relative error is 5.7e-15 (linear) and 2.7e-14 (cubic, after the extra
+    # Horner steps and the normalised abscissa); 1e-11 is a wide margin on that.
+    np.testing.assert_allclose(
+        np.asarray(model.s(requested)), expected, rtol=1e-11, atol=1e-13
+    )
 
-        outside = Frequency.from_f([0.5, 6.5], unit="GHz")
-        assert np.isnan(np.asarray(model.s(outside))).all()
+    outside = Frequency.from_f([0.5, 6.5], unit="GHz")
+    assert np.isnan(np.asarray(model.s(outside))).all()
 
 
 @pytest.mark.parametrize("kind", ["linear", "cubic"])
