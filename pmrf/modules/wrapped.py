@@ -16,7 +16,7 @@ def _make_probabilistic_node(distribution, value, *, constraint, static):
     from pmrf.parameters import is_param
 
     if is_param(value):
-        to_physical = value.constrained_to_physical_bijector
+        to_physical = value.declared_to_physical_bijector
         if to_physical is not None:
             distribution = Transformed(prx.as_unwrapped(distribution), to_physical)
 

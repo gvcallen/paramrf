@@ -1,18 +1,112 @@
+import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
 import pmrf as prf
+from pmrf.constraints import Positive
 from pmrf.distributions import Uniform
 from pmrf.models import Resistor
 
+from tests._jit import assert_same_jit_key
+
+
+class RC(prf.Model):
+    R: prf.Param = prf.param()
+    C: prf.Param = prf.param(scale=1e-12)
+
+    def s(self, freq):
+        _TRACES.append(None)
+        w = freq.w
+        z = self.R + 1 / (1j * w * self.C)
+        g = (z - 50.0) / (z + 50.0)
+        return g[:, None, None]
+
+
+_TRACES = []
+
+
+class BoundedPF(prf.Model):
+    C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
+
+    def s(self, freq):
+        return jnp.zeros((freq.npoints, 1, 1), dtype=complex)
+
+
+# Value spaces
+
+def test_param_value_spaces():
+    p = prf.Constrained(Positive(), 2.0, scale=1e-12)
+    assert np.allclose(p.value, 2.0)
+    assert np.allclose(p.physical_value, 2e-12)
+    assert np.allclose(p.raw_to_declared_bijector.forward(p.raw_value), 2.0)
+    assert np.allclose(p.declared_to_physical_bijector.forward(p.value), 2e-12)
+    assert not hasattr(p, "unscaled_value")
+
+
+def test_param_variable_field():
+    p = prf.Unconstrained(2.0)
+    assert hasattr(p, "variable") and not isinstance(p.variable, jax.Array)
+    q = prf.Param(variable=p.variable, scale=1e-3)
+    assert np.allclose(q.value, 2.0)
+
+
+def test_unwrap_is_physical():
+    rc = RC(R=1.0, C=2.0)
+    unwrapped = prf.unwrap(rc)
+    assert np.allclose(unwrapped.C, 2e-12)
+    assert np.allclose(rc.C * 1.0, 2e-12)
+
+
+# Scale is units
+
+def test_field_scale_is_inherited():
+    rc = RC(R=1.0, C=prf.Unconstrained(2.0))
+    assert np.allclose(rc.C.value, 2.0)
+    assert np.allclose(rc.C.physical_value, 2e-12)
+
+
+def test_explicit_scale_overrides_field():
+    rc = RC(R=1.0, C=prf.Unconstrained(2.0, scale=1e-9))
+    assert np.allclose(rc.C.value, 2.0)
+    assert np.allclose(rc.C.physical_value, 2e-9)
+
+
+def test_bounds_are_declared_space():
+    m = BoundedPF(C=prf.Bounded(1.0, 3.0, value=2.0))
+    assert np.allclose(m.C.physical_value, 2e-12)
+    assert np.allclose(m.C.bounds, (1.0, 3.0))
+    assert np.allclose(prf.replace(m.C, value=2.5).physical_value, 2.5e-12)
+    with pytest.raises(Exception, match="outside the constraint"):
+        prf.replace(m.C, value=4.0)
+
+
+def test_distribution_is_declared_space():
+    from pmrf.parameters import node_distribution
+
+    m = BoundedPF(C=prf.Random(Uniform(1.0, 3.0), value=2.0))
+    assert np.allclose(prf.unwrap(m.C.distribution).mean(), 2.0)
+    prior = node_distribution(m.C)
+    assert np.isfinite(prior.log_prob(m.C.physical_value))
+    assert np.isneginf(prior.log_prob(m.C.value))
+
+
+# Existing value surfaces follow declared space
+
+def test_values_and_with_values_are_declared():
+    rc = RC(R=1.0, C=2.0)
+    assert np.allclose(rc.values()["C"], 2.0)
+    updated = rc.with_values({"C": 3.0})
+    assert np.allclose(updated.C.value, 3.0)
+    assert np.allclose(updated.C.physical_value, 3e-12)
+
 
 def test_replace_value_keeps_everything_else():
-    """B3: `prf.replace(p, value=...)` changes only the value."""
     p = prf.Random(Uniform(45.0, 55.0), value=50.0, name="R", scale=2.0, metadata={"a": 1})
-    q = prf.replace(p, value=102.0)
+    q = prf.replace(p, value=51.0)
 
-    assert np.allclose(q.value, 102.0)
-    assert np.allclose(q.unscaled_value, 51.0)
+    assert np.allclose(q.value, 51.0)
+    assert np.allclose(q.physical_value, 102.0)
     assert q.name == "R" and q.scale == 2.0 and q.metadata == {"a": 1}
     assert q.distribution == p.distribution
     assert q.bounds is not None and np.allclose(q.bounds, p.bounds)
@@ -29,8 +123,8 @@ def test_replace_value_keeps_fixed_prior():
     p = prf.Random(Uniform(45.0, 55.0), value=50.0, fixed=True)
     q = prf.replace(p, value=51.0)
     assert q.fixed
-    assert np.allclose(q.unscaled_value, 51.0)
-    assert np.allclose(q.as_free().unscaled_value, 51.0)
+    assert np.allclose(q.value, 51.0)
+    assert np.allclose(q.as_free().value, 51.0)
     assert q.as_free().distribution is not None
 
 
@@ -40,17 +134,15 @@ def test_replace_value_out_of_bounds_raises():
         prf.replace(p, value=2.0)
 
 
-def test_replace_value_is_physical_identity():
-    """`replace(p, value=p.value)` is the identity, up to bijector round-trip."""
+def test_replace_value_is_identity():
     p = prf.Random(Uniform(45.0, 55.0), value=50.0, scale=1e-3)
     q = prf.replace(p, value=p.value)
-    assert np.allclose(q.value, p.value)
-    assert np.allclose(q.unscaled_value, 50.0)
+    assert np.allclose(q.value, 50.0)
+    assert np.allclose(q.physical_value, 50e-3)
 
 
 def test_with_values_out_of_bounds_raises_under_jit():
     import equinox as eqx
-    import jax
 
     load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
 
@@ -72,3 +164,40 @@ def test_param_constructor_out_of_bounds_raises_under_jit():
 
     with pytest.raises(Exception, match="outside the constraint"):
         build(2.0)
+
+
+# Value changes keep the jit cache key
+
+_PARAMS = [
+    prf.Unconstrained(2.0),
+    prf.Unconstrained(jnp.asarray([1.0, 2.0])),
+    prf.Constrained(Positive(), 2.0, scale=1e-12),
+    prf.Bounded(0.0, 5.0, value=2.0),
+    prf.Random(Uniform(0.0, 5.0), value=2.0, fixed=True),
+    prf.Fixed(2.0),
+]
+_NEW_VALUES = [3.0, np.float64(3.0), jnp.asarray(3.0), jnp.asarray(3, dtype=jnp.int32)]
+
+
+@pytest.mark.parametrize("p", _PARAMS)
+@pytest.mark.parametrize("v", _NEW_VALUES)
+def test_replace_keeps_jit_key(p, v):
+    v = jnp.broadcast_to(v, jnp.shape(p.value))
+    assert_same_jit_key(p, prf.replace(p, value=v))
+
+
+@pytest.mark.parametrize("v", _NEW_VALUES)
+def test_with_values_keeps_jit_key(v):
+    rc = RC(R=1.0, C=prf.Bounded(0.0, 5.0, value=2.0))
+    assert_same_jit_key(rc, rc.with_values({"R": v, "C": v}))
+
+
+def test_value_change_does_not_recompile():
+    freq = prf.Frequency(1, 2, 3, "GHz")
+    rc = RC(R=1.0, C=2.0)
+    _TRACES.clear()
+    rc.with_values({"C": 3.0}).s(freq)
+    assert len(_TRACES) == 1
+    rc.with_values({"C": jnp.asarray(4.0)}).s(freq)
+    rc.with_values({"R": np.float64(5.0)}).s(freq)
+    assert len(_TRACES) == 1

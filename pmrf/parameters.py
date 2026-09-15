@@ -39,12 +39,30 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
     
     Wraps a `Parax <https://gvcallen.github.io/parax>`_ variable,
     applying an optional scale, name and metadata.
-    """
-    #: The raw value of the parameter.
-    raw_value: prx.AbstractVariable = eqx.field(converter=prx.as_variable)
 
-    #: The scale of the parameter.
-    scale: float = eqx.field(converter=float, default=1.0, static=True)
+    A parameter's number lives in one of three spaces:
+
+    - **declared**: the number as written, in the units the scale declares
+      (:attr:`value`). Construction, bounds and distributions are in declared space.
+    - **physical**: the declared value times the scale (:attr:`physical_value`).
+      Unwrapping and arithmetic use the physical value.
+    - **raw**: the latent array an optimiser or sampler moves through
+      (:attr:`raw_value`).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        p = prf.Unconstrained(2.0, scale=1e-12)
+        p.value            # 2.0
+        p.physical_value   # 2e-12
+    """
+    #: The Parax variable holding the declared value, constraint and distribution.
+    variable: prx.AbstractVariable = eqx.field(converter=prx.as_variable)
+
+    #: The units the declared value is written in: physical = declared × scale.
+    #: None means not set, which acts as 1.0 and lets a field's scale apply.
+    scale: float | None = eqx.field(converter=lambda s: None if s is None else float(s), default=None, static=True)
     
     #: A name for the parameter.
     name: str | None = field(default=None, kw_only=True, static=True)
@@ -59,10 +77,10 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         distribution: Optional[AbstractDistribution] = None,
         constraint: Optional[AbstractConstraint] = None,
         name: Optional[str] = None,
-        scale: float = 1.0,
+        scale: Optional[float] = None,
         fixed: bool = False,
         metadata: Any = None,
-        raw_value: Optional[prx.AbstractVariable] = None,
+        variable: Optional[prx.AbstractVariable] = None,
     ):
         """
         Creates a generic parameter.
@@ -72,36 +90,38 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         Parameters
         ----------
         value : ArrayLike, optional
-            The unscaled value of the parameter.
+            The declared value of the parameter.
         distribution : Optional[AbstractDistribution], optional
-            The unscaled probability distribution for the parameter. See :mod:`pmrf.distributions`.
+            The probability distribution, in declared space. See :mod:`pmrf.distributions`.
         constraint : Optional[AbstractConstraint], optional
-            The unscaled constraint to apply to the parameter. See :mod:`pmrf.constraints`.
+            The constraint, in declared space. See :mod:`pmrf.constraints`.
         name : str, optional
             A name for the parameter, by default None.
         scale : float, optional
-            The scaling factor to apply, by default 1.0.
+            The units the value is written in. None, the default, acts as 1.0 and
+            lets a field declared with :func:`pmrf.param` apply its own scale.
         fixed : bool, optional
             Initializes the parameter as fixed. Defaults to False.
         metadata : Any, optional
             Arbitrary metadata for the parameter, by default None.
-        raw_value : Optional[prx.AbstractVariable], optional
-            The raw Parax variable to wrap. If `value` is also passed, it is instead
-            the physical (scaled) value, as :attr:`value` returns, and the variable's
-            value is replaced, keeping its distribution, constraint and fixed state.
-            This is what makes ``pmrf.replace(param, value=...)`` work, so
+        variable : Optional[prx.AbstractVariable], optional
+            The Parax variable to wrap. If `value` is also passed, the variable's
+            declared value is replaced, keeping its distribution, constraint, fixed
+            state, and the dtype, shape and `weak_type` of its array, so the jit
+            cache key is unchanged. This is what makes
+            ``pmrf.replace(param, value=...)`` work, so
             ``pmrf.replace(param, value=param.value)`` is the identity (up to the
             floating-point round trip through the constraint bijector).
         """
         if isinstance(value, prx.AbstractVariable):
             raise ValueError("Got a Parax variable when constructing a parameter")
 
-        if raw_value is not None and (distribution is not None or constraint is not None):
-            raise ValueError("Cannot pass `raw_value` with `distribution` or `constraint` to Param constructor")
+        if variable is not None and (distribution is not None or constraint is not None):
+            raise ValueError("Cannot pass `variable` with `distribution` or `constraint` to Param constructor")
 
-        if raw_value is not None and value is not None:
-            raw_value = _replace_raw_value(raw_value, jnp.asarray(value) / scale)
-        elif raw_value is None:
+        if variable is not None and value is not None:
+            variable = _replace_variable_value(variable, value)
+        elif variable is None:
             distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
             
             # Error Checking & Value Inference
@@ -119,16 +139,16 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
 
             value = jnp.asarray(value)
             if distribution is not None:
-                raw_value = prx.Random(distribution, constraint=constraint, value=value)
+                variable = prx.Random(distribution, constraint=constraint, value=value)
             elif constraint is not None:
-                raw_value = prx.Constrained(constraint, value=value)
+                variable = prx.Constrained(constraint, value=value)
             else:
-                raw_value = prx.Real(value)
+                variable = prx.Real(value)
             if fixed:
-                raw_value = prx.Fixed(raw_value)
+                variable = prx.Fixed(variable)
 
-        self.raw_value = raw_value
-        self.scale = float(scale)
+        self.variable = variable
+        self.scale = None if scale is None else float(scale)
         self.name = name
         self.metadata = metadata
 
@@ -160,8 +180,8 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         bool
             True if the parameter is fixed, False otherwise.
         """
-        return prx.is_constant(self.raw_value)
-    
+        return prx.is_constant(self.variable)
+
     def as_fixed(self) -> Param:
         """
         Returns a fixed version of this parameter.
@@ -173,8 +193,8 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         """
         if self.fixed:
             return self
-        return dataclasses.replace(self, raw_value=prx.Fixed(self.raw_value))
-    
+        return dataclasses.replace(self, variable=prx.Fixed(self.variable))
+
     def as_free(self) -> Param:
         """
         Returns a free (variable) version of this parameter.
@@ -186,58 +206,58 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         """
         if not self.fixed:
             return self
-        return dataclasses.replace(self, raw_value=prx.as_free(self.raw_value))
-    
+        return dataclasses.replace(self, variable=prx.as_free(self.variable))
+
     @property
     def distribution(self) -> AbstractDistribution | None:
         """
-        The unscaled probability distribution associated with the parameter.
+        The probability distribution of the parameter, in declared space.
 
         Returns
         -------
         AbstractDistribution | None
             The distribution if one exists, otherwise None.
         """
-        if prx.is_probabilistic(self.raw_value):
-            return self.raw_value.distribution
+        if prx.is_probabilistic(self.variable):
+            return self.variable.distribution
         return None
-    
+
     @property
     def constraint(self) -> AbstractConstraint | None:
         """
-        The unscaled constraint associated with the parameter.
+        The constraint of the parameter, in declared space.
 
         Returns
         -------
         AbstractConstraint | None
             The constraint if one exists, otherwise None.
         """
-        if prx.is_constrained(self.raw_value):
-            return self.raw_value.constraint
+        if prx.is_constrained(self.variable):
+            return self.variable.constraint
         return None
-    
+
     @property
     def bounds(self) -> tuple[ArrayLike, ArrayLike] | None:
         """
-        The unscaled lower and upper bounds of the parameter.
+        The lower and upper bounds of the parameter, in declared space.
 
         Returns
         -------
         tuple[ArrayLike, ArrayLike] | None
             A tuple of (lower_bound, upper_bound) if bounds exist, otherwise None.
         """
-        if prx.is_bounded(self.raw_value):
-            return self.raw_value.bounds
+        if prx.is_bounded(self.variable):
+            return self.variable.bounds
         return None
 
     @property
-    def raw_to_constrained_bijector(self) -> AbstractBijector | None:
+    def raw_to_declared_bijector(self) -> AbstractBijector | None:
         """
-        The bijector mapping the raw value to the constrained value.
+        The bijector mapping the raw value to the declared value.
 
-        The raw value is the latent one held in `raw_value`, which Parax refers to as
-        the unconstrained space. It is called raw here to avoid confusion with
-        :func:`pmrf.Unconstrained`, which creates a parameter without bounds.
+        Raw space is what Parax calls unconstrained space. ParamRF calls it raw to
+        avoid confusion with :func:`pmrf.Unconstrained`, which creates a parameter
+        without bounds.
 
         Returns
         -------
@@ -249,70 +269,103 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         return prx.as_unwrapped(self.constraint).bijector
 
     @property
-    def constrained_to_physical_bijector(self) -> AbstractBijector | None:
+    def declared_to_physical_bijector(self) -> AbstractBijector | None:
         """
-        The bijector mapping the constrained value to the scaled physical value.
+        The bijector mapping the declared value to the physical value.
 
-        This is the parameter's scale. Distributions and bounds are authored in the
-        constrained space, so this is the step needed to compare them against a value
-        that has been unwrapped.
+        This is multiplication by the scale. Distributions and bounds are in declared
+        space, so this is the step needed to compare them against an unwrapped,
+        physical value.
 
         Returns
         -------
         AbstractBijector | None
             The bijector if the parameter is scaled, otherwise None.
         """
-        if self.scale == 1.0:
+        if self._scale == 1.0:
             return None
-        return ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(self.scale))
+        return ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(self._scale))
 
     @property
     def bijector(self) -> AbstractBijector | None:
         """
-        The full bijector mapping the raw value to the scaled physical value.
+        The full bijector mapping the raw value to the physical value.
 
-        Composes :attr:`raw_to_constrained_bijector` with
-        :attr:`constrained_to_physical_bijector`.
+        Composes :attr:`raw_to_declared_bijector` with
+        :attr:`declared_to_physical_bijector`.
 
         Returns
         -------
         AbstractBijector | None
             The bijector if a constraint exists, otherwise None.
         """
-        raw_to_constrained = self.raw_to_constrained_bijector
-        if raw_to_constrained is None:
+        raw_to_declared = self.raw_to_declared_bijector
+        if raw_to_declared is None:
             return None
-        constrained_to_physical = self.constrained_to_physical_bijector
-        if constrained_to_physical is None:
-            return raw_to_constrained
-        return Chain([constrained_to_physical, raw_to_constrained])
+        declared_to_physical = self.declared_to_physical_bijector
+        if declared_to_physical is None:
+            return raw_to_declared
+        return Chain([declared_to_physical, raw_to_declared])
+
+    @property
+    def _scale(self) -> float:
+        return 1.0 if self.scale is None else self.scale
 
     @property
     def value(self) -> jax.Array:
         """
-        Returns the scaled physical value.
+        The value in declared space: the number as written, in the parameter's units.
 
         Returns
         -------
         jax.Array
-            The computed array value.
+            The declared value.
         """
-        base_value = jnp.array(self.raw_value)
-        if self.scale != 1.0:
-            return base_value * self.scale
-        return base_value
+        return jnp.asarray(self.variable)
 
     @property
-    def unscaled_value(self) -> jax.Array:
+    def physical_value(self) -> jax.Array:
         """
-        Returns the original unscaled value.
+        The value in physical space: the declared value times the scale.
+
+        This is what :func:`pmrf.unwrap` and arithmetic on the parameter use.
 
         Returns
         -------
         jax.Array
-            The computed array value.
+            The physical value.
         """
-        return jnp.array(self.raw_value)
+        if self._scale == 1.0:
+            return self.value
+        return self.value * self._scale
+
+    @property
+    def raw_value(self) -> jax.Array:
+        """
+        The value in raw space: the latent array an optimiser or sampler moves through.
+
+        Returns
+        -------
+        jax.Array
+            The raw array.
+        """
+        # Parax names a variable's latent array `raw_value`; `Fixed` holds a variable there.
+        return jnp.asarray(_peel_fixed(self.variable).raw_value)
+
+    def unwrap(self) -> jax.Array:
+        """
+        Unwraps the parameter to its value in physical space.
+
+        Returns
+        -------
+        jax.Array
+            The physical value, as :attr:`physical_value`.
+        """
+        return self.physical_value
+
+    def __jax_array__(self) -> jax.Array:
+        """Converts the parameter to an array of its physical value."""
+        return self.physical_value
 
     @property
     def raw_leaf(self) -> jax.Array | None:
@@ -361,12 +414,33 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         ValueError
             If the underlying Parax variable is not wrappable.
         """
-        if not prx.is_wrappable(self.raw_value):
+        if not prx.is_wrappable(self.variable):
             raise ValueError("Cannot wrap a parameter that wraps a non-wrappable Parax variable")
-        
-        new_raw_value = self.raw_value.wrap(value / self.scale)
-        return eqx.tree_at(lambda x: x.raw_value, self, new_raw_value)
-    
+
+        new_variable = self.variable.wrap(value / self._scale)
+        return eqx.tree_at(lambda x: x.variable, self, new_variable)
+
+
+def _physical_operator(name: str):
+    def operator(self, *args):
+        return getattr(self.physical_value, name)(*args)
+    operator.__name__ = name
+    return operator
+
+
+# Parax's arithmetic operators read `value`, which is declared for a `Param`. A
+# parameter in an expression stands for its physical quantity, so they are rebound.
+for _name in (
+    "__getitem__", "__len__", "__iter__", "__contains__",
+    "__add__", "__sub__", "__mul__", "__matmul__", "__truediv__", "__floordiv__",
+    "__mod__", "__divmod__", "__pow__", "__radd__", "__rsub__", "__rmul__",
+    "__rmatmul__", "__rtruediv__", "__rfloordiv__", "__rmod__", "__rdivmod__",
+    "__rpow__", "__neg__", "__pos__", "__abs__", "__invert__", "__complex__",
+    "__int__", "__float__", "__index__", "__round__",
+):
+    setattr(Param, _name, _physical_operator(_name))
+del _name
+
 
 def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Array:
     """Returns `value` as an array that raises at runtime if it is outside `constraint`.
@@ -382,20 +456,36 @@ def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Ar
     )
 
 
-def _replace_raw_value(raw_value: prx.AbstractVariable, value: ArrayLike) -> prx.AbstractVariable:
-    """Replaces the unscaled value of a Parax variable, keeping its structure.
+def _peel_fixed(variable: prx.AbstractVariable) -> prx.AbstractVariable:
+    """Returns the variable a `parax.Fixed` holds, or `variable` if it is not fixed."""
+    return variable.raw_value if isinstance(variable, prx.Fixed) else variable
+
+
+def _like(new: Any, old: Any) -> Any:
+    """Casts array `new` to the dtype and `weak_type` of array `old`, which with shape
+    is what `eqx.filter_jit` keys on. Non-array leaves are returned as they are."""
+    if not isinstance(old, jax.Array) or not isinstance(new, jax.Array):
+        return new
+    # JAX has no public way to set `weak_type`.
+    from jax._src.lax.lax import _convert_element_type
+    return _convert_element_type(new, old.dtype, old.weak_type)
+
+
+def _replace_variable_value(variable: prx.AbstractVariable, value: ArrayLike) -> prx.AbstractVariable:
+    """Replaces the declared value of a Parax variable, keeping its structure.
 
     `Fixed` is peeled off before wrapping, since wrapping through it drops the wrapped
     variable's distribution, and the value is checked against the constraint because
-    wrapping does not check bounds.
+    wrapping does not check bounds. Every array leaf keeps its dtype and `weak_type`,
+    so the jit cache key is unchanged.
     """
-    fixed = isinstance(raw_value, prx.Fixed)
-    inner = raw_value.raw_value if fixed else raw_value
+    fixed = isinstance(variable, prx.Fixed)
+    inner = _peel_fixed(variable)
     value_array = jnp.asarray(value)
     if prx.is_constrained(inner):
         value_array = _check_in_constraint(value_array, prx.unwrap(inner.constraint))
-    inner = inner.wrap(value_array)
-    return prx.Fixed(inner) if fixed else inner
+    new_inner = jax.tree.map(_like, inner.wrap(value_array), inner)
+    return prx.Fixed(new_inner) if fixed else new_inner
 
 
 def is_param(x: Any) -> TypeGuard[Param]:
@@ -409,7 +499,7 @@ def as_param(
     value: Any = None,
     *,
     constraint: Optional[AbstractConstraint] = None,
-    scale: float = 1.0,
+    scale: Optional[float] = None,
     as_free: bool = False,
     as_fixed: bool = False,
 ) -> Param:
@@ -418,17 +508,19 @@ def as_param(
 
     The incoming value can be an existing parameter or parax variable,
     or any parameter-like object (float, array etc.).
-    
-    Any scaling and constraints are automatically intersected.
+
+    Constraints are intersected. A parameter's own scale overrides `scale`; the
+    two are never multiplied.
 
     Parameters
     ----------
     value : Any, optional
-        The value of the parameter.
+        The declared value of the parameter.
     constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
+        The constraint to apply to the parameter, in declared space. See :mod:`pmrf.constraints`.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.        
+        The units `value` is written in, used unless `value` is a parameter with its
+        own scale. None, the default, leaves the scale unset (acting as 1.0).
     as_free : bool, optional
         Whether to enforce that the value is a free parameter.
         If False, incoming values will keep the variability (e.g. constants will remain constants).
@@ -450,10 +542,11 @@ def as_param(
     name = None
     metadata = None
     if isinstance(value, Param):
-        scale = value.scale * scale
+        if value.scale is not None:
+            scale = value.scale
         name = value.name
         metadata = value.metadata
-        value = value.raw_value
+        value = value.variable
 
     # Intersect variable properties
     distribution = None
@@ -512,7 +605,7 @@ def param(
     as_free: bool = False,
     as_fixed: bool = False,
     constraint: Optional[AbstractConstraint] = None,
-    scale: float = 1.0,
+    scale: Optional[float] = None,
     **kwargs,
 ) -> Any:
     """
@@ -540,8 +633,12 @@ def param(
             R: prf.Param = prf.param(constraint=Positive())
             C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
 
-        RC(1.0, 2.0)
-        # RC(R=1., C=2.e-12)
+        rc = RC(1.0, 2.0)
+        rc.C.value            # 2.0, in pF
+        rc.C.physical_value   # 2e-12
+
+        RC(1.0, prf.Unconstrained(2.0, scale=1e-9)).C.physical_value
+        # 2e-09: an explicit scale overrides the field's
 
         RC(-1.0, 2.0)
         # ValueError: out of bounds
@@ -551,9 +648,10 @@ def param(
     default : Any, optional
         The default value of the parameter.
     constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter. See :mod:`pmrf.constraints`.
+        The constraint to apply to the parameter, in declared space. See :mod:`pmrf.constraints`.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units values of this field are written in, by default None (1.0). A
+        parameter passed with its own scale keeps it.
     as_free : bool, optional
         Whether to enforce that the value is a variable parameter.
         If False, incoming values will keep the variability (e.g. constants will remain constants).
@@ -586,7 +684,7 @@ def Fixed(
     value: ArrayLike,
     *,
     name: Optional[str] = None,
-    scale: float = 1.0,
+    scale: Optional[float] = None,
     metadata: Optional[Any] = None,
 ) -> Param:
     """
@@ -600,11 +698,12 @@ def Fixed(
     Parameters
     ----------
     value : ArrayLike
-        The initial unscaled parameter value.
+        The initial declared value.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units the value is written in. None, the default, inherits the scale of
+        the field the parameter is passed to, or acts as 1.0.
     metadata : Any, optional
         Arbitrary metadata for the parameter, by default None.        
 
@@ -621,7 +720,7 @@ def Unconstrained(
     value: ArrayLike,
     *,
     fixed: bool = False,
-    scale: float = 1.0,
+    scale: Optional[float] = None,
     name: Optional[str] = None,
     metadata: Optional[Any] = None,
 ) -> Param:
@@ -631,13 +730,14 @@ def Unconstrained(
     Parameters
     ----------
     value : ArrayLike
-        The initial unscaled parameter value.
+        The initial declared value.
     fixed : bool, optional
         Wraps the parameter in a :class:`pmrf.Fixed` parameter.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units the value is written in. None, the default, inherits the scale of
+        the field the parameter is passed to, or acts as 1.0.
     metadata : Any, optional
         Arbitrary metadata for the parameter, by default None.        
 
@@ -655,7 +755,7 @@ def Constrained(
     *,
     fixed: bool = False,
     name: Optional[str] = None,
-    scale: float = 1.0, 
+    scale: Optional[float] = None,
     metadata: Optional[Any] = None,
 ) -> Param:
     """
@@ -668,13 +768,14 @@ def Constrained(
     constraint : AbstractConstraint
         The constraint to apply to the parameter.
     value : ArrayLike
-        The initial unscaled value of the parameter.
+        The initial declared value.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units the value is written in. None, the default, inherits the scale of
+        the field the parameter is passed to, or acts as 1.0.
     metadata : Any, optional
         Arbitrary metadata for the parameter, by default None.        
 
@@ -694,7 +795,7 @@ def Bounded(
     value: Optional[ArrayLike] = None, 
     fixed: bool = False,
     name: Optional[str] = None,
-    scale: float = 1.0, 
+    scale: Optional[float] = None,
     metadata: Optional[Any] = None,
 ) -> Param:
     """
@@ -709,13 +810,14 @@ def Bounded(
     upper : Any
         The upper bound of the interval.
     value : Optional[ArrayLike], optional
-        The initial unscaled value. If None, the midpoint of the bounds is used.
+        The initial declared value. If None, the midpoint of the bounds is used.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units the value is written in. None, the default, inherits the scale of
+        the field the parameter is passed to, or acts as 1.0.
     metadata : Any, optional
         Arbitrary metadata for the parameter, by default None.
 
@@ -734,7 +836,7 @@ def Random(
     value: Optional[ArrayLike] = None, 
     fixed: bool = False,
     name: Optional[str] = None,
-    scale: float = 1.0, 
+    scale: Optional[float] = None,
     metadata: Optional[Any] = None,
 ) -> Param:
     """
@@ -754,13 +856,14 @@ def Random(
     constraint : Optional[AbstractConstraint], optional
         An optional constraint to apply.
     value : Optional[ArrayLike], optional
-        The initial unscaled value. If None, the distribution's mean is used.
+        The initial declared value. If None, the distribution's mean is used.
     fixed : bool, optional
         Initializes the parameter as fixed. Defaults to False.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
-        The scaling factor to apply, by default 1.0.
+        The units the value is written in. None, the default, inherits the scale of
+        the field the parameter is passed to, or acts as 1.0.
     metadata : Any, optional
         Arbitrary metadata for the parameter, by default None.
 
@@ -805,16 +908,16 @@ def node_distribution(node) -> AbstractDistribution | None:
     Covers both a :class:`Param`'s own distribution and a joint distribution attached
     over a sub-tree, such as by :class:`pmrf.modules.Probabilistic`.
 
-    A parameter's distribution is authored in its raw, unscaled space, whereas an
-    unwrapped tree holds scaled values, so the scale is folded into the distribution
-    here. Its Jacobian is constant and so cannot move the mode.
+    A parameter's distribution is authored in declared space, whereas an unwrapped
+    tree holds physical values, so the scale is folded into the distribution here. Its Jacobian is constant
+    and so cannot move the mode.
     """
     if is_param(node):
         distribution = node.distribution
         if distribution is None:
             return None
         distribution = prx.as_unwrapped(distribution)
-        to_physical = node.constrained_to_physical_bijector
+        to_physical = node.declared_to_physical_bijector
         if to_physical is not None:
             distribution = Transformed(distribution, to_physical)
         return distribution
@@ -972,7 +1075,7 @@ def tree_named_params(
     Parameters
     ----------
     full_params : bool, default=False
-        Returns the full parameter objects as opposed to their resultant floats/array values.
+        Returns the full parameter objects as opposed to their declared values.
     free_only : bool, default=False
         Returns only free parameters.
     namespace_separator : str
@@ -988,7 +1091,7 @@ def tree_named_params(
         tree, free_only=free_only, namespace_separator=namespace_separator
     ).items():
         if not full_params:
-            leaf = prx.unwrap(leaf)
+            leaf = leaf.value if is_param(leaf) else leaf
             if jnp.isscalar(leaf):
                 leaf = float(leaf)
         named[name] = leaf
@@ -1007,7 +1110,7 @@ def tree_param_names_to_path(tree, namespace_separator: str = '_') -> dict[str, 
 
 def tree_param_values(tree, free_only: bool = False) -> dict[str, jnp.ndarray]:
     """
-    Returns the physical (scaled) value of every named parameter in a tree.
+    Returns the declared value of every named parameter in a tree.
 
     Parameters
     ----------
@@ -1019,7 +1122,7 @@ def tree_param_values(tree, free_only: bool = False) -> dict[str, jnp.ndarray]:
     Returns
     -------
     dict[str, jax.Array]
-        Names, as in :func:`tree_named_params`, mapped to physical values.
+        Names, as in :func:`tree_named_params`, mapped to declared values.
     """
     return {
         name: leaf.value if is_param(leaf) else jnp.asarray(leaf)
@@ -1050,7 +1153,7 @@ def tree_with_values(tree, values: dict[str, ArrayLike], strict: bool = True):
     tree : PyTree
         The tree to update.
     values : dict[str, ArrayLike]
-        Names mapped to physical (scaled) values.
+        Names mapped to declared values.
     strict : bool, default=True
         Raise on names that do not resolve. If False, they are ignored.
 

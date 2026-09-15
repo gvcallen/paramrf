@@ -264,48 +264,48 @@ def run_sampler(
 
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
         # Extraction
-        unconstrained_prior = prx.probability.tree_unconstrained_distribution(dynamic)
-        bijector_to_constrained = prx.constraints.tree_leafwise_constraint(dynamic).bijector
+        raw_prior = prx.probability.tree_unconstrained_distribution(dynamic)
+        raw_to_declared_bijector = prx.constraints.tree_leafwise_constraint(dynamic).bijector
 
         # Internal functions
-        def _logprior_fn(unconstrained_params: PyTree, _args: Any) -> Scalar:
-            return unconstrained_prior.log_prob(unconstrained_params)
+        def _logprior_fn(raw_params: PyTree, _args: Any) -> Scalar:
+            return raw_prior.log_prob(raw_params)
 
-        def _loglikelihood_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
-            params = bijector_to_constrained.forward(unconstrained_params)
+        def _loglikelihood_fn(raw_params: PyTree, args: Any) -> Scalar:
+            params = raw_to_declared_bijector.forward(raw_params)
             y_unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
             return loglikelihood_fn(y_unwrapped, args)
 
-        def _logposterior_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
-            log_prior = _logprior_fn(unconstrained_params, args)
-            log_likelihood = _loglikelihood_fn(unconstrained_params, args)
+        def _logposterior_fn(raw_params: PyTree, args: Any) -> Scalar:
+            log_prior = _logprior_fn(raw_params, args)
+            log_likelihood = _loglikelihood_fn(raw_params, args)
             return log_prior + log_likelihood
 
         # Space conversions
-        unconstrained_params = bijector_to_constrained.inverse(params)
-        batched_unconstrained_params = None
+        raw_params = raw_to_declared_bijector.inverse(params)
+        batched_raw_params = None
         if batched_params is not None:
-            batched_unconstrained_params = eqx.filter_vmap(bijector_to_constrained.inverse)(batched_params)
+            batched_raw_params = eqx.filter_vmap(raw_to_declared_bijector.inverse)(batched_params)
         
         # Run the sampler
         if isinstance(solver, AbstractJointSampler):
             results = solver.run(
                 logposterior_fn=_logposterior_fn,
-                y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params,
+                y0=raw_params, args=args, key=key,
+                init_samples=batched_raw_params,
                 **kwargs
             )
         else:
             results = solver.run(
                 loglikelihood_fn=_loglikelihood_fn,
                 logprior_fn=_logprior_fn,
-                y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params,
+                y0=raw_params, args=args, key=key,
+                init_samples=batched_raw_params,
                 **kwargs
             )
         
         # Post-process back to original parameter space and re-wrap
-        batched_params_unwrapped = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
+        batched_params_unwrapped = eqx.filter_vmap(raw_to_declared_bijector.forward)(results.samples)
         batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
         return eqx.combine(static, batched_params, is_leaf=is_leaf), results
 
