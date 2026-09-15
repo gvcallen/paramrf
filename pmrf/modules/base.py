@@ -48,6 +48,15 @@ class Module(eqx.Module):
         collapses its path to the nearest named module or the root. This supports
         flat parameter names, flat module names, or fully nested namespaces.
 
+        String dictionary keys that are valid Python identifiers become dotted
+        names (``components.cable.length``); other keys keep the bracket form.
+
+        Names come from the same resolver as :meth:`at` and :meth:`tied`, so every
+        returned name can be passed to them. Names see through freezing and Parax
+        wrappers (e.g. :class:`pmrf.modules.Tied`), and are relative to the wrapped
+        module. The target of a tie is derived rather than stored, so it is not
+        named; parameters absorbed by a probabilistic wrapper are likewise opaque.
+
         Parameters
         ----------
         full_params : bool, default=False
@@ -62,11 +71,8 @@ class Module(eqx.Module):
         dict[str, Any]
             Parameter names mapped to values or parameter objects.
         """
-        module = self if free_only else prx.unwrap(
-            self, only_if=lambda x: isinstance(x, prx.Tie), cascade=False
-        )
         return tree_named_params(
-            module,
+            self,
             full_params=full_params,
             free_only=free_only,
             namespace_separator=namespace_separator,

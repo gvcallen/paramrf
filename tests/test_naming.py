@@ -144,3 +144,145 @@ def test_tied_nested_namespace():
     
     assert isinstance(tied_cas, Wrapped)
     assert isinstance(tied_cas.wrapped, Tied)
+
+
+# ---- One name resolver (#133) ---------------------------------------------------------
+
+import numpy as np
+import skrf
+from pmrf.distributions import Uniform
+from pmrf.models import DatasheetLine, FloatingLine, Touchstone
+
+
+class _System(prf.Module):
+    components: dict
+
+
+def _cable(name="cable"):
+    return DatasheetLine(
+        zn=prf.Random(Uniform(45, 55), value=50.0), vf=prf.Fixed(0.7),
+        k1=prf.Random(Uniform(1.0, 3.0), value=2.4),
+        k2=prf.Random(Uniform(1.0, 10.0), value=3.5, scale=1e-3),
+        length=prf.Random(Uniform(120, 130), value=127.0, scale=1e-3), name=name,
+    )
+
+
+def _system():
+    load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
+    return _System(components={"cable": _cable(), "load": load})
+
+
+def _assert_names_resolve(tree, expected=None):
+    names = tree.named_params()
+    assert names, "no names resolved"
+    if expected is not None:
+        assert set(names) == set(expected)
+    for name, value in names.items():
+        assert np.allclose(prf.unwrap(tree.at(name).get()), value)
+
+
+def test_names_resolve_on_frozen_tree():
+    """B1: freezing every parameter must not hide their names."""
+    system = _system()
+    frozen = system.map(prf.freeze, is_target=prf.is_param)
+
+    assert frozen.named_params() == system.named_params()
+    _assert_names_resolve(frozen, system.named_params())
+    assert frozen.named_params(free_only=True) == {}
+
+
+def test_names_resolve_on_frozen_submodule():
+    system = _system()
+    frozen = system.at(lambda m: m.components["load"]).apply(prf.freeze)
+
+    assert frozen.named_params() == system.named_params()
+    _assert_names_resolve(frozen)
+    assert "load.R" not in frozen.named_params(free_only=True)
+
+
+def test_frozen_subtree_arrays_are_not_named():
+    """Raw arrays frozen as constants are data, not parameters."""
+    import jax.numpy as jnp
+
+    class Holder(prf.Module):
+        data: object
+        gain: prf.Param
+
+    holder = Holder(data=prf.freeze(jnp.ones(3)), gain=prf.Unconstrained(2.0))
+    assert set(holder.named_params()) == {"gain"}
+
+
+def test_unfreeze_submodule_unfreezes_nested_params():
+    system = _system()
+    frozen = system.map(prf.freeze, is_target=prf.is_param)
+    thawed = frozen.at(
+        lambda m: (m.components["load"], m.components["cable"])
+    ).apply(lambda ms: tuple(prf.unfreeze(x) for x in ms))
+
+    assert set(thawed.named_params(free_only=True)) == set(system.named_params(free_only=True))
+
+
+def test_names_resolve_after_evaluating_touchstone_output(tmp_path):
+    """B2: evaluating an output must not mutate the pytree."""
+    f = skrf.Frequency(1, 100, 11, "MHz")
+    path = tmp_path / "dut"
+    skrf.Network(frequency=f, s=np.full((11, 1, 1), 0.1 + 0.05j), name="dut").write_touchstone(str(path))
+    freq = prf.Frequency(1, 100, 11, "MHz")
+
+    class Sys(prf.Module):
+        line: DatasheetLine
+        ts: Touchstone
+
+        @property
+        def out(self):
+            return self.line.terminated(self.ts)
+
+    sys = Sys(line=DatasheetLine(zn=50.0, vf=0.7, k1=2.4, k2=3.5e-3, length=0.1, name="cable"),
+              ts=Touchstone(str(path) + ".s1p"))
+    before = set(vars(sys.ts))
+    sys.out.s(freq)
+
+    assert set(vars(sys.ts)) == before
+    assert sys.ts.nports == 1
+    _assert_names_resolve(sys)
+
+
+def test_dict_identifier_keys_are_dotted():
+    """U5: identifier string keys use dotted names, others keep brackets."""
+    class D(prf.Module):
+        params: dict
+
+    d = D(params={"R": prf.Param(value=1.0), "not valid": prf.Param(value=2.0)})
+    assert set(d.named_params()) == {"params.R", "params['not valid']"}
+    _assert_names_resolve(d)
+
+    root = {"R": prf.Unconstrained(1.0)}
+    assert prf.parameters.tree_named_params(root) == {"R": 1.0}
+
+
+def test_named_module_collapses_through_containers():
+    line = _cable()
+    expected = {"cable.zn", "cable.vf", "cable.k1", "cable.k2", "cable.length"}
+    assert set(_System(components={"cable": line}).named_params()) == expected
+    assert set(Cascade([line]).named_params()) == expected
+    assert set(FloatingLine(floating=line).named_params()) == expected
+
+
+def test_names_resolve_through_wrappers():
+    """U1: one resolver, names relative to the wrapped module."""
+    system = _system()
+    names = system.named_params()
+
+    _assert_names_resolve(system, names)
+    tied = system.tied("load.R", "cable.zn")
+    assert set(tied.named_params()) == set(names) - {"load.R"}
+    _assert_names_resolve(tied)
+
+    frozen_tied = tied.map(prf.freeze, is_target=prf.is_param)
+    _assert_names_resolve(frozen_tied, tied.named_params())
+
+    rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
+    wrapped = rc.tied("r.R", "c.C", lambda c: c * 5e13)
+    assert set(wrapped.named_params()) == {"c.C"}
+    _assert_names_resolve(wrapped)
+    assert np.allclose(wrapped.at("c.C").set(prf.Unconstrained(2e-12)).build().cascade[0].R, 100.0)

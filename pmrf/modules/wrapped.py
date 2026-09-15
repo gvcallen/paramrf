@@ -3,13 +3,11 @@
 from typing import Any, Callable
 
 import equinox as eqx
-import jax.numpy as jnp
 import parax as prx
 from distreqx.distributions import AbstractDistribution
 from parax.constraints import AbstractConstraint
 
 from pmrf.modules.base import Module
-from pmrf.parameters import Param, tree_named_params
 
 
 def _make_probabilistic_node(distribution, value, *, constraint, static):
@@ -55,21 +53,6 @@ class Tied(Module, prx.AbstractUnwrappable):
 
     def unwrap(self) -> Module:
         return self.tie
-
-    def named_params(
-        self,
-        full_params: bool = False,
-        free_only: bool = False,
-        namespace_separator: str = "_",
-    ) -> dict[str, float | jnp.ndarray | Param]:
-        """Return names relative to the wrapped module rather than the wrapper."""
-        module = self.tie.tree if free_only else prx.unwrap(self)
-        return tree_named_params(
-            module,
-            full_params=full_params,
-            free_only=free_only,
-            namespace_separator=namespace_separator,
-        )
 
     @property
     def module(self) -> Module:

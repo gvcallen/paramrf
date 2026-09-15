@@ -1,6 +1,7 @@
 from typing import Any, Callable, Generic, TypeVar, Any, Tuple
 import operator
 import functools
+import weakref
 
 import equinox as eqx
 import jax
@@ -43,11 +44,60 @@ def freeze(value: Any):
 def unfreeze(value: Any):
     """
     Unfreezes/unfixes a potentially frozen parameter or model and returns the unfrozen model.
+
+    Frozen parameters nested anywhere inside `value` are unfrozen too, so
+    ``unfreeze(model)`` undoes ``model.map(freeze, is_target=is_param)``. Frozen
+    sub-trees that hold no parameters (e.g. constant data stored with
+    ``field(converter=freeze)``) are left frozen.
     """
     value = prx.as_free(value)
     if isinstance(value, prx.Static):
         value = value.unwrap()
-    return value
+
+    is_variable = lambda x: isinstance(x, prx.AbstractVariable)
+
+    def _thaw(node):
+        if isinstance(node, prx.Freeze) and any(
+            is_variable(leaf) for leaf in jax.tree.leaves(node.tree, is_leaf=is_variable)
+        ):
+            return unfreeze(node.tree)
+        return node
+
+    return jax.tree.map(_thaw, value, is_leaf=lambda x: isinstance(x, prx.Freeze) or is_variable(x))
+
+
+class pytree_cached_property:
+    """
+    A ``functools.cached_property`` for immutable PyTree nodes.
+
+    ``functools.cached_property`` writes into the instance ``__dict__``, which on an
+    Equinox module mutates an object that must stay immutable, and adds attributes
+    that change how the node compares to its copies. This caches the value outside
+    the instance instead, keyed on object identity and released with the object.
+    """
+
+    def __init__(self, fn: Callable[[Any], Any]):
+        self.fn = fn
+        self.__doc__ = fn.__doc__
+        self._cache: dict[int, tuple[Any, Any]] = {}
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, obj, owner=None):
+        if obj is None:
+            return self
+        key = id(obj)
+        entry = self._cache.get(key)
+        if entry is not None and entry[0]() is obj:
+            return entry[1]
+        value = self.fn(obj)
+        try:
+            ref = weakref.ref(obj, lambda _ref, key=key: self._cache.pop(key, None))
+        except TypeError:
+            return value
+        self._cache[key] = (ref, value)
+        return value
 
 
 def partition(pytree: Any, filter_spec: Any, is_leaf: Callable[[Any], bool] | None = None) -> Tuple[Any, Any]:
@@ -278,66 +328,15 @@ def batch_unflatten(
     return jax.tree.unflatten(treedef, restored_leaves)
 
 
-def filtered_pathed_leaves(
-    tree: Any,
-    filter_spec: Any,
-    is_leaf: Callable = None,
-    unwrap_leaves: bool = False,
-    keystr: bool = False,
-    separator: str | None = None,
-) -> list[tuple[Any, Any]]:
-    # Get rid of any non-param leaves
-    filtered_tree = eqx.filter(tree, filter_spec, is_leaf=is_leaf)
-    pathed, _ = jax.tree.flatten_with_path(filtered_tree, is_leaf=is_leaf)
-    
-    if unwrap_leaves or keystr:
-        for i in range(len(pathed)):
-            key, value = pathed[i]
-            
-            if keystr:
-                kwargs = {'separator': separator} if separator is not None else {}
-                key = jax.tree_util.keystr(key, **kwargs)
-            
-            if unwrap_leaves:
-                value = prx.unwrap(value)
-                if jnp.isscalar(value):
-                    value = float(value)
-            
-            pathed[i] = (key, value)
-            
-    return pathed
-
-
-def path_to_name(tree: Any, path: list[Any], namespace_separator: str, ignore_names: bool = False) -> str:
+def path_nodes(tree: Any, path: tuple[Any, ...]):
     """
-    Converts a JAX-style path to an equivalent namespace string.
+    Walks a JAX key path, yielding ``(parent, part_type, part, child)`` per key.
 
-    Any objects within the path that have a "name" property are used
-    to generate a namespace that shorten the path.
-
-    Parameters
-    ----------
-    tree : PyTree
-        The base PyTree to extract the names from.
-    path : list[Any]
-        The JAX path to a node in the PyTree.
-    namespace_separator : str
-        A string separator to use when combining multiple named nodes in the 
-        PyTree together to create a new namespace.
-    ignore_names : bool, default=False
-        If True, ignores custom object names and generates the string 
-        based strictly on the structural path.
-    
-    Returns
-    -------
-    str
-        The derived name of the node or path.
+    ``part_type`` is one of ``"attr"``, ``"idx"``, ``"key"`` or ``"fallback"``.
     """
-    namespace = []
     current_obj = tree
-    unnamed_path_parts = []
-    
     for key in path:
+        parent = current_obj
         if hasattr(key, "name"):
             attr = key.name
             current_obj = getattr(current_obj, attr)
@@ -353,11 +352,64 @@ def path_to_name(tree: Any, path: list[Any], namespace_separator: str, ignore_na
         else:
             attr = key
             part_type = "fallback"
-            
+        yield parent, part_type, attr, current_obj
+
+
+def path_to_name(
+    tree: Any,
+    path: list[Any],
+    namespace_separator: str,
+    ignore_names: bool = False,
+    is_transparent: Callable[[Any], bool] | None = None,
+) -> str:
+    """
+    Converts a JAX-style path to an equivalent namespace string.
+
+    Any objects within the path that have a "name" property are used
+    to generate a namespace that shorten the path. String dictionary keys
+    that are valid Python identifiers are written as dotted attributes
+    (``components.cable``); other keys keep the bracket form (``params['a b']``).
+
+    Parameters
+    ----------
+    tree : PyTree
+        The base PyTree to extract the names from.
+    path : list[Any]
+        The JAX path to a node in the PyTree.
+    namespace_separator : str
+        A string separator to use when combining multiple named nodes in the
+        PyTree together to create a new namespace.
+    ignore_names : bool, default=False
+        If True, ignores custom object names and generates the string
+        based strictly on the structural path.
+    is_transparent : callable, optional
+        Returns whether a node is a wrapper whose own path parts are omitted,
+        so that names are relative to the wrapped tree. A container held directly
+        by a transparent wrapper (e.g. the tuple in ``parax.Combine``) is
+        omitted too.
+
+    Returns
+    -------
+    str
+        The derived name of the node or path.
+    """
+    namespace = []
+    current_obj = tree
+    unnamed_path_parts = []
+    skip_container = False
+
+    for parent, part_type, attr, current_obj in path_nodes(tree, path):
+        parent_transparent = is_transparent is not None and is_transparent(parent)
+        skip_part = parent_transparent or skip_container
+        skip_container = parent_transparent and isinstance(current_obj, (tuple, list, dict))
+
+        if part_type == "key" and isinstance(attr, str) and attr.isidentifier():
+            part_type = "attr"
+
         if not ignore_names and hasattr(current_obj, "name") and getattr(current_obj, "name") is not None:
             namespace.append(current_obj.name)
             unnamed_path_parts = []
-        else:
+        elif not skip_part:
             unnamed_path_parts.append((part_type, attr))
             
     param_name = None
