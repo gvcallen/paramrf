@@ -97,27 +97,12 @@ def _serialize_generic(node: Any) -> Any:
     # 1. Dynamic Nodes: Equinox Modules (Dataclasses)
     # Always processed first so Equinox modules are serialized by state, not reference.
     if hasattr(node, "__dataclass_fields__"):
-        state = {}
-        for field_name, field in node.__dataclass_fields__.items():
-            val = getattr(node, field_name)
-            
-            # Skip saving if the value exactly matches the field's explicit default
-            if field.default is not dataclasses.MISSING:
-                try:
-                    if val == field.default:
-                        continue 
-                except Exception:
-                    pass
-            
-            # Skip saving if the value matches the default_factory output
-            if field.default_factory is not dataclasses.MISSING:
-                try:
-                    if val == field.default_factory():
-                        continue
-                except Exception:
-                    pass
-                    
-            state[field_name] = _serialize_generic(val)
+        # Every field is written, defaults included, so a later change to a
+        # default cannot silently alter a saved model when it is loaded.
+        state = {
+            field_name: _serialize_generic(getattr(node, field_name))
+            for field_name in node.__dataclass_fields__
+        }
                 
         cls = type(node)
         return {
@@ -274,7 +259,12 @@ def _deserialize_generic(data: Any) -> Any:
                         continue
                         
             if cls is None:
-                raise ImportError(f"Could not reconstruct '{class_name}'. Tried loading from '{module_name}' and public 'pmrf' namespaces.")
+                raise ImportError(
+                    f"Could not load saved class '{class_name}' from module '{module_name}' "
+                    f"(also tried the public namespaces {PUBLIC_NAMESPACES}). "
+                    f"The class was most likely renamed or moved since the file was saved, "
+                    f"or the package that defines it is not installed or imported."
+                )
             
             instance = object.__new__(cls) 
             
@@ -284,7 +274,7 @@ def _deserialize_generic(data: Any) -> Any:
                     val = _deserialize_generic(data["__state__"][field_name])
                     object.__setattr__(instance, field_name, val)
                 else:
-                    # The field was skipped during save; restore its default
+                    # The field did not exist when the file was saved; use its default
                     if field_def.default is not dataclasses.MISSING:
                         object.__setattr__(instance, field_name, field_def.default)
                     elif field_def.default_factory is not dataclasses.MISSING:
@@ -301,17 +291,46 @@ def _deserialize_generic(data: Any) -> Any:
         # Standard dictionary
         return {k: _deserialize_generic(v) for k, v in data.items()}
 
+#: Version of the on-disk layout. Bump when the layout changes incompatibly.
+SCHEMA_VERSION = 1
+
+def _paramrf_version() -> str | None:
+    import pmrf
+    return getattr(pmrf, "__version__", None)
+
 def tree_save_json(filepath: str, model: PyTree) -> None:
-    """Serializes an Equinox model or PyTree and saves it to a JSON file."""
-    serialized_tree = _serialize_generic(model)
+    """Serializes an Equinox model or PyTree and saves it to a JSON file.
+
+    The tree is wrapped in a header recording the format, schema version and
+    the ParamRF version that wrote it.
+    """
+    document = {
+        "format": "prf",
+        "schema_version": SCHEMA_VERSION,
+        "paramrf_version": _paramrf_version(),
+        "tree": _serialize_generic(model),
+    }
     with open(filepath, "w") as f:
-        json.dump(serialized_tree, f, indent=4)
+        json.dump(document, f, indent=4)
 
 def tree_load_json(filepath: str) -> PyTree:
     """Loads a serialized Equinox model or PyTree from a JSON file."""
     with open(filepath, "r") as f:
-        serialized_tree = json.load(f)
-    return _deserialize_generic(serialized_tree)
+        document = json.load(f)
+    if not isinstance(document, dict) or document.get("format") != "prf" or "tree" not in document:
+        raise ValueError(
+            f"'{filepath}' has no ParamRF header. Files saved before the header was "
+            f"introduced are not supported; load them with the ParamRF version that wrote them "
+            f"and save them again with this version."
+        )
+    schema_version = document.get("schema_version")
+    if not isinstance(schema_version, int) or schema_version > SCHEMA_VERSION:
+        raise ValueError(
+            f"'{filepath}' has schema_version {schema_version!r}, but this ParamRF "
+            f"({_paramrf_version()}) supports up to {SCHEMA_VERSION}. It was written by "
+            f"ParamRF {document.get('paramrf_version')}; upgrade ParamRF to load it."
+        )
+    return _deserialize_generic(document["tree"])
 
 def save(target: str | os.PathLike | BinaryIO, tree: Any):
     """

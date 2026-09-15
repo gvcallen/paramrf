@@ -38,7 +38,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Versioning
 try:
-    __version__ = _version(__name__)
+    __version__ = _version("paramrf")
 except PackageNotFoundError:
     pass
 
