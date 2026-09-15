@@ -33,7 +33,7 @@ longer recompiles a model's RF methods.
 - **Values (#146):** the `Param` field holding the Parax variable is renamed
   from `raw_value` to `variable`, and the bijector properties are now
   `raw_to_declared_bijector` and `declared_to_physical_bijector`.
-- **Values (#146):** `repr` shows declared values.
+- **Values (#146):** a model's `repr` shows declared values, not scaled ones.
 - **Inference (#146):** the minimiser and samplers run on raw-space values, over
   a name-keyed dict rather than a flat vector. `pmrf.utils.optix`'s lens is
   internal; nothing public returns a `Lens`.
@@ -49,6 +49,8 @@ longer recompiles a model's RF methods.
   value.
 - **Names (#133):** string dict keys that are valid identifiers give dotted
   names (`components.cable.length`) instead of the bracket form.
+- **Names (#146):** a named model held in a dict drops its key, and top-level
+  dict keys do not add a namespace layer.
 - **Values (#134):** the `Param` constructor rejects a raw value together with
   `distribution` or `constraint`.
 - **Save format (#136):** prf files carry a header

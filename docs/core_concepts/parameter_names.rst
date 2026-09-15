@@ -56,15 +56,20 @@ A parameter's number lives in one of three spaces:
   a bounded parameter it is the value mapped onto the real line by its constraint.
 
 Declared space is the default everywhere, and it is the space construction uses:
-``Param(value=...)``, bounds, priors, ``repr`` and :func:`pmrf.params` all agree
-with it. A scale is the units a value is written in, so an explicit scale on a
+``Param(value=...)``, bounds, priors and :func:`pmrf.params` all agree with it. A
+model's ``repr`` shows declared values too, so what you read back is what you
+wrote:
+
+.. code-block:: python
+
+   repr(rc)   # Cascade(cascade=[Resistor(name='r', R=50.), Capacitor(name='c', C=2.)]) A scale is the units a value is written in, so an explicit scale on a
 value overrides the field's default rather than multiplying with it:
 
 .. code-block:: python
 
    from pmrf.models import Capacitor
 
-   prf.param_values(Capacitor(prf.Unconstrained(2.0, scale=1e-9)), space='physical')  # 2e-9
+   prf.param_values(Capacitor(prf.Unconstrained(2.0, scale=1e-9)), space='physical')  # {'C': 2e-9}
 
 :func:`pmrf.log_prior` takes the same ``space`` argument. Its docstring states the
 measure each one gives, since the scale and the constraint each contribute a
@@ -78,9 +83,10 @@ Reading parameters
    prf.params(rc, 'c.*')                 # {'c.C': Param(variable=Real(...), scale=1e-12)}
    prf.params(rc, free_only=True).keys() # dict_keys(['c.C']): 'r.R' was passed as a float, so it is fixed
 
-:func:`pmrf.params` returns :class:`pmrf.Param` objects, whose ``repr`` shows the
-declared value, the bounds and the prior. :func:`pmrf.param_values` returns plain
-arrays instead, which is the form optimizers take and :func:`pmrf.update` accepts.
+:func:`pmrf.params` returns :class:`pmrf.Param` objects, which carry the declared
+value, the bounds and the prior as their ``value``, ``bounds`` and
+``distribution`` properties. :func:`pmrf.param_values` returns plain arrays
+instead, which is the form optimizers take and :func:`pmrf.update` accepts.
 
 Both take a **selector** as their second argument: a name, an :mod:`fnmatch` glob
 over names, a sequence of names, or a callable returning nodes of the model. An
@@ -101,16 +107,19 @@ replaced. The form of the call says what replaces them:
 
 .. code-block:: python
 
-   prf.update(rc, 'c.*', value=3.0)              # one value for a selection
-   prf.update(rc, 'r.*', fixed=False)            # free the resistor
-   prf.update(rc, 'cascade[1]', Short())         # a new sub-model
-   prf.update(rc, 'c.*', fn=lambda p: ...)       # a function of the old part
-   prf.update(rc, values, space='raw')           # write-back from an optimizer
+   prf.update(rc, 'c.*', value=3.0)        # one value for a selection
+   prf.update(rc, 'r.*', fixed=False)      # free the resistor
+   prf.update(rc, 'c', Short())            # a new sub-model: 'c' names the capacitor
+   prf.update(rc, 'c.*', fn=lambda p: ...) # a function of the old part
+   prf.update(rc, values, space='raw')     # write-back from an optimizer
 
 The mapping, ``value=`` and ``fixed=`` forms go through each parameter's
 constructor, so a value is checked against the bounds and the prior, constraint,
 scale, name and metadata are kept. The sub-model and ``fn=`` forms are structural:
 they bypass validation and put exactly what they are given in place.
+
+In a structural form, an exact name may pick a sub-model rather than a parameter,
+as ``'c'`` does above. A glob matches parameter names only.
 
 ``fixed=`` is additive, and leaves parameters the selector does not match alone.
 To free only some parameters, fix everything first:
@@ -154,7 +163,6 @@ dtype, shape and weak type, so the compiled ``s`` is reused:
 
 **Rebuilding** a parameter does recompile, because it changes the structure. That
 covers ``fixed=``, the structural forms, and constructing a new
-:class:`pmrf.Param` with a different constraint or scale. This is expected and
-usually what you want; it is worth knowing only because on a large circuit a
-recompile can take noticeably longer than an evaluation. In a loop that sweeps a
-value, use the value forms.
+:class:`pmrf.Param` with a different constraint or scale. On a large circuit a
+recompile can take noticeably longer than an evaluation, so in a loop that sweeps
+a value, use the value forms.
