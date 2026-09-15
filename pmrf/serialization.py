@@ -294,18 +294,29 @@ def _deserialize_generic(data: Any) -> Any:
 #: Version of the on-disk layout. Bump when the layout changes incompatibly.
 SCHEMA_VERSION = 1
 
+#: Value of the ``format`` key identifying a ParamRF file.
+FORMAT = "prf"
+
 def _paramrf_version() -> str | None:
-    import pmrf
+    import pmrf  # Imported lazily: pmrf imports this module.
     return getattr(pmrf, "__version__", None)
 
 def tree_save_json(filepath: str, model: PyTree) -> None:
     """Serializes an Equinox model or PyTree and saves it to a JSON file.
 
-    The tree is wrapped in a header recording the format, schema version and
-    the ParamRF version that wrote it.
+    Every dataclass field is written, defaults included. The tree is wrapped
+    in a header recording the format, schema version and the ParamRF version
+    that wrote it.
+
+    Parameters
+    ----------
+    filepath : str
+        Destination file.
+    model : PyTree
+        The model or PyTree to save.
     """
     document = {
-        "format": "prf",
+        "format": FORMAT,
         "schema_version": SCHEMA_VERSION,
         "paramrf_version": _paramrf_version(),
         "tree": _serialize_generic(model),
@@ -314,21 +325,39 @@ def tree_save_json(filepath: str, model: PyTree) -> None:
         json.dump(document, f, indent=4)
 
 def tree_load_json(filepath: str) -> PyTree:
-    """Loads a serialized Equinox model or PyTree from a JSON file."""
+    """Loads a serialized Equinox model or PyTree from a JSON file.
+
+    Parameters
+    ----------
+    filepath : str
+        Source file.
+
+    Returns
+    -------
+    PyTree
+        The reconstructed model or PyTree.
+
+    Raises
+    ------
+    ValueError
+        If the file has no ParamRF header or an unsupported ``schema_version``.
+    ImportError
+        If a saved class can no longer be imported.
+    """
     with open(filepath, "r") as f:
         document = json.load(f)
-    if not isinstance(document, dict) or document.get("format") != "prf" or "tree" not in document:
+    if not isinstance(document, dict) or document.get("format") != FORMAT or "tree" not in document:
         raise ValueError(
             f"'{filepath}' has no ParamRF header. Files saved before the header was "
             f"introduced are not supported; load them with the ParamRF version that wrote them "
             f"and save them again with this version."
         )
     schema_version = document.get("schema_version")
-    if not isinstance(schema_version, int) or schema_version > SCHEMA_VERSION:
+    if schema_version != SCHEMA_VERSION:
         raise ValueError(
             f"'{filepath}' has schema_version {schema_version!r}, but this ParamRF "
-            f"({_paramrf_version()}) supports up to {SCHEMA_VERSION}. It was written by "
-            f"ParamRF {document.get('paramrf_version')}; upgrade ParamRF to load it."
+            f"({_paramrf_version()}) supports only {SCHEMA_VERSION}. It was written by "
+            f"ParamRF {document.get('paramrf_version')}; load it with that version."
         )
     return _deserialize_generic(document["tree"])
 

@@ -31,6 +31,7 @@ def test_header_is_written(tmp_path):
     data = json.loads(path.read_text())
     assert data["format"] == "prf"
     assert data["schema_version"] == serialization.SCHEMA_VERSION == 1
+    assert data["paramrf_version"] is not None
     assert data["paramrf_version"] == prf.__version__
     assert data["tree"]["__class__"] == "DefaultsModule"
     assert data["tree"]["__state__"]["formulation"] == "old"
