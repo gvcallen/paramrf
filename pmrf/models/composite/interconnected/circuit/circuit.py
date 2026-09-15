@@ -1,7 +1,6 @@
 """
 Composite models that physically connect ports of other models.
 """
-from functools import cached_property
 from typing import Optional
 from collections import defaultdict
 
@@ -15,6 +14,7 @@ from pmrf.models.base import Model
 from pmrf.models.components.ideal import Port, Ground
 from pmrf.frequency import Frequency
 from pmrf.utils import field
+from pmrf.utils.tree import pytree_cached_property
 from pmrf.types import ArrayLike
 from pmrf.rf import y2s, s2y, renormalize_s
 
@@ -177,7 +177,7 @@ class Circuit(Model):
 
     # --- TOPOLOGY REPRESENTATIONS ---
 
-    @cached_property
+    @pytree_cached_property
     def port_representation(self) -> PortRepresentation:
         """Generates the static topological map for scattering connection and reduction."""
         global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
@@ -203,7 +203,7 @@ class Circuit(Model):
             port_to_net_map=np.array(active_net_map, dtype=int)
         )
         
-    @cached_property
+    @pytree_cached_property
     def nodal_representation(self) -> NodalRepresentation:
         """Generates the static topological map for nodal admittance assembly and reduction."""
         global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)

@@ -22,7 +22,7 @@ from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution, Transformed
 from pmrf.utils import error_if, field
 from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import filtered_pathed_leaves, path_to_name
+from pmrf.utils.tree import path_nodes, path_to_name
 
 
 T = TypeVar('T')
@@ -843,41 +843,82 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
     return sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
 
 
-def tree_pathed_params(
+def _is_name_leaf(x: Any) -> bool:
+    """Traversal boundary for name resolution: stops at parameters and Parax's opaque
+    nodes, but descends through constants so frozen parameters keep their names."""
+    return is_param(x) or (prx.constraints.is_leaf(x) and not prx.is_constant(x))
+
+
+def _is_name_transparent(x: Any) -> bool:
+    """Wrappers whose own path parts are omitted from parameter names."""
+    from pmrf.models.adapters.wrapped import Wrapped
+    from pmrf.modules.base import Module
+    from pmrf.modules.wrapped import Probabilistic, Tied
+
+    if isinstance(x, (Tied, Probabilistic, Wrapped)):
+        return True
+    return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
+
+
+def tree_param_paths(
     tree,
-    full_params: bool = False,
     free_only: bool = False,
-    keystr: bool = False,
-    separator: str | None = None,
-) -> list[tuple[Any, float | jnp.ndarray | Param]]:
+    namespace_separator: str = '_',
+) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
     """
-    Returns the parameters as a list of tuples alongside their paths.
-    
-    The paths represent JAX tree paths.
-    
+    Resolves every parameter name in a tree to its JAX path and node.
+
+    This is the single name resolver behind :meth:`pmrf.Module.named_params`,
+    :meth:`pmrf.Module.at` and :meth:`pmrf.Module.tied`, so a name produced by one
+    is accepted by the others.
+
+    Names see through freezing (a frozen parameter keeps its name, but is not free)
+    and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
+    parts are omitted so that names are relative to the wrapped module. Parax's
+    opaque nodes (e.g. a `parax.Probabilize` target) are not descended into, and raw
+    arrays inside frozen sub-trees are constant data rather than parameters.
+
     Parameters
     ----------
-    full_params : bool, default=True
-        Returns the full parameter objects as opposed to their resultant floats/array values.
+    tree : PyTree
+        The tree to resolve names in.
     free_only : bool, default=False
-        Returns only free parameters.
-    keystr : bool, default=False
-        Whether equivalent strings should be returned as opposed to full JAX paths.
-        Defaults to False.
-    separator : str, optional
-        The separator to use if `keystr` is True.
-    """
-    # Setup callables for filtering/flattening.
-    # We also need to stop at parax's opaque/protected boundaries (e.g. `parax.Probabilize`),
-    # via `prx.constraints.is_leaf` (which also covers frozen sub-trees via `prx.is_constant`).
-    # Otherwise this recurses into e.g. a normalizing-flow prior's internals (its own trainable
-    # weights, and the frozen reconstruction data), surfacing them as spurious named parameters.
-    if free_only:
-        filter_spec = lambda x: is_param(x) and not x.fixed or isinstance(x, jax.Array)
-    else:
-        filter_spec = lambda x: is_param(x) or isinstance(x, jax.Array)
+        Only resolve free parameters.
+    namespace_separator : str, default='_'
+        The separator used to join named module namespaces.
 
-    return filtered_pathed_leaves(tree, filter_spec, is_leaf=is_leaf, unwrap_leaves=not full_params, keystr=keystr, separator=separator)
+    Returns
+    -------
+    dict[str, tuple[tuple, Param | jax.Array]]
+        Names mapped to ``(path, node)``, where ``path`` is a JAX key path into `tree`.
+
+    Raises
+    ------
+    ValueError
+        If two parameters resolve to the same name.
+    """
+    leaves, _ = jax.tree_util.tree_flatten_with_path(tree, is_leaf=_is_name_leaf)
+    resolved = {}
+    for path, leaf in leaves:
+        frozen = any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
+        if is_param(leaf):
+            if free_only and (leaf.fixed or frozen):
+                continue
+        elif not isinstance(leaf, jax.Array) or frozen:
+            continue
+
+        name = path_to_name(
+            tree, path, namespace_separator=namespace_separator, is_transparent=_is_name_transparent
+        )
+        if name in resolved:
+            raise ValueError(
+                f"Parameter name collision: '{name}'.\n\n"
+                f"Multiple paths resolved to the same name during flattening. "
+                f"To fix this, either assign unique names directly to the parameters, "
+                f"or give their parent models distinct names to create unique prefixes."
+            )
+        resolved[name] = (path, leaf)
+    return resolved
 
 
 def tree_named_params(
@@ -888,48 +929,43 @@ def tree_named_params(
 ) -> dict[str, float | jnp.ndarray | Param]:
     """
     Returns a named dictionary of parameters in a tree.
-        
+
+    Names are resolved by :func:`tree_param_paths`.
+
     Parameters
     ----------
-    full_params : bool, default=True
+    full_params : bool, default=False
         Returns the full parameter objects as opposed to their resultant floats/array values.
     free_only : bool, default=False
         Returns only free parameters.
     namespace_separator : str
         The separator to use to create a parameter namespace using model names.
-    
+
     Returns
     -------
     dict[str, Any]
-        A dictionary mapping string paths (e.g., '.ind.value') to their 
-        corresponding JAX arrays or parameter objects.
-        
+        Parameter names mapped to their values or parameter objects.
     """
-    pathed = tree_pathed_params(tree, free_only=free_only, full_params=full_params)
-    
-    # Detect collisions
     named = {}
-    for path, leaf in pathed:
-        name = path_to_name(tree, path, namespace_separator=namespace_separator)
-        if name in named:
-            raise ValueError(
-                f"Parameter name collision: '{name}'.\n\n"
-                f"Multiple paths resolved to the same name during flattening. "
-                f"To fix this, either assign unique names directly to the parameters, "
-                f"or give their parent models distinct names to create unique prefixes."
-            )
+    for name, (_, leaf) in tree_param_paths(
+        tree, free_only=free_only, namespace_separator=namespace_separator
+    ).items():
+        if not full_params:
+            leaf = prx.unwrap(leaf)
+            if jnp.isscalar(leaf):
+                leaf = float(leaf)
         named[name] = leaf
-    
     return named
 
-def tree_param_names_to_path(tree):
-    pathed = tree_pathed_params(tree, full_params=True)
-    name_to_path = {}
-    for path, _ in pathed:
-        name = path_to_name(tree, path, namespace_separator='_')
-        name_to_path[name] = path    
 
-    return name_to_path
+def tree_param_names_to_path(tree, namespace_separator: str = '_') -> dict[str, tuple[Any, ...]]:
+    """
+    Maps every parameter name in a tree to its JAX path, via :func:`tree_param_paths`.
+    """
+    return {
+        name: path
+        for name, (path, _) in tree_param_paths(tree, namespace_separator=namespace_separator).items()
+    }
 
 
 __all__ = [

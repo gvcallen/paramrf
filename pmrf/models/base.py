@@ -3,7 +3,6 @@ Base class for RF models.
 """
 
 from typing import Any, Callable, TypeVar, Union, TypeGuard
-from functools import cached_property
 import warnings
 
 import numpy as np
@@ -22,6 +21,7 @@ from pmrf.rf import (
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
+from pmrf.utils.tree import pytree_cached_property
 from pmrf.distributions import AbstractDistribution
 from pmrf.modules.base import Module, validate
 
@@ -190,7 +190,7 @@ class Model(Module):
 
     # ---- Introspection properties --------------------------------------------------------
     
-    @cached_property
+    @pytree_cached_property
     def number_of_ports(self) -> int:
         """Number of ports.
 
@@ -205,7 +205,7 @@ class Model(Module):
         eval = jax.eval_shape(lambda: self.s(freq))
         return eval.shape[1]
 
-    @cached_property
+    @pytree_cached_property
     def nports(self) -> int:
         """Alias of :attr:`number_of_ports`."""
         return self.number_of_ports
