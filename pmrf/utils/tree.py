@@ -55,7 +55,7 @@ def unfreeze(value: Any):
     Unfreezes/unfixes a potentially frozen parameter or model and returns the unfrozen model.
 
     Frozen parameters nested anywhere inside `value` are unfrozen too, so
-    ``unfreeze(model)`` undoes ``model.map(freeze, is_target=is_param)``. Frozen
+    ``unfreeze(model)`` undoes ``prf.update(model, '*', fn=freeze)``. Frozen
     sub-trees that hold no parameters (e.g. constant data stored with
     ``field(converter=freeze)``) are left frozen.
     """
