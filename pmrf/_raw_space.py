@@ -11,6 +11,9 @@ from typing import Any, Callable
 
 from jaxtyping import PyTree, Scalar
 
+import jax
+import jax.numpy as jnp
+
 from pmrf.parameters import log_prior, param_values, update
 from pmrf.utils import unwrap
 
@@ -30,7 +33,7 @@ class RawSpace:
     Raises
     ------
     ValueError
-        If `model` has no free parameters.
+        If `model` has no free parameters, or one starts on a bound.
     """
 
     def __init__(self, model: PyTree, action: str):
@@ -43,23 +46,29 @@ class RawSpace:
                 f"Nothing to {action}: the tree has no free parameters. Every parameter is "
                 "either fixed or a plain value."
             )
+        on_bound = [name for name, v in self.y0.items() if not all(bool(jnp.all(jnp.isfinite(x))) for x in jax.tree.leaves(v))]
+        if on_bound:
+            raise ValueError(
+                f"Cannot {action}: {', '.join(repr(name) for name in on_bound)} start on a bound, "
+                "where the raw value is infinite and cannot move. Start them inside their bounds."
+            )
 
-    def updated(self, values: dict) -> PyTree:
-        """Returns the model with `values`, raw and by name, written into it.
+    def updated(self, values: dict, space: str = 'raw') -> PyTree:
+        """Returns the model with `values`, by name and in `space`, written into it.
 
         Batched values give a batched model; fixed parameters stay unbatched.
         """
-        return update(self.model, values, space='raw')
+        return update(self.model, values, space=space)
 
     def read(self, batch: PyTree) -> dict:
         """Returns the raw values of the free parameters of `batch`, a model like this one."""
         values = param_values(batch, free_only=True, space='raw')
         return {name: values[name] for name in self.y0}
 
-    def objective(self, fn: Callable[[PyTree, Any], Scalar]) -> Callable[[dict, Any], Scalar]:
-        """Returns `fn`, which takes the unwrapped model, as a function of raw values."""
+    def objective(self, fn: Callable[[PyTree, Any], Scalar], space: str = 'raw') -> Callable[[dict, Any], Scalar]:
+        """Returns `fn`, which takes the unwrapped model, as a function of values in `space`."""
         def raw_fn(values: dict, args: Any) -> Scalar:
-            return fn(unwrap(self.updated(values)), args)
+            return fn(unwrap(self.updated(values, space)), args)
         return raw_fn
 
     def log_prior(self, values: dict, _args: Any = None) -> Scalar:

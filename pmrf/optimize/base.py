@@ -133,14 +133,15 @@ def run_minimizer(
 
     The solver can be any solver of type `pmrf.optimize.AbstractMinimizer`. It moves
     through the free parameters in raw space, where constraints are enforced by each
-    parameter's bijector, so a bounded solver is given infinite bounds. The solver receives a name-keyed dict, as from
+    parameter's bijector, so a bounded solver is given infinite bounds. The solver
+    receives a name-keyed dict, as from
     ``prf.param_values(model, free_only=True, space='raw')``; a solver that needs a
     1-D vector flattens it itself. The result is written back with
     ``prf.update(model, y, space='raw')``, so fixed parameters, names, scales and
     priors are unchanged.
 
     A parameter starting exactly on one of its bounds has an infinite raw value and
-    cannot move; start it inside its bounds.
+    could not move, so it raises; start it inside its bounds.
 
     Parameters
     ----------
@@ -165,7 +166,7 @@ def run_minimizer(
     Raises
     ------
     ValueError
-        If `model` has no free parameters.
+        If `model` has no free parameters, or one starts on a bound.
     """
     raw = RawSpace(model, 'optimize')
     if isinstance(solver, AbstractBoundedMinimizer):

@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import PyTree
 
-from pmrf.parameters import log_prior, tree_param_distributions, tree_param_log_prob
+from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
 from pmrf.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
@@ -119,7 +119,7 @@ class PriorPenalized(AbstractProblem):
                 "count every prior twice."
             )
         self.distributions = tree_param_distributions(self.problem)
-        self.log_scale = log_prior(self.problem, space='declared') - log_prior(self.problem, space='physical')
+        self.log_scale = _log_scale(self.problem)
 
     @property
     def model(self) -> PyTree:

@@ -102,6 +102,12 @@ def test_jax_native_minimizer_receives_name_keyed_raw_values():
     assert np.allclose(value, _objective(None)(prf.unwrap(model), None))
 
 
+def test_minimizer_start_on_a_bound_raises():
+    model = prf.update(_start(), {"R": 0.0})
+    with pytest.raises(ValueError, match=r"'R' start on a bound"):
+        optimize_base.run_minimizer(_objective(None), model, BFGS())
+
+
 def test_minimizer_without_free_parameters_raises():
     model = prf.update(_start(), "*", fixed=True)
     with pytest.raises(ValueError, match="no free parameters"):
@@ -255,3 +261,21 @@ def test_minimizer_moves_a_probabilistic_target():
 
     fitted, _ = optimize_base.run_minimizer(fn, model, BFGS(), max_iter=500)
     assert prf.unwrap(fitted).R == pytest.approx(45.0, rel=1e-4)
+
+
+def test_joint_sampler_moves_and_scores_a_probabilistic_target():
+    model = _probabilistic()
+    loglik = lambda m, args: -((m.R - 45.0) ** 2)
+    batched, results = infer_base.run_sampler(loglik, model, _StubJointSampler(), jax.random.key(0))
+
+    for i in range(3):
+        v = jax.tree.map(lambda x: x[i], results.samples)
+        at = prf.update(model, v, space="raw")
+        expected = loglik(prf.unwrap(at), None) + prf.log_prior(at, space="raw")
+        assert np.allclose(results.fn_values[i], expected, rtol=1e-6)
+    assert np.shape(prf.unwrap(batched).R) == (3,)
+
+
+def test_hypercube_sampler_rejects_a_joint_prior():
+    with pytest.raises(ValueError, match=r"'load.R'.*joint or split sampler"):
+        infer_base.run_sampler(lambda m, a: 0.0, _probabilistic(), _StubHypercubeSampler(), jax.random.key(0))

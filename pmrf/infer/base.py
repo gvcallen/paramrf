@@ -12,8 +12,7 @@ import equinox as eqx
 import parax as prx
 
 from pmrf._raw_space import RawSpace
-from pmrf.parameters import is_param, param_values, params, update
-from pmrf.utils import unwrap
+from pmrf.parameters import is_param, param_values, params
 
 
 T = TypeVar('T')
@@ -130,7 +129,7 @@ class AbstractHypercubeSampler(eqx.Module):
     Interface for samplers operating in a unit hypercube (e.g., classical Nested Sampling).
     
     All inputs (`u0`, `init_cube_samples` etc.) must be in the unit hypercube,
-    whereas any outputs (e.g. `samples` in `SampleResults`) must be what `prior_transform_fn` returns.
+    whereas any outputs (e.g. `samples` in `SampleResults`) must be declared values, as `prior_transform_fn` returns.
     """
     @abc.abstractmethod
     def run(
@@ -150,9 +149,9 @@ class AbstractHypercubeSampler(eqx.Module):
         Parameters
         ----------
         loglikelihood_fn : callable
-            A function taking the values `prior_transform_fn` returns and args as input and returning the log-likelihood.
+            A function taking declared parameter values and args as input and returning the log-likelihood.
         prior_transform_fn : callable
-            A function taking the hypercube parameters and args as input and returning the parameter values.
+            A function taking the hypercube parameters and args as input and returning declared parameter values.
         u0 : PyTree
             The initial parameters in the unit hypercube, either for shape reference or as a starting point.
         args : Any
@@ -283,9 +282,11 @@ def run_sampler(
         missing = [name for name, node in free.items() if not is_param(node) or node.distribution is None]
         if missing:
             raise ValueError(
-                "A hypercube sampler needs a prior on every free parameter, but these have "
-                f"none: {', '.join(repr(name) for name in missing)}. Give them a prior with "
-                "`prf.Random`, or fix them with `prf.update(model, names, fixed=True)`."
+                "A hypercube sampler needs a prior of its own on every free parameter, but "
+                f"these have none: {', '.join(repr(name) for name in missing)}. Give them a "
+                "prior with `prf.Random`, or fix them with `prf.update(model, names, fixed=True)`. "
+                "A joint prior (`prf.modules.Probabilistic`) has no per-parameter CDF, so use "
+                "a joint or split sampler for it."
             )
         # Priors are authored in declared space, so the cube maps to declared values.
         distributions = {name: prx.as_unwrapped(node.distribution) for name, node in free.items()}
@@ -297,21 +298,19 @@ def run_sampler(
             eps = jnp.finfo(jnp.float32).eps
             return {name: d.icdf(jnp.clip(cube[name], eps, 1.0 - eps)) for name, d in distributions.items()}
 
-        def _loglikelihood_fn(values: dict, args: Any) -> Scalar:
-            return loglikelihood_fn(unwrap(update(model, values)), args)
 
         batched_cube = None
         if init_samples is not None:
             batched_cube = _to_cube(param_values(init_samples, names))
 
         results = solver.run(
-            loglikelihood_fn=_loglikelihood_fn,
+            loglikelihood_fn=raw.objective(loglikelihood_fn, space='declared'),
             prior_transform_fn=_cube_to_params,
             u0=_to_cube(param_values(model, names)), args=args, key=key,
             init_cube_samples=batched_cube,
             **kwargs
         )
-        return update(model, results.samples), results
+        return raw.updated(results.samples, space='declared'), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

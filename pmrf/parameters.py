@@ -1247,12 +1247,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
         return physical
 
     resolved = tree_param_paths(tree)
-    named = [p for _, p in resolved.values() if is_param(p)]
-    scale_term = sum(
-        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for p in named if p.distribution is not None and p._scale != 1.0),
-        start=jnp.asarray(0.0),
-    )
-    declared = physical + scale_term
+    declared = physical + _log_scale(tree)
     if space == 'declared':
         return declared
 
@@ -1262,6 +1257,16 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
         start=jnp.asarray(0.0),
     )
     return declared + log_det
+
+
+def _log_scale(tree) -> Array:
+    """Returns the sum of n log|scale| over the scaled parameters of `tree` with a prior:
+    the constant taking the physical log prior to the declared one."""
+    return sum(
+        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for _, p in tree_param_paths(tree).values()
+         if is_param(p) and p.distribution is not None and p._scale != 1.0),
+        start=jnp.asarray(0.0),
+    )
 
 
 def _raw_log_det_jacobian(node) -> Array:
