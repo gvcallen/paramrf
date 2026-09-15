@@ -1058,7 +1058,8 @@ def _select(tree, where: Selector, free_only: bool = False) -> dict[str, tuple[t
     """Resolves the names in `tree` the selector `where` picks, mapped to ``(path, node)``.
 
     A string or sequence element is an exact name or an `fnmatch` glob. An element
-    with no glob characters that names no parameter raises. A callable returns nodes
+    with no glob characters that names no parameter raises; a glob matching nothing
+    selects nothing. A callable returns nodes
     of `tree`; every parameter at or below them is selected.
     """
     resolved = tree_param_paths(tree)
@@ -1067,9 +1068,9 @@ def _select(tree, where: Selector, free_only: bool = False) -> dict[str, tuple[t
         ids = {id(selected)} | {id(x) for x in jax.tree.leaves(selected, is_leaf=_is_name_leaf)}
         matched = {name for name, (_, leaf) in resolved.items() if id(leaf) in ids}
     else:
-        patterns = [where] if isinstance(where, str) else list(where)
-        if not all(isinstance(p, str) for p in patterns):
+        if not _is_selector(where):
             raise TypeError("A selector must be a name, a glob, a sequence of names, or a callable.")
+        patterns = [where] if isinstance(where, str) else list(where)
         matched = set()
         for pattern in patterns:
             if pattern in resolved:
@@ -1080,8 +1081,20 @@ def _select(tree, where: Selector, free_only: bool = False) -> dict[str, tuple[t
                 raise ValueError(f"Unknown parameter name: '{pattern}'")
             matched |= hits
     if free_only:
-        matched &= set(tree_param_paths(tree, free_only=True))
+        matched = {name for name in matched if not _is_fixed_path(tree, *resolved[name])}
     return {name: node for name, node in resolved.items() if name in matched}
+
+
+def _is_fixed_path(tree, path: tuple[Any, ...], leaf: Any) -> bool:
+    """Returns whether the node `leaf` at `path` is not free: fixed, or frozen."""
+    return (is_param(leaf) and leaf.fixed) or _is_frozen_path(tree, path)
+
+
+def _is_selector(x: Any) -> bool:
+    """Returns whether `x` is a selector: a name, a sequence of names, or a callable."""
+    return callable(x) or isinstance(x, str) or (
+        isinstance(x, (list, tuple)) and all(isinstance(s, str) for s in x)
+    )
 
 
 def _read(node, space: str) -> Array:
@@ -1116,7 +1129,8 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
         A model, or any collection of models and parameters.
     where : str, Sequence[str] or Callable, default='*'
         The parameters to return: a name, an `fnmatch` glob over names, a sequence
-        of them, or a callable returning nodes of `tree`.
+        of them, or a callable returning nodes of `tree`. An unknown name raises;
+        a glob matching nothing selects nothing.
     free_only : bool, default=False
         Only return free parameters: not fixed, and not frozen.
 
@@ -1176,9 +1190,9 @@ def param_values(
     --------
     .. code-block:: python
 
-        rc = RC(R=1.0, C=2.0)                        # C has scale=1e-12
-        prf.param_values(rc)                         # {'R': 1.0, 'C': 2.0}
-        prf.param_values(rc, space='physical')       # {'R': 1.0, 'C': 2e-12}
+        c = Capacitor(prf.Unconstrained(2.0, scale=1e-12))
+        prf.param_values(c)                      # {'C': 2.0}
+        prf.param_values(c, space='physical')    # {'C': 2e-12}
     """
     _check_space(space)
     return {name: _read(leaf, space) for name, leaf in params(tree, where, free_only=free_only).items()}
@@ -1197,7 +1211,8 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
 
     $$\\log p_{\\text{raw}} = \\log p_{\\text{declared}} + \\sum_i \\log \\left|\\det \\frac{\\partial f_i}{\\partial z_i}\\right|$$
 
-    where $n_i$ is the number of elements in parameter $i$. Parameters without a
+    where $n_i$ is the number of elements in parameter $i$. The scale and Jacobian
+    terms are the change-of-variables formula for densities. Parameters without a
     prior add nothing to the first two sums (a flat prior). The scale term covers
     parameters with a prior; the Jacobian term covers every free, constrained
     parameter, since those are the coordinates an optimiser or sampler moves. The
@@ -1216,6 +1231,12 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     -------
     jax.Array
         A scalar.
+
+    References
+    ----------
+    .. [1] G. Casella and R. L. Berger, *Statistical Inference*, 2nd ed., Duxbury,
+       2002, Theorem 2.1.5 (univariate) and Section 4.3 (multivariate
+       transformations).
     """
     _check_space(space)
     # Priors are extracted in physical space, where an unwrapped tree lives.
@@ -1223,7 +1244,8 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     if space == 'physical':
         return physical
 
-    named = [p for p in params(tree).values() if is_param(p)]
+    resolved = tree_param_paths(tree)
+    named = [p for _, p in resolved.values() if is_param(p)]
     scale_term = sum(
         (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for p in named if p.distribution is not None and p._scale != 1.0),
         start=jnp.asarray(0.0),
@@ -1232,7 +1254,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     if space == 'declared':
         return declared
 
-    free = [p for p in params(tree, free_only=True).values() if is_param(p)]
+    free = [p for path, p in resolved.values() if is_param(p) and not _is_fixed_path(tree, path, p)]
     log_det = sum(
         (jnp.sum(p.raw_to_declared_bijector.forward_log_det_jacobian(p.raw_value)) for p in free if p.constraint is not None),
         start=jnp.asarray(0.0),
@@ -1383,10 +1405,7 @@ def update(
         nodes = [_write(resolved[name][1], v, space) for name, v in selection.items()]
         return _set_paths(tree, paths, nodes)
 
-    is_selector = callable(selection) or isinstance(selection, str) or (
-        isinstance(selection, (list, tuple)) and all(isinstance(s, str) for s in selection)
-    )
-    if not is_selector or has_value == has_fixed:
+    if not _is_selector(selection) or has_value == has_fixed:
         raise form_error()
     selected = _select(tree, selection)
     paths = [path for path, _ in selected.values()]

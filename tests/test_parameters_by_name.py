@@ -181,6 +181,17 @@ def test_log_prior_raw_agrees_with_prior_penalized():
     assert np.allclose(prf.log_prior(m, space="raw") - log_det, -penalty, atol=1e-6)
 
 
+def test_log_prior_physical_agrees_with_prior_penalized_when_scaled():
+    """PriorPenalized scores physical values, so with a scale it matches the
+    physical log prior, and the declared one differs by n log|scale|."""
+    from pmrf.problems import PriorPenalized, SummedTerms
+
+    m = _scaled_bounded()
+    penalty = PriorPenalized(SummedTerms(model=m, terms=(lambda model: jnp.asarray(0.0),)))()
+    assert np.allclose(prf.log_prior(m, space="physical"), -penalty, atol=1e-5)
+    assert np.allclose(prf.log_prior(m) - np.log(1e-3), -penalty, atol=1e-5)
+
+
 # ---- Update: value forms ------------------------------------------------------------
 
 

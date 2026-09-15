@@ -112,7 +112,7 @@ import equinox as eqx
 #         safe_kwargs['length'] = self.length
         
 #         dummy_model = line_fn(**safe_kwargs)
-#         base_params = dummy_model.named_params()
+#         base_params = prf.params(dummy_model)
 
 #         # Extract the parameter objects, excluding 'length'
 #         merged_params = {
