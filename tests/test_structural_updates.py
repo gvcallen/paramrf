@@ -7,6 +7,8 @@ import numpy as np
 import pytest
 
 import pmrf as prf
+from pmrf.math import CONVERSION_LOOKUP
+from pmrf.models.base import PLOT_DOMAINS
 from pmrf.models import Capacitor, Cascade, Resistor, Short, Wrapped
 from pmrf.modules import Tied
 
@@ -187,7 +189,9 @@ MODEL_METHODS = {
 # ADR-0002 decision 1: the methods `Model.__init_subclass__` generates per class
 # (`s_db`, `s_mn_mag`, ...) are RF and allowed; the plotting names `__getattr__`
 # serves are not class attributes. Both are out of scope for the allowlist.
-_GENERATED = re.compile(r"^[a-z]+(_mn)?_[a-z0-9_]+$")
+_GENERATED = re.compile(
+    rf"^({'|'.join(PLOT_DOMAINS)})(_mn)?_({'|'.join(map(re.escape, CONVERSION_LOOKUP))})$"
+)
 
 
 def test_model_public_methods_equal_allowlist():
@@ -196,8 +200,8 @@ def test_model_public_methods_equal_allowlist():
             return jnp.zeros((freq.npoints, 1, 1))
 
     assert _public_methods(prf.Model) == MODEL_METHODS
-    generated = {n for n in _public_methods(Sub) - MODEL_METHODS if getattr(getattr(Sub, n), "_pmrf_auto", False)}
-    assert all(_GENERATED.match(n) for n in generated)
+    generated = {n for n in _public_methods(Sub) if _GENERATED.match(n)}
+    assert generated and all(getattr(Sub, n)._pmrf_auto for n in generated)
     assert _public_methods(Sub) - generated == MODEL_METHODS
 
 

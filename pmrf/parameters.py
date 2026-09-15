@@ -23,7 +23,7 @@ from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution, Transformed
 from pmrf.utils import error_if, field
-from pmrf.utils.tree import path_nodes, path_to_name, resolve_target
+from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
 
 T = TypeVar('T')
@@ -1247,7 +1247,6 @@ def _set_paths(tree, paths: list, nodes: list):
     """Replaces the nodes at several JAX key paths at once."""
     if not paths:
         return tree
-    from pmrf.utils.tree import Pathgetter
     getter = Pathgetter(*paths)
     return eqx.tree_at(getter, tree, nodes[0] if len(paths) == 1 else tuple(nodes))
 
@@ -1374,7 +1373,7 @@ def update(
     """
     Returns a copy of a model with the parts a selector picks replaced.
 
-    Exactly one form says what with:
+    Exactly one form says what replaces them:
 
     .. code-block:: python
 
@@ -1468,7 +1467,6 @@ def update(
         paths = _select_parts(tree, selection)
         if not paths:
             return tree
-        from pmrf.utils.tree import Pathgetter
         parts = [Pathgetter(path)(tree) for path in paths]
         return _set_paths(tree, paths, [replace_fn(part) for part in parts])
 
