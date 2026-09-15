@@ -1262,25 +1262,24 @@ class FlatParams(eqx.Module):
 
     def _theta_from_physical(self, physical):
         """Returns `theta` for a tree of free physical values."""
-        if self.space == "unconstrained":
+        if self.space == "unconstrained" and self._constraint is not None:
             physical = self._constraint.bijector.inverse(self._scale(physical, inverse=True))
         return jax.flatten_util.ravel_pytree(physical)[0]
 
     def _to_physical(self, theta):
         """Returns the tree of free physical values at `theta`, and the log|det J| to it."""
         tree = self._unravel(theta)
-        if self.space == "physical":
+        if self.space == "physical" or self._constraint is None:
             return tree, jnp.asarray(0.0)
-        constrained = jax.tree.map(
-            lambda c, sub: c.bijector.forward_and_log_det(sub),
-            self._constraint.tree, tree, is_leaf=prx.constraints.is_constraint,
+        is_constraint = prx.constraints.is_constraint
+        values = jax.tree.map(
+            lambda c, sub: c.bijector.forward(sub), self._constraint.tree, tree, is_leaf=is_constraint
         )
-        is_pair = lambda x: isinstance(x, tuple) and len(x) == 2 and not isinstance(x[0], tuple)
-        values = jax.tree.map(lambda pair: pair[0], constrained, is_leaf=is_pair)
-        log_det = sum(
-            (jnp.sum(pair[1]) for pair in jax.tree.leaves(constrained, is_leaf=is_pair)),
-            start=jnp.asarray(0.0),
+        log_dets = jax.tree.map(
+            lambda c, sub: jnp.sum(c.bijector.forward_log_det_jacobian(sub)),
+            self._constraint.tree, tree, is_leaf=is_constraint,
         )
+        log_det = sum(jax.tree.leaves(log_dets), start=jnp.asarray(0.0))
         return self._scale(values), log_det + self._log_abs_scale(values)
 
     def _unflatten_tree(self, physical):
@@ -1379,10 +1378,8 @@ def flatten(tree, space: Space = "physical") -> FlatParams:
 
     dynamic, static = eqx.partition(tree, _is_free_node, is_leaf=is_leaf)
     nodes = jax.tree_util.tree_flatten_with_path(dynamic, is_leaf=is_leaf)[0]
-    pairs = jax.tree.map(_node_constraint_and_scale, dynamic, is_leaf=is_leaf)
-    is_pair = lambda x: isinstance(x, tuple) and len(x) == 2 and isinstance(x[1], float)
-    constraint_tree = jax.tree.map(lambda pair: pair[0], pairs, is_leaf=is_pair)
-    scales = jax.tree.map(lambda pair: pair[1], pairs, is_leaf=is_pair)
+    constraint_tree = jax.tree.map(lambda n: _node_constraint_and_scale(n)[0], dynamic, is_leaf=is_leaf)
+    scales = jax.tree.map(lambda n: _node_constraint_and_scale(n)[1], dynamic, is_leaf=is_leaf)
 
     physical = prx.unwrap(dynamic, only_if=_unwraps_whole)
     _, unravel = jax.flatten_util.ravel_pytree(physical)

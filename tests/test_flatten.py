@@ -185,10 +185,30 @@ def test_unconstrained_log_prior_matches_prior_penalized():
     problem = PriorPenalized(SummedTerms(model, (lambda m: jnp.asarray(0.0),)))
     theta = flat.theta0 + 0.2
 
-    physical = prf.flatten(flat.wrap(theta)).theta0
     log_det = jnp.linalg.slogdet(
         jax.jacfwd(lambda t: prf.flatten(flat.wrap(t)).theta0)(theta)
     )[1]
     penalized = eqx.tree_at(lambda p: p.problem.model, problem, flat.wrap(theta))
-    assert np.isclose(physical.size, len(flat.names))
     assert np.isclose(-penalized() + log_det, flat.log_prior(theta), rtol=1e-6)
+
+
+@pytest.mark.parametrize("space", ["physical", "unconstrained"])
+def test_no_free_parameters(space):
+    model = make_system().with_free([])
+    flat = prf.flatten(model, space=space)
+    assert flat.names == () and flat.theta0.shape == (0,)
+    assert np.isfinite(flat.log_prior(flat.theta0))
+
+
+def test_joint_prior_unconstrained_includes_jacobian():
+    inner = Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="load")
+    model = prf.modules.Probabilistic(inner, Normal(50.0, 2.0), target=lambda m: m.R)
+    flat_u = prf.flatten(model, space="unconstrained")
+    theta = flat_u.theta0 + 0.3
+
+    def to_physical(t):
+        return prf.flatten(flat_u.wrap(t)).theta0
+
+    log_det = jnp.log(jnp.abs(jax.jacfwd(to_physical)(theta)[0, 0]))
+    expected = Normal(50.0, 2.0).log_prob(to_physical(theta)[0]) + log_det
+    assert np.isclose(flat_u.log_prior(theta), expected, rtol=1e-6)

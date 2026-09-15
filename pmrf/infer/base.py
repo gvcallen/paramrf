@@ -287,12 +287,8 @@ def run_sampler(
 
         # The cube is taken over each free node's unscaled prior.
         def _distribution(node):
-            if is_param(node):
-                distribution = node.distribution
-            elif prx.is_probabilistic(node):
-                distribution = node.distribution
-            else:
-                distribution = None
+            is_prior = is_param(node) or prx.is_probabilistic(node)
+            distribution = node.distribution if is_prior else None
             if distribution is None:
                 raise ValueError(
                     "A hypercube sampler needs a prior on every free parameter, but a free "

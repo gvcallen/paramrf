@@ -9,6 +9,7 @@ import equinox as eqx
 from pmrf.parameters import Random, Fixed
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
+import pmrf as prf
 from tests._dependency_checks import requires_distreqx_joint
 
 
@@ -186,8 +187,6 @@ class _StubJointSampler(base.AbstractJointSampler):
 
 
 def test_joint_sampler_runs_on_flat_vector(dummy_model):
-    import pmrf as prf
-
     batched_model, results = base.run_sampler(
         loglikelihood_fn=dummy_ll, model=dummy_model, solver=_StubJointSampler(), key=jax.random.key(0)
     )
@@ -195,7 +194,7 @@ def test_joint_sampler_runs_on_flat_vector(dummy_model):
 
     assert results.samples.shape == (3, len(flat.names))
     assert batched_model["x"].value.shape == (3,)
-    assert jnp.isscalar(batched_model["z"].value) or batched_model["z"].value.shape == ()
+    assert batched_model["z"].value.shape == ()
     expected = flat.log_prior(flat.theta0) + dummy_ll(flat.unflatten(flat.theta0))
     np.testing.assert_allclose(results.fn_values[0], expected, rtol=1e-6)
     np.testing.assert_allclose(batched_model["x"].value[0], 0.0, atol=1e-6)
