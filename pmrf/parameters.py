@@ -8,7 +8,8 @@ Builds on top of `Parax <https://gvcallen.github.io/parax>`_.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Optional, Self, Union, Callable, TypeVar, TypeGuard
+import fnmatch
+from typing import Any, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
 import jax
 import jax.numpy as jnp
@@ -85,29 +86,30 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         metadata : Any, optional
             Arbitrary metadata for the parameter, by default None.
         raw_value : Optional[prx.AbstractVariable], optional
-            The raw Parax variable to wrap. Mutually exclusive with `value`.
+            The raw Parax variable to wrap. If `value` is also passed, it is instead
+            the physical (scaled) value, as :attr:`value` returns, and the variable's
+            value is replaced, keeping its distribution, constraint and fixed state.
+            This is what makes ``pmrf.replace(param, value=...)`` work, so
+            ``pmrf.replace(param, value=param.value)`` is the identity (up to the
+            floating-point round trip through the constraint bijector).
         """
         if isinstance(value, prx.AbstractVariable):
             raise ValueError("Got a Parax variable when constructing a parameter")
-        
-        if raw_value is not None and value is not None:
-            raise ValueError("Cannot pass `raw_value` and `value` to Param constructor")
 
-        if raw_value is None:
+        if raw_value is not None and (distribution is not None or constraint is not None):
+            raise ValueError("Cannot pass `raw_value` with `distribution` or `constraint` to Param constructor")
+
+        if raw_value is not None and value is not None:
+            raw_value = _replace_raw_value(raw_value, jnp.asarray(value) / scale)
+        elif raw_value is None:
             distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
             
             # Error Checking & Value Inference
             if value is None and distribution is None and constraint is None:
                 raise ValueError("`value` was None when constructing a parameter but neither a distribution nor a finite Interval constraint was provided")
             if constraint is not None and value is not None:
-                value_array = jnp.array(value)
-                error_if(
-                    value_array,
-                    constraint.is_outside(value_array),
-                    f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
-                    f"\nMake sure the initial values match the parameter and model constraints.",
-                )
-                
+                value = _check_in_constraint(value, constraint)
+
             # Cater for none values
             if value is None:
                 if constraint is not None and not jnp.any(jnp.isinf(jnp.asarray(constraint.bounds))):
@@ -365,6 +367,36 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         new_raw_value = self.raw_value.wrap(value / self.scale)
         return eqx.tree_at(lambda x: x.raw_value, self, new_raw_value)
     
+
+def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Array:
+    """Returns `value` as an array that raises at runtime if it is outside `constraint`.
+
+    The returned array must be used: under `jax.jit` the check lives only in its graph.
+    """
+    value_array = jnp.asarray(value)
+    return error_if(
+        value_array,
+        constraint.is_outside(value_array),
+        f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
+        f"\nMake sure the values match the parameter and model constraints.",
+    )
+
+
+def _replace_raw_value(raw_value: prx.AbstractVariable, value: ArrayLike) -> prx.AbstractVariable:
+    """Replaces the unscaled value of a Parax variable, keeping its structure.
+
+    `Fixed` is peeled off before wrapping, since wrapping through it drops the wrapped
+    variable's distribution, and the value is checked against the constraint because
+    wrapping does not check bounds.
+    """
+    fixed = isinstance(raw_value, prx.Fixed)
+    inner = raw_value.raw_value if fixed else raw_value
+    value_array = jnp.asarray(value)
+    if prx.is_constrained(inner):
+        value_array = _check_in_constraint(value_array, prx.unwrap(inner.constraint))
+    inner = inner.wrap(value_array)
+    return prx.Fixed(inner) if fixed else inner
+
 
 def is_param(x: Any) -> TypeGuard[Param]:
     """
@@ -860,6 +892,11 @@ def _is_name_transparent(x: Any) -> bool:
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
 
 
+def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
+    """Returns whether any node along the JAX key `path` into `tree` is frozen."""
+    return any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
+
+
 def tree_param_paths(
     tree,
     free_only: bool = False,
@@ -900,7 +937,7 @@ def tree_param_paths(
     leaves, _ = jax.tree_util.tree_flatten_with_path(tree, is_leaf=_is_name_leaf)
     resolved = {}
     for path, leaf in leaves:
-        frozen = any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
+        frozen = _is_frozen_path(tree, path)
         if is_param(leaf):
             if free_only and (leaf.fixed or frozen):
                 continue
@@ -966,6 +1003,166 @@ def tree_param_names_to_path(tree, namespace_separator: str = '_') -> dict[str, 
         name: path
         for name, (path, _) in tree_param_paths(tree, namespace_separator=namespace_separator).items()
     }
+
+
+def tree_param_values(tree, free_only: bool = False) -> dict[str, jnp.ndarray]:
+    """
+    Returns the physical (scaled) value of every named parameter in a tree.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to read.
+    free_only : bool, default=False
+        Only return free parameters.
+
+    Returns
+    -------
+    dict[str, jax.Array]
+        Names, as in :func:`tree_named_params`, mapped to physical values.
+    """
+    return {
+        name: leaf.value if is_param(leaf) else jnp.asarray(leaf)
+        for name, (_, leaf) in tree_param_paths(tree, free_only=free_only).items()
+    }
+
+
+def _set_paths(tree, paths: list, nodes: list):
+    """Replaces the nodes at several JAX key paths at once."""
+    if not paths:
+        return tree
+    from pmrf.utils.tree import Pathgetter
+    getter = Pathgetter(*paths)
+    return eqx.tree_at(getter, tree, nodes[0] if len(paths) == 1 else tuple(nodes))
+
+
+def tree_with_values(tree, values: dict[str, ArrayLike], strict: bool = True):
+    """
+    Returns a tree with parameter values replaced by name.
+
+    The structure is unchanged: each parameter keeps its distribution, constraint,
+    scale, name, metadata and fixed or frozen state. ``tree_with_values(tree,
+    tree_param_values(tree))`` is the identity, up to the floating-point round trip
+    through each parameter's constraint bijector.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to update.
+    values : dict[str, ArrayLike]
+        Names mapped to physical (scaled) values.
+    strict : bool, default=True
+        Raise on names that do not resolve. If False, they are ignored.
+
+    Returns
+    -------
+    PyTree
+        The updated tree.
+
+    Raises
+    ------
+    ValueError
+        If `strict` and a name does not resolve, or if a value is outside its
+        parameter's constraint. Under `jax.jit`, the bounds check raises at runtime.
+    """
+    resolved = tree_param_paths(tree)
+    unknown = [name for name in values if name not in resolved]
+    if strict and unknown:
+        raise ValueError(f"Unknown parameter names: {unknown}")
+
+    paths, nodes = [], []
+    for name, value in values.items():
+        if name not in resolved:
+            continue
+        path, leaf = resolved[name]
+        if is_param(leaf):
+            leaf = dataclasses.replace(leaf, value=value)
+        else:
+            leaf = jnp.asarray(value, dtype=leaf.dtype)
+        paths.append(path)
+        nodes.append(leaf)
+    return _set_paths(tree, paths, nodes)
+
+
+def _match_names(tree, patterns: str | Sequence[str]):
+    """
+    Resolves the parameter names in `tree` and selects those matching `patterns`.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to resolve names in.
+    patterns : str or Sequence[str]
+        `fnmatch` globs, matched case-sensitively against every resolved name.
+
+    Returns
+    -------
+    resolved : dict[str, tuple[tuple, Param | jax.Array]]
+        Every name mapped to ``(path, node)``, as from :func:`tree_param_paths`.
+    matched : set[str]
+        The names matching at least one pattern.
+    """
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    resolved = tree_param_paths(tree)
+    matched = {
+        name for name in resolved if any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
+    }
+    return resolved, matched
+
+
+def tree_with_fixed(tree, patterns: str | Sequence[str]):
+    """
+    Returns a tree with the parameters matching `patterns` frozen.
+
+    Matches that are already frozen are left as they are, so one
+    :func:`pmrf.unfreeze` undoes any number of calls.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to update.
+    patterns : str or Sequence[str]
+        `fnmatch` globs over parameter names, e.g. ``'load.*'``.
+
+    Returns
+    -------
+    PyTree
+        The updated tree.
+    """
+    from pmrf.utils.tree import freeze
+    resolved, matched = _match_names(tree, patterns)
+    matched = [name for name in matched if not _is_frozen_path(tree, resolved[name][0])]
+    paths = [resolved[name][0] for name in matched]
+    return _set_paths(tree, paths, [freeze(resolved[name][1]) for name in matched])
+
+
+def tree_with_free(tree, patterns: str | Sequence[str]):
+    """
+    Returns a tree in which exactly the parameters matching `patterns` are free.
+
+    All other parameters are frozen. Parameters fixed by construction (e.g.
+    :func:`pmrf.Fixed`) stay fixed even if matched.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to update. May already be frozen, including nested freezes.
+    patterns : str or Sequence[str]
+        `fnmatch` globs over parameter names, e.g. ``'load.*'``.
+
+    Returns
+    -------
+    PyTree
+        The updated tree.
+    """
+    from pmrf.utils.tree import freeze, unfreeze
+    tree = unfreeze(tree)
+    resolved, matched = _match_names(tree, patterns)
+    others = [name for name in resolved if name not in matched]
+    return _set_paths(
+        tree, [resolved[name][0] for name in others], [freeze(resolved[name][1]) for name in others]
+    )
 
 
 __all__ = [

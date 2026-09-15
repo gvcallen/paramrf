@@ -327,3 +327,106 @@ def test_names_resolve_after_evaluating_tied_and_frozen_touchstone(tmp_path):
         tree.s(freq)
         _assert_names_resolve(tree)
     assert set(frozen.named_params()) == set(model.named_params())
+# ---- Values and free sets by name (#134) -----------------------------------------------
+
+
+def test_values_round_trip():
+    system = _system()
+    values = system.values()
+    assert set(values) == set(system.named_params())
+    for name, value in system.named_params().items():
+        assert np.allclose(values[name], value)
+
+    same = system.with_values(values)
+    assert same.named_params(full_params=True).keys() == system.named_params().keys()
+    for name, p in system.named_params(full_params=True).items():
+        q = same.named_params(full_params=True)[name]
+        assert np.allclose(q.value, p.value)
+        assert q.fixed == p.fixed and q.scale == p.scale and q.name == p.name
+        assert q.distribution == p.distribution
+
+
+def test_values_free_only():
+    system = _system()
+    assert set(system.values(free_only=True)) == set(system.named_params(free_only=True))
+    assert "cable.vf" not in system.values(free_only=True)
+
+
+def test_with_values_updates_physical_values():
+    system = _system()
+    updated = system.with_values({"load.R": 51.0, "cable.length": 0.125, "cable.vf": 0.8})
+    names = updated.named_params(full_params=True)
+    assert np.allclose(names["load.R"].value, 51.0)
+    assert np.allclose(names["cable.length"].value, 0.125)
+    assert np.allclose(names["cable.length"].unscaled_value, 125.0)
+    assert names["cable.vf"].fixed and np.allclose(names["cable.vf"].value, 0.8)
+    assert names["cable.length"].distribution is not None
+
+
+def test_with_values_on_frozen_tree():
+    frozen = _system().map(prf.freeze, is_target=prf.is_param)
+    updated = frozen.with_values({"load.R": 52.0})
+    assert np.allclose(updated.named_params()["load.R"], 52.0)
+    assert updated.named_params(free_only=True) == {}
+
+
+def test_with_values_strict():
+    system = _system()
+    with pytest.raises(ValueError, match="nope"):
+        system.with_values({"nope": 1.0})
+    updated = system.with_values({"nope": 1.0, "load.R": 49.0}, strict=False)
+    assert np.allclose(updated.named_params()["load.R"], 49.0)
+
+
+def test_with_values_out_of_bounds_raises():
+    with pytest.raises(Exception, match="outside the constraint"):
+        _system().with_values({"load.R": 60.0})
+
+
+def test_with_free_patterns_on_frozen_tree():
+    """Acceptance: on the B1 tree, exactly the matching params are free."""
+    system = _system()
+    frozen = system.map(prf.freeze, is_target=prf.is_param)
+    for tree in (system, frozen):
+        free = tree.with_free(["load.*", "cable.length"])
+        assert set(free.named_params(free_only=True)) == {"load.R", "cable.length"}
+        assert set(free.named_params()) == set(system.named_params())
+
+
+def test_with_free_keeps_fixed_by_construction():
+    free = _system().with_free("cable.*")
+    assert set(free.named_params(free_only=True)) == {"cable.zn", "cable.k1", "cable.k2", "cable.length"}
+
+
+def test_with_fixed():
+    system = _system()
+    fixed = system.with_fixed("cable.k*")
+    assert set(fixed.named_params(free_only=True)) == {"cable.zn", "cable.length", "load.R"}
+    assert set(fixed.named_params()) == set(system.named_params())
+    p = fixed.named_params(full_params=True)["cable.k1"]
+    assert np.allclose(p.value, 2.4)
+
+
+def test_with_fixed_twice_does_not_nest_freezes():
+    import equinox as eqx
+    system = _system()
+    once = system.with_fixed("cable.k*")
+    twice = once.with_fixed("cable.k*")
+    assert bool(eqx.tree_equal(twice, once))
+    thawed = prf.unfreeze(twice)
+    assert set(thawed.named_params(free_only=True)) == set(system.named_params(free_only=True))
+
+
+def test_with_free_handles_nested_freezes():
+    import equinox as eqx
+    import parax as prx
+    system = _system()
+    once = system.with_fixed("load.R")
+    path = prf.parameters.tree_param_paths(once)["load.R"][0]
+    nested = eqx.tree_at(
+        lambda t: t.components["load"].R, once,
+        prx.Freeze(prx.Freeze(system.components["load"].R)), is_leaf=lambda x: isinstance(x, prx.Freeze),
+    )
+    assert "load.R" not in nested.named_params(free_only=True)
+    free = nested.with_free(["load.R", "cable.length"])
+    assert set(free.named_params(free_only=True)) == {"load.R", "cable.length"}
