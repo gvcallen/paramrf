@@ -1,8 +1,63 @@
 # ParamRF domain context
 
-Vocabulary for the transmission-line modelling layer. Terms here are the ones
-the code uses; prefer them over synonyms. Each entry points at the class that
-owns the maths rather than repeating it.
+Vocabulary for ParamRF's domain layers. Terms here are the ones the code uses;
+prefer them over synonyms. Each entry points at the class that owns the maths
+rather than repeating it.
+
+## Parameters
+
+Vocabulary from ADR-0002, which is **proposed**: until its chain lands, the
+code still uses the old names given under *Avoid*.
+
+### Param
+
+A named, possibly bounded or probabilistic value in a model: `pmrf.Param`,
+wrapping a Parax **variable** (the field `variable`). A **parameter name** is
+the dotted path #133's resolver gives it (`feed_coax.dielectric.ep_r`), the key
+for saved results, ties and selectors.
+
+### Space
+
+Where a parameter's number lives. Every surface defaults to **declared**.
+
+- **raw**: the latent, unbounded array optimisers and samplers move through.
+- **declared**: the number as written, in the units the parameter's scale
+  declares (2.0 for 2 pF). Construction, bounds, priors and `Param.value` are
+  in declared space.
+- **physical**: the scaled, SI value (2e-12).
+
+*Avoid:* "unconstrained space" (reads as a parameter without bounds; that is
+`prf.Unconstrained`), "unscaled" and "constrained" for declared space, "unit
+space" (the unit hypercube).
+
+### Scale
+
+The units a value is written in: physical = declared × scale. An explicit scale
+on a value overrides a field's default; scales never multiply.
+
+### Fixed and frozen
+
+- **Fixed**: a parameter state. The parameter keeps its name and prior and is
+  excluded from optimisation. Toggled with `prf.update(..., fixed=)`.
+- **Frozen**: an opaque subtree (`prf.freeze`), for constant data. Name-based
+  operations never act on it.
+
+### Update
+
+`prf.update` returns a copy of a model with the parts a **selector** picks
+replaced. A selector is a parameter name, a glob over names, a sequence of
+names, or a callable. A **validated update** (a name → value mapping,
+`value=`, `fixed=`) goes through each parameter's constructor; a **structural
+update** (a new node, `fn=`) bypasses validation. `prf.replace` is the plain
+dataclass field replace, not an update.
+
+*Avoid:* "set values", "with values"; "update" for an optimiser step.
+
+### Parameter values
+
+`prf.param_values`: a name-keyed dict of arrays in one space, the form values
+take when crossing ParamRF's boundary. Not flattened; a 1-D vector exists only
+inside adapters that need one.
 
 ## Line modelling
 
@@ -73,6 +128,7 @@ paper with no ParamRF objects in sight.
 
 ## Decisions
 
-`docs/adr/` records the decisions behind this layering. Read
+`docs/adr/` records the decisions behind these layers. Read
 `docs/adr/0001-line-modelling-architecture.md` before changing a strategy
-interface or a default.
+interface or a default, and `docs/adr/0002-parameter-api.md` before adding a
+method, a public function or a value space.
