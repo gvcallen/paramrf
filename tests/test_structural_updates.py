@@ -209,6 +209,11 @@ def test_param_has_no_at():
     assert not hasattr(prf.Param, "at")
 
 
+def test_all_names_only_existing_attributes():
+    missing = [name for name in prf.__all__ if not hasattr(prf, name)]
+    assert missing == []
+
+
 # ---- repr (ADR-0002, decision 5) -------------------------------------------------------
 
 

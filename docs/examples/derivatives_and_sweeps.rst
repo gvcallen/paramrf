@@ -6,7 +6,7 @@ ParamRF provides built-in utilities for the calculation of analytical derivative
 Model Setup
 ~~~~~~~~~~~
 
-Derivatives and sweeps can be performed across any *variable* parameters in a model. Let's set up a base low-pass filter example model with named sub-models and unconstrained parameters:
+Derivatives and sweeps can be performed across any *free* parameters in a model. Let's set up a base low-pass filter example model with named sub-models and unconstrained parameters:
 
 .. plot::
    :context: reset
@@ -39,8 +39,10 @@ To differentiate a model's parameters, we can pass any differentiable function t
    
    (derivatives,) = prf.derivative(s21_mag, lpf)
    
-   print(f"Sensitivity to C1: {derivatives.at('c1.C').get() * 1e-12:.3f} / pF")
-   print(f"Sensitivity to L: {derivatives.at('l1.L').get() * 1e-9:.3f} / nH")
+   sensitivities = prf.param_values(derivatives)
+   
+   print(f"Sensitivity to C1: {sensitivities['c1.C'] * 1e-12:.3f} / pF")
+   print(f"Sensitivity to L: {sensitivities['l1.L'] * 1e-9:.3f} / nH")
 
 **Output:**
 

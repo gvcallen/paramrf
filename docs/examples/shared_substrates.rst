@@ -35,7 +35,7 @@ One Substrate, Two Traces
        w1=1.0e-3,
        w2=2.0e-3,
    )
-   list(board.named_params())
+   list(prf.params(board))
 
 There is one ``ep_r``, not two. ``build`` is lazy and uncached, so the substrate
 is a leaf of the builder and both lines are reconstructed on every call from the
@@ -55,7 +55,7 @@ lines looks like sharing, but is not:
        MicrostripLine(w=1e-3, h=1.6e-3, dielectric=ConstantDielectric(ep_r=ep_r), length=0.1)
        ** MicrostripLine(w=2e-3, h=1.6e-3, dielectric=ConstantDielectric(ep_r=ep_r), length=0.2)
    )
-   [name for name in lines.named_params() if name.endswith("ep_r")]
+   [name for name in prf.params(lines) if name.endswith("ep_r")]
 
 PyTree flattening gives one leaf per line regardless of the object identity that
 went in, so the optimizer sees two independent permittivities that are free to

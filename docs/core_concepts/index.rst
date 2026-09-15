@@ -7,5 +7,6 @@ This chapter provides an in-depth description of the most important concepts in 
    :maxdepth: 2
 
    core_primitives
+   parameter_names
    optimization_and_inference
    jax_overview

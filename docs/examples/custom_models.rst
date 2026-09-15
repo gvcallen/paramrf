@@ -35,7 +35,7 @@ Let's define a capacitor from first principles using its ABCD parameters:
 
 By inheriting from :class:`~pmrf.Model`, ``Capacitor`` becomes both a Python `dataclass <https://docs.python.org/3/library/dataclasses.html>`_ and a `JAX PyTree <https://docs.jax.dev/en/latest/pytrees.html>`_! For those familiar with dataclasses, this means that any standard dataclass syntax applies.
 
-Note that :class:`~pmrf.Param` is merely a field *type-hint*, and does not enforce that the resulting field is registered as a parameter. To convert caller values into fixed or variable parameters returned by :meth:`pmrf.Model.named_params`, and to specify constraints and related metadata, use a field specifier.
+Note that :class:`~pmrf.Param` is merely a field *type-hint*, and does not enforce that the resulting field is registered as a parameter. To convert caller values into free or fixed parameters, which :func:`pmrf.params` then returns by name, and to specify constraints and related metadata, use a field specifier.
 
 Adding a Field Specifier
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -62,7 +62,7 @@ The code below demonstrates this by extending the previous class, while constrai
        # def a(self, freq: prf.Frequency) -> jnp.ndarray:
            # <same as before>
 
-By passing ``as_free=True``, ParamRF will enforce that the incoming value is a tunable parameter even if a float is passed. Similarly, ``as_fixed=True`` can be used to fix any incoming parameters. However, these converters are entirely optionaly, and by default the parameter's "tunability" is left unchanged, which is the most common use-case (simply registering the value in the parameter hierarchy).
+Passing ``as_free=True`` makes the incoming value a free parameter even if a float is passed, and ``as_fixed=True`` fixes it. Both are optional: by default a parameter keeps the free or fixed state it arrived with, which is the common case, and the field specifier only registers it under its name.
 
 Note that constraints will also always be enforced (even for unconstrained optimizers!), and will also automatically be intersected with any new constraints provided by the caller.
 

@@ -128,7 +128,6 @@ __all__ = [
     "Module",
     "is_module",
     "Frequency",
-    "Topology",
 
     # Parameters
     "Param",
@@ -149,7 +148,6 @@ __all__ = [
     "Partial",
     "Attrgetter",
     "Pathgetter",
-    "Initvar",
     "NetworkCollection",
     "field",
     "freeze",

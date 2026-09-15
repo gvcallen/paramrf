@@ -1,7 +1,7 @@
 Fitting Multiple Models from One Parameter Set
 ==============================================
 
-Although :meth:`pmrf.Module.at` and :meth:`pmrf.Module.tied` provide a convenient way to manipulate models and tie parameters together, it is sometimes more convenient to have a single parameter base from which all models are derived. In this example, we fit two arrangements of the same resistor, inductor, and capacitor. Rather than fitting either circuit directly, we fit one set of ``R``, ``L``, and ``C`` values and use them to create both circuits.
+Although :func:`pmrf.update` and :func:`pmrf.tie` provide a convenient way to manipulate models and tie parameters together, it is sometimes more convenient to have a single parameter base from which all models are derived. In this example, we fit two arrangements of the same resistor, inductor, and capacitor. Rather than fitting either circuit directly, we fit one set of ``R``, ``L``, and ``C`` values and use them to create both circuits.
 
 Using a Dictionary of Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,7 +61,7 @@ All optimization and fitting routines accept a JAX "PyTree". Ultimately, this is
 Using a ParamRF Module
 ~~~~~~~~~~~~~~~~~~~~~~
 
-For simple examples, dictionaries are adequate. However, if the same set of parameters is used in several places, it can be useful to define a :class:`pmrf.Module` instead. This gives the parameters named fields and access to helpers such as :meth:`pmrf.Module.at` and :meth:`pmrf.Module.named_params`. This approach is demonstrated below.
+For simple examples, dictionaries are adequate. However, if the same set of parameters is used in several places, it can be useful to define a :class:`pmrf.Module` instead. This gives the parameters named fields, so :func:`pmrf.params` names them ``R`` rather than ``['R']``. This approach is demonstrated below.
 
 .. plot::
    :context:
