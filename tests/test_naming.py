@@ -286,3 +286,44 @@ def test_names_resolve_through_wrappers():
     assert set(wrapped.named_params()) == {"c.C"}
     _assert_names_resolve(wrapped)
     assert np.allclose(wrapped.at("c.C").set(prf.Unconstrained(2e-12)).build().cascade[0].R, 100.0)
+
+
+def _two_resistor_circuit():
+    from pmrf.models import Port, Circuit
+    r1 = Resistor(R=prf.Unconstrained(50.0), name="r1")
+    r2 = Resistor(R=prf.Unconstrained(75.0), name="r2")
+    p0, p1 = Port(), Port()
+    return Circuit([[(p0, 0), (r1, 0)], [(r1, 1), (r2, 0)], [(r2, 1), (p1, 0)]])
+
+
+def test_names_resolve_after_evaluating_circuit():
+    """Evaluating a Circuit builds its cached topology without mutating the pytree."""
+    freq = prf.Frequency(1, 10, 5, "GHz")
+    circuit = _two_resistor_circuit()
+    frozen = circuit.map(prf.freeze, is_target=prf.is_param)
+    tied = circuit.tied("r2.R", "r1.R")
+
+    for tree in (circuit, frozen, tied):
+        before = set(vars(tree))
+        tree.s(freq)
+        tree.y(freq)
+        assert set(vars(tree)) == before
+        _assert_names_resolve(tree)
+    assert set(frozen.named_params()) == set(circuit.named_params())
+
+
+def test_names_resolve_after_evaluating_tied_and_frozen_touchstone(tmp_path):
+    f = skrf.Frequency(1, 100, 11, "MHz")
+    path = tmp_path / "dut"
+    skrf.Network(frequency=f, s=np.full((11, 1, 1), 0.1 + 0.05j), name="dut").write_touchstone(str(path))
+    freq = prf.Frequency(1, 100, 11, "MHz")
+
+    line = DatasheetLine(zn=50.0, vf=0.7, k1=2.4, k2=3.5e-3, length=0.1, name="cable")
+    model = line.terminated(Touchstone(str(path) + ".s1p"))
+    tied = model.tied("cable.k1", "cable.zn", lambda z: z * 0.048)
+    frozen = model.map(prf.freeze, is_target=prf.is_param)
+
+    for tree in (tied, frozen):
+        tree.s(freq)
+        _assert_names_resolve(tree)
+    assert set(frozen.named_params()) == set(model.named_params())
