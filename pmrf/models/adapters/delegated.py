@@ -22,6 +22,10 @@ class AbstractBuilder(Model, ABC):
     model. Its type, PyTree topology, and port count must remain stable for a
     given set of static fields; topology must not depend on dynamic fitted
     parameter values.
+
+    A composite that has no parameters of its own does not need a builder.
+    Prefer a plain function that takes the components and returns the model,
+    e.g. ``def board(line1, line2): return line1 ** line2``.
     """
 
     # Model uses this marker to distinguish the supported builder contract from

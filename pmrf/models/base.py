@@ -31,6 +31,9 @@ PRIMARY_DOMAINS = ('s', 'a', 'y', 'z', 'mna')
 PRIMARY_METHODS = PRIMARY_DOMAINS + ('primary_matrix',)
 PLOT_DOMAINS = ('s', 'a', 'y', 'z')
 HUB_Z0 = 50.0 + 0.0j
+
+# Classes that have already emitted the direct ``Model.build`` deprecation warning.
+_BUILD_DEPRECATION_WARNED: set[type] = set()
     
 
 class Model(Module):
@@ -175,14 +178,21 @@ class Model(Module):
             name == 'build'
             and is_overridden(type(self), Model, 'build')
             and not getattr(type(self), '_pmrf_explicit_builder', False)
+            and type(self) not in _BUILD_DEPRECATION_WARNED
         ):
+            cls = type(self)
+
             def deprecated_build(*args, **kwargs):
-                warnings.warn(
-                    "Model.build() is deprecated when overridden directly. Inherit "
-                    "from pmrf.models.AbstractBuilder instead.",
-                    FutureWarning,
-                    stacklevel=2,
-                )
+                if cls not in _BUILD_DEPRECATION_WARNED:
+                    _BUILD_DEPRECATION_WARNED.add(cls)
+                    warnings.warn(
+                        f"{cls.__name__}: Model.build() is deprecated when overridden "
+                        "directly. Inherit from pmrf.models.AbstractBuilder instead, or, "
+                        "for a composite with no parameters of its own, use a plain "
+                        "function that returns the model.",
+                        FutureWarning,
+                        stacklevel=2,
+                    )
                 return attribute(*args, **kwargs)
 
             return deprecated_build

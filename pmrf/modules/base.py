@@ -34,6 +34,15 @@ class Module(eqx.Module):
     A module is an immutable JAX PyTree that may contain ParamRF parameters,
     RF models, and other modules. Unlike :class:`pmrf.Model`, it does not imply
     an RF response or a number of ports.
+
+    Passing the *same* instance to two sibling fields does not share it. A module
+    is a JAX PyTree, and each path holds its own copy of the leaves, so
+    ``Two(a=Resistor(R=p), b=Resistor(R=p)).named_params()`` gives two
+    independent parameters, ``a.R`` and ``b.R``. Object identity is not tracked,
+    because JAX transformations rebuild objects. To share a parameter, inject it
+    once into a builder (see :class:`pmrf.models.AbstractBuilder` and
+    :class:`pmrf.materials.Substrate`), or tie the copies together with
+    :meth:`tied`.
     """
 
     name: str | None = field(default=None, kw_only=True, static=True)
