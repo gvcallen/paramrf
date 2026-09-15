@@ -33,6 +33,12 @@ class Substrate(Module):
     >>> [name for name in board.named_params() if name.endswith("ep_r")]
     ['substrate.dielectric.ep_r']
 
+    Sharing only works through injection like this. Passing the same
+    ``Substrate`` instance to two sibling fields of a :class:`~pmrf.Module` gives
+    two independent copies, each with its own ``ep_r``, because a module is a
+    JAX PyTree and does not track object identity. Use builder injection as
+    above, or :meth:`~pmrf.Module.tied`, to make them one parameter.
+
     Parameters
     ----------
     h : Param, default=1.6e-3

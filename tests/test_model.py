@@ -1,4 +1,6 @@
 # tests/test_core/test_model.py
+import warnings
+
 import pytest
 import jax
 import jax.numpy as jnp
@@ -62,14 +64,35 @@ def test_primary_domain_resolution(model_s, model_z, model_comp):
     """Ensure the metaclass/property correctly identifies the overridden function."""
     assert model_s.primary_domain == 's'
     assert model_z.primary_domain == 'z'
-    # Compositional models should inherit the primary property of what they build
-    with pytest.warns(FutureWarning, match=r"Model\.build\(\) is deprecated"):
+    # Compositional models should inherit the primary property of what they build.
+    # The deprecation warning fires once per class, so it may already have fired.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
         assert model_comp.primary_domain == 's'
 
 
-def test_build_is_deprecated(model_comp):
-    with pytest.warns(FutureWarning, match=r"Model\.build\(\) is deprecated"):
-        assert isinstance(model_comp.build(), DummyModelS)
+def test_build_deprecation_warns_once_per_class():
+    class OnceCompositional(Model):
+        def build(self) -> Model:
+            return DummyModelS()
+
+    class OtherCompositional(Model):
+        def build(self) -> Model:
+            return DummyModelS()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert isinstance(OnceCompositional().build(), DummyModelS)
+        assert isinstance(OnceCompositional().build(), DummyModelS)
+        OtherCompositional().build()
+
+    messages = [
+        str(w.message) for w in caught
+        if issubclass(w.category, FutureWarning) and "Model.build() is deprecated" in str(w.message)
+    ]
+    assert len(messages) == 2
+    assert messages[0].startswith("OnceCompositional:")
+    assert messages[1].startswith("OtherCompositional:")
 
 def test_primary_matrix_execution(model_s, basic_freq):
     """Test that calling .primary_matrix() routes to the correct evaluation method."""
