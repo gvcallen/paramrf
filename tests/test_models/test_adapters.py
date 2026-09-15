@@ -393,3 +393,101 @@ def test_measured_network_collection_getattr(coarse_freq):
     
     with pytest.raises(Exception, match="Cannot call s\\(\\) on a Measured model that contains a NetworkCollection"):
         measured_collection.s(coarse_freq)
+
+
+# ---------------------------------------------------------
+# Vectorised interpolation of network data (#130)
+# ---------------------------------------------------------
+
+def _per_pair_linear_reference(f_old, f_new, data_old):
+    """The implementation replaced in #152: one `jnp.interp` per port pair,
+    for the real and imaginary parts separately."""
+    n_ports = data_old.shape[1]
+
+    def component(data):
+        return jnp.stack([
+            jnp.stack([
+                jnp.interp(f_new, f_old, data[:, i, j], left=jnp.nan, right=jnp.nan)
+                for j in range(n_ports)
+            ])
+            for i in range(n_ports)
+        ])
+
+    return (component(jnp.real(data_old)) + 1j * component(jnp.imag(data_old))).transpose(2, 0, 1)
+
+
+def _random_network(n_ports, npoints=11):
+    skrf = pytest.importorskip("skrf")
+    frequency = skrf.Frequency(1.0, 6.0, npoints, unit="GHz")
+    rng = np.random.default_rng(n_ports)
+    shape = (npoints, n_ports, n_ports)
+    s = 0.3 * (rng.standard_normal(shape) + 1j * rng.standard_normal(shape))
+    return skrf.Network(frequency=frequency, s=s, z0=50)
+
+
+# Requested points: below range, both ends exactly, knots, between knots, above range.
+_REQUESTED_GHZ = [0.5, 1.0, 1.2, 2.5, 3.0, 4.75, 5.9, 6.0, 6.5]
+
+
+@pytest.mark.parametrize("n_ports", [2, 4, 8])
+def test_linear_interpolation_matches_per_pair_implementation(n_ports):
+    from pmrf.models.adapters.static import interpolate_network_data
+
+    network = _random_network(n_ports)
+    f_new = Frequency.from_f(_REQUESTED_GHZ, unit="GHz").f
+    f_old = jnp.asarray(network.f)
+    data = jnp.asarray(network.s)
+
+    result = np.asarray(interpolate_network_data(f_old, f_new, data))
+    expected = np.asarray(_per_pair_linear_reference(f_old, f_new, data))
+
+    # Both compute the same lerp in float32 with a differently ordered formula,
+    # so they agree to a few float32 ulps of |s| ~ 1, not bit for bit.
+    np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-6)
+    assert np.isnan(result[[0, -1]]).all()
+    assert np.isfinite(result[1:-1]).all()
+
+
+@pytest.mark.parametrize("n_ports", [2, 4, 8])
+def test_skrf_network_interpolation_matches_skrf(n_ports):
+    network = _random_network(n_ports)
+    requested = Frequency.from_f(_REQUESTED_GHZ[1:-1], unit="GHz")
+
+    for kind in ("linear", "cubic"):
+        model = SkrfNetwork(network, interpolation_kind=kind)
+        expected = network.interpolate(requested.to_skrf(), kind=kind).s
+        # float32 evaluation against scikit-rf's float64 scipy interpolation;
+        # |s| ~ 1 so 1e-5 is a few float32 ulps after the cubic's Horner steps.
+        np.testing.assert_allclose(
+            np.asarray(model.s(requested)), expected, rtol=1e-5, atol=1e-5
+        )
+
+        outside = Frequency.from_f([0.5, 6.5], unit="GHz")
+        assert np.isnan(np.asarray(model.s(outside))).all()
+
+
+@pytest.mark.parametrize("kind", ["linear", "cubic"])
+def test_interpolation_does_not_build_an_operation_per_port_pair(kind):
+    from pmrf.models.adapters import static
+
+    f_new = jnp.asarray(Frequency.from_f(_REQUESTED_GHZ, unit="GHz").f)
+
+    def equation_count(n_ports):
+        network = _random_network(n_ports)
+        if kind == "linear":
+            fn = lambda f: static.interpolate_network_data(network.f, f, network.s)
+        else:
+            payload = static._cubic_spline_coefficients(network.f, network.s).unwrap()
+            coefficients = static._restore_cubic_spline_coefficients(payload)
+            fn = lambda f: static._interpolate_network_data_cubic(network.f, f, coefficients)
+        return len(jax.make_jaxpr(fn)(f_new).eqns)
+
+    assert equation_count(2) == equation_count(8)
+
+
+def test_skrf_networks_with_different_port_counts_share_a_session():
+    """Static networks of different shapes used to crash filter_jit's cache lookup,
+    because `skrf.Network.__eq__` broadcasts their arrays against each other."""
+    requested = Frequency.from_f([1.5, 2.5], unit="GHz")
+    for n_ports in (2, 3, 2):
+        assert SkrfNetwork(_random_network(n_ports)).s(requested).shape == (2, n_ports, n_ports)

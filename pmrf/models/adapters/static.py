@@ -21,32 +21,51 @@ from pmrf.rf import renormalize_s
 
 
 def interpolate_network_data(f_old: jnp.ndarray, f_new: jnp.ndarray, data_old: jnp.ndarray) -> jnp.ndarray:
-    # Ensure inputs are JAX arrays
+    r"""
+    Linearly interpolate network data onto a new frequency grid.
+
+    Every port pair shares one interval lookup and one gather, so the traced
+    program has the same size at any port count (#130). Linear interpolation of
+    a complex value is the same as interpolating its real and imaginary parts
+    independently.
+
+    **Mathematical Formulation**
+
+    For $f_k \le f \le f_{k+1}$,
+
+    $$X(f) = X_k + \frac{f - f_k}{f_{k+1} - f_k}\,(X_{k+1} - X_k),$$
+
+    and $X(f)$ is NaN for $f$ outside $[f_0, f_{N-1}]$.
+
+    Parameters
+    ----------
+    f_old : jnp.ndarray
+        The increasing source frequencies, shape ``(N,)``.
+    f_new : jnp.ndarray
+        The requested frequencies, shape ``(M,)``.
+    data_old : jnp.ndarray
+        The source matrices, shape ``(N, n_ports, n_ports)``.
+
+    Returns
+    -------
+    jnp.ndarray
+        The interpolated matrices, shape ``(M, n_ports, n_ports)``.
+    """
     f_old = jnp.asarray(f_old)
     f_new = jnp.asarray(f_new)
     data_old = jnp.asarray(data_old)
-    
-    n_ports = data_old.shape[1]
 
-    # Split into real and imaginary parts
-    data_real = jnp.real(data_old)
-    data_imag = jnp.imag(data_old)
+    interval = jnp.clip(
+        jnp.searchsorted(f_old, f_new, side="right") - 1, 0, f_old.shape[0] - 2
+    )
+    f_lo = f_old[interval]
+    weight = ((f_new - f_lo) / (f_old[interval + 1] - f_lo))[:, None, None]
+    data_lo = data_old[interval]
+    data_new = data_lo + weight * (data_old[interval + 1] - data_lo)
 
-    # Interpolate each real/imag component independently
-    def interp_component(data_comp):
-        return jnp.stack([
-            jnp.stack([
-                jnp.interp(f_new, f_old, data_comp[:, i, j], left=jnp.nan, right=jnp.nan)
-                for j in range(n_ports)
-            ], axis=0)
-            for i in range(n_ports)
-        ], axis=0)  # shape: (n_ports, n_ports, n_freqs_new)
-
-    data_real_new = interp_component(data_real)
-    data_imag_new = interp_component(data_imag)
-
-    # Combine and transpose back to (n_freqs_new, n_ports, n_ports)
-    return (data_real_new + 1j * data_imag_new).transpose(2, 0, 1)
+    outside_range = (f_new < f_old[0]) | (f_new > f_old[-1])
+    nan = jnp.asarray(complex(np.nan, np.nan), dtype=data_new.dtype)
+    return jnp.where(outside_range[:, None, None], nan, data_new)
 
 
 def _cubic_spline_coefficients(
@@ -119,6 +138,27 @@ def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jn
     return jax.lax.cond(is_matched, _identity, _renorm)
 
 
+class _ByIdentity:
+    """A static-field holder compared by identity.
+
+    `eqx.filter_jit` compares static fields with `==`. `skrf.Network.__eq__`
+    broadcasts the S-parameter arrays of both networks, which is O(data) on every
+    call and raises for networks of different shapes. Identity is exact here,
+    because a `SkrfNetwork` owns a private copy of its network.
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value):
+        self.value = value
+
+    def __eq__(self, other):
+        return isinstance(other, _ByIdentity) and self.value is other.value
+
+    def __hash__(self):
+        return id(self.value)
+
+
 class SkrfNetwork(Model):
     """
     A model wrapping a static :class:`skrf.Network` or :class:`NetworkCollection`.
@@ -134,21 +174,46 @@ class SkrfNetwork(Model):
         Interpolation applied independently to the real and imaginary parts of
         the S-parameters.
     """
-    #: The underlying network data.
-    network: skrf.Network | NetworkCollection = field(static=True)
+    #: The underlying network data, compared by identity in the jit cache key.
+    _network: "_ByIdentity" = field(static=True, repr=False)
 
     #: The interpolation used when evaluating at a new frequency grid.
-    interpolation_kind: Literal["linear", "cubic"] = field(
-        default="linear", static=True
-    )
+    interpolation_kind: Literal["linear", "cubic"] = field(static=True)
 
     _spline_coefficients: prx.Static[
         tuple[tuple[int, ...], str, bytes]
-    ] | None = field(
-        default=None, kw_only=True, repr=False
-    )
-    
+    ] | None = field(repr=False)
+
+    def __init__(
+        self,
+        network: skrf.Network | NetworkCollection,
+        interpolation_kind: Literal["linear", "cubic"] = "linear",
+    ):
+        if interpolation_kind not in ("linear", "cubic"):
+            raise ValueError(
+                "interpolation_kind must be either 'linear' or 'cubic', "
+                f"got {interpolation_kind!r}"
+            )
+        self.interpolation_kind = interpolation_kind
+        self._spline_coefficients = None
+
+        if isinstance(network, skrf.Network):
+            network = network.copy()
+            network.renormalize(50.0, 'power')
+            if interpolation_kind == "cubic":
+                self._spline_coefficients = _cubic_spline_coefficients(
+                    network.f, network.s
+                )
+        self._network = _ByIdentity(network)
+
+    @property
+    def network(self) -> skrf.Network | NetworkCollection:
+        """The underlying network data, renormalised to 50 ohm."""
+        return self._network.value
+
     def __getattr__(self, name: str) -> 'SkrfNetwork':
+        if name.startswith('_'):
+            return super().__getattr__(name)
         network = self.__getattribute__('network')
 
         if isinstance(network, NetworkCollection) and name in network.to_dict():
@@ -161,25 +226,6 @@ class SkrfNetwork(Model):
             )
         return super().__getattr__(name)
     
-    def __post_init__(self):
-        if self.interpolation_kind not in ("linear", "cubic"):
-            raise ValueError(
-                "interpolation_kind must be either 'linear' or 'cubic', "
-                f"got {self.interpolation_kind!r}"
-            )
-
-        self._spline_coefficients = None
-
-        if isinstance(self.network, skrf.Network):
-            net_copy = self.network.copy()
-            net_copy.renormalize(50.0, 'power')
-            self.network = net_copy
-
-            if self.interpolation_kind == "cubic":
-                self._spline_coefficients = _cubic_spline_coefficients(
-                    net_copy.f, net_copy.s
-                )
-
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         if isinstance(self.network, NetworkCollection):
             raise Exception("Cannot call s() on a Measured model that contains a NetworkCollection")
