@@ -106,7 +106,9 @@ class Module(eqx.Module):
 
         The structure is unchanged: each parameter keeps its prior, constraint,
         scale, name and fixed or frozen state, so ``m.with_values(m.values())`` is
-        the identity. This lets fit results be stored as plain ``name -> value``
+        the identity, up to the floating-point round trip through each parameter's
+        constraint bijector. Out-of-bounds values raise, at runtime under `jax.jit`.
+        This lets fit results be stored as plain ``name -> value``
         mappings and re-applied to freshly built models.
 
         Parameters

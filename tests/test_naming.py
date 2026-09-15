@@ -405,3 +405,28 @@ def test_with_fixed():
     assert set(fixed.named_params()) == set(system.named_params())
     p = fixed.named_params(full_params=True)["cable.k1"]
     assert np.allclose(p.value, 2.4)
+
+
+def test_with_fixed_twice_does_not_nest_freezes():
+    import equinox as eqx
+    system = _system()
+    once = system.with_fixed("cable.k*")
+    twice = once.with_fixed("cable.k*")
+    assert bool(eqx.tree_equal(twice, once))
+    thawed = prf.unfreeze(twice)
+    assert set(thawed.named_params(free_only=True)) == set(system.named_params(free_only=True))
+
+
+def test_with_free_handles_nested_freezes():
+    import equinox as eqx
+    import parax as prx
+    system = _system()
+    once = system.with_fixed("load.R")
+    path = prf.parameters.tree_param_paths(once)["load.R"][0]
+    nested = eqx.tree_at(
+        lambda t: t.components["load"].R, once,
+        prx.Freeze(prx.Freeze(system.components["load"].R)), is_leaf=lambda x: isinstance(x, prx.Freeze),
+    )
+    assert "load.R" not in nested.named_params(free_only=True)
+    free = nested.with_free(["load.R", "cable.length"])
+    assert set(free.named_params(free_only=True)) == {"load.R", "cable.length"}
