@@ -18,6 +18,8 @@ Core Primitives
    pmrf.Bounded
    pmrf.Constrained
    pmrf.Random
+   pmrf.flatten
+   pmrf.FlatParams
 
 
 Main Modules

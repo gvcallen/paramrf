@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
-from typing import Any, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
+from typing import Any, Literal, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
 import jax
+import jax.flatten_util
 import jax.numpy as jnp
+import numpy as np
 from jaxtyping import ArrayLike, Array
 import equinox as eqx
 import parax as prx
@@ -1165,7 +1167,253 @@ def tree_with_free(tree, patterns: str | Sequence[str]):
     )
 
 
+Space = Literal["physical", "unconstrained"]
+
+
+def _is_free_node(x: Any) -> bool:
+    """Partition filter for :func:`flatten`, applied at :func:`is_leaf` boundaries."""
+    if is_param(x):
+        return not x.fixed
+    return prx.constraints.is_dynamic(x) and not isinstance(x, np.ndarray)
+
+
+def _unwraps_whole(x: Any) -> bool:
+    """Nodes :func:`flatten` unwraps in one step, so parameters carry their scale."""
+    return is_param(x) or prx.is_constrained(x)
+
+
+def _node_constraint_and_scale(node: Any) -> tuple[AbstractConstraint, float]:
+    """Returns the unscaled constraint of a free node, and the scale taking it to physical."""
+    if is_param(node):
+        if prx.is_constrained(node.raw_value):
+            return prx.as_unwrapped(node.raw_value.constraint), node.scale
+        return prx.constraints.RealLine(shape=jnp.shape(node.unscaled_value)), node.scale
+    return prx.constraints.tree_constraints(node), 1.0
+
+
+def _element_names(base: str, shape: tuple[int, ...]) -> list[str]:
+    """Expands a name over the elements of an array, in C order."""
+    if shape == ():
+        return [base]
+    return [f"{base}[{','.join(map(str, index))}]" for index in np.ndindex(*shape)]
+
+
+class FlatParams(eqx.Module):
+    """
+    A tree's free parameters as a flat, named vector.
+
+    Created by :func:`flatten`. Every method is a pure JAX function of `theta`, so
+    it can be passed through `jax.jit`, `jax.grad` and `jax.vmap`.
+
+    **Density space.** Priors are authored on each parameter's unscaled value. The
+    scale is folded into the density (see :func:`node_distribution`), so in
+    ``'physical'`` space :meth:`log_prior` is a density over the scaled values in
+    `theta`. In ``'unconstrained'`` space it is a density over `theta` itself: it
+    adds the log-determinant of the Jacobian of the map to physical values,
+
+    $$\\log p_\\theta(\\theta) = \\log p_x(f(\\theta)) + \\log\\left|\\det \\frac{\\partial f}{\\partial \\theta}\\right|,$$
+
+    where $f$ is each parameter's constraint bijector followed by its scale.
+    Parameters without a prior contribute nothing (an improper flat prior), and the
+    priors of fixed or frozen parameters are included as constants, matching
+    :class:`pmrf.problems.PriorPenalized`.
+    """
+    #: The name of each element of `theta`, in order.
+    names: tuple[str, ...] = field(static=True)
+
+    #: The tree's current free parameters as a flat vector.
+    theta0: Array
+
+    #: The space `theta` lives in.
+    space: Space = field(static=True)
+
+    #: The free nodes of the tree, still wrapped, with `None` elsewhere.
+    _dynamic: Any
+    #: The rest of the tree, with `None` in place of free nodes.
+    _static: Any
+    #: The unscaled constraint of each free node.
+    _constraint: Any
+    #: The scale of each free node.
+    _scales: Any = field(static=True)
+    #: Prior distributions mirroring the unwrapped tree.
+    _distributions: Any
+    #: Maps a flat physical vector back to the tree of free physical values.
+    _unravel: Callable = field(static=True)
+
+    def _scale(self, tree, inverse: bool = False):
+        op = (lambda v, s: v / s) if inverse else (lambda v, s: v * s)
+        return jax.tree.map(lambda s, sub: jax.tree.map(lambda v: op(v, s), sub), self._scales, tree)
+
+    def _log_abs_scale(self, tree):
+        per_node = jax.tree.map(
+            lambda s, sub: sum(jnp.size(v) for v in jax.tree.leaves(sub)) * jnp.log(jnp.abs(s)),
+            self._scales, tree,
+        )
+        return sum(jax.tree.leaves(per_node), start=jnp.asarray(0.0))
+
+    def _physical_tree(self, tree):
+        """Returns the free physical values of a tree with the same structure."""
+        dynamic, _ = eqx.partition(tree, _is_free_node, is_leaf=is_leaf)
+        return prx.unwrap(dynamic, only_if=_unwraps_whole)
+
+    def _ravel(self, tree):
+        """Returns `theta` for a tree with the same structure."""
+        return self._theta_from_physical(self._physical_tree(tree))
+
+    def _theta_from_physical(self, physical):
+        """Returns `theta` for a tree of free physical values."""
+        if self.space == "unconstrained":
+            physical = self._constraint.bijector.inverse(self._scale(physical, inverse=True))
+        return jax.flatten_util.ravel_pytree(physical)[0]
+
+    def _to_physical(self, theta):
+        """Returns the tree of free physical values at `theta`, and the log|det J| to it."""
+        tree = self._unravel(theta)
+        if self.space == "physical":
+            return tree, jnp.asarray(0.0)
+        constrained = jax.tree.map(
+            lambda c, sub: c.bijector.forward_and_log_det(sub),
+            self._constraint.tree, tree, is_leaf=prx.constraints.is_constraint,
+        )
+        is_pair = lambda x: isinstance(x, tuple) and len(x) == 2 and not isinstance(x[0], tuple)
+        values = jax.tree.map(lambda pair: pair[0], constrained, is_leaf=is_pair)
+        log_det = sum(
+            (jnp.sum(pair[1]) for pair in jax.tree.leaves(constrained, is_leaf=is_pair)),
+            start=jnp.asarray(0.0),
+        )
+        return self._scale(values), log_det + self._log_abs_scale(values)
+
+    def _unflatten_tree(self, physical):
+        """Returns the unwrapped tree for a tree of free physical values."""
+        return prx.unwrap(eqx.combine(self._static, physical, is_leaf=is_leaf))
+
+    def _wrap_tree(self, physical):
+        """Returns the wrapped free nodes for a tree of free physical values."""
+        def wrap_node(node, value):
+            if is_param(node):
+                return node.wrap(value)
+            if prx.is_wrappable(node):
+                return prx.wrap(node, value)
+            return value
+        return jax.tree.map(wrap_node, self._dynamic, physical, is_leaf=is_leaf)
+
+    def unflatten(self, theta: ArrayLike):
+        """
+        Returns the unwrapped tree at `theta`, ready for evaluation (e.g. ``.s(freq)``).
+
+        Parameters
+        ----------
+        theta : ArrayLike
+            A 1-D array in :attr:`space`, aligned with :attr:`names`.
+        """
+        return self._unflatten_tree(self._to_physical(jnp.asarray(theta))[0])
+
+    def wrap(self, theta: ArrayLike):
+        """
+        Returns the wrapped tree at `theta`, keeping priors, constraints and fixed state.
+
+        Bounds are not checked. Use this to save a result or to flatten again.
+
+        Parameters
+        ----------
+        theta : ArrayLike
+            A 1-D array in :attr:`space`, aligned with :attr:`names`.
+        """
+        physical = self._to_physical(jnp.asarray(theta))[0]
+        return eqx.combine(self._static, self._wrap_tree(physical), is_leaf=is_leaf)
+
+    def log_prior(self, theta: ArrayLike) -> Array:
+        """
+        Returns the log prior density at `theta`, in :attr:`space`.
+
+        Parameters
+        ----------
+        theta : ArrayLike
+            A 1-D array in :attr:`space`, aligned with :attr:`names`.
+
+        Returns
+        -------
+        jax.Array
+            A scalar. In ``'unconstrained'`` space it includes the log-determinant of
+            the Jacobian to physical space.
+        """
+        physical, log_det = self._to_physical(jnp.asarray(theta))
+        return tree_param_log_prob(self._distributions, self._unflatten_tree(physical)) + log_det
+
+
+def flatten(tree, space: Space = "physical") -> FlatParams:
+    """
+    Flattens a tree's free parameters into a named 1-D vector.
+
+    For external samplers and pipelines, which need a flat vector, its names, a map
+    back to the model and a log prior. :func:`pmrf.optimize.run_minimizer` and
+    :func:`pmrf.infer.run_sampler` are built on it.
+
+    Names are those of :meth:`pmrf.Module.named_params` with ``free_only=True``, in
+    the same order. An array-valued parameter expands into one name per element, in
+    C order: ``coeffs[0]``, ``coeffs[1]``, and ``w[1,2]`` for an N-D array. A free
+    node the name resolver does not see into, such as a joint prior's target, is
+    named from its path.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to flatten, still wrapped.
+    space : {'physical', 'unconstrained'}, default='physical'
+        ``'physical'`` holds scaled parameter values, as in :meth:`pmrf.Module.values`.
+        ``'unconstrained'`` maps each through its constraint bijector onto the real line.
+
+    Returns
+    -------
+    FlatParams
+        The flat vector with :meth:`~FlatParams.unflatten`, :meth:`~FlatParams.wrap`
+        and :meth:`~FlatParams.log_prior`.
+
+    Raises
+    ------
+    ValueError
+        If `space` is not recognised.
+    """
+    if space not in ("physical", "unconstrained"):
+        raise ValueError(f"`space` must be 'physical' or 'unconstrained', not {space!r}.")
+
+    dynamic, static = eqx.partition(tree, _is_free_node, is_leaf=is_leaf)
+    nodes = jax.tree_util.tree_flatten_with_path(dynamic, is_leaf=is_leaf)[0]
+    pairs = jax.tree.map(_node_constraint_and_scale, dynamic, is_leaf=is_leaf)
+    is_pair = lambda x: isinstance(x, tuple) and len(x) == 2 and isinstance(x[1], float)
+    constraint_tree = jax.tree.map(lambda pair: pair[0], pairs, is_leaf=is_pair)
+    scales = jax.tree.map(lambda pair: pair[1], pairs, is_leaf=is_pair)
+
+    physical = prx.unwrap(dynamic, only_if=_unwraps_whole)
+    _, unravel = jax.flatten_util.ravel_pytree(physical)
+
+    by_path = {path: name for name, (path, _) in tree_param_paths(tree).items()}
+    names = []
+    for path, node in nodes:
+        base = by_path.get(path) or path_to_name(
+            tree, path, namespace_separator='_', is_transparent=_is_name_transparent
+        )
+        value = prx.unwrap(node) if _unwraps_whole(node) else node
+        for subpath, leaf in jax.tree_util.tree_flatten_with_path(value)[0]:
+            names.extend(_element_names(base + jax.tree_util.keystr(subpath), jnp.shape(leaf)))
+
+    flat = FlatParams(
+        names=tuple(names),
+        theta0=jnp.zeros(len(names)),
+        space=space,
+        _dynamic=dynamic,
+        _static=static,
+        _constraint=prx.constraints.Leafwise(constraint_tree) if nodes else None,
+        _scales=scales,
+        _distributions=tree_param_distributions(tree),
+        _unravel=unravel,
+    )
+    return eqx.tree_at(lambda f: f.theta0, flat, flat._ravel(tree))
+
+
 __all__ = [
+    "flatten",
+    "FlatParams",
     "Param",
     "is_param",
     "as_param",

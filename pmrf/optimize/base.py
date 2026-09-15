@@ -5,11 +5,10 @@ import warnings
 from typing import Any, Callable, TypeAlias
 import abc
 
-import jax
-import numpy as np
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
-import parax as prx
+
+from pmrf.parameters import flatten, is_leaf
 
 
 class MinimizeResult(eqx.Module):
@@ -168,36 +167,29 @@ def run_minimizer(
     if use_bounds is not None:
         is_bounded = is_bounded and use_bounds
 
-    # Unified Equinox partitioning using the constraints API
-    is_dynamic = lambda x: prx.constraints.is_dynamic(x) and not isinstance(x, np.ndarray)
-    is_leaf = prx.constraints.is_leaf
-    
-    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
-    if not jax.tree.leaves(dynamic):
+    flat = flatten(model, space="physical")
+    if not flat.names:
         raise ValueError(
             "Nothing to optimize: the tree has no free parameters. Every parameter is "
             "either fixed or a plain value."
         )
-    physical_params = prx.unwrap(dynamic, only_if=prx.is_constrained)
 
-    # Configure the spatial projection and bounds based on the solver type
-    leafwise_constraint = prx.constraints.tree_leafwise_constraint(dynamic)
+    # The solver works on the unscaled constrained values, in the constraints' base
+    # space when bounded and on the real line otherwise.
     if is_bounded:
-        bijector = leafwise_constraint.base_bijector
-        bounds = leafwise_constraint.base_bounds
+        bijector = flat._constraint.base_bijector
+        bounds = flat._constraint.base_bounds
     else:
-        bijector = leafwise_constraint.bijector
+        bijector = flat._constraint.bijector
         bounds = None
 
-    # Map the physical starting parameters into the solver's operational space
-    solver_params = bijector.inverse(physical_params)
+    def to_physical(p: PyTree) -> PyTree:
+        return flat._scale(bijector.forward(p))
 
-    # The objective always projects the solver's parameters forward to physical space.
-    # `static` is passed first here so it drives `eqx.combine`'s structural matching
+    solver_params = bijector.inverse(flat._scale(flat._unravel(flat.theta0), inverse=True))
+
     def objective(p: PyTree, args: Any) -> Scalar:
-        physical_p = bijector.forward(p)
-        unwrapped_model = prx.unwrap(eqx.combine(static, physical_p, is_leaf=is_leaf))
-        return fn(unwrapped_model, args)
+        return fn(flat._unflatten_tree(to_physical(p)), args)
 
     # Execute the backend solver
     if is_bounded:
@@ -210,9 +202,7 @@ def run_minimizer(
         )
 
     # Re-wrap the optimized parameters into the constrained physical domain
-    opt_physical = bijector.forward(result.y)
-    opt_dynamic = prx.wrap(dynamic, opt_physical, only_if=prx.is_constrained)
-    opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
+    opt_model = eqx.combine(flat._static, flat._wrap_tree(to_physical(result.y)), is_leaf=is_leaf)
         
     if not result.success:
         warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")

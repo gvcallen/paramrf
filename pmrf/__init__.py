@@ -63,6 +63,8 @@ from pmrf.parameters import (
     Bounded as Bounded,
     Constrained as Constrained,
     Random as Random,
+    flatten as flatten,
+    FlatParams as FlatParams,
 )
 
 from pmrf.serialization import (
@@ -135,7 +137,9 @@ __all__ = [
     "Bounded",
     "Constrained",
     "Random",
-    
+    "flatten",
+    "FlatParams",
+
     # Serialization
     "load",
     "save",

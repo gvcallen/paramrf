@@ -5,12 +5,13 @@ Base inference functions and classes.
 from typing import Callable, Any, Optional, TypeVar, TypeAlias
 import abc
 
-import numpy as np
 import jax.numpy as jnp
 import jax
 from jaxtyping import Array, PyTree, Scalar
 import equinox as eqx
 import parax as prx
+
+from pmrf.parameters import flatten, is_leaf, is_param
 
 
 T = TypeVar('T')
@@ -243,105 +244,95 @@ def run_sampler(
     if max_steps is not None:
         kwargs['max_steps'] = max_steps
     
-    # Filtering/unwrapping
-    is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
-    is_leaf = prx.probability.is_leaf
-    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
-    params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
-
-    try:
-        # Static before params as per pmrf/optimize/base.py
-        eqx.combine(static, params, is_leaf=is_leaf)
-    except Exception as e:
-        raise Exception(f"Error re-combining params and static. Error: {e}")
-    
-    batched_params = None
-    if init_samples is not None:
-        batched_dynamic = eqx.filter(init_samples, is_dynamic, is_leaf=is_leaf)
-        # TODO in general we shouldn't assume the user's unwrap is natively broadcastable,
-        # though in practice all built-in variables in Parax are
-        batched_params = prx.unwrap(batched_dynamic, only_if=prx.is_probabilistic)
-
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
-        # Extraction
-        unconstrained_prior = prx.probability.tree_unconstrained_distribution(dynamic)
-        bijector_to_constrained = prx.constraints.tree_leafwise_constraint(dynamic).bijector
+        flat = flatten(model, space="unconstrained")
 
-        # Internal functions
-        def _logprior_fn(unconstrained_params: PyTree, _args: Any) -> Scalar:
-            return unconstrained_prior.log_prob(unconstrained_params)
+        def _logprior_fn(theta: Array, _args: Any) -> Scalar:
+            return flat.log_prior(theta)
 
-        def _loglikelihood_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
-            params = bijector_to_constrained.forward(unconstrained_params)
-            y_unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
-            return loglikelihood_fn(y_unwrapped, args)
+        def _loglikelihood_fn(theta: Array, args: Any) -> Scalar:
+            return loglikelihood_fn(flat.unflatten(theta), args)
 
-        def _logposterior_fn(unconstrained_params: PyTree, args: Any) -> Scalar:
-            log_prior = _logprior_fn(unconstrained_params, args)
-            log_likelihood = _loglikelihood_fn(unconstrained_params, args)
-            return log_prior + log_likelihood
+        def _logposterior_fn(theta: Array, args: Any) -> Scalar:
+            return _logprior_fn(theta, args) + _loglikelihood_fn(theta, args)
 
-        # Space conversions
-        unconstrained_params = bijector_to_constrained.inverse(params)
-        batched_unconstrained_params = None
-        if batched_params is not None:
-            batched_unconstrained_params = eqx.filter_vmap(bijector_to_constrained.inverse)(batched_params)
-        
-        # Run the sampler
+        batched_theta = None
+        if init_samples is not None:
+            # Unwrapped before batching, so a prior's own arrays are not mapped over.
+            batched_physical = flat._physical_tree(init_samples)
+            batched_theta = eqx.filter_vmap(flat._theta_from_physical)(batched_physical)
+
         if isinstance(solver, AbstractJointSampler):
             results = solver.run(
                 logposterior_fn=_logposterior_fn,
-                y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params,
+                y0=flat.theta0, args=args, key=key,
+                init_samples=batched_theta,
                 **kwargs
             )
         else:
             results = solver.run(
                 loglikelihood_fn=_loglikelihood_fn,
                 logprior_fn=_logprior_fn,
-                y0=unconstrained_params, args=args, key=key,
-                init_samples=batched_unconstrained_params,
+                y0=flat.theta0, args=args, key=key,
+                init_samples=batched_theta,
                 **kwargs
             )
-        
-        # Post-process back to original parameter space and re-wrap
-        batched_params_unwrapped = eqx.filter_vmap(bijector_to_constrained.forward)(results.samples)
-        batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
-        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
+
+        wrap_dynamic = lambda theta: flat._wrap_tree(flat._to_physical(theta)[0])
+        batched_dynamic = eqx.filter_vmap(wrap_dynamic)(results.samples)
+        return eqx.combine(flat._static, batched_dynamic, is_leaf=is_leaf), results
 
     elif isinstance(solver, AbstractHypercubeSampler):
-        # Extraction
-        distributions = prx.probability.tree_distributions(dynamic)
+        flat = flatten(model, space="physical")
 
-        # Internal functions
-        def _params_to_cube(params):
-            return jax.tree.map(lambda d, b: d.cdf(b), distributions, params, is_leaf=prx.is_distribution)
+        # The cube is taken over each free node's unscaled prior.
+        def _distribution(node):
+            if is_param(node):
+                distribution = node.distribution
+            elif prx.is_probabilistic(node):
+                distribution = node.distribution
+            else:
+                distribution = None
+            if distribution is None:
+                raise ValueError(
+                    "A hypercube sampler needs a prior on every free parameter, but a free "
+                    f"node has none: {node}"
+                )
+            return prx.as_unwrapped(distribution)
+
+        distributions = jax.tree.map(_distribution, flat._dynamic, is_leaf=is_leaf)
+
+        def _params_to_cube(unscaled):
+            return jax.tree.map(lambda d, b: d.cdf(b), distributions, unscaled, is_leaf=prx.is_distribution)
 
         def _cube_to_params(cube_params: PyTree, _args: Any):
             eps = jnp.finfo(jnp.float32).eps
             safe_cube = jax.tree.map(lambda x: jnp.clip(x, eps, 1.0 - eps), cube_params)
             return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
-        
-        def _loglikelihood_fn(params: PyTree, args: Any):
-            unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
-            return loglikelihood_fn(unwrapped, args)
-        
-        # Space conversions
-        cube_params = _params_to_cube(params)
+
+        def _loglikelihood_fn(unscaled: PyTree, args: Any):
+            return loglikelihood_fn(flat._unflatten_tree(flat._scale(unscaled)), args)
+
+        def _physical_to_cube(physical):
+            return _params_to_cube(flat._scale(physical, inverse=True))
+
         batched_cube_params = None
-        if batched_params is not None:
-            batched_cube_params = eqx.filter_vmap(_params_to_cube)(batched_dynamic)
-        
+        if init_samples is not None:
+            # Unwrapped before batching, so a prior's own arrays are not mapped over.
+            batched_physical = flat._physical_tree(init_samples)
+            batched_cube_params = eqx.filter_vmap(_physical_to_cube)(batched_physical)
+
         results = solver.run(
             loglikelihood_fn=_loglikelihood_fn,
             prior_transform_fn=_cube_to_params,
-            u0=cube_params, args=args, key=key,
+            u0=_physical_to_cube(flat._unravel(flat.theta0)), args=args, key=key,
             init_cube_samples=batched_cube_params,
             **kwargs
         )
 
-        batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)
-        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
+        wrap_dynamic = lambda unscaled: flat._wrap_tree(flat._scale(unscaled))
+        batched_dynamic = eqx.filter_vmap(wrap_dynamic)(results.samples)
+        return eqx.combine(flat._static, batched_dynamic, is_leaf=is_leaf), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")
