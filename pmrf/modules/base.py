@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Self, TypeGuard, TypeVar, Union
+from typing import Any, Callable, Self, Sequence, TypeGuard, TypeVar, Union
 
 import equinox as eqx
 import jax
@@ -12,7 +12,15 @@ import numpy as np
 import parax as prx
 from jaxtyping import PyTree
 
-from pmrf.parameters import Param, tree_named_params, tree_param_names_to_path
+from pmrf.parameters import (
+    Param,
+    tree_named_params,
+    tree_param_names_to_path,
+    tree_param_values,
+    tree_with_fixed,
+    tree_with_free,
+    tree_with_values,
+)
 from pmrf.utils import field, unwrap
 from pmrf.utils.optix import Lens, focus
 from pmrf.utils.tree import resolve_target
@@ -77,6 +85,84 @@ class Module(eqx.Module):
             free_only=free_only,
             namespace_separator=namespace_separator,
         )
+
+    def values(self, free_only: bool = False) -> dict[str, jnp.ndarray]:
+        """Return the physical (scaled) value of every named parameter.
+
+        Parameters
+        ----------
+        free_only : bool, default=False
+            Return only free parameters.
+
+        Returns
+        -------
+        dict[str, jax.Array]
+            Names, as in :meth:`named_params`, mapped to physical values.
+        """
+        return tree_param_values(self, free_only=free_only)
+
+    def with_values(self: Self, values: dict[str, Any], strict: bool = True) -> Self:
+        """Return a copy with parameter values replaced by name.
+
+        The structure is unchanged: each parameter keeps its prior, constraint,
+        scale, name and fixed or frozen state, so ``m.with_values(m.values())`` is
+        the identity. This lets fit results be stored as plain ``name -> value``
+        mappings and re-applied to freshly built models.
+
+        Parameters
+        ----------
+        values : dict[str, ArrayLike]
+            Names mapped to physical (scaled) values.
+        strict : bool, default=True
+            Raise on unknown names. If False, they are ignored.
+
+        Returns
+        -------
+        Module
+            The updated module.
+
+        Raises
+        ------
+        ValueError
+            If `strict` and a name is unknown, or a value is outside its constraint.
+        """
+        return tree_with_values(self, values, strict=strict)
+
+    def with_free(self: Self, patterns: str | Sequence[str]) -> Self:
+        """Return a copy in which exactly the matching parameters are free.
+
+        All other parameters are frozen. Works on already-frozen modules.
+        Parameters fixed by construction (:func:`pmrf.Fixed` or ``fixed=True``)
+        stay fixed even when matched.
+
+        Parameters
+        ----------
+        patterns : str or Sequence[str]
+            :mod:`fnmatch` globs over :meth:`named_params` names, e.g. ``'load.*'``.
+
+        Returns
+        -------
+        Module
+            The updated module.
+        """
+        return tree_with_free(self, patterns)
+
+    def with_fixed(self: Self, patterns: str | Sequence[str]) -> Self:
+        """Return a copy with the matching parameters frozen.
+
+        Other parameters are left unchanged.
+
+        Parameters
+        ----------
+        patterns : str or Sequence[str]
+            :mod:`fnmatch` globs over :meth:`named_params` names, e.g. ``'cable.*'``.
+
+        Returns
+        -------
+        Module
+            The updated module.
+        """
+        return tree_with_fixed(self, patterns)
 
     def __repr__(self) -> str:
         try:
