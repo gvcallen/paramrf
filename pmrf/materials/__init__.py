@@ -35,6 +35,7 @@ from pmrf.materials.roughness import (
 )
 from pmrf.materials.surface_impedance import (
     AbstractSurfaceImpedance as AbstractSurfaceImpedance,
+    EvenOddSlabSurfaceImpedance as EvenOddSlabSurfaceImpedance,
     HalfSpaceSurfaceImpedance as HalfSpaceSurfaceImpedance,
     HollowayKuesterSlabSurfaceImpedance as HollowayKuesterSlabSurfaceImpedance,
     RootSumSquareSlabSurfaceImpedance as RootSumSquareSlabSurfaceImpedance,
@@ -62,6 +63,7 @@ __all__ = [
     "RoughConductor",
     "as_conductor",
     "AbstractSurfaceImpedance",
+    "EvenOddSlabSurfaceImpedance",
     "HalfSpaceSurfaceImpedance",
     "HollowayKuesterSlabSurfaceImpedance",
     "RootSumSquareSlabSurfaceImpedance",

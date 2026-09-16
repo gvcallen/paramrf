@@ -11,7 +11,7 @@ from scipy.constants import c, epsilon_0
 from pmrf.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import AbstractConductor, AbstractDielectric, BulkConductor, ConstantDielectric, as_conductor, as_dielectric
-from pmrf.materials.surface_impedance import HalfSpaceSurfaceImpedance
+from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, EvenOddSlabSurfaceImpedance, HalfSpaceSurfaceImpedance
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.models.components.lines.planar import AbstractCurrentDistribution, AbstractPlanarCrossSection, PlanarQuasiStaticResult
 from pmrf.parameters import Param, as_param, param
@@ -57,34 +57,141 @@ class CohnCurrentDistribution(AbstractCurrentDistribution[StriplineCrossSection]
     Cohn gives conductor attenuation per unit length. Inverting
     $$\alpha_c=\frac{\Re(Z_s k_c)}{2\Re(Z_c)}$$
     gives the geometry weight
-    $$k_c=2(\alpha_c/R_s)\Re(Z_c).$$
-    The model assigns zero conductor-loss weight when the strip thickness is
-    unspecified.
+    $$k_c=2(\alpha_c/R_s)\Re(Z_c),$$
+    with $\alpha_c/R_s$ taken from Cohn's wide-strip expression when
+    $\sqrt{\varepsilon_r}\,\Re(Z_c)<120$ and from his narrow-strip expression
+    otherwise, as tabulated by Pozar. $k_c$ is frequency-independent, and it
+    covers the centre strip's two faces, its edges, and both ground planes
+    together -- Cohn's $\alpha_c$ is the whole line's conductor attenuation.
+
+    The weight is paired with :attr:`slab_impedance`, by default
+    :class:`~pmrf.materials.surface_impedance.EvenOddSlabSurfaceImpedance`,
+    which expresses its dc floor in this caller's normalisation. The pair
+    therefore reproduces the centre strip's dc resistance $1/(\sigma WT)$
+    exactly at dc and Cohn's $R_s k_c$ exactly under strong skin effect, with
+    a single term across the whole band. An unspecified thickness keeps the
+    historical behaviour instead: :class:`HalfSpaceSurfaceImpedance` on a zero
+    weight, so conductor loss vanishes entirely. See **The unspecified
+    thickness** below.
+
+    **Where the dc resistance comes from, for stripline**
+
+    The dc floor is the *centre strip's* resistance alone, $1/(\sigma WT)$
+    over the physical width $W$ and thickness $T$, with no contribution from
+    the ground planes. Three stripline-specific assumptions stand behind
+    that, and none of them is inherited from the microstrip argument:
+
+    1. **The strip carries its current uniformly at dc.** With no skin effect
+       the strip cross-section is an equipotential-driven resistor of area
+       $WT$. The fringing-corrected width $W_e$ that
+       :class:`CohnStriplineFormulation` uses is an *electromagnetic* width
+       fitted to reproduce $Z_c$; it is not a conduction area, and it is
+       deliberately not used here. The cross-section record supplies the
+       physical $W$.
+    2. **The return path is two ground planes of unbounded extent.** Cohn's
+       analysis places the strip midway between infinite parallel planes, and
+       the closed forms above inherit that geometry. An unbounded sheet has
+       no per-unit-length dc resistance -- the return current spreads without
+       limit transverse to the line -- so the planes contribute nothing to
+       the dc floor. This is a statement about Cohn's geometry, not an
+       approximation chosen here: a real stripline's plane resistance depends
+       on its finite extent and copper weight, neither of which is a
+       cross-section input.
+    3. **The split between the two planes is even.** The cross-section is
+       symmetric about the strip, so each plane returns half the current by
+       construction, and no strip/ground asymmetry of the kind that motivates
+       :class:`~pmrf.models.components.lines.microstrip.TraceGroundCurrentDistribution`
+       arises. Whether stripline should nevertheless charge plane loss on a
+       separate weight at high frequency is a live question and is *not*
+       settled here; this strategy stays on Cohn's single pair.
+
+    **The dc-to-skin-effect transition policy**
+
+    There is no separate dc term to add, and so nothing to double-count. The
+    dc resistance enters *inside* the surface impedance, as the dc limit of
+    the even slab mode divided by this weight, and the same expression tends
+    to $\zeta_c$ under strong skin effect. Cohn's weight multiplies the one
+    term at both ends of the band, which is what makes the two limits exact
+    simultaneously: at dc the $\alpha=1/(2Wk_c)$ factor cancels the weight
+    and leaves $1/(\sigma WT)$; at strong skin the factor has gone and Cohn's
+    $R_sk_c$ is untouched. The crossover is therefore set by the slab modes'
+    own argument $\gamma_c T/2$, at $T\approx\delta$, and is not a fitted or
+    switched blend.
+
+    **The unspecified thickness**
+
+    With ``t=None`` the strategy emits a zero weight and
+    :class:`HalfSpaceSurfaceImpedance`, so the line has no conductor loss at
+    all. This is intentional and unchanged. Cohn's $\alpha_c$ expressions both
+    contain $\log(1/T)$ terms and diverge as $T\to0$: a zero-thickness strip
+    has no defined conductor loss in this model, at dc or anywhere else, and
+    a dc floor $1/(\sigma WT)$ is likewise infinite there. Supplying a
+    thickness is what makes conductor loss meaningful, and the zero weight
+    says so rather than silently substituting a thickness Cohn's formulas
+    never saw.
+
+    **Validity**
+
+    Cohn's $\alpha_c$ is fitted for a thin strip centred between the planes;
+    the weight's accuracy degrades as $T/b$ grows, and above roughly
+    $T/b=0.4$ the resulting $\alpha=1/(2Wk_c)$ can exceed 1, where
+    :class:`~pmrf.materials.surface_impedance.EvenOddSlabSurfaceImpedance`
+    itself becomes non-monotone. The switch between Cohn's two $\alpha_c$
+    expressions at $\sqrt{\varepsilon_r}\,\Re(Z_c)=120$ is a discontinuity in
+    the weight, inherited from the published form.
+
+    Through the transition the resistance is not bounded below by Cohn's
+    half-space result. The exact slab mode alone dips to 0.917 of it near
+    $T/\delta=\pi$, and the even-odd mix dips further, to about 0.86 near
+    $T/\delta=1.4$ at the default geometry ($\alpha=0.433$), because the
+    odd mode's share is fixed by the asymptotes rather than by excitation.
 
     References
     ----------
-    Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE Transactions
-    on Microwave Theory and Techniques, 3(2), 119-126.
+    Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE
+    Transactions on Microwave Theory and Techniques, 3(2), 119-126.
+
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 3.7. Wiley.
+
+    Holloway, C. L., & Kuester, E. F. (1994). Edge shape effects and
+    quasi-closed form expressions for the conductor loss of microstrip
+    lines. Radio Science, 29(3), 539-559. Eq. (45).
     """
 
     cross_section_type: ClassVar[type] = StriplineCrossSection
 
+    #: Finite-thickness surface impedance for the centre strip, used whenever
+    #: the thickness is known. The default matches both the dc resistance and
+    #: Cohn's strong-skin result under Cohn's weight, and puts the conductor's
+    #: internal reactance on the slab's $\omega$ law rather than the
+    #: semi-infinite $\sqrt{\omega}$ one. See
+    #: :class:`~pmrf.materials.surface_impedance.AbstractSurfaceImpedance` for
+    #: normalisation details, and pass ``HalfSpaceSurfaceImpedance()`` to
+    #: compare against a solver run with a thickness-free skin-effect
+    #: approximation.
+    slab_impedance: AbstractSurfaceImpedance = eqx.field(
+        default_factory=EvenOddSlabSurfaceImpedance
+    )
+
     def _distribute(self, freq, cross_section, quasi_static):
         w, b, t = cross_section.w, cross_section.b, cross_section.t
         if t is None:
-            weight = jnp.asarray(0.0)
-        else:
-            ep_r = jnp.real(cross_section.ep_r)
-            zc_real = jnp.real(quasi_static.zc)
-            a = 1 + 2 * w / (b - t) + (b + t) / (jnp.pi * (b - t)) * jnp.log((2 * b - t) / t)
-            alpha_low = 2.7e-3 * ep_r * zc_real / (30 * jnp.pi * (b - t)) * a
-            beta = 1 + b / (0.5 * w + 0.7 * t) * (
-                0.5 + 0.7 * t / w + jnp.log(4 * jnp.pi * w / t) / (2 * jnp.pi)
-            )
-            alpha_high = 0.16 / (zc_real * b) * beta
-            alpha_over_rs = jnp.where(jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high)
-            weight = 2 * alpha_over_rs * zc_real
-        return ((HalfSpaceSurfaceImpedance(), weight),)
+            # Cohn's alpha_c diverges as T -> 0, and so does the dc floor;
+            # a zero weight says the model has nothing to offer rather than
+            # inventing a thickness. See the class docstring.
+            return ((HalfSpaceSurfaceImpedance(), jnp.asarray(0.0)),)
+
+        ep_r = jnp.real(cross_section.ep_r)
+        zc_real = jnp.real(quasi_static.zc)
+        a = 1 + 2 * w / (b - t) + (b + t) / (jnp.pi * (b - t)) * jnp.log((2 * b - t) / t)
+        alpha_low = 2.7e-3 * ep_r * zc_real / (30 * jnp.pi * (b - t)) * a
+        beta = 1 + b / (0.5 * w + 0.7 * t) * (
+            0.5 + 0.7 * t / w + jnp.log(4 * jnp.pi * w / t) / (2 * jnp.pi)
+        )
+        alpha_high = 0.16 / (zc_real * b) * beta
+        alpha_over_rs = jnp.where(jnp.sqrt(ep_r) * zc_real < 120, alpha_low, alpha_high)
+        weight = 2 * alpha_over_rs * zc_real
+        return ((self.slab_impedance, weight),)
 
 
 class AbstractStriplineFormulation(eqx.Module):
@@ -211,8 +318,11 @@ class StriplineLine(AbstractImmittanceLine):
     b : Param, default=3.2e-3
         Separation of the ground planes in meters.
     t : Param | None, default=35e-6
-        Thickness of the centre strip in meters. ``None`` idealises it as
-        zero-thickness, which has no finite conductor loss.
+        Thickness of the centre strip in meters. A known thickness gives the
+        line a dc series resistance of $1/(\sigma WT)$ and a finite-thickness
+        conductor loss; ``None`` idealises it as zero-thickness, which has no
+        finite conductor loss at any frequency. See
+        :class:`CohnCurrentDistribution`.
     dielectric : AbstractDielectric, default=ConstantDielectric(ep_r=4.3)
         The filling between the ground planes. A scalar permittivity or an
         ``(ep_r, tand)`` tuple is coerced into a

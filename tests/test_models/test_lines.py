@@ -25,9 +25,10 @@ from pmrf.materials import (
     DjordjevicSarkarDielectric,
     RoughConductor,
 )
-from pmrf.materials.surface_impedance import TescheTubeSurfaceImpedance
+from pmrf.materials.surface_impedance import HalfSpaceSurfaceImpedance, TescheTubeSurfaceImpedance
 from pmrf.models.components.lines.coaxial import TescheCoaxialFormulation
 from pmrf.models.components.lines.microstrip import KirschningJansenMicrostripDispersion
+from pmrf.models.components.lines.stripline import CohnCurrentDistribution
 
 @pytest.fixture
 def basic_freq():
@@ -977,3 +978,164 @@ def test_stripline_high_impedance_branch_is_selected():
     assert jnp.sqrt(2.2) * jnp.real(wide.zc(freq)) < 120
     # A narrower strip concentrates the current, so it loses more.
     assert jnp.real(narrow.gammaL(freq)) > jnp.real(wide.gammaL(freq)) > 0
+
+
+# Representative stripline geometries for the conductor-loss transition, as
+# (name, W, b, T, er).  A narrow thin strip, the library default, and a wide
+# thick one on high-permittivity filling, spanning W/b = 0.16 to 1.88 and
+# t/delta = 13.6 to 105.9 at 10 GHz.  scikit-rf has no stripline medium, so
+# there is no external model to compare the transition against; these record
+# it against the two analytic limits it is built to reproduce.
+_STRIPLINE_CASES = [
+    ("narrow thin", 0.5e-3, 3.2e-3, 9e-6, 2.2),
+    ("default", 2.655e-3, 3.2e-3, 35e-6, 2.2),
+    ("wide thick", 6e-3, 3.2e-3, 70e-6, 10.2),
+]
+
+
+@pytest.mark.parametrize(
+    "w, b, t, ep_r",
+    [case[1:] for case in _STRIPLINE_CASES],
+    ids=[case[0] for case in _STRIPLINE_CASES],
+)
+def test_stripline_finite_thickness_has_dc_resistance_floor(w, b, t, ep_r):
+    """#123: R settles at the centre strip's 1/(sigma*W*T) at dc instead of 0.
+
+    The floor is the strip's own resistance over its physical width: at dc the
+    current fills the W x T cross-section uniformly, and Cohn's two ground
+    planes are unbounded, so they add no per-unit-length dc resistance. The
+    fringing-corrected W_e is an electromagnetic width and is deliberately not
+    used here.
+
+    The even-odd mix cancels Cohn's weight exactly at dc, so this is an
+    algebraic identity rather than a fit: rtol is at double precision.
+    """
+    sigma = 5.8e7
+    line = StriplineLine(
+        w=w, b=b, t=t, dielectric=ep_r,
+        conductor=BulkConductor(sigma=sigma), length=1.0,
+    )
+    dc = Frequency.from_f(jnp.array([0.0]))
+
+    assert jnp.allclose(line.immittance(dc).R, 1 / (sigma * w * t), rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "w, b, t, ep_r, rtol",
+    [case[1:] + (rtol,) for case, rtol in zip(_STRIPLINE_CASES, (1e-6, 1e-12, 1e-12))],
+    ids=[case[0] for case in _STRIPLINE_CASES],
+)
+def test_stripline_strong_skin_limit_is_unchanged_from_cohn(w, b, t, ep_r, rtol):
+    """#123: at 10 GHz the finite-thickness entry gives back Cohn's own result.
+
+    Both slab modes tend to zeta_c and their coefficients sum to 1, so the
+    finite-thickness entry collapses onto the half-space one and Cohn's weight
+    is left carrying the loss alone. The departure is the mode functions'
+    exp(-2t/delta): at 10 GHz that is 1.4e-12 for the 9 um strip
+    (t/delta = 13.6), which sets the 1e-6 tolerance on that case with margin,
+    and below double precision for the other two, which are held at 1e-12.
+    """
+    sigma = 5.8e7
+    geometry = dict(
+        w=w, b=b, t=t, dielectric=ep_r,
+        conductor=BulkConductor(sigma=sigma), length=1.0,
+    )
+    freq = Frequency.from_f(jnp.array([10e9]))
+
+    finite = StriplineLine(**geometry)
+    cohn = StriplineLine(
+        current_distribution=CohnCurrentDistribution(
+            slab_impedance=HalfSpaceSurfaceImpedance()
+        ),
+        **geometry,
+    )
+
+    assert jnp.allclose(finite.immittance(freq).R, cohn.immittance(freq).R, rtol=rtol)
+
+
+@pytest.mark.parametrize(
+    "w, b, t, ep_r, dip",
+    [case[1:] + (dip,) for case, dip in zip(_STRIPLINE_CASES, (0.9089, 0.8556, 0.8571))],
+    ids=[case[0] for case in _STRIPLINE_CASES],
+)
+def test_stripline_conductor_loss_transition_between_its_two_limits(
+    w, b, t, ep_r, dip
+):
+    """#123: one term spans the band, so there is no second term to double-count.
+
+    The dc floor lives inside the surface impedance, not beside it. R is
+    bounded below by the dc floor and monotone in frequency. It is *not*
+    bounded below by Cohn's half-space result through the transition: even
+    the exact slab mode dips to 0.917 of the half-space resistance near
+    t/delta = pi, and the even-odd mix, whose odd-mode share tanh(x) rises
+    more slowly than its coefficient implies, dips further, to a minimum near
+    t/delta = 1.42 (0.856 at alpha = 0.433). That dip is recorded per case,
+    as min(R / R_cohn), so a change in the transition is caught.
+
+    The grid has 4001 points over 100 kHz to 1 GHz (0.23 % steps in f); at a
+    smooth minimum the sampling error is far below 1e-3, which is the
+    tolerance on the recorded dip.
+    """
+    sigma = 5.8e7
+    geometry = dict(
+        w=w, b=b, t=t, dielectric=ep_r,
+        conductor=BulkConductor(sigma=sigma), length=1.0,
+    )
+    freq = Frequency.from_f(jnp.asarray(np.logspace(5, 9, 4001)))
+
+    resistance = StriplineLine(**geometry).immittance(freq).R
+    cohn = StriplineLine(
+        current_distribution=CohnCurrentDistribution(
+            slab_impedance=HalfSpaceSurfaceImpedance()
+        ),
+        **geometry,
+    ).immittance(freq).R
+
+    assert jnp.all(jnp.diff(resistance) > 0)
+    assert jnp.all(resistance >= 1 / (sigma * w * t))
+    assert jnp.allclose(jnp.min(resistance / cohn), dip, rtol=1e-3)
+
+
+def test_stripline_internal_reactance_is_off_the_semi_infinite_law():
+    """#123: below the skin-effect knee X_int goes as omega, not as sqrt(omega).
+
+    Taken as the excess series reactance over the same line with a perfect
+    conductor, which removes the external inductance and leaves the
+    conductor's internal contribution alone. At 50 and 100 kHz the default
+    geometry sits at t/delta = 0.12 and 0.17, well below the knee, and
+    doubling the frequency doubles the internal reactance. A half-space
+    conductor would multiply it by sqrt(2) = 1.414 instead; 1e-3 is far
+    tighter than that gap and is here to pin the law, not to bound a model
+    error.
+    """
+    sigma, w, b, t = 5.8e7, 2.655e-3, 3.2e-3, 35e-6
+    geometry = dict(w=w, b=b, t=t, dielectric=2.2, length=1.0)
+    freq = Frequency.from_f(jnp.array([5e4, 1e5]))
+
+    lossy = StriplineLine(conductor=BulkConductor(sigma=sigma), **geometry)
+    lossless = StriplineLine(conductor=BulkConductor(sigma=jnp.inf), **geometry)
+
+    internal = jnp.imag(lossy.immittance(freq).Z) - jnp.imag(
+        lossless.immittance(freq).Z
+    )
+
+    assert jnp.all(internal > 0)
+    assert jnp.allclose(internal[1] / internal[0], 2.0, rtol=1e-3)
+
+
+def test_stripline_unspecified_thickness_still_has_no_conductor_loss():
+    """#123 regression: t=None is intentional, and the dc floor does not reach it.
+
+    Cohn's alpha_c diverges as T -> 0 and so does 1/(sigma*W*T), so a
+    zero-thickness strip has no defined conductor loss at any frequency, dc
+    included.  The model says so with a zero weight rather than substituting a
+    thickness.  This is the behaviour a finite-thickness dc floor must not
+    quietly change.
+    """
+    line = StriplineLine(
+        w=2.655e-3, b=3.2e-3, t=None, dielectric=2.2,
+        conductor=BulkConductor(sigma=5.8e7), length=1.0,
+    )
+    freq = Frequency.from_f(jnp.array([0.0, 1e5, 10e9]))
+
+    assert jnp.allclose(line.immittance(freq).R, 0.0)
