@@ -1,6 +1,6 @@
 # ADR-0002: Parameter API: free functions, one update verb, three value spaces
 
-Status: proposed (2026-09)
+Status: accepted (2026-09)
 
 ## Context
 

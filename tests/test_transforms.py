@@ -50,6 +50,102 @@ def test_derivative_model_structure():
     assert d_cap.name == 'test_cap'
 
 
+def _filter():
+    from pmrf.models import Resistor, Inductor, ShuntCapacitor
+
+    c1 = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+    l1 = Inductor(L=prf.Bounded(0.5, 2.0, value=1.0, scale=1e-9), name='l1')
+    r = Resistor(5.0, name='r')
+    return c1 ** l1 ** r
+
+
+@pytest.mark.parametrize("space", ["declared", "physical", "raw"])
+def test_derivative_is_taken_in_the_requested_space(space):
+    """A parameter's derivative is with respect to its value in `space`, which is
+    what differentiating through `prf.update` in that space gives."""
+    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
+    model = prf.update(_filter(), 'r.R', fixed=False)
+
+    def s21(m):
+        return m.s_mag(freq)[0, 1, 0]
+
+    (d_model,) = prf.derivative(s21, model, space=space)
+    expected = jax.grad(lambda v: s21(prf.update(model, v, space=space)))(
+        prf.param_values(model, space=space)
+    )
+
+    actual = prf.param_values(d_model)
+    assert actual.keys() == expected.keys()
+    for name in expected:
+        # Both sides run the same float64 operations; only reduction order can differ.
+        assert jnp.allclose(actual[name], expected[name], rtol=1e-12, atol=0), name
+
+
+def test_derivative_declared_is_physical_times_scale():
+    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
+    model = _filter()
+
+    def s21(m):
+        return m.s_mag(freq)[0, 1, 0]
+
+    (declared,) = prf.derivative(s21, model)
+    (physical,) = prf.derivative(s21, model, space='physical')
+    declared, physical = prf.param_values(declared), prf.param_values(physical)
+
+    assert jnp.allclose(declared['c1.C'], physical['c1.C'] * 1e-12, rtol=1e-12, atol=0)
+    assert jnp.allclose(declared['l1.L'], physical['l1.L'] * 1e-9, rtol=1e-12, atol=0)
+
+
+def test_derivative_of_a_fixed_parameter_is_its_sensitivity():
+    """Fixed is an optimisation state; the derivative is the same as when free."""
+    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
+    fixed = _filter()
+    free = prf.update(fixed, 'r.R', fixed=False)
+
+    def s21(m):
+        return m.s_mag(freq)[0, 1, 0]
+
+    (d_fixed,) = prf.derivative(s21, fixed)
+    (d_free,) = prf.derivative(s21, free)
+    r_fixed, r_free = prf.param_values(d_fixed)['r.R'], prf.param_values(d_free)['r.R']
+
+    assert r_free != 0
+    assert jnp.allclose(r_fixed, r_free, rtol=1e-12, atol=0)
+
+
+def test_derivative_through_a_tie_reaches_the_source():
+    freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
+    tied = prf.tie(_filter(), 'r.R', 'c1.C', fn=lambda C: C * 5.0)
+
+    def s21(m):
+        return m.s_mag(freq)[0, 1, 0]
+
+    (d_tied,) = prf.derivative(s21, tied)
+    expected = jax.grad(lambda v: s21(prf.update(tied, v)))(prf.param_values(tied))
+
+    actual = prf.param_values(d_tied)
+    assert actual.keys() == {'c1.C', 'l1.L'}
+    for name in expected:
+        assert jnp.allclose(actual[name], expected[name], rtol=1e-12, atol=0), name
+
+
+def test_derivative_jacobian_is_per_declared_unit():
+    band = prf.Frequency(1, 5, 11, 'GHz')
+    model = _filter()
+
+    (d_model,) = prf.derivative(lambda m: m.s_mag(band)[:, 1, 0], model)
+    (physical,) = prf.derivative(lambda m: m.s_mag(band)[:, 1, 0], model, space='physical')
+
+    declared = prf.param_values(d_model)
+    assert declared['c1.C'].shape == (11,)
+    assert jnp.allclose(declared['c1.C'], prf.param_values(physical)['c1.C'] * 1e-12, rtol=1e-12, atol=0)
+
+
+def test_derivative_rejects_an_unknown_space():
+    with pytest.raises(ValueError, match="Unknown space"):
+        prf.derivative(lambda x: x ** 2, jnp.array(1.0), space='unscaled')
+
+
 def test_sweep_parallel():
     """
     Verifies that a standard sweep correctly vectorizes across the leading 
