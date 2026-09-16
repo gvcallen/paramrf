@@ -40,6 +40,13 @@ longer recompiles a model's RF methods.
 - **Inference (#146):** `prf.log_prior` is a density in the space asked for, so
   a raw-space prior carries the constraint's Jacobian and scale terms. Saved
   results that stored physical values need re-reading in declared space.
+- **Inference (#151):** `run_minimizer`'s `use_bounds` argument is removed. A
+  bounded solver is given infinite raw bounds, because raw space is the whole
+  real line and each parameter's bijector keeps its constraints.
+- **Inference (#151):** a parameter starting exactly on one of its bounds
+  raises for the minimiser and for joint and split samplers: its raw value is
+  infinite and cannot move. Hypercube samplers work in declared space and
+  accept it.
 - **Names (#133):** parameter names no longer include tied targets; a tie's
   target is derived, not stored.
 - **Names (#133):** wrapper path parts (`Tied`, `Probabilistic`, `Wrapped`) are
