@@ -144,6 +144,13 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
                 variable = prx.Constrained(constraint, value=value)
             else:
                 variable = prx.Real(value)
+            raw = variable.raw_value
+            if (isinstance(raw, jax.Array) and jnp.issubdtype(value.dtype, jnp.floating)
+                    and raw.dtype != value.dtype):
+                # Some Parax bijectors clip with a float32 epsilon, which demotes a
+                # weak float64 value. Raw values keep the declared dtype, so a solver
+                # moving several of them sees one dtype.
+                variable = eqx.tree_at(lambda v: v.raw_value, variable, raw.astype(value.dtype))
             if fixed:
                 variable = prx.Fixed(variable)
 
@@ -957,6 +964,15 @@ def _is_name_transparent(x: Any) -> bool:
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
 
 
+def _is_joint_target(x: Any) -> bool:
+    """Returns whether `x` is the target of a joint prior, a `parax.Probabilize` node.
+
+    Such a node absorbs the parameters below it and holds one raw value, possibly a
+    tree, which is named and moved as a single parameter.
+    """
+    return isinstance(x, prx.Probabilize)
+
+
 def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
     """Returns whether any node along the JAX key `path` into `tree` is frozen."""
     return any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
@@ -1000,7 +1016,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
         if is_param(leaf):
             if free_only and (leaf.fixed or frozen):
                 continue
-        elif not isinstance(leaf, jax.Array) or frozen:
+        elif not (isinstance(leaf, jax.Array) or _is_joint_target(leaf)) or frozen:
             continue
 
         name = path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
@@ -1079,7 +1095,10 @@ def _is_selector(x: Any) -> bool:
 
 
 def _read(node, space: str) -> Array:
-    """Returns the value of a parameter, or a raw array, in `space`."""
+    """Returns the value of a parameter, a joint prior's target, or a raw array, in `space`."""
+    if _is_joint_target(node):
+        # A joint prior is authored over physical values, so declared is physical.
+        return node.raw_value if space == 'raw' else prx.unwrap(node)
     if not is_param(node):
         return jnp.asarray(node)
     if space == 'raw':
@@ -1101,8 +1120,10 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
     (``components.cable.length``); other keys keep the bracket form.
 
     Names see through freezing and wrappers such as :class:`pmrf.modules.Tied`. The
-    target of a tie is derived rather than stored, so it is not named; parameters
-    absorbed by a probabilistic wrapper are likewise not named.
+    target of a tie is derived rather than stored, so it is not named. The target of
+    a joint prior (:class:`pmrf.modules.Probabilistic`) absorbs the parameters below
+    it and is named once, returned as its `parax.Probabilize` node; its value may be
+    a tree, and its declared value is its physical one.
 
     Parameters
     ----------
@@ -1199,7 +1220,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     parameter, since those are the coordinates an optimiser or sampler moves. The
     priors of fixed and frozen parameters are included as constants, and a joint
     prior over a sub-tree (:class:`pmrf.modules.Probabilistic`) is scored on its
-    physical values.
+    physical values, with the Jacobian of its own raw-to-physical map in raw space.
 
     Parameters
     ----------
@@ -1226,21 +1247,35 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
         return physical
 
     resolved = tree_param_paths(tree)
-    named = [p for _, p in resolved.values() if is_param(p)]
-    scale_term = sum(
-        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for p in named if p.distribution is not None and p._scale != 1.0),
-        start=jnp.asarray(0.0),
-    )
-    declared = physical + scale_term
+    declared = physical + _log_scale(tree)
     if space == 'declared':
         return declared
 
-    free = [p for path, p in resolved.values() if is_param(p) and not _is_fixed_path(tree, path, p)]
+    free = [p for path, p in resolved.values() if not _is_fixed_path(tree, path, p)]
     log_det = sum(
-        (jnp.sum(p.raw_to_declared_bijector.forward_log_det_jacobian(p.raw_value)) for p in free if p.constraint is not None),
+        (jnp.sum(_raw_log_det_jacobian(p)) for p in free),
         start=jnp.asarray(0.0),
     )
     return declared + log_det
+
+
+def _log_scale(tree) -> Array:
+    """Returns the sum of n log|scale| over the scaled parameters of `tree` with a prior:
+    the constant taking the physical log prior to the declared one."""
+    return sum(
+        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for _, p in tree_param_paths(tree).values()
+         if is_param(p) and p.distribution is not None and p._scale != 1.0),
+        start=jnp.asarray(0.0),
+    )
+
+
+def _raw_log_det_jacobian(node) -> Array:
+    """Returns log|det J| of the map from a node's raw value to its declared value."""
+    if is_param(node) and node.constraint is not None:
+        return node.raw_to_declared_bijector.forward_log_det_jacobian(node.raw_value)
+    if _is_joint_target(node):
+        return prx.as_unwrapped(node.constraint).bijector.forward_log_det_jacobian(node.raw_value)
+    return jnp.asarray(0.0)
 
 
 def _set_paths(tree, paths: list, nodes: list):
@@ -1259,6 +1294,10 @@ def _write(node, value: Any, space: str):
     """
     if is_param(value):
         value = _read(value, space)
+    if _is_joint_target(node):
+        if space != 'raw':
+            value = prx.as_unwrapped(node.constraint).bijector.inverse(value)
+        return eqx.tree_at(lambda n: n.raw_value, node, jax.tree.map(lambda v, o: _like(jnp.asarray(v), o), value, node.raw_value))
     if not is_param(node):
         return _like(jnp.asarray(value, dtype=node.dtype), node)
     if space == 'raw':

@@ -170,8 +170,8 @@ def test_log_prior_on_tuple():
 
 
 def test_log_prior_raw_agrees_with_prior_penalized():
-    """PriorPenalized scores the physical density; with no scale that is the declared
-    one, so the raw log prior differs from it by the Jacobian term alone."""
+    """PriorPenalized scores the declared density, so the raw log prior differs from
+    it by the Jacobian term alone."""
     from pmrf.problems import PriorPenalized, SummedTerms
 
     m = RC(R=prf.Random(Uniform(0.0, 100.0), value=40.0), C=prf.Fixed(2.0))
@@ -181,15 +181,15 @@ def test_log_prior_raw_agrees_with_prior_penalized():
     assert np.allclose(prf.log_prior(m, space="raw") - log_det, -penalty, atol=1e-6)
 
 
-def test_log_prior_physical_agrees_with_prior_penalized_when_scaled():
-    """PriorPenalized scores physical values, so with a scale it matches the
-    physical log prior, and the declared one differs by n log|scale|."""
+def test_log_prior_declared_agrees_with_prior_penalized_when_scaled():
+    """With a scale, PriorPenalized still matches the declared log prior, and the
+    physical one differs from it by n log|scale|."""
     from pmrf.problems import PriorPenalized, SummedTerms
 
     m = _scaled_bounded()
     penalty = PriorPenalized(SummedTerms(model=m, terms=(lambda model: jnp.asarray(0.0),)))()
-    assert np.allclose(prf.log_prior(m, space="physical"), -penalty, atol=1e-5)
-    assert np.allclose(prf.log_prior(m) - np.log(1e-3), -penalty, atol=1e-5)
+    assert np.allclose(prf.log_prior(m), -penalty, atol=1e-5)
+    assert np.allclose(prf.log_prior(m, space="physical") + np.log(1e-3), -penalty, atol=1e-5)
 
 
 # ---- Update: value forms ------------------------------------------------------------

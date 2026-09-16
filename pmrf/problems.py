@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import PyTree
 
-from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
 from pmrf.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
@@ -86,12 +86,13 @@ warnings.filterwarnings("ignore", message=r"Using `field\(init=False\)`")
 
 class PriorPenalized(AbstractProblem):
     """
-    A problem penalized by the negative log prior of its parameters.
+    A problem penalized by the negative log prior of its parameters, in declared space.
 
     Minimizing a penalized problem gives the maximum a posteriori estimate, where the
     problem alone gives the maximum likelihood estimate. Priors are extracted over the
     whole problem, so the terms' own hyper-parameters are covered alongside the
-    model's parameters.
+    model's parameters. The density is :func:`pmrf.log_prior` with ``space='declared'``,
+    which differs from the physical density by a constant and so has the same mode.
 
     Priors are metadata and are stripped by unwrapping, so they are extracted once on
     construction while the problem is still wrapped.
@@ -104,8 +105,12 @@ class PriorPenalized(AbstractProblem):
     #: The problem being penalized.
     problem: AbstractProblem
 
-    #: The prior distributions of the problem's parameters.
+    #: The prior distributions of the problem's parameters, over physical values.
     distributions: Any = field(converter=freeze, init=False)
+
+    #: The constant taking the physical log density to the declared one: the sum of
+    #: n log|scale| over scaled parameters with a prior.
+    log_scale: Any = field(converter=freeze, init=False)
 
     def __post_init__(self):
         if isinstance(self.problem, PriorPenalized):
@@ -114,6 +119,7 @@ class PriorPenalized(AbstractProblem):
                 "count every prior twice."
             )
         self.distributions = tree_param_distributions(self.problem)
+        self.log_scale = _log_scale(self.problem)
 
     @property
     def model(self) -> PyTree:
@@ -126,8 +132,8 @@ class PriorPenalized(AbstractProblem):
     def __call__(self, *args, **kwargs) -> jnp.ndarray:
         # The distributions are positioned as the parameters are once unwrapped, so the
         # values must be too. A solver will already have done this, but not a direct call.
-        log_prior = tree_param_log_prob(unwrap(self.distributions), unwrap(self.problem))
-        return self.problem(*args, **kwargs) - log_prior
+        physical = tree_param_log_prob(unwrap(self.distributions), unwrap(self.problem))
+        return self.problem(*args, **kwargs) - (physical + unwrap(self.log_scale))
 
 
 def problem_terms(problem: AbstractProblem, name: str) -> tuple[TermFn, ...]:

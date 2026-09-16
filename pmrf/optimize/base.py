@@ -6,10 +6,10 @@ from typing import Any, Callable, TypeAlias
 import abc
 
 import jax
-import numpy as np
+import jax.numpy as jnp
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
-import parax as prx
+from pmrf._solver_view import SolverView
 
 
 class MinimizeResult(eqx.Module):
@@ -121,99 +121,65 @@ def is_optimizer(x):
 
 
 def run_minimizer(
-    fn: Callable[[PyTree, Any], Scalar], 
-    model: PyTree, 
+    fn: Callable[[PyTree, Any], Scalar],
+    model: PyTree,
     solver: AbstractMinimizer,
     args: Any = None,
-    max_iter: int = 1024, 
-    use_bounds: bool | None = None,
+    max_iter: int = 1024,
     **kwargs
 ) -> tuple[PyTree, MinimizeResult]:
     """
-    Optimizes a general PyTree potentially containing Parax parameters.
+    Optimizes the free parameters of a model, or any collection of models and parameters.
 
-    The solver can be any solver of type `pmrf.optimize.AbstractMinimizer`.
+    The solver can be any solver of type `pmrf.optimize.AbstractMinimizer`. It moves
+    through the free parameters in raw space, where constraints are enforced by each
+    parameter's bijector, so a bounded solver is given infinite bounds. The solver
+    receives a name-keyed dict, as from
+    ``prf.param_values(model, free_only=True, space='raw')``; a solver that needs a
+    1-D vector flattens it itself. The result is written back with
+    ``prf.update(model, y, space='raw')``, so fixed parameters, names, scales and
+    priors are unchanged.
 
-    Performs Equinox partitioning and Parax unwrapping/extraction,
-    as well as delegation to the relevant solver interface. Bounded solvers
-    are automatically routed to operate within the orthogonal base bounds 
-    of the parameter constraints, protecting them from spatial correlations.
-
-    Note that all Parax unwrappables (such as Parax variables)
-    MUST be re-wrappable for this interface.
+    A parameter starting exactly on one of its bounds has an infinite raw value and
+    could not move, so it raises; start it inside its bounds.
 
     Parameters
     ----------
     fn : callable
-        The objective function taking `(unwrapped_y0, args)`.
+        The objective function taking `(unwrapped_model, args)`.
     model : PyTree
-        The initial parameter guess / model state.
+        The initial model.
     solver : AbstractMinimizer
         The instantiated optimizer to run.
     args : Any, optional
         Args to pass to `fn`. Defaults to None.
     max_iter : int, optional
         Maximum number of iterations. Defaults to 1024.
-    use_bounds : bool, optional
-        Whether bounds should be used. Defaults to True only if the solver is bounded.
     **kwargs
         Runtime arguments forwarded to the solver backend.
 
     Returns
     -------
     tuple
-        A tuple of `(best_model, minimize_results)`.    
+        A tuple of `(best_model, minimize_results)`.
+
+    Raises
+    ------
+    ValueError
+        If `model` has no free parameters, or one starts at NaN or on a bound.
     """
-    is_bounded = isinstance(solver, AbstractBoundedMinimizer)
-    if use_bounds is not None:
-        is_bounded = is_bounded and use_bounds
-
-    # Unified Equinox partitioning using the constraints API
-    is_dynamic = lambda x: prx.constraints.is_dynamic(x) and not isinstance(x, np.ndarray)
-    is_leaf = prx.constraints.is_leaf
-    
-    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
-    if not jax.tree.leaves(dynamic):
-        raise ValueError(
-            "Nothing to optimize: the tree has no free parameters. Every parameter is "
-            "either fixed or a plain value."
+    view = SolverView(model, 'optimize')
+    # The minimiser moves raw values, so every starting raw value has to be movable.
+    view.check_finite()
+    if isinstance(solver, AbstractBoundedMinimizer):
+        # Raw space is the whole real line; constraints are kept by the bijectors.
+        kwargs['bounds'] = (
+            jax.tree.map(lambda x: jnp.full_like(x, -jnp.inf), view.y0),
+            jax.tree.map(lambda x: jnp.full_like(x, jnp.inf), view.y0),
         )
-    physical_params = prx.unwrap(dynamic, only_if=prx.is_constrained)
+    result = solver.run(fn=view.objective(fn), y0=view.y0, args=args, max_iter=max_iter, **kwargs)
+    opt_model = view.updated(result.y)
 
-    # Configure the spatial projection and bounds based on the solver type
-    leafwise_constraint = prx.constraints.tree_leafwise_constraint(dynamic)
-    if is_bounded:
-        bijector = leafwise_constraint.base_bijector
-        bounds = leafwise_constraint.base_bounds
-    else:
-        bijector = leafwise_constraint.bijector
-        bounds = None
-
-    # Map the physical starting parameters into the solver's operational space
-    solver_params = bijector.inverse(physical_params)
-
-    # The objective always projects the solver's parameters forward to physical space.
-    # `static` is passed first here so it drives `eqx.combine`'s structural matching
-    def objective(p: PyTree, args: Any) -> Scalar:
-        physical_p = bijector.forward(p)
-        unwrapped_model = prx.unwrap(eqx.combine(static, physical_p, is_leaf=is_leaf))
-        return fn(unwrapped_model, args)
-
-    # Execute the backend solver
-    if is_bounded:
-        result = solver.run(
-            fn=objective, y0=solver_params, args=args, bounds=bounds, max_iter=max_iter, **kwargs
-        )
-    else:
-        result = solver.run(
-            fn=objective, y0=solver_params, args=args, max_iter=max_iter, **kwargs
-        )
-
-    # Re-wrap the optimized parameters from raw space into physical space
-    opt_physical = bijector.forward(result.y)
-    opt_dynamic = prx.wrap(dynamic, opt_physical, only_if=prx.is_constrained)
-    opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
-        
     if not result.success:
         warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")
 

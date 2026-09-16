@@ -35,7 +35,7 @@ def fit(model, **kwargs):
     return prf.fitting.fit_minimize(
         model, jnp.asarray(DATA), frequency, features=linear_features,
         inference="bayesian", noise=VARIANCE,
-        solver=prf.optimize.ScipyMinimize(method="trust-constr"),
+        solver=kwargs.pop("solver", prf.optimize.ScipyMinimize(method="trust-constr")),
         max_iter=4000, **kwargs)
 
 
@@ -90,11 +90,13 @@ def test_map_is_invariant_to_parameter_scale():
 
 
 @requires_distreqx_transpose
-def test_bounded_and_unconstrained_paths_agree():
-    """Both solver paths optimize the same objective and must reach the same optimum."""
+def test_bounded_and_unconstrained_solvers_agree():
+    """Both kinds of solver move through the same raw values and must reach the same optimum."""
+    from pmrf.optimize.solvers.optimistix import BFGS
+
     bounded = fitted_value(fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0))))
     unbounded = fitted_value(
-        fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0)), use_bounds=False))
+        fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0)), solver=BFGS()))
 
     assert bounded == pytest.approx(unbounded, rel=1e-4)
     assert bounded == pytest.approx(analytic_map(DATA, VARIANCE, 1.0, 1.0), rel=1e-4)
