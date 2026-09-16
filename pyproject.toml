@@ -7,7 +7,7 @@ authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }
 ]
 dependencies = [
-    "parax",
+    "parax>=0.10.8",
     "threadpoolctl",
     "eqxpress",
     "jax",
