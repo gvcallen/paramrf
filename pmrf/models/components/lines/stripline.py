@@ -140,6 +140,12 @@ class CohnCurrentDistribution(AbstractCurrentDistribution[StriplineCrossSection]
     expressions at $\sqrt{\varepsilon_r}\,\Re(Z_c)=120$ is a discontinuity in
     the weight, inherited from the published form.
 
+    Through the transition the resistance is not bounded below by Cohn's
+    half-space result. The exact slab mode alone dips to 0.917 of it near
+    $T/\delta=\pi$, and the even-odd mix dips further, to about 0.86 near
+    $T/\delta=1.4$ at the default geometry ($\alpha=0.433$), because the
+    odd mode's share is fixed by the asymptotes rather than by excitation.
+
     References
     ----------
     Cohn, S. B. (1955). Problems in Strip Transmission Lines. IRE
