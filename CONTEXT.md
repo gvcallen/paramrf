@@ -6,8 +6,7 @@ rather than repeating it.
 
 ## Parameters
 
-Vocabulary from ADR-0002, which is **proposed**: until its chain lands, the
-code still uses the old names given under *Avoid*.
+Vocabulary from ADR-0002.
 
 ### Param
 

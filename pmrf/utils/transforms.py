@@ -17,7 +17,7 @@ def is_inexact_jax_array(x):
     return is_jax_array(x) and jnp.issubdtype(x.dtype, jnp.inexact)
 
 
-def derivative(eval_fn: Callable[..., Any], *args: *Ts) -> Tuple[*Ts]:
+def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared') -> Tuple[*Ts]:
     """
     Computes the exact derivative of a function.
 
@@ -26,21 +26,31 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts) -> Tuple[*Ts]:
     - `jacfwd` (forward-mode) for wide Jacobians (output size > input size).
     - `jacrev` (reverse-mode) for tall Jacobians (input size >= output size).
 
-    Safely handles models as inputs by filtering out non-differentiable 
+    Parameters are differentiated with respect to their value in `space`, so by
+    default a derivative is per unit the parameter declares: per pF for a
+    capacitance declared with ``scale=1e-12``. A tie is recomputed from its source
+    inside the differentiated function, so the source's derivative includes the
+    path through the tie. Raw JAX arrays are differentiated as they are.
+
+    Safely handles models as inputs by filtering out non-differentiable
     static fields (like strings, booleans, integers, AND NumPy arrays).
 
     Parameters
     ----------
     eval_fn : Callable
-        The function to differentiate.
+        The function to differentiate. It is called with the arguments unwrapped.
     *args : *Ts
         The arguments to evaluate the derivative at. Can be raw arrays or full Models.
+    space : {'declared', 'physical', 'raw'}, default='declared'
+        The space parameter values are differentiated in. See :class:`pmrf.Param`.
 
     Returns
     -------
     Tuple[*Ts]
-        A tuple containing the derivatives. The tuple length and contents will 
-        exactly mirror the types and structure of the input `args`.
+        A tuple containing the derivatives, one per argument. Each keeps its
+        argument's structure with every parameter replaced by its derivative, so
+        :func:`pmrf.param_values` reads the derivatives by name. Non-differentiable
+        leaves are ``None``.
 
     Examples
     --------
@@ -50,23 +60,52 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts) -> Tuple[*Ts]:
     >>> from pmrf.models import ShuntCapacitor
     >>>
     >>> freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
-    >>> cap = ShuntCapacitor(C=prf.Unconstrained(1.0e-12), name='c1')
+    >>> cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
     >>>
     >>> def eval_s21(model):
     ...     return model.s_mag(freq)[0, 1, 0]
     ...
     >>> (d_cap,) = derivative(eval_s21, cap)
-    >>> 
-    >>> # The structural layout of the model is preserved in the derivative
-    >>> print(f"{prf.param_values(d_cap)['c1.C']:.3e}")
-    -1.060e-01
+    >>>
+    >>> # Per pF, the unit the capacitance was declared in
+    >>> print(f"{prf.param_values(d_cap)['C']:.3e}")
+    -1.164e-01
     """
-    args = unwrap(args)
+    # Imported here: pmrf.parameters imports pmrf.utils.
+    from pmrf.parameters import _check_space, _read, _set_paths, _with_fixed, _write, tree_param_paths
+    from pmrf.utils.tree import Pathgetter
 
-    dynamic, static = eqx.partition(args, is_inexact_jax_array)
+    _check_space(space)
+
+    # Each parameter is replaced by its value in `space`, and rebuilt from it inside
+    # the differentiated function, so the derivative is taken with respect to that
+    # value and the chain rule carries it through scale, constraint and ties. Fixed
+    # is an optimisation state, not a zero sensitivity, so parameters are rebuilt free.
+    rebuilds = []
+    surrogates = []
+    for arg in args:
+        resolved = [
+            (path, node) for path, node in tree_param_paths(arg).values()
+            if not isinstance(node, jax.Array)
+        ]
+        paths = [path for path, _ in resolved]
+        nodes = [node for _, node in resolved]
+        rebuilds.append((paths, nodes))
+        surrogates.append(_set_paths(arg, paths, [_read(node, space) for node in nodes]))
+
+    def _rebuild(surrogate_args):
+        rebuilt = []
+        for surrogate, (paths, nodes) in zip(surrogate_args, rebuilds):
+            values = [Pathgetter(path)(surrogate) for path in paths]
+            rebuilt.append(_set_paths(
+                surrogate, paths, [_with_fixed(_write(node, value, space), False) for node, value in zip(nodes, values)]
+            ))
+        return unwrap(tuple(rebuilt))
+
+    dynamic, static = eqx.partition(tuple(surrogates), is_inexact_jax_array)
 
     def _wrapper(dyn):
-        args_tuple = eqx.combine(dyn, static)
+        args_tuple = _rebuild(eqx.combine(dyn, static))
         return eval_fn(*args_tuple)
 
     out_shape = jax.eval_shape(_wrapper, dynamic)

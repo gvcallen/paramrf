@@ -20,6 +20,19 @@ Core Primitives
    pmrf.Random
 
 
+Working with Parameters
+-----------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   pmrf.params
+   pmrf.param_values
+   pmrf.log_prior
+   pmrf.update
+   pmrf.tie
+
+
 Main Modules
 ------------
 
