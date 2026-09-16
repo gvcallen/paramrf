@@ -17,6 +17,8 @@ Throughout, ``rc`` is this two-component model:
 
    rc = Resistor(50.0, name='r') ** Capacitor(prf.Unconstrained(2.0, scale=1e-12), name='c')
 
+.. _parameter-naming-rules:
+
 How names are formed
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -39,6 +41,10 @@ every other function on this page.
   ``L_val`` gives ``l1_L_val``.
 - **Dictionary keys.** String keys that are valid Python identifiers give dotted
   names (``components.cable.length``); other keys keep the bracket form.
+
+These rules let you choose a flat convention (naming only the parameters), a
+namespace convention (naming only the modules), a fully nested convention, or a
+mix of these.
 
 Names see through freezing and through wrappers such as
 :class:`pmrf.modules.Tied`. The target of a tie is recomputed rather than stored,

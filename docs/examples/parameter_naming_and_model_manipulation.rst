@@ -5,18 +5,7 @@ All models store their parameters internally. Although it is usually easiest to 
 
 Since models are *immutable* and cannot reference each other (to align with JAX's requirements), parameters and sub-models cannot be edited directly (e.g., ``model.R = 50`` will fail), and also cannot point to the same objects in memory.
 
-Instead, ParamRF provides free functions that take a model and return a new one: :func:`pmrf.params` and :func:`pmrf.param_values` to read parameters, :func:`pmrf.update` to change them, and :func:`pmrf.tie` to derive one from another. These functions accept parameter names or structural callables. The rules behind names and values are described in :doc:`/core_concepts/parameter_names`.
-
-Naming Parameters and Models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Parameters and models can be explicitly named upon construction, and ParamRF uses these names to key a model's parameters in a flat dictionary. The naming convention resolves based on your preferences:
-
-1. If no custom names are present, the standard Python attribute path is used (e.g., ``'cascade[0].R'``).
-2. If a model has a name, it replaces the path to its left, so its parameters are named ``'<model name>.<attribute>'``.
-3. If the parameter itself is named, its name replaces the attribute, and is joined to the names of the models it sits in with ``_``.
-
-This approach gives you the flexibility to use a flat naming convention (naming only the parameters), a namespace convention (naming only the models), a fully nested convention, or a combination of these.
+Instead, ParamRF provides free functions that take a model and return a new one: :func:`pmrf.params` and :func:`pmrf.param_values` to read parameters, :func:`pmrf.update` to change them, and :func:`pmrf.tie` to derive one from another. These functions accept parameter names or structural callables. How those names are formed is described in :ref:`parameter-naming-rules`, and the value spaces in :doc:`/core_concepts/parameter_names`.
 
 Defining the Base Model
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,7 +23,7 @@ Let's define an RLC model with explicit names to demonstrate how naming and mani
 
   rlc = res ** ind ** cap
 
-Each of the three conventions appears once:
+The model uses each of the naming rules from :ref:`parameter-naming-rules`: the resistor is a named model, the inductor is a named parameter inside a named model, and the capacitor is a named parameter only:
 
 .. code-block:: python
 
