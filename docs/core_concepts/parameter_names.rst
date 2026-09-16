@@ -4,14 +4,16 @@ Working with Parameter Names
 Every parameter in a model has a name. Names are the key for reading parameters,
 for choosing which ones an optimizer may move, for tying one to another, and for
 saved results. This page covers how names are formed, the spaces a value can be
-read in, and how to change a model by name.
+read in, and the rules behind changing a model by name. For a worked example of
+reading, changing and tying parameters, see
+:doc:`/examples/parameter_naming_and_model_manipulation`.
 
 Throughout, ``rc`` is this two-component model:
 
 .. code-block:: python
 
    import pmrf as prf
-   from pmrf.models import Resistor, Capacitor
+   from pmrf.models import Resistor, Capacitor, Short
 
    rc = Resistor(50.0, name='r') ** Capacitor(prf.Unconstrained(2.0, scale=1e-12), name='c')
 
@@ -29,9 +31,12 @@ every other function on this page.
   through the model, such as ``cascade[0].R`` or ``substrate.dielectric.ep_r``.
 - **Named modules.** A module given ``name=`` collapses the path to its left into
   a namespace, so ``Resistor(50.0, name='r')`` gives ``r.R`` wherever it is held.
-  Nested named modules are joined with ``_``.
-- **Named parameters.** A parameter given ``name=`` collapses its path to the
-  nearest named module, or to the root.
+  A named module at the root adds no namespace.
+- **Named parameters.** A parameter given ``name=`` replaces its attribute path
+  below the nearest named module.
+- **Joining.** Nested named modules, and a named parameter inside a named module,
+  are joined with ``_``: in a cascade, an inductor named ``l1`` whose ``L`` is named
+  ``L_val`` gives ``l1_L_val``.
 - **Dictionary keys.** String keys that are valid Python identifiers give dotted
   names (``components.cable.length``); other keys keep the bracket form.
 
@@ -56,14 +61,16 @@ A parameter's number lives in one of three spaces:
   a bounded parameter it is the value mapped onto the real line by its constraint.
 
 Declared space is the default everywhere, and it is the space construction uses:
-``Param(value=...)``, bounds, priors and :func:`pmrf.params` all agree with it. A
-model's ``repr`` shows declared values too, so what you read back is what you
-wrote:
+``Param(value=...)``, bounds, priors, :func:`pmrf.params` and
+:func:`pmrf.derivative` all agree with it. A model's ``repr`` shows declared
+values too, so what you read back is what you wrote:
 
 .. code-block:: python
 
-   repr(rc)   # Cascade(cascade=[Resistor(name='r', R=50.), Capacitor(name='c', C=2.)]) A scale is the units a value is written in, so an explicit scale on a
-value overrides the field's default rather than multiplying with it:
+   repr(rc)   # Cascade(cascade=[Resistor(name='r', R=50.), Capacitor(name='c', C=2.)])
+
+A scale is the units a value is written in, so an explicit scale on a value
+overrides the field's default rather than multiplying with it:
 
 .. code-block:: python
 
@@ -71,29 +78,32 @@ value overrides the field's default rather than multiplying with it:
 
    prf.param_values(Capacitor(prf.Unconstrained(2.0, scale=1e-9)), space='physical')  # {'C': 2e-9}
 
-:func:`pmrf.log_prior` takes the same ``space`` argument. Its docstring states the
-measure each one gives, since the scale and the constraint each contribute a
-change-of-variables term.
+:func:`pmrf.log_prior` and :func:`pmrf.derivative` take the same ``space``
+argument. The docstring of :func:`pmrf.log_prior` states the measure each space
+gives, since the scale and the constraint each contribute a change-of-variables
+term.
 
-Reading parameters
-~~~~~~~~~~~~~~~~~~
+Selectors
+~~~~~~~~~
 
 .. code-block:: python
 
-   prf.params(rc, 'c.*')                 # {'c.C': Param(variable=Real(...), scale=1e-12)}
-   prf.params(rc, free_only=True).keys() # dict_keys(['c.C']): 'r.R' was passed as a float, so it is fixed
+   prf.params(rc, 'c.*').keys()           # dict_keys(['c.C'])
+   prf.params(rc, free_only=True).keys()  # dict_keys(['c.C']): 'r.R' was passed as a float, so it is fixed
 
 :func:`pmrf.params` returns :class:`pmrf.Param` objects, which carry the declared
 value, the bounds and the prior as their ``value``, ``bounds`` and
 ``distribution`` properties. :func:`pmrf.param_values` returns plain arrays
 instead, which is the form optimizers take and :func:`pmrf.update` accepts.
 
-Both take a **selector** as their second argument: a name, an :mod:`fnmatch` glob
-over names, a sequence of names, or a callable returning nodes of the model. An
-unknown name raises; a glob matching nothing selects nothing.
+Both take a **selector** as their second argument, as :func:`pmrf.update` and
+:func:`pmrf.tie` do: a name, an :mod:`fnmatch` glob over names, a sequence of
+names, or a callable returning nodes of the model. An unknown name raises; a glob
+matching nothing selects nothing.
 
-Both also work on any collection of models and parameters, not only a single
-model, so a joint tree such as ``(model, noise_model)`` can be read in one call.
+These functions, and :func:`pmrf.update`, work on any collection of models and
+parameters, not only a single model, so a joint tree such as
+``(model, noise_model)`` can be read or changed in one call.
 
 Changing a model
 ~~~~~~~~~~~~~~~~
@@ -113,13 +123,14 @@ replaced. The form of the call says what replaces them:
    prf.update(rc, 'c.*', fn=lambda p: ...) # a function of the old part
    prf.update(rc, values, space='raw')     # write-back from an optimizer
 
-The mapping, ``value=`` and ``fixed=`` forms go through each parameter's
-constructor, so a value is checked against the bounds and the prior, constraint,
-scale, name and metadata are kept. The sub-model and ``fn=`` forms are structural:
-they bypass validation and put exactly what they are given in place.
+The forms fall into two tiers:
 
-In a structural form, an exact name may pick a sub-model rather than a parameter,
-as ``'c'`` does above. A glob matches parameter names only.
+- **Value forms.** The mapping, ``value=`` and ``fixed=`` forms go through each
+  parameter's constructor, so a value is checked against the bounds, and the
+  prior, constraint, scale, name and metadata are kept.
+- **Structural forms.** The sub-model and ``fn=`` forms bypass validation and put
+  exactly what they are given in place. An exact name may pick a sub-model rather
+  than a parameter, as ``'c'`` does above; a glob matches parameter names only.
 
 ``fixed=`` is additive, and leaves parameters the selector does not match alone.
 To free only some parameters, fix everything first:
@@ -128,31 +139,29 @@ To free only some parameters, fix everything first:
 
    rc = prf.update(prf.update(rc, '*', fixed=True), 'c.C', fixed=False)
 
-Reading and writing are inverses, which is the round trip a fit relies on:
+Reading and writing are inverses in every space, which is the round trip a fit
+relies on:
 
 .. code-block:: python
 
    prf.update(rc, prf.param_values(rc, space='raw'), space='raw')   # the same model back
 
-To derive one parameter from another instead of replacing it once, use
-:func:`pmrf.tie`. The target is dropped from the model's parameters and
-recomputed from the source every time the model is unwrapped, so it follows the
-source through updates, optimization and sampling:
+Ties
+~~~~
 
 .. code-block:: python
 
    tied = prf.tie(rc, 'r.R', 'c.C', fn=lambda C: C * 5e13)
    prf.params(tied).keys()   # dict_keys(['c.C']): 'r.R' is derived, so it is no longer a parameter
 
+A tie derives one parameter from another instead of replacing it once. The
+target is dropped from the model's parameters and recomputed from the source
+every time the model is unwrapped, so it follows the source through updates,
+optimization and sampling. The tie function receives and returns physical
+values. Derivatives with respect to the source include the path through the tie.
+
 What recompiles
 ~~~~~~~~~~~~~~~
-
-RF methods such as :meth:`pmrf.Model.s` are compiled just-in-time, and the
-compiled code is reused only while the model's structure is unchanged.
-
-Changing a parameter's **value** never recompiles. The mapping, ``value=`` and
-``space=`` forms of :func:`pmrf.update` keep the tree structure and every leaf's
-dtype, shape and weak type, so the compiled ``s`` is reused:
 
 .. code-block:: python
 
@@ -160,6 +169,13 @@ dtype, shape and weak type, so the compiled ``s`` is reused:
 
    faster = prf.update(rc, {'c.C': 3.0})
    jax.tree_util.tree_structure(faster) == jax.tree_util.tree_structure(rc)   # True
+
+RF methods such as :meth:`pmrf.Model.s` are compiled just-in-time, and the
+compiled code is reused only while the model's structure is unchanged.
+
+Changing a parameter's **value** never recompiles. The mapping, ``value=`` and
+``space=`` forms of :func:`pmrf.update` keep the tree structure and every leaf's
+dtype, shape and weak type, so the compiled ``s`` is reused.
 
 **Rebuilding** a parameter does recompile, because it changes the structure. That
 covers ``fixed=``, the structural forms, and constructing a new

@@ -47,6 +47,12 @@ longer recompiles a model's RF methods.
   raises for the minimiser and for joint and split samplers: its raw value is
   infinite and cannot move. Hypercube samplers work in declared space and
   accept it.
+- **Values (#146):** `prf.derivative` differentiates each parameter with
+  respect to its declared value, so the derivative for a pF parameter is per pF;
+  `space='physical'` gives the old per-SI-unit result. Each result keeps its
+  argument's structure, wrappers included, instead of the unwrapped one. A fixed
+  parameter gets its sensitivity rather than zero, and a tie's source includes
+  the path through the tie.
 - **Names (#133):** parameter names no longer include tied targets; a tie's
   target is derived, not stored.
 - **Names (#133):** wrapper path parts (`Tied`, `Probabilistic`, `Wrapped`) are
@@ -103,8 +109,9 @@ longer recompiles a model's RF methods.
 ### Documentation
 
 - New "Working with parameter names" page in core concepts: how names are
-  formed, the three value spaces, reading, changing, and what recompiles. It
-  replaces the "Parameter naming and model manipulation" example page (#146).
+  formed, the three value spaces, selectors, the forms of `prf.update`, ties,
+  and what recompiles. The "Parameter naming and model manipulation" example
+  walks through the same operations on the new API (#146).
 - `Module` and `Substrate` explain that passing the same instance to two
   sibling fields gives independent parameters, and how to share one (#137).
 

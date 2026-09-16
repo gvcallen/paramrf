@@ -10,6 +10,7 @@ This chapter includes some basic examples to demonstrate ParamRF's core features
    circuit_models
    model_optimization
    derivatives_and_sweeps
+   parameter_naming_and_model_manipulation
    custom_models
    multiple_models_one_parameter_set
    shared_substrates
