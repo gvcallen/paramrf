@@ -8,25 +8,18 @@ ParamRF builds on top of JAX and Equinox's functional style. If you are coming f
 
 1. **Fork and Clone:** Fork the repository on GitHub and clone it locally.
 2. **Virtual Environment:** Set up a virtual environment using Python 3.11+.
-3. **Install Dependencies:** Install the package in editable mode along with the test and documentation dependencies:
+3. **Install Dependencies:** Install the package in editable mode with the same test environment CI uses, including the pinned `distreqx` fork, PolyChord and blackjax. PolyChord needs Fortran and MPI compilers (like `mpifort` and `mpicxx`):
 
-    pip install -e .[tests,docs]
-
-4. **External Inference Dependencies (Optional):** If you plan on working on the Bayesian inference module (`pmrf.infer`), you may need to install our custom `distreqx` fork and PolyChord. Note that PolyChord requires C++ and Fortran compilers (like `mpicxx` and `mpifort`) to be installed on your system:
-
-    ```bash
-    pip install git+https://github.com/gvcallen/distreqx.git
-    ```
-
-    ```bash
-    pip install git+https://github.com/PolyChord/PolyChordLite.git
-    ```
+    scripts/install-test-deps.sh
+    pip install -e .[docs]
 
 ## Building docs/running tests
 
 We use `pytest` for all unit testing. Simply run:
 
-    pytest
+    pytest -rs
+
+Tests for optional backends skip when a backend is missing. CI sets `PMRF_TESTS_NO_SKIPS=1`, which turns any skip into a failure, so run with it locally too before opening a PR.
 
 When writing new tests, especially for fitting and inference routines, try to use synthetic, in-memory S-parameter data (identity fits) rather than committing `.s2p` files to the repository. This keeps the test suite fast and the repository size small.
 
