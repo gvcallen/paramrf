@@ -108,7 +108,7 @@ def test_abstract_builder_validates_build_result():
 
 def test_abstract_builder_tracks_functional_parameter_updates(fine_freq):
     builder = BuiltLine(theta=10.0)
-    updated = builder.at("theta").set(prf.as_param(35.0))
+    updated = prf.update(builder, "theta", prf.as_param(35.0))
 
     assert not jnp.allclose(builder.s(fine_freq), updated.s(fine_freq))
 

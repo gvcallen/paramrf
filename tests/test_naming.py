@@ -43,42 +43,34 @@ def test_name_collision_raises_error():
         prf.params(combined_model)
 
 
-def test_at_string_target():
-    """Test that .at() accepts a string parameter name."""
+def test_update_string_target():
+    """Test that structural update accepts a string parameter name."""
     r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
-    val = r.at("custom_R").get()
-    assert prf.unwrap(val) == 50.0
+    assert prf.param_values(r)["custom_R"] == 50.0
     
-    new_r = r.at("custom_R").set(prf.Unconstrained(100.0, name="custom_R"))
-    assert prf.unwrap(new_r.at("custom_R").get()) == 100.0
+    new_r = prf.update(r, "custom_R", prf.Unconstrained(100.0, name="custom_R"))
+    assert prf.param_values(new_r)["custom_R"] == 100.0
 
 def test_at_multiple_string_targets():
-    """Test that .at() accepts an iterable of string parameter names."""
+    """Test that structural update accepts an iterable of string parameter names."""
     rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
-    # Get multiple using a tuple
-    vals = rc.at(("custom_R", "custom_C")).get()
-    unwrapped_vals = tuple(prf.unwrap(v) for v in vals)
-    assert unwrapped_vals == (50.0, 10.0)
+    vals = prf.param_values(rc, ("custom_R", "custom_C"))
+    assert (vals["custom_R"], vals["custom_C"]) == (50.0, 10.0)
     
-    # Set multiple using a list
-    new_rc = rc.at(["custom_R", "custom_C"]).set((
-        prf.Unconstrained(100.0, name="custom_R"), 
-        prf.Unconstrained(20.0, name="custom_C")
-    ))
-    assert prf.unwrap(new_rc.at("custom_R").get()) == 100.0
-    assert prf.unwrap(new_rc.at("custom_C").get()) == 20.0
+    new_rc = prf.update(rc, ["custom_R", "custom_C"], fn=lambda p: prf.Unconstrained(p.value * 2, name=p.name))
+    assert prf.param_values(new_rc) == {"custom_R": 100.0, "custom_C": 20.0}
 
 def test_tied_string_targets():
-    """Test that .tied() accepts string parameter names for source and target."""
+    """Test that prf.tie accepts string parameter names for source and target."""
     from pmrf.models import Wrapped
     from pmrf.modules import Tied
     
     rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
     # Tie custom_R to custom_C using strings
-    tied_rc = rc.tied(target="custom_R", source="custom_C", tie_fn=lambda c: c * 5.0)
+    tied_rc = prf.tie(rc, target="custom_R", source="custom_C", fn=lambda c: c * 5.0)
     
     # If the resolution failed, it would throw an error before instantiation
     assert isinstance(tied_rc, Wrapped)
@@ -89,18 +81,18 @@ def test_target_resolution_errors():
     r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
     # Test non-existent string name
-    with pytest.raises(ValueError, match="not resolve parameter name"):
-        r.at("nonexistent_param")
+    with pytest.raises(ValueError, match="Unknown parameter or sub-model name"):
+        prf.update(r, "nonexistent_param", fn=lambda p: p)
         
-    with pytest.raises(ValueError, match="not resolve parameter name"):
-        r.at(123)
+    with pytest.raises(TypeError, match="forms"):
+        prf.update(r, 123, fn=lambda p: p)
         
     # Test that tied checks both target and source
     with pytest.raises(ValueError, match="not found in the provided lookup"):
-        r.tied(target="custom_R", source="nonexistent_param")
+        prf.tie(r, target="custom_R", source="nonexistent_param")
 
 def test_at_nested_namespace():
-    """Test that .at() resolves string targets using nested model namespaces."""
+    """Test that structural update resolves names using nested model namespaces."""
     r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
     cas1 = Cascade([r], name="myCas")
     
@@ -111,16 +103,15 @@ def test_at_nested_namespace():
     expected_namespace_name = "myCas_myR_res_val"
     
     # Verify the value can be retrieved using the fully namespaced string
-    val = cas2.at(expected_namespace_name).get()
-    assert prf.unwrap(val) == 50.0
+    assert prf.param_values(cas2)[expected_namespace_name] == 50.0
     
     # Verify the value can be updated using the fully namespaced string
-    new_cas2 = cas2.at(expected_namespace_name).set(prf.Unconstrained(100.0, name="res_val"))
-    assert prf.unwrap(new_cas2.at(expected_namespace_name).get()) == 100.0
+    new_cas2 = prf.update(cas2, expected_namespace_name, prf.Unconstrained(100.0, name="res_val"))
+    assert prf.param_values(new_cas2)[expected_namespace_name] == 100.0
 
 
 def test_tied_nested_namespace():
-    """Test that .tied() resolves string targets using nested model namespaces."""
+    """Test that prf.tie resolves string targets using nested model namespaces."""
     from pmrf.models import Wrapped
     from pmrf.modules import Tied
     
@@ -135,10 +126,11 @@ def test_tied_nested_namespace():
     source_name = "myCas_myC_cap_val"
     
     # Tie the nested resistor's value to the nested capacitor's value
-    tied_cas = cas2.tied(
+    tied_cas = prf.tie(
+        cas2,
         target=target_name,
         source=source_name,
-        tie_fn=lambda val: val * 5.0
+        fn=lambda val: val * 5.0
     )
     
     assert isinstance(tied_cas, Wrapped)
@@ -180,13 +172,13 @@ def _assert_names_resolve(tree, expected=None):
     for name in names:
         node = full[name]
         physical = node.physical_value if prf.is_param(node) else node
-        assert np.allclose(prf.unwrap(tree.at(name).get()), physical)
+        assert np.allclose(prf.unwrap(prf.params(tree)[name]), physical)
 
 
 def test_names_resolve_on_frozen_tree():
     """B1: freezing every parameter must not hide their names."""
     system = _system()
-    frozen = system.map(prf.freeze, is_target=prf.is_param)
+    frozen = prf.update(system, "*", fn=prf.freeze)
 
     assert set(prf.params(frozen)) == set(prf.params(system))
     _assert_names_resolve(frozen, prf.params(system))
@@ -195,7 +187,7 @@ def test_names_resolve_on_frozen_tree():
 
 def test_names_resolve_on_frozen_submodule():
     system = _system()
-    frozen = system.at(lambda m: m.components["load"]).apply(prf.freeze)
+    frozen = prf.update(system, "load", fn=prf.freeze)
 
     assert set(prf.params(frozen)) == set(prf.params(system))
     _assert_names_resolve(frozen)
@@ -216,10 +208,8 @@ def test_frozen_subtree_arrays_are_not_named():
 
 def test_unfreeze_submodule_unfreezes_nested_params():
     system = _system()
-    frozen = system.map(prf.freeze, is_target=prf.is_param)
-    thawed = frozen.at(
-        lambda m: (m.components["load"], m.components["cable"])
-    ).apply(lambda ms: tuple(prf.unfreeze(x) for x in ms))
+    frozen = prf.update(system, "*", fn=prf.freeze)
+    thawed = prf.update(frozen, ["load", "cable"], fn=prf.unfreeze)
 
     assert set(prf.params(thawed, free_only=True)) == set(prf.params(system, free_only=True))
 
@@ -276,18 +266,18 @@ def test_names_resolve_through_wrappers():
     names = prf.params(system)
 
     _assert_names_resolve(system, names)
-    tied = system.tied("load.R", "cable.zn")
+    tied = prf.tie(system, "load.R", "cable.zn")
     assert set(prf.params(tied)) == set(names) - {"load.R"}
     _assert_names_resolve(tied)
 
-    frozen_tied = tied.map(prf.freeze, is_target=prf.is_param)
+    frozen_tied = prf.update(tied, "*", fn=prf.freeze)
     _assert_names_resolve(frozen_tied, prf.params(tied))
 
     rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
-    wrapped = rc.tied("r.R", "c.C", lambda c: c * 5e13)
+    wrapped = prf.tie(rc, "r.R", "c.C", lambda c: c * 5e13)
     assert set(prf.params(wrapped)) == {"c.C"}
     _assert_names_resolve(wrapped)
-    assert np.allclose(wrapped.at("c.C").set(prf.Unconstrained(2e-12)).build().cascade[0].R, 100.0)
+    assert np.allclose(prf.update(wrapped, "c.C", prf.Unconstrained(2e-12)).build().cascade[0].R, 100.0)
 
 
 def _two_resistor_circuit():
@@ -302,8 +292,8 @@ def test_names_resolve_after_evaluating_circuit():
     """Evaluating a Circuit builds its cached topology without mutating the pytree."""
     freq = prf.Frequency(1, 10, 5, "GHz")
     circuit = _two_resistor_circuit()
-    frozen = circuit.map(prf.freeze, is_target=prf.is_param)
-    tied = circuit.tied("r2.R", "r1.R")
+    frozen = prf.update(circuit, "*", fn=prf.freeze)
+    tied = prf.tie(circuit, "r2.R", "r1.R")
 
     for tree in (circuit, frozen, tied):
         before = set(vars(tree))
@@ -322,8 +312,8 @@ def test_names_resolve_after_evaluating_tied_and_frozen_touchstone(tmp_path):
 
     line = DatasheetLine(zn=50.0, vf=0.7, k1=2.4, k2=3.5e-3, length=0.1, name="cable")
     model = line.terminated(Touchstone(str(path) + ".s1p"))
-    tied = model.tied("cable.k1", "cable.zn", lambda z: z * 0.048)
-    frozen = model.map(prf.freeze, is_target=prf.is_param)
+    tied = prf.tie(model, "cable.k1", "cable.zn", lambda z: z * 0.048)
+    frozen = prf.update(model, "*", fn=prf.freeze)
 
     for tree in (tied, frozen):
         tree.s(freq)

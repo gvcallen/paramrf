@@ -62,7 +62,7 @@ class Model(Module):
     -----
     - Define new models by sub-classing the model and adding custom parameters and/or sub-models
     - Construct models by passing parameters and/or submodels to the initializer (like a dataclass).
-    - Use :attr:`pmrf.Model.at` and methods such as :meth:`.terminated` and :meth:`.flipped` to create modified versions of your model.
+    - Use :func:`pmrf.update` and methods such as :meth:`.terminated` and :meth:`.flipped` to create modified versions of your model.
     
     Methods & Properties Summary
     ----------------------------
@@ -98,11 +98,9 @@ class Model(Module):
     ================================= ====================================================================
     Method                            Description
     ================================= ====================================================================
-    :meth:`at`                        Modify, filter or inspect a value at some path in the model.
     :meth:`flipped`                   Return a version of the model with ports flipped.
     :meth:`renumbered`                Return a version of the model with ports renumbered.
     :meth:`terminated`                Return a new model terminated by another (e.g. load).
-    :meth:`tied`                      Tie certain parameters/sub-models together.
     ================================= ====================================================================
 
     **File & Conversion Utilities**
@@ -675,65 +673,6 @@ class Model(Module):
 
         other = other or Short()
         return Terminated(self, other, **kwargs)
-    
-    def tied(
-        self, 
-        target: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]], 
-        source: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]], 
-        tie_fn: Callable[[Any], Any] = lambda x: x, 
-        **kwargs
-    ) -> 'Model':
-        """Tie parameters or sub-models within this model together.
-        
-        See :class:`pmrf.modules.Tied` and :class:`pmrf.models.Wrapped`.
-        
-        Note that if a model is tied that has already been tied,
-        the target and source location/name refers to the original, untied model. 
-
-        Examples
-        --------
-        >>> import pmrf as prf
-        >>> from pmrf.models import Resistor, Capacitor
-        >>> 
-        >>> rc = Resistor(R=50.0, name="res") ** Capacitor(C=1.0e-12, name="cap")
-        >>> 
-        >>> # Tie the resistor's R to always be 50e12 times the capacitor's C
-        >>> tied_rc = rc.tied(
-        ...     target="res.R",
-        ...     source="cap.C",
-        ...     tie_fn=lambda c: c * 50e12
-        ... )
-        >>> 
-        >>> # The optimizer will now only see the Capacitor's C parameter.
-        >>> # When evaluated, R will automatically track C.
-
-        Parameters
-        ----------
-        target : callable | str | tuple[str, ...] | list[str]
-            A callable extracting the parameter to be overwritten 
-            (e.g., `lambda m: m.resistor.R`), or the parameter's name.
-        source : callable | str | tuple[str, ...] | list[str]
-            A callable extracting the parameter to draw the value from 
-            (e.g., `lambda m: m.capacitor.C`), or the parameter's name.
-        tie_fn : callable, optional
-            An optional transformation function applied to the source 
-            before injecting it into the target. Defaults to the identity 
-            function (`lambda x: x`).
-
-        Returns
-        -------
-        Model
-        """
-        from pmrf.models import Wrapped
-
-        module = self.wrapped if isinstance(self, Wrapped) else self
-        tied = Module.tied(
-            module,
-            target=target,
-            source=source,
-            tie_fn=tie_fn,
-        )
-        return Wrapped(wrapped=tied, **kwargs)
     
     # ---- File and conversion utilities  --------------------------------------------------            
     

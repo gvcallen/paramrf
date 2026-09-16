@@ -115,7 +115,7 @@ def test_replace_value_keeps_everything_else():
 
 def test_replace_value_on_tree():
     load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
-    updated = load.at("R").apply(lambda p: prf.replace(p, value=51.0))
+    updated = prf.update(load, "R", fn=lambda p: prf.replace(p, value=51.0))
     assert np.allclose(prf.param_values(updated)["R"], 51.0)
 
 

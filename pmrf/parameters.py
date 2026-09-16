@@ -23,8 +23,7 @@ from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution, Transformed
 from pmrf.utils import error_if, field
-from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import path_nodes, path_to_name
+from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
 
 T = TypeVar('T')
@@ -153,24 +152,6 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         self.name = name
         self.metadata = metadata
 
-    def at(
-        self: Self, 
-        where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
-    ) -> Lens[Self, T]:
-        """(experimental) A functional interface for parameter manipulation.
-        
-        This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
-
-        Similar to :meth:`pmrf.Model.at` but only accepts callables.
-        See the documentation for that method for more details.
-
-        Returns
-        -------
-        Lens
-            A lens object focused on the root of the current instance.
-        """
-        return focus(self).at(where)
-    
     @property
     def fixed(self) -> bool:
         """
@@ -986,7 +967,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     Resolves every parameter name in a tree to its JAX path and node.
 
     This is the single name resolver behind :func:`params`, :func:`update` and
-    :meth:`pmrf.Module.tied`, so a name produced by one is accepted by the others.
+    :func:`tie`, so a name produced by one is accepted by the others.
     Nested named modules are joined with ``_``.
 
     Names see through freezing (a frozen parameter keeps its name, but is not free)
@@ -1266,7 +1247,6 @@ def _set_paths(tree, paths: list, nodes: list):
     """Replaces the nodes at several JAX key paths at once."""
     if not paths:
         return tree
-    from pmrf.utils.tree import Pathgetter
     getter = Pathgetter(*paths)
     return eqx.tree_at(getter, tree, nodes[0] if len(paths) == 1 else tuple(nodes))
 
@@ -1301,10 +1281,77 @@ def _with_fixed(node, fixed: bool):
     return dataclasses.replace(node, variable=variable)
 
 
+def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
+    """Names every sub-model below the root of `tree`, mapped to the paths with that name.
+
+    Names follow :func:`tree_param_paths`, so a sub-model is named like the prefix of its
+    parameters' names (``cascade[1]``, ``load``). A wrapper and the module it wraps share
+    a name; the outermost is kept. Two unrelated sub-models with one name both appear,
+    and selecting that name raises.
+    """
+    from pmrf.modules.base import Module
+
+    found: dict[str, list[tuple[Any, ...]]] = {}
+
+    def walk(node, prefix):
+        is_leaf = lambda x: x is not node and (isinstance(x, Module) or _is_name_leaf(x))
+        for path, leaf in jax.tree_util.tree_flatten_with_path(node, is_leaf=is_leaf)[0]:
+            if not isinstance(leaf, Module):
+                continue
+            full = prefix + tuple(path)
+            name = path_to_name(tree, full, namespace_separator='_', is_transparent=_is_name_transparent)
+            if name:
+                paths = found.setdefault(name, [])
+                if not any(full[:len(p)] == p for p in paths):
+                    paths.append(full)
+            walk(leaf, full)
+
+    walk(tree, ())
+    return found
+
+
+def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
+    """Resolves the paths of the parts a string or sequence selector picks, for the
+    structural forms of :func:`update`.
+
+    An exact name selects a parameter, or failing that a sub-model. Anything else is
+    an `fnmatch` glob over parameter names.
+    """
+    if not _is_selector(where) or callable(where):
+        raise TypeError("A selector must be a name, a glob, a sequence of names, or a callable.")
+    resolved = tree_param_paths(tree)
+    submodels = None
+    paths = []
+    for pattern in ([where] if isinstance(where, str) else list(where)):
+        if pattern in resolved:
+            paths.append(resolved[pattern][0])
+            continue
+        if submodels is None:
+            submodels = _tree_submodel_paths(tree)
+        if pattern in submodels:
+            if len(submodels[pattern]) > 1:
+                raise ValueError(f"Sub-model name '{pattern}' is ambiguous: several sub-models have it.")
+            paths.append(submodels[pattern][0])
+            continue
+        hits = [name for name in resolved if fnmatch.fnmatchcase(name, pattern)]
+        if not hits and not any(c in pattern for c in '*?['):
+            raise ValueError(f"Unknown parameter or sub-model name: '{pattern}'")
+        paths.extend(resolved[name][0] for name in hits)
+
+    unique = list(dict.fromkeys(paths))
+    for a in unique:
+        for b in unique:
+            if a != b and b[:len(a)] == a:
+                raise ValueError("The selected parts overlap: one contains another.")
+    return unique
+
+
 _UPDATE_FORMS = """prf.update takes one of these forms:
     update(model, {'name': value, ...}, space=...)   values by name
     update(model, where, value=..., space=...)       one value for the selected parameters
     update(model, where, fixed=True or False)        fixed state of the selected parameters
+    update(model, where, node)                       replace the selected parts with `node`
+    update(model, where, fn=...)                     replace each selected part with fn(old)
     update(param, value=..., space=...)              the parameter itself
     update(param, fixed=True or False)
 where `where` is a name, a glob, a sequence of names, or a callable."""
@@ -1315,30 +1362,38 @@ _MISSING = object()
 def update(
     tree,
     selection: Any = _MISSING,
+    node: Any = _MISSING,
     /,
     *,
     value: Any = _MISSING,
     fixed: bool | None = None,
     space: Space | None = None,
+    fn: Callable[[Any], Any] | None = None,
 ):
     """
-    Returns a copy of a model with parameter values or fixed state changed by name.
+    Returns a copy of a model with the parts a selector picks replaced.
 
-    Exactly one form says what changes:
+    Exactly one form says what replaces them:
 
     .. code-block:: python
 
         prf.update(model, {'L1.L': 3.0, 'C1.C': 2.0})   # values by name
         prf.update(model, 'L1.*', value=3.0)            # one value for a selection
         prf.update(model, 'cable.*', fixed=True)        # fixed state
+        prf.update(model, 'cascade[1]', Short())        # a new sub-model or node
+        prf.update(model, 'load.*', fn=lambda p: ...)   # a function of the old part
         prf.update(model, v, space='raw')               # write-back from an optimiser or sampler
         prf.update(param, value=3.0)                    # the parameter itself
 
-    Every form goes through each parameter's constructor: values are checked
-    against the bounds, and the prior, constraint, scale, name and metadata are
-    kept. Value forms keep the model's structure, and every leaf's dtype, shape and
-    `weak_type`, so RF methods such as :meth:`pmrf.Model.s` do not recompile.
+    The mapping, `value` and `fixed` forms go through each parameter's constructor:
+    values are checked against the bounds, and the prior, constraint, scale, name and
+    metadata are kept. Value forms keep the model's structure, and every leaf's dtype,
+    shape and `weak_type`, so RF methods such as :meth:`pmrf.Model.s` do not recompile.
     Changing `fixed` changes the structure, and recompiling is expected.
+
+    The `node` and `fn` forms are structural: they bypass converters and validation,
+    and put exactly what they are given in place of each selected part, so the caller
+    keeps field invariants. They usually change the structure, and recompile.
 
     ``fixed=`` is additive: parameters the selector does not match are untouched,
     and ``fixed=False`` frees a parameter even if it was created fixed. It does not
@@ -1347,7 +1402,8 @@ def update(
     ``update(update(m, '*', fixed=True), names, fixed=False)``.
 
     `update` is not an optimiser step. For replacing a field of one object without
-    validation, use :func:`pmrf.replace`.
+    validation, use :func:`pmrf.replace`. To derive one parameter from another, use
+    :func:`tie`.
 
     Parameters
     ----------
@@ -1358,13 +1414,20 @@ def update(
         glob over names, a sequence of them, or a callable returning nodes of
         `tree`. A mapping is recognised only when every key is a string. Its values
         may be arrays, or parameters, whose value in `space` is used. Omit it to
-        update `tree` itself, which must then be a parameter.
+        update `tree` itself, which must then be a parameter. In the structural
+        forms, an exact name may also name a sub-model (``'cascade[1]'``, or a named
+        module's name), a glob matches parameter names only, and a callable selects
+        the nodes it returns rather than the parameters below them.
+    node : Any, optional
+        The part to put in place of each selected part.
     value : ArrayLike, optional
         The value to give every selected parameter.
     fixed : bool, optional
         The fixed state to give every selected parameter.
     space : {'declared', 'physical', 'raw'}, optional
-        The space of the values, by default ``'declared'``. Not used with `fixed`.
+        The space of the values, by default ``'declared'``. Only used with values.
+    fn : Callable, optional
+        Called on each selected part; its result replaces the part.
 
     Returns
     -------
@@ -1374,20 +1437,38 @@ def update(
     Raises
     ------
     ValueError
-        If a name is unknown, or a value is outside its parameter's constraint.
-        Under `jax.jit` the bounds check raises at runtime.
+        If a name is unknown, a value is outside its parameter's constraint, or
+        structurally selected parts overlap. Under `jax.jit` the bounds check raises
+        at runtime.
     TypeError
         If the arguments match none of the forms.
     """
     has_value = value is not _MISSING
     has_fixed = fixed is not None
-    if has_fixed and space is not None:
-        raise TypeError(f"`space` does not apply to `fixed`.\n\n{_UPDATE_FORMS}")
-    space = 'declared' if space is None else space
-    _check_space(space)
+    has_node = node is not _MISSING
+    has_fn = fn is not None
 
     def form_error():
         return TypeError(f"prf.update got arguments matching none of its forms.\n\n{_UPDATE_FORMS}")
+
+    if has_value + has_fixed + has_node + has_fn > 1:
+        raise form_error()
+    if space is not None and not has_value and not isinstance(selection, Mapping):
+        raise TypeError(f"`space` applies only to values.\n\n{_UPDATE_FORMS}")
+    space = 'declared' if space is None else space
+    _check_space(space)
+
+    if has_node or has_fn:
+        if selection is _MISSING or isinstance(selection, Mapping) or not _is_selector(selection):
+            raise form_error()
+        replace_fn = fn if has_fn else (lambda _: node)
+        if callable(selection):
+            return eqx.tree_at(selection, tree, replace_fn=replace_fn)
+        paths = _select_parts(tree, selection)
+        if not paths:
+            return tree
+        parts = [Pathgetter(path)(tree) for path in paths]
+        return _set_paths(tree, paths, [replace_fn(part) for part in parts])
 
     if selection is _MISSING:
         if not is_param(tree) or has_value == has_fixed:
@@ -1416,6 +1497,70 @@ def update(
     return _set_paths(tree, paths, nodes)
 
 
+def _identity(x):
+    return x
+
+
+def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _identity):
+    """
+    Returns a copy of a model in which one part is derived from another.
+
+    The target is removed from the model's parameters and recomputed as
+    ``fn(source)`` every time the model is unwrapped, so it follows the source through
+    :func:`update`, optimisation and sampling. A tie is not a replacement: use
+    :func:`update` to replace a part once.
+
+    ``fn`` receives the source as the model is unwrapped, so a parameter arrives as
+    its physical value. Tying a model that is already tied adds a tie; names refer
+    to the untied model.
+
+    Parameters
+    ----------
+    tree : PyTree
+        A model, or any collection of models and parameters.
+    target : str, Sequence[str] or Callable
+        The part to derive: a parameter name, a sequence of names, or a callable
+        returning nodes of `tree`.
+    source : str, Sequence[str] or Callable
+        The part it is derived from, selected the same way.
+    fn : Callable, optional
+        Maps the source to the target. Defaults to the identity.
+
+    Returns
+    -------
+    PyTree
+        A :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
+        methods stay available; otherwise a :class:`pmrf.modules.Tied`.
+
+    Raises
+    ------
+    ValueError
+        If a name is not found.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        rc = Resistor(50.0, name='r') ** Capacitor(1e-12, name='c')
+        tied = prf.tie(rc, 'r.R', 'c.C', fn=lambda C: C * 5e13)
+        prf.params(tied)                                     # {'c.C': Param(...)}
+        prf.update(tied, {'c.C': 2e-12}).build().cascade[0].R   # 100.0
+    """
+    from pmrf.models import Model, Wrapped
+    from pmrf.modules import Tied
+
+    base = tree.wrapped if isinstance(tree, Wrapped) else tree
+    untied = base.module if isinstance(base, Tied) else base
+    name_to_path = tree_param_names_to_path(untied)
+    tied = Tied(
+        base,
+        target=resolve_target(target, name_to_path),
+        source=resolve_target(source, name_to_path),
+        tie_fn=fn,
+    )
+    return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
+
+
 __all__ = [
     "Param",
     "is_param",
@@ -1430,4 +1575,5 @@ __all__ = [
     "param_values",
     "log_prior",
     "update",
+    "tie",
 ]

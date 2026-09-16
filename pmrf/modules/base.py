@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Self, Sequence, TypeGuard, TypeVar, Union
+from typing import Any, TypeGuard
 
 import equinox as eqx
 import jax
@@ -12,20 +12,50 @@ import numpy as np
 import parax as prx
 from jaxtyping import PyTree
 
-from pmrf.parameters import Param, tree_param_names_to_path
+from pmrf.parameters import is_param
 from pmrf.utils import field, unwrap
-from pmrf.utils.optix import Lens, focus
-from pmrf.utils.tree import resolve_target
 
-T = TypeVar("T")
+class _PhysicalArray(np.ndarray):
+    """A parameter's physical value that remembers its declared value, for ``repr``.
+
+    Arithmetic returns a plain array, so a value a tie derives is shown as computed.
+    """
+
+    def __array_wrap__(self, obj, context=None, return_scalar=False):
+        return np.asarray(obj).view(np.ndarray)
+
+
+class _ReprParam(prx.AbstractUnwrappable):
+    """Stands in for a parameter while formatting: unwraps to its physical value, as
+    ties expect, tagged with the declared value to show."""
+
+    physical: np.ndarray
+    declared: np.ndarray
+
+    def unwrap(self):
+        value = self.physical.view(_PhysicalArray)
+        value.declared = self.declared
+        return value
 
 
 class Module(eqx.Module):
     """Base class for parameter-aware objects in ParamRF.
 
     A module is an immutable JAX PyTree that may contain ParamRF parameters,
-    RF models, and other modules. Unlike :class:`pmrf.Model`, it does not imply
-    an RF response or a number of ports.
+    RF models, and other modules. Subclassing it says the object takes part in
+    three things:
+
+    - **Naming.** A module's :attr:`name` collapses the path to its left into a
+      namespace, which parameter names (:func:`pmrf.params`) depend on.
+    - **Field validation.** :func:`pmrf.modules.validate` rejects raw float JAX
+      arrays in its fields, which are ambiguous between free and fixed parameters.
+    - **A shared base class** for :class:`pmrf.Model`, losses, likelihoods,
+      kernels, materials and evaluators, with :attr:`metadata` and a readable
+      ``repr`` that shows parameters in declared space.
+
+    It has no public methods: operations that make equal sense on any collection of
+    models and parameters are free functions, such as :func:`pmrf.update` and
+    :func:`pmrf.tie` (ADR-0002).
 
     Passing the *same* instance to two sibling fields does not share it. A module
     is a JAX PyTree, and each path holds its own copy of the leaves, so
@@ -34,7 +64,7 @@ class Module(eqx.Module):
     because JAX transformations rebuild objects. To share a parameter, inject it
     once into a builder (see :class:`pmrf.models.AbstractBuilder` and
     :class:`pmrf.materials.Substrate`), or tie the copies together with
-    :meth:`tied`.
+    :func:`pmrf.tie`.
     """
 
     name: str | None = field(default=None, kw_only=True, static=True)
@@ -45,13 +75,17 @@ class Module(eqx.Module):
 
     def __repr__(self) -> str:
         try:
-            tree_to_format = unwrap(self)
+            tree_to_format = unwrap(jax.tree.map(
+                lambda p: _ReprParam(np.asarray(p.physical_value), np.asarray(p.value)) if is_param(p) else p,
+                self,
+                is_leaf=is_param,
+            ))
         except Exception:
             return eqx.tree_pformat(self, short_arrays=False)
 
         class _RawFormatter:
             def __init__(self, val):
-                self.val = np.asarray(val)
+                self.val = np.asarray(getattr(val, "declared", val))
 
             def __repr__(self):
                 return np.array2string(self.val, separator=", ", precision=4)
@@ -66,108 +100,6 @@ class Module(eqx.Module):
 
     def __str__(self) -> str:
         return repr(self)
-
-    def at(
-        self: Self,
-        target: Union[Callable[[Self], T], str, tuple[str, ...], list[str]],
-    ) -> Lens[Self, T]:
-        """A functional interface for module manipulation.
-
-        This wraps :func:`equinox.tree_at` using an optic. Pass a callable, a
-        string parameter name, or a tuple of names selecting the values to inspect
-        or replace, then call methods such as ``.get()``, ``.set()``, or ``.apply()``.
-
-        Updates are surgical: replacement values bypass dataclass converters and
-        validation. Callers must therefore preserve field invariants and pass fully
-        constructed parameters where required.
-
-        Examples
-        --------
-        >>> import pmrf as prf
-        >>> from pmrf.models import Resistor
-        >>> module = Resistor(R=50.0, name="res")
-        >>> module.at("res.R").get()
-        50.0
-        >>> updated = module.at("res.R").set(prf.Unconstrained(100.0))
-
-        Returns
-        -------
-        Lens
-            An optic focused on the root of this module.
-        """
-        try:
-            name_to_path = tree_param_names_to_path(self)
-            resolved_where = resolve_target(target, name_to_path)
-        except Exception as e:
-            raise ValueError(f"Could not resolve parameter name: {e}")
-        return focus(self).at(resolved_where)
-
-    def map(
-        self: Self, fn: Callable[[Any], Any], is_target: Callable | None = None
-    ) -> Self:
-        """A functional interface for mapping over a module.
-
-        This wraps :func:`jax.tree.map`. To map parameters, pass
-        ``is_target=pmrf.is_param``.
-
-        Examples
-        --------
-        >>> import pmrf as prf
-        >>> from pmrf.models import Resistor, Capacitor
-        >>> module = Resistor(R=50.0) ** Capacitor(C=1e-12)
-        >>> scaled = module.map(lambda p: p * 2.0, is_target=prf.is_param)
-
-        Returns
-        -------
-        Module
-            The mapped module.
-        """
-        if is_target is None:
-            raise TypeError("`is_target` must be provided when mapping a module")
-
-        def _wrapped_fn(node):
-            return fn(node) if is_target(node) else node
-
-        return jax.tree.map(_wrapped_fn, self, is_leaf=is_target)
-
-    def tied(
-        self,
-        target: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]],
-        source: Union[Callable[[Any], Any], str, tuple[str, ...], list[str]],
-        tie_fn: Callable[[Any], Any] = lambda x: x,
-    ) -> Module:
-        """Tie parameters or sub-modules within this module together.
-
-        The target is hidden from optimizers and reconstructed from the source when
-        the module is unwrapped. Targets and sources may be structural callables or
-        resolved parameter names.
-
-        Parameters
-        ----------
-        target
-            Callable or parameter name selecting the value to replace.
-        source
-            Callable or parameter name selecting the value it is derived from.
-        tie_fn
-            Transformation applied to the source value. Defaults to identity.
-
-        Returns
-        -------
-        Module
-            A wrapped module with the relationship applied during unwrapping.
-        """
-        from pmrf.modules import Tied
-
-        module = self.module if isinstance(self, Tied) else self
-        name_to_path = tree_param_names_to_path(module)
-        resolved_target = resolve_target(target, name_to_path)
-        resolved_source = resolve_target(source, name_to_path)
-        return Tied(
-            self,
-            target=resolved_target,
-            source=resolved_source,
-            tie_fn=tie_fn,
-        )
 
 
 def is_module(x: Any) -> TypeGuard[Module]:

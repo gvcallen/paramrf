@@ -37,7 +37,7 @@ class Substrate(Module):
     ``Substrate`` instance to two sibling fields of a :class:`~pmrf.Module` gives
     two independent copies, each with its own ``ep_r``, because a module is a
     JAX PyTree and does not track object identity. Use builder injection as
-    above, or :meth:`~pmrf.Module.tied`, to make them one parameter.
+    above, or :func:`pmrf.tie`, to make them one parameter.
 
     Parameters
     ----------

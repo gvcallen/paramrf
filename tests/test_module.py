@@ -19,7 +19,7 @@ def test_module_parameter_helpers():
 
     assert set(prf.param_values(module)) == {"gain"}
     assert jnp.allclose(prf.param_values(module)["gain"], 2.0)
-    updated = module.at("gain").set(prf.Unconstrained(3.0, name="gain"))
+    updated = prf.update(module, "gain", prf.Unconstrained(3.0, name="gain"))
     assert jnp.allclose(updated.gain, 3.0)
 
 
@@ -28,10 +28,11 @@ def test_module_parameters_can_be_tied():
         first: prf.Param = prf.param(default=1.0, as_free=True)
         second: prf.Param = prf.param(default=2.0, as_free=True)
 
-    tied = Pair().tied(
+    tied = prf.tie(
+        Pair(),
         target=lambda item: item.second,
         source=lambda item: item.first,
-        tie_fn=lambda value: 3 * value,
+        fn=lambda value: 3 * value,
     )
 
     resolved = prf.unwrap(tied)
@@ -44,10 +45,11 @@ def test_tied_model_preserves_rf_interface():
     model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
         C=prf.Unconstrained(1e-12)
     )
-    tied = model.tied(
+    tied = prf.tie(
+        model,
         target=lambda item: item.cascade[0].R,
         source=lambda item: item.cascade[1].C,
-        tie_fn=lambda value: value * 50e12,
+        fn=lambda value: value * 50e12,
     )
 
     assert isinstance(tied, Wrapped)
@@ -62,11 +64,13 @@ def test_tied_model_stacking_keeps_one_rf_wrapper():
     model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
         C=prf.Unconstrained(1e-12)
     )
-    once = model.tied(
+    once = prf.tie(
+        model,
         target=lambda item: item.cascade[0].R,
         source=lambda item: item.cascade[1].C,
     )
-    twice = once.tied(
+    twice = prf.tie(
+        once,
         target=lambda item: item.cascade[0].R,
         source=lambda item: item.cascade[1].C,
     )
