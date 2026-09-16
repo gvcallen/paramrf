@@ -532,6 +532,48 @@ def log_prob(tree: PyTree):
     return joint_prior.log_prob(params)
 
 
+_Value = TypeVar("_Value")
+
+
+class ByIdentity(Generic[_Value]):
+    """
+    A holder for a static field that is compared by identity rather than ``==``.
+
+    ``eqx.filter_jit`` builds its cache key from static fields, comparing them
+    with ``==`` and hashing them. Objects whose ``==`` is expensive, elementwise
+    or not a plain ``bool`` (such as :class:`skrf.Network`, which broadcasts its
+    arrays and raises for mismatched shapes) make that lookup slow or crash.
+    Wrapping them in ``ByIdentity`` makes the lookup O(1) and total.
+
+    The cost is that two equal but distinct objects give distinct cache keys
+    and so compile separately. A module copied with :func:`pmrf.update` or
+    :func:`replace` keeps the same holder, and so its compiled code.
+
+    Parameters
+    ----------
+    value : _Value
+        The object to hold.
+    """
+
+    # Nothing here is RF-specific; this could be merged upstream into Parax.
+    __slots__ = ("value",)
+
+    #: The held object, compared by identity.
+    value: _Value
+
+    def __init__(self, value: _Value):
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, ByIdentity) and self.value is other.value
+
+    def __hash__(self) -> int:
+        return id(self.value)
+
+    def __repr__(self) -> str:
+        return f"ByIdentity({self.value!r})"
+
+
 _Return = TypeVar("_Return")
   
     
