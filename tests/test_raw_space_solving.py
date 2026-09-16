@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 import pmrf as prf
+from pmrf.constraints import Interval
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base as infer_base
 from pmrf.models import Resistor
@@ -108,6 +109,13 @@ def test_minimizer_start_on_a_bound_raises():
         optimize_base.run_minimizer(_objective(None), model, BFGS())
 
 
+def test_minimizer_start_at_nan_raises():
+    """NaN is a different bug from an infinite raw value, and says so."""
+    model = prf.update(_start(), {"R": jnp.nan})
+    with pytest.raises(ValueError, match=r"'R' start at NaN"):
+        optimize_base.run_minimizer(_objective(None), model, BFGS())
+
+
 def test_minimizer_without_free_parameters_raises():
     model = prf.update(_start(), "*", fixed=True)
     with pytest.raises(ValueError, match="no free parameters"):
@@ -188,6 +196,15 @@ def test_sampler_init_samples_are_read_in_raw_space():
         assert np.allclose(Recording.init[name], expected[name])
 
 
+def test_sampler_init_samples_missing_a_parameter_raises():
+    """`init_samples` promises the same parameter names as `model`; a bare KeyError on
+    an internal name would not say which one is missing."""
+    model = _start()
+    init = prf.update(prf.update(model, {"R": jnp.array([10.0, 20.0])}), "C", fixed=True)
+    with pytest.raises(ValueError, match=r"missing the free parameters 'C'"):
+        infer_base.run_sampler(_loglikelihood, model, _StubJointSampler(), jax.random.key(0), init_samples=init)
+
+
 class _StubHypercubeSampler(infer_base.AbstractHypercubeSampler):
     """Maps a fixed batch of cube points through the prior transform."""
 
@@ -217,6 +234,26 @@ def test_hypercube_sampler_moves_through_declared_priors():
     assert batched.L.fixed and np.shape(batched.L.value) == ()
     expected = _loglikelihood(prf.unwrap(prf.update(model, {"R": 25.0, "C": 1.5})), None)
     assert np.allclose(results.fn_values[1], expected, rtol=1e-5)
+
+
+def test_hypercube_sampler_accepts_a_start_on_a_bound():
+    """A hypercube sampler moves through declared space, so an infinite raw value —
+    a parameter sitting exactly on a bound — is no obstacle to it."""
+    # An Interval constraint's bijector has no clipping epsilon, so a value exactly on
+    # a bound really is infinite in raw space.
+    model = RLC(
+        R=prf.Random(Uniform(0.0, 100.0), constraint=Interval(0.0, 100.0), value=0.0),
+        C=prf.Random(Uniform(1.0, 3.0), value=2.0),
+        L=prf.Fixed(0.5),
+    )
+    assert not np.isfinite(prf.param_values(model, free_only=True, space="raw")["R"])
+    # The same model is out of bounds for a sampler that does move raw values.
+    with pytest.raises(ValueError, match=r"'R' start on a bound"):
+        infer_base.run_sampler(_loglikelihood, model, _StubJointSampler(), jax.random.key(0))
+
+    batched, results = infer_base.run_sampler(_loglikelihood, model, _StubHypercubeSampler(), jax.random.key(0))
+    assert np.allclose(results.samples["R"], [0.0, 25.0], atol=1e-4)
+    assert np.allclose(batched.R.value, [0.0, 25.0], atol=1e-4)
 
 
 def test_hypercube_sampler_names_free_parameters_without_a_prior():

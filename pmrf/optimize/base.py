@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree, Scalar
 import equinox as eqx
-from pmrf._raw_space import RawSpace
+from pmrf._solver_view import SolverView
 
 
 class MinimizeResult(eqx.Module):
@@ -166,17 +166,18 @@ def run_minimizer(
     Raises
     ------
     ValueError
-        If `model` has no free parameters, or one starts on a bound.
+        If `model` has no free parameters, or one starts at NaN or on a bound.
     """
-    raw = RawSpace(model, 'optimize')
+    view = SolverView(model, 'optimize')
+    view.check_finite()
     if isinstance(solver, AbstractBoundedMinimizer):
         # Raw space is the whole real line; constraints are kept by the bijectors.
         kwargs['bounds'] = (
-            jax.tree.map(lambda x: jnp.full_like(x, -jnp.inf), raw.y0),
-            jax.tree.map(lambda x: jnp.full_like(x, jnp.inf), raw.y0),
+            jax.tree.map(lambda x: jnp.full_like(x, -jnp.inf), view.y0),
+            jax.tree.map(lambda x: jnp.full_like(x, jnp.inf), view.y0),
         )
-    result = solver.run(fn=raw.objective(fn), y0=raw.y0, args=args, max_iter=max_iter, **kwargs)
-    opt_model = raw.updated(result.y)
+    result = solver.run(fn=view.objective(fn), y0=view.y0, args=args, max_iter=max_iter, **kwargs)
+    opt_model = view.updated(result.y)
 
     if not result.success:
         warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")

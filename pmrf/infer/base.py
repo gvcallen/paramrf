@@ -11,7 +11,7 @@ from jaxtyping import Array, PyTree, Scalar
 import equinox as eqx
 import parax as prx
 
-from pmrf._raw_space import RawSpace
+from pmrf._solver_view import SolverView
 from pmrf.parameters import is_param, param_values, params
 
 
@@ -219,6 +219,10 @@ def run_sampler(
     fixed parameters, names, scales and priors are unchanged, and only free
     parameters are batched.
 
+    A parameter starting exactly on one of its bounds has an infinite raw value and
+    could not move, so a joint or split sampler raises; start it inside its bounds.
+    A hypercube sampler works in declared space and accepts it.
+
     Parameters
     ----------
     loglikelihood_fn : callable
@@ -248,36 +252,39 @@ def run_sampler(
     Raises
     ------
     ValueError
-        If `model` has no free parameters, or a hypercube sampler is given a free
-        parameter without a prior.
+        If `model` has no free parameters, a joint or split sampler is given a
+        parameter starting on a bound, `init_samples` is missing a free parameter, or
+        a hypercube sampler is given a free parameter without a prior.
     """
     if max_steps is not None:
         kwargs['max_steps'] = max_steps
 
-    raw = RawSpace(model, 'sample')
+    view = SolverView(model, 'sample')
 
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
-        batched_raw = None if init_samples is None else raw.read(init_samples)
+        # These move through raw space, so every starting raw value has to be movable.
+        view.check_finite()
+        batched_raw = None if init_samples is None else view.read(init_samples)
 
         if isinstance(solver, AbstractJointSampler):
             results = solver.run(
-                logposterior_fn=raw.log_posterior(loglikelihood_fn),
-                y0=raw.y0, args=args, key=key,
+                logposterior_fn=view.log_posterior(loglikelihood_fn),
+                y0=view.y0, args=args, key=key,
                 init_samples=batched_raw,
                 **kwargs
             )
         else:
             results = solver.run(
-                loglikelihood_fn=raw.objective(loglikelihood_fn),
-                logprior_fn=raw.log_prior,
-                y0=raw.y0, args=args, key=key,
+                loglikelihood_fn=view.objective(loglikelihood_fn),
+                logprior_fn=view.log_prior,
+                y0=view.y0, args=args, key=key,
                 init_samples=batched_raw,
                 **kwargs
             )
-        return raw.updated(results.samples), results
+        return view.updated(results.samples), results
 
     elif isinstance(solver, AbstractHypercubeSampler):
-        names = list(raw.y0)
+        names = list(view.y0)
         free = params(model, names)
         missing = [name for name, node in free.items() if not is_param(node) or node.distribution is None]
         if missing:
@@ -304,13 +311,13 @@ def run_sampler(
             batched_cube = _to_cube(param_values(init_samples, names))
 
         results = solver.run(
-            loglikelihood_fn=raw.objective(loglikelihood_fn, space='declared'),
+            loglikelihood_fn=view.objective(loglikelihood_fn, space='declared'),
             prior_transform_fn=_cube_to_params,
             u0=_to_cube(param_values(model, names)), args=args, key=key,
             init_cube_samples=batched_cube,
             **kwargs
         )
-        return raw.updated(results.samples, space='declared'), results
+        return view.updated(results.samples, space='declared'), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")
