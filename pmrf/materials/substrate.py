@@ -30,7 +30,7 @@ class Substrate(Module):
     ...         return (MicrostripLine(w=self.w1, substrate=self.substrate, length=0.1)
     ...              ** MicrostripLine(w=self.w2, substrate=self.substrate, length=0.2))
     >>> board = Board(substrate=Substrate(h=1.6e-3, dielectric=4.3), w1=1e-3, w2=2e-3)
-    >>> [name for name in board.named_params() if name.endswith("ep_r")]
+    >>> [name for name in prf.params(board) if name.endswith("ep_r")]
     ['substrate.dielectric.ep_r']
 
     Sharing only works through injection like this. Passing the same

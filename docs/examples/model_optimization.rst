@@ -51,7 +51,7 @@ The :func:`~pmrf.optimize.minimize` function returns an :class:`~pmrf.optimize.O
    optimized_lpf = result.model
 
    print("Optimized Parameters:")
-   print(optimized_lpf.named_params())
+   print(prf.param_values(optimized_lpf))
 
    plt.plot(passband.f, -20.0 * np.ones_like(passband.f), color='black', linestyle='--', label='target')
    lpf.plot_s_db(passband, m=0, n=0, label='initial')

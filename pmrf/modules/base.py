@@ -12,15 +12,7 @@ import numpy as np
 import parax as prx
 from jaxtyping import PyTree
 
-from pmrf.parameters import (
-    Param,
-    tree_named_params,
-    tree_param_names_to_path,
-    tree_param_values,
-    tree_with_fixed,
-    tree_with_free,
-    tree_with_values,
-)
+from pmrf.parameters import Param, tree_param_names_to_path
 from pmrf.utils import field, unwrap
 from pmrf.utils.optix import Lens, focus
 from pmrf.utils.tree import resolve_target
@@ -37,7 +29,7 @@ class Module(eqx.Module):
 
     Passing the *same* instance to two sibling fields does not share it. A module
     is a JAX PyTree, and each path holds its own copy of the leaves, so
-    ``Two(a=Resistor(R=p), b=Resistor(R=p)).named_params()`` gives two
+    ``prf.params(Two(a=Resistor(R=p), b=Resistor(R=p)))`` gives two
     independent parameters, ``a.R`` and ``b.R``. Object identity is not tracked,
     because JAX transformations rebuild objects. To share a parameter, inject it
     once into a builder (see :class:`pmrf.models.AbstractBuilder` and
@@ -50,132 +42,6 @@ class Module(eqx.Module):
 
     metadata: Any = field(default=None, kw_only=True, static=True)
     """Arbitrary metadata stored alongside the module."""
-
-    def named_params(
-        self,
-        full_params: bool = False,
-        free_only: bool = False,
-        namespace_separator: str = "_",
-    ) -> dict[str, float | jnp.ndarray | Param]:
-        """Return a named dictionary of parameters in the module.
-
-        Parameters and modules can be given names upon construction. If no custom
-        names are present, standard Python attribute paths are used. Named modules
-        collapse the path to their left into a namespace, whilst a named parameter
-        collapses its path to the nearest named module or the root. This supports
-        flat parameter names, flat module names, or fully nested namespaces.
-
-        String dictionary keys that are valid Python identifiers become dotted
-        names (``components.cable.length``); other keys keep the bracket form.
-
-        Names come from the same resolver as :meth:`at` and :meth:`tied`, so every
-        returned name can be passed to them. Names see through freezing and Parax
-        wrappers (e.g. :class:`pmrf.modules.Tied`), and are relative to the wrapped
-        module. The target of a tie is derived rather than stored, so it is not
-        named; parameters absorbed by a probabilistic wrapper are likewise opaque.
-
-        Parameters
-        ----------
-        full_params : bool, default=False
-            Return full parameter objects instead of their resulting values.
-        free_only : bool, default=False
-            Return only free parameters.
-        namespace_separator : str, default="_"
-            Separator used to join named module namespaces.
-
-        Returns
-        -------
-        dict[str, Any]
-            Parameter names mapped to values or parameter objects.
-        """
-        return tree_named_params(
-            self,
-            full_params=full_params,
-            free_only=free_only,
-            namespace_separator=namespace_separator,
-        )
-
-    def values(self, free_only: bool = False) -> dict[str, jnp.ndarray]:
-        """Return the declared value of every named parameter.
-
-        Parameters
-        ----------
-        free_only : bool, default=False
-            Return only free parameters.
-
-        Returns
-        -------
-        dict[str, jax.Array]
-            Names, as in :meth:`named_params`, mapped to declared values.
-        """
-        return tree_param_values(self, free_only=free_only)
-
-    def with_values(self: Self, values: dict[str, Any], strict: bool = True) -> Self:
-        """Return a copy with parameter values replaced by name.
-
-        The structure is unchanged: each parameter keeps its prior, constraint,
-        scale, name and fixed or frozen state, so ``m.with_values(m.values())`` is
-        the identity, up to the floating-point round trip through each parameter's
-        constraint bijector. Out-of-bounds values raise, at runtime under `jax.jit`.
-        This lets fit results be stored as plain ``name -> value``
-        mappings and re-applied to freshly built models.
-
-        Parameters
-        ----------
-        values : dict[str, ArrayLike]
-            Names mapped to declared values, in the units each parameter's scale
-            declares. Changing values keeps the jit cache key, so RF methods such as
-            :meth:`pmrf.Model.s` do not recompile.
-        strict : bool, default=True
-            Raise on unknown names. If False, they are ignored.
-
-        Returns
-        -------
-        Module
-            The updated module.
-
-        Raises
-        ------
-        ValueError
-            If `strict` and a name is unknown, or a value is outside its constraint.
-        """
-        return tree_with_values(self, values, strict=strict)
-
-    def with_free(self: Self, patterns: str | Sequence[str]) -> Self:
-        """Return a copy in which exactly the matching parameters are free.
-
-        All other parameters are frozen. Works on already-frozen modules.
-        Parameters fixed by construction (:func:`pmrf.Fixed` or ``fixed=True``)
-        stay fixed even when matched.
-
-        Parameters
-        ----------
-        patterns : str or Sequence[str]
-            :mod:`fnmatch` globs over :meth:`named_params` names, e.g. ``'load.*'``.
-
-        Returns
-        -------
-        Module
-            The updated module.
-        """
-        return tree_with_free(self, patterns)
-
-    def with_fixed(self: Self, patterns: str | Sequence[str]) -> Self:
-        """Return a copy with the matching parameters frozen.
-
-        Other parameters are left unchanged.
-
-        Parameters
-        ----------
-        patterns : str or Sequence[str]
-            :mod:`fnmatch` globs over :meth:`named_params` names, e.g. ``'cable.*'``.
-
-        Returns
-        -------
-        Module
-            The updated module.
-        """
-        return tree_with_fixed(self, patterns)
 
     def __repr__(self) -> str:
         try:

@@ -91,7 +91,6 @@ class Model(Module):
     :attr:`number_of_ports`           Number of ports.
     :attr:`nports`                    Alias of :attr:`number_of_ports`.
     :attr:`port_tuples`               All (m, n) port index pairs.
-    :meth:`named_params`              Extracts all named parameters in the model.
     ================================= ====================================================================
 
     **Model Transformation**

@@ -17,7 +17,8 @@ def test_model_is_a_module():
 def test_module_parameter_helpers():
     module = GainModule(gain=2.0, name="gain")
 
-    assert module.named_params() == {"gain": 2.0}
+    assert set(prf.param_values(module)) == {"gain"}
+    assert jnp.allclose(prf.param_values(module)["gain"], 2.0)
     updated = module.at("gain").set(prf.Unconstrained(3.0, name="gain"))
     assert jnp.allclose(updated.gain, 3.0)
 
@@ -35,7 +36,7 @@ def test_module_parameters_can_be_tied():
 
     resolved = prf.unwrap(tied)
     assert jnp.allclose(resolved.second, 3 * resolved.first)
-    assert set(tied.named_params(free_only=True)) == {"first"}
+    assert set(prf.params(tied, free_only=True)) == {"first"}
 
 
 def test_tied_model_preserves_rf_interface():

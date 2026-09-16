@@ -388,7 +388,7 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     assert jnp.allclose(recombined, direct)
 
 
-def test_named_params_sees_past_a_probabilistic_wrapper():
+def test_params_sees_past_a_probabilistic_wrapper():
     """Parameter traversal must not stop at a wrapper, hiding the parameters beyond it."""
     from pmrf.models import Probabilistic
 
@@ -397,7 +397,7 @@ def test_named_params_sees_past_a_probabilistic_wrapper():
                             target=lambda m: m.wide.val)
 
     # wide.val is inside the wrapper and legitimately opaque; the rest must be found.
-    assert len(wrapped.named_params()) == len(base.named_params()) - 1
+    assert len(prf.params(wrapped)) == len(prf.params(base)) - 1
 
 
 def test_prior_is_finite_for_a_scaled_parameter(wide_band):

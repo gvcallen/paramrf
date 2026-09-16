@@ -307,7 +307,7 @@ def test_skrf_cubic_coefficients_are_fixed_numpy_data():
     coefficients = np.frombuffer(buffer, dtype=np.dtype(dtype)).reshape(shape)
     assert isinstance(coefficients, np.ndarray)
     assert np.iscomplexobj(coefficients)
-    assert model.named_params() == {}
+    assert prf.params(model) == {}
 
 
 def test_skrf_cubic_preserves_impedance_renormalization():

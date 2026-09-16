@@ -63,6 +63,10 @@ from pmrf.parameters import (
     Bounded as Bounded,
     Constrained as Constrained,
     Random as Random,
+    params as params,
+    param_values as param_values,
+    log_prior as log_prior,
+    update as update,
 )
 
 from pmrf.serialization import (
@@ -150,6 +154,10 @@ __all__ = [
     "freeze",
     "unfreeze",
     "replace",
+    "params",
+    "param_values",
+    "log_prior",
+    "update",
     "unwrap",
     "unwrap_self",
     "derivative",

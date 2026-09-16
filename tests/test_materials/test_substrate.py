@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+import pmrf as prf
 import pmrf.materials.substrate as substrate_module
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConstantDielectric, Substrate
@@ -46,7 +47,7 @@ def test_shared_substrate_exposes_one_permittivity():
             )
 
     board = Board(substrate=Substrate(h=1.6e-3, dielectric=4.3), w1=1e-3, w2=2e-3)
-    names = board.named_params()
+    names = prf.params(board)
 
     permittivities = [name for name in names if name.endswith("ep_r")]
     assert len(permittivities) == 1
@@ -60,7 +61,7 @@ def test_same_param_object_in_two_lines_does_not_dedupe():
         ** MicrostripLine(w=2e-3, h=1.6e-3, dielectric=ConstantDielectric(ep_r=ep_r), length=0.2)
     )
 
-    names = lines.named_params()
+    names = prf.params(lines)
     permittivities = [name for name in names if name.endswith("ep_r")]
     assert len(permittivities) == 2
 

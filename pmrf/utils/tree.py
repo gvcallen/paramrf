@@ -24,10 +24,19 @@ from parax import (
 )
 
 
-from dataclasses import (
-    InitVar as InitVar,
-    replace as replace,
-)
+import dataclasses
+from dataclasses import InitVar as InitVar
+
+
+def replace(obj: Any, /, **changes: Any) -> Any:
+    """
+    Returns a copy of a dataclass, such as a model or parameter, with fields replaced.
+
+    This is :func:`dataclasses.replace`: it acts on the fields of one object and
+    runs its constructor, but checks nothing a field's type does not. To change
+    parameters by name, including inside nested models, use :func:`pmrf.update`.
+    """
+    return dataclasses.replace(obj, **changes)
 
 
 def freeze(value: Any):
