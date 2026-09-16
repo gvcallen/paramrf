@@ -35,7 +35,7 @@ jobs:
     - name: Install test backend overrides
       run: |
         pip uninstall -y distreqx
-        pip install "git+https://github.com/gvcallen/distreqx.git"
+        pip install "git+https://github.com/gvcallen/distreqx.git@044ea5caf3bb2b92de54b82ea1edc485c657c906"
         pip install "git+https://github.com/PolyChord/PolyChordLite.git"
         pip install git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta
 
