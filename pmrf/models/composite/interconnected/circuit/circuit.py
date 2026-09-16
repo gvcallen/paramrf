@@ -48,17 +48,25 @@ class Circuit(Model):
     of nodes. Each node connects one or more ports of the constituent models 
     to form a composite network.
 
+    The external ports follow `Port` declaration order: scanning `connections`
+    node by node, left to right, the first `Port` found is port 0. This holds for
+    every solver, nested or flattened.
+
     Parameters
     ----------
     connections : list[list[tuple[Model, int]]]
         A list representing the nodes of the circuit. Each node is a list of
         tuples, where each tuple contains a model and the integer
         index of the port to connect to that node.
-    flatten: bool, default=True
+    flatten: bool, default=False
         Flattens sub-circuits and sub-cascades to perform a single solve.
-        Defaults to True.
-    solver : AbstractCircuitSolver, default=GlobalScatteringCircuitSolver()
+    solver : AbstractCircuitSolver, default=GlobalMNACircuitSolver()
         The circuit solver to use. Available solvers can be found in :mod:`pmrf.models`.
+
+    Raises
+    ------
+    ValueError
+        If two `Port`\\ s share a net, or a `Port` shares a net with a `Ground`.
 
     Examples
     --------
@@ -149,6 +157,34 @@ class Circuit(Model):
             
         self.circuit = models
         self.indexed_connections = indexed_connections
+        self._validate_port_nets()
+
+    def _validate_port_nets(self):
+        """Ensures every `Port` has a net to itself that is not grounded."""
+        global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
+
+        net_to_port = {}
+        ground_nets = set()
+        offset = 0
+        port_idx = 0
+        for model in self.circuit:
+            if isinstance(model, Ground):
+                ground_nets.update(global_net_map[offset : offset + model.nports].tolist())
+            elif isinstance(model, Port):
+                net = int(global_net_map[offset])
+                label = f"Port {port_idx} ('{getattr(model, 'name', None) or 'unnamed'}')"
+                if net in net_to_port:
+                    raise ValueError(
+                        f"{net_to_port[net]} and {label} are connected to the same net. "
+                        "Each Port must be on its own net."
+                    )
+                net_to_port[net] = label
+                port_idx += 1
+            offset += model.nports
+
+        for net, label in net_to_port.items():
+            if net in ground_nets:
+                raise ValueError(f"{label} is connected to a Ground net. A Port cannot be grounded.")
 
     def expand(self):
         internal_ports = [comp for comp in self.circuit if isinstance(comp, Port)]
@@ -209,14 +245,14 @@ class Circuit(Model):
         global_net_map = compute_unique_nets(self.circuit, self.indexed_connections)
         
         ground_nets = set()
-        ext_nets = set()
+        ext_nets = []  # In `Port` declaration order, which fixes the external port order
         offset = 0
         for model in self.circuit:
             nets = global_net_map[offset : offset + model.nports]
             if isinstance(model, Ground):
                 ground_nets.update(nets)
             elif isinstance(model, Port):
-                ext_nets.update(nets)
+                ext_nets.extend(nets)
             offset += model.nports
             
         unique_all_nets = np.unique(global_net_map)
@@ -243,7 +279,7 @@ class Circuit(Model):
         r_idx_mapped = mapping[_safe_cat(r_idx)]
         c_idx_mapped = mapping[_safe_cat(c_idx)]
         
-        ext_active = np.array([n for n in ext_nets if n not in ground_nets], dtype=int)
+        ext_active = np.array(ext_nets, dtype=int)
         int_active = np.setdiff1d(active_nets, ext_active)
 
         return NodalRepresentation(
@@ -723,6 +759,14 @@ def flatten_hierarchy(connections: list[list[tuple[Model, int]]]) -> list[list[t
             group.sort(key=lambda x: (model_discovery_order[id(x[0])], x[1]))
             valid_groups.append(group)
             
-    valid_groups.sort(key=lambda g: (model_discovery_order[id(g[0][0])], g[0][1]))
+    # Nets holding a top-level `Port` come first, in `Port` declaration order, since
+    # the flat circuit's external port order is the order its `Port`s first appear.
+    def group_order(group):
+        port_orders = [model_discovery_order[id(m)] for m, _ in group if isinstance(m, Port)]
+        if port_orders:
+            return (0, min(port_orders), 0)
+        return (1, model_discovery_order[id(group[0][0])], group[0][1])
+
+    valid_groups.sort(key=group_order)
 
     return valid_groups
