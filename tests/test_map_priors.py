@@ -35,16 +35,16 @@ def fit(model, **kwargs):
     return prf.fitting.fit_minimize(
         model, jnp.asarray(DATA), frequency, features=linear_features,
         inference="bayesian", noise=VARIANCE,
-        solver=prf.optimize.ScipyMinimize(method="trust-constr"),
+        solver=kwargs.pop("solver", prf.optimize.ScipyMinimize(method="trust-constr")),
         max_iter=4000, **kwargs)
 
 
 def fitted_value(result):
     # These tests compare against a closed form in physical units, so read the
-    # physical value. `named_params` returns declared values, which differ by the
-    # scale whenever a parameter declares one.
-    param = list(result.model.named_params(full_params=True).values())[0]
-    return float(np.asarray(param.physical_value).ravel()[0])
+    # physical space. Values are declared by default, which differs by the scale
+    # whenever a parameter declares one.
+    values = prf.param_values(result.model, space='physical')
+    return float(np.asarray(list(values.values())[0]).ravel()[0])
 
 
 def log_prior(model):
@@ -90,11 +90,13 @@ def test_map_is_invariant_to_parameter_scale():
 
 
 @requires_distreqx_transpose
-def test_bounded_and_unconstrained_paths_agree():
-    """Both solver paths optimize the same objective and must reach the same optimum."""
+def test_bounded_and_unconstrained_solvers_agree():
+    """Both kinds of solver move through the same raw values and must reach the same optimum."""
+    from pmrf.optimize.solvers.optimistix import BFGS
+
     bounded = fitted_value(fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0))))
     unbounded = fitted_value(
-        fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0)), use_bounds=False))
+        fit(Resistor(prf.Random(Normal(1.0, 1.0), value=3.0)), solver=BFGS()))
 
     assert bounded == pytest.approx(unbounded, rel=1e-4)
     assert bounded == pytest.approx(analytic_map(DATA, VARIANCE, 1.0, 1.0), rel=1e-4)
@@ -153,7 +155,7 @@ def test_array_parameter_can_be_fitted():
         inference="bayesian", noise=VARIANCE,
         solver=prf.optimize.ScipyMinimize(method="trust-constr"), max_iter=2000)
 
-    assert np.all(np.isfinite(np.asarray(list(result.model.named_params().values())[0])))
+    assert np.all(np.isfinite(np.asarray(list(prf.param_values(result.model).values())[0])))
 
 
 # ==========================================

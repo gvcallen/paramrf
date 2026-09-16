@@ -58,7 +58,7 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts) -> Tuple[*Ts]:
     >>> (d_cap,) = derivative(eval_s21, cap)
     >>> 
     >>> # The structural layout of the model is preserved in the derivative
-    >>> print(f"{d_cap.at('c1.C').get():.3e}")
+    >>> print(f"{prf.param_values(d_cap)['c1.C']:.3e}")
     -1.060e-01
     """
     args = unwrap(args)

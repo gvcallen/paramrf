@@ -34,9 +34,11 @@ class CompositeModel(Model):
 
 @pytest.fixture
 def starting_model():
+    # Solvers move through raw values, and a value on a bound has no raw
+    # counterpart the solver can move away from, so start inside the bounds.
     return CompositeModel(
-        wide=SubModel(val=Bounded(0.0, 10.0, value=0.0)),
-        narrow=SubModel(val=Bounded(0.0, 10.0, value=0.0)),
+        wide=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
+        narrow=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
     )
 
 
@@ -388,16 +390,18 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     assert jnp.allclose(recombined, direct)
 
 
-def test_named_params_sees_past_a_probabilistic_wrapper():
-    """Parameter traversal must not stop at a wrapper, hiding the parameters beyond it."""
+def test_params_sees_past_a_probabilistic_wrapper():
+    """Parameter traversal must not stop at a wrapper, hiding the parameters beyond it.
+
+    The wrapper's target is named once, as the joint prior's single raw value."""
     from pmrf.models import Probabilistic
 
     base = _correlated()
     wrapped = Probabilistic(model=base, distribution=prf.distributions.Normal(3.0, 1.0),
                             target=lambda m: m.wide.val)
 
-    # wide.val is inside the wrapper and legitimately opaque; the rest must be found.
-    assert len(wrapped.named_params()) == len(base.named_params()) - 1
+    assert set(prf.params(wrapped)) == set(prf.params(base))
+    assert isinstance(prf.params(wrapped)["wide.val"], prx.Probabilize)
 
 
 def test_prior_is_finite_for_a_scaled_parameter(wide_band):

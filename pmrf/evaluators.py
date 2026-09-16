@@ -21,6 +21,7 @@ from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.modules.base import Module
+from pmrf.parameters import param_values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
 
 
@@ -44,29 +45,16 @@ def _orthogonal_projection(
     """
     if not 0 <= rcond < 1:
         raise ValueError("`rcond` must satisfy 0 <= rcond < 1.")
-    if not hasattr(model, "named_params") or not hasattr(model, "at"):
-        raise TypeError(
-            "Orthogonal discrepancy requires a parameter-aware model with "
-            "`named_params` and `at` methods."
-        )
-
-    # Request full parameter nodes so scalar tracers are not converted to Python
-    # ``float`` by the naming helper during higher-order differentiation.
-    named_parameters = model.named_params(full_params=True, free_only=True)
-    parameter_names = tuple(named_parameters)
-    parameter_values = tuple(
-        jnp.asarray(unwrap(value)) for value in named_parameters.values()
-    )
+    named_values = param_values(model, free_only=True, space="physical")
+    parameter_names = tuple(named_values)
+    parameter_values = tuple(named_values.values())
     if not parameter_values:
         raise ValueError(
             "Orthogonal discrepancy requires a model with at least one free parameter."
         )
 
     def evaluate(values):
-        candidate = model
-        for name, value in zip(parameter_names, values):
-            candidate = candidate.at(name).set(value)
-        return event_fn(candidate)
+        return event_fn(update(model, dict(zip(parameter_names, values)), space="physical"))
 
     (jacobian_leaves,) = derivative(evaluate, parameter_values)
     dense_leaves = []

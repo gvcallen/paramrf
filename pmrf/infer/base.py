@@ -5,12 +5,14 @@ Base inference functions and classes.
 from typing import Callable, Any, Optional, TypeVar, TypeAlias
 import abc
 
-import numpy as np
 import jax.numpy as jnp
 import jax
 from jaxtyping import Array, PyTree, Scalar
 import equinox as eqx
 import parax as prx
+
+from pmrf._solver_view import SolverView
+from pmrf.parameters import is_param, param_values, params
 
 
 T = TypeVar('T')
@@ -127,7 +129,7 @@ class AbstractHypercubeSampler(eqx.Module):
     Interface for samplers operating in a unit hypercube (e.g., classical Nested Sampling).
     
     All inputs (`u0`, `init_cube_samples` etc.) must be in the unit hypercube,
-    whereas any outputs (e.g. `samples` in `SampleResults`) must be in physical space.
+    whereas any outputs (e.g. `samples` in `SampleResults`) must be declared values, as `prior_transform_fn` returns.
     """
     @abc.abstractmethod
     def run(
@@ -147,9 +149,9 @@ class AbstractHypercubeSampler(eqx.Module):
         Parameters
         ----------
         loglikelihood_fn : callable
-            A function taking the physical parameters and args as input and returning the log-likelihood.
+            A function taking declared parameter values and args as input and returning the log-likelihood.
         prior_transform_fn : callable
-            A function taking the hypercube parameters and args as input and returning the physical parameters.
+            A function taking the hypercube parameters and args as input and returning declared parameter values.
         u0 : PyTree
             The initial parameters in the unit hypercube, either for shape reference or as a starting point.
         args : Any
@@ -204,24 +206,30 @@ def run_sampler(
     **kwargs
 ) -> tuple[T, SampleResult]:
     """
-    Samples a general PyTree potentially containing Parax probabilistic parameters
+    Samples the free parameters of a model, or any collection of models and parameters,
     using a joint, split, or hypercube Bayesian sampler.
 
     The solver can be any solver of type :type:`pmrf.infer.AbstractSampler`.
 
-    Performs Equinox partitioning and Parax unwrrapping/extraction,
-    as well as delegation to the relevant solver interface.
+    Joint and split samplers move through the free parameters in raw space, as a
+    name-keyed dict from ``prf.param_values(model, free_only=True, space='raw')``,
+    and score them with ``prf.log_prior(model, space='raw')``. Hypercube samplers map
+    the unit cube through each free parameter's prior to its declared value, so every
+    free parameter needs one. Samples are written back with :func:`pmrf.update`, so
+    fixed parameters, names, scales and priors are unchanged, and only free
+    parameters are batched.
 
-    Note that all Parax unwrappables (such a Parax variables)
-    MUST be re-wrappable for this interface.
+    A parameter starting exactly on one of its bounds has an infinite raw value and
+    could not move, so a joint or split sampler raises; start it inside its bounds.
+    A hypercube sampler works in declared space and accepts it.
 
     Parameters
     ----------
     loglikelihood_fn : callable
-        The log-likelihood function taking `(unwrapped_y0, args)`.
-        Prior calculations are handled automatically via Parax.
+        The log-likelihood function taking `(unwrapped_model, args)`.
+        The prior is added automatically.
     model : PyTree
-        The initial parameter guess / model state.
+        The initial model.
     solver : AbstractSampler
         The instantiated sampler to run.
     key : Array
@@ -229,7 +237,8 @@ def run_sampler(
     args : Any
         Args to pass to `loglikelihood_fn`.
     init_samples : PyTree, optional
-        Optional batched PyTree of initial states. 
+        Optional batched model of initial states, with the same parameter names as
+        `model`.
     max_steps: int, optional
         Maximum sampling steps.
     **kwargs
@@ -239,109 +248,76 @@ def run_sampler(
     -------
     tuple
         A tuple of `(batched_model, sample_results)`.
+
+    Raises
+    ------
+    ValueError
+        If `model` has no free parameters, a joint or split sampler is given a
+        parameter starting on a bound, `init_samples` is missing a free parameter, or
+        a hypercube sampler is given a free parameter without a prior.
     """
     if max_steps is not None:
         kwargs['max_steps'] = max_steps
-    
-    # Filtering/unwrapping
-    is_dynamic = lambda x: prx.probability.is_dynamic(x) and not isinstance(x, np.ndarray)
-    is_leaf = prx.probability.is_leaf
-    dynamic, static = eqx.partition(model, is_dynamic, is_leaf=is_leaf)
-    params = prx.unwrap(dynamic, only_if=prx.is_probabilistic)
 
-    try:
-        # Static before params as per pmrf/optimize/base.py
-        eqx.combine(static, params, is_leaf=is_leaf)
-    except Exception as e:
-        raise Exception(f"Error re-combining params and static. Error: {e}")
-    
-    batched_params = None
-    if init_samples is not None:
-        batched_dynamic = eqx.filter(init_samples, is_dynamic, is_leaf=is_leaf)
-        # TODO in general we shouldn't assume the user's unwrap is natively broadcastable,
-        # though in practice all built-in variables in Parax are
-        batched_params = prx.unwrap(batched_dynamic, only_if=prx.is_probabilistic)
+    view = SolverView(model, 'sample')
 
     if isinstance(solver, AbstractJointSampler | AbstractSplitSampler):
-        # Extraction
-        raw_prior = prx.probability.tree_unconstrained_distribution(dynamic)
-        raw_to_declared_bijector = prx.constraints.tree_leafwise_constraint(dynamic).bijector
+        # These move through raw space, so every starting raw value has to be movable.
+        view.check_finite()
+        batched_raw = None if init_samples is None else view.read(init_samples)
 
-        # Internal functions
-        def _logprior_fn(raw_params: PyTree, _args: Any) -> Scalar:
-            return raw_prior.log_prob(raw_params)
-
-        def _loglikelihood_fn(raw_params: PyTree, args: Any) -> Scalar:
-            params = raw_to_declared_bijector.forward(raw_params)
-            y_unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
-            return loglikelihood_fn(y_unwrapped, args)
-
-        def _logposterior_fn(raw_params: PyTree, args: Any) -> Scalar:
-            log_prior = _logprior_fn(raw_params, args)
-            log_likelihood = _loglikelihood_fn(raw_params, args)
-            return log_prior + log_likelihood
-
-        # Space conversions
-        raw_params = raw_to_declared_bijector.inverse(params)
-        batched_raw_params = None
-        if batched_params is not None:
-            batched_raw_params = eqx.filter_vmap(raw_to_declared_bijector.inverse)(batched_params)
-        
-        # Run the sampler
         if isinstance(solver, AbstractJointSampler):
             results = solver.run(
-                logposterior_fn=_logposterior_fn,
-                y0=raw_params, args=args, key=key,
-                init_samples=batched_raw_params,
+                logposterior_fn=view.log_posterior(loglikelihood_fn),
+                y0=view.y0, args=args, key=key,
+                init_samples=batched_raw,
                 **kwargs
             )
         else:
             results = solver.run(
-                loglikelihood_fn=_loglikelihood_fn,
-                logprior_fn=_logprior_fn,
-                y0=raw_params, args=args, key=key,
-                init_samples=batched_raw_params,
+                loglikelihood_fn=view.objective(loglikelihood_fn),
+                logprior_fn=view.log_prior,
+                y0=view.y0, args=args, key=key,
+                init_samples=batched_raw,
                 **kwargs
             )
-        
-        # Post-process back to original parameter space and re-wrap
-        batched_params_unwrapped = eqx.filter_vmap(raw_to_declared_bijector.forward)(results.samples)
-        batched_params = prx.wrap(dynamic, batched_params_unwrapped, only_if=prx.is_probabilistic)
-        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
+        return view.updated(results.samples), results
 
     elif isinstance(solver, AbstractHypercubeSampler):
-        # Extraction
-        distributions = prx.probability.tree_distributions(dynamic)
+        names = list(view.y0)
+        free = params(model, names)
+        missing = [name for name, node in free.items() if not is_param(node) or node.distribution is None]
+        if missing:
+            raise ValueError(
+                "A hypercube sampler needs a prior of its own on every free parameter, but "
+                f"these have none: {', '.join(repr(name) for name in missing)}. Give them a "
+                "prior with `prf.Random`, or fix them with `prf.update(model, names, fixed=True)`. "
+                "A joint prior (`prf.modules.Probabilistic`) has no per-parameter CDF, so use "
+                "a joint or split sampler for it."
+            )
+        # Priors are authored in declared space, so the cube maps to declared values.
+        distributions = {name: prx.as_unwrapped(node.distribution) for name, node in free.items()}
 
-        # Internal functions
-        def _params_to_cube(params):
-            return jax.tree.map(lambda d, b: d.cdf(b), distributions, params, is_leaf=prx.is_distribution)
+        def _to_cube(values: dict) -> dict:
+            return {name: d.cdf(values[name]) for name, d in distributions.items()}
 
-        def _cube_to_params(cube_params: PyTree, _args: Any):
+        def _cube_to_params(cube: dict, _args: Any) -> dict:
             eps = jnp.finfo(jnp.float32).eps
-            safe_cube = jax.tree.map(lambda x: jnp.clip(x, eps, 1.0 - eps), cube_params)
-            return jax.tree.map(lambda d, u: d.icdf(u), distributions, safe_cube, is_leaf=prx.is_distribution)
-        
-        def _loglikelihood_fn(params: PyTree, args: Any):
-            unwrapped = prx.unwrap(eqx.combine(static, params, is_leaf=is_leaf))
-            return loglikelihood_fn(unwrapped, args)
-        
-        # Space conversions
-        cube_params = _params_to_cube(params)
-        batched_cube_params = None
-        if batched_params is not None:
-            batched_cube_params = eqx.filter_vmap(_params_to_cube)(batched_dynamic)
-        
+            return {name: d.icdf(jnp.clip(cube[name], eps, 1.0 - eps)) for name, d in distributions.items()}
+
+
+        batched_cube = None
+        if init_samples is not None:
+            batched_cube = _to_cube(param_values(init_samples, names))
+
         results = solver.run(
-            loglikelihood_fn=_loglikelihood_fn,
+            loglikelihood_fn=view.objective(loglikelihood_fn, space='declared'),
             prior_transform_fn=_cube_to_params,
-            u0=cube_params, args=args, key=key,
-            init_cube_samples=batched_cube_params,
+            u0=_to_cube(param_values(model, names)), args=args, key=key,
+            init_cube_samples=batched_cube,
             **kwargs
         )
-
-        batched_params = prx.wrap(dynamic, results.samples, only_if=prx.is_probabilistic)
-        return eqx.combine(static, batched_params, is_leaf=is_leaf), results
+        return view.updated(results.samples, space='declared'), results
 
     else:
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")

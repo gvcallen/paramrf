@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
-from typing import Any, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
+from collections.abc import Mapping
+from typing import Any, Literal, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
 import jax
 import jax.numpy as jnp
@@ -22,14 +23,13 @@ from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
 from pmrf.distributions import AbstractDistribution, Transformed
 from pmrf.utils import error_if, field
-from pmrf.utils.optix import focus, Lens
-from pmrf.utils.tree import path_nodes, path_to_name
+from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
 
 T = TypeVar('T')
 
 
-class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotated[Any]):
+class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
     """
     The canonical parameter container for ParamRF.
 
@@ -144,6 +144,13 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
                 variable = prx.Constrained(constraint, value=value)
             else:
                 variable = prx.Real(value)
+            raw = variable.raw_value
+            if (isinstance(raw, jax.Array) and jnp.issubdtype(value.dtype, jnp.floating)
+                    and raw.dtype != value.dtype):
+                # Some Parax bijectors clip with a float32 epsilon, which demotes a
+                # weak float64 value. Raw values keep the declared dtype, so a solver
+                # moving several of them sees one dtype.
+                variable = eqx.tree_at(lambda v: v.raw_value, variable, raw.astype(value.dtype))
             if fixed:
                 variable = prx.Fixed(variable)
 
@@ -152,24 +159,6 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         self.name = name
         self.metadata = metadata
 
-    def at(
-        self: Self, 
-        where: Union[Callable[[Self], T], str, tuple[str, ...], list[str]]
-    ) -> Lens[Self, T]:
-        """(experimental) A functional interface for parameter manipulation.
-        
-        This is a wrapper around `equinox.tree_at` via the `jax-optix` library.
-
-        Similar to :meth:`pmrf.Model.at` but only accepts callables.
-        See the documentation for that method for more details.
-
-        Returns
-        -------
-        Lens
-            A lens object focused on the root of the current instance.
-        """
-        return focus(self).at(where)
-    
     @property
     def fixed(self) -> bool:
         """
@@ -182,31 +171,11 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
         """
         return prx.is_constant(self.variable)
 
-    def as_fixed(self) -> Param:
-        """
-        Returns a fixed version of this parameter.
-
-        Returns
-        -------
-        Param
-            A new parameter instance wrapped as fixed.
-        """
-        if self.fixed:
-            return self
-        return dataclasses.replace(self, variable=prx.Fixed(self.variable))
-
-    def as_free(self) -> Param:
-        """
-        Returns a free (variable) version of this parameter.
-
-        Returns
-        -------
-        Param
-            A new parameter instance wrapped as free.
-        """
-        if not self.fixed:
-            return self
-        return dataclasses.replace(self, variable=prx.as_free(self.variable))
+    @property
+    def as_fixed(self):
+        # Parax's `AbstractVariable.as_fixed` would wrap the parameter in a Parax
+        # `Fixed`, losing its name and scale. Fixed state is set with `pmrf.update`.
+        raise AttributeError("'Param' has no attribute 'as_fixed'; use `pmrf.update(param, fixed=True)`.")
 
     @property
     def distribution(self) -> AbstractDistribution | None:
@@ -395,7 +364,7 @@ class Param(prx.AbstractVariable, prx.AbstractWrappable[Array], AbstractAnnotate
             raise ValueError(f"Expected at most one remaining leaf, got {len(leaves)}: {leaves}")
         return leaves[0]
 
-    def wrap(self, value: Array) -> Self:
+    def _wrap(self, value: Array) -> Self:
         """
         Updates the internal state of the parameter using a physical value.
 
@@ -593,9 +562,9 @@ def as_param(
     )
 
     if as_fixed:
-        p = p.as_fixed()
+        p = _with_fixed(p, True)
     if as_free:
-        p = p.as_free()
+        p = _with_fixed(p, False)
     return p
     
 
@@ -614,7 +583,7 @@ def param(
     This specifier can be used when declaring custom models inheriting from `pmrf.Model`.
 
     It is used to register the parameter when a model is constructed, so it is listed
-    under :meth:`pmrf.Module.named_params`. It can also be used to enforce
+    by :func:`pmrf.params`. It can also be used to enforce
     constraints, scaling, bounds and variability within the model itself.
     
     This simply creates a `pmrf.field` with a `pmrf.as_param` converter.
@@ -995,22 +964,27 @@ def _is_name_transparent(x: Any) -> bool:
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
 
 
+def _is_joint_target(x: Any) -> bool:
+    """Returns whether `x` is the target of a joint prior, a `parax.Probabilize` node.
+
+    Such a node absorbs the parameters below it and holds one raw value, possibly a
+    tree, which is named and moved as a single parameter.
+    """
+    return isinstance(x, prx.Probabilize)
+
+
 def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
     """Returns whether any node along the JAX key `path` into `tree` is frozen."""
     return any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
 
 
-def tree_param_paths(
-    tree,
-    free_only: bool = False,
-    namespace_separator: str = '_',
-) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
+def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
     """
     Resolves every parameter name in a tree to its JAX path and node.
 
-    This is the single name resolver behind :meth:`pmrf.Module.named_params`,
-    :meth:`pmrf.Module.at` and :meth:`pmrf.Module.tied`, so a name produced by one
-    is accepted by the others.
+    This is the single name resolver behind :func:`params`, :func:`update` and
+    :func:`tie`, so a name produced by one is accepted by the others.
+    Nested named modules are joined with ``_``.
 
     Names see through freezing (a frozen parameter keeps its name, but is not free)
     and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
@@ -1024,8 +998,6 @@ def tree_param_paths(
         The tree to resolve names in.
     free_only : bool, default=False
         Only resolve free parameters.
-    namespace_separator : str, default='_'
-        The separator used to join named module namespaces.
 
     Returns
     -------
@@ -1044,12 +1016,10 @@ def tree_param_paths(
         if is_param(leaf):
             if free_only and (leaf.fixed or frozen):
                 continue
-        elif not isinstance(leaf, jax.Array) or frozen:
+        elif not (isinstance(leaf, jax.Array) or _is_joint_target(leaf)) or frozen:
             continue
 
-        name = path_to_name(
-            tree, path, namespace_separator=namespace_separator, is_transparent=_is_name_transparent
-        )
+        name = path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
         if name in resolved:
             raise ValueError(
                 f"Parameter name collision: '{name}'.\n\n"
@@ -1061,211 +1031,573 @@ def tree_param_paths(
     return resolved
 
 
-def tree_named_params(
-    tree,
-    full_params: bool = False,
-    free_only: bool = False,
-    namespace_separator: str = '_',
-) -> dict[str, float | jnp.ndarray | Param]:
-    """
-    Returns a named dictionary of parameters in a tree.
-
-    Names are resolved by :func:`tree_param_paths`.
-
-    Parameters
-    ----------
-    full_params : bool, default=False
-        Returns the full parameter objects as opposed to their declared values.
-    free_only : bool, default=False
-        Returns only free parameters.
-    namespace_separator : str
-        The separator to use to create a parameter namespace using model names.
-
-    Returns
-    -------
-    dict[str, Any]
-        Parameter names mapped to their values or parameter objects.
-    """
-    named = {}
-    for name, (_, leaf) in tree_param_paths(
-        tree, free_only=free_only, namespace_separator=namespace_separator
-    ).items():
-        if not full_params:
-            leaf = leaf.value if is_param(leaf) else leaf
-            if jnp.isscalar(leaf):
-                leaf = float(leaf)
-        named[name] = leaf
-    return named
-
-
-def tree_param_names_to_path(tree, namespace_separator: str = '_') -> dict[str, tuple[Any, ...]]:
+def tree_param_names_to_path(tree) -> dict[str, tuple[Any, ...]]:
     """
     Maps every parameter name in a tree to its JAX path, via :func:`tree_param_paths`.
     """
-    return {
-        name: path
-        for name, (path, _) in tree_param_paths(tree, namespace_separator=namespace_separator).items()
-    }
+    return {name: path for name, (path, _) in tree_param_paths(tree).items()}
 
 
-def tree_param_values(tree, free_only: bool = False) -> dict[str, jnp.ndarray]:
+Space = Literal['raw', 'declared', 'physical']
+"""A value space: ``'raw'``, ``'declared'`` or ``'physical'``. See :class:`Param`."""
+
+Selector = Union[str, Sequence[str], Callable[[Any], Any]]
+"""A parameter name, an `fnmatch` glob over names, a sequence of them, or a callable
+returning the nodes to select, as for :func:`equinox.tree_at`."""
+
+
+def _check_space(space: str) -> None:
+    if space not in ('raw', 'declared', 'physical'):
+        raise ValueError(f"Unknown space {space!r}; expected 'raw', 'declared' or 'physical'.")
+
+
+def _select(tree, where: Selector, free_only: bool = False) -> dict[str, tuple[tuple[Any, ...], Any]]:
+    """Resolves the names in `tree` the selector `where` picks, mapped to ``(path, node)``.
+
+    A string or sequence element is an exact name or an `fnmatch` glob. An element
+    with no glob characters that names no parameter raises; a glob matching nothing
+    selects nothing. A callable returns nodes
+    of `tree`; every parameter at or below them is selected.
     """
-    Returns the declared value of every named parameter in a tree.
+    resolved = tree_param_paths(tree)
+    if callable(where):
+        selected = where(tree)
+        ids = {id(selected)} | {id(x) for x in jax.tree.leaves(selected, is_leaf=_is_name_leaf)}
+        matched = {name for name, (_, leaf) in resolved.items() if id(leaf) in ids}
+    else:
+        if not _is_selector(where):
+            raise TypeError("A selector must be a name, a glob, a sequence of names, or a callable.")
+        patterns = [where] if isinstance(where, str) else list(where)
+        matched = set()
+        for pattern in patterns:
+            if pattern in resolved:
+                matched.add(pattern)
+                continue
+            hits = {name for name in resolved if fnmatch.fnmatchcase(name, pattern)}
+            if not hits and not any(c in pattern for c in '*?['):
+                raise ValueError(f"Unknown parameter name: '{pattern}'")
+            matched |= hits
+    if free_only:
+        matched = {name for name in matched if not _is_fixed_path(tree, *resolved[name])}
+    return {name: node for name, node in resolved.items() if name in matched}
+
+
+def _is_fixed_path(tree, path: tuple[Any, ...], leaf: Any) -> bool:
+    """Returns whether the node `leaf` at `path` is not free: fixed, or frozen."""
+    return (is_param(leaf) and leaf.fixed) or _is_frozen_path(tree, path)
+
+
+def _is_selector(x: Any) -> bool:
+    """Returns whether `x` is a selector: a name, a sequence of names, or a callable."""
+    return callable(x) or isinstance(x, str) or (
+        isinstance(x, (list, tuple)) and all(isinstance(s, str) for s in x)
+    )
+
+
+def _read(node, space: str) -> Array:
+    """Returns the value of a parameter, a joint prior's target, or a raw array, in `space`."""
+    if _is_joint_target(node):
+        # A joint prior is authored over physical values, so declared is physical.
+        return node.raw_value if space == 'raw' else prx.unwrap(node)
+    if not is_param(node):
+        return jnp.asarray(node)
+    if space == 'raw':
+        return node.raw_value
+    if space == 'physical':
+        return node.physical_value
+    return node.value
+
+
+def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str, Param]:
+    """
+    Returns the parameters of a model, or any collection of models, by name.
+
+    Parameters and modules can be given names upon construction. If no custom
+    names are present, attribute paths are used. A named module collapses the path
+    to its left into a namespace, and a named parameter collapses its path to the
+    nearest named module or the root. Nested named modules are joined with ``_``.
+    String dictionary keys that are identifiers become dotted names
+    (``components.cable.length``); other keys keep the bracket form.
+
+    Names see through freezing and wrappers such as :class:`pmrf.modules.Tied`. The
+    target of a tie is derived rather than stored, so it is not named. The target of
+    a joint prior (:class:`pmrf.modules.Probabilistic`) absorbs the parameters below
+    it and is named once, returned as its `parax.Probabilize` node; its value may be
+    a tree, and its declared value is its physical one.
 
     Parameters
     ----------
     tree : PyTree
-        The tree to read.
+        A model, or any collection of models and parameters.
+    where : str, Sequence[str] or Callable, default='*'
+        The parameters to return: a name, an `fnmatch` glob over names, a sequence
+        of them, or a callable returning nodes of `tree`. An unknown name raises;
+        a glob matching nothing selects nothing.
+    free_only : bool, default=False
+        Only return free parameters: not fixed, and not frozen.
+
+    Returns
+    -------
+    dict[str, Param]
+        Names mapped to parameters. In a collection that is not a
+        :class:`pmrf.Module`, a raw array leaf is returned as it is.
+
+    Raises
+    ------
+    ValueError
+        If two parameters resolve to the same name, or `where` names an unknown one.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        rc = Resistor(50.0, name='r') ** Capacitor(prf.Unconstrained(2.0, scale=1e-12), name='c')
+        prf.params(rc)          # {'r.R': Param(...), 'c.C': Param(...)}
+        prf.params(rc, 'c.*')   # {'c.C': Param(...)}
+    """
+    return {name: leaf for name, (_, leaf) in _select(tree, where, free_only).items()}
+
+
+def param_values(
+    tree,
+    where: Selector = '*',
+    *,
+    free_only: bool = False,
+    space: Space = 'declared',
+) -> dict[str, Array]:
+    """
+    Returns the values of a model's parameters by name, in one space.
+
+    This is what :func:`update` accepts, so
+    ``prf.update(m, prf.param_values(m, space=s), space=s)`` gives back `m`, with
+    the same structure and jit cache key.
+
+    Parameters
+    ----------
+    tree : PyTree
+        A model, or any collection of models and parameters.
+    where : str, Sequence[str] or Callable, default='*'
+        The parameters to read, as for :func:`params`.
     free_only : bool, default=False
         Only return free parameters.
+    space : {'declared', 'physical', 'raw'}, default='declared'
+        The space of the values. See :class:`Param`.
 
     Returns
     -------
     dict[str, jax.Array]
-        Names, as in :func:`tree_named_params`, mapped to declared values.
+        Names, as from :func:`params`, mapped to values.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        c = Capacitor(prf.Unconstrained(2.0, scale=1e-12))
+        prf.param_values(c)                      # {'C': 2.0}
+        prf.param_values(c, space='physical')    # {'C': 2e-12}
     """
-    return {
-        name: leaf.value if is_param(leaf) else jnp.asarray(leaf)
-        for name, (_, leaf) in tree_param_paths(tree, free_only=free_only).items()
-    }
+    _check_space(space)
+    return {name: _read(leaf, space) for name, leaf in params(tree, where, free_only=free_only).items()}
+
+
+def log_prior(tree, *, space: Space = 'declared') -> Array:
+    """
+    Returns the log prior density of a model's parameters, in one space.
+
+    For parameter values $x$ in declared space with priors $p(x)$, scale $s$ and
+    raw values $z$ mapped to declared space by $x = f(z)$:
+
+    $$\\log p_{\\text{declared}} = \\sum_i \\log p_i(x_i)$$
+
+    $$\\log p_{\\text{physical}} = \\log p_{\\text{declared}} - \\sum_i n_i \\log |s_i|$$
+
+    $$\\log p_{\\text{raw}} = \\log p_{\\text{declared}} + \\sum_i \\log \\left|\\det \\frac{\\partial f_i}{\\partial z_i}\\right|$$
+
+    where $n_i$ is the number of elements in parameter $i$. The scale and Jacobian
+    terms are the change-of-variables formula for densities. Parameters without a
+    prior add nothing to the first two sums (a flat prior). The scale term covers
+    parameters with a prior; the Jacobian term covers every free, constrained
+    parameter, since those are the coordinates an optimiser or sampler moves. The
+    priors of fixed and frozen parameters are included as constants, and a joint
+    prior over a sub-tree (:class:`pmrf.modules.Probabilistic`) is scored on its
+    physical values, with the Jacobian of its own raw-to-physical map in raw space.
+
+    Parameters
+    ----------
+    tree : PyTree
+        A model, or any collection of models and parameters. Must still be wrapped.
+    space : {'declared', 'physical', 'raw'}, default='declared'
+        The space the density is over.
+
+    Returns
+    -------
+    jax.Array
+        A scalar.
+
+    References
+    ----------
+    .. [1] G. Casella and R. L. Berger, *Statistical Inference*, 2nd ed., Duxbury,
+       2002, Theorem 2.1.5 (univariate) and Section 4.3 (multivariate
+       transformations).
+    """
+    _check_space(space)
+    # Priors are extracted in physical space, where an unwrapped tree lives.
+    physical = tree_param_log_prob(tree_param_distributions(tree), prx.unwrap(tree))
+    if space == 'physical':
+        return physical
+
+    resolved = tree_param_paths(tree)
+    declared = physical + _log_scale(tree)
+    if space == 'declared':
+        return declared
+
+    free = [p for path, p in resolved.values() if not _is_fixed_path(tree, path, p)]
+    log_det = sum(
+        (jnp.sum(_raw_log_det_jacobian(p)) for p in free),
+        start=jnp.asarray(0.0),
+    )
+    return declared + log_det
+
+
+def _log_scale(tree) -> Array:
+    """Returns the sum of n log|scale| over the scaled parameters of `tree` with a prior:
+    the constant taking the physical log prior to the declared one."""
+    return sum(
+        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for _, p in tree_param_paths(tree).values()
+         if is_param(p) and p.distribution is not None and p._scale != 1.0),
+        start=jnp.asarray(0.0),
+    )
+
+
+def _raw_log_det_jacobian(node) -> Array:
+    """Returns log|det J| of the map from a node's raw value to its declared value."""
+    if is_param(node) and node.constraint is not None:
+        return node.raw_to_declared_bijector.forward_log_det_jacobian(node.raw_value)
+    if _is_joint_target(node):
+        return prx.as_unwrapped(node.constraint).bijector.forward_log_det_jacobian(node.raw_value)
+    return jnp.asarray(0.0)
 
 
 def _set_paths(tree, paths: list, nodes: list):
     """Replaces the nodes at several JAX key paths at once."""
     if not paths:
         return tree
-    from pmrf.utils.tree import Pathgetter
     getter = Pathgetter(*paths)
     return eqx.tree_at(getter, tree, nodes[0] if len(paths) == 1 else tuple(nodes))
 
 
-def tree_with_values(tree, values: dict[str, ArrayLike], strict: bool = True):
-    """
-    Returns a tree with parameter values replaced by name.
+def _write(node, value: Any, space: str):
+    """Returns `node`, a parameter or raw array, with its value in `space` replaced.
 
-    The structure is unchanged: each parameter keeps its distribution, constraint,
-    scale, name, metadata and fixed or frozen state. ``tree_with_values(tree,
-    tree_param_values(tree))`` is the identity, up to the floating-point round trip
-    through each parameter's constraint bijector.
+    A parameter goes through its constructor, keeping everything but the value and
+    the jit cache key. A `Param` passed as `value` gives its own value in `space`.
+    """
+    if is_param(value):
+        value = _read(value, space)
+    if _is_joint_target(node):
+        if space != 'raw':
+            value = prx.as_unwrapped(node.constraint).bijector.inverse(value)
+        return eqx.tree_at(lambda n: n.raw_value, node, jax.tree.map(lambda v, o: _like(jnp.asarray(v), o), value, node.raw_value))
+    if not is_param(node):
+        return _like(jnp.asarray(value, dtype=node.dtype), node)
+    if space == 'raw':
+        inner = _peel_fixed(node.variable)
+        new_inner = eqx.tree_at(lambda v: v.raw_value, inner, _like(jnp.asarray(value), inner.raw_value))
+        variable = prx.Fixed(new_inner) if node.fixed else new_inner
+        return dataclasses.replace(node, variable=variable)
+    if space == 'physical' and node._scale != 1.0:
+        value = jnp.asarray(value) / node._scale
+    return dataclasses.replace(node, value=value)
+
+
+def _with_fixed(node, fixed: bool):
+    """Returns `node`, a parameter or raw array, with its fixed state set."""
+    if not is_param(node):
+        return Param(value=node, fixed=True) if fixed else node
+    if node.fixed == fixed:
+        return node
+    variable = prx.Fixed(node.variable) if fixed else prx.as_free(node.variable)
+    return dataclasses.replace(node, variable=variable)
+
+
+def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
+    """Names every sub-model below the root of `tree`, mapped to the paths with that name.
+
+    Names follow :func:`tree_param_paths`, so a sub-model is named like the prefix of its
+    parameters' names (``cascade[1]``, ``load``). A wrapper and the module it wraps share
+    a name; the outermost is kept. Two unrelated sub-models with one name both appear,
+    and selecting that name raises.
+    """
+    from pmrf.modules.base import Module
+
+    found: dict[str, list[tuple[Any, ...]]] = {}
+
+    def walk(node, prefix):
+        is_leaf = lambda x: x is not node and (isinstance(x, Module) or _is_name_leaf(x))
+        for path, leaf in jax.tree_util.tree_flatten_with_path(node, is_leaf=is_leaf)[0]:
+            if not isinstance(leaf, Module):
+                continue
+            full = prefix + tuple(path)
+            name = path_to_name(tree, full, namespace_separator='_', is_transparent=_is_name_transparent)
+            if name:
+                paths = found.setdefault(name, [])
+                if not any(full[:len(p)] == p for p in paths):
+                    paths.append(full)
+            walk(leaf, full)
+
+    walk(tree, ())
+    return found
+
+
+def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
+    """Resolves the paths of the parts a string or sequence selector picks, for the
+    structural forms of :func:`update`.
+
+    An exact name selects a parameter, or failing that a sub-model. Anything else is
+    an `fnmatch` glob over parameter names.
+    """
+    if not _is_selector(where) or callable(where):
+        raise TypeError("A selector must be a name, a glob, a sequence of names, or a callable.")
+    resolved = tree_param_paths(tree)
+    submodels = None
+    paths = []
+    for pattern in ([where] if isinstance(where, str) else list(where)):
+        if pattern in resolved:
+            paths.append(resolved[pattern][0])
+            continue
+        if submodels is None:
+            submodels = _tree_submodel_paths(tree)
+        if pattern in submodels:
+            if len(submodels[pattern]) > 1:
+                raise ValueError(f"Sub-model name '{pattern}' is ambiguous: several sub-models have it.")
+            paths.append(submodels[pattern][0])
+            continue
+        hits = [name for name in resolved if fnmatch.fnmatchcase(name, pattern)]
+        if not hits and not any(c in pattern for c in '*?['):
+            raise ValueError(f"Unknown parameter or sub-model name: '{pattern}'")
+        paths.extend(resolved[name][0] for name in hits)
+
+    unique = list(dict.fromkeys(paths))
+    for a in unique:
+        for b in unique:
+            if a != b and b[:len(a)] == a:
+                raise ValueError("The selected parts overlap: one contains another.")
+    return unique
+
+
+_UPDATE_FORMS = """prf.update takes one of these forms:
+    update(model, {'name': value, ...}, space=...)   values by name
+    update(model, where, value=..., space=...)       one value for the selected parameters
+    update(model, where, fixed=True or False)        fixed state of the selected parameters
+    update(model, where, node)                       replace the selected parts with `node`
+    update(model, where, fn=...)                     replace each selected part with fn(old)
+    update(param, value=..., space=...)              the parameter itself
+    update(param, fixed=True or False)
+where `where` is a name, a glob, a sequence of names, or a callable."""
+
+_MISSING = object()
+
+
+def update(
+    tree,
+    selection: Any = _MISSING,
+    node: Any = _MISSING,
+    /,
+    *,
+    value: Any = _MISSING,
+    fixed: bool | None = None,
+    space: Space | None = None,
+    fn: Callable[[Any], Any] | None = None,
+):
+    """
+    Returns a copy of a model with the parts a selector picks replaced.
+
+    Exactly one form says what replaces them:
+
+    .. code-block:: python
+
+        prf.update(model, {'L1.L': 3.0, 'C1.C': 2.0})   # values by name
+        prf.update(model, 'L1.*', value=3.0)            # one value for a selection
+        prf.update(model, 'cable.*', fixed=True)        # fixed state
+        prf.update(model, 'cascade[1]', Short())        # a new sub-model or node
+        prf.update(model, 'load.*', fn=lambda p: ...)   # a function of the old part
+        prf.update(model, v, space='raw')               # write-back from an optimiser or sampler
+        prf.update(param, value=3.0)                    # the parameter itself
+
+    The mapping, `value` and `fixed` forms go through each parameter's constructor:
+    values are checked against the bounds, and the prior, constraint, scale, name and
+    metadata are kept. Value forms keep the model's structure, and every leaf's dtype,
+    shape and `weak_type`, so RF methods such as :meth:`pmrf.Model.s` do not recompile.
+    Changing `fixed` changes the structure, and recompiling is expected.
+
+    The `node` and `fn` forms are structural: they bypass converters and validation,
+    and put exactly what they are given in place of each selected part, so the caller
+    keeps field invariants. They usually change the structure, and recompile.
+
+    ``fixed=`` is additive: parameters the selector does not match are untouched,
+    and ``fixed=False`` frees a parameter even if it was created fixed. It does not
+    unfreeze: a parameter inside a :func:`pmrf.freeze` sub-tree stays frozen. To
+    leave only some parameters free, fix everything, then free those:
+    ``update(update(m, '*', fixed=True), names, fixed=False)``.
+
+    `update` is not an optimiser step. For replacing a field of one object without
+    validation, use :func:`pmrf.replace`. To derive one parameter from another, use
+    :func:`tie`.
 
     Parameters
     ----------
     tree : PyTree
-        The tree to update.
-    values : dict[str, ArrayLike]
-        Names mapped to declared values.
-    strict : bool, default=True
-        Raise on names that do not resolve. If False, they are ignored.
+        A model, any collection of models and parameters, or a single parameter.
+    selection : Mapping[str, ArrayLike | Param] or selector, optional
+        Either a mapping from names to values, or a selector: a name, an `fnmatch`
+        glob over names, a sequence of them, or a callable returning nodes of
+        `tree`. A mapping is recognised only when every key is a string. Its values
+        may be arrays, or parameters, whose value in `space` is used. Omit it to
+        update `tree` itself, which must then be a parameter. In the structural
+        forms, an exact name may also name a sub-model (``'cascade[1]'``, or a named
+        module's name), a glob matches parameter names only, and a callable selects
+        the nodes it returns rather than the parameters below them.
+    node : Any, optional
+        The part to put in place of each selected part.
+    value : ArrayLike, optional
+        The value to give every selected parameter.
+    fixed : bool, optional
+        The fixed state to give every selected parameter.
+    space : {'declared', 'physical', 'raw'}, optional
+        The space of the values, by default ``'declared'``. Only used with values.
+    fn : Callable, optional
+        Called on each selected part; its result replaces the part.
 
     Returns
     -------
     PyTree
-        The updated tree.
+        The updated copy.
 
     Raises
     ------
     ValueError
-        If `strict` and a name does not resolve, or if a value is outside its
-        parameter's constraint. Under `jax.jit`, the bounds check raises at runtime.
+        If a name is unknown, a value is outside its parameter's constraint, or
+        structurally selected parts overlap. Under `jax.jit` the bounds check raises
+        at runtime.
+    TypeError
+        If the arguments match none of the forms.
     """
-    resolved = tree_param_paths(tree)
-    unknown = [name for name in values if name not in resolved]
-    if strict and unknown:
-        raise ValueError(f"Unknown parameter names: {unknown}")
+    has_value = value is not _MISSING
+    has_fixed = fixed is not None
+    has_node = node is not _MISSING
+    has_fn = fn is not None
 
-    paths, nodes = [], []
-    for name, value in values.items():
-        if name not in resolved:
-            continue
-        path, leaf = resolved[name]
-        if is_param(leaf):
-            leaf = dataclasses.replace(leaf, value=value)
-        else:
-            leaf = jnp.asarray(value, dtype=leaf.dtype)
-        paths.append(path)
-        nodes.append(leaf)
+    def form_error():
+        return TypeError(f"prf.update got arguments matching none of its forms.\n\n{_UPDATE_FORMS}")
+
+    if has_value + has_fixed + has_node + has_fn > 1:
+        raise form_error()
+    if space is not None and not has_value and not isinstance(selection, Mapping):
+        raise TypeError(f"`space` applies only to values.\n\n{_UPDATE_FORMS}")
+    space = 'declared' if space is None else space
+    _check_space(space)
+
+    if has_node or has_fn:
+        if selection is _MISSING or isinstance(selection, Mapping) or not _is_selector(selection):
+            raise form_error()
+        replace_fn = fn if has_fn else (lambda _: node)
+        if callable(selection):
+            return eqx.tree_at(selection, tree, replace_fn=replace_fn)
+        paths = _select_parts(tree, selection)
+        if not paths:
+            return tree
+        parts = [Pathgetter(path)(tree) for path in paths]
+        return _set_paths(tree, paths, [replace_fn(part) for part in parts])
+
+    if selection is _MISSING:
+        if not is_param(tree) or has_value == has_fixed:
+            raise form_error()
+        return _write(tree, value, space) if has_value else _with_fixed(tree, fixed)
+
+    if isinstance(selection, Mapping):
+        if has_value or has_fixed or not all(isinstance(k, str) for k in selection):
+            raise form_error()
+        resolved = tree_param_paths(tree)
+        unknown = [name for name in selection if name not in resolved]
+        if unknown:
+            raise ValueError(f"Unknown parameter names: {unknown}")
+        paths = [resolved[name][0] for name in selection]
+        nodes = [_write(resolved[name][1], v, space) for name, v in selection.items()]
+        return _set_paths(tree, paths, nodes)
+
+    if not _is_selector(selection) or has_value == has_fixed:
+        raise form_error()
+    selected = _select(tree, selection)
+    paths = [path for path, _ in selected.values()]
+    if has_value:
+        nodes = [_write(leaf, value, space) for _, leaf in selected.values()]
+    else:
+        nodes = [_with_fixed(leaf, fixed) for _, leaf in selected.values()]
     return _set_paths(tree, paths, nodes)
 
 
-def _match_names(tree, patterns: str | Sequence[str]):
+def _identity(x):
+    return x
+
+
+def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _identity):
     """
-    Resolves the parameter names in `tree` and selects those matching `patterns`.
+    Returns a copy of a model in which one part is derived from another.
+
+    The target is removed from the model's parameters and recomputed as
+    ``fn(source)`` every time the model is unwrapped, so it follows the source through
+    :func:`update`, optimisation and sampling. A tie is not a replacement: use
+    :func:`update` to replace a part once.
+
+    ``fn`` receives the source as the model is unwrapped, so a parameter arrives as
+    its physical value. Tying a model that is already tied adds a tie; names refer
+    to the untied model.
 
     Parameters
     ----------
     tree : PyTree
-        The tree to resolve names in.
-    patterns : str or Sequence[str]
-        `fnmatch` globs, matched case-sensitively against every resolved name.
-
-    Returns
-    -------
-    resolved : dict[str, tuple[tuple, Param | jax.Array]]
-        Every name mapped to ``(path, node)``, as from :func:`tree_param_paths`.
-    matched : set[str]
-        The names matching at least one pattern.
-    """
-    if isinstance(patterns, str):
-        patterns = [patterns]
-    resolved = tree_param_paths(tree)
-    matched = {
-        name for name in resolved if any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
-    }
-    return resolved, matched
-
-
-def tree_with_fixed(tree, patterns: str | Sequence[str]):
-    """
-    Returns a tree with the parameters matching `patterns` frozen.
-
-    Matches that are already frozen are left as they are, so one
-    :func:`pmrf.unfreeze` undoes any number of calls.
-
-    Parameters
-    ----------
-    tree : PyTree
-        The tree to update.
-    patterns : str or Sequence[str]
-        `fnmatch` globs over parameter names, e.g. ``'load.*'``.
+        A model, or any collection of models and parameters.
+    target : str, Sequence[str] or Callable
+        The part to derive: a parameter name, a sequence of names, or a callable
+        returning nodes of `tree`.
+    source : str, Sequence[str] or Callable
+        The part it is derived from, selected the same way.
+    fn : Callable, optional
+        Maps the source to the target. Defaults to the identity.
 
     Returns
     -------
     PyTree
-        The updated tree.
+        A :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
+        methods stay available; otherwise a :class:`pmrf.modules.Tied`.
+
+    Raises
+    ------
+    ValueError
+        If a name is not found.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        rc = Resistor(50.0, name='r') ** Capacitor(1e-12, name='c')
+        tied = prf.tie(rc, 'r.R', 'c.C', fn=lambda C: C * 5e13)
+        prf.params(tied)                                     # {'c.C': Param(...)}
+        prf.update(tied, {'c.C': 2e-12}).build().cascade[0].R   # 100.0
     """
-    from pmrf.utils.tree import freeze
-    resolved, matched = _match_names(tree, patterns)
-    matched = [name for name in matched if not _is_frozen_path(tree, resolved[name][0])]
-    paths = [resolved[name][0] for name in matched]
-    return _set_paths(tree, paths, [freeze(resolved[name][1]) for name in matched])
+    from pmrf.models import Model, Wrapped
+    from pmrf.modules import Tied
 
-
-def tree_with_free(tree, patterns: str | Sequence[str]):
-    """
-    Returns a tree in which exactly the parameters matching `patterns` are free.
-
-    All other parameters are frozen. Parameters fixed by construction (e.g.
-    :func:`pmrf.Fixed`) stay fixed even if matched.
-
-    Parameters
-    ----------
-    tree : PyTree
-        The tree to update. May already be frozen, including nested freezes.
-    patterns : str or Sequence[str]
-        `fnmatch` globs over parameter names, e.g. ``'load.*'``.
-
-    Returns
-    -------
-    PyTree
-        The updated tree.
-    """
-    from pmrf.utils.tree import freeze, unfreeze
-    tree = unfreeze(tree)
-    resolved, matched = _match_names(tree, patterns)
-    others = [name for name in resolved if name not in matched]
-    return _set_paths(
-        tree, [resolved[name][0] for name in others], [freeze(resolved[name][1]) for name in others]
+    base = tree.wrapped if isinstance(tree, Wrapped) else tree
+    untied = base.module if isinstance(base, Tied) else base
+    name_to_path = tree_param_names_to_path(untied)
+    tied = Tied(
+        base,
+        target=resolve_target(target, name_to_path),
+        source=resolve_target(source, name_to_path),
+        tie_fn=fn,
     )
+    return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
 
 
 __all__ = [
@@ -1278,4 +1610,9 @@ __all__ = [
     "Bounded",
     "Constrained",
     "Random",
+    "params",
+    "param_values",
+    "log_prior",
+    "update",
+    "tie",
 ]

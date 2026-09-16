@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+import pmrf as prf
 from pmrf.frequency import Frequency
 from pmrf.parameters import Param
 from pmrf.materials import (
@@ -123,7 +124,7 @@ MATERIALS = {
 def _freed(model):
     """Release every parameter so that the gradient actually reaches them."""
     return jax.tree.map(
-        lambda x: x.as_free() if isinstance(x, Param) else x,
+        lambda x: prf.update(x, fixed=False) if isinstance(x, Param) else x,
         model,
         is_leaf=lambda x: isinstance(x, Param),
     )

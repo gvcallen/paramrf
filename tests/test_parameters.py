@@ -93,10 +93,10 @@ def test_distribution_is_declared_space():
 
 # Existing value surfaces follow declared space
 
-def test_values_and_with_values_are_declared():
+def test_param_values_and_update_are_declared():
     rc = RC(R=1.0, C=2.0)
-    assert np.allclose(rc.values()["C"], 2.0)
-    updated = rc.with_values({"C": 3.0})
+    assert np.allclose(prf.param_values(rc)["C"], 2.0)
+    updated = prf.update(rc, {"C": 3.0})
     assert np.allclose(updated.C.value, 3.0)
     assert np.allclose(updated.C.physical_value, 3e-12)
 
@@ -115,8 +115,8 @@ def test_replace_value_keeps_everything_else():
 
 def test_replace_value_on_tree():
     load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
-    updated = load.at("R").apply(lambda p: prf.replace(p, value=51.0))
-    assert updated.named_params() == {"R": 51.0}
+    updated = prf.update(load, "R", fn=lambda p: prf.replace(p, value=51.0))
+    assert np.allclose(prf.param_values(updated)["R"], 51.0)
 
 
 def test_replace_value_keeps_fixed_prior():
@@ -124,8 +124,8 @@ def test_replace_value_keeps_fixed_prior():
     q = prf.replace(p, value=51.0)
     assert q.fixed
     assert np.allclose(q.value, 51.0)
-    assert np.allclose(q.as_free().value, 51.0)
-    assert q.as_free().distribution is not None
+    assert np.allclose(prf.update(q, fixed=False).value, 51.0)
+    assert prf.update(q, fixed=False).distribution is not None
 
 
 def test_replace_value_out_of_bounds_raises():
@@ -141,14 +141,14 @@ def test_replace_value_is_identity():
     assert np.allclose(q.physical_value, 50e-3)
 
 
-def test_with_values_out_of_bounds_raises_under_jit():
+def test_update_out_of_bounds_raises_under_jit():
     import equinox as eqx
 
     load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
 
     @eqx.filter_jit
     def set_value(model, v):
-        return model.with_values({"R": v}).values()["R"]
+        return prf.param_values(prf.update(model, {"R": v}))["R"]
 
     assert np.allclose(set_value(load, 51.0), 51.0)
     with pytest.raises(Exception, match="outside the constraint"):
@@ -187,17 +187,17 @@ def test_replace_keeps_jit_key(p, v):
 
 
 @pytest.mark.parametrize("v", _NEW_VALUES)
-def test_with_values_keeps_jit_key(v):
+def test_update_keeps_jit_key(v):
     rc = RC(R=1.0, C=prf.Bounded(0.0, 5.0, value=2.0))
-    assert_same_jit_key(rc, rc.with_values({"R": v, "C": v}))
+    assert_same_jit_key(rc, prf.update(rc, {"R": v, "C": v}))
 
 
 def test_value_change_does_not_recompile():
     freq = prf.Frequency(1, 2, 3, "GHz")
     rc = RC(R=1.0, C=2.0)
     _TRACES.clear()
-    rc.with_values({"C": 3.0}).s(freq)
+    prf.update(rc, {"C": 3.0}).s(freq)
     assert len(_TRACES) == 1
-    rc.with_values({"C": jnp.asarray(4.0)}).s(freq)
-    rc.with_values({"R": np.float64(5.0)}).s(freq)
+    prf.update(rc, {"C": jnp.asarray(4.0)}).s(freq)
+    prf.update(rc, {"R": np.float64(5.0)}).s(freq)
     assert len(_TRACES) == 1

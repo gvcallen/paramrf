@@ -9,6 +9,7 @@ import distreqx.bijectors as bij
 from parax.constraints import infer_distribution_constraint
 
 import parax as prx
+import pmrf as prf
 from pmrf.parameters import Param, Fixed
 from pmrf.optimize import base
 from pmrf.optimize.solvers.optimistix import BFGS, NelderMead
@@ -102,8 +103,8 @@ def test_unconstrained_equinox_model():
 def test_bounded_minimization_jaxopt():
     """Test bounded minimization using the JAXopt L-BFGS-B backend."""
     y0 = {
-        "x": prx.Constrained(value=jnp.array(0.0)),
-        "y": prx.Constrained(value=jnp.array(0.0)) 
+        "x": prf.Unconstrained(jnp.array(0.0)),
+        "y": prf.Unconstrained(jnp.array(0.0)),
     }
     
     solver = LBFGSB()
@@ -115,7 +116,7 @@ def test_bounded_minimization_jaxopt():
         max_iter=1000
     )
     
-    assert isinstance(opt_model["x"], prx.Constrained)
+    assert prf.is_param(opt_model["x"])
     
     unwrapped = prx.unwrap(opt_model)
     assert jnp.allclose(unwrapped["x"], 1.0, atol=1e-3)
@@ -125,8 +126,8 @@ def test_bounded_minimization_jaxopt():
 def test_bounded_minimization_scipy():
     """Test bounded minimization using SciPy. SciPy cannot be JIT compiled."""
     y0 = {
-        "x": prx.Constrained(value=jnp.array(0.0)), 
-        "y": prx.Constrained(value=jnp.array(0.0)) 
+        "x": prf.Unconstrained(jnp.array(0.0)),
+        "y": prf.Unconstrained(jnp.array(0.0)),
     }
     
     solver = ScipyMinimize()
@@ -138,7 +139,7 @@ def test_bounded_minimization_scipy():
         max_iter=1000
     )
         
-    assert isinstance(opt_model["y"], prx.Constrained)
+    assert prf.is_param(opt_model["y"])
     
     unwrapped = prx.unwrap(opt_model)
     assert jnp.allclose(unwrapped["x"], 1.0, atol=1e-3)
@@ -207,10 +208,7 @@ def test_unconstrained_solver_with_univariate_constraint():
     from parax.constraints import GreaterThan
     
     y0 = {
-        "x": prx.Constrained(
-            value=jnp.array(8.0), # Start in valid space
-            constraint=GreaterThan(5.0) 
-        )
+        "x": prf.Constrained(GreaterThan(5.0), jnp.array(8.0)),  # Start in valid space
     }
     
     solver = BFGS()
@@ -222,7 +220,7 @@ def test_unconstrained_solver_with_univariate_constraint():
         max_iter=1000
     )
     assert payload.success
-    assert isinstance(opt_model["x"], prx.Constrained)
+    assert prf.is_param(opt_model["x"])
 
     # The solver should hit the constraint boundary and stop at 5.0
     unwrapped = prx.unwrap(opt_model)
@@ -258,7 +256,7 @@ def test_unconstrained_whitened_geometry_correlated_starved():
     y0_physical = bijector.forward(y0_latent)
     
     y0 = {
-        "x": prx.Constrained(value=y0_physical, constraint=constraint)
+        "x": prf.Constrained(constraint, y0_physical)
     }
     
     # 4. Objective: Perfect sphere in LATENT space. 
@@ -284,11 +282,10 @@ def test_unconstrained_whitened_geometry_correlated_starved():
 
 def test_bounded_whitened_geometry_correlated_starved():
     """
-    Test that bounded solvers correctly operate in the latent space.
-    
-    CURRENTLY EXPECTED TO FAIL: The physical solver requires hundreds of 
-    iterations to navigate the ill-conditioned ridge. A properly whitened 
-    latent solver requires < 5 iterations.
+    Test that bounded solvers also operate in the latent, raw space.
+
+    The physical solver requires hundreds of iterations to navigate the
+    ill-conditioned ridge; the whitened raw space needs only a few.
     """
     # 1. Define a violently correlated Cholesky factor (Condition number ~ 10,000)
     L = jnp.array([
@@ -316,7 +313,7 @@ def test_bounded_whitened_geometry_correlated_starved():
     y0_physical = bijector.forward(y0_latent)
     
     y0 = {
-        "x": prx.Constrained(value=y0_physical, constraint=constraint)
+        "x": prf.Constrained(constraint, y0_physical)
     }
     
     # 4. Objective: Perfect sphere in LATENT space. 
@@ -331,8 +328,7 @@ def test_bounded_whitened_geometry_correlated_starved():
         solver=solver,
         # Starve the optimizer. A whitened space solves this in ~3 iterations.
         # The physical space will require way more than 15.
-        max_iter=15, 
-        use_bounds=True
+        max_iter=15,
     )
     
     unwrapped = prx.unwrap(opt_model)

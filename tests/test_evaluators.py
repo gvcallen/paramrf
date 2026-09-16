@@ -494,7 +494,7 @@ def test_orthogonal_basis_uses_only_free_parameters():
         fixed_coefficient=prf.Fixed(3.0),
     )
     basis = _orthogonal_projection(lambda candidate: candidate.event(x), model, rcond=1e-10)
-    assert tuple(model.named_params(free_only=True)) == ("free_coefficient",)
+    assert tuple(prf.params(model, free_only=True)) == ("free_coefficient",)
     assert jnp.sum(basis.mask) == 1
 
 
