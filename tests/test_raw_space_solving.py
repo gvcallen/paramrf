@@ -198,10 +198,10 @@ def test_sampler_init_samples_are_read_in_raw_space():
 
 def test_sampler_init_samples_missing_a_parameter_raises():
     """`init_samples` promises the same parameter names as `model`; a bare KeyError on
-    an internal name would not say which one is missing."""
+    an internal name would not say which parameter the caller left out."""
     model = _start()
     init = prf.update(prf.update(model, {"R": jnp.array([10.0, 20.0])}), "C", fixed=True)
-    with pytest.raises(ValueError, match=r"missing the free parameters 'C'"):
+    with pytest.raises(ValueError, match=r"'C' is free in the model but missing or fixed"):
         infer_base.run_sampler(_loglikelihood, model, _StubJointSampler(), jax.random.key(0), init_samples=init)
 
 

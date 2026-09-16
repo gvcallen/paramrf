@@ -169,6 +169,7 @@ def run_minimizer(
         If `model` has no free parameters, or one starts at NaN or on a bound.
     """
     view = SolverView(model, 'optimize')
+    # The minimiser moves raw values, so every starting raw value has to be movable.
     view.check_finite()
     if isinstance(solver, AbstractBoundedMinimizer):
         # Raw space is the whole real line; constraints are kept by the bijectors.

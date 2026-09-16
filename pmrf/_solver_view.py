@@ -95,15 +95,15 @@ class SolverView:
         Raises
         ------
         ValueError
-            If `batch` is missing any of this model's free parameters.
+            If a free parameter of this model is missing from `batch`, or is fixed there.
         """
         values = param_values(batch, free_only=True, space='raw')
         missing = [name for name in self.y0 if name not in values]
         if missing:
             raise ValueError(
-                f"Cannot {self.action}: the given tree is missing the free parameters "
-                f"{', '.join(repr(name) for name in missing)}. It must have the same free "
-                "parameter names as the model."
+                f"Cannot {self.action}: {', '.join(repr(name) for name in missing)} "
+                f"{'is' if len(missing) == 1 else 'are'} free in the model but missing or "
+                "fixed in the given tree. It must have the same free parameters as the model."
             )
         return {name: values[name] for name in self.y0}
 
