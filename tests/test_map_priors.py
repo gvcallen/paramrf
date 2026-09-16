@@ -40,7 +40,11 @@ def fit(model, **kwargs):
 
 
 def fitted_value(result):
-    return float(np.asarray(list(result.model.named_params().values())[0]).ravel()[0])
+    # These tests compare against a closed form in physical units, so read the
+    # physical value. `named_params` returns declared values, which differ by the
+    # scale whenever a parameter declares one.
+    param = list(result.model.named_params(full_params=True).values())[0]
+    return float(np.asarray(param.physical_value).ravel()[0])
 
 
 def log_prior(model):

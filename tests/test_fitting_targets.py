@@ -442,7 +442,7 @@ def test_probabilistic_folds_the_scale_of_its_target():
     Attaching a distribution to a scaled parameter must not lose the scale.
 
     Parax keeps only the physical value and drops the parameter, so a distribution
-    authored in the parameter's constrained space would be evaluated against a scaled
+    authored in the parameter's declared space would be evaluated against a scaled
     value. For a non-uniform prior that is not a constant offset: it lands far into
     the tail, where the density is nearly flat and exerts almost no gradient.
     """

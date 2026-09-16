@@ -96,7 +96,7 @@ class Module(eqx.Module):
         )
 
     def values(self, free_only: bool = False) -> dict[str, jnp.ndarray]:
-        """Return the physical (scaled) value of every named parameter.
+        """Return the declared value of every named parameter.
 
         Parameters
         ----------
@@ -106,7 +106,7 @@ class Module(eqx.Module):
         Returns
         -------
         dict[str, jax.Array]
-            Names, as in :meth:`named_params`, mapped to physical values.
+            Names, as in :meth:`named_params`, mapped to declared values.
         """
         return tree_param_values(self, free_only=free_only)
 
@@ -123,7 +123,9 @@ class Module(eqx.Module):
         Parameters
         ----------
         values : dict[str, ArrayLike]
-            Names mapped to physical (scaled) values.
+            Names mapped to declared values, in the units each parameter's scale
+            declares. Changing values keeps the jit cache key, so RF methods such as
+            :meth:`pmrf.Model.s` do not recompile.
         strict : bool, default=True
             Raise on unknown names. If False, they are ignored.
 

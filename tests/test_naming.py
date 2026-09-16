@@ -177,8 +177,11 @@ def _assert_names_resolve(tree, expected=None):
     assert names, "no names resolved"
     if expected is not None:
         assert set(names) == set(expected)
-    for name, value in names.items():
-        assert np.allclose(prf.unwrap(tree.at(name).get()), value)
+    full = tree.named_params(full_params=True)
+    for name in names:
+        node = full[name]
+        physical = node.physical_value if prf.is_param(node) else node
+        assert np.allclose(prf.unwrap(tree.at(name).get()), physical)
 
 
 def test_names_resolve_on_frozen_tree():
@@ -352,13 +355,13 @@ def test_values_free_only():
     assert "cable.vf" not in system.values(free_only=True)
 
 
-def test_with_values_updates_physical_values():
+def test_with_values_takes_declared_values():
     system = _system()
-    updated = system.with_values({"load.R": 51.0, "cable.length": 0.125, "cable.vf": 0.8})
+    updated = system.with_values({"load.R": 51.0, "cable.length": 125.0, "cable.vf": 0.8})
     names = updated.named_params(full_params=True)
     assert np.allclose(names["load.R"].value, 51.0)
-    assert np.allclose(names["cable.length"].value, 0.125)
-    assert np.allclose(names["cable.length"].unscaled_value, 125.0)
+    assert np.allclose(names["cable.length"].physical_value, 0.125)
+    assert np.allclose(names["cable.length"].value, 125.0)
     assert names["cable.vf"].fixed and np.allclose(names["cable.vf"].value, 0.8)
     assert names["cable.length"].distribution is not None
 

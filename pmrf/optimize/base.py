@@ -209,7 +209,7 @@ def run_minimizer(
             fn=objective, y0=solver_params, args=args, max_iter=max_iter, **kwargs
         )
 
-    # Re-wrap the optimized parameters into the constrained physical domain
+    # Re-wrap the optimized parameters from raw space into physical space
     opt_physical = bijector.forward(result.y)
     opt_dynamic = prx.wrap(dynamic, opt_physical, only_if=prx.is_constrained)
     opt_model = eqx.combine(opt_dynamic, static, is_leaf=is_leaf)
