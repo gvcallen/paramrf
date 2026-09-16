@@ -6,11 +6,10 @@ every solver and must not depend on how internal components are wired.
 """
 import pytest
 import numpy as np
-import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
 from pmrf.models import (
-    Circuit, Port, Ground, Resistor,
+    Circuit, Port, Ground, Resistor, Capacitor, Inductor,
     GlobalScatteringCircuitSolver,
     HierarchicalScatteringCircuitSolver,
     SequentialScatteringCircuitSolver,
@@ -67,7 +66,7 @@ def _asymmetric_two_port(solver, a_first: bool, series_flipped: bool, **kwargs):
 
 
 def test_asymmetric_two_port_reference_values():
-    # Values quoted in the issue, as a guard on the hand-written reference.
+    # Values quoted in issue #165, as a guard on the hand-written reference.
     assert np.isclose(S_AB[0, 0], -0.7122, atol=1e-4)
     assert np.isclose(S_AB[1, 1], -0.5833, atol=1e-4)
 
@@ -102,8 +101,8 @@ def test_nested_circuit_ports_follow_declaration_order(solver_cls, flatten, freq
     # The outer circuit adds a 3 Ω series resistor on A and a 2 Ω one on B. The
     # resistor on B is declared first, so it is discovered before either `Port`,
     # but port A is still the first `Port` declared.
-    R_TA, R_TB = 3.0, 2.0
-    t_a, t_b = Resistor(R=R_TA), Resistor(R=R_TB)
+    r_ta, r_tb = 3.0, 2.0
+    t_a, t_b = Resistor(R=r_ta), Resistor(R=r_tb)
     port_a, port_b = Port(), Port()
     outer = Circuit([
         [(t_b, 0), (inner, 1)],
@@ -115,7 +114,7 @@ def test_nested_circuit_ports_follow_declaration_order(solver_cls, flatten, freq
     # Nodes (A, B, port A, port B), by hand.
     Y = np.zeros((4, 4))
     Y[:2, :2] = Y_AB
-    for i, j, R in [(0, 2, R_TA), (1, 3, R_TB)]:
+    for i, j, R in [(0, 2, r_ta), (1, 3, r_tb)]:
         Y[np.ix_([i, j], [i, j])] += np.array([[1, -1], [-1, 1]]) / R
     expected = _y_to_s(_kron_reduce(Y, keep=[2, 3]))
 
@@ -149,7 +148,6 @@ def test_port_sharing_a_net_with_ground_raises():
 @pytest.mark.parametrize("solver_cls", SOLVERS)
 def test_pi_clc_docstring_example_matches_skrf(solver_cls, freq):
     skrf = pytest.importorskip("skrf")
-    from pmrf.models import Capacitor, Inductor
 
     # Exactly the `Circuit` docstring example: `(L, 1)` on the first node.
     C1, C2 = Capacitor(C=2e-12), Capacitor(C=1.5e-12)

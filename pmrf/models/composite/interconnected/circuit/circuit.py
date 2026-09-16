@@ -83,8 +83,8 @@ class Circuit(Model):
     >>> 
     >>> # Create the connections list
     >>> connections = [
-    ...     [(p0, 0), (C1, 1), (L, 1)],         # Node 0 -> Port 1
-    ...     [(p1, 0), (C2, 1), (L, 0)],         # Node 1 -> Port 2
+    ...     [(p0, 0), (C1, 1), (L, 1)],         # Node 0 -> Port 0
+    ...     [(p1, 0), (C2, 1), (L, 0)],         # Node 1 -> Port 1
     ...     [(ground, 0), (C1, 0), (C2, 0)],    # Node 2 -> Ground
     ... ]
     >>> 
