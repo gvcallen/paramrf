@@ -15,7 +15,7 @@ from scipy.interpolate import CubicSpline
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.models import Model
-from pmrf.utils import field, freeze
+from pmrf.utils import ByIdentity, field, freeze
 from pmrf.types import ArrayLike
 from pmrf.rf import renormalize_s
 
@@ -138,30 +138,6 @@ def renormalize_network_data(s_old: jnp.ndarray, z0_old: jnp.ndarray, z0_new: jn
     return jax.lax.cond(is_matched, _identity, _renorm)
 
 
-class _ByIdentity:
-    """
-    A static-field holder compared by identity.
-
-    ``eqx.filter_jit`` compares static fields with ``==``. ``skrf.Network.__eq__``
-    broadcasts the S-parameter arrays of both networks, which is O(data) on every
-    call and raises for networks of different shapes. The cost is that two
-    models built from equal but distinct networks compile separately; a model
-    updated with ``prf.update`` keeps its holder and so its compiled code.
-    """
-
-    # ``value`` is the wrapped object; it is compared by identity, never by ``==``.
-    __slots__ = ("value",)
-
-    def __init__(self, value: object):
-        self.value = value
-
-    def __eq__(self, other):
-        return isinstance(other, _ByIdentity) and self.value is other.value
-
-    def __hash__(self):
-        return id(self.value)
-
-
 class SkrfNetwork(Model):
     """
     A model wrapping a static :class:`skrf.Network` or :class:`NetworkCollection`.
@@ -180,7 +156,7 @@ class SkrfNetwork(Model):
         separately at construction time. Both give NaN outside the source band.
     """
     #: The underlying network data, compared by identity in the jit cache key.
-    _network: _ByIdentity = field(static=True, repr=False)
+    _network: ByIdentity[skrf.Network | NetworkCollection] = field(static=True, repr=False)
 
     #: The interpolation used when evaluating at a new frequency grid.
     interpolation_kind: Literal["linear", "cubic"] = field(static=True)
@@ -210,7 +186,7 @@ class SkrfNetwork(Model):
                 self._spline_coefficients = _cubic_spline_coefficients(
                     network.f, network.s
                 )
-        self._network = _ByIdentity(network)
+        self._network = ByIdentity(network)
 
     @property
     def network(self) -> skrf.Network | NetworkCollection:
