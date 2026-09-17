@@ -40,6 +40,8 @@ Models are immutable, so :func:`pmrf.update` returns a changed copy rather than 
 
 **Structural changes** replace a part of the model outright, either with a new sub-model or parameter, or with the result of a function applied to the old part. These put exactly what they are given in place, without validation. An exact name can select a whole sub-model here, whereas a glob only ever matches parameters.
 
+A dictionary passed to :func:`pmrf.update` can hold both kinds. Each entry is decided by its value: a :class:`pmrf.Model` keyed by a sub-model name is a structural change, unvalidated, while an array or parameter keyed by a parameter name is a value change. For example, ``prf.update(system, {'east_coax': new_east, 'west_coax': new_west})`` replaces two sub-models in one call. A model given for a parameter name, or a value given for a sub-model name, raises an error.
+
 The distinction matters for performance. RF methods such as :meth:`pmrf.Model.s` are compiled just-in-time, and the compiled code is only reused while the model's structure is unchanged. Changing a parameter's value keeps that structure, so it never triggers a recompile. Fixing or freeing a parameter, making a structural change, or swapping in a parameter with a different constraint or scale all change the structure, and so recompile. On a large circuit this can take noticeably longer than an evaluation, so value changes should be preferred inside loops.
 
 Tied Parameters

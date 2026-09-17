@@ -85,6 +85,7 @@ replaced. Exactly one form says what with:
 
 ```python
 prf.update(model, {'L1.L': 3.0, 'C1.C': 2.0})      # parameter values by name
+prf.update(model, {'east': wet(model.east), 'west': wet(model.west)})  # sub-models by name
 prf.update(model, 'L1.L', value=3.0)               # parameter fields on a selection
 prf.update(model, 'cable.*', fixed=True)           # fixed state
 prf.update(model, 'cascade[1]', Short())           # a new sub-model or node
@@ -98,19 +99,26 @@ It replaces `with_values`, `with_free`, `with_fixed`, `Module.map`,
 
 - **Selectors** are parameter names, `fnmatch` globs over them, sequences of
   names, or callables, resolved by the #133 resolver.
-- **Two tiers, set by the form.** The mapping, `value=` and `fixed=` forms go
+- **Two tiers, set by the form, or per entry in a mapping.** The `value=` and
+  `fixed=` forms, and mapping entries whose value is an array or `Param`, go
   through each parameter's constructor: they validate bounds and keep the prior,
-  constraint, scale, name and metadata. The node and `fn=` forms are
-  structural: they bypass converters and validation, and the docstring says so.
+  constraint, scale, name and metadata. The node and `fn=` forms, and mapping
+  entries whose value is a `Model`, are structural: they bypass converters and
+  validation, and the docstring says so.
 - **The mapping form** is recognised only as the second positional argument
-  with every key a string. Its values may be arrays or `Param` objects. Any
+  with every key a string. A value that is an array or `Param` is keyed by a
+  parameter name, and `space=` applies to it. A value that is a `Model` is keyed
+  by a sub-model name (`'cascade[1]'`, a named module's name) and replaces that
+  sub-model as the node form does (amended by #168, so several sub-models can be
+  replaced in one call). One mapping may mix both; a model for a parameter name,
+  or a value for a sub-model name, raises. Any
   other second argument is a selector, and a form mismatch raises an error that
   lists the forms.
 - **`fixed=`** is additive. `fixed=False` frees a parameter even if it was
   created fixed, and parameters the selector does not match are untouched.
   "Only these free" is `update(update(m, '*', fixed=True), names, fixed=False)`.
-- **Value forms keep the jit cache key.** The mapping, `value=` and `space=`
-  forms never change the treedef, or any leaf's dtype, shape or `weak_type`
+- **Value forms keep the jit cache key.** Mappings of values only, and the
+  `value=` and `space=` forms, never change the treedef, or any leaf's dtype, shape or `weak_type`
   (decision 10). Changing `fixed=`, or any structural form, changes the model's
   structure, and recompiling is expected.
 - **Not an optimiser step.** In fitting, "updates" also means Optax gradient

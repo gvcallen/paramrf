@@ -233,3 +233,74 @@ def test_tied_repr_shows_derived_target():
     rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
     text = repr(prf.tie(rc, "r.R", "c.C", fn=lambda c: c * 5e13).wrapped)
     assert "50." in text
+
+
+# ---- Mapping form with sub-models (#168) ----------------------------------------------
+
+
+def _named():
+    return Cascade([
+        Capacitor(prf.Unconstrained(1e-12), name="c"),
+        Cascade([Resistor(prf.Unconstrained(10.0), name="inner"), Resistor(prf.Unconstrained(20.0))], name="sub"),
+        Resistor(prf.Unconstrained(50.0), name="load"),
+    ])
+
+
+def _same(a, b):
+    import jax
+    la, ta = jax.tree.flatten(a)
+    lb, tb = jax.tree.flatten(b)
+    assert ta == tb
+    assert all(np.array_equal(x, y) for x, y in zip(la, lb))
+
+
+def test_update_mapping_replaces_a_single_sub_model():
+    model = _named()
+    new = Resistor(prf.Unconstrained(75.0), name="load")
+    _same(prf.update(model, {"load": new}), prf.update(model, "load", new))
+
+
+def test_update_mapping_replaces_nested_and_indexed_sub_models():
+    rc = _rc()
+    _same(prf.update(rc, {"cascade[1]": Short()}), prf.update(rc, "cascade[1]", Short()))
+    model = _named()
+    short = Short()
+    via_map = prf.update(model, {"sub_inner": short, "load": Short()})
+    one_by_one = prf.update(prf.update(model, "sub_inner", short), "load", Short())
+    _same(via_map, one_by_one)
+    assert isinstance(via_map.cascade[1].cascade[0], Short)
+
+
+def test_update_mapping_mixes_model_and_value_entries():
+    model = _named()
+    mixed = prf.update(model, {"load": Short(), "c.C": 2e-12}, space="declared")
+    _same(mixed, prf.update(prf.update(model, "load", Short()), {"c.C": 2e-12}))
+    assert isinstance(mixed.cascade[2], Short)
+
+
+def test_update_mapping_model_for_parameter_name_raises():
+    with pytest.raises(TypeError, match="parameter name"):
+        prf.update(_named(), {"c.C": Short()})
+
+
+def test_update_mapping_array_for_sub_model_name_raises():
+    with pytest.raises(TypeError, match="names a sub-model"):
+        prf.update(_named(), {"load": 3.0})
+
+
+def test_update_mapping_unknown_sub_model_raises():
+    with pytest.raises(ValueError, match="Unknown sub-model"):
+        prf.update(_named(), {"nope": Short()})
+
+
+def test_update_mapping_ambiguous_sub_model_raises():
+    model = Cascade([Resistor(prf.Unconstrained(1.0), name="x"), Resistor(prf.Unconstrained(2.0), name="x")])
+    with pytest.raises(ValueError):
+        prf.update(model, {"x": Short()})
+
+
+def test_update_mapping_overlapping_parts_raise():
+    with pytest.raises(ValueError, match="overlap"):
+        prf.update(_named(), {"sub": Short(), "sub_inner": Short()})
+    with pytest.raises(ValueError, match="overlap"):
+        prf.update(_named(), {"load": Short(), "load.R": 1.0})
