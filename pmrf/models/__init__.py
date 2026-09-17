@@ -198,6 +198,11 @@ from pmrf.models.adapters.wrapped import (
     Wrapped as Wrapped,
 )
 
+from pmrf.models.adapters.derived import (
+    Derived as Derived,
+    derived as derived,
+)
+
 # Compatibility re-exports. Parameter-aware wrappers live under ``pmrf.modules``.
 from pmrf.modules import Tied as Tied, Probabilistic as Probabilistic
 

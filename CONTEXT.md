@@ -54,6 +54,16 @@ dataclass field replace, not an update.
 
 *Avoid:* "set values", "with values"; "update" for an optimiser step.
 
+### Derived model
+
+A model computed from a **base** model and **new parameters** by a function,
+`f(base, **new)`, built with `prf.derived` (ADR-0003). The base and the new
+parameters are held once; the base keeps its names and each new parameter is
+named by its keyword. Used to derive a more complete model from a nominal one
+(a wet section, a cut) and, by nesting, to share a parameter across parts.
+
+*Avoid:* "tie with new parameters", "shared parameter" as a separate concept.
+
 ### Parameter values
 
 `prf.param_values`: a name-keyed dict of arrays in one space, the form values

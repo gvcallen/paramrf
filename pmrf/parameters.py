@@ -955,11 +955,12 @@ def _is_name_leaf(x: Any) -> bool:
 
 def _is_name_transparent(x: Any) -> bool:
     """Wrappers whose own path parts are omitted from parameter names."""
+    from pmrf.models.adapters.derived import Derived
     from pmrf.models.adapters.wrapped import Wrapped
     from pmrf.modules.base import Module
     from pmrf.modules.wrapped import Probabilistic, Tied
 
-    if isinstance(x, (Tied, Probabilistic, Wrapped)):
+    if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
 
