@@ -216,3 +216,19 @@ def test_fit_smoke():
     result = fit_minimize(start, np.asarray(truth.s(FREQ)), frequency=FREQ)
     assert isinstance(result.model, type(start))
     np.testing.assert_allclose(prf.param_values(result.model)['wet_length'], 0.5, atol=1e-3)
+
+
+def test_tie_across_derived_and_plain_models():
+    system = Cascade([_wet(_cable(name='coax')), Resistor(prf.Unconstrained(10.0), name='r')])
+    tied = prf.tie(system, 'r.R', 'coax.wet_ep_r', fn=lambda x: 5 * x)
+    assert 'r.R' not in prf.params(tied)
+    expected = _by_hand(_cable(), 0.4, 4.0) ** Resistor(20.0)
+    np.testing.assert_allclose(tied.s(FREQ), expected.s(FREQ), rtol=1e-10, atol=1e-12)
+
+
+def test_structural_update_on_a_base_sub_model_and_free_values():
+    from pmrf.materials import ConstantDielectric
+
+    model = prf.update(_wet(), 'dielectric', ConstantDielectric(ep_r=prf.Fixed(1.0)))
+    assert 'dielectric.ep_r' not in prf.param_values(model, free_only=True)
+    assert {'wet_length', 'wet_ep_r'} <= set(prf.param_values(model, space='raw', free_only=True))
