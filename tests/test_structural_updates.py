@@ -2,6 +2,7 @@
 import inspect
 import re
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -247,7 +248,6 @@ def _named():
 
 
 def _same(a, b):
-    import jax
     la, ta = jax.tree.flatten(a)
     lb, tb = jax.tree.flatten(b)
     assert ta == tb
@@ -294,8 +294,8 @@ def test_update_mapping_unknown_sub_model_raises():
 
 
 def test_update_mapping_ambiguous_sub_model_raises():
-    model = Cascade([Resistor(prf.Unconstrained(1.0), name="x"), Resistor(prf.Unconstrained(2.0), name="x")])
-    with pytest.raises(ValueError):
+    model = Cascade([Resistor(prf.Unconstrained(1.0, name="r1"), name="x"), Resistor(prf.Unconstrained(2.0, name="r2"), name="x")])
+    with pytest.raises(ValueError, match="ambiguous"):
         prf.update(model, {"x": Short()})
 
 

@@ -1378,11 +1378,16 @@ def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
         paths.extend(resolved[name][0] for name in hits)
 
     unique = list(dict.fromkeys(paths))
-    for a in unique:
-        for b in unique:
+    _check_no_overlap(unique)
+    return unique
+
+
+def _check_no_overlap(paths: list[tuple[Any, ...]]):
+    """Raises if one of the selected paths contains another."""
+    for a in paths:
+        for b in paths:
             if a != b and b[:len(a)] == a:
                 raise ValueError("The selected parts overlap: one contains another.")
-    return unique
 
 
 _UPDATE_FORMS = """prf.update takes one of these forms:
@@ -1559,10 +1564,8 @@ def update(
                 unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
-        for a in paths:
-            for b in paths:
-                if a != b and b[:len(a)] == a:
-                    raise ValueError("The selected parts overlap: one contains another.")
+        if submodels is not None:
+            _check_no_overlap(paths)
         return _set_paths(tree, paths, nodes)
 
     if not _is_selector(selection) or has_value == has_fixed:
