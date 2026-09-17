@@ -130,7 +130,8 @@ anything name-based.
 
 `prf.tie(model, target, source, fn=identity)` stays a separate verb. A tie is
 not a replacement: its target is recomputed from its source every time the
-model is unwrapped.
+model is unwrapped. A relation that needs a quantity the model does not yet hold
+is a derived model (`prf.derived`, ADR-0003), not a tie.
 
 ### 4. Reading: `prf.params` and `prf.param_values`
 

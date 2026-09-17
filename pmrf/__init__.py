@@ -46,6 +46,7 @@ except PackageNotFoundError:
 from pmrf.models import (
     Model as Model,
     is_model as is_model,
+    derived as derived,
 )
 from pmrf.modules.base import Module as Module, is_module as is_module
 from pmrf.frequency import Frequency as Frequency
@@ -125,6 +126,7 @@ __all__ = [
     # Base/Core
     "Model",
     "is_model",
+    "derived",
     "Module",
     "is_module",
     "Frequency",

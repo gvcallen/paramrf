@@ -48,3 +48,41 @@ Tied Parameters
 ~~~~~~~~~~~~~~~
 
 Rather than setting a parameter once, :func:`pmrf.tie` derives it from another parameter. The target is removed from the model's parameters and is recomputed from its source every time the model is evaluated, so it follows the source through updates, optimization and sampling. Because it is no longer a parameter, it also no longer has a name. The tie function receives and returns physical values, and derivatives with respect to the source include the path through the tie.
+
+Derived Models
+~~~~~~~~~~~~~~
+
+A tie can only relate parameters that already exist. Sometimes a relation needs a quantity the model has no place for. Take a coaxial cable of total length ``L`` that is wet for its first ``w``: the model is a wet section cascaded with a dry one, but neither section can hold ``L``, and ``L`` should keep its own prior (perhaps a joint lab prior with the cable's geometry) rather than drift as ``w`` changes.
+
+:func:`pmrf.derived` handles this by starting from the nominal model and deriving a more complete one. It turns a function ``f(base, **new)`` into a constructor: the base model and the new parameters are held once, and ``f`` is called on them whenever the model is used.
+
+.. code-block:: python
+
+    @prf.derived
+    def wet(cable, wet_length, wet_ep_r):
+        wet = prf.replace(cable, length=wet_length,
+                          dielectric=prf.replace(cable.dielectric, ep_r=wet_ep_r))
+        dry = prf.replace(cable, length=cable.length - wet_length)
+        return wet ** dry
+
+    coax = wet(coax, wet_length=prf.Random(Uniform(0, 20), scale=1e-3),
+               wet_ep_r=prf.Random(Uniform(1, 80)))
+
+The result is an ordinary :class:`pmrf.Model` with the same port count, so it can be cascaded, wrapped, tied and fitted like any other. Its parameters are the base's, under exactly the names they had on the base, plus one per keyword (``wet_length`` and ``wet_ep_r``). The cable's geometry is used by both sections but is still one parameter, and a values dictionary saved from a fit of the dry cable applies unchanged. Nothing built inside ``f`` is named, and the derived model takes the base's name, so inside a named container everything is prefixed as usual.
+
+Like a tie function, ``f`` receives physical values. Inside it, use :func:`pmrf.replace` to change fields of the object in hand, and :func:`pmrf.update` to change parts reached by name. ``f`` must be pure and must return a model whose structure does not depend on parameter values. It is part of the model's static structure, so define it once at module level: a lambda created anew on every call recompiles.
+
+A parameter shared by several parts is expressed by deriving at the level that owns it. A derived model can be the base of another, and names accumulate flat, so one water level for both arms of a balun is:
+
+.. code-block:: python
+
+    @prf.derived
+    def wet_balun(system, wet_length):
+        return prf.update(system, {
+            'east_coax': wet(system.east_coax, wet_length=wet_length, wet_ep_r=80.0),
+            'west_coax': wet(system.west_coax, wet_length=wet_length, wet_ep_r=80.0),
+        })
+
+    balun = wet_balun(balun, wet_length=prf.Random(Uniform(0, 20), scale=1e-3))
+
+Here ``prf.params(balun)`` holds a single ``wet_length``, and changing it changes both cables. The reasoning behind this design is recorded in ADR-0003.
