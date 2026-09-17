@@ -45,9 +45,11 @@ on a value overrides a field's default; scales never multiply.
 
 `prf.update` returns a copy of a model with the parts a **selector** picks
 replaced. A selector is a parameter name, a glob over names, a sequence of
-names, or a callable. A **validated update** (a name → value mapping,
-`value=`, `fixed=`) goes through each parameter's constructor; a **structural
-update** (a new node, `fn=`) bypasses validation. `prf.replace` is the plain
+names, or a callable. A **validated update** (a name → value mapping
+entry, `value=`, `fixed=`) goes through each parameter's constructor; a
+**structural update** (a new node, `fn=`, or a mapping entry whose value is a
+`Model`, keyed by sub-model name) bypasses validation. In a mapping the tier is
+decided per entry by the value's type. `prf.replace` is the plain
 dataclass field replace, not an update.
 
 *Avoid:* "set values", "with values"; "update" for an optimiser step.

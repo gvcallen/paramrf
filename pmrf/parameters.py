@@ -1378,15 +1378,20 @@ def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
         paths.extend(resolved[name][0] for name in hits)
 
     unique = list(dict.fromkeys(paths))
-    for a in unique:
-        for b in unique:
-            if a != b and b[:len(a)] == a:
-                raise ValueError("The selected parts overlap: one contains another.")
+    _check_no_overlap(unique)
     return unique
 
 
+def _check_no_overlap(paths: list[tuple[Any, ...]]):
+    """Raises if one of the selected paths contains another."""
+    for a in paths:
+        for b in paths:
+            if a != b and b[:len(a)] == a:
+                raise ValueError("The selected parts overlap: one contains another.")
+
+
 _UPDATE_FORMS = """prf.update takes one of these forms:
-    update(model, {'name': value, ...}, space=...)   values by name
+    update(model, {'name': value, ...}, space=...)   values by name, or sub-models by name
     update(model, where, value=..., space=...)       one value for the selected parameters
     update(model, where, fixed=True or False)        fixed state of the selected parameters
     update(model, where, node)                       replace the selected parts with `node`
@@ -1417,6 +1422,7 @@ def update(
     .. code-block:: python
 
         prf.update(model, {'L1.L': 3.0, 'C1.C': 2.0})   # values by name
+        prf.update(model, {'load': Short(), 'L1.L': 3.0})  # sub-models and values by name
         prf.update(model, 'L1.*', value=3.0)            # one value for a selection
         prf.update(model, 'cable.*', fixed=True)        # fixed state
         prf.update(model, 'cascade[1]', Short())        # a new sub-model or node
@@ -1433,6 +1439,13 @@ def update(
     The `node` and `fn` forms are structural: they bypass converters and validation,
     and put exactly what they are given in place of each selected part, so the caller
     keeps field invariants. They usually change the structure, and recompile.
+
+    In the mapping form the tier is decided per entry by the value's type. A
+    :class:`pmrf.Model` value is a structural replacement of the sub-model its key
+    names, as in ``update(model, key, node)``: it is unvalidated and usually
+    recompiles, and `space` does not apply to it. Any other value is a validated
+    value update of the parameter its key names. A mapping of values only keeps the
+    jit cache key.
 
     ``fixed=`` is additive: parameters the selector does not match are untouched,
     and ``fixed=False`` frees a parameter even if it was created fixed. It does not
@@ -1452,7 +1465,9 @@ def update(
         Either a mapping from names to values, or a selector: a name, an `fnmatch`
         glob over names, a sequence of them, or a callable returning nodes of
         `tree`. A mapping is recognised only when every key is a string. Its values
-        may be arrays, or parameters, whose value in `space` is used. Omit it to
+        may be arrays, or parameters, whose value in `space` is used, keyed by
+        parameter name; or models, keyed by sub-model name, which replace that
+        sub-model structurally. Omit it to
         update `tree` itself, which must then be a parameter. In the structural
         forms, an exact name may also name a sub-model (``'cascade[1]'``, or a named
         module's name), a glob matches parameter names only, and a callable selects
@@ -1480,7 +1495,8 @@ def update(
         structurally selected parts overlap. Under `jax.jit` the bounds check raises
         at runtime.
     TypeError
-        If the arguments match none of the forms.
+        If the arguments match none of the forms, or a mapping gives a model for a
+        parameter name or a non-model for a sub-model name.
     """
     has_value = value is not _MISSING
     has_fixed = fixed is not None
@@ -1517,12 +1533,39 @@ def update(
     if isinstance(selection, Mapping):
         if has_value or has_fixed or not all(isinstance(k, str) for k in selection):
             raise form_error()
+        from pmrf.models.base import Model
+
         resolved = tree_param_paths(tree)
-        unknown = [name for name in selection if name not in resolved]
+        submodels = None
+        paths, nodes, unknown = [], [], []
+        for name, v in selection.items():
+            # A joint target is named like a parameter, and its value may itself be a model.
+            if isinstance(v, Model) and not (name in resolved and _is_joint_target(resolved[name][1])):
+                if name in resolved:
+                    raise TypeError(f"'{name}' is a parameter name, but its value is a model; "
+                                    "a model can only replace a sub-model.")
+                if submodels is None:
+                    submodels = _tree_submodel_paths(tree)
+                if name not in submodels:
+                    raise ValueError(f"Unknown sub-model name: '{name}'")
+                if len(submodels[name]) > 1:
+                    raise ValueError(f"Sub-model name '{name}' is ambiguous: several sub-models have it.")
+                paths.append(submodels[name][0])
+                nodes.append(v)
+            elif name in resolved:
+                paths.append(resolved[name][0])
+                nodes.append(_write(resolved[name][1], v, space))
+            else:
+                if submodels is None:
+                    submodels = _tree_submodel_paths(tree)
+                if name in submodels:
+                    raise TypeError(f"'{name}' names a sub-model, but its value is not a model; "
+                                    "only a pmrf.Model can replace a sub-model.")
+                unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
-        paths = [resolved[name][0] for name in selection]
-        nodes = [_write(resolved[name][1], v, space) for name, v in selection.items()]
+        if submodels is not None:
+            _check_no_overlap(paths)
         return _set_paths(tree, paths, nodes)
 
     if not _is_selector(selection) or has_value == has_fixed:
