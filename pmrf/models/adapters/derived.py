@@ -17,7 +17,8 @@ class _NoBase(eqx.Module):
 
 
 NO_BASE = _NoBase()
-"""The base of a derived node that has none."""
+"""The base of a derived node that has none. A pytree rebuild makes a new one, so it
+is recognised by its type rather than by identity."""
 
 
 def _call(fn, base, new):
@@ -40,7 +41,7 @@ class DerivedValue(prx.AbstractUnwrappable):
     each new parameter is named by its keyword at the same level.
     """
 
-    #: The base the value is derived from, or :data:`NO_BASE`.
+    #: The base the value is derived from, or ``NO_BASE`` if it has none.
     base: Any
 
     #: The new parameters, keyed by keyword.
@@ -63,7 +64,7 @@ class Derived(AbstractBuilder):
     is named by its keyword.
     """
 
-    #: The base model, or :data:`NO_BASE`.
+    #: The base model, or ``NO_BASE`` if it has none.
     base: Any
 
     #: The new parameters, keyed by keyword.
@@ -148,7 +149,10 @@ def derived(fn: Callable[..., Any]) -> Callable[..., Derived | DerivedValue]:
     **Names.** The base's parameters keep the names they have on the base, and each
     new parameter is named by its keyword: at the top level for a derived model, and
     beside the field for a derived value (``dielectric.tc`` for a value stored in
-    ``dielectric.ep_r``). Nothing produced inside `fn` is named. A derived model takes
+    ``dielectric.ep_r``). A keyword that clashes with a name in the base raises here;
+    one that clashes with a sibling parameter or with another derived field's keyword
+    is a name collision, raised when names are resolved. Nothing produced inside `fn`
+    is named. A derived model takes
     the base's name unless ``name=`` is passed, so a container prefixes both as usual.
     Derived nodes can be nested and names accumulate flat; a parameter shared by
     several parts is expressed by deriving at the level that owns it.
@@ -174,7 +178,9 @@ def derived(fn: Callable[..., Any]) -> Callable[..., Derived | DerivedValue]:
         ``name=`` for a node that is not a model, or (when the model is used) if `fn`
         does not return a model for a model base.
     ValueError
-        If a keyword clashes with a parameter name of the base.
+        If a keyword clashes with a parameter name of the base. A keyword that clashes
+        with a sibling parameter or with another derived field's keyword is a name
+        collision, raised by :func:`pmrf.params` and the functions that resolve names.
 
     Examples
     --------
@@ -241,7 +247,7 @@ def derived(fn: Callable[..., Any]) -> Callable[..., Derived | DerivedValue]:
             if name is not None:
                 raise TypeError(
                     f"{fn.__name__}(): 'name=' applies to a derived model, but the base is "
-                    f"{'absent' if base is NO_BASE else type(base).__name__}. A derived value "
+                    f"{'absent' if isinstance(base, _NoBase) else type(base).__name__}. A derived value "
                     "is named by where it is stored."
                 )
             return DerivedValue(base, coerced, fn=fn)
@@ -252,4 +258,4 @@ def derived(fn: Callable[..., Any]) -> Callable[..., Derived | DerivedValue]:
     return constructor
 
 
-__all__ = ["Derived", "DerivedValue", "derived", "is_derived", "NO_BASE"]
+__all__ = ["Derived", "DerivedValue", "derived", "is_derived"]

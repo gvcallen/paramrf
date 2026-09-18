@@ -419,3 +419,24 @@ def test_update_fixed_on_nested_freezes_leaves_them_frozen():
     assert "load.R" not in prf.params(nested, free_only=True)
     free = prf.update(prf.unfreeze(nested), ["load.R", "cable.length"], fixed=False)
     assert {"load.R", "cable.length"} <= set(prf.params(free, free_only=True))
+
+
+def test_a_mapping_under_a_transparent_wrapper_keeps_its_keys():
+    """A transparent wrapper hides its own path parts and a positional container, but
+    a mapping's keys are names and stay in the parameter's name (#172)."""
+    import equinox as eqx
+    from pmrf.utils.tree import path_to_name
+
+    class Wrapper(eqx.Module):
+        parts: tuple
+        new: dict
+
+    tree = {'m': Wrapper((1.0,), {'tc': 2.0})}
+    paths = {
+        path_to_name(tree, path, namespace_separator='_',
+                     is_transparent=lambda x: isinstance(x, Wrapper))
+        for path, _ in jax.tree_util.tree_flatten_with_path(
+            tree, is_leaf=lambda x: isinstance(x, float),
+        )[0]
+    }
+    assert paths == {'m', 'm.tc'}  # the tuple is plumbing; the key is a name

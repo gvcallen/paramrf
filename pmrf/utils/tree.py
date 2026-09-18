@@ -370,7 +370,7 @@ def path_to_name(
     namespace_separator: str,
     ignore_names: bool = False,
     is_transparent: Callable[[Any], bool] | None = None,
-    absorbs_entry: Callable[[Any, Any], bool] | None = None,
+    hoists_branch: Callable[[Any, Any], bool] | None = None,
 ) -> str:
     """
     Converts a JAX-style path to an equivalent namespace string.
@@ -397,11 +397,12 @@ def path_to_name(
         so that names are relative to the wrapped tree. A container held directly
         by a transparent wrapper (e.g. the tuple in ``parax.Combine``) is
         omitted too; a mapping is descended into, since its keys are names.
-    absorbs_entry : callable, optional
-        Called as ``absorbs_entry(parent, attr)`` on each step of the path. When it
-        is true, the part that led into `parent` is dropped as well, so the branch
-        below is named at `parent`'s own level rather than below it (e.g. the new
-        parameters of a derived value, which sit beside the field holding it).
+    hoists_branch : callable, optional
+        Called as ``hoists_branch(parent, attr)`` on each step of the path. When it is
+        true, the part that led into `parent` is dropped along with `attr` itself, so
+        the branch `attr` reaches is named at `parent`'s own level rather than below
+        it (e.g. the new parameters of a derived value, which sit beside the field
+        holding it).
 
     Returns
     -------
@@ -416,9 +417,9 @@ def path_to_name(
     entry_index = None
     for parent, part_type, attr, current_obj in path_nodes(tree, path):
         if (
-            absorbs_entry is not None
+            hoists_branch is not None
             and entry_index is not None
-            and absorbs_entry(parent, attr)
+            and hoists_branch(parent, attr)
         ):
             del unnamed_path_parts[entry_index]
             entry_index = None
