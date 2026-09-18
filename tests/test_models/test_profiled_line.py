@@ -249,17 +249,29 @@ def test_container_field_layout_never_appears_in_a_name(line):
     """No `base.` or `profiles['w'].` prefix leaks out of the container."""
     names = set(prf.params(line))
     assert not any(name.startswith(('base', 'profiles', '[')) for name in names)
-    assert 'w.start' in names and 'w' in names
+    assert 'w.start' in names
 
 
-def test_profiled_targets_leave_the_free_parameter_set(base, taper):
+def test_a_profiled_target_is_not_a_parameter_any_more(base, taper):
     """
-    A profiled target's value is discarded, so it is fixed and cannot be fitted;
-    its profile's coefficients are what is free instead.
+    A profiled target has no name at all: its profile's coefficients replace it.
 
-    The parameter is fixed rather than deleted, exactly as `RepeatedCascade` fixes a
-    repeated parameter on its member: the base tree is left structurally as built.
+    The `Param` stays where it is in the base tree -- `build` writes each profile's
+    value back through the driven field's own converter and constraint, and ADR-0004
+    keeps the base tree as built -- but the container declares it shadowed, so it is
+    not a parameter of the profiled line.
     """
+    line = ProfiledLine(base, {'w': taper})
+
+    names = set(prf.params(line))
+    assert 'w' not in names
+    assert {'w.start', 'w.end'} <= names
+    # Untouched parameters of the base are unaffected.
+    assert {'length', 'substrate.h'} <= names
+
+
+def test_profiled_coefficients_are_what_is_free(base):
+    """What a fit moves is the shape, not the target the shape drives."""
     free_base = prf.update(base, '*', fixed=False)
     free_taper = ExponentialProfile(
         start=prf.Bounded(1e-3, 9e-3, value=2e-3),
@@ -270,6 +282,71 @@ def test_profiled_targets_leave_the_free_parameter_set(base, taper):
     free = set(prf.params(line, free_only=True))
     assert 'w' not in free
     assert {'w.start', 'w.end'} <= free
+
+
+def test_setting_a_shadowed_target_is_not_a_silent_no_op(freq):
+    """
+    Regression: a target's own value drives nothing, so naming it must fail loudly.
+
+    Before the target was shadowed, `prf.update(line, {'w': ...})` resolved to a dead
+    `Param` and changed the S-parameters by exactly zero, which is the failure mode a
+    fit or a sweep aimed at `w` would have hit -- silently optimising nothing.
+    """
+    line = ProfiledLine(
+        MicrostripLine,
+        {'w': LinearProfile(start=2e-3, end=6e-3)},
+        h=1.6e-3,
+        length=TOTAL_LENGTH,
+        n=8,
+    )
+
+    with pytest.raises(ValueError, match='[Uu]nknown parameter name'):
+        prf.update(line, {'w': 99e-3})
+    with pytest.raises(ValueError, match='[Uu]nknown parameter name'):
+        prf.params(line, 'w')
+
+    # The coefficient that replaced it does move the answer.
+    moved = prf.update(line, {'w.start': 3e-3})
+    assert float(jnp.max(jnp.abs(moved.s(freq) - line.s(freq)))) > 1e-3
+
+
+def test_shadowing_does_not_change_any_other_model(base):
+    """The naming layer is shared: a model that shadows nothing is untouched."""
+    from pmrf.models import Cascade, Resistor
+
+    assert 'w' in set(prf.params(base))
+    assert set(prf.params(Cascade([base, base]))) == {
+        f'cascade[{index}].{name}' for index in (0, 1) for name in prf.params(base)
+    }
+    assert set(prf.params(Resistor(50.0))) == {'R'}
+
+
+def test_two_profiled_lines_shadow_their_own_targets(base, taper):
+    """Shadowing is per position, so each container hides its own target."""
+    from pmrf.models import Cascade
+
+    cascade = Cascade([
+        ProfiledLine(base, {'w': taper}, name='t1'),
+        ProfiledLine(base, {'w': taper}, name='t2'),
+    ])
+
+    names = set(prf.params(cascade))
+    assert {'t1_w.start', 't1_w.end', 't2_w.start', 't2_w.end'} <= names
+    assert not any(name.endswith('.w') or name == 'w' for name in names)
+
+
+def test_a_shadowed_target_is_still_written_through_its_own_field(base):
+    """Shadowing hides a name; it does not bypass the driven field's constraint.
+
+    `w` is constrained positive by `MicrostripLine`, and the profile's value goes in
+    through that constraint, so an impossible profile is still rejected there.
+    """
+    line = ProfiledLine(base, {'w': LinearProfile(start=2e-3, end=-6e-3)})
+
+    # The message names the field's own constraint, which is the thing doing the
+    # rejecting: a shadowed target is still written in through its own field.
+    with pytest.raises(Exception, match='falls outside the constraint'):
+        line.at(1.0)
 
 
 def test_a_value_for_a_profiled_target_raises(taper):

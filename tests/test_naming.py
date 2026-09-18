@@ -419,3 +419,55 @@ def test_update_fixed_on_nested_freezes_leaves_them_frozen():
     assert "load.R" not in prf.params(nested, free_only=True)
     free = prf.update(prf.unfreeze(nested), ["load.R", "cable.length"], fixed=False)
     assert {"load.R", "cable.length"} <= set(prf.params(free, free_only=True))
+
+
+# ---------------------------------------------------------
+# Shadowed parameters
+# ---------------------------------------------------------
+
+class _Shadowing(prf.Module):
+    """A container that drives one of the parameters it holds, and hides it."""
+
+    held: object
+    hidden: tuple[str, ...] = prf.field(static=True, default=())
+
+    def shadowed_param_paths(self):
+        paths = prf.parameters.tree_param_paths(self.held)
+        return {
+            (jax.tree_util.GetAttrKey('held'),) + tuple(paths[name][0])
+            for name in self.hidden
+            if name in paths
+        }
+
+
+def test_a_container_can_shadow_a_parameter_it_drives():
+    """The declared path has no name, and everything else is untouched."""
+    held = Resistor(R=50.0, name='load')
+    assert 'load.R' in prf.params(_Shadowing(held=held))
+    assert 'load.R' not in prf.params(_Shadowing(held=held, hidden=('R',)))
+
+
+def test_a_shadowed_name_fails_loudly_rather_than_resolving():
+    container = _Shadowing(held=Resistor(R=50.0, name='load'), hidden=('R',))
+
+    with pytest.raises(ValueError, match='[Uu]nknown parameter name'):
+        prf.params(container, 'load.R')
+    with pytest.raises(ValueError, match='[Uu]nknown parameter name'):
+        prf.update(container, {'load.R': 1.0})
+
+
+def test_a_container_declaring_nothing_shadows_nothing():
+    """The mechanism is opt-in: a model that does not declare it is unaffected."""
+    held = Resistor(R=50.0, name='load')
+    assert set(prf.params(_Shadowing(held=held, hidden=()))) == {'load.R'}
+
+
+def test_shadowing_is_per_position_not_per_object():
+    """The same container object in two slots shadows its target in both."""
+    shared = _Shadowing(held=Resistor(R=50.0), hidden=('R',))
+
+    class _Two(prf.Module):
+        a: object
+        b: object
+
+    assert prf.params(_Two(a=shared, b=shared)) == {}

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+import jax
 import jax.numpy as jnp
 
 from pmrf.models.base import Model
@@ -86,10 +87,13 @@ class ProfiledLine(TransmissionLine, AbstractBuilder):
 
     Parameters and names
     --------------------
-    A profiled target's value on the base is discarded and its parameter is fixed, so
-    it leaves the free parameter set rather than offering an optimiser a parameter that
-    moves nothing. What is fitted instead are the profile's coefficients, which the
-    container names under the target: ``'w.start'``, ``'substrate.dielectric.ep_r.end'``.
+    A profiled target's value on the base is discarded, and the target stops being a
+    parameter of the line: it is **shadowed**, so it has no name, is absent from
+    :func:`pmrf.params`, and ``pmrf.update(line, {'w': ...})`` raises rather than
+    quietly setting a value that changes nothing. The `Param` itself stays where it is
+    in the base tree, so each profile's value is still written back through the driven
+    field's own converter and constraint. What is fitted instead are the profile's
+    coefficients, which the container names under the target: ``'w.start'``, ``'substrate.dielectric.ep_r.end'``.
     The names are assigned by the container rather than falling out of the mapping's
     dict keys, so a non-identifier path never leaks a bracket form into a parameter
     name, and the container's own field layout never appears in one. Globs then do the
@@ -97,8 +101,8 @@ class ProfiledLine(TransmissionLine, AbstractBuilder):
     profile's start.
 
     Passing a value explicitly for a profiled target raises, in the class form where
-    the container can see what was typed; a field default that is discarded does not,
-    because the user did not type it.
+    the container can see what was typed; a field default that is discarded does
+    not, because the user did not type it.
 
     Evaluation
     ----------
@@ -188,6 +192,12 @@ class ProfiledLine(TransmissionLine, AbstractBuilder):
     #: The number of uniform sections. Static.
     n: int = field(default=64, static=True, kw_only=True)
 
+    #: Keeps the container's own field layout -- `base`, `profiles` -- out of the names
+    #: of the parameters below it, so the base line's parameters flatten to this
+    #: container's position in the name space and the profile coefficients are named
+    #: under their target. See :data:`pmrf.parameters.NAME_TRANSPARENT_MARKER`.
+    _pmrf_name_transparent = True
+
     def __init__(
         self,
         base: Model | type[Model],
@@ -231,9 +241,9 @@ class ProfiledLine(TransmissionLine, AbstractBuilder):
         _check_targets(base, profiles)
 
         # A profiled target's value on the base is discarded: the profile supplies it
-        # per section. Fixing it here keeps the base tree structurally untouched while
-        # taking the parameter out of the free set, so an optimiser is never handed a
-        # parameter that moves nothing.
+        # per section. Fixing it keeps the base tree structurally untouched while
+        # taking it out of the free set; `shadowed_param_paths` then takes away its
+        # name, so an optimiser is never handed a parameter that moves nothing.
         self.base = update(base, list(profiles), fixed=True)
         self.profiles = {
             target: _named_under(profile, target) for target, profile in profiles.items()
@@ -241,6 +251,36 @@ class ProfiledLine(TransmissionLine, AbstractBuilder):
         self.n = int(n)
         self.name = name
         self.metadata = metadata
+
+    def shadowed_param_paths(self) -> set[tuple[Any, ...]]:
+        """The paths of the profiled targets, which are no longer parameters.
+
+        A profiled target's value is driven by its profile, so the target's own
+        parameter does nothing: a fit or a sweep aimed at it would optimise nothing at
+        all, which is the failure this hides it from. The `Param` itself stays exactly
+        where it is in the base tree, because :meth:`build` writes each profile's value
+        back through the driven field's own converter and constraint, and because the
+        base tree is left as built (ADR-0004). What it loses is its *name*: it is
+        absent from :func:`pmrf.params`, and ``pmrf.update(line, {'w': ...})`` raises
+        rather than quietly doing nothing.
+
+        Returns
+        -------
+        set[tuple]
+            JAX key paths, relative to this container, as
+            :data:`pmrf.parameters.SHADOWED_PARAMS_METHOD` describes.
+        """
+        base = (jax.tree_util.GetAttrKey('base'),)
+        on_base = tree_param_paths(self.base)
+        # A target that no longer resolves has nothing left to shadow. It cannot
+        # happen through the constructor, which rejects a target that names no
+        # parameter, but the naming layer is not the place to raise about a base tree
+        # someone has since restructured.
+        return {
+            base + tuple(on_base[target][0])
+            for target in self.profiles
+            if target in on_base
+        }
 
     @property
     def length(self) -> Param:
