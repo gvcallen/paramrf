@@ -54,15 +54,22 @@ dataclass field replace, not an update.
 
 *Avoid:* "set values", "with values"; "update" for an optimiser step.
 
-### Derived model
+### Derived
 
-A model computed from a **base** model and **new parameters** by a function,
+A node computed from a **base** and **new parameters** by a function,
 `f(base, **new)`, built with `prf.derived` (ADR-0003). The base and the new
 parameters are held once; the base keeps its names and each new parameter is
-named by its keyword. Used to derive a more complete model from a nominal one
-(a wet section, a cut) and, by nesting, to share a parameter across parts.
+named by its keyword.
 
-*Avoid:* "tie with new parameters", "shared parameter" as a separate concept.
+A **derived model** (base: a model) derives a more complete model from a nominal
+one (a wet section, a cut) and, by nesting, shares a parameter across parts. A
+**derived parameter**, or derived value (base: a parameter, an array, a pytree,
+or none), stands in a parameter field and reparametrises it: drift from a
+nominal permittivity, or permittivity from a velocity factor. A derived value is
+not a parameter — no value, scale, prior or fixed state, and no name of its own.
+
+*Avoid:* "tie with new parameters", "shared parameter" as a separate concept;
+"derived parameter" for the value a tie computes (that one is simply tied).
 
 ### Parameter values
 

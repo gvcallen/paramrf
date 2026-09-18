@@ -370,6 +370,7 @@ def path_to_name(
     namespace_separator: str,
     ignore_names: bool = False,
     is_transparent: Callable[[Any], bool] | None = None,
+    absorbs_entry: Callable[[Any, Any], bool] | None = None,
 ) -> str:
     """
     Converts a JAX-style path to an equivalent namespace string.
@@ -395,7 +396,12 @@ def path_to_name(
         Returns whether a node is a wrapper whose own path parts are omitted,
         so that names are relative to the wrapped tree. A container held directly
         by a transparent wrapper (e.g. the tuple in ``parax.Combine``) is
-        omitted too.
+        omitted too; a mapping is descended into, since its keys are names.
+    absorbs_entry : callable, optional
+        Called as ``absorbs_entry(parent, attr)`` on each step of the path. When it
+        is true, the part that led into `parent` is dropped as well, so the branch
+        below is named at `parent`'s own level rather than below it (e.g. the new
+        parameters of a derived value, which sit beside the field holding it).
 
     Returns
     -------
@@ -407,10 +413,21 @@ def path_to_name(
     unnamed_path_parts = []
     skip_container = False
 
+    entry_index = None
     for parent, part_type, attr, current_obj in path_nodes(tree, path):
+        if (
+            absorbs_entry is not None
+            and entry_index is not None
+            and absorbs_entry(parent, attr)
+        ):
+            del unnamed_path_parts[entry_index]
+            entry_index = None
+
         parent_transparent = is_transparent is not None and is_transparent(parent)
         skip_part = parent_transparent or skip_container
-        skip_container = parent_transparent and isinstance(current_obj, (tuple, list, dict))
+        # A positional container under a wrapper (e.g. the tuple in `parax.Combine`)
+        # is part of the wrapper's own plumbing; a mapping's keys are names and are kept.
+        skip_container = parent_transparent and isinstance(current_obj, (tuple, list))
 
         if part_type == "key" and isinstance(attr, str) and attr.isidentifier():
             part_type = "attr"
@@ -418,8 +435,12 @@ def path_to_name(
         if not ignore_names and hasattr(current_obj, "name") and getattr(current_obj, "name") is not None:
             namespace.append(current_obj.name)
             unnamed_path_parts = []
+            entry_index = None
         elif not skip_part:
             unnamed_path_parts.append((part_type, attr))
+            entry_index = len(unnamed_path_parts) - 1
+        else:
+            entry_index = None
             
     param_name = None
     if not ignore_names:

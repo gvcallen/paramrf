@@ -49,8 +49,8 @@ Tied Parameters
 
 Rather than setting a parameter once, :func:`pmrf.tie` derives it from another parameter. The target is removed from the model's parameters and is recomputed from its source every time the model is evaluated, so it follows the source through updates, optimization and sampling. Because it is no longer a parameter, it also no longer has a name. The tie function receives and returns physical values, and derivatives with respect to the source include the path through the tie.
 
-Derived Models
-~~~~~~~~~~~~~~
+Derived Models and Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A tie can only relate parameters that already exist. Sometimes a relation needs a quantity the model has no place for. Take a coaxial cable of total length ``L`` that is wet for its first ``w``: the model is a wet section cascaded with a dry one, but neither section can hold ``L``, and ``L`` should keep its own prior (perhaps a joint lab prior with the cable's geometry) rather than drift as ``w`` changes.
 
@@ -85,4 +85,42 @@ A parameter shared by several parts is expressed by deriving at the level that o
 
     balun = wet_balun(balun, wet_length=prf.Random(Uniform(0, 20), scale=1e-3))
 
-Here ``prf.params(balun)`` holds a single ``wet_length``, and changing it changes both cables. The reasoning behind this design is recorded in ADR-0003.
+Here ``prf.params(balun)`` holds a single ``wet_length``, and changing it changes both cables.
+
+The same decorator derives a single value rather than a whole model. What comes back is a model only when the base is one; a :class:`pmrf.Param`, an array or a pytree gives a plain derived value that can be stored in any parameter field, in a constructor or through :func:`pmrf.update`. (A bare collection of models is not a model, so derive at the model that contains them.)
+
+Two cases a derived model cannot express cleanly are reparametrising a parameter *with* its nominal value as the base, and *replacing* it by a parametrisation of its own. Permittivity that drifts with temperature keeps the nominal ``ep_r``, with its lab prior, and adds a temperature coefficient:
+
+.. code-block:: python
+
+    @prf.derived
+    def drift(ep_r, tc):
+        return ep_r * (1 + tc * DELTA_T)
+
+    line = prf.update(line, 'dielectric.ep_r', drift(line.dielectric.ep_r, tc=prf.Random(Normal(0, 1e-3))))
+    prf.params(line)   # ..., 'dielectric.ep_r' (the base, unchanged), 'dielectric.tc'
+
+while a prior on the velocity factor replaces it, with no base at all:
+
+.. code-block:: python
+
+    @prf.derived
+    def from_vf(vf):
+        return 1 / vf**2
+
+    line = prf.update(line, 'dielectric.ep_r', from_vf(vf=prf.Random(RTNormal(0.83, 0.025))))
+    prf.params(line)   # ..., 'dielectric.vf'; there is no 'dielectric.ep_r' any more
+
+The base keeps the name its position gives it (``dielectric.ep_r``) and each new parameter is named by its keyword at the same level (``dielectric.tc``). A keyword that clashes with the base, with a sibling parameter, or with another derived field's keyword at that level raises. A parameter shared by several fields belongs in a derived model one level up.
+
+**A derived value is not a parameter.** It has no declared value, scale, prior or fixed state, it is not in :func:`pmrf.params`, and the field's own constraint and scale do not apply to it: nothing is bounds-checked, clamped or rescaled, and ``fn`` receives and returns physical values. Any constraint on it follows from its inputs' priors. Its inputs *are* parameters, so they are named, fitted, tied, fixed and scored in :func:`pmrf.log_prior` as any other.
+
+To read a derived value back after a fit, unwrap the model it sits in:
+
+.. code-block:: python
+
+    prf.unwrap(fitted).dielectric.ep_r   # the drifted permittivity
+
+Note that a derived *model* which overrides one of its base's parameters inside ``f`` leaves that parameter alive: it stays in :func:`pmrf.params`, is sampled, and is scored in :func:`pmrf.log_prior`, even though nothing uses its value. A derived parameter is the fix — replace the field with a derived value instead of overriding it.
+
+The reasoning behind this design is recorded in ADR-0003.

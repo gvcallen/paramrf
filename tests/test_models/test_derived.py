@@ -110,10 +110,14 @@ def test_clashing_keyword_raises():
         wet_level(_cable(), length=1.0)
 
 
-@pytest.mark.parametrize('args', [(), (1, 2)])
-def test_wrong_call_shape_raises(args):
-    with pytest.raises(TypeError, match="exactly one positional base"):
-        wet_level(*args, wet_length=1.0)
+def test_two_positional_bases_raise():
+    with pytest.raises(TypeError, match="at most one positional base"):
+        wet_level(1, 2, wet_length=1.0)
+
+
+def test_no_new_parameters_raises():
+    with pytest.raises(TypeError, match="at least one new parameter"):
+        wet_level(_cable())
 
 
 def test_non_model_return_raises():

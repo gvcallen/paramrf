@@ -200,7 +200,9 @@ from pmrf.models.adapters.wrapped import (
 
 from pmrf.models.adapters.derived import (
     Derived as Derived,
+    DerivedValue as DerivedValue,
     derived as derived,
+    is_derived as is_derived,
 )
 
 # Compatibility re-exports. Parameter-aware wrappers live under ``pmrf.modules``.
