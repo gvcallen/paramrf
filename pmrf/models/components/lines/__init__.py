@@ -18,3 +18,9 @@ from pmrf.models.components.lines.stripline import (
     StriplineCrossSection as StriplineCrossSection,
     CohnCurrentDistribution as CohnCurrentDistribution,
 )
+from pmrf.models.components.lines.profiles import (
+    AbstractProfile as AbstractProfile,
+    LinearProfile as LinearProfile,
+    ExponentialProfile as ExponentialProfile,
+    KlopfensteinProfile as KlopfensteinProfile,
+)
