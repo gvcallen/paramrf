@@ -170,7 +170,10 @@ from pmrf.models.composite.interconnected.circuit.solvers.nodal import (
 )
 
 from pmrf.models.composite.interconnected.circuit.circuit import Circuit as Circuit
-from pmrf.models.composite.interconnected.cascade import Cascade as Cascade
+from pmrf.models.composite.interconnected.cascade import (
+    Cascade as Cascade,
+    RepeatedCascade as RepeatedCascade,
+)
 from pmrf.models.composite.interconnected.terminated import Terminated as Terminated
 
 
