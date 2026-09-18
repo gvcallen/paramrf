@@ -86,16 +86,19 @@ class Derived(AbstractBuilder):
 def _is_model_base(base: Any) -> bool:
     """Returns whether a base makes the derived node a model.
 
-    A model, or a wrapper that unwraps to one, such as a joint prior over a model
-    (:class:`pmrf.modules.Probabilistic`). A collection of models is not one.
+    A model, or a parameter-aware wrapper standing for one, such as a joint prior over
+    a model (:class:`pmrf.modules.Probabilistic`) or a tie. A collection of models is
+    not one. The wrapper is read through its :attr:`module` rather than unwrapped, so
+    nothing is computed at construction.
     """
-    from pmrf.parameters import is_param
+    from pmrf.modules.base import Module
 
     if isinstance(base, Model):
         return True
-    if is_param(base) or not isinstance(base, prx.AbstractUnwrappable):
+    if not (isinstance(base, Module) and isinstance(base, prx.AbstractUnwrappable)):
         return False
-    return isinstance(prx.unwrap(base), Model)
+    inner = getattr(base, 'module', None)
+    return inner is not None and _is_model_base(inner)
 
 
 def is_derived(x: Any) -> bool:

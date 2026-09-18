@@ -32,6 +32,18 @@ def from_vf(vf):
 
 
 @prf.derived
+def with_tand(ep_r, tand):
+    """A well-formed node whose keyword clashes with a sibling field of its own."""
+    return ep_r * (1 + tand)
+
+
+@prf.derived
+def scaled(x, k):
+    """A well-formed node for the two-fields-one-keyword clash."""
+    return x * k
+
+
+@prf.derived
 def stretched(cable, factor):
     """A derived model, for the composition tests."""
     return prf.replace(cable, length=cable.length * factor)
@@ -210,16 +222,17 @@ def test_a_keyword_clashing_with_a_model_base_raises():
 
 def test_a_keyword_clashing_with_a_sibling_parameter_raises():
     line = _line()
-    # 'tand' is a sibling field of 'ep_r' on the dielectric.
-    line = prf.update(line, 'dielectric.ep_r', drift(line.dielectric.ep_r, tand=TC))
+    # 'tand' is a sibling field of 'ep_r' on the dielectric, and a parameter of `fn`.
+    line = prf.update(line, 'dielectric.ep_r', with_tand(line.dielectric.ep_r, tand=TC))
     with pytest.raises(ValueError, match="collision"):
         prf.params(line)
 
 
 def test_two_derived_fields_sharing_a_keyword_raise():
     line = _line()
-    line = prf.update(line, 'dielectric.ep_r', drift(line.dielectric.ep_r, k=TC))
-    line = prf.update(line, 'dielectric.mu_r', drift(line.dielectric.mu_r, k=TC))
+    line = prf.update(line, 'dielectric.ep_r', scaled(line.dielectric.ep_r, k=1.0))
+    line = prf.update(line, 'dielectric.mu_r', scaled(line.dielectric.mu_r, k=1.0))
+    np.testing.assert_allclose(prf.unwrap(line).dielectric.ep_r, EP_R)
     with pytest.raises(ValueError, match="collision"):
         prf.params(line)
 
