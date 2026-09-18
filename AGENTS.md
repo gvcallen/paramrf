@@ -17,6 +17,10 @@ deprecation aliases, or legacy code paths unless explicitly asked. Prefer the cl
 .venv/bin/python -c "import pmrf" # import smoke check
 ```
 
+The venv lives one level up, in the `packages/` workspace shared by all the repos, so
+these paths resolve from there and not from this repo — from inside `paramrf/`, run
+`../.venv/bin/python` (or the absolute path) instead.
+
 No linter or formatter is configured. Match the style of surrounding code.
 
 ## Commits
