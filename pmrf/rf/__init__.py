@@ -8,6 +8,10 @@ from pmrf.rf.conversions import (
     renormalize_s,
 )
 
+from pmrf.rf.cascade import (
+    cascade_two_s, cascade_scattering, cascade_abcd,
+)
+
 from pmrf.rf.mna import MNAStamp
 
 __all__ = [
@@ -29,5 +33,8 @@ __all__ = [
     "a2mna",
     "z2mna",
     "renormalize_s",
+    "cascade_two_s",
+    "cascade_scattering",
+    "cascade_abcd",
     "MNAStamp",
 ]
