@@ -70,6 +70,13 @@ from pmrf.models.components.lines.base import (
     ImmittanceResult as ImmittanceResult,
 )
 
+from pmrf.models.components.lines.profiles import (
+    AbstractProfile as AbstractProfile,
+    LinearProfile as LinearProfile,
+    ExponentialProfile as ExponentialProfile,
+    KlopfensteinProfile as KlopfensteinProfile,
+)
+
 from pmrf.models.components.lines.nodal import (
     FloatingLine as FloatingLine,
 )
