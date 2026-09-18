@@ -3,9 +3,8 @@ Composite models that physically connect ports of other models in series.
 """
 import jax
 import jax.numpy as jnp
-import equinox as eqx
-import numpy as np
 from dataclasses import InitVar
+from functools import partial
 from typing import Literal
 
 from pmrf.models import Model
@@ -13,6 +12,8 @@ from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import a2s, s2a, a2mna, s2mna, MNAStamp
+from pmrf.rf import cascade_scattering, cascade_abcd
+
 
 HUB_Z0 = 50.0 + 0.0j
 
@@ -120,88 +121,6 @@ class Cascade(Model):
         """Evaluates ABCD-parameters and stacks them into shape (Nf, N_models, P, P)."""
         return jnp.stack([c.a(freq) for c in self.cascade], axis=1)
 
-    # --- CASCADE ALGORITHMS (Single Frequency Point) ---
-
-    def _cascade_two_s(self, Smat_A: jnp.ndarray, z0_A: jnp.ndarray, Smat_B: jnp.ndarray, z0_B: jnp.ndarray):
-        """Mathematical routine to combine two S-parameter matrices."""
-        nports = Smat_A.shape[0]
-        N = nports // 2
-        
-        # Verify no un-renormalized impedance step exists between the stages
-        mismatch_detected = jnp.any(jnp.abs(z0_A[N:] - z0_B[:N]) > 1e-6)
-        Smat_A = eqx.error_if(
-            Smat_A, 
-            mismatch_detected, 
-            "Scattering cascade requires matching reference impedances between connected ports. "
-            "Renormalize stages or use a Circuit solver for arbitrary impedance steps."
-        )
-
-        z0_cas = jnp.concatenate((z0_A[:N], z0_B[N:]), axis=0)
-
-        A11, A12 = Smat_A[:N, :N], Smat_A[:N, N:]
-        A21, A22 = Smat_A[N:, :N], Smat_A[N:, N:]
-
-        B11, B12 = Smat_B[:N, :N], Smat_B[:N, N:]
-        B21, B22 = Smat_B[N:, :N], Smat_B[N:, N:]
-
-        I = jnp.eye(N, dtype=Smat_A.dtype)
-
-        M = I - B11 @ A22
-        N_mat = I - A22 @ B11
-
-        # Floating multi-conductor networks contain an exact common-mode null
-        # space. A diagonal nudge turns that unobservable direction into a very
-        # large, epsilon-dependent solution. The Moore-Penrose inverse instead
-        # eliminates only the observable subspace and is identical to an inverse
-        # for full-rank connection matrices.
-        rtol = max(self.eps, np.finfo(Smat_A.real.dtype).eps * 10)
-        X = jnp.linalg.pinv(M, rtol=rtol)
-        Y = jnp.linalg.pinv(N_mat, rtol=rtol)
-
-        S11 = A11 + A12 @ X @ B11 @ A21
-        S12 = A12 @ X @ B12
-        S21 = B21 @ Y @ A21
-        S22 = B22 + B21 @ Y @ A22 @ B12
-
-        top = jnp.concatenate((S11, S12), axis=1)
-        bottom = jnp.concatenate((S21, S22), axis=1)
-        S_cas = jnp.concatenate((top, bottom), axis=0)
-
-        return S_cas, z0_cas
-
-    def _cascade_scattering(self, s_stacked: jnp.ndarray, port_z0: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Scans the `_cascade_two_s` routine across sequential S-parameter components."""
-        if s_stacked.shape[0] == 1:
-            return s_stacked[0], port_z0[0]
-
-        def scan_fn(carry, x):
-            S_acc, z0_acc = carry
-            S_i, z0_i = x
-            S_next, z0_next = self._cascade_two_s(S_acc, z0_acc, S_i, z0_i)
-            return (S_next, z0_next), None
-
-        (S_cas, z0_cas), _ = jax.lax.scan(
-            scan_fn, 
-            init=(s_stacked[0], port_z0[0]), 
-            xs=(s_stacked[1:], port_z0[1:])
-        )
-        return S_cas, z0_cas
-
-    def _cascade_abcd(self, a_stacked: jnp.ndarray) -> jnp.ndarray:
-        """Scans matrix multiplication across sequential ABCD components."""
-        if a_stacked.shape[0] == 1:
-            return a_stacked[0]
-
-        def scan_fn(carry, x):
-            return carry @ x, None
-
-        a_cas, _ = jax.lax.scan(
-            scan_fn, 
-            init=a_stacked[0], 
-            xs=a_stacked[1:]
-        )
-        return a_cas
-
     # --- SIMULATION & CONVERSION ---
 
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0) -> tuple[jnp.ndarray, jnp.ndarray, str]:
@@ -213,13 +132,14 @@ class Cascade(Model):
 
         if flat.method == 's':
             s_blocks, z0_blocks = flat._evaluate_scattering(freq, z0)
-            run_vmap = jax.vmap(flat._cascade_scattering, in_axes=(0, 0))
+            reduce_s = partial(cascade_scattering, eps=flat.eps)
+            run_vmap = jax.vmap(reduce_s, in_axes=(0, 0))
             s_cas, z0_cas = run_vmap(s_blocks, z0_blocks)
             return s_cas, z0_cas, 's'
             
         elif flat.method == 'a':
             a_blocks = flat._evaluate_abcd(freq)
-            run_vmap = jax.vmap(flat._cascade_abcd, in_axes=(0,))
+            run_vmap = jax.vmap(cascade_abcd, in_axes=(0,))
             a_cas = run_vmap(a_blocks)
             return a_cas, None, 'a'
             
