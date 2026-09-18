@@ -175,76 +175,58 @@ class RepeatedCascade(Model):
     r"""
     A cascade of many copies of one model, built under a single vmap.
 
-    The cascade is described by one **member** model plus a mapping from parameter
-    names on that member to arrays whose leading axis is the **repeat axis**. Every
-    parameter the mapping does not name is shared by all repeats. The sections are
-    built by vectorising the member's evaluation over that axis, so the member is
-    traced once and carries one set of parameter names, and the result is reduced
-    with the routines in :mod:`pmrf.rf` that :class:`Cascade` also uses.
-
-    This is the batched counterpart of :class:`Cascade`. Writing a ten-section
-    tapered line as ``Cascade([MicrostripLine(w=w_i, ...) for w_i in widths])``
-    traces the line model ten times and gives every section its own name set
-    (``cascade[0].w``, ``cascade[1].w``, ...). The same line as a
-    ``RepeatedCascade`` traces once and has a single ``w``, holding all ten
-    widths.
+    One **member** model, plus a mapping from parameter names on it to arrays
+    whose leading axis is the **repeat axis**. Parameters the mapping does not
+    name are shared by every repeat. The member is traced once, under a vmap over
+    that axis, and the sections are reduced with the :mod:`pmrf.rf` routines
+    :class:`Cascade` also uses. Writing the same cascade as
+    ``Cascade([MicrostripLine(w=w_i, ...) for w_i in widths])`` instead traces the
+    member once per section and names it once per section.
 
     Repeat axis versus batch axis
     -----------------------------
-    These are two different axes and this model can carry both.
+    The **repeat axis** is physical: it indexes sections along the cascade, from
+    the section at port 1 to the section at port :math:`N`. It leads each array in
+    `values`, is reduced away, and never appears in the result's shape.
 
-    The **repeat axis** is a physical axis: it indexes sections along the cascade,
-    from the section at port 1 to the section at port :math:`N`. It is the leading
-    axis of each array in `values`, it is reduced away by the cascade, and it never
-    appears in the shape of the result.
-
-    The **batch axis** is the parameter batch dimension ParamRF uses everywhere
-    else (:func:`pmrf.sweep`, :func:`pmrf.utils.batch_axes`): one model evaluated at
-    many parameter settings. It is added *outside* this model, by vectorising an
-    evaluation of the whole `RepeatedCascade`, and it survives into the result. A
-    sweep over a `RepeatedCascade` is therefore a sweep over a set of tapers, and
-    each member of that sweep still has its own repeat axis of the declared length.
-
-    This is why the class is not called ``BatchedCascade``. See ADR-0004.
+    The **batch axis** is the parameter batch dimension used everywhere else in
+    ParamRF (:func:`pmrf.sweep`): one model at many parameter settings. It is added
+    *outside* this model and survives into the result, so a sweep over a
+    `RepeatedCascade` is a sweep over whole cascades, each with its own repeat
+    axis. This is why the class is not called ``BatchedCascade``. See ADR-0004.
 
     Parameter names
     ---------------
-    The member's parameters keep their own names under ``model``
-    (``model.w``, ``model.substrate.h``), one set for the whole cascade rather
-    than one per section. A repeated parameter's value on the member is
-    discarded — the mapping supplies it per repeat — so that parameter is fixed
-    at construction and is not in the free set; an optimiser is never handed a
-    parameter that moves nothing. The repeated values themselves are parameters,
-    named ``values.<name>`` (``values.w``), and are free and unconstrained.
-    Fitting a *shape* rather than the individual values — a few coefficients
-    with priors of their own, evaluated into this mapping — is what the profiled
-    lines of ADR-0004 are for.
+    The member keeps its own names under ``model`` (``model.w``), one set for the
+    whole cascade. A repeated parameter's value on the member is discarded, so it
+    is fixed at construction and leaves the free set rather than offering an
+    optimiser a parameter that moves nothing. The repeated values are themselves a
+    free, unconstrained parameter, ``values.<name>``. Fitting a *shape* rather than
+    the values is what the profiled lines of ADR-0004 are for.
 
     **Mathematical Formulation**
 
     With $M$ repeats and $\theta_k$ the parameters of repeat $k$ — the shared
-    values, with the named entries replaced by ``values[name][k]`` — the cascade is
-    the ordered reduction of the member evaluated at each:
+    values, with the named entries replaced by ``values[name][k]``:
 
     $$A(f) = \prod_{k=0}^{M-1} A_{\mathrm{member}}(f; \theta_k)$$
 
-    in the ABCD domain, or the corresponding ordered star product in the scattering
-    domain. Repeat $0$ is at port 1.
+    or the corresponding ordered star product when `method` is ``'s'``. Repeat $0$
+    is at port 1.
 
     Parameters
     ----------
     model : Model
-        The member model, repeated along the cascade. It must have an even number
-        of ports.
+        The member model, repeated along the cascade. Must be a 2N-port.
     values : dict[str, ArrayLike]
         Parameter names on `model`, as :func:`pmrf.params` gives them, mapped to
-        arrays whose leading axis is the repeat axis. All of them must agree on the
-        length of that axis, which is the number of repeats and is static. Values
-        are in declared space and are checked against each parameter's constraint.
+        arrays whose leading axis is the repeat axis. All must agree on the length
+        of that axis, which is the static repeat count. Values are in declared
+        space and are checked against each parameter's constraint.
     method : {'a', 's'}, default='a'
-        The mathematical domain the reduction runs in. ABCD is the default: it
-        needs no reference-impedance bookkeeping between sections. Scattering is
-        available for members whose ABCD form is ill-conditioned.
+        The domain the reduction runs in. ABCD needs no reference-impedance
+        bookkeeping between sections; scattering is for members whose ABCD form is
+        ill-conditioned.
     eps : float, default=1e-12
         Relative cutoff for singular values in the scattering reduction. Unused
         when `method` is ``'a'``.
@@ -253,8 +235,8 @@ class RepeatedCascade(Model):
     ------
     ValueError
         If `values` is empty, names a parameter the member does not have, or its
-        arrays disagree on the length of their leading axis; or if the member does
-        not have an even number of ports.
+        arrays disagree on the length of their leading axis; or if the member is
+        not a 2N-port.
 
     See Also
     --------
@@ -262,20 +244,11 @@ class RepeatedCascade(Model):
 
     Examples
     --------
-    A ten-section microstrip taper with independent widths, one trace and one name:
-
     .. code-block:: python
-
-        import jax.numpy as jnp
-        import pmrf as prf
-        from pmrf.models import MicrostripLine, RepeatedCascade
 
         n = 10
         line = MicrostripLine(w=4e-3, h=1.6e-3, length=10e-3 / n)
         taper = RepeatedCascade(line, {'w': jnp.linspace(3e-3, 6e-3, n)})
-
-        freq = prf.Frequency(1, 10, 101, 'ghz')
-        s = taper.s(freq)
         sorted(prf.params(taper, free_only=True))   # ['values.w']
     """
     #: The member model, repeated along the cascade.
@@ -347,10 +320,10 @@ class RepeatedCascade(Model):
         """
         Applies `evaluate` to every repeat under one vmap, stacking along axis 0.
 
-        The values are written into the member once, unbatched, so each parameter's
-        constraint is checked against the whole repeat axis at that point and the
-        check is not re-traced per repeat. What the vmap then writes are the raw
-        values that check produced, which need no further validation.
+        The values are written in once, unbatched, so each constraint is checked
+        against the whole repeat axis there rather than re-traced per repeat. The
+        vmap then writes the raw values that check produced, needing no further
+        validation.
         """
         validated = update(self.model, self.values)
         raw = param_values(validated, list(self.values), space='raw')
