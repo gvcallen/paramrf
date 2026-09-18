@@ -77,6 +77,10 @@ from pmrf.models.components.lines.profiles import (
     KlopfensteinProfile as KlopfensteinProfile,
 )
 
+from pmrf.models.components.lines.nonuniform import (
+    ProfiledLine as ProfiledLine,
+)
+
 from pmrf.models.components.lines.nodal import (
     FloatingLine as FloatingLine,
 )

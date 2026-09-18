@@ -954,13 +954,21 @@ def _is_name_leaf(x: Any) -> bool:
 
 
 def _is_name_transparent(x: Any) -> bool:
-    """Wrappers whose own path parts are omitted from parameter names."""
+    """Wrappers whose own path parts are omitted from parameter names.
+
+    A :class:`pmrf.models.ProfiledLine` is transparent for the same reason: its base
+    line and its profile mapping are the container's internal layout, and neither
+    ``base.`` nor ``profiles['w'].`` belongs in a parameter name. Its base's parameters
+    therefore flatten to the container's root, and its profile coefficients are named
+    under their target by the container itself (ADR-0004).
+    """
     from pmrf.models.adapters.derived import Derived
     from pmrf.models.adapters.wrapped import Wrapped
+    from pmrf.models.components.lines.nonuniform import ProfiledLine
     from pmrf.modules.base import Module
     from pmrf.modules.wrapped import Probabilistic, Tied
 
-    if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
+    if isinstance(x, (Tied, Probabilistic, Wrapped, Derived, ProfiledLine)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
 
