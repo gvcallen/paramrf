@@ -1,0 +1,30 @@
+
+
+
+wrapped
+=======
+
+.. automodule:: pmrf.models.adapters.wrapped
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   Wrapped
+
+
+
+
+
+

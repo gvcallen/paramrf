@@ -1,0 +1,12 @@
+
+
+
+OptimistixMinimise
+==================
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: OptimistixMinimise
+   :members:
+   :show-inheritance:
+   :inherited-members:

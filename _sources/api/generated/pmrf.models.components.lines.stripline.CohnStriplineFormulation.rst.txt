@@ -1,0 +1,12 @@
+
+
+
+CohnStriplineFormulation
+========================
+
+.. currentmodule:: pmrf.models.components.lines.stripline
+
+.. autoclass:: CohnStriplineFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

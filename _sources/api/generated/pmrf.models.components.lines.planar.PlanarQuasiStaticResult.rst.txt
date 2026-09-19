@@ -1,0 +1,12 @@
+
+
+
+PlanarQuasiStaticResult
+=======================
+
+.. currentmodule:: pmrf.models.components.lines.planar
+
+.. autoclass:: PlanarQuasiStaticResult
+   :members:
+   :show-inheritance:
+   :inherited-members:

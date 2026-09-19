@@ -1,0 +1,30 @@
+﻿
+
+
+**viz** (pmrf.viz)
+==================
+
+.. automodule:: pmrf.viz
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   plot_fit_result
+
+

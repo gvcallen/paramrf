@@ -1,0 +1,9 @@
+﻿
+
+
+**log_prior** (pmrf.log_prior)
+==============================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: log_prior

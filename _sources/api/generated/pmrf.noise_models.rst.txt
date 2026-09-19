@@ -1,0 +1,32 @@
+﻿
+
+
+**noise_models** (pmrf.noise_models)
+====================================
+
+.. automodule:: pmrf.noise_models
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractNoiseModel
+
+   AutoCrossNoise
+
+
+
+
+
+

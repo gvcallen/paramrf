@@ -1,0 +1,9 @@
+
+
+
+RelativeNormal
+==============
+
+.. currentmodule:: pmrf.distributions
+
+.. autofunction:: RelativeNormal

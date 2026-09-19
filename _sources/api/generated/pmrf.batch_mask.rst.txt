@@ -1,0 +1,9 @@
+﻿
+
+
+**batch_mask** (pmrf.batch_mask)
+================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: batch_mask

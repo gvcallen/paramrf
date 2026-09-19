@@ -1,0 +1,9 @@
+
+
+
+_require_equal_z0
+=================
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autofunction:: _require_equal_z0

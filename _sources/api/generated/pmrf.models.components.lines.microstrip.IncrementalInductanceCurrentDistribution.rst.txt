@@ -1,0 +1,12 @@
+
+
+
+IncrementalInductanceCurrentDistribution
+========================================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: IncrementalInductanceCurrentDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

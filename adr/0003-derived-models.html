@@ -1,0 +1,202 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0003: Derived models add parameters by deriving from a whole base &mdash; paramrf 0.35.3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fde3b261"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0003: Derived models add parameters by deriving from a whole base</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0003-derived-models.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0003-derived-models-add-parameters-by-deriving-from-a-whole-base">
+<h1>ADR-0003: Derived models add parameters by deriving from a whole base<a class="headerlink" href="#adr-0003-derived-models-add-parameters-by-deriving-from-a-whole-base" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>Users constrain parameters by relations such as “this part is computed from
+those”. <code class="docutils literal notranslate"><span class="pre">prf.tie</span></code> (ADR-0002) covers this only when every source already exists
+in the model. It fails when the relation needs a quantity that has no home.</p>
+<p>The driving case (#167): a coaxial cable of total length L is wet for its first
+w and dry for the rest. The model is <code class="docutils literal notranslate"><span class="pre">wet</span> <span class="pre">**</span> <span class="pre">dry</span></code>, but neither section can hold
+L. L must stay a parameter with its own prior, possibly a joint lab prior with
+the cable’s geometry and material, and must not drift as w changes. w is a new
+parameter with its own prior. Several parts may share one such parameter (one
+water level on both arms of a balun).</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">prf.derived</span></code> turns a function <code class="docutils literal notranslate"><span class="pre">f(base,</span> <span class="pre">**new)</span></code> returning a model into a
+constructor of a <strong>derived model</strong>: a <code class="docutils literal notranslate"><span class="pre">pmrf.Model</span></code> (<code class="docutils literal notranslate"><span class="pre">pmrf.models.Derived</span></code>, an
+<code class="docutils literal notranslate"><span class="pre">AbstractBuilder</span></code>) that holds the base and the new parameters once and calls
+<code class="docutils literal notranslate"><span class="pre">f</span></code> on their unwrapped values whenever the model is used. <code class="docutils literal notranslate"><span class="pre">f</span></code> is a static field,
+so models derived with one function share a jit cache entry.</p>
+<section id="the-base-stays-whole">
+<h3>The base stays whole<a class="headerlink" href="#the-base-stays-whole" title="Link to this heading"></a></h3>
+<p>The derived model holds the base model itself, not parameters extracted from
+it. This is what makes two things work with no extra machinery:</p>
+<ul class="simple">
+<li><p><strong>Joint priors.</strong> A <code class="docutils literal notranslate"><span class="pre">Probabilistic</span></code> prior over the base (length with
+geometry) is still in the tree, over the same parameters, under the same
+names, and scores unchanged.</p></li>
+<li><p><strong>Sharing with no ties.</strong> <code class="docutils literal notranslate"><span class="pre">f</span></code> uses the base’s geometry in both sections; it
+is one parameter because it is stored once. No tie is needed to keep the wet
+and dry sections consistent.</p></li>
+</ul>
+</section>
+<section id="naming-rule">
+<h3>Naming rule<a class="headerlink" href="#naming-rule" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>The base’s parameters keep exactly the names they have on the base. The
+wrapper is transparent to the name resolver, and the base’s own name moves to
+the derived model (unless <code class="docutils literal notranslate"><span class="pre">name=</span></code> is given), so a container prefixes as usual.</p></li>
+<li><p>Each new parameter is named by its keyword; a keyword that clashes with a
+base name raises.</p></li>
+<li><p>Nothing produced inside <code class="docutils literal notranslate"><span class="pre">f</span></code> is named: it is not in the tree.</p></li>
+</ul>
+<p>A values dict saved from a fit of the base therefore applies unchanged to the
+derived model.</p>
+</section>
+<section id="sharing-by-nesting">
+<h3>Sharing by nesting<a class="headerlink" href="#sharing-by-nesting" title="Link to this heading"></a></h3>
+<p>A parameter shared by several parts is a new parameter of a derived model at
+the level that owns them. Its <code class="docutils literal notranslate"><span class="pre">f</span></code> derives each part, passing the same value,
+and puts them back with the multi-model <code class="docutils literal notranslate"><span class="pre">prf.update</span></code> mapping form (#168). A
+derived model can be the base of another; names accumulate flat. There is no
+separate “shared parameter” concept.</p>
+</section>
+</section>
+<section id="rejected-options">
+<h2>Rejected options<a class="headerlink" href="#rejected-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>A tie with new parameters</strong> (<code class="docutils literal notranslate"><span class="pre">tie(...,</span> <span class="pre">new={...})</span></code> and other tie-centric
+designs). L ends up separate from the geometry and material, so no joint prior
+covers them, and the dry section needs extra ties to share the geometry.</p></li>
+<li><p><strong>A separate “add parameters” function</strong> followed by a tie. Two steps for one
+idea, and the added parameters have no relation to the model until tied, with
+the same joint-prior problem.</p></li>
+<li><p><strong>Reparametrising a parameter in place</strong> (replace L by a function of new
+parameters). The relation is not a function of one parameter: it replaces
+part of the model’s structure (one section becomes two), and L loses its prior.</p></li>
+<li><p><strong>Builder classes.</strong> They work, but an engineer should not need a class for
+a one-off constraint, and topology code had to reach into the class.
+<code class="docutils literal notranslate"><span class="pre">prf.derived</span></code> is a builder whose class is generated from a function.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tie</span></code> is unchanged.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f</span></code> must be pure and its output’s structure must not depend on parameter
+values, as for <code class="docutils literal notranslate"><span class="pre">AbstractBuilder.build</span></code>. It should be defined once at module
+level; a lambda made on every call recompiles.</p></li>
+<li><p>A non-model return is only detected when the model is used, since calling
+<code class="docutils literal notranslate"><span class="pre">f</span></code> eagerly at construction would repeat the work at every nesting level.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

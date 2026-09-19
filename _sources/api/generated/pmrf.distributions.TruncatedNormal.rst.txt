@@ -1,0 +1,12 @@
+
+
+
+TruncatedNormal
+===============
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: TruncatedNormal
+   :members:
+   :show-inheritance:
+   :inherited-members:

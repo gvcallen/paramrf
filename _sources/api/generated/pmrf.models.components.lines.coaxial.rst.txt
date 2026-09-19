@@ -1,0 +1,46 @@
+
+
+
+coaxial
+=======
+
+.. automodule:: pmrf.models.components.lines.coaxial
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractCoaxialFormulation
+
+   CoaxialLine
+
+   SchelkunoffCoaxialFormulation
+
+   TescheCoaxialFormulation
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   _coaxial_immittance
+
+

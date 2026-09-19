@@ -1,0 +1,9 @@
+﻿
+
+
+**is_param** (pmrf.is_param)
+============================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: is_param

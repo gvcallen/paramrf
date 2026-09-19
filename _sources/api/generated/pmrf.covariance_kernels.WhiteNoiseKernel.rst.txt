@@ -1,0 +1,12 @@
+
+
+
+WhiteNoiseKernel
+================
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: WhiteNoiseKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

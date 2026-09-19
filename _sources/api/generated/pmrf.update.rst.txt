@@ -1,0 +1,9 @@
+﻿
+
+
+**update** (pmrf.update)
+========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: update

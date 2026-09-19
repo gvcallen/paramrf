@@ -1,0 +1,9 @@
+﻿
+
+
+**param_values** (pmrf.param_values)
+====================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: param_values

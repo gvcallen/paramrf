@@ -1,0 +1,9 @@
+
+
+
+mean_absolute_percentage_error
+==============================
+
+.. currentmodule:: pmrf.math.losses
+
+.. autofunction:: mean_absolute_percentage_error

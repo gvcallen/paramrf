@@ -1,0 +1,12 @@
+
+
+
+Derived
+=======
+
+.. currentmodule:: pmrf.models.adapters.derived
+
+.. autoclass:: Derived
+   :members:
+   :show-inheritance:
+   :inherited-members:

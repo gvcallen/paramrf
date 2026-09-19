@@ -1,0 +1,12 @@
+
+
+
+LinearProfile
+=============
+
+.. currentmodule:: pmrf.models.components.lines.profiles
+
+.. autoclass:: LinearProfile
+   :members:
+   :show-inheritance:
+   :inherited-members:

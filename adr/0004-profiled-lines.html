@@ -1,0 +1,320 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0004: Profiled lines vary parameters along a line through target-agnostic profiles &mdash; paramrf 0.35.3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fde3b261"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0004: Profiled lines vary parameters along a line through target-agnostic profiles</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0004-profiled-lines.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0004-profiled-lines-vary-parameters-along-a-line-through-target-agnostic-profiles">
+<h1>ADR-0004: Profiled lines vary parameters along a line through target-agnostic profiles<a class="headerlink" href="#adr-0004-profiled-lines-vary-parameters-along-a-line-through-target-agnostic-profiles" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>ParamRF’s line models (ADR-0001) are uniform: a <code class="docutils literal notranslate"><span class="pre">MicrostripLine</span></code> has one width,
+one substrate, one conductor, and its <code class="docutils literal notranslate"><span class="pre">zc_and_gammaL</span></code> holds everywhere along it.
+Real structures are not. A taper’s width varies along z, a cable’s permittivity
+drifts with a moisture gradient, a deposited conductor’s conductivity varies with
+position. The quantity that varies is always an existing parameter of an existing
+line, and it must keep taking part in fitting: its shape is described by a few
+new parameters with their own priors, and those are what the user fits.</p>
+<p>The repository already held a commented-out <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> from an earlier API:
+a <code class="docutils literal notranslate"><span class="pre">line_fn</span></code> plus parallel <code class="docutils literal notranslate"><span class="pre">profile_fns</span></code> (static callables) and <code class="docutils literal notranslate"><span class="pre">profile_params</span></code>
+dicts, a constructor that sniffed keyword types to decide what was a profile, and
+a <code class="docutils literal notranslate"><span class="pre">method='stepped'|'riccati'</span></code> switch whose Riccati branch raised
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code>. It predates the parameter API (ADR-0002) and derived
+models (ADR-0003).</p>
+<p>Two further pressures shaped this. First (#45), a cascade of ten microstrip lines
+with independent widths is built by a Python list comprehension, which traces
+once per member and gives every member its own name set — the same batching
+problem a profiled line has, at a different level. Second, users do not know what
+section count a given taper needs for an accurate answer, and an under-resolved
+line is not merely inaccurate: an optimiser will exploit it.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">pmrf.models.ProfiledLine</span></code> takes a uniform line and a mapping from parameter
+targets to <strong>profiles</strong>, and evaluates as a cascade of <code class="docutils literal notranslate"><span class="pre">n</span></code> uniform sections whose
+parameters are sampled at the section midpoints.</p>
+<section id="a-profile-is-a-shape-not-a-line">
+<h3>A profile is a shape, not a line<a class="headerlink" href="#a-profile-is-a-shape-not-a-line" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">AbstractProfile</span></code> is a <code class="docutils literal notranslate"><span class="pre">pmrf.Module</span></code> — parameter-aware, named, validated, but not
+a <code class="docutils literal notranslate"><span class="pre">Model</span></code>, exactly as materials and the line strategy objects are. It declares one
+method, <code class="docutils literal notranslate"><span class="pre">evaluate(t)</span></code>, on normalised <code class="docutils literal notranslate"><span class="pre">t</span></code>, documented as elementwise so the
+container passes the whole midpoint array in one call. Its coefficients are
+ordinary <code class="docutils literal notranslate"><span class="pre">prf.param</span></code> fields carrying physical units and their own constraints, so
+<code class="docutils literal notranslate"><span class="pre">ExponentialProfile(start=2e-3,</span> <span class="pre">end=8e-3)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ExponentialProfile(start=Bounded(...),</span> <span class="pre">end=Bounded(...))</span></code> both work with no
+profile-specific machinery.</p>
+<p>A profile knows nothing about the line, the parameter, or the family. This is the
+central constraint: an exponential taper must apply to microstrip width, stripline
+width or coaxial inner diameter without being rewritten. <code class="docutils literal notranslate"><span class="pre">evaluate</span></code> returns a
+plain physical value, in the units of whatever it is attached to.</p>
+<p><code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code> is at port 1 and <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code> at port 2, fixed on <code class="docutils literal notranslate"><span class="pre">AbstractProfile</span></code> and
+restated on <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code>. Reversing a taper swaps coefficients through
+<code class="docutils literal notranslate"><span class="pre">prf.update</span></code>; there is no orientation flag, because a flag that silently mirrors
+geometry inside a cascade is a debugging hazard.</p>
+<p>The library ships <code class="docutils literal notranslate"><span class="pre">LinearProfile</span></code>, <code class="docutils literal notranslate"><span class="pre">ExponentialProfile</span></code> and <code class="docutils literal notranslate"><span class="pre">KlopfensteinProfile</span></code>.
+Klopfenstein is the linearised-Riccati <em>design</em> solution: it defines a shape worth
+simulating and is not a reference the simulator is checked against.</p>
+</section>
+<section id="targets-are-dotted-paths-the-base-tree-is-untouched">
+<h3>Targets are dotted paths; the base tree is untouched<a class="headerlink" href="#targets-are-dotted-paths-the-base-tree-is-untouched" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> holds the base line and a mapping from a <strong>dotted path</strong> naming a
+<code class="docutils literal notranslate"><span class="pre">Param</span></code> on that base to the profile driving it. The base tree is left exactly as
+built. Profiles are not substituted into it, and not declared as model fields.</p>
+<p>Targets are exact dotted paths only — <code class="docutils literal notranslate"><span class="pre">w</span></code>, <code class="docutils literal notranslate"><span class="pre">substrate.dielectric.ep_r</span></code> — not
+globs, sequences or callables. A glob matching three parameters would silently
+create three independent profiles that happen to share a shape object, which is
+never what the user meant.</p>
+<p><code class="docutils literal notranslate"><span class="pre">length</span></code> is not profilable and is rejected. It is the base’s own parameter and it
+is the <strong>total</strong> length; <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> divides by <code class="docutils literal notranslate"><span class="pre">n</span></code> internally and the user
+never sees a per-section length. <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> has no <code class="docutils literal notranslate"><span class="pre">length</span></code> field, exposing
+the base’s as a read-only forwarding property.</p>
+<p>A profiled target’s value on the base is discarded, and the parameter is removed
+from the profiled line’s parameter set, replaced by the profile’s coefficients.
+Passing a value explicitly for a target that is also profiled raises: silently
+discarded input is how an afternoon is lost. A field default that is discarded
+does not raise, because the user did not type it.</p>
+<p>Coefficients are named under the target: <code class="docutils literal notranslate"><span class="pre">w.start</span></code>, <code class="docutils literal notranslate"><span class="pre">w.end</span></code>,
+<code class="docutils literal notranslate"><span class="pre">substrate.dielectric.ep_r.start</span></code> — the name the parameter would have had, with
+the coefficient below it. <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> names them itself rather than letting
+the mapping’s keys be named as dict keys, so a non-identifier path does not leak
+a bracket form into parameter names. Globs such as <code class="docutils literal notranslate"><span class="pre">'w.*'</span></code> and <code class="docutils literal notranslate"><span class="pre">'*.start'</span></code> then
+both do the obvious thing, and the container’s internal field layout never
+appears in a parameter name.</p>
+</section>
+<section id="two-ways-in-one-representation">
+<h3>Two ways in, one representation<a class="headerlink" href="#two-ways-in-one-representation" title="Link to this heading"></a></h3>
+<p>The base may be given as a constructed line or as a class. A class is constructed
+from the plain keywords, with a small reserved set (<code class="docutils literal notranslate"><span class="pre">n</span></code>, <code class="docutils literal notranslate"><span class="pre">extrapolate</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>,
+<code class="docutils literal notranslate"><span class="pre">metadata</span></code>) always belonging to the container and a clear error on collision. A
+user usually thinks “I want to profile a microstrip line”, not “I want to profile
+this particular line”, and the class form lets them say so without constructing a
+line whose width they are about to throw away. A base built this way is
+deliberately unnamed, so parameter paths flatten to the container root.</p>
+<p>Whichever form is used, one representation is stored: a base model plus the
+target-to-profile mapping.</p>
+</section>
+<section id="evaluation-midpoint-sections-extrapolated">
+<h3>Evaluation: midpoint sections, extrapolated<a class="headerlink" href="#evaluation-midpoint-sections-extrapolated" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> is a <code class="docutils literal notranslate"><span class="pre">TransmissionLine</span></code> and an <code class="docutils literal notranslate"><span class="pre">AbstractBuilder</span></code>. <code class="docutils literal notranslate"><span class="pre">build</span></code> returns a
+<code class="docutils literal notranslate"><span class="pre">pmrf.models.RepeatedCascade</span></code>, so every representation delegates for free and no
+line-specific evaluation code is written twice.</p>
+<p><code class="docutils literal notranslate"><span class="pre">RepeatedCascade</span></code> is public in its own right: one model, a mapping from dotted
+names to arrays whose leading axis is the repeat axis, and everything else shared.
+<code class="docutils literal notranslate"><span class="pre">n</span></code> is static by construction, from that leading axis. It is what <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code>
+produces after evaluating profiles at the midpoints, and it is also the answer to
+#45’s cascade of independently-parametrised lines. The reduction itself moves into
+<code class="docutils literal notranslate"><span class="pre">pmrf.rf</span></code> and is shared with <code class="docutils literal notranslate"><span class="pre">Cascade</span></code>: the ABCD domain by default, reduced with a
+sequential <code class="docutils literal notranslate"><span class="pre">lax.scan</span></code>.</p>
+<p>Sampling each profile at the section midpoints and building exact hyperbolic ABCD
+sections is the exponential midpoint rule, an order-2 Magnus integrator. It is
+time-symmetric, so its error expands in <strong>even</strong> powers of <code class="docutils literal notranslate"><span class="pre">h</span></code>, and Richardson
+extrapolation of <code class="docutils literal notranslate"><span class="pre">T(n)</span></code> and <code class="docutils literal notranslate"><span class="pre">T(2n)</span></code> as <code class="docutils literal notranslate"><span class="pre">(4·T(2n)</span> <span class="pre">−</span> <span class="pre">T(n))/3</span></code> is <strong>O(h⁴)</strong>, not
+O(h³). Extrapolation is on by default (<code class="docutils literal notranslate"><span class="pre">extrapolate=True</span></code>), costing <code class="docutils literal notranslate"><span class="pre">3n</span></code> section
+builds, all vmapped. <code class="docutils literal notranslate"><span class="pre">n</span></code> defaults to 64, which holds the per-section electrical
+length inside the guard below well past any realistic taper. <code class="docutils literal notranslate"><span class="pre">extrapolate=False</span></code>
+is the escape for users who want the plain midpoint result.</p>
+<p>Extrapolation is applied to the complex ABCD entries, and the per-frequency error
+estimate is exposed.</p>
+</section>
+<section id="the-guard-is-on-by-default-and-hard-errors">
+<h3>The guard is on by default and hard-errors<a class="headerlink" href="#the-guard-is-on-by-default-and-hard-errors" title="Link to this heading"></a></h3>
+<p>Two conditions are checked at evaluation: the Richardson error estimate against a
+tolerance, and per-section electrical length against <code class="docutils literal notranslate"><span class="pre">βh</span> <span class="pre">≲</span> <span class="pre">0.2</span> <span class="pre">rad</span></code>. Both are
+traced, so both use <code class="docutils literal notranslate"><span class="pre">eqx.error_if</span></code>, as the degenerate-DC guards in the line base
+already do. A static <code class="docutils literal notranslate"><span class="pre">check=True</span></code> field turns them off.</p>
+<p>The error estimate is taken relative to a matrix norm, never to <code class="docutils literal notranslate"><span class="pre">|S11|</span></code>:
+normalising by a reflection coefficient makes the guard fire spuriously at every
+reflection null.</p>
+<p>Erroring rather than warning is deliberate. Silently wrong S-parameters feeding a
+likelihood is the worst outcome available, and an under-resolved taper is exactly
+the kind of numerical slack an optimiser finds and exploits. The accepted cost is
+that a fit whose trial point wanders past the guard dies mid-run rather than being
+penalised; <code class="docutils literal notranslate"><span class="pre">check=False</span></code> is the lever.</p>
+</section>
+<section id="introspection">
+<h3>Introspection<a class="headerlink" href="#introspection" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">ProfiledLine.at(t)</span></code> returns the base model with the profiled targets substituted
+at that <code class="docutils literal notranslate"><span class="pre">t</span></code> — the same substitution the evaluator performs at the midpoints,
+exposed for one position. It composes: <code class="docutils literal notranslate"><span class="pre">line.at(0.5).zc_and_gammaL(f)</span></code>, and <code class="docutils literal notranslate"><span class="pre">t</span></code>
+as an array vmaps to give the whole profile at once.</p>
+</section>
+</section>
+<section id="rejected-options">
+<h2>Rejected options<a class="headerlink" href="#rejected-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Profiles declared as model fields</strong> (<code class="docutils literal notranslate"><span class="pre">w:</span> <span class="pre">Param</span> <span class="pre">|</span> <span class="pre">Profile</span></code>). A <code class="docutils literal notranslate"><span class="pre">prf.param</span></code>
+field runs an <code class="docutils literal notranslate"><span class="pre">as_param</span></code> converter, so a profile node is coerced or rejected;
+and where a foreign node is stored untouched (ADR-0003), the field’s constraint
+and scale deliberately do not apply. A <code class="docutils literal notranslate"><span class="pre">MicrostripLine</span></code> whose width validation
+is silently bypassed by an intermediate shape object is worse than no feature.</p></li>
+<li><p><strong>Substituting the profile into the base tree in place</strong>, replacing the <code class="docutils literal notranslate"><span class="pre">Param</span></code>
+at the target. Naming would fall out for free, but it is the same validation
+bypass at a different entry point.</p></li>
+<li><p><strong>A section function returning a concrete line</strong> (<code class="docutils literal notranslate"><span class="pre">lambda</span> <span class="pre">t:</span> <span class="pre">MicrostripLine(w=...)</span></code>).
+It couples the taper definition to the line family: an exponential taper for
+microstrip width would have to be rewritten for stripline width and again for
+coaxial diameter. This is what forced profiles to be plain <code class="docutils literal notranslate"><span class="pre">f(t)</span> <span class="pre">-&gt;</span> <span class="pre">value</span></code>.</p></li>
+<li><p><strong>Authoring through <code class="docutils literal notranslate"><span class="pre">prf.update</span></code></strong> — construct a line, then update targets with
+profile nodes. Unintuitive as the primary interface, and it reintroduces
+in-tree substitution.</p></li>
+<li><p><strong>A profile as a <code class="docutils literal notranslate"><span class="pre">Model</span></code>.</strong> It has no ports and no S-parameters. <code class="docutils literal notranslate"><span class="pre">pmrf.Module</span></code>
+is the base for parameter-aware objects that are not models.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code> as an <code class="docutils literal notranslate"><span class="pre">AbstractUniformLine</span></code></strong>, with <code class="docutils literal notranslate"><span class="pre">zc_and_gammaL</span></code> returning
+the midpoint value. A characteristic impedance that is silently the value at
+one position invites exactly the misuse the guard exists to prevent.</p></li>
+<li><p><strong>Relative profiles</strong> (<code class="docutils literal notranslate"><span class="pre">w(t)</span> <span class="pre">=</span> <span class="pre">w_base</span> <span class="pre">×</span> <span class="pre">profile(t)</span></code>). It keeps the base value
+meaningful, but requires a reference value at every target and makes a
+dimensionless profile of permittivity mean something odd. Profiles are absolute.</p></li>
+<li><p><strong>A per-section <code class="docutils literal notranslate"><span class="pre">length</span></code>.</strong> The base’s <code class="docutils literal notranslate"><span class="pre">length</span></code> already carries a name, a prior
+and possibly a joint lab prior with the geometry; dividing it internally keeps
+all three and keeps a values dict from an earlier fit applicable.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">BatchedCascade</span></code> as the name.</strong> “Batch” in ParamRF already means the
+parameter batch dimension (<code class="docutils literal notranslate"><span class="pre">prf.batch_axes</span></code>, <code class="docutils literal notranslate"><span class="pre">prf.sweep</span></code>), and a
+<code class="docutils literal notranslate"><span class="pre">RepeatedCascade</span></code> can itself be batched in that sense.</p></li>
+<li><p><strong>A <code class="docutils literal notranslate"><span class="pre">method</span></code> field and the Riccati path.</strong> The old Riccati branch never ran. A
+field with one legal value is an API promise bought before it is needed, and a
+higher-order integrator would change <code class="docutils literal notranslate"><span class="pre">n</span></code> and <code class="docutils literal notranslate"><span class="pre">extrapolate</span></code> semantics too, so it
+deserves its own design rather than a pre-cut slot.</p></li>
+<li><p><strong>Automatic <code class="docutils literal notranslate"><span class="pre">n</span></code> selection.</strong> <code class="docutils literal notranslate"><span class="pre">n</span></code> must be static under <code class="docutils literal notranslate"><span class="pre">jit</span></code> — it is a vmap axis
+and a scan length — while <code class="docutils literal notranslate"><span class="pre">Frequency.f</span></code> is a dynamic array leaf, so no rule that
+reads the frequency band can run inside <code class="docutils literal notranslate"><span class="pre">jit</span></code>. A manual <code class="docutils literal notranslate"><span class="pre">refine()</span></code> for power
+users is deferred to its own ticket.</p></li>
+<li><p><strong>Arbitrary-shape profiles</strong> (polynomial, spline). They raise the smoothness
+question the extrapolation depends on and belong in a later ticket.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>The even-power error expansion, and therefore the O(h⁴) claim, requires the
+profile to be C² in <code class="docutils literal notranslate"><span class="pre">t</span></code>. This is documented on <code class="docutils literal notranslate"><span class="pre">AbstractProfile</span></code>. A deliberate
+kink is expressed by cascading two <code class="docutils literal notranslate"><span class="pre">ProfiledLine</span></code>s with <code class="docutils literal notranslate"><span class="pre">**</span></code>, not by a
+discontinuous profile.</p></li>
+<li><p>Periodic uniform sections have an artificial Bragg stopband at <code class="docutils literal notranslate"><span class="pre">βh</span> <span class="pre">=</span> <span class="pre">π</span></code>. The
+<code class="docutils literal notranslate"><span class="pre">βh</span> <span class="pre">≲</span> <span class="pre">0.2</span></code> guard keeps evaluation far from it, but the mechanism is why the
+guard is always on rather than advisory.</p></li>
+<li><p>Richardson measures the <em>discretisation</em> error only. It is blind to the model
+error floor — mode conversion, radiation, quasi-TEM breakdown — so a small
+estimate is not a statement that the answer is physically right.</p></li>
+<li><p>The convergence-order test is the slow one in the suite: it measures O(h²)
+without extrapolation and O(h⁴) with it. Validation otherwise uses the
+exponential taper’s closed form, a diffrax RK reference, and exactness at
+<code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">=</span> <span class="pre">1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Cascade</span></code> and <code class="docutils literal notranslate"><span class="pre">RepeatedCascade</span></code> share one reduction in <code class="docutils literal notranslate"><span class="pre">pmrf.rf</span></code>; changes to the
+cascade numerics now affect both.</p></li>
+<li><p>The commented-out <code class="docutils literal notranslate"><span class="pre">nonuniform.py</span></code> is deleted rather than ported. Per <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code>
+there is no back-compatibility obligation.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

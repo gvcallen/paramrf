@@ -1,0 +1,12 @@
+
+
+
+ConstantKernel
+==============
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: ConstantKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

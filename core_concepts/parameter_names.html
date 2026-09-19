@@ -1,0 +1,207 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parameter Names &mdash; paramrf 0.35.3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fde3b261"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Optimization and Inference" href="optimization_and_inference.html" />
+    <link rel="prev" title="Core Primitives" href="core_primitives.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Core Concepts</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="core_primitives.html">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Parameter Names</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#how-names-are-formed">How Names are Formed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parameter-spaces">Parameter Spaces</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#changing-a-model">Changing a Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tied-parameters">Tied Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#derived-models">Derived Models</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="optimization_and_inference.html">Optimization and Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jax_overview.html">JAX Overview</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Core Concepts</a></li>
+      <li class="breadcrumb-item active">Parameter Names</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core_concepts/parameter_names.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="parameter-names">
+<h1>Parameter Names<a class="headerlink" href="#parameter-names" title="Link to this heading"></a></h1>
+<p>Every parameter in a model has a name, which acts as its key. Names are how parameters are read with <a class="reference internal" href="../api/generated/pmrf.params.html#pmrf.params" title="pmrf.params"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.params()</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.param_values.html#pmrf.param_values" title="pmrf.param_values"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.param_values()</span></code></a>, changed with <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a>, and tied together with <a class="reference internal" href="../api/generated/pmrf.tie.html#pmrf.tie" title="pmrf.tie"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.tie()</span></code></a>. This page explains how names are formed, which units parameter values are expressed in, and what happens when a model is changed. For a hands-on walkthrough, see <a class="reference internal" href="../examples/parameter_naming_and_model_manipulation.html"><span class="doc">Parameter Naming and Model Manipulation</span></a>.</p>
+<section id="how-names-are-formed">
+<span id="parameter-naming-rules"></span><h2>How Names are Formed<a class="headerlink" href="#how-names-are-formed" title="Link to this heading"></a></h2>
+<p>By default, a parameter is named by its attribute path through the model, such as <code class="docutils literal notranslate"><span class="pre">cascade[0].R</span></code> or <code class="docutils literal notranslate"><span class="pre">substrate.dielectric.ep_r</span></code>. These paths are exact, but they change whenever the model is restructured. Giving models and parameters a <code class="docutils literal notranslate"><span class="pre">name</span></code> replaces the path with something more stable:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>Named models</strong> act as a namespace. <code class="docutils literal notranslate"><span class="pre">Resistor(50.0,</span> <span class="pre">name='r')</span></code> gives <code class="docutils literal notranslate"><span class="pre">r.R</span></code>, wherever the resistor ends up in a larger model. A named model at the root of the tree adds no namespace.</p></li>
+<li><p><strong>Named parameters</strong> replace their attribute path below the nearest named model, so <code class="docutils literal notranslate"><span class="pre">prf.Unconstrained(1.0,</span> <span class="pre">name='C_global')</span></code> is simply <code class="docutils literal notranslate"><span class="pre">C_global</span></code>.</p></li>
+<li><p><strong>Nested names</strong> are joined with an underscore. An inductor named <code class="docutils literal notranslate"><span class="pre">l1</span></code> holding a parameter named <code class="docutils literal notranslate"><span class="pre">L_val</span></code> gives <code class="docutils literal notranslate"><span class="pre">l1_L_val</span></code>.</p></li>
+</ul>
+</div></blockquote>
+<p>This lets you choose the convention that suits your workflow: name only the parameters for a flat set of names, name only the models for namespaces, or mix the two. String dictionary keys that are valid Python identifiers are treated like attributes (<code class="docutils literal notranslate"><span class="pre">components.cable.length</span></code>), and any other key keeps its bracket form. Two parameters resolving to the same name is an error.</p>
+<p>Wherever a name is accepted, a <em>selector</em> can be used instead: a glob such as <code class="docutils literal notranslate"><span class="pre">'c.*'</span></code>, a sequence of names, or a callable that picks nodes out of the model. These functions also accept any collection of models, so a joint tree such as <code class="docutils literal notranslate"><span class="pre">(model,</span> <span class="pre">noise_model)</span></code> can be read or changed in a single call.</p>
+</section>
+<section id="parameter-spaces">
+<h2>Parameter Spaces<a class="headerlink" href="#parameter-spaces" title="Link to this heading"></a></h2>
+<p>A parameter’s value can be expressed in one of three spaces:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>Declared</strong> space is the value as written, in the units given by the parameter’s scale. <code class="docutils literal notranslate"><span class="pre">Capacitor(prf.Unconstrained(2.0,</span> <span class="pre">scale=1e-12))</span></code> has a declared value of <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>Physical</strong> space is the scaled SI value, <code class="docutils literal notranslate"><span class="pre">2e-12</span></code> here. This is what the model’s equations see.</p></li>
+<li><p><strong>Raw</strong> space is the unbounded value that an optimizer or sampler moves through. For a bounded parameter, its constraint maps the value onto the real line.</p></li>
+</ul>
+</div></blockquote>
+<p>Declared space is the default everywhere. Construction, bounds, priors, a model’s <code class="docutils literal notranslate"><span class="pre">repr</span></code>, <a class="reference internal" href="../api/generated/pmrf.params.html#pmrf.params" title="pmrf.params"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.params()</span></code></a>, <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a> and <a class="reference internal" href="../api/generated/pmrf.derivative.html#pmrf.derivative" title="pmrf.derivative"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.derivative()</span></code></a> all use it, so what you read back is what you wrote. The other spaces are reached by passing <code class="docutils literal notranslate"><span class="pre">space='physical'</span></code> or <code class="docutils literal notranslate"><span class="pre">space='raw'</span></code>. Reading and writing are inverses in every space, which means the raw values an optimizer returns can be written straight back into the model.</p>
+<p>Since a scale defines the units a value is written in, a scale given explicitly on a parameter replaces the model’s default scale for that field rather than multiplying with it. Both the scale and the constraint also contribute a change-of-variables term to the prior density, so <a class="reference internal" href="../api/generated/pmrf.log_prior.html#pmrf.log_prior" title="pmrf.log_prior"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.log_prior()</span></code></a> gives a different value in each space; its docstring describes each case.</p>
+</section>
+<section id="changing-a-model">
+<h2>Changing a Model<a class="headerlink" href="#changing-a-model" title="Link to this heading"></a></h2>
+<p>Models are immutable, so <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a> returns a changed copy rather than editing the model in place. The changes it makes fall into two kinds.</p>
+<p><strong>Value changes</strong>, such as passing a dictionary of new values or a <code class="docutils literal notranslate"><span class="pre">value=</span></code> argument, go through each parameter’s constructor. The new value is checked against the parameter’s bounds, and its prior, constraint, scale and name are all kept. Freeing or fixing parameters with <code class="docutils literal notranslate"><span class="pre">fixed=</span></code> works the same way, and only affects the parameters that are selected.</p>
+<p><strong>Structural changes</strong> replace a part of the model outright, either with a new sub-model or parameter, or with the result of a function applied to the old part. These put exactly what they are given in place, without validation. An exact name can select a whole sub-model here, whereas a glob only ever matches parameters.</p>
+<p>A dictionary passed to <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a> can hold both kinds. Each entry is decided by its value: a <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> keyed by a sub-model name is a structural change, unvalidated, while an array or parameter keyed by a parameter name is a value change. For example, <code class="docutils literal notranslate"><span class="pre">prf.update(system,</span> <span class="pre">{'east_coax':</span> <span class="pre">new_east,</span> <span class="pre">'west_coax':</span> <span class="pre">new_west})</span></code> replaces two sub-models in one call. A model given for a parameter name, or a value given for a sub-model name, raises an error.</p>
+<p>The distinction matters for performance. RF methods such as <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model.s" title="pmrf.Model.s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pmrf.Model.s()</span></code></a> are compiled just-in-time, and the compiled code is only reused while the model’s structure is unchanged. Changing a parameter’s value keeps that structure, so it never triggers a recompile. Fixing or freeing a parameter, making a structural change, or swapping in a parameter with a different constraint or scale all change the structure, and so recompile. On a large circuit this can take noticeably longer than an evaluation, so value changes should be preferred inside loops.</p>
+</section>
+<section id="tied-parameters">
+<h2>Tied Parameters<a class="headerlink" href="#tied-parameters" title="Link to this heading"></a></h2>
+<p>Rather than setting a parameter once, <a class="reference internal" href="../api/generated/pmrf.tie.html#pmrf.tie" title="pmrf.tie"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.tie()</span></code></a> derives it from another parameter. The target is removed from the model’s parameters and is recomputed from its source every time the model is evaluated, so it follows the source through updates, optimization and sampling. Because it is no longer a parameter, it also no longer has a name. The tie function receives and returns physical values, and derivatives with respect to the source include the path through the tie.</p>
+</section>
+<section id="derived-models">
+<h2>Derived Models<a class="headerlink" href="#derived-models" title="Link to this heading"></a></h2>
+<p>A tie can only relate parameters that already exist. Sometimes a relation needs a quantity the model has no place for. Take a coaxial cable of total length <code class="docutils literal notranslate"><span class="pre">L</span></code> that is wet for its first <code class="docutils literal notranslate"><span class="pre">w</span></code>: the model is a wet section cascaded with a dry one, but neither section can hold <code class="docutils literal notranslate"><span class="pre">L</span></code>, and <code class="docutils literal notranslate"><span class="pre">L</span></code> should keep its own prior (perhaps a joint lab prior with the cable’s geometry) rather than drift as <code class="docutils literal notranslate"><span class="pre">w</span></code> changes.</p>
+<p><a class="reference internal" href="../api/generated/pmrf.derived.html#pmrf.derived" title="pmrf.derived"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.derived()</span></code></a> handles this by starting from the nominal model and deriving a more complete one. It turns a function <code class="docutils literal notranslate"><span class="pre">f(base,</span> <span class="pre">**new)</span></code> into a constructor: the base model and the new parameters are held once, and <code class="docutils literal notranslate"><span class="pre">f</span></code> is called on them whenever the model is used.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@prf</span><span class="o">.</span><span class="n">derived</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wet</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">wet_length</span><span class="p">,</span> <span class="n">wet_ep_r</span><span class="p">):</span>
+    <span class="n">wet</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">wet_length</span><span class="p">,</span>
+                      <span class="n">dielectric</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="o">.</span><span class="n">dielectric</span><span class="p">,</span> <span class="n">ep_r</span><span class="o">=</span><span class="n">wet_ep_r</span><span class="p">))</span>
+    <span class="n">dry</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">cable</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="n">wet_length</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wet</span> <span class="o">**</span> <span class="n">dry</span>
+
+<span class="n">coax</span> <span class="o">=</span> <span class="n">wet</span><span class="p">(</span><span class="n">coax</span><span class="p">,</span> <span class="n">wet_length</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">Uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">),</span>
+           <span class="n">wet_ep_r</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">Uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">80</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>The result is an ordinary <a class="reference internal" href="../api/generated/pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> with the same port count, so it can be cascaded, wrapped, tied and fitted like any other. Its parameters are the base’s, under exactly the names they had on the base, plus one per keyword (<code class="docutils literal notranslate"><span class="pre">wet_length</span></code> and <code class="docutils literal notranslate"><span class="pre">wet_ep_r</span></code>). The cable’s geometry is used by both sections but is still one parameter, and a values dictionary saved from a fit of the dry cable applies unchanged. Nothing built inside <code class="docutils literal notranslate"><span class="pre">f</span></code> is named, and the derived model takes the base’s name, so inside a named container everything is prefixed as usual.</p>
+<p>Like a tie function, <code class="docutils literal notranslate"><span class="pre">f</span></code> receives physical values. Inside it, use <a class="reference internal" href="../api/generated/pmrf.replace.html#pmrf.replace" title="pmrf.replace"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.replace()</span></code></a> to change fields of the object in hand, and <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a> to change parts reached by name. <code class="docutils literal notranslate"><span class="pre">f</span></code> must be pure and must return a model whose structure does not depend on parameter values. It is part of the model’s static structure, so define it once at module level: a lambda created anew on every call recompiles.</p>
+<p>A parameter shared by several parts is expressed by deriving at the level that owns it. A derived model can be the base of another, and names accumulate flat, so one water level for both arms of a balun is:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@prf</span><span class="o">.</span><span class="n">derived</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wet_balun</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="n">wet_length</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s1">'east_coax'</span><span class="p">:</span> <span class="n">wet</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">east_coax</span><span class="p">,</span> <span class="n">wet_length</span><span class="o">=</span><span class="n">wet_length</span><span class="p">,</span> <span class="n">wet_ep_r</span><span class="o">=</span><span class="mf">80.0</span><span class="p">),</span>
+        <span class="s1">'west_coax'</span><span class="p">:</span> <span class="n">wet</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">west_coax</span><span class="p">,</span> <span class="n">wet_length</span><span class="o">=</span><span class="n">wet_length</span><span class="p">,</span> <span class="n">wet_ep_r</span><span class="o">=</span><span class="mf">80.0</span><span class="p">),</span>
+    <span class="p">})</span>
+
+<span class="n">balun</span> <span class="o">=</span> <span class="n">wet_balun</span><span class="p">(</span><span class="n">balun</span><span class="p">,</span> <span class="n">wet_length</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">Uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">prf.params(balun)</span></code> holds a single <code class="docutils literal notranslate"><span class="pre">wet_length</span></code>, and changing it changes both cables. The reasoning behind this design is recorded in ADR-0003.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="core_primitives.html" class="btn btn-neutral float-left" title="Core Primitives" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="optimization_and_inference.html" class="btn btn-neutral float-right" title="Optimization and Inference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

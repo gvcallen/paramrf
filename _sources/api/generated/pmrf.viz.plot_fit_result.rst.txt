@@ -1,0 +1,9 @@
+
+
+
+plot_fit_result
+===============
+
+.. currentmodule:: pmrf.viz
+
+.. autofunction:: plot_fit_result

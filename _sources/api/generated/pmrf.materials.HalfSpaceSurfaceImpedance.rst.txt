@@ -1,0 +1,12 @@
+
+
+
+HalfSpaceSurfaceImpedance
+=========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: HalfSpaceSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

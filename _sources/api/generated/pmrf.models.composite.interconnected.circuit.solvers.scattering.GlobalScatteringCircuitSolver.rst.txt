@@ -1,0 +1,12 @@
+
+
+
+GlobalScatteringCircuitSolver
+=============================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+
+.. autoclass:: GlobalScatteringCircuitSolver
+   :members:
+   :show-inheritance:
+   :inherited-members:

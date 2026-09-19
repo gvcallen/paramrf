@@ -1,0 +1,12 @@
+
+
+
+Wrapped
+=======
+
+.. currentmodule:: pmrf.models.adapters.wrapped
+
+.. autoclass:: Wrapped
+   :members:
+   :show-inheritance:
+   :inherited-members:

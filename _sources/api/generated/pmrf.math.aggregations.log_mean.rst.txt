@@ -1,0 +1,9 @@
+
+
+
+log_mean
+========
+
+.. currentmodule:: pmrf.math.aggregations
+
+.. autofunction:: log_mean

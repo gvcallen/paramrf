@@ -1,0 +1,9 @@
+﻿
+
+
+**derivative** (pmrf.derivative)
+================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: derivative

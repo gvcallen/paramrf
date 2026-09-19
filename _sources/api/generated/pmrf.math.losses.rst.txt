@@ -1,0 +1,42 @@
+
+
+
+losses
+======
+
+.. automodule:: pmrf.math.losses
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   hinge_loss
+
+   huber_loss
+
+   log_mean_squared_error
+
+   mean_absolute_error
+
+   mean_absolute_percentage_error
+
+   mean_squared_error
+
+   root_mean_squared_error
+
+

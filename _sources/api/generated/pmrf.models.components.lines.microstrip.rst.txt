@@ -1,0 +1,60 @@
+
+
+
+microstrip
+==========
+
+.. automodule:: pmrf.models.components.lines.microstrip
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractMicrostripDispersion
+
+   AbstractMicrostripFormulation
+
+   HammerstadJensenMicrostripFormulation
+
+   IncrementalInductanceCurrentDistribution
+
+   KirschningJansenMicrostripDispersion
+
+   MicrostripCrossSection
+
+   MicrostripLine
+
+   TraceGroundCurrentDistribution
+
+   WheelerCurrentDistribution
+
+   WheelerMicrostripFormulation
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   _ground_return_effective_width
+
+   _microstrip_conductance_factor
+
+

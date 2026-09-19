@@ -1,0 +1,12 @@
+
+
+
+AbstractUniformLine
+===================
+
+.. currentmodule:: pmrf.models.components.lines.base
+
+.. autoclass:: AbstractUniformLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+_interpolate_network_data_cubic
+===============================
+
+.. currentmodule:: pmrf.models.adapters.static
+
+.. autofunction:: _interpolate_network_data_cubic

@@ -1,0 +1,9 @@
+
+
+
+_i_series_terms
+===============
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _i_series_terms

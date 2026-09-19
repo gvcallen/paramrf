@@ -1,0 +1,9 @@
+﻿
+
+
+**sweep** (pmrf.sweep)
+======================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: sweep

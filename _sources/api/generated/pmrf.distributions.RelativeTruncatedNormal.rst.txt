@@ -1,0 +1,9 @@
+
+
+
+RelativeTruncatedNormal
+=======================
+
+.. currentmodule:: pmrf.distributions
+
+.. autofunction:: RelativeTruncatedNormal

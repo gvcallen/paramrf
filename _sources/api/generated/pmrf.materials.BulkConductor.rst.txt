@@ -1,0 +1,12 @@
+
+
+
+BulkConductor
+=============
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: BulkConductor
+   :members:
+   :show-inheritance:
+   :inherited-members:

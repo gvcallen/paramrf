@@ -1,0 +1,12 @@
+
+
+
+Joint
+=====
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: Joint
+   :members:
+   :show-inheritance:
+   :inherited-members:

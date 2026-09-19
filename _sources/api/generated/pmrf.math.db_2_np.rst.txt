@@ -1,0 +1,9 @@
+
+
+
+db_2_np
+=======
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: db_2_np

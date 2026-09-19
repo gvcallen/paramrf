@@ -1,0 +1,12 @@
+﻿
+
+
+**InitVar** (pmrf.InitVar)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autoclass:: InitVar
+   :members:
+   :show-inheritance:
+   :inherited-members:

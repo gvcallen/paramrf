@@ -1,0 +1,12 @@
+
+
+
+CohnCurrentDistribution
+=======================
+
+.. currentmodule:: pmrf.models.components.lines.stripline
+
+.. autoclass:: CohnCurrentDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

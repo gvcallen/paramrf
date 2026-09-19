@@ -1,0 +1,12 @@
+
+
+
+MNARepresentation
+=================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.base
+
+.. autoclass:: MNARepresentation
+   :members:
+   :show-inheritance:
+   :inherited-members:
