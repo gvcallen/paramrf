@@ -75,6 +75,18 @@ the base's as a read-only forwarding property.
 
 A profiled target's value on the base is discarded, and the parameter is removed
 from the profiled line's parameter set, replaced by the profile's coefficients.
+
+That removal happens in the **naming layer**. The `Param` stays exactly where it
+is in the base tree, because the container writes each profile's value back
+through the driven field's own converter and constraint, and because the base
+tree is left as built. What the container takes away is the target's *name*: it
+declares the path **shadowed**, `pmrf.params` does not emit it, and naming it
+raises rather than resolving. Merely fixing the parameter is not enough — it
+stays visible and still resolves, so a fit aimed at it silently optimises
+nothing, which is the #45 failure one level down. Shadowing is a general opt-in
+that any container declares (`shadowed_param_paths`), not a `ProfiledLine`
+special case inside the parameter machinery.
+
 Passing a value explicitly for a target that is also profiled raises: silently
 discarded input is how an afternoon is lost. A field default that is discarded
 does not raise, because the user did not type it.

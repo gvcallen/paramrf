@@ -24,3 +24,6 @@ from pmrf.models.components.lines.profiles import (
     ExponentialProfile as ExponentialProfile,
     KlopfensteinProfile as KlopfensteinProfile,
 )
+from pmrf.models.components.lines.nonuniform import (
+    ProfiledLine as ProfiledLine,
+)

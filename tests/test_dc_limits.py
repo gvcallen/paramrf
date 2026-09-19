@@ -37,8 +37,10 @@ from pmrf.models import (
     MicrostripLine,
     PhaseLine,
     PhysicalLine,
+    ProfiledLine,
     RLGCLine,
     StriplineLine,
+    ExponentialProfile,
 )
 from pmrf.models.components.lines.microstrip import (
     HammerstadJensenMicrostripFormulation,
@@ -102,6 +104,28 @@ LINES = {
         dielectric=ConstantDielectric(ep_r=2.2, tand=0.001), t=None, length=0.1
     ),
     "FloatingLine": FloatingLine(floating=PhaseLine(z0=50.0, theta=90.0, f0=5e9)),
+    # A profiled line is its sections: whatever the base line does at DC, the cascade
+    # of its sections must do too, gradients through the profiles included.
+    "ProfiledLine": ProfiledLine(
+        RLGCLine,
+        {
+            'L': ExponentialProfile(start=250e-9, end=500e-9),
+            'C': ExponentialProfile(start=100e-12, end=50e-12),
+        },
+        R=0.1,
+        G=1e-6,
+        length=0.1,
+        n=4,
+    ),
+    "ProfiledLine (lossless)": ProfiledLine(
+        RLGCLine,
+        {'L': ExponentialProfile(start=250e-9, end=500e-9)},
+        R=0.0,
+        G=0.0,
+        C=100e-12,
+        length=0.1,
+        n=4,
+    ),
 }
 
 MATERIALS = {

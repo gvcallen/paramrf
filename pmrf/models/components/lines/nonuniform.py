@@ -1,284 +1,476 @@
+r"""
+Non-uniform transmission lines: a uniform line whose parameters vary along it.
 """
-Non-uniform transmission lines.
-"""
-from typing import Callable, Any, Dict
+from __future__ import annotations
+
+from typing import Any, Mapping
 
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
-# from pmrf.frequency import Frequency
-# from pmrf.models.base import Model
-# from pmrf.models.components.lines.uniform import RLGCLine
-# from pmrf.rf import cascade_s
-# from pmrf.parameters import Param, param
-# from pmrf.utils import field
+from pmrf.models.base import Model
+from pmrf.models.adapters.delegated import AbstractBuilder
+from pmrf.models.components.lines.base import TransmissionLine
+from pmrf.models.components.lines.profiles import AbstractProfile
+from pmrf.modules.base import Module
+from pmrf.models.composite.interconnected.cascade import RepeatedCascade
+from pmrf.parameters import (
+    Param,
+    is_param,
+    tree_param_paths,
+    update,
+)
+from pmrf.types import ArrayLike
+from pmrf.utils import field, replace
+
+#: Keywords that always belong to the container rather than to the base line. When the
+#: base is given as a class, its plain keywords are forwarded to it, and a base class
+#: declaring a field of one of these names cannot be told apart from the container's own
+#: keyword, so the collision is rejected rather than guessed at. ``extrapolate`` is
+#: reserved ahead of the Richardson extrapolation that follows this ticket: the name has
+#: to belong to the container from the start, or adding it later would silently take a
+#: keyword a base class had been using.
+RESERVED_KEYWORDS = ('n', 'extrapolate', 'name', 'metadata')
+
+#: The base parameter that is the line's total length. It is divided by the section
+#: count internally and is never profilable.
+LENGTH = 'length'
+
+#: The `fnmatch` metacharacters. A target containing one is a glob, and is rejected.
+_GLOB_CHARACTERS = '*?['
 
 
-# Code left from previous Parax architecture. Left for reference to be ported over to new architecture.
-# class ProfiledLine(Model):
-#     r"""
-#     A non-uniform transmission line defined by an arbitrary profile.
+class ProfiledLine(TransmissionLine, AbstractBuilder):
+    r"""
+    A line whose parameters vary along it, following profiles.
 
-#     NB: Not yet tested.
+    A **base** uniform line, plus a mapping from parameter **targets** on it to the
+    :class:`~pmrf.models.AbstractProfile` driving each one. The line evaluates as a
+    cascade of `n` uniform sections whose profiled parameters are sampled at the
+    section midpoints, and every other parameter is shared by every section.
 
-#     This model wraps any RLGC transmission line model and allows its parameters
-#     to vary as a function of length. For example, the line's characteristic impedance
-#     can be varied exponentially for impedance matching purposes.
+    ``t = 0`` is at port 1 and ``t = 1`` is at port 2, as on
+    :class:`~pmrf.models.AbstractProfile`. Reversing a taper swaps the profile's
+    coefficients; there is no orientation flag.
 
-#     Any line parameters can be uniform across length or follow a spatial profile
-#     defined by user-provided function (e.g., splines). Both the uniform parameters
-#     and the coefficients of the profile functions are registered as `Parameter` objects,
-#     making the profile parameters compatible with fitting and sampling.
+    Two ways in, one representation
+    -------------------------------
+    The base may be a constructed line, or a class plus the keywords to build it::
 
-#     Supported evaluation methods:
-#       - 'stepped': A discrete cascaded approximation (default).
-#       - 'riccati': A continuous ODE solver using the Matrix Riccati differential equations.
+        ProfiledLine(MicrostripLine, {'w': taper}, h=1.6e-3, length=50e-3)
+        ProfiledLine(MicrostripLine(w=4e-3, h=1.6e-3, length=50e-3), {'w': taper})
 
-#     Example
-#     --------
-#     .. code-block:: python
+    The keywords of the class form are forwarded to the base, except for the reserved
+    container keywords ``n``, ``extrapolate``, ``name`` and ``metadata``, which always
+    belong to the container. A base class declaring a field of one of those names
+    raises rather than being guessed at. A base built this way is deliberately unnamed,
+    so its parameter names flatten to the container's root.
 
-#         import pmrf as prf
-#         from pmrf.models import PhysicalLine, ProfiledLine
+    Targets
+    -------
+    A target is an **exact dotted path** naming a :class:`pmrf.Param` on the base, as
+    :func:`pmrf.params` gives it: ``'w'``, ``'substrate.dielectric.ep_r'``. Globs,
+    sequences and callables are rejected, because a glob matching three parameters
+    would silently create three independent profiles that happen to share one shape
+    object, which is never what was meant.
 
-#         def linear_taper(t, start_val, end_val):
-#             return start_val + (end_val - start_val) * t
+    The base tree is left exactly as built: profiles are never substituted into it and
+    are never declared as :func:`pmrf.param` fields, both of which would bypass the
+    driven field's own converter and constraint (ADR-0004).
 
-#         tapered_line = ProfiledLine(
-#             PhysicalLine,
-#             linear_taper, 
-#             length=0.1,
-#             zn={'start_val': 50.0, 'end_val': 100.0},
-#             ep_r=2.2,
-#             method='riccati',
-#             options={'rtol': 1e-6, 'atol': 1e-6},
-#         )
-        
-#         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
-#         s_taper = tapered_line.s(freq)
-#     """
-#     # Config
-#     line_fn: Callable[[Any], RLGCLine] = field(static=True)
-#     floating: bool = False
-#     profile_fns: Dict[str, Callable] = field(static=True)
-#     method: str = field(static=True)
-#     options: dict = field(static=True)
+    Length
+    ------
+    `length` is the base's own parameter, and it is the **total** length. It is not
+    profilable and is rejected as a target: the container divides it by the section
+    count internally, so a per-section length is never seen. `ProfiledLine` has no
+    `length` field of its own; :attr:`length` forwards read-only to the base.
 
-#     # Parameters and sub-models
-#     length: Param
-#     profile_params: Dict[str, Dict[str, Param]]
-#     uniform_params: Dict[str, Param]
+    Parameters and names
+    --------------------
+    A profiled target's value on the base is discarded, and the target stops being a
+    parameter of the line: it is **shadowed**, so it has no name, is absent from
+    :func:`pmrf.params`, and ``pmrf.update(line, {'w': ...})`` raises rather than
+    quietly setting a value that changes nothing. The `Param` itself stays where it is
+    in the base tree, so each profile's value is still written back through the driven
+    field's own converter and constraint. What is fitted instead are the profile's
+    coefficients, which the container names under the target: ``'w.start'``, ``'substrate.dielectric.ep_r.end'``.
+    The names are assigned by the container rather than falling out of the mapping's
+    dict keys, so a non-identifier path never leaks a bracket form into a parameter
+    name, and the container's own field layout never appears in one. Globs then do the
+    obvious thing: ``'w.*'`` is one target's coefficients and ``'*.start'`` is every
+    profile's start.
 
-#     def __init__(
-#         self, 
-#         line_fn: Callable, 
-#         profile_fn: Callable | None = None,
-#         *,
-#         length: Any = 1,
-#         floating: bool = False,
-#         method: str = 'stepped',
-#         options: dict | None = None,
-#         name: str | None = None,
-#         z0: complex = 50.0,
-#         **line_params
-#     ):
-#         super().__init__(name=name, z0=z0)
-        
-#         # Defaults
-#         options = options or dict()
-#         if method == 'stepped':
-#             options.setdefault('N', 50)
-#         elif method == 'riccati':
-#             options.setdefault('rtol', 1e-5)
-#             options.setdefault('atol', 1e-5)
-#             options.setdefault('max_steps', 1000)
-#             # Add a small offset to avoid evaluating the jacobian at exactly 0.0
-#             # if the underlying line model has a singularity at length=0
-#             options.setdefault('dz_eval', 0.0)
+    Passing a value explicitly for a profiled target raises, in the class form where
+    the container can see what was typed; a field default that is discarded does
+    not, because the user did not type it.
 
-#         # Members
-#         self.line_fn = line_fn
-#         self.floating = floating
-#         self.length = length
-#         self.method = method
-#         self.options = options
+    Evaluation
+    ----------
+    `ProfiledLine` is a :class:`~pmrf.models.TransmissionLine` and an
+    :class:`~pmrf.models.AbstractBuilder`: :meth:`build` returns a
+    :class:`~pmrf.models.RepeatedCascade`, so ``s``, ``a``, ``y``, ``z`` and ``mna``
+    all delegate to one implementation and cannot disagree.
 
-#         # 1. Instantiate a dummy model to extract all default parameters.
-#         safe_kwargs = {
-#             k: v for k, v in line_params.items() 
-#             if not isinstance(v, (dict, tuple))
-#         }
-#         safe_kwargs['length'] = self.length
-        
-#         dummy_model = line_fn(**safe_kwargs)
-#         base_params = prf.params(dummy_model)
+    It is deliberately **not** an ``AbstractUniformLine``. A characteristic impedance
+    that is silently the value at one position along the taper invites exactly the
+    misuse a resolution guard exists to prevent.
 
-#         # Extract the parameter objects, excluding 'length'
-#         merged_params = {
-#             k: v for k, v in base_params.items() 
-#             if k != 'length' 
-#         }
-        
-#         # 2. Overlay the user's raw inputs
-#         merged_params.update(line_params)
+    **Mathematical Formulation**
 
-#         parsed_profile_fns = {}
-#         parsed_profile_params = {}
-#         parsed_uniform_params = {}
+    With $N$ sections of length $h = L/N$, the midpoints
+    $t_k = (k + \tfrac{1}{2})/N$ and $\theta_k$ the base parameters with each target
+    replaced by its profile's value at $t_k$,
 
-#         # 3. Parse the unified kwargs into Equinox-friendly PyTrees
-#         for k, v in merged_params.items():
-#             if isinstance(v, tuple) and len(v) == 2 and callable(v[0]) and isinstance(v[1], dict):
-#                 parsed_profile_fns[k] = v[0]
-#                 parsed_profile_params[k] = {arg: val for arg, val in v[1].items()}
-#             elif isinstance(v, dict):
-#                 if profile_fn is None:
-#                     raise ValueError(f"Parameter '{k}' was provided as a dict, but no `profile_fn` was specified.")
-#                 parsed_profile_fns[k] = profile_fn
-#                 parsed_profile_params[k] = {arg: val for arg, val in v.items()}
-#             else:
-#                 parsed_uniform_params[k] = v
-                
-#         self.profile_fns = parsed_profile_fns
-#         self.profile_params = parsed_profile_params
-#         self.uniform_params = parsed_uniform_params
+    $$A(f) = \prod_{k=0}^{N-1} A_{\mathrm{base}}(f;\, \theta_k,\, \ell = h)$$
 
-#     @eqx.filter_jit
-#     def section(self, dz: float, **profiled_params) -> RLGCLine:
-#         # Create a fresh dict to avoid mutating self.uniform_params
-#         current_params = dict(self.uniform_params)
-#         current_params['length'] = dz
-#         current_params['floating'] = self.floating
-#         current_params.update(profiled_params)
-#         return self.line_fn(**current_params)
+    Sampling at the midpoints and building exact sections is the exponential midpoint
+    rule, an order-2 Magnus integrator, so the error is $O(h^2)$ for a profile that is
+    $C^2$ in $t$.
 
-#     def _profiled_params(self, t: float) -> dict:
-#         """Helper to evaluate all profile functions at normalized position t."""
-#         evaluated_params = {}
-#         for p_name, func in self.profile_fns.items():
-#             f_kwargs = self.profile_params.get(p_name, {})
-#             evaluated_params[p_name] = func(t, **f_kwargs)
-#         return evaluated_params
+    Parameters
+    ----------
+    base : Model or type[Model]
+        The uniform line the profiles vary, or its class. A class is constructed from
+        the plain keywords and is left unnamed.
+    profiles : Mapping[str, AbstractProfile]
+        Exact dotted parameter paths on the base, mapped to the profile driving each.
+    n : int, default=64
+        The number of uniform sections. Static.
+    **base_kwargs
+        Keywords forwarded to `base` when it is a class. Rejected when `base` is
+        already constructed.
 
-#     @eqx.filter_jit
-#     def s(self, freq: Frequency) -> jnp.ndarray:
-#         if self.method == 'stepped':
-#             return self._s_stepped(freq)
-#         elif self.method == 'riccati':
-#             raise NotImplementedError("Riccati method for ProfileLine not yet functional")
-#             return self._s_riccati(freq)
-#         else:
-#             raise ValueError(f"Unknown evaluation method: '{self.method}'")        
-        
-#     @eqx.filter_jit
-#     def _s_stepped(self, freq: Frequency) -> jnp.ndarray:
-#         N = self.options['N']
-#         dz = self.length / N
-#         t_centers = (jnp.arange(N) + 0.5) / N
-        
-#         def s_section(t):
-#             profiled_params = self._profiled_params(t)
-#             sec = self.section(dz, **profiled_params)
-#             return sec.s(freq), jnp.asarray(sec.z0, dtype=complex)
+    Raises
+    ------
+    TypeError
+        If `base` is neither a `Model` nor a `Model` subclass, if a target is not a
+        string, if a profile is not an `AbstractProfile`, or if keywords are given
+        alongside a constructed base.
+    ValueError
+        If `profiles` is empty, a target is a glob or does not name a `Param` on the
+        base, a target is `length` or carries its own scale, a base class collides
+        with a reserved container keyword, a reserved keyword is passed through to the
+        base, a value is passed for a profiled target, or `n` is not positive.
 
-#         batch_s, batch_z0 = jax.vmap(s_section)(t_centers)
-#         S_cas, z0_cas = cascade_s(batch_s, batch_z0)
-#         return S_cas
+    See Also
+    --------
+    AbstractProfile : The shape a target follows.
+    RepeatedCascade : What `build` returns.
 
-#     @eqx.filter_jit
-#     def _s_riccati(self, freq: Frequency) -> jnp.ndarray:
-#         import diffrax
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 5.8. Wiley.
 
-#         def s_derivative(t, S_state_tuple, args):
-#             # 1. Reconstruct complex S-matrix from the real/imag tuple state
-#             # This explicitly resolves the Diffrax complex dtype warning
-#             S_real, S_imag = S_state_tuple
-#             S_state = S_real + 1j * S_imag
+    Examples
+    --------
+    .. code-block:: python
 
-#             # S_state shape: (..., 2N, 2N)
-#             N_total = S_state.shape[-1]
-#             N_ports = N_total // 2
+        import pmrf as prf
+        from pmrf.models import ProfiledLine, MicrostripLine, ExponentialProfile
 
-#             # Unpack aggregated S-matrix blocks
-#             S11 = S_state[..., :N_ports, :N_ports]
-#             S12 = S_state[..., :N_ports, N_ports:]
-#             S21 = S_state[..., N_ports:, :N_ports]
-#             S22 = S_state[..., N_ports:, N_ports:]
+        taper = ProfiledLine(
+            MicrostripLine,
+            {'w': ExponentialProfile(
+                start=prf.Bounded(1e-3, 9e-3, value=2e-3),
+                end=prf.Bounded(1e-3, 9e-3, value=8e-3),
+            )},
+            h=1.6e-3,
+            length=50e-3,
+            n=64,
+        )
 
-#             profiled_params = self._profiled_params(t)
+        sorted(prf.params(taper, free_only=True))   # ['w.end', 'w.start']
+        taper.at(0.5)                               # the base line at mid-taper
+        taper.s(prf.Frequency(1, 10, 101, 'ghz'))
+    """
+    #: The base line, held exactly as built. Profiled targets on it are fixed.
+    base: Model
 
-#             # Wrap the line construction to isolate `length`
-#             def local_s_matrix(dz):
-#                 sec = self.section(dz, **profiled_params)
-#                 return sec.s(freq)
+    #: Exact dotted parameter paths on the base, mapped to the profile driving each.
+    profiles: dict[str, AbstractProfile]
 
-#             # 2. Extract Generator Matrix Q(z) = dS/dz using Finite Difference
-#             # This bypasses the jax.jacfwd crash caused by complex matrix inversions/conjugations 
-#             # inside the renormalize_s power-wave formulation.
-#             dz_delta = 1e-8
-#             S_plus = local_s_matrix(dz_delta)
-#             S_zero = local_s_matrix(0.0)
-#             Q = (S_plus - S_zero) / dz_delta
+    #: The number of uniform sections. Static.
+    n: int = field(default=64, static=True, kw_only=True)
 
-#             Q11 = Q[..., :N_ports, :N_ports]
-#             Q12 = Q[..., :N_ports, N_ports:]
-#             Q21 = Q[..., N_ports:, :N_ports]
-#             Q22 = Q[..., N_ports:, N_ports:]
+    #: Keeps the container's own field layout -- `base`, `profiles` -- out of the names
+    #: of the parameters below it, so the base line's parameters flatten to this
+    #: container's position in the name space and the profile coefficients are named
+    #: under their target. See :data:`pmrf.parameters.NAME_TRANSPARENT_MARKER`.
+    _pmrf_name_transparent = True
 
-#             # Differential Redheffer Star Product
-#             dS11 = S12 @ Q11 @ S21
-#             dS12 = S12 @ (Q12 + Q11 @ S22)
-#             dS21 = (Q21 + S22 @ Q11) @ S21
-#             dS22 = Q22 + Q21 @ S22 + S22 @ Q12 + S22 @ Q11 @ S22
+    def __init__(
+        self,
+        base: Model | type[Model],
+        profiles: Mapping[str, AbstractProfile],
+        *,
+        n: int = 64,
+        name: str | None = None,
+        metadata: Any = None,
+        **base_kwargs: Any,
+    ):
+        profiles = _checked_profiles(profiles)
 
-#             # Reconstruct block matrix 
-#             top = jnp.concatenate([dS11, dS12], axis=-1)
-#             bot = jnp.concatenate([dS21, dS22], axis=-1)
-#             dS_dt = jnp.concatenate([top, bot], axis=-2)
-            
-#             dS_dt_scaled = self.length * dS_dt
+        if isinstance(base, type):
+            if not issubclass(base, Model):
+                raise TypeError(
+                    f"The base of a ProfiledLine must be a pmrf.Model or a Model "
+                    f"subclass; got the class {base.__name__}."
+                )
+            _check_reserved_collision(base)
+            _check_reserved_keywords(base_kwargs)
+            _check_no_values_for_targets(base_kwargs, profiles)
+            # Deliberately unnamed: the base is an implementation detail of this
+            # container, so its parameter names flatten to the container's root.
+            base = base(**base_kwargs)
+        elif isinstance(base, Model):
+            if base_kwargs:
+                raise TypeError(
+                    f"Got keyword(s) {sorted(base_kwargs)} alongside an already "
+                    f"constructed base line. Keywords are only forwarded when `base` "
+                    f"is a class; update a constructed line with pmrf.update instead."
+                )
+        else:
+            raise TypeError(
+                f"The base of a ProfiledLine must be a pmrf.Model or a Model "
+                f"subclass; got {type(base).__name__}."
+            )
 
-#             # Return as a tuple of real/imag to maintain Diffrax stability
-#             return jnp.real(dS_dt_scaled), jnp.imag(dS_dt_scaled)
+        if int(n) < 1:
+            raise ValueError(f"A ProfiledLine needs at least one section; got n={n}.")
 
-#         # Establish Initial Condition S(0) = [0, I; I, 0]
-#         profiled_params_init = self._profiled_params(0.0)
-#         sec_dummy = self.section(0.0, **profiled_params_init)
-#         S_dummy = sec_dummy.s(freq)
-        
-#         batch_shape = S_dummy.shape[:-2]
-#         N_ports = S_dummy.shape[-1] // 2
-        
-#         I_mat = jnp.broadcast_to(jnp.eye(N_ports, dtype=complex), batch_shape + (N_ports, N_ports))
-#         Z_mat = jnp.zeros_like(I_mat)
-        
-#         top_init = jnp.concatenate([Z_mat, I_mat], axis=-1)
-#         bot_init = jnp.concatenate([I_mat, Z_mat], axis=-1)
-#         S_initial_complex = jnp.concatenate([top_init, bot_init], axis=-2)
+        _check_targets(base, profiles)
 
-#         # Package initial state as a real/imaginary tuple
-#         y0 = (jnp.real(S_initial_complex), jnp.imag(S_initial_complex))
+        # A profiled target's value on the base is discarded: the profile supplies it
+        # per section. Fixing it keeps the base tree structurally untouched while
+        # taking it out of the free set; `shadowed_param_paths` then takes away its
+        # name, so an optimiser is never handed a parameter that moves nothing.
+        self.base = update(base, list(profiles), fixed=True)
+        self.profiles = {
+            target: _named_under(profile, target) for target, profile in profiles.items()
+        }
+        self.n = int(n)
+        self.name = name
+        self.metadata = metadata
 
-#         # Setup and solve ODE
-#         term = diffrax.ODETerm(s_derivative)
-#         solver = diffrax.Dopri5()
-#         stepsize_controller = diffrax.PIDController(
-#             rtol=self.options['rtol'], 
-#             atol=self.options['atol']
-#         )
+    def shadowed_param_paths(self) -> set[tuple[Any, ...]]:
+        """The paths of the profiled targets, which are no longer parameters.
 
-#         solution = diffrax.diffeqsolve(
-#             term,
-#             solver,
-#             t0=0.0,
-#             t1=1.0,
-#             dt0=0.1, 
-#             y0=y0,
-#             stepsize_controller=stepsize_controller,
-#             max_steps=self.options['max_steps']
-#         )
+        A profiled target's value is driven by its profile, so the target's own
+        parameter does nothing: a fit or a sweep aimed at it would optimise nothing at
+        all, which is the failure this hides it from. The `Param` itself stays exactly
+        where it is in the base tree, because :meth:`build` writes each profile's value
+        back through the driven field's own converter and constraint, and because the
+        base tree is left as built (ADR-0004). What it loses is its *name*: it is
+        absent from :func:`pmrf.params`, and ``pmrf.update(line, {'w': ...})`` raises
+        rather than quietly doing nothing.
 
-#         # Unpack the final tuple state back into a standard complex S-matrix array
-#         S_final_real, S_final_imag = solution.ys[0][-1], solution.ys[1][-1]
-#         return S_final_real + 1j * S_final_imag
+        Returns
+        -------
+        set[tuple]
+            JAX key paths, relative to this container, as
+            :data:`pmrf.parameters.SHADOWED_PARAMS_METHOD` describes.
+        """
+        base = (jax.tree_util.GetAttrKey('base'),)
+        on_base = tree_param_paths(self.base)
+        # A target that no longer resolves has nothing left to shadow. It cannot
+        # happen through the constructor, which rejects a target that names no
+        # parameter, but the naming layer is not the place to raise about a base tree
+        # someone has since restructured.
+        return {
+            base + tuple(on_base[target][0])
+            for target in self.profiles
+            if target in on_base
+        }
+
+    @property
+    def length(self) -> Param:
+        """The **total** length of the line: the base's own `length` parameter.
+
+        Read-only. The per-section length is ``length / n`` and is never exposed:
+        the base's `length` carries the name and prior the user wrote, and dividing
+        it internally keeps a values dict from an earlier fit applicable.
+        """
+        return self.base.length
+
+    def at(self, t: ArrayLike) -> Model:
+        """The base line with the profiled targets substituted at position `t`.
+
+        This is exactly the substitution :meth:`build` performs at the section
+        midpoints, exposed for one position, so ``line.at(0.5).zc_and_gammaL(f)`` is
+        the local behaviour at mid-taper. Its `length` is the line's **total** length,
+        not a section's.
+
+        Parameters
+        ----------
+        t : ArrayLike
+            Normalised position along the line, in $[0, 1]$, with ``t = 0`` at port 1.
+            An array of positions gives the whole profile at once, as a base line
+            whose profiled parameters carry `t`'s shape.
+
+        Returns
+        -------
+        Model
+            The base line, with each profiled target set to its profile's value at `t`.
+        """
+        t = jnp.asarray(t)
+        values = {target: profile.evaluate(t) for target, profile in self.profiles.items()}
+        return update(self.base, values, space='physical')
+
+    def build(self) -> RepeatedCascade:
+        """The cascade of `n` uniform sections sampled at the section midpoints."""
+        midpoints = (jnp.arange(self.n) + 0.5) / self.n
+
+        values = {
+            target: jnp.broadcast_to(jnp.asarray(profile.evaluate(midpoints)), (self.n,))
+            for target, profile in self.profiles.items()
+        }
+
+        # The base's `length` is the total; each section carries one N'th of it. The
+        # arithmetic is on the parameter's physical value, which is also what the
+        # length is under a JAX trace, where parameters are already unwrapped.
+        section = update(self.base, {LENGTH: self.length / self.n}, space='physical')
+        return RepeatedCascade(section, values)
+
+
+def _checked_profiles(profiles: Mapping[str, AbstractProfile]) -> dict[str, AbstractProfile]:
+    """Validates the mapping's shape: string targets to profiles, and not empty."""
+    if not isinstance(profiles, Mapping):
+        raise TypeError(
+            f"A ProfiledLine's `profiles` must be a mapping from parameter targets to "
+            f"profiles; got {type(profiles).__name__}."
+        )
+
+    profiles = dict(profiles)
+    if not profiles:
+        raise ValueError(
+            "A ProfiledLine needs at least one profiled target. A line with none is "
+            "the base line itself."
+        )
+
+    for target, profile in profiles.items():
+        if not isinstance(target, str):
+            raise TypeError(
+                f"A ProfiledLine's targets must be exact dotted parameter paths on the "
+                f"base, as strings; got {target!r}."
+            )
+        if any(character in target for character in _GLOB_CHARACTERS):
+            raise ValueError(
+                f"Target {target!r} looks like a glob. Targets are exact dotted paths "
+                f"only: a glob matching several parameters would silently create "
+                f"several independent profiles sharing one shape object. Name each "
+                f"target and give each its own profile."
+            )
+        if not isinstance(profile, AbstractProfile):
+            raise TypeError(
+                f"The profile for target {target!r} must be a pmrf.models."
+                f"AbstractProfile; got {type(profile).__name__}. A sequence or a "
+                f"callable is not a profile: a profile is a named, parameter-aware "
+                f"shape whose coefficients are fitted."
+            )
+
+    return profiles
+
+
+def _check_reserved_keywords(base_kwargs: Mapping[str, Any]) -> None:
+    """Rejects a reserved container keyword rather than forwarding it to the base.
+
+    `n`, `name` and `metadata` are named parameters of the constructor and can never
+    reach here; `extrapolate` is reserved ahead of its use, so that it is the
+    container's from the start rather than being silently passed to the base line.
+    """
+    reserved = sorted(set(base_kwargs) & set(RESERVED_KEYWORDS))
+    if reserved:
+        raise ValueError(
+            f"The keyword(s) {reserved} belong to ProfiledLine, not to the base line, "
+            f"and are never forwarded to it. The container keywords are "
+            f"{list(RESERVED_KEYWORDS)}; 'extrapolate' is reserved for the Richardson "
+            f"extrapolation of the section count, which is not implemented yet."
+        )
+
+
+def _check_reserved_collision(base: type[Model]) -> None:
+    """Rejects a base class declaring a field the container reserves for itself."""
+    fields = {f.name for f in base.__dataclass_fields__.values()}
+    # `name` and `metadata` are fields of every module, the container's included, so
+    # they are reserved without ever being a collision: only the container's own
+    # evaluation keywords can genuinely clash with a base class's field.
+    shared_with_every_module = {f.name for f in Module.__dataclass_fields__.values()}
+    collisions = sorted(fields & set(RESERVED_KEYWORDS) - shared_with_every_module)
+    if collisions:
+        raise ValueError(
+            f"{base.__name__} declares the field(s) {collisions}, which ProfiledLine "
+            f"reserves for itself: the container keywords {list(RESERVED_KEYWORDS)} "
+            f"always belong to the container, so a keyword of that name cannot be "
+            f"forwarded to the base. Construct the base line yourself and pass it in."
+        )
+
+
+def _check_no_values_for_targets(
+    base_kwargs: Mapping[str, Any], profiles: Mapping[str, AbstractProfile]
+) -> None:
+    """Rejects a value typed for a target that is also profiled."""
+    # Only the outermost keyword can be checked, which is what the user typed: a
+    # nested target's value lives inside a sub-model that was built elsewhere.
+    clashes = sorted(set(base_kwargs) & set(profiles))
+    if clashes:
+        raise ValueError(
+            f"Got both a value and a profile for {clashes}. A profiled target's value "
+            f"on the base is discarded, and silently discarded input is not worth the "
+            f"afternoon it costs; drop the keyword, or drop the profile."
+        )
+
+
+def _check_targets(base: Model, profiles: Mapping[str, AbstractProfile]) -> None:
+    """Resolves every target against the base, rejecting `length` and non-parameters."""
+    if LENGTH in profiles:
+        raise ValueError(
+            f"{LENGTH!r} is not profilable. It is the line's *total* length, which "
+            f"ProfiledLine divides by the section count internally. To taper the "
+            f"electrical length, profile the parameters that set the propagation "
+            f"constant instead."
+        )
+
+    known = tree_param_paths(base)
+    unknown = sorted(target for target in profiles if target not in known)
+    if unknown:
+        raise ValueError(
+            f"Target(s) {unknown} do not name a parameter on "
+            f"{type(base).__name__}. Targets are exact dotted paths, as pmrf.params "
+            f"gives them. Available: {sorted(known)}."
+        )
+
+    # A profile returns a plain physical value: it is never told which parameter it
+    # drives, so it cannot know the units that parameter was declared in. A target
+    # carrying its own scale would silently reinterpret that value, so it is rejected
+    # rather than guessed at.
+    targets = {target: known[target][1] for target in profiles}
+    scaled = sorted(
+        target for target, node in targets.items()
+        if is_param(node) and node.scale is not None
+    )
+    if scaled:
+        raise ValueError(
+            f"Target(s) {scaled} declare a scale. A profile returns a plain physical "
+            f"value in the units of whatever it drives, so a scaled target would "
+            f"reinterpret it; write the profile's coefficients in physical units and "
+            f"drop the target's scale."
+        )
+
+
+def _named_under(profile: AbstractProfile, target: str) -> AbstractProfile:
+    """Names every coefficient of `profile` under `target`, e.g. ``'w.start'``.
+
+    The container names the coefficients itself rather than letting the mapping's dict
+    keys be named structurally, so that a non-identifier target such as ``'a b'`` never
+    leaks a bracket form into a parameter name, and the container's own field layout
+    never appears in one.
+    """
+    # Resolved up front: renaming a coefficient changes the name it answers to, but
+    # not the path `update` reaches it by.
+    coefficients = tree_param_paths(profile)
+    for coefficient, (_, node) in coefficients.items():
+        if not is_param(node):
+            continue
+        named = replace(node, name=f'{target}.{coefficient}')
+        profile = update(profile, coefficient, fn=lambda _, named=named: named)
+    return profile

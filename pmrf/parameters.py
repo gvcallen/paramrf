@@ -947,6 +947,28 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
     return sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
 
 
+#: Class attribute a container sets to `True` to keep its own path parts out of the
+#: parameter names below it, as :func:`_is_name_transparent` reads it. A container sets
+#: it when its field layout is an implementation detail rather than something a user
+#: should have to name: the wrapped tree's parameters then flatten to the container's
+#: own position in the name space.
+NAME_TRANSPARENT_MARKER = '_pmrf_name_transparent'
+
+#: Method a container implements to declare that some of the parameters it holds are
+#: **shadowed**: still present in the tree, and still written through their own field's
+#: converter and constraint by the container, but no longer parameters of the model the
+#: user sees. It takes no arguments and returns an iterable of JAX key paths, each
+#: relative to the container itself, and matched as prefixes.
+#:
+#: A shadowed parameter has no name at all: it is absent from :func:`params`, and a
+#: selector naming it raises `Unknown parameter name` rather than quietly resolving to
+#: a value that changes nothing. This is what a container declares when it has taken
+#: a parameter over -- :class:`pmrf.models.ProfiledLine` drives its profiled targets
+#: from a profile's coefficients, so the target's own value no longer does anything,
+#: and a fit aimed at it would optimise nothing at all.
+SHADOWED_PARAMS_METHOD = 'shadowed_param_paths'
+
+
 def _is_name_leaf(x: Any) -> bool:
     """Traversal boundary for name resolution: stops at parameters and Parax's opaque
     nodes, but descends through constants so frozen parameters keep their names."""
@@ -954,12 +976,19 @@ def _is_name_leaf(x: Any) -> bool:
 
 
 def _is_name_transparent(x: Any) -> bool:
-    """Wrappers whose own path parts are omitted from parameter names."""
+    """Wrappers whose own path parts are omitted from parameter names.
+
+    A container opts in by setting :data:`NAME_TRANSPARENT_MARKER` to `True` as a class
+    attribute, which says that its own field layout is an implementation detail and
+    does not belong in the names of the parameters below it.
+    """
     from pmrf.models.adapters.derived import Derived
     from pmrf.models.adapters.wrapped import Wrapped
     from pmrf.modules.base import Module
     from pmrf.modules.wrapped import Probabilistic, Tied
 
+    if getattr(type(x), NAME_TRANSPARENT_MARKER, False):
+        return True
     if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
@@ -979,6 +1008,45 @@ def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
     return any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
 
 
+def _path_status(tree, path, declared: dict) -> tuple[bool, bool]:
+    """Whether `path` is frozen and whether it is shadowed, in one walk of its parents.
+
+    Both questions are about the nodes above a leaf, so they share the walk rather than
+    making one each. A container is asked for its shadowed paths through
+    :data:`SHADOWED_PARAMS_METHOD`, looked up on its *class* so that only a real
+    declaration counts, and its answer is cached in `declared` for the rest of the
+    resolution; the cache holds the container itself, so the `id` it is keyed by cannot
+    be reused by another object while the walk is running.
+
+    The declared paths are relative to the container, and are compared against the rest
+    of the path from the container down. They are matched as **prefixes**: a container
+    that shadows a parameter shadows everything below it too, so a target that is a
+    wrapped node or a whole sub-tree disappears as one, rather than leaving its
+    innards named.
+    """
+    frozen = False
+    shadowed = False
+
+    for depth, (parent, *_) in enumerate(path_nodes(tree, path)):
+        if prx.is_constant(parent):
+            frozen = True
+
+        key = id(parent)
+        if key not in declared:
+            declare = getattr(type(parent), SHADOWED_PARAMS_METHOD, None)
+            relatives = frozenset(
+                tuple(relative) for relative in declare(parent)
+            ) if callable(declare) else frozenset()
+            declared[key] = (parent, relatives)
+
+        _, relatives = declared[key]
+        below = tuple(path[depth:])
+        if any(below[:len(relative)] == relative for relative in relatives):
+            shadowed = True
+
+    return frozen, shadowed
+
+
 def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
     """
     Resolves every parameter name in a tree to its JAX path and node.
@@ -986,6 +1054,10 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     This is the single name resolver behind :func:`params`, :func:`update` and
     :func:`tie`, so a name produced by one is accepted by the others.
     Nested named modules are joined with ``_``.
+
+    A parameter a container declares **shadowed** (:data:`SHADOWED_PARAMS_METHOD`) has
+    no name: the container has taken it over and drives it, so naming it would offer a
+    value that changes nothing.
 
     Names see through freezing (a frozen parameter keeps its name, but is not free)
     and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
@@ -1012,8 +1084,15 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     """
     leaves, _ = jax.tree_util.tree_flatten_with_path(tree, is_leaf=_is_name_leaf)
     resolved = {}
+    declared = {}
     for path, leaf in leaves:
-        frozen = _is_frozen_path(tree, path)
+        frozen, shadowed = _path_status(tree, path, declared)
+
+        # A shadowed parameter is driven by the container that holds it and is not a
+        # parameter of the model any more, so it has no name to be reached by.
+        if shadowed:
+            continue
+
         if is_param(leaf):
             if free_only and (leaf.fixed or frozen):
                 continue
