@@ -457,6 +457,17 @@ def _replace_variable_value(variable: prx.AbstractVariable, value: ArrayLike) ->
     return prx.Fixed(new_inner) if fixed else new_inner
 
 
+def _is_derived_value(x: Any) -> bool:
+    """Returns whether `x` is a derived value (:func:`pmrf.derived`), which is not a
+    parameter and collapses to one value when the tree is unwrapped.
+
+    Imported lazily: the models package is built on this one.
+    """
+    from pmrf.models.adapters.derived import DerivedValue
+
+    return isinstance(x, DerivedValue)
+
+
 def is_param(x: Any) -> TypeGuard[Param]:
     """
     Returns if `x` is an instance of :class:`pmrf.Param`.
@@ -479,7 +490,8 @@ def as_param(
     or any parameter-like object (float, array etc.).
 
     Constraints are intersected. A parameter's own scale overrides `scale`; the
-    two are never multiplied.
+    two are never multiplied. A derived value (:func:`pmrf.derived`) is not a
+    parameter and is returned untouched.
 
     Parameters
     ----------
@@ -502,10 +514,15 @@ def as_param(
     Returns
     -------
     pmrf.Param
-        A fixed parameter.
+        The parameter, or the derived value unchanged.
     """
     if as_free and as_fixed:
         raise ValueError("Cannot pass both `as_free=True` and `as_fixed=True`.")
+
+    # A derived value is not a parameter: it is stored untouched, and the field's
+    # constraint and scale do not apply to it (see `pmrf.derived`).
+    if _is_derived_value(value):
+        return value
 
     # Intersect parameter properties
     name = None
@@ -915,6 +932,10 @@ def tree_param_distributions(tree) -> Any:
             # Covers the whole sub-tree it unwraps to, so a distribution attached
             # higher up overrides any below it.
             return distribution
+        if _is_derived_value(node):
+            # Its parameters do not survive unwrapping, so nothing here can be scored
+            # against the unwrapped tree. `tree_derived_log_prob` scores them instead.
+            return None
         if prx.is_unwrappable(node):
             # The node vanishes on unwrapping, so mirror what it leaves behind.
             return build(node.unwrap())
@@ -947,6 +968,30 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
     return sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
 
 
+def tree_derived_log_prob(tree) -> jnp.ndarray:
+    """
+    Returns the physical log prior of the parameters held by a tree's derived values.
+
+    A derived value (:func:`pmrf.derived`) collapses to one value when the tree is
+    unwrapped, taking its base and its new parameters with it, so they are scored
+    here from the wrapped tree rather than by :func:`tree_param_log_prob`.
+
+    Parameters
+    ----------
+    tree : PyTree
+        The tree to score. Must still be wrapped.
+    """
+    total = jnp.asarray(0.0)
+    for node in jax.tree.leaves(tree, is_leaf=_is_derived_value):
+        if not _is_derived_value(node):
+            continue
+        operands = (node.base, node.new)
+        total = total + tree_param_log_prob(tree_param_distributions(operands), prx.unwrap(operands))
+        # A derived value nested inside another is collapsed by that unwrapping too.
+        total = total + tree_derived_log_prob(operands)
+    return total
+
+
 def _is_name_leaf(x: Any) -> bool:
     """Traversal boundary for name resolution: stops at parameters and Parax's opaque
     nodes, but descends through constants so frozen parameters keep their names."""
@@ -963,6 +1008,24 @@ def _is_name_transparent(x: Any) -> bool:
     if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
+
+
+def _hoists_branch(parent: Any, attr: Any) -> bool:
+    """Returns whether the branch `attr` reaches is named at `parent`'s own level.
+
+    A derived value's new parameters are named beside the field holding it, so the
+    field's own part is dropped: a value stored in ``dielectric.ep_r`` with keyword
+    ``tc`` names it ``dielectric.tc``. Its base keeps the field's part, and so its name.
+    """
+    return _is_derived_value(parent) and attr == 'new'
+
+
+def _name_for(tree, path: tuple[Any, ...]) -> str:
+    """Returns the parameter name a JAX key `path` into `tree` resolves to."""
+    return path_to_name(
+        tree, path, namespace_separator='_',
+        is_transparent=_is_name_transparent, hoists_branch=_hoists_branch,
+    )
 
 
 def _is_joint_target(x: Any) -> bool:
@@ -1020,7 +1083,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
         elif not (isinstance(leaf, jax.Array) or _is_joint_target(leaf)) or frozen:
             continue
 
-        name = path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
+        name = _name_for(tree, path)
         if name in resolved:
             raise ValueError(
                 f"Parameter name collision: '{name}'.\n\n"
@@ -1244,6 +1307,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     _check_space(space)
     # Priors are extracted in physical space, where an unwrapped tree lives.
     physical = tree_param_log_prob(tree_param_distributions(tree), prx.unwrap(tree))
+    physical = physical + tree_derived_log_prob(tree)
     if space == 'physical':
         return physical
 
@@ -1293,6 +1357,10 @@ def _write(node, value: Any, space: str):
     A parameter goes through its constructor, keeping everything but the value and
     the jit cache key. A `Param` passed as `value` gives its own value in `space`.
     """
+    # A derived value is not a parameter value: it replaces the node outright, as in
+    # a field (see `pmrf.derived`).
+    if _is_derived_value(value):
+        return value
     if is_param(value):
         value = _read(value, space)
     if _is_joint_target(node):
@@ -1339,7 +1407,7 @@ def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
             if not isinstance(leaf, Module):
                 continue
             full = prefix + tuple(path)
-            name = path_to_name(tree, full, namespace_separator='_', is_transparent=_is_name_transparent)
+            name = _name_for(tree, full)
             if name:
                 paths = found.setdefault(name, [])
                 if not any(full[:len(p)] == p for p in paths):

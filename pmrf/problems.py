@@ -10,7 +10,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import PyTree
 
-from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
+from pmrf.parameters import (
+    _log_scale, tree_derived_log_prob, tree_param_distributions, tree_param_log_prob,
+)
 from pmrf.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
@@ -133,6 +135,9 @@ class PriorPenalized(AbstractProblem):
         # The distributions are positioned as the parameters are once unwrapped, so the
         # values must be too. A solver will already have done this, but not a direct call.
         physical = tree_param_log_prob(unwrap(self.distributions), unwrap(self.problem))
+        # Derived values collapse on unwrapping, so their parameters are scored from
+        # the wrapped problem, where they still are.
+        physical = physical + tree_derived_log_prob(self.problem)
         return self.problem(*args, **kwargs) - (physical + unwrap(self.log_scale))
 
 
