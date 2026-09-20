@@ -54,6 +54,31 @@ dataclass field replace, not an update.
 
 *Avoid:* "set values", "with values"; "update" for an optimiser step.
 
+### Tie and resolve
+
+`prf.tie` derives one part of a tree from another: the **target** is removed from
+the parameters and recomputed as `fn(source)` whenever the tree is resolved, so
+it follows the source through `prf.update`, optimisation and sampling. Target
+and source are selected by name, on either side, and a name that picks a
+sub-model ties the parameters beneath it, pairing by suffix.
+
+Two operations read a tied tree back, and they are not the same thing.
+
+- **Resolve** (`prf.resolve`): structural. Ties are applied and every wrapper
+  that only describes structure is discharged; parameters stay parameters. A
+  container resolves to its own shape, so a `dict` of components comes back a
+  `dict`, still parameterised.
+- **Evaluation** (`prf.unwrap`): every parameter becomes its physical value.
+  The result is numbers, not priors, and nothing rebuilt from it is
+  parameterised. A joint prior (`prf.modules.Probabilistic`) is discharged the
+  same way and for the same reason, so resolve leaves it standing.
+
+Resolve is the one ordinary modelling code wants; `prf.unwrap` is a low-level
+evaluation primitive. A tie's target resolves to a plain value either way — it
+is derived, so it has no prior of its own.
+
+*Avoid:* "unwrap" for reading a tied container; "apply the ties" for evaluation.
+
 ### Derived model
 
 A model computed from a **base** model and **new parameters** by a function,
