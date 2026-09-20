@@ -13,18 +13,7 @@ within the seam the ticket names.
 
 ## Seams
 
-A ticket names one seam. The shared machinery every model depends on sits outside it:
-`pmrf/parameters.py`, `pmrf/modules/base.py`, `pmrf/rf/`, `pmrf/evaluators.py`,
-`pmrf/serialization.py`. Reaching one of those from a ticket that does not name it:
-
-- **An existing extension point** — implement the protocol, set the marker.
-- **One more arm on an existing branch or list** — write it, and list it under
-  `## Cross-seam`.
-- **A new extension point** — a module-level constant, protocol method, public function
-  or glossary word — ask on the issue first. A contained special case that gets the
-  ticket done is the right answer here, with an issue opened for the general design: a
-  reversible wart beats an unreviewed API. In review, one that landed without an ask is
-  a hard violation.
+A ticket names one seam, either a file, a set of files or a folder. If a cross-seam change is needed, implmentation should be stopped and decision left to the human.
 
 `docs/adr/` and `CONTEXT.md` change in their own commit, by the reviewer. An
 implementation reaching for a word absent from the ticket, the ADR and `CONTEXT.md` has
