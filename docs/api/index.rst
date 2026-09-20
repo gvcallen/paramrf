@@ -31,6 +31,7 @@ Working with Parameters
    pmrf.log_prior
    pmrf.update
    pmrf.tie
+   pmrf.resolve
    pmrf.derived
 
 
