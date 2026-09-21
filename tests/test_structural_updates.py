@@ -2,6 +2,7 @@
 import inspect
 import re
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -10,6 +11,8 @@ import pytest
 import pmrf as prf
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.models.base import PLOT_DOMAINS
+from pmrf.distributions import Normal
+from pmrf.distributions import RelativeTruncatedNormal as RTNormal
 from pmrf.models import Capacitor, Cascade, Resistor, Short, Wrapped
 from pmrf.modules import Tied
 
@@ -153,6 +156,159 @@ def test_tie_module_returns_tied():
 def test_tie_unknown_name_raises():
     with pytest.raises(ValueError, match="not found"):
         prf.tie(_rc(), "cascade[0].R", "nope")
+
+
+# ---- resolve --------------------------------------------------------------------------
+
+
+def _named_resistor(value, name):
+    return Resistor(prf.Unconstrained(value), name=name)
+
+
+def test_resolve_is_top_level():
+    from pmrf import parameters
+    assert prf.resolve is parameters.resolve
+
+
+def test_resolve_docstring_separates_structure_from_evaluation():
+    doc = prf.resolve.__doc__
+    assert "pmrf.unwrap" in doc
+    assert "structural" in doc and "value" in doc
+
+
+def test_resolve_returns_a_container_to_its_own_shape():
+    parts = {"a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R"))
+
+    assert isinstance(resolved, dict)
+    assert list(resolved) == ["a", "b"]
+    assert np.allclose(resolved["b"].R, 50.0)
+
+
+def test_resolve_keeps_untied_parameters_and_values_the_target():
+    parts = {"a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R"))
+
+    assert prf.is_param(resolved["a"].R)
+    assert not prf.is_param(resolved["b"].R)
+
+
+def test_resolve_after_update_carries_the_update_through_the_tie():
+    parts = {"a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+    tied = prf.tie(parts, "b.R", "a.R")
+
+    resolved = prf.resolve(prf.update(tied, {"a.R": 75.0}))
+    assert np.allclose(resolved["b"].R, 75.0)
+
+
+def test_resolve_applies_a_non_identity_tie_function():
+    parts = {"a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+    tied = prf.tie(parts, "b.R", "a.R", fn=lambda r: r * 2.0)
+
+    assert np.allclose(prf.resolve(tied)["b"].R, 100.0)
+
+
+def test_resolve_applies_stacked_ties():
+    parts = {
+        "a": _named_resistor(50.0, "a"),
+        "b": _named_resistor(1.0, "b"),
+        "c": _named_resistor(1.0, "c"),
+    }
+    tied = prf.tie(parts, "b.R", "a.R", fn=lambda r: r * 2.0)
+    tied = prf.tie(tied, "c.R", "a.R", fn=lambda r: r * 3.0)
+
+    resolved = prf.resolve(tied)
+    assert set(prf.params(tied)) == {"a.R"}
+    assert np.allclose(resolved["b"].R, 100.0)
+    assert np.allclose(resolved["c"].R, 150.0)
+
+
+def test_resolve_returns_a_list_as_a_list():
+    parts = [_named_resistor(50.0, "a"), _named_resistor(1.0, "b")]
+    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R"))
+
+    assert isinstance(resolved, list)
+    assert np.allclose(resolved[1].R, 50.0)
+    assert prf.is_param(resolved[0].R)
+
+
+def test_resolve_returns_a_nested_container_in_its_own_shape():
+    parts = {"group": {"a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}}
+    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R", fn=lambda r: r * 2.0))
+
+    assert isinstance(resolved, dict) and isinstance(resolved["group"], dict)
+    assert np.allclose(resolved["group"]["b"].R, 100.0)
+    assert prf.is_param(resolved["group"]["a"].R)
+
+
+def test_resolve_returns_a_model_whose_rf_methods_work():
+    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
+    tied = prf.tie(_rc(), "cascade[0].R", "cascade[1].C", fn=lambda c: c * 50e12)
+
+    resolved = prf.resolve(tied)
+    assert isinstance(resolved, prf.Model)
+    assert jnp.allclose(resolved.s(frequency), tied.s(frequency))
+    assert prf.is_param(prf.params(resolved)["cascade[1].C"])
+    # The tie is gone: the RF wrapper stays, because it carries the RF interface,
+    # but nothing below it is still unwrappable.
+    assert not isinstance(resolved.wrapped, Tied)
+    assert not prf.is_param(prf.params(resolved)["cascade[0].R"])
+
+
+def test_resolve_without_ties_returns_the_tree_unchanged():
+    parts = {"a": _named_resistor(50.0, "a"), "b": _named_resistor(75.0, "b")}
+    resolved = prf.resolve(parts)
+
+    assert bool(eqx.tree_equal(resolved, parts))
+    assert prf.is_param(resolved["a"].R) and prf.is_param(resolved["b"].R)
+
+
+def test_resolve_leaves_a_probabilistic_subtree_wrapped():
+    """`Probabilistic` bears a prior: discharging it is evaluation, not structure.
+
+    It absorbs the parameters below it and holds one raw value, so unwrapping it
+    turns a joint prior into a number the same way `prf.unwrap` turns a `Param`
+    into its value. `resolve` is structural, so it leaves the wrapper standing.
+    """
+    joint = prf.modules.Probabilistic(
+        _named_resistor(50.0, "p"), Normal(50.0, 1.0), target=lambda m: m.R
+    )
+    parts = {"p": joint, "a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+
+    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R"))
+    assert isinstance(resolved["p"], prf.modules.Probabilistic)
+    assert np.allclose(resolved["b"].R, 50.0)
+
+
+def test_resolve_keeps_the_tie_predicate_in_one_private_helper():
+    from pmrf import parameters
+
+    source = inspect.getsource(parameters)
+    assert len(re.findall(r"prx\.Tie\b", source)) == 1
+    assert "prx.Tie" in inspect.getsource(parameters._is_tie)
+
+
+def test_handoff_acceptance_a_tied_container_reads_back_parameterised():
+    """The handoff note's acceptance test (`notes/paramrf_tie_containers_handoff.md`).
+
+    The note ties the sub-models `b` and `a` in one call; that is #187, so the
+    tie is expanded per parameter here. The block below is this issue's: the tie
+    is applied and the untied parts keep their parameters.
+    """
+    parts = {
+        "a": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
+        "b": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="b"),
+        "c": Capacitor(C=prf.Random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
+    }
+
+    tied = parts
+    for name in prf.params(parts, "a.*"):
+        tied = prf.tie(tied, "b" + name[len("a"):], name)
+    assert set(prf.params(tied)) == {"a.R", "c.C"}
+
+    moved = prf.resolve(prf.update(tied, {"a.R": 55.0}))
+    assert float(moved["b"].R) == 55.0
+    assert prf.is_param(moved["c"].C)
 
 
 # ---- The method rule (ADR-0002, decision 1) --------------------------------------------

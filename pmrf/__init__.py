@@ -69,6 +69,7 @@ from pmrf.parameters import (
     log_prior as log_prior,
     update as update,
     tie as tie,
+    resolve as resolve,
 )
 
 from pmrf.serialization import (
@@ -160,6 +161,7 @@ __all__ = [
     "log_prior",
     "update",
     "tie",
+    "resolve",
     "unwrap",
     "unwrap_self",
     "derivative",

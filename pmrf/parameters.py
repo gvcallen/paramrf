@@ -1589,11 +1589,11 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     Returns a copy of a model in which one part is derived from another.
 
     The target is removed from the model's parameters and recomputed as
-    ``fn(source)`` every time the model is unwrapped, so it follows the source through
+    ``fn(source)`` every time the tree is resolved, so it follows the source through
     :func:`update`, optimisation and sampling. A tie is not a replacement: use
     :func:`update` to replace a part once.
 
-    ``fn`` receives the source as the model is unwrapped, so a parameter arrives as
+    ``fn`` receives the source as the tie is applied, so a parameter arrives as
     its physical value. Tying a model that is already tied adds a tie; names refer
     to the untied model.
 
@@ -1613,7 +1613,13 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     -------
     PyTree
         A :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
-        methods stay available; otherwise a :class:`pmrf.modules.Tied`.
+        methods stay available; otherwise a :class:`pmrf.modules.Tied`, which is not
+        a container. Read either back with :func:`resolve`, which applies the ties
+        and returns the tree in its own shape with its parameters intact.
+
+    See Also
+    --------
+    resolve : Apply a tree's ties, leaving its parameters as parameters.
 
     Raises
     ------
@@ -1644,6 +1650,65 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
 
 
+def _is_tie(x: Any) -> bool:
+    """Returns whether `x` is a node a tie is made of.
+
+    Both classes are needed: :meth:`pmrf.modules.Tied.unwrap` hands back the inner
+    :class:`parax.Tie` rather than a resolved tree, so discharging one tie takes two
+    steps across two classes, and a predicate matching only `Tied` leaves a bare
+    `parax.Tie` behind.
+    """
+    from pmrf.modules import Tied
+
+    return isinstance(x, (Tied, prx.Tie))
+
+
+def resolve(tree):
+    """
+    Returns a copy of a tree with its ties applied and its parameters left intact.
+
+    Resolution is structural: every tie made by :func:`tie` is discharged, and
+    everything else the tree holds is left as it stands. This is the counterpart of
+    :func:`pmrf.unwrap`, which is evaluation: unwrapping replaces every parameter
+    with its physical value, so nothing rebuilt from its result is parameterised.
+    Use `resolve` to read a tied tree back, and `unwrap` only to evaluate one.
+
+    A tie's target resolves to a plain value either way, since it is derived and has
+    no prior of its own. Every other parameter survives as a parameter.
+
+    A joint prior (:class:`pmrf.modules.Probabilistic`) is left wrapped. It absorbs
+    the parameters below it and holds one raw value, so discharging it turns a prior
+    into a number, which is evaluation rather than structure.
+
+    Parameters
+    ----------
+    tree : PyTree
+        A model, or any collection of models and parameters.
+
+    Returns
+    -------
+    PyTree
+        The tree in its own shape: a `dict` of components resolves to a `dict`, a
+        `list` to a `list`, and a :class:`pmrf.Model` to a model whose RF methods
+        work. A tree with no ties comes back unchanged.
+
+    See Also
+    --------
+    tie : Derive one part of a tree from another.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        parts = {'a': Resistor(prf.Random(...), name='a'), 'b': Resistor(50.0, name='b')}
+        tied = prf.tie(parts, 'b.R', 'a.R')
+        resolved = prf.resolve(tied)
+        resolved['b'].R                  # the tied value
+        prf.is_param(resolved['a'].R)    # True: untied parameters survive
+    """
+    return prx.unwrap(tree, only_if=_is_tie, cascade=False)
+
+
 __all__ = [
     "Param",
     "is_param",
@@ -1659,4 +1724,5 @@ __all__ = [
     "log_prior",
     "update",
     "tie",
+    "resolve",
 ]
