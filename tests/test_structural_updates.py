@@ -158,6 +158,154 @@ def test_tie_unknown_name_raises():
         prf.tie(_rc(), "cascade[0].R", "nope")
 
 
+# ---- tie over sub-model names ----------------------------------------------------------
+
+
+def _line_like(r, c, name):
+    """A two-parameter sub-model, standing in for a component with several parameters."""
+    return Cascade(
+        [Resistor(prf.Unconstrained(r), name="r"), Capacitor(prf.Unconstrained(c), name="c")],
+        name=name,
+    )
+
+
+def _pair():
+    return {
+        "a": _line_like(50.0, 1e-12, "a"),
+        "b": _line_like(1.0, 2e-12, "b"),
+        "other": Resistor(prf.Unconstrained(75.0), name="other"),
+    }
+
+
+def test_tie_sub_model_name_ties_every_parameter_beneath_it():
+    tied = prf.tie(_pair(), "b", "a")
+
+    assert set(prf.params(tied)) == {"a_r.R", "a_c.C", "other.R"}
+
+    resolved = prf.resolve(tied)
+    assert np.allclose(resolved["b"].cascade[0].R, 50.0)
+    assert np.allclose(resolved["b"].cascade[1].C, 1e-12)
+    assert prf.is_param(resolved["other"].R)
+
+
+def test_tie_sub_model_name_works_in_either_direction():
+    tied = prf.tie(_pair(), "a", "b")
+
+    assert set(prf.params(tied)) == {"b_r.R", "b_c.C", "other.R"}
+    assert np.allclose(prf.resolve(tied)["a"].cascade[0].R, 1.0)
+
+
+def test_tie_sub_model_follows_the_source_through_an_update():
+    tied = prf.tie(_pair(), "b", "a")
+
+    resolved = prf.resolve(prf.update(tied, {"a_r.R": 25.0}))
+    assert np.allclose(resolved["b"].cascade[0].R, 25.0)
+
+
+def test_tie_sub_model_applies_fn_to_each_pair():
+    tied = prf.tie(_pair(), "b", "a", fn=lambda v: v * 2.0)
+
+    resolved = prf.resolve(tied)
+    assert np.allclose(resolved["b"].cascade[0].R, 100.0)
+    assert np.allclose(resolved["b"].cascade[1].C, 2e-12)
+
+
+def test_tie_sub_model_works_for_a_list():
+    parts = [_line_like(50.0, 1e-12, "a"), _line_like(1.0, 2e-12, "b")]
+    resolved = prf.resolve(prf.tie(parts, "b", "a"))
+
+    assert isinstance(resolved, list)
+    assert np.allclose(resolved[1].cascade[0].R, 50.0)
+
+
+def test_tie_sub_model_works_for_a_nested_container():
+    parts = {"group": {"a": _line_like(50.0, 1e-12, "a"), "b": _line_like(1.0, 2e-12, "b")}}
+    tied = prf.tie(parts, "b", "a")
+
+    assert set(prf.params(tied)) == {"a_r.R", "a_c.C"}
+    assert np.allclose(prf.resolve(tied)["group"]["b"].cascade[1].C, 1e-12)
+
+
+def test_tie_sub_model_inside_a_model_keeps_the_rf_interface():
+    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
+    model = Cascade([_line_like(50.0, 1e-12, "a"), _line_like(1.0, 2e-12, "b")])
+    tied = prf.tie(model, "b", "a")
+
+    assert isinstance(tied, Wrapped)
+    assert set(prf.params(tied)) == {"a_r.R", "a_c.C"}
+    assert np.allclose(tied.build().cascade[1].cascade[0].R, 50.0)
+    assert jnp.allclose(tied.s(frequency), prf.resolve(tied).s(frequency))
+
+
+def test_tie_sub_models_with_unmatched_parameters_raise():
+    parts = {
+        "a": _line_like(50.0, 1e-12, "a"),
+        "b": Cascade(
+            [
+                Resistor(prf.Unconstrained(1.0), name="r"),
+                Resistor(prf.Unconstrained(2.0), name="c"),
+            ],
+            name="b",
+        ),
+    }
+    with pytest.raises(ValueError, match=r"Unpaired: 'a_c\.C', 'b_c\.R'"):
+        prf.tie(parts, "b", "a")
+
+
+def test_tie_sub_model_against_a_leaf_name_raises():
+    """A subtree pairs by suffix, and a single parameter has none to pair on."""
+    with pytest.raises(ValueError, match="names a sub-model and 'a_r.R' a parameter"):
+        prf.tie(_pair(), "b", "a_r.R")
+
+
+def test_tie_unknown_name_beside_a_sub_model_name_names_the_unknown_one():
+    with pytest.raises(ValueError, match="Unknown parameter or sub-model name: 'nope'"):
+        prf.tie(_pair(), "b", "nope")
+
+
+def test_tie_sub_model_without_parameters_raises():
+    parts = {"a": Resistor(prf.Unconstrained(50.0), name="a"), "b": Short(name="b")}
+    with pytest.raises(ValueError, match="no parameters to tie"):
+        prf.tie(parts, "b", "a")
+
+
+def test_tie_ambiguous_sub_model_name_raises():
+    parts = {
+        "one": Resistor(prf.Unconstrained(50.0, name="r1"), name="shared"),
+        "two": Resistor(prf.Unconstrained(1.0, name="r2"), name="shared"),
+        "a": Resistor(prf.Unconstrained(1.0), name="a"),
+    }
+    with pytest.raises(ValueError, match="ambiguous"):
+        prf.tie(parts, "shared", "a")
+
+
+def test_tie_leaf_name_beneath_a_sub_model_is_not_expanded():
+    """A name that is both resolvable as a parameter and a prefix stays a leaf tie."""
+    tied = prf.tie(_pair(), "b_r.R", "a_r.R")
+
+    assert set(prf.params(tied)) == {"a_r.R", "a_c.C", "b_c.C", "other.R"}
+
+
+def test_tie_sequence_of_names_still_ties_pairwise():
+    parts = _pair()
+    tied = prf.tie(parts, ["b_r.R", "b_c.C"], ["a_r.R", "a_c.C"])
+
+    assert set(prf.params(tied)) == {"a_r.R", "a_c.C", "other.R"}
+    assert np.allclose(prf.resolve(tied)["b"].cascade[0].R, 50.0)
+
+
+def test_tie_callable_selector_still_works():
+    parts = _pair()
+    tied = prf.tie(parts, lambda t: t["b"].cascade[0].R, lambda t: t["a"].cascade[0].R)
+
+    assert np.allclose(prf.resolve(tied)["b"].cascade[0].R, 50.0)
+
+
+def test_tie_docstring_documents_sub_model_names():
+    doc = prf.tie.__doc__
+    assert "sub-model" in doc and "suffix" in doc
+
+
 # ---- resolve --------------------------------------------------------------------------
 
 
@@ -291,9 +439,8 @@ def test_resolve_keeps_the_tie_predicate_in_one_private_helper():
 def test_handoff_acceptance_a_tied_container_reads_back_parameterised():
     """The handoff note's acceptance test (`notes/paramrf_tie_containers_handoff.md`).
 
-    The note ties the sub-models `b` and `a` in one call; that is #187, so the
-    tie is expanded per parameter here. The block below is this issue's: the tie
-    is applied and the untied parts keep their parameters.
+    The sub-models `b` and `a` are tied in one call, the tie is applied, and the
+    untied parts keep their parameters.
     """
     parts = {
         "a": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
@@ -301,9 +448,7 @@ def test_handoff_acceptance_a_tied_container_reads_back_parameterised():
         "c": Capacitor(C=prf.Random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
     }
 
-    tied = parts
-    for name in prf.params(parts, "a.*"):
-        tied = prf.tie(tied, "b" + name[len("a"):], name)
+    tied = prf.tie(parts, "b", "a")
     assert set(prf.params(tied)) == {"a.R", "c.C"}
 
     moved = prf.resolve(prf.update(tied, {"a.R": 55.0}))

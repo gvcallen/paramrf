@@ -1350,6 +1350,16 @@ def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
     return found
 
 
+def _submodel_path(name: str, submodels: dict[str, list[tuple[Any, ...]]]) -> tuple[Any, ...]:
+    """The path of the one sub-model called `name`, as `_tree_submodel_paths` names them.
+
+    A name two unrelated sub-models share picks neither, so it raises.
+    """
+    if len(submodels[name]) > 1:
+        raise ValueError(f"Sub-model name '{name}' is ambiguous: several sub-models have it.")
+    return submodels[name][0]
+
+
 def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
     """Resolves the paths of the parts a string or sequence selector picks, for the
     structural forms of :func:`update`.
@@ -1369,9 +1379,7 @@ def _select_parts(tree, where: Selector) -> list[tuple[Any, ...]]:
         if submodels is None:
             submodels = _tree_submodel_paths(tree)
         if pattern in submodels:
-            if len(submodels[pattern]) > 1:
-                raise ValueError(f"Sub-model name '{pattern}' is ambiguous: several sub-models have it.")
-            paths.append(submodels[pattern][0])
+            paths.append(_submodel_path(pattern, submodels))
             continue
         hits = [name for name in resolved if fnmatch.fnmatchcase(name, pattern)]
         if not hits and not any(c in pattern for c in '*?['):
@@ -1549,9 +1557,7 @@ def update(
                     submodels = _tree_submodel_paths(tree)
                 if name not in submodels:
                     raise ValueError(f"Unknown sub-model name: '{name}'")
-                if len(submodels[name]) > 1:
-                    raise ValueError(f"Sub-model name '{name}' is ambiguous: several sub-models have it.")
-                paths.append(submodels[name][0])
+                paths.append(_submodel_path(name, submodels))
                 nodes.append(v)
             elif name in resolved:
                 paths.append(resolved[name][0])
@@ -1584,6 +1590,68 @@ def _identity(x):
     return x
 
 
+def _submodel_parameters(name: str, path: tuple[Any, ...], resolved: dict) -> dict[str, str]:
+    """Maps each suffix below the sub-model `name` to the parameter it names.
+
+    A parameter below the sub-model is named after it, so the rest of its name is the
+    suffix the two sides of a tie are paired on.
+    """
+    below = {}
+    for parameter, (parameter_path, _) in resolved.items():
+        if parameter_path[:len(path)] != path:
+            continue
+        if not parameter.startswith(name):
+            raise ValueError(
+                f"Parameter '{parameter}' lies below sub-model '{name}' but is not named "
+                f"after it, so there is no suffix to pair it on."
+            )
+        below[parameter[len(name):]] = parameter
+    if not below:
+        raise ValueError(f"Sub-model '{name}' has no parameters to tie.")
+    return below
+
+
+def _tie_pairs(tree, resolved: dict, target: Selector, source: Selector) -> list[tuple[Selector, Selector]]:
+    """The target and source pairs one call to :func:`tie` stands for.
+
+    A name resolves as it does for :func:`update`: an exact name selects a parameter,
+    or failing that a sub-model. Two sub-model names expand to the parameters beneath
+    them, paired by the suffix below each name, and a suffix on one side only raises
+    rather than tying a partial set. Anything else — a leaf name, a sequence of names,
+    a callable — is one pair, passed through as it was given.
+    """
+    if not (isinstance(target, str) and isinstance(source, str)):
+        return [(target, source)]
+    if target in resolved and source in resolved:
+        return [(target, source)]
+
+    submodels = _tree_submodel_paths(tree)
+    is_submodel = [name in submodels and name not in resolved for name in (target, source)]
+    if not any(is_submodel):
+        return [(target, source)]  # `resolve_target` reports a name it cannot find.
+    unknown = [name for name in (target, source) if name not in resolved and name not in submodels]
+    if unknown:
+        raise ValueError(f"Unknown parameter or sub-model name: '{unknown[0]}'")
+    if not all(is_submodel):
+        submodel, parameter = (target, source) if is_submodel[0] else (source, target)
+        raise ValueError(
+            f"'{submodel}' names a sub-model and '{parameter}' a parameter, so there is "
+            f"no suffix to pair them on: tie two sub-models, or two parameters."
+        )
+
+    targets = _submodel_parameters(target, _submodel_path(target, submodels), resolved)
+    sources = _submodel_parameters(source, _submodel_path(source, submodels), resolved)
+    unpaired = [targets[s] for s in targets.keys() - sources.keys()]
+    unpaired += [sources[s] for s in sources.keys() - targets.keys()]
+    if unpaired:
+        raise ValueError(
+            f"'{target}' and '{source}' do not have matching parameter names beneath "
+            f"them, so tying them would tie a partial set. Unpaired: "
+            f"{', '.join(repr(name) for name in sorted(unpaired))}."
+        )
+    return [(targets[suffix], sources[suffix]) for suffix in sorted(targets)]
+
+
 def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _identity):
     """
     Returns a copy of a model in which one part is derived from another.
@@ -1597,13 +1665,18 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     its physical value. Tying a model that is already tied adds a tie; names refer
     to the untied model.
 
+    A name resolves as it does for :func:`update`: an exact name selects a parameter,
+    or failing that a sub-model. A sub-model name, on either side, ties every
+    parameter beneath it, pairing target and source by the suffix below the name and
+    applying `fn` to each pair.
+
     Parameters
     ----------
     tree : PyTree
         A model, or any collection of models and parameters.
     target : str, Sequence[str] or Callable
-        The part to derive: a parameter name, a sequence of names, or a callable
-        returning nodes of `tree`.
+        The part to derive: a parameter name, a sub-model name, a sequence of names,
+        or a callable returning nodes of `tree`.
     source : str, Sequence[str] or Callable
         The part it is derived from, selected the same way.
     fn : Callable, optional
@@ -1624,7 +1697,8 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     Raises
     ------
     ValueError
-        If a name is not found.
+        If a name is not found, if a sub-model name is ambiguous, or if the two
+        sub-models do not have matching parameter names beneath them.
 
     Examples
     --------
@@ -1634,19 +1708,26 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
         tied = prf.tie(rc, 'r.R', 'c.C', fn=lambda C: C * 5e13)
         prf.params(tied)                                     # {'c.C': Param(...)}
         prf.update(tied, {'c.C': 2e-12}).build().cascade[0].R   # 100.0
+
+        parts = {'strip_a': MicrostripLine(...), 'strip_b': MicrostripLine(...)}
+        tied = prf.tie(parts, 'strip_b', 'strip_a')          # every parameter beneath
+        prf.params(tied)                                     # only `strip_a`'s
     """
     from pmrf.models import Model, Wrapped
     from pmrf.modules import Tied
 
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
     untied = base.module if isinstance(base, Tied) else base
-    name_to_path = tree_param_names_to_path(untied)
-    tied = Tied(
-        base,
-        target=resolve_target(target, name_to_path),
-        source=resolve_target(source, name_to_path),
-        tie_fn=fn,
-    )
+    resolved = tree_param_paths(untied)
+    name_to_path = {name: path for name, (path, _) in resolved.items()}
+    tied = base
+    for one_target, one_source in _tie_pairs(untied, resolved, target, source):
+        tied = Tied(
+            tied,
+            target=resolve_target(one_target, name_to_path),
+            source=resolve_target(one_source, name_to_path),
+            tie_fn=fn,
+        )
     return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
 
 
