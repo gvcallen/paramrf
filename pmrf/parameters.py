@@ -1199,8 +1199,8 @@ def _joint_blocks(tree) -> list[tuple[Any, list[tuple[Any, ...]], list[Any]]]:
     blocks = []
     for prefix, joint in _joint_priors(tree):
         members = _joint_members(joint).values()
-        into = prefix + (jax.tree_util.GetAttrKey('module'),)
-        blocks.append((joint, [into + path for path, _ in members], [node for _, node in members]))
+        module = prefix + (jax.tree_util.GetAttrKey('module'),)
+        blocks.append((joint, [module + path for path, _ in members], [node for _, node in members]))
     return blocks
 
 
@@ -1235,17 +1235,22 @@ def _whitening_log_det(distribution: AbstractDistribution, z: Array) -> Array:
     return jnp.linalg.slogdet(jax.jacfwd(_whitening(distribution).forward)(z))[1]
 
 
-def _stated_vector(joint, nodes: list) -> Array:
-    """Returns the values of a joint prior's parameters in the space its distribution
-    is stated over, stacked on the last axis."""
-    return jnp.stack(jnp.broadcast_arrays(*[_read(node, joint.space) for node in nodes]), axis=-1)
+def _stack_vector(values: list) -> Array:
+    """Stacks one value per parameter under a joint prior on the last axis, broadcasting
+    a batch."""
+    return jnp.stack(jnp.broadcast_arrays(*values), axis=-1)
+
+
+def _joint_whitening(joint) -> AbstractBijector:
+    """Returns the whitening of a joint prior's distribution, as :func:`_whitening`."""
+    return _whitening(prx.as_unwrapped(joint.distribution))
 
 
 def _whitened_vector(joint, nodes: list) -> Array:
-    """Returns the raw values of a joint prior's parameters: their stated values taken
-    through the inverse of its whitening, stacked on the last axis."""
-    whitening = _whitening(prx.as_unwrapped(joint.distribution))
-    return _per_vector(whitening.inverse, _stated_vector(joint, nodes))
+    """Returns the raw values of a joint prior's parameters: their values in the joint
+    prior's space taken through the inverse of its whitening, stacked on the last axis."""
+    values = _stack_vector([_read(node, joint.space) for node in nodes])
+    return _per_vector(_joint_whitening(joint).inverse, values)
 
 
 def _whitened_values(tree) -> dict[str, Array]:
@@ -1265,7 +1270,7 @@ def _joint_raw_log_det(joint, nodes: list) -> Array:
     """Returns log|det J| of the map from a joint prior's whitened raw values `z` to its
     parameters' declared values `x`.
 
-    With `t = w(z)` the stated values and `x_i = g_i(t_i)`, this is
+    With `t = w(z)` the values in the joint prior's space and `x_i = g_i(t_i)`, this is
     $\\log|\\det \\partial w / \\partial z| + \\sum_i \\log|g_i'(t_i)|$, where $g_i$ is the
     identity for a declared-space prior, division by the scale for a physical one, and the
     parameter's raw-to-declared map for a raw one.
@@ -1286,7 +1291,7 @@ def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: 
 
     A raw value of a parameter under a joint prior is its entry in the whitened vector.
     Its parameters are written together: the entries not given keep their raw values,
-    and the vector is taken through the whitening to the stated space, so every
+    and the vector is taken through the whitening to the joint prior's space, so every
     parameter under the prior may move.
     """
     blocks = _joint_blocks(tree) if space == 'raw' else []
@@ -1301,10 +1306,9 @@ def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: 
             if path in given else z[..., i]
             for i, path in enumerate(paths)
         ]
-        whitening = _whitening(prx.as_unwrapped(joint.distribution))
-        stated = _per_vector(whitening.forward, jnp.stack(jnp.broadcast_arrays(*coords), axis=-1))
+        values = _per_vector(_joint_whitening(joint).forward, _stack_vector(coords))
         for i, (path, node) in enumerate(zip(paths, nodes)):
-            written[path] = _write(node, stated[..., i], joint.space)
+            written[path] = _write(node, values[..., i], joint.space)
     rest = [(path, _write(node, value, space)) for path, node, value in entries if path not in written]
     pairs = rest + list(written.items())
     return [path for path, _ in pairs], [node for _, node in pairs]

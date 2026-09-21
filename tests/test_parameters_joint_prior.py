@@ -55,26 +55,31 @@ def _example():
 # ---- Scoring --------------------------------------------------------------------------
 
 
-def _stated(parts):
-    """The values of `a.R` and `b.R` in the example joint prior's stated space: their raw
-    values before it was attached."""
-    raw = prf.param_values(parts, space="raw")
-    return jnp.stack([raw[name] for name in NAMES])
+def _in_prior_space(parts, model=None):
+    """The values of `a.R` and `b.R` of `model`, by default `parts`, possibly batched, in
+    the example joint prior's space: the raw space of `parts`, before it was attached."""
+    own = prf.params(parts)
+    declared = prf.param_values(parts if model is None else model)
+    return jnp.stack([own[name].raw_to_declared_bijector.inverse(declared[name]) for name in NAMES], axis=-1)
+
+
+def _log_det_to_declared(parts, x):
+    """log|det J| of the map from the example prior's space to declared space at `x`."""
+    own = prf.params(parts)
+    return sum(own[name].raw_to_declared_bijector.forward_log_det_jacobian(x[..., i]) for i, name in enumerate(NAMES))
 
 
 def _whitened(x):
-    """The whitened values `L^-1 (x - MU)` of the example's stated values `x`."""
+    """The whitened values `L^-1 (x - MU)` of the example's values `x` in its prior's space."""
     return jnp.linalg.solve(L, x - MU)
 
 
-def test_raw_joint_prior_is_scored_at_the_stacked_raw_values():
+def test_raw_joint_prior_scores_declared_values_through_the_old_raw_space():
     """The declared density of the parameters under the example prior is the Gaussian at
-    their stated values, less the Jacobian of the stated-to-declared map."""
+    their old raw values, less the Jacobian of the map from those to declared values."""
     parts, model = _parts(), _example()
-    to_declared = {name: prf.params(parts)[name].raw_to_declared_bijector for name in NAMES}
-    x = _stated(parts)
-    expected = _gaussian(MU, L).log_prob(x)
-    expected -= sum(to_declared[name].forward_log_det_jacobian(x[i]) for i, name in enumerate(NAMES))
+    x = _in_prior_space(parts)
+    expected = _gaussian(MU, L).log_prob(x) - _log_det_to_declared(parts, x)
     expected += prf.log_prior({"c": parts["c"]}, space="declared")
     assert np.allclose(prf.log_prior(model, space="declared"), expected, rtol=1e-10)
     assert np.allclose(eqx.filter_jit(lambda m: prf.log_prior(m, space="declared"))(model), expected, rtol=1e-10)
@@ -117,8 +122,7 @@ def test_vector_order_follows_explicit_names():
     parts = prf.update(_parts(), {"a.R": 52.0})
     mean = MU + jnp.array([0.2, -0.3])
     raw = prf.param_values(parts, space="raw")
-    to_declared = {name: prf.params(parts)[name].raw_to_declared_bijector for name in NAMES}
-    log_det = sum(to_declared[name].forward_log_det_jacobian(raw[name]) for name in NAMES)
+    log_det = _log_det_to_declared(parts, _in_prior_space(parts))
     joint = lambda m: prf.log_prior(m) - prf.log_prior({"c": parts["c"]})
     for order in (("a.R", "b.R"), ("b.R", "a.R")):
         model = prf.prior(parts, list(order), _gaussian(mean, L), space="raw")
@@ -157,20 +161,20 @@ def test_two_disjoint_joint_priors_are_both_scored():
 # ---- Whitened raw space (#194) --------------------------------------------------------
 
 
-def test_raw_values_are_the_whitened_stated_values():
+def test_raw_values_are_the_whitened_values_in_the_prior_space():
     """For `L z + mu`, the raw values of `a.R` and `b.R` are `L^-1 (x - mu)`, with `x`
-    their values in the prior's stated space. `c.C` keeps its own raw value."""
+    their values in the prior's space. `c.C` keeps its own raw value."""
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     model = prf.prior(parts, NAMES, _gaussian(MU, L), space="raw")
     raw = prf.param_values(model, space="raw")
-    np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_stated(parts)), rtol=1e-12)
+    np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_in_prior_space(parts)), rtol=1e-12)
     assert np.allclose(raw["c.C"], prf.param_values(parts, space="raw")["c.C"])
     # Reading raw values only is unchanged by `where`.
     assert np.allclose(prf.param_values(model, "b.R", space="raw")["b.R"], raw["b.R"])
 
 
 @pytest.mark.parametrize("space", ["declared", "physical"])
-def test_raw_values_are_whitened_in_every_stated_space(space):
+def test_raw_values_are_whitened_in_every_prior_space(space):
     parts = {
         "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
         "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
@@ -179,9 +183,9 @@ def test_raw_values_are_whitened_in_every_stated_space(space):
     mean = jnp.array([49.0, 2.2]) if space == "declared" else jnp.array([49.0, 2.2e-12])
     tril = jnp.array([[2.0, 0.0], [0.1, 0.5]]) * (1.0 if space == "declared" else jnp.array([[1.0], [1e-12]]))
     model = prf.prior(parts, names, _gaussian(mean, tril), space=space)
-    stated = prf.param_values(parts, space=space)
+    values = prf.param_values(parts, space=space)
     raw = prf.param_values(model, space="raw")
-    expected = jnp.linalg.solve(tril, jnp.array([stated[n] for n in names]) - mean)
+    expected = jnp.linalg.solve(tril, jnp.array([values[n] for n in names]) - mean)
     np.testing.assert_allclose([raw[n] for n in names], expected, rtol=1e-10)
 
 
@@ -202,7 +206,7 @@ def test_a_raw_update_moves_one_whitened_coordinate():
     after = prf.param_values(moved, space="raw")
     np.testing.assert_allclose(after["a.R"], raw["a.R"] + 0.5, rtol=1e-12)
     np.testing.assert_allclose(after["b.R"], raw["b.R"], rtol=1e-12)
-    # The stated values are `L z + mu`, so both move.
+    # Their values in the prior's space are `L z + mu`, so both move.
     before, now = prf.param_values(model), prf.param_values(moved)
     assert not np.allclose(before["a.R"], now["a.R"]) and not np.allclose(before["b.R"], now["b.R"])
     # A value selector writes the same raw value to every parameter it selects.
@@ -237,7 +241,7 @@ def test_raw_log_prior_carries_the_jacobian_of_the_whitening():
 
 
 @pytest.mark.parametrize("space", ["declared", "physical"])
-def test_raw_log_prior_carries_the_jacobian_in_every_stated_space(space):
+def test_raw_log_prior_carries_the_jacobian_in_every_prior_space(space):
     parts = {
         "a": Resistor(R=prf.Bounded(30.0, 70.0, value=50.0), name="a"),
         "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
@@ -263,13 +267,13 @@ def test_a_multivariate_normal_is_whitened_by_its_cholesky_factor():
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     model = prf.prior(parts, NAMES, dd.MultivariateNormalTri(MU, L), space="raw")
     raw = prf.param_values(model, space="raw")
-    np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_stated(parts)), rtol=1e-10)
+    np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_in_prior_space(parts)), rtol=1e-10)
     _raw_log_prior_matches_declared_through_the_jacobian(model, NAMES)
 
 
 def test_a_distribution_with_no_known_whitening_keeps_its_own_space():
     """An independent normal has no registered whitening, so raw stays the space it is
-    stated over, and everything else still works."""
+    over, and everything else still works."""
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     distribution = dd.Independent(dd.Normal(MU, jnp.array([0.1, 0.2])), 1)
     model = prf.prior(parts, NAMES, distribution, space="raw")
@@ -444,29 +448,21 @@ class _RandomWalkMetropolis(infer_base.AbstractJointSampler):
         return infer_base.SampleResult(samples=jax.vmap(unravel)(xs), fn_values=lps)
 
 
-def _stated_values(parts, model):
-    """The values of `a.R` and `b.R` of `model`, possibly batched, in the example prior's
-    stated space: the raw space of `parts`, before the prior was attached."""
-    own = prf.params(parts)
-    declared = prf.param_values(model)
-    return np.stack([own[name].raw_to_declared_bijector.inverse(declared[name]) for name in NAMES], axis=-1)
-
-
 def test_mcmc_recovers_the_joint_prior():
-    """With a flat likelihood the posterior is the prior, so in its stated space `a.R`
+    """With a flat likelihood the posterior is the prior, so in its space `a.R`
     and `b.R` have mean `MU` and covariance `L L^T` (standard deviations 0.1, correlation
     0.8), as before raw space was whitened. The sampler now moves in the whitened space,
     where they are independent standard normals, so its step is ten times that of the
-    stated space's unit of 0.1. The tolerances allow for the Monte Carlo error of 36 000
+    prior's space, whose unit is 0.1. The tolerances allow for the Monte Carlo error of 36 000
     correlated steps."""
     parts, model = _parts(), _example()
     batched, results = infer_base.run_sampler(
         lambda m, a: 0.0, model, _RandomWalkMetropolis(step_size=0.7), jax.random.key(0)
     )
-    stated = _stated_values(parts, batched)
-    np.testing.assert_allclose(stated.mean(axis=0), MU, atol=0.02)
-    np.testing.assert_allclose(np.cov(stated.T), L @ L.T, atol=0.002)
-    assert np.corrcoef(stated.T)[0, 1] == pytest.approx(0.8, abs=0.05)
+    values = np.asarray(_in_prior_space(parts, batched))
+    np.testing.assert_allclose(values.mean(axis=0), MU, atol=0.02)
+    np.testing.assert_allclose(np.cov(values.T), L @ L.T, atol=0.002)
+    assert np.corrcoef(values.T)[0, 1] == pytest.approx(0.8, abs=0.05)
     raw = np.stack([np.asarray(results.samples[name]) for name in NAMES], axis=-1)
     np.testing.assert_allclose(raw.mean(axis=0), [0.0, 0.0], atol=0.2)
     np.testing.assert_allclose(np.cov(raw.T), np.eye(2), atol=0.2)
@@ -474,7 +470,7 @@ def test_mcmc_recovers_the_joint_prior():
 
 def test_map_fit_is_unchanged_by_the_whitening():
     """A MAP fit maximises the declared log posterior, which does not depend on the raw
-    space a minimiser moves in. It matches the fit made in the stated space by hand, the
+    space a minimiser moves in. It matches the fit made by hand in the prior's space, the
     raw space before this prior whitened it."""
     from scipy.optimize import minimize
 
@@ -501,7 +497,7 @@ def test_map_fit_is_unchanged_by_the_whitening():
         log_declared = _gaussian(MU, L).log_prob(t) - log_det
         return 0.5 * jnp.sum(((x - target) / sigma) ** 2) - log_declared
 
-    t0 = _stated(parts)
+    t0 = _in_prior_space(parts)
     reference = minimize(jax.jit(by_hand), t0, jac=jax.jit(jax.grad(by_hand)), method="BFGS", tol=1e-12)
     expected = [to_declared[i].forward(reference.x[i]) for i in range(2)]
     np.testing.assert_allclose(fit, expected, rtol=1e-6)
