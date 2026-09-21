@@ -872,10 +872,7 @@ def _unwraps_to_leaf(x: Any) -> bool:
 
 def node_distribution(node) -> AbstractDistribution | None:
     """
-    Returns the prior distribution attached to a node, if any.
-
-    Covers both a :class:`Param`'s own distribution and a joint distribution attached
-    over a sub-tree, such as by :class:`pmrf.modules.Probabilistic`.
+    Returns the prior distribution attached to a parameter, if any.
 
     A parameter's distribution is authored in declared space, whereas an unwrapped
     tree holds physical values, so the scale is folded into the distribution here. Its Jacobian is constant
@@ -890,8 +887,6 @@ def node_distribution(node) -> AbstractDistribution | None:
         if to_physical is not None:
             distribution = Transformed(distribution, to_physical)
         return distribution
-    if prx.is_probabilistic(node):
-        return prx.as_unwrapped(node.distribution)
     return None
 
 
@@ -912,8 +907,6 @@ def tree_param_distributions(tree) -> Any:
     def build(node):
         distribution = node_distribution(node)
         if distribution is not None:
-            # Covers the whole sub-tree it unwraps to, so a distribution attached
-            # higher up overrides any below it.
             return distribution
         if prx.is_unwrappable(node):
             # The node vanishes on unwrapping, so mirror what it leaves behind.
@@ -958,20 +951,11 @@ def _is_name_transparent(x: Any) -> bool:
     from pmrf.models.adapters.derived import Derived
     from pmrf.models.adapters.wrapped import Wrapped
     from pmrf.modules.base import Module
-    from pmrf.modules.wrapped import Probabilistic, Tied
+    from pmrf.modules.wrapped import Tied
 
-    if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
+    if isinstance(x, (Tied, Wrapped, Derived)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
-
-
-def _is_joint_target(x: Any) -> bool:
-    """Returns whether `x` is the target of a joint prior, a `parax.Probabilize` node.
-
-    Such a node absorbs the parameters below it and holds one raw value, possibly a
-    tree, which is named and moved as a single parameter.
-    """
-    return isinstance(x, prx.Probabilize)
 
 
 def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
@@ -990,8 +974,8 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     Names see through freezing (a frozen parameter keeps its name, but is not free)
     and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
     parts are omitted so that names are relative to the wrapped module. Parax's
-    opaque nodes (e.g. a `parax.Probabilize` target) are not descended into, and raw
-    arrays inside frozen sub-trees are constant data rather than parameters.
+    opaque nodes are not descended into, and raw arrays inside frozen sub-trees are
+    constant data rather than parameters.
 
     Parameters
     ----------
@@ -1017,7 +1001,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
         if is_param(leaf):
             if free_only and (leaf.fixed or frozen):
                 continue
-        elif not (isinstance(leaf, jax.Array) or _is_joint_target(leaf)) or frozen:
+        elif not isinstance(leaf, jax.Array) or frozen:
             continue
 
         name = path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
@@ -1096,10 +1080,7 @@ def _is_selector(x: Any) -> bool:
 
 
 def _read(node, space: str) -> Array:
-    """Returns the value of a parameter, a joint prior's target, or a raw array, in `space`."""
-    if _is_joint_target(node):
-        # A joint prior is authored over physical values, so declared is physical.
-        return node.raw_value if space == 'raw' else prx.unwrap(node)
+    """Returns the value of a parameter or a raw array, in `space`."""
     if not is_param(node):
         return jnp.asarray(node)
     if space == 'raw':
@@ -1121,10 +1102,7 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
     (``components.cable.length``); other keys keep the bracket form.
 
     Names see through freezing and wrappers such as :class:`pmrf.modules.Tied`. The
-    target of a tie is derived rather than stored, so it is not named. The target of
-    a joint prior (:class:`pmrf.modules.Probabilistic`) absorbs the parameters below
-    it and is named once, returned as its `parax.Probabilize` node; its value may be
-    a tree, and its declared value is its physical one.
+    target of a tie is derived rather than stored, so it is not named.
 
     Parameters
     ----------
@@ -1219,9 +1197,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     prior add nothing to the first two sums (a flat prior). The scale term covers
     parameters with a prior; the Jacobian term covers every free, constrained
     parameter, since those are the coordinates an optimiser or sampler moves. The
-    priors of fixed and frozen parameters are included as constants, and a joint
-    prior over a sub-tree (:class:`pmrf.modules.Probabilistic`) is scored on its
-    physical values, with the Jacobian of its own raw-to-physical map in raw space.
+    priors of fixed and frozen parameters are included as constants.
 
     Parameters
     ----------
@@ -1274,8 +1250,6 @@ def _raw_log_det_jacobian(node) -> Array:
     """Returns log|det J| of the map from a node's raw value to its declared value."""
     if is_param(node) and node.constraint is not None:
         return node.raw_to_declared_bijector.forward_log_det_jacobian(node.raw_value)
-    if _is_joint_target(node):
-        return prx.as_unwrapped(node.constraint).bijector.forward_log_det_jacobian(node.raw_value)
     return jnp.asarray(0.0)
 
 
@@ -1295,10 +1269,6 @@ def _write(node, value: Any, space: str):
     """
     if is_param(value):
         value = _read(value, space)
-    if _is_joint_target(node):
-        if space != 'raw':
-            value = prx.as_unwrapped(node.constraint).bijector.inverse(value)
-        return eqx.tree_at(lambda n: n.raw_value, node, jax.tree.map(lambda v, o: _like(jnp.asarray(v), o), value, node.raw_value))
     if not is_param(node):
         return _like(jnp.asarray(value, dtype=node.dtype), node)
     if space == 'raw':
@@ -1548,8 +1518,7 @@ def update(
         submodels = None
         paths, nodes, unknown = [], [], []
         for name, v in selection.items():
-            # A joint target is named like a parameter, and its value may itself be a model.
-            if isinstance(v, Model) and not (name in resolved and _is_joint_target(resolved[name][1])):
+            if isinstance(v, Model):
                 if name in resolved:
                     raise TypeError(f"'{name}' is a parameter name, but its value is a model; "
                                     "a model can only replace a sub-model.")
@@ -1756,10 +1725,6 @@ def resolve(tree):
 
     A tie's target resolves to a plain value either way, since it is derived and has
     no prior of its own. Every other parameter survives as a parameter.
-
-    A joint prior (:class:`pmrf.modules.Probabilistic`) is left wrapped. It absorbs
-    the parameters below it and holds one raw value, so discharging it turns a prior
-    into a number, which is evaluation rather than structure.
 
     Parameters
     ----------

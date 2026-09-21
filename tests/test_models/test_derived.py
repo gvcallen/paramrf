@@ -5,9 +5,8 @@ import numpy as np
 import pytest
 
 import pmrf as prf
-from pmrf.distributions import Normal, Uniform
+from pmrf.distributions import Uniform
 from pmrf.models import Cascade, CoaxialLine, FloatingTwoPort, Resistor
-from pmrf.modules import Probabilistic
 from tests._jit import assert_same_jit_key
 
 
@@ -164,18 +163,6 @@ def test_log_prior_is_the_base_plus_the_new_parameters(space):
     model = wet(cable, wet_length=w, wet_ep_r=ep_r)
     expected = prf.log_prior(cable, space=space) + prf.log_prior((w, ep_r), space=space)
     np.testing.assert_allclose(prf.log_prior(model, space=space), expected)
-
-
-def test_joint_prior_on_the_base_still_scores():
-    cable = _cable()
-    base = Probabilistic(cable, distribution=Normal(2.0, 0.1), target=lambda m: m.length)
-    model = _wet(base)
-    assert 'length' in prf.params(base) and 'length' in prf.params(model)
-    expected = prf.log_prior(base) + prf.log_prior(
-        (prf.Random(Uniform(0.0, 1.0), value=0.4), prf.Random(Uniform(1.0, 80.0), value=4.0))
-    )
-    np.testing.assert_allclose(prf.log_prior(model), expected)
-    np.testing.assert_allclose(model.s(FREQ), _by_hand(cable, 0.4, 4.0).s(FREQ), rtol=1e-12, atol=1e-14)
 
 
 def test_nesting_shares_one_parameter():

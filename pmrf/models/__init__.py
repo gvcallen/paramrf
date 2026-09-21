@@ -214,7 +214,7 @@ from pmrf.models.adapters.derived import (
 )
 
 # Compatibility re-exports. Parameter-aware wrappers live under ``pmrf.modules``.
-from pmrf.modules import Tied as Tied, Probabilistic as Probabilistic
+from pmrf.modules import Tied as Tied
 
 # Surrogates
 from pmrf.models.surrogates.expansion import (

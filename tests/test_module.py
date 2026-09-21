@@ -80,19 +80,6 @@ def test_tied_model_stacking_keeps_one_rf_wrapper():
     assert not isinstance(twice.wrapped.module, Wrapped)
 
 
-def test_wrapped_probabilistic_model_preserves_rf_interface():
-    frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
-    model = Resistor(R=prf.Unconstrained(50.0))
-    probabilistic = prf.modules.Probabilistic(
-        module=model,
-        distribution=prf.distributions.Normal(50.0, 1.0),
-        target=lambda item: item.R,
-    )
-    wrapped = Wrapped(wrapped=probabilistic)
-
-    assert jnp.allclose(wrapped.s(frequency), prf.unwrap(probabilistic).s(frequency))
-
-
 def test_fit_minimize_accepts_module():
     module = GainModule(gain=1.0)
     frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")

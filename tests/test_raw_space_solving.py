@@ -10,9 +10,8 @@ import pytest
 
 import pmrf as prf
 from pmrf.constraints import Interval
-from pmrf.distributions import Normal, Uniform
+from pmrf.distributions import Uniform
 from pmrf.infer import base as infer_base
-from pmrf.models import Resistor
 from pmrf.optimize import base as optimize_base
 from pmrf.optimize.solvers.optimistix import BFGS
 from pmrf.optimize.solvers.scipy import ScipyMinimize
@@ -259,60 +258,3 @@ def test_hypercube_sampler_accepts_a_start_on_a_bound():
 def test_hypercube_sampler_names_free_parameters_without_a_prior():
     with pytest.raises(ValueError, match=r"'R'"):
         infer_base.run_sampler(_loglikelihood, _start(), _StubHypercubeSampler(), jax.random.key(0))
-
-
-# ---- Joint priors over a sub-tree ------------------------------------------------------
-
-
-def _probabilistic():
-    inner = Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="load")
-    return prf.modules.Probabilistic(inner, Normal(52.0, 2.0), target=lambda m: m.R)
-
-
-def test_probabilistic_target_is_a_free_raw_value():
-    model = _probabilistic()
-    raw = prf.param_values(model, free_only=True, space="raw")
-    assert list(raw) == ["load.R"]
-    moved = prf.update(model, {"load.R": raw["load.R"] + 0.3}, space="raw")
-    assert not np.allclose(prf.unwrap(moved).R, prf.unwrap(model).R)
-
-
-def test_probabilistic_raw_log_prior_includes_jacobian():
-    model = _probabilistic()
-    z = prf.param_values(model, free_only=True, space="raw")["load.R"] + 0.3
-
-    def physical(z):
-        return prf.unwrap(prf.update(model, {"load.R": z}, space="raw")).R
-
-    x = physical(z)
-    expected = Normal(52.0, 2.0).log_prob(x) + jnp.log(jnp.abs(jax.grad(physical)(z)))
-    actual = prf.log_prior(prf.update(model, {"load.R": z}, space="raw"), space="raw")
-    assert np.allclose(actual, expected, rtol=1e-6)
-
-
-def test_minimizer_moves_a_probabilistic_target():
-    model = _probabilistic()
-
-    def fn(m, args):
-        return (m.R - 45.0) ** 2
-
-    fitted, _ = optimize_base.run_minimizer(fn, model, BFGS(), max_iter=500)
-    assert prf.unwrap(fitted).R == pytest.approx(45.0, rel=1e-4)
-
-
-def test_joint_sampler_moves_and_scores_a_probabilistic_target():
-    model = _probabilistic()
-    loglik = lambda m, args: -((m.R - 45.0) ** 2)
-    batched, results = infer_base.run_sampler(loglik, model, _StubJointSampler(), jax.random.key(0))
-
-    for i in range(3):
-        v = jax.tree.map(lambda x: x[i], results.samples)
-        at = prf.update(model, v, space="raw")
-        expected = loglik(prf.unwrap(at), None) + prf.log_prior(at, space="raw")
-        assert np.allclose(results.fn_values[i], expected, rtol=1e-6)
-    assert np.shape(prf.unwrap(batched).R) == (3,)
-
-
-def test_hypercube_sampler_rejects_a_joint_prior():
-    with pytest.raises(ValueError, match=r"'load.R'.*joint or split sampler"):
-        infer_base.run_sampler(lambda m, a: 0.0, _probabilistic(), _StubHypercubeSampler(), jax.random.key(0))
