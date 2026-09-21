@@ -248,8 +248,18 @@ def test_fixing_a_parameter_under_a_joint_prior_raises():
     assert not prf.params(prf.update(model, "a.R", fixed=False))["a.R"].fixed
 
 
+def test_a_structural_update_cannot_fix_or_drop_a_parameter_under_a_joint_prior():
+    model = _example()
+    with pytest.raises(ValueError, match=r"Cannot update: 'a.R'.*joint prior"):
+        prf.update(model, {"a": Resistor(R=prf.Fixed(50.0), name="a")})
+    with pytest.raises(ValueError, match=r"Cannot update: 'a.R'.*joint prior"):
+        prf.update(model, "a.R", fn=prf.freeze)
+    replaced = prf.update(model, {"a": Resistor(R=prf.Unconstrained(48.0), name="a")})
+    assert np.allclose(prf.param_values(replaced)["a.R"], 48.0)
+
+
 def test_tying_a_parameter_under_a_joint_prior_raises():
-    with pytest.raises(ValueError, match=r"Cannot tie 'a.R'.*joint prior"):
+    with pytest.raises(ValueError, match=r"Cannot tie: 'a.R'.*joint prior"):
         prf.tie(_example(), "a.R", "c.C")
     # Tying from it is fine: only the distribution may set it.
     assert list(prf.params(prf.tie(_example(), "c.C", "a.R"))) == ["a.R", "b.R"]

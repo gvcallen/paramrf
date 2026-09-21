@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
+import itertools
 from collections.abc import Mapping
 from typing import Any, Literal, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
@@ -896,9 +897,9 @@ def tree_param_distributions(tree) -> Any:
 
     The result mirrors the tree once unwrapped, holding each distribution in place of
     the parameter it belongs to and `None` where there is no prior. A parameter under a
-    joint prior (:class:`pmrf.modules.Probabilistic`) holds a slot of that prior
-    instead of its own prior, and :func:`tree_param_log_prob` scores the slots of one
-    joint prior together. Distributions are metadata and are stripped by unwrapping, so
+    joint prior (:class:`pmrf.modules.Probabilistic`) holds a private marker for that
+    prior instead of its own prior, and :func:`tree_param_log_prob` scores the
+    parameters of one joint prior together. Distributions are metadata and are stripped by unwrapping, so
     this allows them to be extracted while a tree is still wrapped and evaluated against
     its values afterwards.
 
@@ -907,7 +908,7 @@ def tree_param_distributions(tree) -> Any:
     tree : PyTree
         The tree to extract from. Must still be wrapped.
     """
-    joint_keys = iter(range(1 << 62))
+    joint_keys = itertools.count()
 
     def build(node):
         if isinstance(node, _JointMember):
@@ -987,7 +988,9 @@ class _JointMember(prx.AbstractUnwrappable):
 
     Unwraps to the parameter's value, so a tie reading it still gets a value."""
 
+    #: The parameter under the joint prior.
     param: Any
+    #: What stands for it in the distributions mirror.
     slot: _JointSlot
 
     def unwrap(self):
@@ -1155,6 +1158,30 @@ def _joint_priors(tree) -> list[tuple[tuple[Any, ...], Any]]:
         found.append(((), tree))
     walk(tree, ())
     return found
+
+
+def _under_joint_prior(tree, selected: dict[str, tuple[tuple[Any, ...], Any]]) -> list[str]:
+    """Returns the names in `selected`, as :func:`_select` gives it, of the parameters
+    already under a joint prior in `tree`."""
+    joint = _joint_prior_paths(tree)
+    return [name for name, (path, _) in selected.items() if path in joint]
+
+
+def _check_joint_members(tree, action: str) -> None:
+    """Raises if a parameter under a joint prior in `tree` is no longer a free
+    parameter of the tree the joint prior wraps: tied away, fixed or frozen."""
+    for _, joint in _joint_priors(tree):
+        resolved = tree_param_paths(joint.module)
+        lost = [
+            name for name in joint.names
+            if name not in resolved or _is_fixed_path(joint.module, *resolved[name])
+        ]
+        if lost:
+            raise ValueError(
+                f"Cannot {action}: {', '.join(repr(name) for name in lost)} "
+                f"{'is' if len(lost) == 1 else 'are'} under a joint prior, whose distribution "
+                "must control it, so it must stay a free parameter."
+            )
 
 
 def _joint_prior_paths(tree) -> set[tuple[Any, ...]]:
@@ -1712,12 +1739,15 @@ def update(
             raise form_error()
         replace_fn = fn if has_fn else (lambda _: node)
         if callable(selection):
-            return eqx.tree_at(selection, tree, replace_fn=replace_fn)
-        paths = _select_parts(tree, selection)
-        if not paths:
-            return tree
-        parts = [Pathgetter(path)(tree) for path in paths]
-        return _set_paths(tree, paths, [replace_fn(part) for part in parts])
+            updated = eqx.tree_at(selection, tree, replace_fn=replace_fn)
+        else:
+            paths = _select_parts(tree, selection)
+            if not paths:
+                return tree
+            parts = [Pathgetter(path)(tree) for path in paths]
+            updated = _set_paths(tree, paths, [replace_fn(part) for part in parts])
+        _check_joint_members(updated, 'update')
+        return updated
 
     if selection is _MISSING:
         if not is_param(tree) or has_value == has_fixed:
@@ -1755,17 +1785,19 @@ def update(
                 unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
-        if submodels is not None:
-            _check_no_overlap(paths)
-        return _set_paths(tree, paths, nodes)
+        if submodels is None:
+            return _set_paths(tree, paths, nodes)
+        _check_no_overlap(paths)
+        updated = _set_paths(tree, paths, nodes)
+        _check_joint_members(updated, 'update')
+        return updated
 
     if not _is_selector(selection) or has_value == has_fixed:
         raise form_error()
     selected = _select(tree, selection)
     paths = [path for path, _ in selected.values()]
     if has_fixed and fixed:
-        joint = _joint_prior_paths(tree)
-        under = [name for name, (path, _) in selected.items() if path in joint]
+        under = _under_joint_prior(tree, selected)
         if under:
             raise ValueError(
                 f"Cannot fix {', '.join(repr(name) for name in under)}: "
@@ -1923,14 +1955,7 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
             source=resolve_target(one_source, name_to_path),
             tie_fn=fn,
         )
-    for _, joint in _joint_priors(tied):
-        lost = [name for name in joint.names if name not in tree_param_paths(joint.module)]
-        if lost:
-            raise ValueError(
-                f"Cannot tie {', '.join(repr(name) for name in lost)}: "
-                f"{'it is' if len(lost) == 1 else 'they are'} under a joint prior, whose "
-                "distribution must control it."
-            )
+    _check_joint_members(tied, 'tie')
     return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
 
 
@@ -2073,7 +2098,7 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     metadata and fixed state are kept. For a joint prior, :func:`log_prior` scores the
     parameters jointly in place of their own priors, which stay attached but unused,
     and a value outside a parameter's bounds scores minus infinity. Raw space for its
-    parameters is unchanged: solvers move through it as before.
+    parameters is not yet redefined as the distribution's whitened space (#194).
 
     A parameter under a joint prior cannot be fixed or tied, and cannot be under a
     second prior.
@@ -2133,8 +2158,7 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     """
     _check_space(space)
     selected = _select(tree, names)
-    joint = _joint_prior_paths(tree)
-    under = [name for name, (path, _) in selected.items() if path in joint]
+    under = _under_joint_prior(tree, selected)
     if under:
         raise ValueError(
             f"{', '.join(repr(name) for name in under)} {'is' if len(under) == 1 else 'are'} "
@@ -2169,7 +2193,7 @@ def _joint_order(selected: dict, names: Selector) -> list[str]:
     return ordered
 
 
-def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistribution, space: str):
+def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistribution, space: Space):
     """Returns `tree` wrapped, unchanged, in a joint prior over the parameters `names`."""
     from pmrf.models import Model, Wrapped
     from pmrf.modules import Probabilistic

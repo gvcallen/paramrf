@@ -6,6 +6,7 @@ import parax as prx
 
 from pmrf.distributions import AbstractDistribution
 from pmrf.modules.base import Module
+from pmrf.parameters import Space
 from pmrf.utils import field, freeze
 
 
@@ -66,7 +67,7 @@ class Probabilistic(Module, prx.AbstractUnwrappable):
 
     #: The space the distribution is over: ``'raw'``, ``'declared'`` or ``'physical'``.
     #: ``'raw'`` is the parameters' raw space as it was when the prior was attached.
-    space: str = field(static=True)
+    space: Space = field(static=True)
 
     def unwrap(self) -> Any:
         return self.module
