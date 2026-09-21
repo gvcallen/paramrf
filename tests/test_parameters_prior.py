@@ -166,15 +166,16 @@ def _loglikelihood(model, args=None):
     return -((model["R"] - 30.0) ** 2) - ((model["C"] - 2.0) ** 2)
 
 
-def _attached_everywhere():
+def _dict_with_attached_priors():
     m = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
-    m = prf.prior(m, "R", Uniform(0.0, 100.0))
+    m = prf.prior(m, "R", Normal(50.0, 30.0))  # truncated to the bounds
     return prf.prior(m, "C", Normal(2.0, 1.0))
 
 
 def test_hypercube_sampler_on_attached_priors():
-    _, results = infer_base.run_sampler(_loglikelihood, _attached_everywhere(), _StubHypercubeSampler(), jax.random.key(0))
-    assert np.allclose(results.samples["R"], [50.0, 25.0], atol=1e-4)
+    _, results = infer_base.run_sampler(_loglikelihood, _dict_with_attached_priors(), _StubHypercubeSampler(), jax.random.key(0))
+    r_prior = truncate(Normal(50.0, 30.0), 0.0, 100.0)
+    assert np.allclose(results.samples["R"], [50.0, r_prior.icdf(0.25)], atol=1e-4)
     assert np.allclose(results.samples["C"], [2.0, Normal(2.0, 1.0).icdf(0.25)], atol=1e-4)
 
 
@@ -184,6 +185,6 @@ def test_polychord_on_attached_priors(tmp_path):
         pytest.skip("PolyChord, anesthetic, or mpi4py not installed.")
 
     solver = polychord_backend.PolyChord(nlive=50, num_repeats=2, do_clustering=False, base_dir=str(tmp_path), seed=0)
-    batched, results = infer_base.run_sampler(_loglikelihood, _attached_everywhere(), solver, jax.random.key(0))
+    batched, results = infer_base.run_sampler(_loglikelihood, _dict_with_attached_priors(), solver, jax.random.key(0))
     assert results.samples["R"].ndim == 1
     assert np.all((batched["R"].value >= 0.0) & (batched["R"].value <= 100.0))
