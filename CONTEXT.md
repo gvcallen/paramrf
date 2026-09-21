@@ -20,6 +20,8 @@ for saved results, ties and selectors.
 Where a parameter's number lives. Every surface defaults to **declared**.
 
 - **raw**: the latent, unbounded array optimisers and samplers move through.
+  ParamRF defines it: a parameter's prior whitens it, and attaching a joint
+  prior redefines it for the parameters under that prior (ADR-0005).
 - **declared**: the number as written, in the units the parameter's scale
   declares (2.0 for 2 pF). Construction, bounds, priors and `Param.value` are
   in declared space.
@@ -70,14 +72,27 @@ Two operations read a tied tree back, and they are not the same thing.
   `dict`, still parameterised.
 - **Evaluation** (`prf.unwrap`): every parameter becomes its physical value.
   The result is numbers, not priors, and nothing rebuilt from it is
-  parameterised. A joint prior (`prf.modules.Probabilistic`) is discharged the
-  same way and for the same reason, so resolve leaves it standing.
+  parameterised. A joint prior is dropped the same way and for the same
+  reason, so resolve leaves it standing.
 
 Resolve is the one ordinary modelling code wants; `prf.unwrap` is a low-level
 evaluation primitive. A tie's target resolves to a plain value either way — it
 is derived, so it has no prior of its own.
 
 *Avoid:* "unwrap" for reading a tied container; "apply the ties" for evaluation.
+
+### Prior and joint prior
+
+`prf.prior` attaches a prior to the parameters a selector picks (ADR-0005). A
+scalar distribution gives each of them its own prior. A distribution whose
+event size equals the number of parameters is a **joint prior** over them: a
+wrapper (`prf.modules.Probabilistic`) around the unchanged tree, so every
+parameter keeps its name. A joint prior replaces its parameters' own priors,
+and its `space` says which space its distribution is over. Raw space for its
+parameters becomes the distribution's whitened space.
+
+*Avoid:* "covered parameters" (say "the parameters under a joint prior");
+"joint target" (the old collapsing node).
 
 ### Derived model
 
@@ -167,4 +182,6 @@ paper with no ParamRF objects in sight.
 `docs/adr/` records the decisions behind these layers. Read
 `docs/adr/0001-line-modelling-architecture.md` before changing a strategy
 interface or a default, and `docs/adr/0002-parameter-api.md` before adding a
-method, a public function or a value space.
+method, a public function or a value space. Read
+`docs/adr/0005-priors-by-name.md` before changing how priors are attached or
+scored.
