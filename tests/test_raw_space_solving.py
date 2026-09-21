@@ -12,7 +12,6 @@ import pmrf as prf
 from pmrf.constraints import Interval
 from pmrf.distributions import Uniform
 from pmrf.infer import base as infer_base
-from pmrf.models import Resistor
 from pmrf.optimize import base as optimize_base
 from pmrf.optimize.solvers.optimistix import BFGS
 from pmrf.optimize.solvers.scipy import ScipyMinimize

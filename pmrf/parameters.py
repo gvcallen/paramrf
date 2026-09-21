@@ -974,8 +974,8 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     Names see through freezing (a frozen parameter keeps its name, but is not free)
     and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
     parts are omitted so that names are relative to the wrapped module. Parax's
-    opaque nodes are not descended into, and raw
-    arrays inside frozen sub-trees are constant data rather than parameters.
+    opaque nodes are not descended into, and raw arrays inside frozen sub-trees are
+    constant data rather than parameters.
 
     Parameters
     ----------
