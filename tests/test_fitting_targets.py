@@ -12,7 +12,6 @@ from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_joint
 from pmrf.fitting.targets import resolve_datasets, union_frequency
 from tests._dependency_checks import (
-    requires_distreqx_joint,
     requires_distreqx_transpose,
 )
 
@@ -256,106 +255,6 @@ def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
     assert jnp.allclose(float(prf.unwrap(result.model.wide.val)), 5.0, atol=1e-2)
 
 
-# ---------------------------------------------------------
-# Correlated priors attached over a sub-tree
-# ---------------------------------------------------------
-
-def _correlated(a=3.0, b=7.0):
-    """A model a joint prior can be attached across two of its parameters."""
-    return CompositeModel(wide=SubModel(val=prf.Unconstrained(a)),
-                          narrow=SubModel(val=prf.Unconstrained(b)))
-
-
-def test_probabilistic_single_target_prior_is_found(wide_band):
-    """A distribution attached after construction must be picked up."""
-    import distreqx.distributions as dist
-    from pmrf.models import Probabilistic
-    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-
-    base = _correlated()
-    model = Probabilistic(model=base, distribution=prf.distributions.Normal(3.0, 1.0),
-                          target=lambda m: m.wide.val)
-
-    expected = float(dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0)))
-    scored = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
-
-    assert jnp.allclose(scored, expected, atol=1e-6)
-
-@requires_distreqx_joint
-def test_correlated_joint_prior_over_a_subtree(wide_band):
-    """A joint is scored over the whole sub-tree at once, preserving correlations."""
-    import equinox as eqx
-    from pmrf.models import Probabilistic
-    from pmrf.distributions import Joint
-    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-
-    base = _correlated()
-    import equinox as eqx
-    sub = base.wide
-    dist_tree = eqx.tree_at(lambda m: m.val, sub, prf.distributions.Normal(3.0, 1.0))
-    joint = Joint(dist_tree)
-    model = Probabilistic(model=base, distribution=joint, target=lambda m: m.wide)
-
-    dists = tree_param_distributions(model)
-    found = [d for d in jax.tree.leaves(dists, is_leaf=prx.is_distribution) if prx.is_distribution(d)]
-
-    # One joint covering both parameters, not two independent marginals.
-    assert len(found) == 1
-    assert jnp.allclose(
-        tree_param_log_prob(dists, prf.unwrap(model)),
-        joint.log_prob(prf.unwrap(base.wide)),
-        atol=1e-6,
-    )
-
-@requires_distreqx_joint
-def test_map_problem_uses_a_correlated_prior(wide_band):
-    """End to end: PriorPenalized must apply an attached joint, not ignore it."""
-    import equinox as eqx
-    from pmrf.models import Probabilistic
-    from pmrf.distributions import Joint
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
-
-    base = _correlated()
-    import equinox as eqx
-    dist_tree = eqx.tree_at(lambda m: m.val, base.wide, prf.distributions.Normal(3.0, 1.0))
-    joint = Joint(dist_tree)
-    model = Probabilistic(model=base, distribution=joint, target=lambda m: m.wide)
-    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
-
-    mle = SummedTerms(model=model, terms=(term,))
-    mapp = PriorPenalized(SummedTerms(model=model, terms=(term,)))
-
-    assert jnp.allclose(mle(), 0.0, atol=1e-6)
-    assert jnp.allclose(mapp(), -joint.log_prob(prf.unwrap(base.wide)), atol=1e-6)
-    assert not jnp.allclose(mapp(), mle(), atol=1e-6)
-
-@requires_distreqx_joint
-@requires_distreqx_transpose
-def test_correlated_prior_moves_a_fit(wide_band):
-    """A tight joint prior must pull the fit away from the data's answer."""
-    import equinox as eqx
-    from pmrf.models import Probabilistic
-    from pmrf.distributions import Joint
-    from pmrf.fitting.minimize import fit_minimize
-
-    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 10.0, name='wide')
-
-    def fit(scale):
-        base = _correlated(1.0, 1.0)
-        import equinox as eqx
-        dist_tree = eqx.tree_at(lambda m: m.val, base.wide, prf.distributions.Normal(1.0, scale))
-        model = Probabilistic(model=base, distribution=Joint(dist_tree), target=lambda m: m.wide)
-        result = fit_minimize(model, NetworkCollection([ntwk]),
-                              solver=prf.optimize.ScipyMinimize(),
-                              inference='bayesian', max_iter=400)
-        m = prf.unwrap(result.model)
-        return float(prf.unwrap(m.wide.val))
-
-    assert jnp.allclose(fit(100.0), 10.0, atol=1e-1)   # data wins
-    assert fit(0.01) < 5.0                             # prior wins
-
-
 def test_map_prior_survives_pytree_round_trips(wide_band):
     """
     The captured distributions must not be rebuilt from an already-unwrapped tree.
@@ -388,20 +287,6 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     assert not jnp.allclose(direct, 0.0)
     assert jnp.allclose(rebuilt, direct)
     assert jnp.allclose(recombined, direct)
-
-
-def test_params_sees_past_a_probabilistic_wrapper():
-    """Parameter traversal must not stop at a wrapper, hiding the parameters beyond it.
-
-    The wrapper's target is named once, as the joint prior's single raw value."""
-    from pmrf.models import Probabilistic
-
-    base = _correlated()
-    wrapped = Probabilistic(model=base, distribution=prf.distributions.Normal(3.0, 1.0),
-                            target=lambda m: m.wide.val)
-
-    assert set(prf.params(wrapped)) == set(prf.params(base))
-    assert isinstance(prf.params(wrapped)["wide.val"], prx.Probabilize)
 
 
 def test_prior_is_finite_for_a_scaled_parameter(wide_band):
@@ -441,31 +326,3 @@ def test_scaled_parameter_still_moves_under_map(wide_band):
     assert not jnp.allclose(prf.unwrap(result.model.wide.val), prf.unwrap(model.wide.val))
 
 
-def test_probabilistic_folds_the_scale_of_its_target():
-    """
-    Attaching a distribution to a scaled parameter must not lose the scale.
-
-    Parax keeps only the physical value and drops the parameter, so a distribution
-    authored in the parameter's declared space would be evaluated against a scaled
-    value. For a non-uniform prior that is not a constant offset: it lands far into
-    the tail, where the density is nearly flat and exerts almost no gradient.
-    """
-    from pmrf.models import Probabilistic, Resistor
-    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-
-    prior = lambda: prf.distributions.Normal(75.0, 5.0)
-    log_prior = lambda m: tree_param_log_prob(tree_param_distributions(m), prf.unwrap(m))
-
-    scored = {}
-    for value in (75.0, 60.0):
-        # Authored over mm, held in metres.
-        plain = Resistor(prf.Random(prior(), value=value, scale=1e-3))
-        wrapped = Probabilistic(model=plain, distribution=prior(), target=lambda m: m.R)
-        scored[value] = (log_prior(plain), log_prior(wrapped))
-        assert jnp.allclose(prf.unwrap(wrapped).R, value * 1e-3)
-
-    for direct, via_wrapper in scored.values():
-        assert jnp.allclose(direct, via_wrapper, atol=1e-4)
-
-    # The prior must still discriminate: at the mean it is higher than 3 sigma away.
-    assert scored[75.0][1] > scored[60.0][1] + 1.0

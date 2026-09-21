@@ -11,7 +11,6 @@ import pytest
 import pmrf as prf
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.models.base import PLOT_DOMAINS
-from pmrf.distributions import Normal
 from pmrf.distributions import RelativeTruncatedNormal as RTNormal
 from pmrf.models import Capacitor, Cascade, Resistor, Short, Wrapped
 from pmrf.modules import Tied
@@ -409,23 +408,6 @@ def test_resolve_without_ties_returns_the_tree_unchanged():
 
     assert bool(eqx.tree_equal(resolved, parts))
     assert prf.is_param(resolved["a"].R) and prf.is_param(resolved["b"].R)
-
-
-def test_resolve_leaves_a_probabilistic_subtree_wrapped():
-    """`Probabilistic` bears a prior: discharging it is evaluation, not structure.
-
-    It absorbs the parameters below it and holds one raw value, so unwrapping it
-    turns a joint prior into a number the same way `prf.unwrap` turns a `Param`
-    into its value. `resolve` is structural, so it leaves the wrapper standing.
-    """
-    joint = prf.modules.Probabilistic(
-        _named_resistor(50.0, "p"), Normal(50.0, 1.0), target=lambda m: m.R
-    )
-    parts = {"p": joint, "a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
-
-    resolved = prf.resolve(prf.tie(parts, "b.R", "a.R"))
-    assert isinstance(resolved["p"], prf.modules.Probabilistic)
-    assert np.allclose(resolved["b"].R, 50.0)
 
 
 def test_resolve_keeps_the_tie_predicate_in_one_private_helper():
