@@ -1193,6 +1193,123 @@ def _joint_prior_paths(tree) -> set[tuple[Any, ...]]:
     return paths
 
 
+def _joint_blocks(tree) -> list[tuple[Any, list[tuple[Any, ...]], list[Any]]]:
+    """Returns every joint prior in `tree` with the JAX paths into `tree` of its
+    parameters and their nodes, in the order of its distribution's vector."""
+    blocks = []
+    for prefix, joint in _joint_priors(tree):
+        members = _joint_members(joint).values()
+        into = prefix + (jax.tree_util.GetAttrKey('module'),)
+        blocks.append((joint, [into + path for path, _ in members], [node for _, node in members]))
+    return blocks
+
+
+def _whitening(distribution: AbstractDistribution) -> AbstractBijector:
+    """Returns the bijector from a joint prior's whitened space to the space its
+    distribution is over, inferred as for a one-dimensional prior. It is the identity
+    when no whitening is known, so raw is then the distribution's own space."""
+    return prx.as_unwrapped(prx.constraints.infer_distribution_constraint(distribution)).bijector
+
+
+def _per_vector(fn: Callable[[Array], Array], x: Array) -> Array:
+    """Applies `fn`, which takes one vector, over the last axis of `x`, so a batched
+    model's values are mapped one sample at a time."""
+    for _ in range(jnp.ndim(x) - 1):
+        fn = jax.vmap(fn)
+    return fn(x)
+
+
+def _whitening_log_det(distribution: AbstractDistribution, z: Array) -> Array:
+    """Returns log|det J| of the whitening of `distribution` at the whitened vector `z`.
+
+    A flow's whitening is its bijector after its base's whitening, so the flow's own
+    log-determinant is used and the base is recursed into. Otherwise the Jacobian is
+    taken whole: a chained bijector can broadcast an event-level log-determinant over
+    the elements, so its sum is not trusted.
+    """
+    if isinstance(distribution, Transformed):
+        base = distribution.distribution
+        log_det = distribution.bijector.forward_log_det_jacobian(_whitening(base).forward(z))
+        if jnp.ndim(log_det) == 0:
+            return log_det + _whitening_log_det(base, z)
+    return jnp.linalg.slogdet(jax.jacfwd(_whitening(distribution).forward)(z))[1]
+
+
+def _stated_vector(joint, nodes: list) -> Array:
+    """Returns the values of a joint prior's parameters in the space its distribution
+    is stated over, stacked on the last axis."""
+    return jnp.stack(jnp.broadcast_arrays(*[_read(node, joint.space) for node in nodes]), axis=-1)
+
+
+def _whitened_vector(joint, nodes: list) -> Array:
+    """Returns the raw values of a joint prior's parameters: their stated values taken
+    through the inverse of its whitening, stacked on the last axis."""
+    whitening = _whitening(prx.as_unwrapped(joint.distribution))
+    return _per_vector(whitening.inverse, _stated_vector(joint, nodes))
+
+
+def _whitened_values(tree) -> dict[str, Array]:
+    """Returns the raw value of every parameter under a joint prior in `tree`, by name."""
+    blocks = _joint_blocks(tree)
+    if not blocks:
+        return {}
+    names = {path: name for name, (path, _) in tree_param_paths(tree).items()}
+    values = {}
+    for joint, paths, nodes in blocks:
+        z = _whitened_vector(joint, nodes)
+        values.update({names[path]: z[..., i] for i, path in enumerate(paths)})
+    return values
+
+
+def _joint_raw_log_det(joint, nodes: list) -> Array:
+    """Returns log|det J| of the map from a joint prior's whitened raw values `z` to its
+    parameters' declared values `x`.
+
+    With `t = w(z)` the stated values and `x_i = g_i(t_i)`, this is
+    $\\log|\\det \\partial w / \\partial z| + \\sum_i \\log|g_i'(t_i)|$, where $g_i$ is the
+    identity for a declared-space prior, division by the scale for a physical one, and the
+    parameter's raw-to-declared map for a raw one.
+    """
+    distribution = prx.as_unwrapped(joint.distribution)
+    log_det = _per_vector(lambda z: _whitening_log_det(distribution, z), _whitened_vector(joint, nodes))
+    for node in nodes:
+        if joint.space == 'raw':
+            log_det = log_det + _raw_log_det_jacobian(node)
+        elif joint.space == 'physical' and is_param(node):
+            log_det = log_det - jnp.log(jnp.abs(node._scale))
+    return log_det
+
+
+def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: str) -> tuple[list, list]:
+    """Returns the paths and nodes that write `entries`, ``(path, node, value)`` triples,
+    into `tree` with values in `space`.
+
+    A raw value of a parameter under a joint prior is its entry in the whitened vector.
+    Its parameters are written together: the entries not given keep their raw values,
+    and the vector is taken through the whitening to the stated space, so every
+    parameter under the prior may move.
+    """
+    blocks = _joint_blocks(tree) if space == 'raw' else []
+    given = {path: value for path, _, value in entries}
+    written = {}
+    for joint, paths, nodes in blocks:
+        if not any(path in given for path in paths):
+            continue
+        z = _whitened_vector(joint, nodes)
+        coords = [
+            jnp.asarray(_read(given[path], 'raw') if is_param(given[path]) else given[path])
+            if path in given else z[..., i]
+            for i, path in enumerate(paths)
+        ]
+        whitening = _whitening(prx.as_unwrapped(joint.distribution))
+        stated = _per_vector(whitening.forward, jnp.stack(jnp.broadcast_arrays(*coords), axis=-1))
+        for i, (path, node) in enumerate(zip(paths, nodes)):
+            written[path] = _write(node, stated[..., i], joint.space)
+    rest = [(path, _write(node, value, space)) for path, node, value in entries if path not in written]
+    pairs = rest + list(written.items())
+    return [path for path, _ in pairs], [node for _, node in pairs]
+
+
 def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
     """
     Resolves every parameter name in a tree to its JAX path and node.
@@ -1385,6 +1502,10 @@ def param_values(
     ``prf.update(m, prf.param_values(m, space=s), space=s)`` gives back `m`, with
     the same structure and jit cache key.
 
+    The raw value of a parameter under a joint prior (see :func:`prior`) is its entry
+    in the prior's whitened vector, so it depends on the other parameters under the
+    prior, and is the same whichever parameters `where` selects.
+
     Parameters
     ----------
     tree : PyTree
@@ -1410,7 +1531,10 @@ def param_values(
         prf.param_values(c, space='physical')    # {'C': 2e-12}
     """
     _check_space(space)
-    return {name: _read(leaf, space) for name, leaf in params(tree, where, free_only=free_only).items()}
+    values = {name: _read(leaf, space) for name, leaf in params(tree, where, free_only=free_only).items()}
+    if space == 'raw':
+        values.update({name: z for name, z in _whitened_values(tree).items() if name in values})
+    return values
 
 
 def log_prior(tree, *, space: Space = 'declared') -> Array:
@@ -1424,7 +1548,7 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
 
     $$\\log p_{\\text{physical}} = \\log p_{\\text{declared}} - \\sum_i n_i \\log |s_i|$$
 
-    $$\\log p_{\\text{raw}} = \\log p_{\\text{declared}} + \\sum_i \\log \\left|\\det \\frac{\\partial f_i}{\\partial z_i}\\right|$$
+    $$\\log p_{\\text{raw}} = \\log p_{\\text{declared}} + \\sum_i \\log \\left|\\det \\frac{\\partial f_i}{\\partial z_i}\\right| + \\sum_j \\log \\left|\\det \\frac{\\partial x_j}{\\partial z_j}\\right|$$
 
     where $n_i$ is the number of elements in parameter $i$. The scale and Jacobian
     terms are the change-of-variables formula for densities. Parameters without a
@@ -1436,7 +1560,10 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     The parameters under a joint prior (see :func:`prior`) are scored together by it,
     in place of their own priors: their values are taken to the joint prior's space,
     with the change-of-variables terms of the maps in between. A value outside a
-    parameter's bounds scores minus infinity.
+    parameter's bounds scores minus infinity. In raw space they are the prior's
+    whitened vector $z_j$ rather than their own raw values, so the first Jacobian sum
+    leaves them out and the second, over joint priors $j$, takes their declared values
+    $x_j$ from $z_j$ through the whitening and back from the prior's space.
 
     Parameters
     ----------
@@ -1467,8 +1594,13 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     if space == 'declared':
         return declared
 
-    free = [p for path, p in resolved.values() if not _is_fixed_path(tree, path, p)]
-    log_det = sum(
+    # The parameters under a joint prior move together in its whitened space.
+    joint_paths, log_det = set(), jnp.asarray(0.0)
+    for joint, paths, nodes in _joint_blocks(tree):
+        joint_paths |= set(paths)
+        log_det = log_det + jnp.sum(_joint_raw_log_det(joint, nodes))
+    free = [p for path, p in resolved.values() if not _is_fixed_path(tree, path, p) and path not in joint_paths]
+    log_det = log_det + sum(
         (jnp.sum(_raw_log_det_jacobian(p)) for p in free),
         start=jnp.asarray(0.0),
     )
@@ -1701,6 +1833,9 @@ def update(
         The fixed state to give every selected parameter.
     space : {'declared', 'physical', 'raw'}, optional
         The space of the values, by default ``'declared'``. Only used with values.
+        A raw value of a parameter under a joint prior is its entry in the prior's
+        whitened vector: the entries not given keep their raw values, and every
+        parameter under the prior may move.
     fn : Callable, optional
         Called on each selected part; its result replaces the part.
 
@@ -1761,7 +1896,7 @@ def update(
 
         resolved = tree_param_paths(tree)
         submodels = None
-        paths, nodes, unknown = [], [], []
+        paths, nodes, unknown, entries = [], [], [], []
         for name, v in selection.items():
             if isinstance(v, Model):
                 if name in resolved:
@@ -1774,8 +1909,7 @@ def update(
                 paths.append(_submodel_path(name, submodels))
                 nodes.append(v)
             elif name in resolved:
-                paths.append(resolved[name][0])
-                nodes.append(_write(resolved[name][1], v, space))
+                entries.append((*resolved[name], v))
             else:
                 if submodels is None:
                     submodels = _tree_submodel_paths(tree)
@@ -1785,6 +1919,8 @@ def update(
                 unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
+        written_paths, written = _write_values(tree, entries, space)
+        paths, nodes = paths + written_paths, nodes + written
         if submodels is None:
             return _set_paths(tree, paths, nodes)
         _check_no_overlap(paths)
@@ -1806,7 +1942,7 @@ def update(
                 "and attach it over fewer parameters instead."
             )
     if has_value:
-        nodes = [_write(leaf, value, space) for _, leaf in selected.values()]
+        paths, nodes = _write_values(tree, [(path, leaf, value) for path, leaf in selected.values()], space)
     else:
         nodes = [_with_fixed(leaf, fixed) for _, leaf in selected.values()]
     return _set_paths(tree, paths, nodes)
@@ -2097,8 +2233,14 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     The prior replaces any prior the parameters already had. Their value, scale, name,
     metadata and fixed state are kept. For a joint prior, :func:`log_prior` scores the
     parameters jointly in place of their own priors, which stay attached but unused,
-    and a value outside a parameter's bounds scores minus infinity. Raw space for its
-    parameters is not yet redefined as the distribution's whitened space (#194).
+    and a value outside a parameter's bounds scores minus infinity.
+
+    Attaching a joint prior redefines raw space for its parameters as the
+    distribution's whitened space, inferred as for a one-dimensional prior: a flow's
+    base, the Cholesky-whitened space of a multivariate normal, and so on. Where no
+    whitening is known, raw is the distribution's own space. Each parameter's raw
+    value, in :func:`param_values`, :func:`update` and :func:`log_prior`, is its entry
+    in that vector, so optimisers and samplers move in well-conditioned coordinates.
 
     A parameter under a joint prior cannot be fixed or tied, and cannot be under a
     second prior.
