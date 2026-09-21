@@ -255,6 +255,138 @@ def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
     assert jnp.allclose(float(prf.unwrap(result.model.wide.val)), 5.0, atol=1e-2)
 
 
+# ---------------------------------------------------------
+# Priors attached by name after construction
+# ---------------------------------------------------------
+
+def _correlated(a=3.0, b=7.0):
+    """A model a joint prior can be attached across two of its parameters."""
+    return CompositeModel(wide=SubModel(val=prf.Unconstrained(a)),
+                          narrow=SubModel(val=prf.Unconstrained(b)))
+
+
+def _correlated_normal(mean, scale=1.0):
+    """A bivariate normal with correlation 0.8 and standard deviations `scale`."""
+    import distreqx.distributions as dist
+    cov = scale ** 2 * jnp.array([[1.0, 0.8], [0.8, 1.0]])
+    return dist.MultivariateNormalTri(jnp.asarray(mean, dtype=float), jnp.linalg.cholesky(cov))
+
+
+def test_prior_attached_by_name_is_found(wide_band):
+    """A distribution attached after construction must be picked up."""
+    import distreqx.distributions as dist
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+
+    model = prf.prior(_correlated(), 'wide.val', prf.distributions.Normal(3.0, 1.0))
+
+    expected = float(dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0)))
+    scored = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
+
+    assert jnp.allclose(scored, expected, atol=1e-6)
+
+
+def test_correlated_joint_prior_across_sub_models(wide_band):
+    """A joint prior is scored over its parameters at once, preserving correlations."""
+    from pmrf.parameters import tree_param_log_prob, tree_param_distributions
+
+    joint = _correlated_normal([3.0, 6.0])
+    model = prf.prior(_correlated(), ['wide.val', 'narrow.val'], joint)
+
+    assert jnp.allclose(
+        tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model)),
+        joint.log_prob(jnp.array([3.0, 7.0])),
+        atol=1e-6,
+    )
+
+
+def test_map_problem_uses_a_correlated_prior(wide_band):
+    """End to end: PriorPenalized must apply an attached joint, not ignore it."""
+    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.terms import BoundEvaluator
+
+    joint = _correlated_normal([3.0, 6.0])
+    model = prf.prior(_correlated(), ['wide.val', 'narrow.val'], joint)
+    term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
+
+    mle = SummedTerms(model=model, terms=(term,))
+    mapp = PriorPenalized(SummedTerms(model=model, terms=(term,)))
+
+    assert jnp.allclose(mle(), 0.0, atol=1e-6)
+    assert jnp.allclose(mapp(), -joint.log_prob(jnp.array([3.0, 7.0])), atol=1e-6)
+    assert not jnp.allclose(mapp(), mle(), atol=1e-6)
+
+
+class _Pair(Model):
+    """Two parameters, only the first of which the data sees."""
+    val: Param
+    other: Param
+
+    def s(self, freq: Frequency, z0=50.0):
+        return jnp.ones((freq.npoints, 1, 1), dtype=complex) * self.val
+
+
+@requires_distreqx_transpose
+def test_correlated_prior_moves_a_fit(wide_band):
+    """A tight joint prior must pull the fit away from the data's answer.
+
+    The model is flat and fitted to one network: a network in a collection is predicted
+    from the sub-model of its name, which a model wrapped for a joint prior does not
+    expose as an attribute."""
+    from pmrf.fitting.minimize import fit_minimize
+
+    ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 10.0)
+
+    def fit(scale):
+        model = prf.prior(_Pair(val=prf.Unconstrained(1.0), other=prf.Unconstrained(1.0)),
+                          ['val', 'other'], _correlated_normal([1.0, 1.0], scale))
+        result = fit_minimize(model, ntwk, solver=prf.optimize.ScipyMinimize(),
+                              inference='bayesian', max_iter=400)
+        return float(prf.param_values(result.model)['val'])
+
+    assert jnp.allclose(fit(100.0), 10.0, atol=1e-1)   # data wins
+    assert fit(0.01) < 5.0                             # prior wins
+
+
+def test_params_sees_past_a_joint_prior():
+    """Parameter traversal must not stop at a joint prior: its parameters keep their
+    names and stay parameters."""
+    base = _correlated()
+    model = prf.prior(base, ['wide.val', 'narrow.val'], _correlated_normal([3.0, 6.0]))
+
+    assert list(prf.params(model)) == list(prf.params(base))
+    assert all(prf.is_param(p) for p in prf.params(model).values())
+
+
+def test_joint_prior_folds_the_scale_of_its_parameters():
+    """
+    A joint prior over declared values must not lose a parameter's scale.
+
+    An unwrapped tree holds physical values, so a distribution authored in declared
+    space scored against them unscaled would land far in its tail. For a non-uniform
+    prior that is not a constant offset: the density would be nearly flat.
+    """
+    import distreqx.distributions as dist
+    from pmrf.models import Resistor
+    from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+
+    log_prior = lambda m: tree_param_log_prob(tree_param_distributions(m), prf.unwrap(m))
+    joint = dist.MultivariateNormalDiag(jnp.array([75.0]), jnp.array([5.0]))
+
+    scored = {}
+    for value in (75.0, 60.0):
+        # Authored over mm, held in metres.
+        plain = Resistor(prf.Random(prf.distributions.Normal(75.0, 5.0), value=value, scale=1e-3))
+        wrapped = prf.prior(Resistor(prf.Unconstrained(value, scale=1e-3)), ['R'], joint)
+        scored[value] = (log_prior(plain), log_prior(wrapped))
+        assert jnp.allclose(prf.unwrap(wrapped).build().R, value * 1e-3)
+
+    for direct, via_joint in scored.values():
+        assert jnp.allclose(direct, via_joint, atol=1e-4)
+
+    # The prior must still discriminate: at the mean it is higher than 3 sigma away.
+    assert scored[75.0][1] > scored[60.0][1] + 1.0
+
+
 def test_map_prior_survives_pytree_round_trips(wide_band):
     """
     The captured distributions must not be rebuilt from an already-unwrapped tree.

@@ -410,6 +410,20 @@ def test_resolve_without_ties_returns_the_tree_unchanged():
     assert prf.is_param(resolved["a"].R) and prf.is_param(resolved["b"].R)
 
 
+def test_resolve_keeps_a_joint_prior():
+    """A joint prior is not a tie and does not change what its parameters are, so
+    `resolve`, which is structural, leaves it standing (ADR-0005)."""
+    import distreqx.distributions as dd
+
+    parts = {"p": _named_resistor(50.0, "p"), "a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
+    joint = prf.prior(parts, ["p.R", "a.R"], dd.MultivariateNormalDiag(jnp.array([50.0, 50.0]), jnp.ones(2)))
+
+    resolved = prf.resolve(prf.tie(joint, "b.R", "a.R"))
+    assert isinstance(resolved, prf.modules.Probabilistic)
+    assert prf.is_param(resolved.module["p"].R) and prf.is_param(resolved.module["a"].R)
+    assert np.allclose(resolved.module["b"].R, 50.0)
+
+
 def test_resolve_keeps_the_tie_predicate_in_one_private_helper():
     from pmrf import parameters
 
