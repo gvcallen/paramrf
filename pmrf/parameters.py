@@ -21,7 +21,7 @@ from parax.annotation import AbstractAnnotated
 
 from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.constraints import AbstractConstraint, Interval
-from pmrf.distributions import AbstractDistribution, Transformed
+from pmrf.distributions import AbstractDistribution, Transformed, truncate
 from pmrf.utils import error_if, field
 from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
@@ -1755,6 +1755,147 @@ def resolve(tree):
     return prx.unwrap(tree, only_if=_is_tie, cascade=False)
 
 
+def _declared_bounds(node) -> tuple[Array, Array] | None:
+    """Returns the bounds of a parameter or raw array in declared space, fixed or not,
+    or None if it has none."""
+    if not is_param(node):
+        return None
+    inner = _peel_fixed(node.variable)
+    return inner.bounds if prx.is_bounded(inner) else None
+
+
+def _within_bounds(distribution: AbstractDistribution, bounds: tuple[Array, Array]) -> bool:
+    """Returns whether the support of a distribution lies inside `bounds`, so that
+    truncating it to them would change nothing."""
+    support = prx.as_unwrapped(prx.constraints.infer_distribution_constraint(distribution)).bounds
+    return bool(jnp.all(support[0] >= bounds[0]) and jnp.all(support[1] <= bounds[1]))
+
+
+def _truncated_to(distribution: AbstractDistribution, bounds: tuple[Array, Array] | None) -> AbstractDistribution:
+    """Returns `distribution` truncated to `bounds`, or unchanged when the bounds are
+    absent, infinite or already contain its support."""
+    if bounds is None or bool(jnp.all(jnp.isinf(jnp.asarray(bounds)))) or _within_bounds(distribution, bounds):
+        return distribution
+    return truncate(distribution, *bounds)
+
+
+def _declared_prior(node, distribution: AbstractDistribution, space: str) -> AbstractDistribution:
+    """Returns the declared-space prior for `node` of a scalar-event `distribution`
+    over `space`, truncated so that the node's bounds still hold."""
+    bounds = _declared_bounds(node)
+    if space == 'declared':
+        return _truncated_to(distribution, bounds)
+    if space == 'raw':
+        # Raw values map into the bounds, so a prior over them cannot leave them.
+        to_declared = node.raw_to_declared_bijector if is_param(node) else None
+        return distribution if to_declared is None else Transformed(distribution, to_declared)
+    scale = node._scale if is_param(node) else 1.0
+    if scale == 1.0:
+        return _truncated_to(distribution, bounds)
+    if bounds is not None:
+        bounds = tuple(jnp.sort(jnp.stack([bounds[0] * scale, bounds[1] * scale]), axis=0))
+    to_declared = ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(1.0 / scale))
+    return Transformed(_truncated_to(distribution, bounds), to_declared)
+
+
+def _with_prior(node, distribution: AbstractDistribution) -> Param:
+    """Returns `node`, a parameter or raw array, rebuilt as if by :func:`Random` with
+    the declared-space prior `distribution` in place of any prior and constraint."""
+    if not is_param(node):
+        return Param(value=node, distribution=distribution)
+    return Param(
+        value=node.value,
+        distribution=distribution,
+        scale=node.scale,
+        fixed=node.fixed,
+        name=node.name,
+        metadata=node.metadata,
+    )
+
+
+def prior(tree, names: Selector, distribution: AbstractDistribution, space: Space = 'declared'):
+    """
+    Returns a copy of a model with a prior attached to the parameters `names` selects.
+
+    This attaches a prior after construction, instead of rebuilding a parameter with
+    :func:`Random`. The distribution's event size decides how it is attached:
+
+    - **Scalar event**: each selected parameter gets its own prior, exactly as if it
+      had been built with :func:`Random`. Its raw space becomes the new prior's
+      whitening, and the prior is truncated to the parameter's existing bounds, so the
+      bounds still hold. A prior whose support already lies inside the bounds is kept
+      as given.
+    - **Event size equal to the number of selected parameters**: a joint prior over
+      them. This is not supported yet, and raises.
+    - Anything else raises.
+
+    The prior replaces any prior the parameters already had. Their value, scale, name,
+    metadata and fixed state are kept.
+
+    Parameters
+    ----------
+    tree : PyTree
+        A model, or any collection of models and parameters.
+    names : str, Sequence[str] or Callable
+        The parameters to attach the prior to, as for :func:`update`: a name, an
+        `fnmatch` glob over names, a sequence of them, or a callable returning nodes
+        of `tree`. An unknown name raises; a glob matching nothing selects nothing.
+    distribution : AbstractDistribution
+        The prior. See :mod:`pmrf.distributions`.
+    space : {'declared', 'physical', 'raw'}, default='declared'
+        The space `distribution` is over. ``'raw'`` is the parameters' raw space as
+        it was just before this call, as :func:`param_values` returned it with
+        ``space='raw'``. The prior is mapped to declared space, with its
+        change-of-variables term, and a prior over raw space keeps the mapping from
+        that raw space to declared space. A mapped prior has no inverse CDF, so a
+        hypercube sampler needs `space` to be ``'declared'``, or ``'physical'`` on an
+        unscaled parameter.
+
+    Returns
+    -------
+    PyTree
+        The copy, with the selected parameters' priors replaced.
+
+    Raises
+    ------
+    ValueError
+        If a name is unknown, `space` is unknown, the event size is neither scalar
+        nor the number of selected parameters, or the prior has to be truncated to
+        the bounds and cannot be.
+    NotImplementedError
+        If the event size equals the number of selected parameters (a joint prior).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pmrf.distributions import Normal
+
+        cable = Resistor(prf.Bounded(0.0, 100.0, value=40.0), name='cable')
+        model = cable ** Resistor(50.0, name='load')
+        model = prf.prior(model, 'cable.*', Normal(50.0, 10.0))
+        prf.params(model)['cable.R'].distribution   # Normal(50, 10) truncated to [0, 100]
+        prf.params(model)['cable.R'].bounds         # (0.0, 100.0)
+    """
+    _check_space(space)
+    selected = _select(tree, names)
+    event_size = int(jnp.prod(jnp.asarray(distribution.event_shape)))
+    if distribution.event_shape != ():
+        if event_size == len(selected):
+            raise NotImplementedError(
+                f"A distribution with event size {event_size} over {len(selected)} parameters "
+                f"is a joint prior, which prf.prior does not support yet (#193)."
+            )
+        raise ValueError(
+            f"prf.prior got a distribution with event size {event_size} for "
+            f"{len(selected)} parameters: it must have a scalar event, or one entry "
+            f"per selected parameter."
+        )
+    paths = [path for path, _ in selected.values()]
+    nodes = [_with_prior(node, _declared_prior(node, distribution, space)) for _, node in selected.values()]
+    return _set_paths(tree, paths, nodes)
+
+
 __all__ = [
     "Param",
     "is_param",
@@ -1771,4 +1912,5 @@ __all__ = [
     "update",
     "tie",
     "resolve",
+    "prior",
 ]

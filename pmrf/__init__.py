@@ -70,6 +70,7 @@ from pmrf.parameters import (
     update as update,
     tie as tie,
     resolve as resolve,
+    prior as prior,
 )
 
 from pmrf.serialization import (
@@ -162,6 +163,7 @@ __all__ = [
     "update",
     "tie",
     "resolve",
+    "prior",
     "unwrap",
     "unwrap_self",
     "derivative",
