@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
+import itertools
 from collections.abc import Mapping
 from typing import Any, Literal, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
@@ -895,19 +896,29 @@ def tree_param_distributions(tree) -> Any:
     Extracts the prior distributions of a tree's parameters.
 
     The result mirrors the tree once unwrapped, holding each distribution in place of
-    the parameter it belongs to and `None` where there is no prior. Distributions are
-    metadata and are stripped by unwrapping, so this allows them to be extracted while
-    a tree is still wrapped and evaluated against its values afterwards.
+    the parameter it belongs to and `None` where there is no prior. A parameter under a
+    joint prior (:class:`pmrf.modules.Probabilistic`) holds a private marker for that
+    prior instead of its own prior, and :func:`tree_param_log_prob` scores the
+    parameters of one joint prior together. Distributions are metadata and are stripped by unwrapping, so
+    this allows them to be extracted while a tree is still wrapped and evaluated against
+    its values afterwards.
 
     Parameters
     ----------
     tree : PyTree
         The tree to extract from. Must still be wrapped.
     """
+    joint_keys = itertools.count()
+
     def build(node):
+        if isinstance(node, _JointMember):
+            return node.slot
         distribution = node_distribution(node)
         if distribution is not None:
             return distribution
+        if _is_joint_prior(node):
+            # Its parameters are scored together, in place of their own priors.
+            return build(_mark_joint_members(node, next(joint_keys)))
         if prx.is_unwrappable(node):
             # The node vanishes on unwrapping, so mirror what it leaves behind.
             return build(node.unwrap())
@@ -929,15 +940,145 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
     tree : PyTree
         The unwrapped tree to evaluate at.
     """
-    is_scored = lambda x: x is None or prx.is_distribution(x)
-    log_probs = jax.tree.map(
-        lambda d, value: d.log_prob(value) if prx.is_distribution(d) else jnp.asarray(0.0),
-        distributions, tree, is_leaf=is_scored,
-    )
+    is_scored = lambda x: x is None or prx.is_distribution(x) or isinstance(x, _JointSlot)
+    joints: dict[int, dict[int, tuple[_JointSlot, Array]]] = {}
+
+    def score(d, value):
+        if isinstance(d, _JointSlot):
+            # Scored once all the slots of its joint prior are gathered.
+            joints.setdefault(d.key, {})[d.index] = (d, value)
+            return jnp.asarray(0.0)
+        return d.log_prob(value) if prx.is_distribution(d) else jnp.asarray(0.0)
+
+    log_probs = jax.tree.map(score, distributions, tree, is_leaf=is_scored)
     # An array-valued parameter scores one density per element, so each leaf is reduced
     # before summing; otherwise the result is a vector and the objective stops being
     # scalar.
-    return sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
+    total = sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
+    return total + sum((_joint_log_prob(slots) for slots in joints.values()), start=jnp.asarray(0.0))
+
+
+class _JointSlot(eqx.Module):
+    """Stands in the distributions mirror for one parameter under a joint prior.
+
+    Carries what is needed to take the parameter's physical value to the joint prior's
+    space, so the joint prior can be scored against an unwrapped tree.
+    """
+
+    #: The joint distribution, in `space`.
+    distribution: AbstractDistribution
+    #: The map from the parameter's raw value to its declared value, or None.
+    raw_to_declared: AbstractBijector | None
+    #: The parameter's declared bounds, or None.
+    bounds: tuple[Array, Array] | None
+    #: The space the joint distribution is over.
+    space: str = eqx.field(static=True)
+    #: Identifies the joint prior within one mirror.
+    key: int = eqx.field(static=True)
+    #: The parameter's entry in the joint distribution's vector.
+    index: int = eqx.field(static=True)
+    #: The number of parameters under the joint prior.
+    size: int = eqx.field(static=True)
+    #: The parameter's scale.
+    scale: float = eqx.field(static=True)
+
+
+class _JointMember(prx.AbstractUnwrappable):
+    """Marks a parameter under a joint prior while its distributions mirror is built.
+
+    Unwraps to the parameter's value, so a tie reading it still gets a value."""
+
+    #: The parameter under the joint prior.
+    param: Any
+    #: What stands for it in the distributions mirror.
+    slot: _JointSlot
+
+    def unwrap(self):
+        return prx.unwrap(self.param)
+
+
+def _joint_members(joint) -> dict[str, tuple[tuple[Any, ...], Any]]:
+    """Resolves the parameters under a joint prior, by name, to their path in the
+    joint prior's `module` and their node, in the order of its distribution's vector."""
+    resolved = tree_param_paths(joint.module)
+    missing = [name for name in joint.names if name not in resolved]
+    if missing:
+        raise ValueError(
+            f"{', '.join(repr(name) for name in missing)} {'is' if len(missing) == 1 else 'are'} "
+            "under a joint prior but no longer a parameter of the tree it wraps."
+        )
+    return {name: resolved[name] for name in joint.names}
+
+
+def _mark_joint_members(joint, key: int):
+    """Returns the tree a joint prior wraps with its parameters marked by slots."""
+    members = _joint_members(joint)
+    distribution = prx.as_unwrapped(joint.distribution)
+    paths, marked = [], []
+    for index, (path, node) in enumerate(members.values()):
+        slot = _JointSlot(
+            distribution=distribution,
+            raw_to_declared=node.raw_to_declared_bijector if is_param(node) else None,
+            bounds=_declared_bounds(node),
+            space=joint.space,
+            key=key,
+            index=index,
+            size=len(members),
+            scale=node._scale if is_param(node) else 1.0,
+        )
+        paths.append(path)
+        marked.append(_JointMember(node, slot))
+    return _set_paths(joint.module, paths, marked)
+
+
+def _joint_log_prob(slots: dict[int, tuple[_JointSlot, Array]]) -> Array:
+    """Returns the physical-space log density of one joint prior at the physical values
+    its slots were matched with.
+
+    With physical values $y_i = s_i x_i$ and declared values $x_i = f_i(z_i)$, as in
+    :func:`log_prior`, a joint density $p$ over the values $t$ in its own space gives the
+    physical density
+
+    $$\\log p(t) - [t \\ne y] \\sum_i \\log |s_i| - [t = z] \\sum_i \\log |f_i'(z_i)|$$
+
+    by the change-of-variables formula. A value outside a parameter's bounds scores
+    minus infinity.
+    """
+    ordered = [slots[i] for i in sorted(slots)]
+    first = ordered[0][0]
+    if len(ordered) != first.size:
+        raise ValueError("A joint prior's parameters are missing from the tree it is scored against.")
+    physical = [jnp.asarray(value) for _, value in ordered]
+    declared = [y / slot.scale for (slot, _), y in zip(ordered, physical)]
+    outside = jnp.asarray(False)
+    for (slot, _), x in zip(ordered, declared):
+        if slot.bounds is not None:
+            outside = outside | jnp.any((x < slot.bounds[0]) | (x > slot.bounds[1]))
+
+    correction = jnp.asarray(0.0)
+    if first.space == 'physical':
+        values = physical
+    else:
+        correction = correction - sum(jnp.log(jnp.abs(slot.scale)) for slot, _ in ordered)
+        values = declared
+        if first.space == 'raw':
+            values = []
+            for (slot, _), x in zip(ordered, declared):
+                if slot.raw_to_declared is None:
+                    values.append(x)
+                    continue
+                z = slot.raw_to_declared.inverse(x)
+                correction = correction - slot.raw_to_declared.forward_log_det_jacobian(z)
+                values.append(z)
+    stacked = jnp.stack(jnp.broadcast_arrays(*values), axis=-1)
+    log_prob = first.distribution.log_prob(stacked)
+    if jnp.shape(log_prob) != stacked.shape[:-1]:
+        raise ValueError(
+            f"A joint prior's distribution must give one log density per vector of "
+            f"{first.size} values, but gave shape {jnp.shape(log_prob)}. An elementwise "
+            "bijector in a `Transformed` must be wrapped in a `Block` to reduce over the event."
+        )
+    return jnp.where(outside, -jnp.inf, log_prob + correction)
 
 
 def _is_name_leaf(x: Any) -> bool:
@@ -951,16 +1092,105 @@ def _is_name_transparent(x: Any) -> bool:
     from pmrf.models.adapters.derived import Derived
     from pmrf.models.adapters.wrapped import Wrapped
     from pmrf.modules.base import Module
-    from pmrf.modules.wrapped import Tied
+    from pmrf.modules.wrapped import Probabilistic, Tied
 
-    if isinstance(x, (Tied, Wrapped, Derived)):
+    if isinstance(x, (Tied, Probabilistic, Wrapped, Derived)):
         return True
     return isinstance(x, prx.AbstractUnwrappable) and not isinstance(x, Module) and not is_param(x)
+
+
+def _name_root(tree) -> tuple[tuple[Any, ...], Any]:
+    """Returns the path to, and the node of, the tree names are relative to.
+
+    That is `tree` itself, or the tree a chain of single-tree wrappers at its root
+    holds: a tie, a joint prior, or the RF adapter around them. Names are then the same
+    with and without the wrappers, even for a named module at the root, whose own name
+    is not part of its parameters' names.
+    """
+    from pmrf.models.adapters.wrapped import Wrapped
+    from pmrf.modules.wrapped import Probabilistic, Tied
+
+    # The fields each wrapper holds its tree in; a tie's is inside its Parax tie.
+    fields = {Wrapped: ('wrapped',), Probabilistic: ('module',), Tied: ('tie', 'tree')}
+    prefix, node = (), tree
+    while True:
+        attrs = next((attrs for cls, attrs in fields.items() if isinstance(node, cls)), None)
+        if attrs is None:
+            return prefix, node
+        for attr in attrs:
+            prefix, node = prefix + (jax.tree_util.GetAttrKey(attr),), getattr(node, attr)
+
+
+def _path_name(tree, path: tuple[Any, ...], root: tuple[tuple[Any, ...], Any]) -> str:
+    """Returns the name of the node at the JAX `path` into `tree`, relative to its
+    name root, as :func:`_name_root` gives it."""
+    prefix, node = root
+    if tuple(path[:len(prefix)]) == prefix:
+        tree, path = node, path[len(prefix):]
+    return path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
 
 
 def _is_frozen_path(tree, path: tuple[Any, ...]) -> bool:
     """Returns whether any node along the JAX key `path` into `tree` is frozen."""
     return any(prx.is_constant(parent) for parent, *_ in path_nodes(tree, path))
+
+
+def _is_joint_prior(x: Any) -> bool:
+    """Returns whether `x` is a joint prior, a :class:`pmrf.modules.Probabilistic`."""
+    from pmrf.modules.wrapped import Probabilistic
+
+    return isinstance(x, Probabilistic)
+
+
+def _joint_priors(tree) -> list[tuple[tuple[Any, ...], Any]]:
+    """Returns every joint prior in `tree`, nested ones included, with its JAX path."""
+    found = []
+
+    def walk(node, prefix):
+        is_leaf = lambda x: x is not node and _is_joint_prior(x)
+        for path, leaf in jax.tree_util.tree_flatten_with_path(node, is_leaf=is_leaf)[0]:
+            if _is_joint_prior(leaf):
+                full = prefix + tuple(path)
+                found.append((full, leaf))
+                walk(leaf, full)
+
+    if _is_joint_prior(tree):
+        found.append(((), tree))
+    walk(tree, ())
+    return found
+
+
+def _under_joint_prior(tree, selected: dict[str, tuple[tuple[Any, ...], Any]]) -> list[str]:
+    """Returns the names in `selected`, as :func:`_select` gives it, of the parameters
+    already under a joint prior in `tree`."""
+    joint = _joint_prior_paths(tree)
+    return [name for name, (path, _) in selected.items() if path in joint]
+
+
+def _check_joint_members(tree, action: str) -> None:
+    """Raises if a parameter under a joint prior in `tree` is no longer a free
+    parameter of the tree the joint prior wraps: tied away, fixed or frozen."""
+    for _, joint in _joint_priors(tree):
+        resolved = tree_param_paths(joint.module)
+        lost = [
+            name for name in joint.names
+            if name not in resolved or _is_fixed_path(joint.module, *resolved[name])
+        ]
+        if lost:
+            raise ValueError(
+                f"Cannot {action}: {', '.join(repr(name) for name in lost)} "
+                f"{'is' if len(lost) == 1 else 'are'} under a joint prior, whose distribution "
+                "must control it, so it must stay a free parameter."
+            )
+
+
+def _joint_prior_paths(tree) -> set[tuple[Any, ...]]:
+    """Returns the JAX paths into `tree` of every parameter under a joint prior."""
+    paths = set()
+    for prefix, joint in _joint_priors(tree):
+        resolved = tree_param_paths(joint)
+        paths |= {prefix + resolved[name][0] for name in joint.names if name in resolved}
+    return paths
 
 
 def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any, ...], Param | jnp.ndarray]]:
@@ -972,8 +1202,10 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
     Nested named modules are joined with ``_``.
 
     Names see through freezing (a frozen parameter keeps its name, but is not free)
-    and through Parax wrappers such as :class:`pmrf.modules.Tied`, whose own path
-    parts are omitted so that names are relative to the wrapped module. Parax's
+    and through wrappers such as :class:`pmrf.modules.Tied` and
+    :class:`pmrf.modules.Probabilistic`, whose own path parts are omitted so that
+    names are relative to the wrapped module. Wrappers at the root are seen past
+    entirely, so a named module at the root keeps its names when wrapped. Parax's
     opaque nodes are not descended into, and raw arrays inside frozen sub-trees are
     constant data rather than parameters.
 
@@ -995,6 +1227,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
         If two parameters resolve to the same name.
     """
     leaves, _ = jax.tree_util.tree_flatten_with_path(tree, is_leaf=_is_name_leaf)
+    root = _name_root(tree)
     resolved = {}
     for path, leaf in leaves:
         frozen = _is_frozen_path(tree, path)
@@ -1004,7 +1237,7 @@ def tree_param_paths(tree, free_only: bool = False) -> dict[str, tuple[tuple[Any
         elif not isinstance(leaf, jax.Array) or frozen:
             continue
 
-        name = path_to_name(tree, path, namespace_separator='_', is_transparent=_is_name_transparent)
+        name = _path_name(tree, path, root)
         if name in resolved:
             raise ValueError(
                 f"Parameter name collision: '{name}'.\n\n"
@@ -1101,8 +1334,9 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
     String dictionary keys that are identifiers become dotted names
     (``components.cable.length``); other keys keep the bracket form.
 
-    Names see through freezing and wrappers such as :class:`pmrf.modules.Tied`. The
-    target of a tie is derived rather than stored, so it is not named.
+    Names see through freezing and wrappers such as :class:`pmrf.modules.Tied` and a
+    joint prior (:class:`pmrf.modules.Probabilistic`), so attaching either keeps the
+    names. The target of a tie is derived rather than stored, so it is not named.
 
     Parameters
     ----------
@@ -1199,6 +1433,11 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     parameter, since those are the coordinates an optimiser or sampler moves. The
     priors of fixed and frozen parameters are included as constants.
 
+    The parameters under a joint prior (see :func:`prior`) are scored together by it,
+    in place of their own priors: their values are taken to the joint prior's space,
+    with the change-of-variables terms of the maps in between. A value outside a
+    parameter's bounds scores minus infinity.
+
     Parameters
     ----------
     tree : PyTree
@@ -1237,11 +1476,13 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
 
 
 def _log_scale(tree) -> Array:
-    """Returns the sum of n log|scale| over the scaled parameters of `tree` with a prior:
-    the constant taking the physical log prior to the declared one."""
+    """Returns the sum of n log|scale| over the scaled parameters of `tree` with a prior,
+    their own or a joint one: the constant taking the physical log prior to the
+    declared one."""
+    joint = _joint_prior_paths(tree)
     return sum(
-        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for _, p in tree_param_paths(tree).values()
-         if is_param(p) and p.distribution is not None and p._scale != 1.0),
+        (jnp.size(p.value) * jnp.log(jnp.abs(p._scale)) for path, p in tree_param_paths(tree).values()
+         if is_param(p) and (p.distribution is not None or path in joint) and p._scale != 1.0),
         start=jnp.asarray(0.0),
     )
 
@@ -1302,6 +1543,7 @@ def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
     from pmrf.modules.base import Module
 
     found: dict[str, list[tuple[Any, ...]]] = {}
+    root = _name_root(tree)
 
     def walk(node, prefix):
         is_leaf = lambda x: x is not node and (isinstance(x, Module) or _is_name_leaf(x))
@@ -1309,7 +1551,7 @@ def _tree_submodel_paths(tree) -> dict[str, list[tuple[Any, ...]]]:
             if not isinstance(leaf, Module):
                 continue
             full = prefix + tuple(path)
-            name = path_to_name(tree, full, namespace_separator='_', is_transparent=_is_name_transparent)
+            name = _path_name(tree, full, root)
             if name:
                 paths = found.setdefault(name, [])
                 if not any(full[:len(p)] == p for p in paths):
@@ -1470,9 +1712,9 @@ def update(
     Raises
     ------
     ValueError
-        If a name is unknown, a value is outside its parameter's constraint, or
-        structurally selected parts overlap. Under `jax.jit` the bounds check raises
-        at runtime.
+        If a name is unknown, a value is outside its parameter's constraint,
+        structurally selected parts overlap, or ``fixed=True`` selects a parameter under
+        a joint prior. Under `jax.jit` the bounds check raises at runtime.
     TypeError
         If the arguments match none of the forms, or a mapping gives a model for a
         parameter name or a non-model for a sub-model name.
@@ -1497,12 +1739,15 @@ def update(
             raise form_error()
         replace_fn = fn if has_fn else (lambda _: node)
         if callable(selection):
-            return eqx.tree_at(selection, tree, replace_fn=replace_fn)
-        paths = _select_parts(tree, selection)
-        if not paths:
-            return tree
-        parts = [Pathgetter(path)(tree) for path in paths]
-        return _set_paths(tree, paths, [replace_fn(part) for part in parts])
+            updated = eqx.tree_at(selection, tree, replace_fn=replace_fn)
+        else:
+            paths = _select_parts(tree, selection)
+            if not paths:
+                return tree
+            parts = [Pathgetter(path)(tree) for path in paths]
+            updated = _set_paths(tree, paths, [replace_fn(part) for part in parts])
+        _check_joint_members(updated, 'update')
+        return updated
 
     if selection is _MISSING:
         if not is_param(tree) or has_value == has_fixed:
@@ -1540,14 +1785,26 @@ def update(
                 unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
-        if submodels is not None:
-            _check_no_overlap(paths)
-        return _set_paths(tree, paths, nodes)
+        if submodels is None:
+            return _set_paths(tree, paths, nodes)
+        _check_no_overlap(paths)
+        updated = _set_paths(tree, paths, nodes)
+        _check_joint_members(updated, 'update')
+        return updated
 
     if not _is_selector(selection) or has_value == has_fixed:
         raise form_error()
     selected = _select(tree, selection)
     paths = [path for path, _ in selected.values()]
+    if has_fixed and fixed:
+        under = _under_joint_prior(tree, selected)
+        if under:
+            raise ValueError(
+                f"Cannot fix {', '.join(repr(name) for name in under)}: "
+                f"{'it is' if len(under) == 1 else 'they are'} under a joint prior, and a fixed "
+                "value does not fix any one of its coordinates. Marginalise the distribution "
+                "and attach it over fewer parameters instead."
+            )
     if has_value:
         nodes = [_write(leaf, value, space) for _, leaf in selected.values()]
     else:
@@ -1666,8 +1923,9 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
     Raises
     ------
     ValueError
-        If a name is not found, if a sub-model name is ambiguous, or if the two
-        sub-models do not have matching parameter names beneath them.
+        If a name is not found, if a sub-model name is ambiguous, if the two
+        sub-models do not have matching parameter names beneath them, or if a target
+        is under a joint prior, whose distribution must control it.
 
     Examples
     --------
@@ -1697,6 +1955,7 @@ def tie(tree, target: Selector, source: Selector, fn: Callable[[Any], Any] = _id
             source=resolve_target(one_source, name_to_path),
             tie_fn=fn,
         )
+    _check_joint_members(tied, 'tie')
     return Wrapped(wrapped=tied) if isinstance(tree, Model) else tied
 
 
@@ -1724,7 +1983,9 @@ def resolve(tree):
     Use `resolve` to read a tied tree back, and `unwrap` only to evaluate one.
 
     A tie's target resolves to a plain value either way, since it is derived and has
-    no prior of its own. Every other parameter survives as a parameter.
+    no prior of its own. Every other parameter survives as a parameter, and a joint
+    prior (:class:`pmrf.modules.Probabilistic`) is kept, since it is not a tie and
+    does not change what its parameters are.
 
     Parameters
     ----------
@@ -1826,11 +2087,21 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
       bounds still hold. A prior whose support already lies inside the bounds is kept
       as given.
     - **Event size equal to the number of selected parameters**: a joint prior over
-      them. This is not supported yet, and raises.
+      them. The tree is wrapped, unchanged, in a :class:`pmrf.modules.Probabilistic`
+      (inside a :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
+      methods stay available). Every parameter keeps its name and stays a parameter.
+      With a sequence of exact names, the distribution's vector is in that order; a
+      glob, or a callable, expands to sorted names.
     - Anything else raises.
 
     The prior replaces any prior the parameters already had. Their value, scale, name,
-    metadata and fixed state are kept.
+    metadata and fixed state are kept. For a joint prior, :func:`log_prior` scores the
+    parameters jointly in place of their own priors, which stay attached but unused,
+    and a value outside a parameter's bounds scores minus infinity. Raw space for its
+    parameters is not yet redefined as the distribution's whitened space (#194).
+
+    A parameter under a joint prior cannot be fixed or tied, and cannot be under a
+    second prior.
 
     Parameters
     ----------
@@ -1860,10 +2131,11 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     ------
     ValueError
         If a name is unknown, `space` is unknown, the event size is neither scalar
-        nor the number of selected parameters, or the prior has to be truncated to
-        the bounds and cannot be.
-    NotImplementedError
-        If the event size equals the number of selected parameters (a joint prior).
+        nor the number of selected parameters, the prior has to be truncated to
+        the bounds and cannot be, or a selected parameter is already under a joint
+        prior. For a joint prior, also if a selected name is not a free parameter
+        (a fixed or frozen parameter raises, and a tie's target is not a parameter at
+        all) or a selected parameter is not a scalar.
 
     Examples
     --------
@@ -1876,16 +2148,27 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         model = prf.prior(model, 'cable.*', Normal(50.0, 10.0))
         prf.params(model)['cable.R'].distribution   # Normal(50, 10) truncated to [0, 100]
         prf.params(model)['cable.R'].bounds         # (0.0, 100.0)
+
+    A joint prior, here the posterior of an earlier fit over two parameters:
+
+    .. code-block:: python
+
+        model = prf.prior(model, ['a.R', 'b.R'], posterior, space='raw')
+        prf.params(model)   # the same names as before
     """
     _check_space(space)
     selected = _select(tree, names)
+    under = _under_joint_prior(tree, selected)
+    if under:
+        raise ValueError(
+            f"{', '.join(repr(name) for name in under)} {'is' if len(under) == 1 else 'are'} "
+            "already under a joint prior, which replaces its own prior. A parameter can be "
+            "under one joint prior only."
+        )
     event_size = int(jnp.prod(jnp.asarray(distribution.event_shape)))
     if distribution.event_shape != ():
         if event_size == len(selected):
-            raise NotImplementedError(
-                f"A distribution with event size {event_size} over {len(selected)} parameters "
-                f"is a joint prior, which prf.prior does not support yet (#193)."
-            )
+            return _attach_joint_prior(tree, _joint_order(selected, names), distribution, space)
         raise ValueError(
             f"prf.prior got a distribution with event size {event_size} for "
             f"{len(selected)} parameters: it must have a scalar event, or one entry "
@@ -1894,6 +2177,44 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     paths = [path for path, _ in selected.values()]
     nodes = [_with_prior(node, _declared_prior(node, distribution, space)) for _, node in selected.values()]
     return _set_paths(tree, paths, nodes)
+
+
+def _joint_order(selected: dict, names: Selector) -> list[str]:
+    """Returns the selected names in the order of a joint prior's vector: as given for
+    exact names, and sorted for what a glob or a callable expands to."""
+    if callable(names):
+        return sorted(selected)
+    ordered = []
+    for pattern in ([names] if isinstance(names, str) else names):
+        hits = [pattern] if pattern in selected else sorted(
+            name for name in selected if fnmatch.fnmatchcase(name, pattern)
+        )
+        ordered += [name for name in hits if name not in ordered]
+    return ordered
+
+
+def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistribution, space: Space):
+    """Returns `tree` wrapped, unchanged, in a joint prior over the parameters `names`."""
+    from pmrf.models import Model, Wrapped
+    from pmrf.modules import Probabilistic
+
+    resolved = tree_param_paths(tree)
+    not_free = [name for name in names if _is_fixed_path(tree, *resolved[name])]
+    if not_free:
+        raise ValueError(
+            f"A joint prior is over free parameters, but {', '.join(repr(name) for name in not_free)} "
+            f"{'is' if len(not_free) == 1 else 'are'} fixed or frozen. To condition on a fixed "
+            "value, marginalise the distribution and attach it over fewer parameters."
+        )
+    not_scalar = [name for name in names if jnp.size(_read(resolved[name][1], 'declared')) != 1]
+    if not_scalar:
+        raise ValueError(
+            f"A joint prior has one entry per parameter, so each must be a scalar, but "
+            f"{', '.join(repr(name) for name in not_scalar)} {'is' if len(not_scalar) == 1 else 'are'} not."
+        )
+    base = tree.wrapped if isinstance(tree, Wrapped) else tree
+    joint = Probabilistic(base, distribution, tuple(names), space)
+    return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
 
 
 __all__ = [

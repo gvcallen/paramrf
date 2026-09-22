@@ -137,10 +137,12 @@ def test_prior_bad_space_raises():
         prf.prior(RC(R=1.0, C=2.0), "R", Normal(0.0, 1.0), space="unconstrained")
 
 
-def test_prior_joint_event_size_is_not_supported_yet():
+def test_prior_joint_event_size_attaches_a_joint_prior():
+    """Joint priors are covered in `test_parameters_joint_prior.py`."""
     joint = dist.MultivariateNormalDiag(jnp.zeros(2), jnp.ones(2))
-    with pytest.raises(NotImplementedError, match="joint"):
-        prf.prior(RC(R=1.0, C=2.0), ["R", "C"], joint)
+    model = prf.prior(RC(R=prf.Unconstrained(1.0), C=prf.Unconstrained(2.0)), ["R", "C"], joint)
+    assert isinstance(model.wrapped, prf.modules.Probabilistic)
+    assert model.wrapped.names == ("R", "C")
 
 
 def test_prior_other_event_size_raises():

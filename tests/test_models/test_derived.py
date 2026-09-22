@@ -165,6 +165,27 @@ def test_log_prior_is_the_base_plus_the_new_parameters(space):
     np.testing.assert_allclose(prf.log_prior(model, space=space), expected)
 
 
+def test_joint_prior_on_the_base_still_scores():
+    """ADR-0003: a joint prior over a derived model's base scores unchanged, and the
+    base's names are the prior's names."""
+    import distreqx.distributions as dd
+
+    cable = _cable()
+    attached = prf.prior(cable, ['length'], dd.MultivariateNormalDiag(jnp.array([2.0]), jnp.array([0.1])))
+    # `wet` is given the joint prior itself, which unwraps to the cable. Unwrapping the
+    # RF adapter around it leaves the adapter, which has no `dielectric` for `wet` to
+    # read, as for a tied base.
+    base = attached.wrapped
+    assert prf.params(base).keys() == prf.params(attached).keys() == prf.params(cable).keys()
+    model = _wet(base)
+    assert 'length' in prf.params(base) and 'length' in prf.params(model)
+    expected = prf.log_prior(base) + prf.log_prior(
+        (prf.Random(Uniform(0.0, 1.0), value=0.4), prf.Random(Uniform(1.0, 80.0), value=4.0))
+    )
+    np.testing.assert_allclose(prf.log_prior(model), expected)
+    np.testing.assert_allclose(model.s(FREQ), _by_hand(cable, 0.4, 4.0).s(FREQ), rtol=1e-12, atol=1e-14)
+
+
 def test_nesting_shares_one_parameter():
     east = CoaxialLine(length=2.0, name='east')
     west = CoaxialLine(length=3.0, name='west')
