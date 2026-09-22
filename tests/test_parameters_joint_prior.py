@@ -650,7 +650,8 @@ def test_cube_draws_follow_a_coupling_flow():
     """The user's pipeline: a flow trained over the raw values of fit 1's free parameters,
     in sorted-name order, is fit 2's prior. Training moves the flow's diagonal-Gaussian
     base, so the base here is moved off the standard normal. The cube draws match draws
-    from the flow itself."""
+    from the flow itself. The tolerances allow for the Monte Carlo error of two sets of
+    20 000 draws, whose standard deviations are about 0.1 to 0.2."""
     fleqx = pytest.importorskip("fleqx", reason="fleqx is not installed")
     parts = _parts()
     names = sorted(NAMES)

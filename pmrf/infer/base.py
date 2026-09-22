@@ -231,11 +231,11 @@ def run_sampler(
     :func:`pmrf.prior` goes through its base's inverse CDF and then its map. A joint
     prior's parameters go through the standard normal's inverse CDF to its whitened raw
     values (scaled to its base when that is an independent normal other than the
-    standard one), and from there through the whitening and their raw-to-declared maps,
-    so the joint prior needs a bijector over an independent normal base, as a flow
-    has, or must be a multivariate normal. Samples are written back with :func:`pmrf.update`, so
-    fixed parameters, names, scales and priors are unchanged, and only free
-    parameters are batched.
+    standard one), and from there through the whitening and their raw-to-declared
+    maps, so the joint prior needs a bijector over an independent normal base, as a
+    flow has, or must be a multivariate normal. Samples are written back with
+    :func:`pmrf.update`, so fixed parameters, names, scales and priors are unchanged,
+    and only free parameters are batched.
 
     A parameter starting exactly on one of its bounds has an infinite raw value and
     could not move, so a joint or split sampler raises; start it inside its bounds.
@@ -319,7 +319,7 @@ def run_sampler(
                 "`prf.update(model, names, fixed=True)`."
             )
         # Priors are authored in declared space, so the cube maps to declared values.
-        own = {name: _scalar_cube(name, node.distribution) for name, node in free.items() if name not in in_blocks}
+        own = {name: _scalar_quantiles(name, node.distribution) for name, node in free.items() if name not in in_blocks}
 
         def _to_cube(tree) -> dict:
             declared = param_values(tree, names)
@@ -361,6 +361,16 @@ def run_sampler(
         raise TypeError(f"Provided solver {type(solver)} is not a recognized AbstractSampler.")
 
 
+def _flow_base(distribution) -> tuple[list, Any]:
+    """Returns the bijectors of the nested flows `distribution` is, outermost first, and
+    the base under them all."""
+    bijectors = []
+    while isinstance(distribution, Transformed):
+        bijectors.append(distribution.bijector)
+        distribution = distribution.distribution
+    return bijectors, distribution
+
+
 def _normal_base(distribution) -> tuple[Array, Array] | None:
     """Returns the loc and scale of the independent normal a joint prior's whitened space
     follows, or None when it is not one.
@@ -370,9 +380,7 @@ def _normal_base(distribution) -> tuple[Array, Array] | None:
     standard normal. An independent normal has no whitening, so its whitened space is
     itself, whose loc and scale a trained flow's base moves off the standard normal.
     """
-    base = distribution
-    while isinstance(base, Transformed):
-        base = base.distribution
+    _, base = _flow_base(distribution)
     n = distribution.event_shape[-1]
     if isinstance(base, MultivariateNormalDiag | MultivariateNormalTri | MultivariateNormalFullCovariance):
         return jnp.zeros(n), jnp.ones(n)
@@ -403,13 +411,13 @@ def _cube_blocks(model) -> list[tuple[list[str], Array, Array]]:
                 f"{', '.join(repr(name) for name in block_names)} is a "
                 f"{type(distribution).__name__} with no such base. Give it the structure of a "
                 "flow, a bijector over an independent normal base (`Transformed(Independent(Normal(...)), "
-                "bijector)`) or a multivariate normal, or use a joint or split sampler."
+                "bijector)`) or a multivariate normal."
             )
         blocks.append((block_names, *base))
     return blocks
 
 
-def _scalar_cube(name: str, distribution) -> tuple[Callable[[Array], Array], Callable[[Array], Array]]:
+def _scalar_quantiles(name: str, distribution) -> tuple[Callable[[Array], Array], Callable[[Array], Array]]:
     """Returns the inverse CDF of a parameter's declared-space prior and its CDF.
 
     A prior mapped from raw or physical space by `prf.prior` is a flow with no inverse
@@ -420,12 +428,7 @@ def _scalar_cube(name: str, distribution) -> tuple[Callable[[Array], Array], Cal
     ValueError
         If the prior, or the base of a mapped one, has no inverse CDF.
     """
-    distribution = prx.as_unwrapped(distribution)
-    bijectors = []
-    base = distribution
-    while isinstance(base, Transformed):
-        bijectors.append(base.bijector)
-        base = base.distribution
+    bijectors, base = _flow_base(prx.as_unwrapped(distribution))
     try:
         base.icdf(jnp.asarray(0.5))
     except NotImplementedError:

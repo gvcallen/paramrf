@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from jax.scipy.stats import norm
 
 import pmrf as prf
 from pmrf.constraints import Interval
@@ -329,8 +330,6 @@ def test_joint_sampler_moves_and_scores_a_parameter_under_a_joint_prior():
 def test_hypercube_sampler_moves_a_parameter_under_a_joint_prior():
     """The cube goes through the standard normal's inverse CDF, the whitening and the
     parameter's old raw-to-declared map, and the starting value maps to the cube and back."""
-    from jax.scipy.stats import norm
-
     model = _joint_prior()
     _, results = infer_base.run_sampler(lambda m, a: 0.0, model, _StubHypercubeSampler(), jax.random.key(0))
     to_declared = prf.params(model)["R"].raw_to_declared_bijector
