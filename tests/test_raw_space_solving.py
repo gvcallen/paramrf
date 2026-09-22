@@ -265,14 +265,15 @@ def test_hypercube_sampler_names_free_parameters_without_a_prior():
 
 
 def _joint_prior():
-    """A joint prior of event size one, over a bounded parameter with no prior of its own.
+    """A joint prior of event size one, over the raw value of a bounded parameter with no
+    prior of its own, so no raw value leaves the bounds.
 
     The model is a :class:`pmrf.models.Wrapped`, so solvers see it unwrapped as one, and
     read its parameter through `build()`."""
     import distreqx.distributions as dist
 
     inner = Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="load")
-    return prf.prior(inner, ["R"], dist.MultivariateNormalDiag(jnp.array([52.0]), jnp.array([2.0])))
+    return prf.prior(inner, ["R"], dist.MultivariateNormalDiag(jnp.array([0.2]), jnp.array([0.5])), space="raw")
 
 
 def _declared_R(model):
@@ -288,17 +289,17 @@ def test_parameter_under_a_joint_prior_is_a_free_raw_value():
 
 
 def test_joint_prior_raw_log_prior_includes_jacobian():
-    """Raw space is not whitened by the joint prior (#194): it is still the parameter's
-    own raw space, so the raw log prior carries its raw-to-declared Jacobian."""
+    """Raw space is the joint prior's whitened space, and the raw log prior carries the
+    Jacobian of the map from it to declared space."""
     model = _joint_prior()
     z = prf.param_values(model, free_only=True, space="raw")["R"] + 0.3
 
     def declared(z):
         return _declared_R(prf.update(model, {"R": z}, space="raw"))
 
-    x = declared(z)
-    expected = prf.distributions.Normal(52.0, 2.0).log_prob(x) + jnp.log(jnp.abs(jax.grad(declared)(z)))
-    actual = prf.log_prior(prf.update(model, {"R": z}, space="raw"), space="raw")
+    moved = prf.update(model, {"R": z}, space="raw")
+    expected = prf.log_prior(moved, space="declared") + jnp.log(jnp.abs(jax.grad(declared)(z)))
+    actual = prf.log_prior(moved, space="raw")
     assert np.allclose(actual, expected, rtol=1e-6)
 
 

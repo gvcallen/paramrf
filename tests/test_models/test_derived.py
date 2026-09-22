@@ -171,7 +171,7 @@ def test_joint_prior_on_the_base_still_scores():
     import distreqx.distributions as dd
 
     cable = _cable()
-    attached = prf.prior(cable, ['length'], dd.MultivariateNormalDiag(jnp.array([2.0]), jnp.array([0.1])))
+    attached = prf.prior(cable, ['length'], dd.MultivariateNormalDiag(jnp.array([2.0]), jnp.array([0.1])), space='raw')
     # `wet` is given the joint prior itself, which unwraps to the cable. Unwrapping the
     # RF adapter around it leaves the adapter, which has no `dielectric` for `wet` to
     # read, as for a tied base.
