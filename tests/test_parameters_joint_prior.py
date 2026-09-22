@@ -46,6 +46,16 @@ def _parts():
     }
 
 
+def _unbounded_parts():
+    """As :func:`_parts`, but with `a.R` and `b.R` unbounded, so a joint prior over their
+    declared or physical values fits inside their bounds."""
+    return {
+        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
+        "b": Resistor(R=prf.Unconstrained(50.0), name="b"),
+        "c": _parts()["c"],
+    }
+
+
 def _example():
     """The correlated-Gaussian example of #193: a joint prior over the raw values of two
     sibling sub-models' parameters, with `c.C` keeping its own prior."""
@@ -87,7 +97,7 @@ def test_raw_joint_prior_scores_declared_values_through_the_old_raw_space():
 
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_joint_prior_matches_the_closed_form(space):
-    parts = _parts()
+    parts = _unbounded_parts()
     mean, tril = [50.5, 49.0], [[2.0, 0.0], [1.6, 1.2]]
     model = prf.prior(parts, NAMES, _gaussian(mean, tril), space=space)
     values = prf.param_values(parts, space=space)
@@ -141,12 +151,51 @@ def test_a_value_outside_the_bounds_scores_minus_infinity():
         "a": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="a"),
         "b": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="b"),
     }
-    model = prf.prior(parts, NAMES, _gaussian([50.0, 50.0], [[20.0, 0.0], [0.0, 20.0]]))
+    model = prf.prior(parts, NAMES, _gaussian([0.0, 0.0], [[2.0, 0.0], [0.0, 2.0]]), space="raw")
     distributions = tree_param_distributions(model)
     inside = prf.unwrap(model)
     assert np.isfinite(tree_param_log_prob(distributions, inside))
     outside = eqx.tree_at(lambda m: m["a"].R, inside, jnp.asarray(70.0))
     assert tree_param_log_prob(distributions, outside) == -jnp.inf
+
+
+@pytest.mark.parametrize("space", ["declared", "physical"])
+def test_a_joint_prior_whose_support_leaves_the_bounds_raises(space):
+    """A correlated Gaussian over declared or physical values reaches outside bounded
+    parameters, and cannot be truncated to them exactly."""
+    with pytest.raises(ValueError, match=r"'a\.R', 'b\.R'.*space='raw'"):
+        prf.prior(_parts(), NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]), space=space)
+    with pytest.raises(ValueError, match=r"'a\.R', 'b\.R'.*space='raw'"):
+        prf.prior(_parts(), NAMES, dd.MultivariateNormalTri(jnp.array([50.0, 50.0]), jnp.eye(2)), space=space)
+
+
+def test_the_attach_error_names_only_the_parameters_whose_bounds_are_left():
+    parts = {"a": Resistor(R=prf.Unconstrained(50.0), name="a"), "b": _parts()["b"]}
+    with pytest.raises(ValueError, match=r"bounds of 'b\.R'\. "):
+        prf.prior(parts, NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]))
+
+
+def test_a_joint_prior_whose_support_fits_the_bounds_is_accepted():
+    """Over unbounded parameters, and over bounded ones for a support inside the bounds."""
+    model = prf.prior(_unbounded_parts(), NAMES, _gaussian(MU, L))
+    assert isinstance(model, Probabilistic)
+    bounded = {
+        "a": Resistor(R=prf.Bounded(0.0, 1.0, value=0.5), name="a"),
+        "b": Resistor(R=prf.Bounded(-1.0, 3.0, value=0.5), name="b"),
+    }
+    # A sigmoid over a standard-normal base, shifted: support (0, 1) x (1, 2).
+    squash = db.Chain([db.Block(db.Shift(jnp.array([0.0, 1.0])), 1), db.Block(db.Sigmoid(), 1)])
+    box = dd.Transformed(dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1), squash)
+    assert isinstance(prf.prior(bounded, NAMES, box), Probabilistic)
+
+
+def test_a_raw_joint_prior_over_bounded_parameters_is_accepted():
+    parts = {
+        "a": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="a"),
+        "b": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="b"),
+    }
+    model = prf.prior(parts, NAMES, _gaussian([0.0, 0.0], [[2.0, 0.0], [1.6, 1.2]]), space="raw")
+    assert isinstance(model, Probabilistic)
 
 
 def test_two_disjoint_joint_priors_are_both_scored():
@@ -243,7 +292,7 @@ def test_raw_log_prior_carries_the_jacobian_of_the_whitening():
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_raw_log_prior_carries_the_jacobian_in_every_prior_space(space):
     parts = {
-        "a": Resistor(R=prf.Bounded(30.0, 70.0, value=50.0), name="a"),
+        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
         "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
     }
     mean = [49.0, 2.2] if space == "declared" else [49.0, 2.2e-12]

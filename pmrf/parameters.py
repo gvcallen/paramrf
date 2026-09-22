@@ -2165,11 +2165,29 @@ def _declared_bounds(node) -> tuple[Array, Array] | None:
     return inner.bounds if prx.is_bounded(inner) else None
 
 
+def _support(distribution: AbstractDistribution) -> tuple[Array, Array]:
+    """Returns the support of a distribution as lower and upper bounds over its event,
+    as Parax infers it. An entry it cannot determine is unbounded."""
+    lower, upper = prx.as_unwrapped(prx.constraints.infer_distribution_constraint(distribution)).bounds
+    lower, upper = jnp.broadcast_arrays(jnp.asarray(lower), jnp.asarray(upper))
+    return jnp.where(jnp.isnan(lower), -jnp.inf, lower), jnp.where(jnp.isnan(upper), jnp.inf, upper)
+
+
 def _within_bounds(distribution: AbstractDistribution, bounds: tuple[Array, Array]) -> bool:
     """Returns whether the support of a distribution lies inside `bounds`, so that
     truncating it to them would change nothing."""
-    support = prx.as_unwrapped(prx.constraints.infer_distribution_constraint(distribution)).bounds
+    support = _support(distribution)
     return bool(jnp.all(support[0] >= bounds[0]) and jnp.all(support[1] <= bounds[1]))
+
+
+def _bounds_in_space(node, space: str) -> tuple[Array, Array] | None:
+    """Returns the bounds of a parameter or raw array in declared or physical space, or
+    None if it has none."""
+    bounds = _declared_bounds(node)
+    scale = node._scale if is_param(node) else 1.0
+    if bounds is None or space == 'declared' or scale == 1.0:
+        return bounds
+    return tuple(jnp.sort(jnp.stack([bounds[0] * scale, bounds[1] * scale]), axis=0))
 
 
 def _truncated_to(distribution: AbstractDistribution, bounds: tuple[Array, Array] | None) -> AbstractDistribution:
@@ -2193,8 +2211,7 @@ def _declared_prior(node, distribution: AbstractDistribution, space: str) -> Abs
     scale = node._scale if is_param(node) else 1.0
     if scale == 1.0:
         return _truncated_to(distribution, bounds)
-    if bounds is not None:
-        bounds = tuple(jnp.sort(jnp.stack([bounds[0] * scale, bounds[1] * scale]), axis=0))
+    bounds = _bounds_in_space(node, space)
     to_declared = ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(1.0 / scale))
     return Transformed(_truncated_to(distribution, bounds), to_declared)
 
@@ -2235,7 +2252,9 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     - Anything else raises.
 
     The prior replaces any prior the parameters already had. Their value, scale, name,
-    metadata and fixed state are kept. For a joint prior, :func:`log_prior` scores the
+    metadata and fixed state are kept. A joint prior over declared or physical space
+    must have its support inside the parameters' bounds, since it cannot be truncated
+    to them and stay exactly normalised. For a joint prior, :func:`log_prior` scores the
     parameters jointly in place of their own priors, which stay attached but unused,
     and a value outside a parameter's bounds scores minus infinity.
 
@@ -2281,7 +2300,9 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         the bounds and cannot be, or a selected parameter is already under a joint
         prior. For a joint prior, also if a selected name is not a free parameter
         (a fixed or frozen parameter raises, and a tie's target is not a parameter at
-        all) or a selected parameter is not a scalar.
+        all), a selected parameter is not a scalar, or, over ``'declared'`` or
+        ``'physical'`` space, the distribution's support leaves a selected parameter's
+        bounds. A support Parax cannot determine counts as unbounded.
 
     Examples
     --------
@@ -2358,9 +2379,31 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
             f"A joint prior has one entry per parameter, so each must be a scalar, but "
             f"{', '.join(repr(name) for name in not_scalar)} {'is' if len(not_scalar) == 1 else 'are'} not."
         )
+    if space != 'raw':
+        _check_joint_support(names, [resolved[name][1] for name in names], distribution, space)
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
     joint = Probabilistic(base, distribution, tuple(names), space)
     return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
+
+
+def _check_joint_support(names: list[str], nodes: list, distribution: AbstractDistribution, space: str) -> None:
+    """Raises unless the support of a joint prior over declared or physical `space` lies
+    inside its parameters' bounds, taken to that space. Every bound counts as the
+    parameter's validity."""
+    lower, upper = (jnp.ravel(b) for b in _support(distribution))
+    lower, upper = jnp.broadcast_to(lower, (len(names),)), jnp.broadcast_to(upper, (len(names),))
+    outside = []
+    for i, (name, node) in enumerate(zip(names, nodes)):
+        bounds = _bounds_in_space(node, space)
+        if bounds is not None and not (bool(jnp.all(lower[i] >= bounds[0])) and bool(jnp.all(upper[i] <= bounds[1]))):
+            outside.append(name)
+    if outside:
+        raise ValueError(
+            f"A joint prior over {space} space must have its support inside its parameters' "
+            f"bounds, but its support leaves the bounds of {', '.join(repr(name) for name in outside)}. "
+            "It cannot be truncated to them and stay exactly normalised. Attach a distribution "
+            "over the parameters' raw values instead, with space='raw', which cannot leave the bounds."
+        )
 
 
 __all__ = [
