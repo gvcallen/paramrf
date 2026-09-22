@@ -8,7 +8,10 @@ import abc
 import jax.numpy as jnp
 import jax
 from jax.scipy.stats import norm
-from distreqx.bijectors import Identity
+try:
+    from distreqx.bijectors import Identity
+except ImportError:
+    from parax._bijectors import Identity
 from distreqx.distributions import (
     Independent,
     MultivariateNormalDiag,
