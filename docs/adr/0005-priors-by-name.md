@@ -90,9 +90,24 @@ The same word, raw, therefore names two spaces for these parameters: the one
 
 ### Bounds
 
-A parameter's bounds still hold under a joint prior. A value outside them has a
-log prior of minus infinity. A distribution over raw space cannot leave the
-bounds; one over declared or physical space can.
+A parameter's bounds still hold under a joint prior, and its prior is exactly
+normalised, so a hypercube sampler's evidence is exact. Solvers move in the
+whitened space, which reaches the distribution's whole support, and a parameter
+cannot hold a value outside its bounds, so the support must already lie inside
+them:
+
+- A distribution over raw space cannot leave the bounds: it reaches declared
+  space through the parameters' old raw to declared mappings. This is the
+  intended use, a flow trained on an earlier fit's raw samples.
+- A distribution over declared or physical space is rejected by `prf.prior`
+  unless its support lies inside the parameters' bounds. A joint distribution
+  cut at the bounds has no exact normaliser, and an unnormalised one would bias
+  the evidence.
+
+The check is against the parameters' current bounds. These do not yet record
+whether a bound is the model's (validity, such as a positive width) or the
+user's (a range, such as `prf.Bounded`), so the check treats every bound as
+validity.
 
 ### Hypercube samplers
 
