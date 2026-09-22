@@ -6,6 +6,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+import parax as prx
 import pytest
 from jax.flatten_util import ravel_pytree
 
@@ -550,3 +551,118 @@ def test_map_fit_is_unchanged_by_the_whitening():
     reference = minimize(jax.jit(by_hand), t0, jac=jax.jit(jax.grad(by_hand)), method="BFGS", tol=1e-12)
     expected = [to_declared[i].forward(reference.x[i]) for i in range(2)]
     np.testing.assert_allclose(fit, expected, rtol=1e-6)
+
+
+# ---- Hypercube samplers (#195) --------------------------------------------------------
+
+
+class _CubeDraws(infer_base.AbstractHypercubeSampler):
+    """Pushes uniform cube draws through the prior transform, as a hypercube sampler with
+    a flat likelihood would. The draws can be pinned to fixed cube points instead."""
+
+    n: int = 20_000
+    points: dict | None = None
+
+    def run(self, loglikelihood_fn, prior_transform_fn, u0, args, key, init_cube_samples=None, max_steps=None, **kwargs):
+        if self.points is not None:
+            cubes = self.points
+        else:
+            keys = jax.random.split(key, len(u0))
+            cubes = {name: jax.random.uniform(k, (self.n,)) for k, name in zip(keys, u0)}
+        samples = jax.vmap(lambda u: prior_transform_fn(u, args))(cubes)
+        return infer_base.SampleResult(samples=samples, fn_values=jnp.zeros(len(next(iter(cubes.values())))))
+
+
+class _RoundTrip(infer_base.AbstractHypercubeSampler):
+    """Returns the prior transform of the starting cube point and of the starting cube samples."""
+
+    def run(self, loglikelihood_fn, prior_transform_fn, u0, args, key, init_cube_samples=None, max_steps=None, **kwargs):
+        start = jax.tree.map(lambda u: u[None], prior_transform_fn(u0, args))
+        init = jax.vmap(lambda u: prior_transform_fn(u, args))(init_cube_samples)
+        samples = jax.tree.map(lambda a, b: jnp.concatenate([a, b]), start, init)
+        return infer_base.SampleResult(samples=samples, fn_values=jnp.zeros(len(samples[NAMES[0]])))
+
+
+def _cube_draws(model, sampler=None):
+    batched, _ = infer_base.run_sampler(lambda m, a: 0.0, model, sampler or _CubeDraws(), jax.random.key(0))
+    return batched
+
+
+def test_cube_draws_follow_a_joint_prior_in_raw_space():
+    """Uniform cube draws pushed through the prior transform have mean `MU` and covariance
+    `L L^T` in the prior's space. The tolerances allow for the Monte Carlo error of 20 000
+    independent draws, whose standard deviations are 0.1."""
+    parts, model = _parts(), _example()
+    batched = _cube_draws(model)
+    values = np.asarray(_in_prior_space(parts, batched))
+    np.testing.assert_allclose(values.mean(axis=0), MU, atol=0.005)
+    np.testing.assert_allclose(np.cov(values.T), L @ L.T, atol=0.0005)
+    assert np.corrcoef(values.T)[0, 1] == pytest.approx(0.8, abs=0.01)
+
+
+def test_a_parameter_outside_the_joint_prior_follows_its_own_prior():
+    points = {"a.R": jnp.full(3, 0.5), "b.R": jnp.full(3, 0.5), "c.C": jnp.array([0.1, 0.5, 0.9])}
+    batched = _cube_draws(_example(), _CubeDraws(points=points))
+    own = prx.as_unwrapped(prf.params(_parts())["c.C"].distribution)
+    np.testing.assert_allclose(prf.param_values(batched)["c.C"], own.icdf(points["c.C"]), rtol=1e-5)
+
+
+def test_cube_draws_land_inside_every_parameters_bounds():
+    parts = _parts()
+    extreme = jnp.array([0.0, 1e-9, 0.5, 1.0 - 1e-9, 1.0])
+    points = {name: extreme for name in (*NAMES, "c.C")}
+    for batched in (_cube_draws(_example()), _cube_draws(_example(), _CubeDraws(points=points))):
+        values = prf.param_values(batched)
+        for name, node in prf.params(parts).items():
+            lower, upper = node.bounds
+            assert np.all(np.isfinite(values[name]))
+            assert np.all((values[name] >= lower) & (values[name] <= upper)), name
+
+
+def test_a_starting_model_maps_to_the_cube_and_back():
+    model = prf.update(_example(), {"a.R": 0.3, "b.R": -0.4}, space="raw")
+    model = prf.update(model, {"c.C": 1.03})
+    init = prf.update(model, {"a.R": jnp.array([-1.2, 0.5]), "b.R": jnp.array([0.1, 1.7])}, space="raw")
+    init = prf.update(init, {"c.C": jnp.array([0.98, 1.05])})
+    batched, _ = infer_base.run_sampler(lambda m, a: 0.0, model, _RoundTrip(), jax.random.key(0), init_samples=init)
+    values, start, samples = prf.param_values(batched), prf.param_values(model), prf.param_values(init)
+    for name in (*NAMES, "c.C"):
+        np.testing.assert_allclose(values[name][0], start[name], rtol=1e-6)
+        np.testing.assert_allclose(values[name][1:], samples[name], rtol=1e-6)
+
+
+def test_a_multivariate_normal_joint_prior_is_sampled_through_its_cholesky_factor():
+    parts = _parts()
+    batched = _cube_draws(prf.prior(parts, NAMES, dd.MultivariateNormalTri(MU, L), space="raw"))
+    values = np.asarray(_in_prior_space(parts, batched))
+    np.testing.assert_allclose(values.mean(axis=0), MU, atol=0.005)
+    np.testing.assert_allclose(np.cov(values.T), L @ L.T, atol=0.0005)
+
+
+def test_a_joint_prior_without_a_normal_base_raises():
+    uniform = dd.Independent(dd.Uniform(MU - 0.2, MU + 0.2), 1)
+    model = prf.prior(_parts(), NAMES, uniform, space="raw")
+    with pytest.raises(ValueError, match=r"'a.R', 'b.R'.*bijector over an independent normal base"):
+        _cube_draws(model)
+
+
+def test_cube_draws_follow_a_coupling_flow():
+    """The user's pipeline: a flow trained over the raw values of fit 1's free parameters,
+    in sorted-name order, is fit 2's prior. Training moves the flow's diagonal-Gaussian
+    base, so the base here is moved off the standard normal. The cube draws match draws
+    from the flow itself."""
+    fleqx = pytest.importorskip("fleqx", reason="fleqx is not installed")
+    parts = _parts()
+    names = sorted(NAMES)
+    flow = fleqx.coupling_flow(jax.random.key(1), dim=2, flow_layers=2, nn_width=8)
+    flow = eqx.tree_at(
+        lambda f: (f.distribution.distribution.loc, f.distribution.distribution.scale),
+        flow, (jnp.array([0.3, -0.2]), jnp.array([0.5, 1.5])),
+    )
+    shift = db.Block(db.Shift(MU), 1)
+    flow = dd.Transformed(flow.distribution, db.Chain([shift, db.Block(db.ScalarAffine(jnp.array(0.0), jnp.array(0.1)), 1), flow.bijector]))
+    batched = _cube_draws(prf.prior(parts, names, flow, space="raw"))
+    values = np.asarray(_in_prior_space(parts, batched))
+    direct = np.asarray(jax.vmap(flow.sample)(jax.random.split(jax.random.key(2), 20_000)))
+    np.testing.assert_allclose(values.mean(axis=0), direct.mean(axis=0), atol=0.01)
+    np.testing.assert_allclose(np.cov(values.T), np.cov(direct.T), atol=0.002)

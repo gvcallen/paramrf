@@ -326,6 +326,13 @@ def test_joint_sampler_moves_and_scores_a_parameter_under_a_joint_prior():
     assert np.shape(_declared_R(batched)) == (3,)
 
 
-def test_hypercube_sampler_rejects_a_joint_prior_without_own_priors():
-    with pytest.raises(ValueError, match=r"'R'.*joint or split sampler"):
-        infer_base.run_sampler(lambda m, a: 0.0, _joint_prior(), _StubHypercubeSampler(), jax.random.key(0))
+def test_hypercube_sampler_moves_a_parameter_under_a_joint_prior():
+    """The cube goes through the standard normal's inverse CDF, the whitening and the
+    parameter's old raw-to-declared map, and the starting value maps to the cube and back."""
+    from jax.scipy.stats import norm
+
+    model = _joint_prior()
+    _, results = infer_base.run_sampler(lambda m, a: 0.0, model, _StubHypercubeSampler(), jax.random.key(0))
+    to_declared = prf.params(model)["R"].raw_to_declared_bijector
+    expected = to_declared.forward(0.2 + 0.5 * norm.ppf(0.25))
+    assert np.allclose(results.samples["R"], [50.0, expected], atol=1e-4)
