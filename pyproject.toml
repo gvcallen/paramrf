@@ -43,6 +43,7 @@ tests = [
     "anesthetic",
     "mpi4py",
     "blackjax",
+    "fleqx",
 ]
 
 [project.urls]
