@@ -74,7 +74,9 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
     #: The constraint the parameter must always satisfy, in declared space: that of
     #: the model field it was passed to (see :func:`pmrf.param`), or None. Its bounds
     #: combine it with the range the user gave, which a prior in declared or
-    #: physical space replaces (see :func:`pmrf.prior`).
+    #: physical space replaces (see :func:`pmrf.prior`). It is stored frozen, as a
+    #: Parax variable stores its constraint, so it stays out of gradients and
+    #: partitioning: read it through ``parax.unwrap``.
     validity: AbstractConstraint | None = eqx.field(
         converter=lambda c: None if c is None else prx.as_opaque(c), default=None, kw_only=True,
     )
@@ -575,7 +577,7 @@ def as_param(
             scale = value.scale
         name = value.name
         metadata = value.metadata
-        validity = _intersect(value.validity, validity)
+        validity = _intersect(prx.unwrap(value.validity), validity)
         value = value.variable
 
     # The variable's own constraint is its range, already inside any validity it had
