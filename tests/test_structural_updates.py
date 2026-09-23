@@ -79,7 +79,7 @@ def test_update_fn_on_a_sub_model():
 def test_update_fn_on_several_names():
     rc = Resistor(prf.Unconstrained(1.0), name="r") ** Capacitor(prf.Unconstrained(2.0), name="c")
     updated = prf.update(rc, ["r.R", "c.C"], fn=lambda p: prf.update(p, value=p.value * 3))
-    assert prf.param_values(updated) == pytest.approx({"r.R": 3.0, "c.C": 6.0})
+    assert prf.values(updated) == pytest.approx({"r.R": 3.0, "c.C": 6.0})
 
 
 def test_update_structural_unknown_name_raises():

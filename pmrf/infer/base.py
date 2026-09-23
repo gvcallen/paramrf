@@ -23,7 +23,7 @@ import parax as prx
 
 from pmrf._solver_view import SolverView
 from pmrf.parameters import (
-    _joint_blocks, _whitening, is_param, param_values, params, tree_param_paths, update,
+    _joint_blocks, _whitening, is_param, values as _values, params, tree_param_paths, update,
 )
 
 
@@ -224,7 +224,7 @@ def run_sampler(
     The solver can be any solver of type :type:`pmrf.infer.AbstractSampler`.
 
     Joint and split samplers move through the free parameters in raw space, as a
-    name-keyed dict from ``prf.param_values(model, free_only=True, space='raw')``,
+    name-keyed dict from ``prf.values(model, free_only=True, space='raw')``,
     and score them with ``prf.log_prior(model, space='raw')``. Hypercube samplers map
     the unit cube through each free parameter's prior to its declared value, so every
     free parameter needs one. A prior mapped from raw or physical space by
@@ -322,10 +322,10 @@ def run_sampler(
         own = {name: _scalar_quantiles(name, node.distribution) for name, node in free.items() if name not in in_blocks}
 
         def _to_cube(tree) -> dict:
-            declared = param_values(tree, names)
+            declared = _values(tree, names)
             cube = {name: cdf(declared[name]) for name, (_, cdf) in own.items()}
             if blocks:
-                raw = param_values(tree, names, space='raw')
+                raw = _values(tree, names, space='raw')
                 for block_names, loc, scale in blocks:
                     cube |= {name: norm.cdf((raw[name] - loc[i]) / scale[i]) for i, name in enumerate(block_names)}
             return cube
@@ -341,7 +341,7 @@ def run_sampler(
                     name: loc[i] + scale[i] * norm.ppf(cube[name])
                     for block_names, loc, scale in blocks for i, name in enumerate(block_names)
                 }
-                declared |= param_values(update(model, raw, space='raw'), list(raw))
+                declared |= _values(update(model, raw, space='raw'), list(raw))
             return declared
 
         batched_cube = None

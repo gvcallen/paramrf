@@ -93,9 +93,9 @@ def test_distribution_is_declared_space():
 
 # Existing value surfaces follow declared space
 
-def test_param_values_and_update_are_declared():
+def test_values_and_update_are_declared():
     rc = RC(R=1.0, C=2.0)
-    assert np.allclose(prf.param_values(rc)["C"], 2.0)
+    assert np.allclose(prf.values(rc)["C"], 2.0)
     updated = prf.update(rc, {"C": 3.0})
     assert np.allclose(updated.C.value, 3.0)
     assert np.allclose(updated.C.physical_value, 3e-12)
@@ -116,7 +116,7 @@ def test_replace_value_keeps_everything_else():
 def test_replace_value_on_tree():
     load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
     updated = prf.update(load, "R", fn=lambda p: prf.replace(p, value=51.0))
-    assert np.allclose(prf.param_values(updated)["R"], 51.0)
+    assert np.allclose(prf.values(updated)["R"], 51.0)
 
 
 def test_replace_value_keeps_fixed_prior():
@@ -148,7 +148,7 @@ def test_update_out_of_bounds_raises_under_jit():
 
     @eqx.filter_jit
     def set_value(model, v):
-        return prf.param_values(prf.update(model, {"R": v}))["R"]
+        return prf.values(prf.update(model, {"R": v}))["R"]
 
     assert np.allclose(set_value(load, 51.0), 51.0)
     with pytest.raises(Exception, match="outside the constraint"):

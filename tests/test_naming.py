@@ -7,7 +7,7 @@ def test_explicit_parameter_name():
     """Test that directly naming a parameter overrides the JAX path."""
     val = prf.Unconstrained(2.0, name="custom_param")
     res = Resistor(val)
-    params = prf.param_values(res)
+    params = prf.values(res)
     
     assert "custom_param" in params
     assert params["custom_param"] == 2.0
@@ -47,20 +47,20 @@ def test_update_string_target():
     """Test that structural update accepts a string parameter name."""
     r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
     
-    assert prf.param_values(r)["custom_R"] == 50.0
+    assert prf.values(r)["custom_R"] == 50.0
     
     new_r = prf.update(r, "custom_R", prf.Unconstrained(100.0, name="custom_R"))
-    assert prf.param_values(new_r)["custom_R"] == 100.0
+    assert prf.values(new_r)["custom_R"] == 100.0
 
 def test_at_multiple_string_targets():
     """Test that structural update accepts an iterable of string parameter names."""
     rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
     
-    vals = prf.param_values(rc, ("custom_R", "custom_C"))
+    vals = prf.values(rc, ("custom_R", "custom_C"))
     assert (vals["custom_R"], vals["custom_C"]) == (50.0, 10.0)
     
     new_rc = prf.update(rc, ["custom_R", "custom_C"], fn=lambda p: prf.Unconstrained(p.value * 2, name=p.name))
-    assert prf.param_values(new_rc) == {"custom_R": 100.0, "custom_C": 20.0}
+    assert prf.values(new_rc) == {"custom_R": 100.0, "custom_C": 20.0}
 
 def test_tied_string_targets():
     """Test that prf.tie accepts string parameter names for source and target."""
@@ -103,11 +103,11 @@ def test_at_nested_namespace():
     expected_namespace_name = "myCas_myR_res_val"
     
     # Verify the value can be retrieved using the fully namespaced string
-    assert prf.param_values(cas2)[expected_namespace_name] == 50.0
+    assert prf.values(cas2)[expected_namespace_name] == 50.0
     
     # Verify the value can be updated using the fully namespaced string
     new_cas2 = prf.update(cas2, expected_namespace_name, prf.Unconstrained(100.0, name="res_val"))
-    assert prf.param_values(new_cas2)[expected_namespace_name] == 100.0
+    assert prf.values(new_cas2)[expected_namespace_name] == 100.0
 
 
 def test_tied_nested_namespace():
@@ -322,9 +322,9 @@ def test_names_resolve_after_evaluating_tied_and_frozen_touchstone(tmp_path):
 # ---- Values and free sets by name (#134) -----------------------------------------------
 
 
-def test_param_values_round_trip():
+def test_values_round_trip():
     system = _system()
-    values = prf.param_values(system)
+    values = prf.values(system)
     assert set(values) == set(prf.params(system))
     for name, p in prf.params(system).items():
         assert np.allclose(values[name], p.value)
@@ -338,10 +338,10 @@ def test_param_values_round_trip():
         assert q.distribution == p.distribution
 
 
-def test_param_values_free_only():
+def test_values_free_only():
     system = _system()
-    assert set(prf.param_values(system, free_only=True)) == set(prf.params(system, free_only=True))
-    assert "cable.vf" not in prf.param_values(system, free_only=True)
+    assert set(prf.values(system, free_only=True)) == set(prf.params(system, free_only=True))
+    assert "cable.vf" not in prf.values(system, free_only=True)
 
 
 def test_update_takes_declared_values():
@@ -358,7 +358,7 @@ def test_update_takes_declared_values():
 def test_update_on_frozen_tree():
     frozen = jax.tree.map(prf.freeze, _system(), is_leaf=prf.is_param)
     updated = prf.update(frozen, {"load.R": 52.0})
-    assert np.allclose(prf.param_values(updated)["load.R"], 52.0)
+    assert np.allclose(prf.values(updated)["load.R"], 52.0)
     assert prf.params(updated, free_only=True) == {}
 
 

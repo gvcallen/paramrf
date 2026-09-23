@@ -71,10 +71,10 @@ def test_derivative_is_taken_in_the_requested_space(space):
 
     (d_model,) = prf.derivative(s21, model, space=space)
     expected = jax.grad(lambda v: s21(prf.update(model, v, space=space)))(
-        prf.param_values(model, space=space)
+        prf.values(model, space=space)
     )
 
-    actual = prf.param_values(d_model)
+    actual = prf.values(d_model)
     assert actual.keys() == expected.keys()
     for name in expected:
         # Both sides run the same float64 operations; only reduction order can differ.
@@ -90,7 +90,7 @@ def test_derivative_declared_is_physical_times_scale():
 
     (declared,) = prf.derivative(s21, model)
     (physical,) = prf.derivative(s21, model, space='physical')
-    declared, physical = prf.param_values(declared), prf.param_values(physical)
+    declared, physical = prf.values(declared), prf.values(physical)
 
     assert jnp.allclose(declared['c1.C'], physical['c1.C'] * 1e-12, rtol=1e-12, atol=0)
     assert jnp.allclose(declared['l1.L'], physical['l1.L'] * 1e-9, rtol=1e-12, atol=0)
@@ -107,7 +107,7 @@ def test_derivative_of_a_fixed_parameter_is_its_sensitivity():
 
     (d_fixed,) = prf.derivative(s21, fixed)
     (d_free,) = prf.derivative(s21, free)
-    r_fixed, r_free = prf.param_values(d_fixed)['r.R'], prf.param_values(d_free)['r.R']
+    r_fixed, r_free = prf.values(d_fixed)['r.R'], prf.values(d_free)['r.R']
 
     assert r_free != 0
     assert jnp.allclose(r_fixed, r_free, rtol=1e-12, atol=0)
@@ -121,9 +121,9 @@ def test_derivative_through_a_tie_reaches_the_source():
         return m.s_mag(freq)[0, 1, 0]
 
     (d_tied,) = prf.derivative(s21, tied)
-    expected = jax.grad(lambda v: s21(prf.update(tied, v)))(prf.param_values(tied))
+    expected = jax.grad(lambda v: s21(prf.update(tied, v)))(prf.values(tied))
 
-    actual = prf.param_values(d_tied)
+    actual = prf.values(d_tied)
     assert actual.keys() == {'c1.C', 'l1.L'}
     for name in expected:
         assert jnp.allclose(actual[name], expected[name], rtol=1e-12, atol=0), name
@@ -136,9 +136,9 @@ def test_derivative_jacobian_is_per_declared_unit():
     (d_model,) = prf.derivative(lambda m: m.s_mag(band)[:, 1, 0], model)
     (physical,) = prf.derivative(lambda m: m.s_mag(band)[:, 1, 0], model, space='physical')
 
-    declared = prf.param_values(d_model)
+    declared = prf.values(d_model)
     assert declared['c1.C'].shape == (11,)
-    assert jnp.allclose(declared['c1.C'], prf.param_values(physical)['c1.C'] * 1e-12, rtol=1e-12, atol=0)
+    assert jnp.allclose(declared['c1.C'], prf.values(physical)['c1.C'] * 1e-12, rtol=1e-12, atol=0)
 
 
 def test_derivative_rejects_an_unknown_space():

@@ -1,6 +1,6 @@
 """The minimiser and samplers on raw-space parameter values (ADR-0002, decision 8).
 
-Both go through `prf.param_values`, `prf.update` and `prf.log_prior` in raw space, so
+Both go through `prf.values`, `prf.update` and `prf.log_prior` in raw space, so
 these tests check the solvers against those public functions directly.
 """
 import jax
@@ -58,7 +58,7 @@ def _objective(target):
 def test_raw_values_share_the_declared_dtype():
     """A Uniform prior's bijector clips with a float32 epsilon; the raw value must still
     have the declared value's dtype, or JAX-native solvers reject the mixed tree."""
-    raw = prf.param_values(_start(), free_only=True, space="raw")
+    raw = prf.values(_start(), free_only=True, space="raw")
     assert raw["C"].dtype == raw["R"].dtype == jnp.asarray(2.0).dtype
 
 
@@ -67,7 +67,7 @@ def test_minimizer_recovers_rc_optimum(solver):
     model = _start()
     fitted, result = optimize_base.run_minimizer(_objective(None), model, solver, max_iter=2000)
 
-    values = prf.param_values(fitted)
+    values = prf.values(fitted)
     assert values["R"] == pytest.approx(30.0, rel=1e-3)
     assert values["C"] == pytest.approx(1.5, rel=1e-3)
 
@@ -97,7 +97,7 @@ def test_jax_native_minimizer_receives_name_keyed_raw_values():
     optimize_base.run_minimizer(_objective(None), model, _RecordingMinimizer())
     y0, value = _RecordingMinimizer.seen
 
-    expected = prf.param_values(model, free_only=True, space="raw")
+    expected = prf.values(model, free_only=True, space="raw")
     assert isinstance(y0, dict) and set(y0) == {"R", "C"}
     for name in expected:
         assert np.allclose(y0[name], expected[name])
@@ -162,7 +162,7 @@ def test_sampler_log_posterior_is_likelihood_plus_raw_log_prior(sampler):
     model = _start()
     batched, results = infer_base.run_sampler(_loglikelihood, model, sampler, jax.random.key(0))
 
-    y0 = prf.param_values(model, free_only=True, space="raw")
+    y0 = prf.values(model, free_only=True, space="raw")
     assert set(results.samples) == {"R", "C"}
     for i in range(3):
         v = jax.tree.map(lambda x: x[i], results.samples)
@@ -191,7 +191,7 @@ def test_sampler_init_samples_are_read_in_raw_space():
             return infer_base.SampleResult(samples=_offsets(y0), fn_values=jnp.zeros(3))
 
     infer_base.run_sampler(_loglikelihood, model, Recording(), jax.random.key(0), init_samples=init)
-    expected = prf.param_values(init, free_only=True, space="raw")
+    expected = prf.values(init, free_only=True, space="raw")
     assert set(Recording.init) == {"R", "C"}
     for name in expected:
         assert np.allclose(Recording.init[name], expected[name])
@@ -247,7 +247,7 @@ def test_hypercube_sampler_accepts_a_start_on_a_bound():
         C=prf.Random(Uniform(1.0, 3.0), value=2.0),
         L=prf.Fixed(0.5),
     )
-    assert not np.isfinite(prf.param_values(model, free_only=True, space="raw")["R"])
+    assert not np.isfinite(prf.values(model, free_only=True, space="raw")["R"])
     # The same model is out of bounds for a sampler that does move raw values.
     with pytest.raises(ValueError, match=r"'R' start on a bound"):
         infer_base.run_sampler(_loglikelihood, model, _StubJointSampler(), jax.random.key(0))
@@ -278,12 +278,12 @@ def _joint_prior():
 
 
 def _declared_R(model):
-    return prf.param_values(model)["R"]
+    return prf.values(model)["R"]
 
 
 def test_parameter_under_a_joint_prior_is_a_free_raw_value():
     model = _joint_prior()
-    raw = prf.param_values(model, free_only=True, space="raw")
+    raw = prf.values(model, free_only=True, space="raw")
     assert list(raw) == ["R"]
     moved = prf.update(model, {"R": raw["R"] + 0.3}, space="raw")
     assert not np.allclose(_declared_R(moved), _declared_R(model))
@@ -293,7 +293,7 @@ def test_joint_prior_raw_log_prior_includes_jacobian():
     """Raw space is the joint prior's whitened space, and the raw log prior carries the
     Jacobian of the map from it to declared space."""
     model = _joint_prior()
-    z = prf.param_values(model, free_only=True, space="raw")["R"] + 0.3
+    z = prf.values(model, free_only=True, space="raw")["R"] + 0.3
 
     def declared(z):
         return _declared_R(prf.update(model, {"R": z}, space="raw"))

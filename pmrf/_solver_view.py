@@ -4,7 +4,7 @@ The view of a model a solver moves through, shared by the minimiser and every sa
 A solver never sees the model itself: it sees the free parameters as a name-keyed dict
 of values, in raw space for the minimiser and the joint and split samplers, and in
 declared space for the hypercube samplers. Everything here goes through the public
-:func:`pmrf.param_values`, :func:`pmrf.update` and :func:`pmrf.log_prior`, so a solver
+:func:`pmrf.values`, :func:`pmrf.update` and :func:`pmrf.log_prior`, so a solver
 sees exactly what a user would with those functions.
 """
 
@@ -15,7 +15,7 @@ from jaxtyping import PyTree, Scalar
 import jax
 import jax.numpy as jnp
 
-from pmrf.parameters import log_prior as _log_prior, param_values, update
+from pmrf.parameters import log_prior as _log_prior, values as _values, update
 from pmrf.utils import unwrap
 
 
@@ -47,7 +47,7 @@ class SolverView:
         #: What the solver does, used in error messages.
         self.action = action
         #: The starting raw values of the free parameters, by name.
-        self.y0 = param_values(model, free_only=True, space='raw')
+        self.y0 = _values(model, free_only=True, space='raw')
         if not self.y0:
             raise ValueError(
                 f"Nothing to {action}: the tree has no free parameters. Every parameter is "
@@ -97,7 +97,7 @@ class SolverView:
         ValueError
             If a free parameter of this model is missing from `batch`, or is fixed there.
         """
-        values = param_values(batch, free_only=True, space='raw')
+        values = _values(batch, free_only=True, space='raw')
         missing = [name for name in self.y0 if name not in values]
         if missing:
             raise ValueError(

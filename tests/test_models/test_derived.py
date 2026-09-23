@@ -73,7 +73,7 @@ def test_zero_wet_length_is_the_plain_cable():
 @pytest.mark.parametrize('name', ['length', 'wet_length'])
 def test_gradients_match_finite_differences(name):
     model = _wet()
-    raw = prf.param_values(model, space='raw')
+    raw = prf.values(model, space='raw')
 
     def loss(values):
         return jnp.sum(jnp.abs(prf.update(model, values, space='raw').s(FREQ)[:, 0, 0]) ** 2)
@@ -133,7 +133,7 @@ def test_every_parameter_exists_once():
 @pytest.mark.parametrize('space', ['raw', 'declared', 'physical'])
 def test_round_trip_keeps_the_jit_key(space):
     model = _wet()
-    values = prf.param_values(model, space=space)
+    values = prf.values(model, space=space)
     assert_same_jit_key(prf.update(model, values, space=space), model)
     changed = prf.update(model, {'wet_length': 0.3})
     assert_same_jit_key(changed, model)
@@ -142,9 +142,9 @@ def test_round_trip_keeps_the_jit_key(space):
 def test_previous_fit_applies_to_the_base():
     cable = _cable()
     fitted = prf.update(cable, {'length': 2.5, 'd_in': 1.2})
-    model = prf.update(_wet(cable), prf.param_values(fitted))
-    assert prf.param_values(model)['length'] == 2.5
-    assert prf.param_values(model)['d_in'] == 1.2
+    model = prf.update(_wet(cable), prf.values(fitted))
+    assert prf.values(model)['length'] == 2.5
+    assert prf.values(model)['d_in'] == 1.2
 
 
 def test_fixed_behaves_as_on_any_model():
@@ -223,7 +223,7 @@ def test_fit_smoke():
     start = prf.update(start, 'wet_length', fixed=False)
     result = fit_minimize(start, np.asarray(truth.s(FREQ)), frequency=FREQ)
     assert isinstance(result.model, type(start))
-    np.testing.assert_allclose(prf.param_values(result.model)['wet_length'], 0.5, atol=1e-3)
+    np.testing.assert_allclose(prf.values(result.model)['wet_length'], 0.5, atol=1e-3)
 
 
 def test_tie_across_derived_and_plain_models():
@@ -238,5 +238,5 @@ def test_structural_update_on_a_base_sub_model_and_free_values():
     from pmrf.materials import ConstantDielectric
 
     model = prf.update(_wet(), 'dielectric', ConstantDielectric(ep_r=prf.Fixed(1.0)))
-    assert 'dielectric.ep_r' not in prf.param_values(model, free_only=True)
-    assert {'wet_length', 'wet_ep_r'} <= set(prf.param_values(model, space='raw', free_only=True))
+    assert 'dielectric.ep_r' not in prf.values(model, free_only=True)
+    assert {'wet_length', 'wet_ep_r'} <= set(prf.values(model, space='raw', free_only=True))

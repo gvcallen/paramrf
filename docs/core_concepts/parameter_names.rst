@@ -1,7 +1,7 @@
 Parameter Names
 ===============
 
-Every parameter in a model has a name. Names are how parameters are read with :func:`pmrf.params` and :func:`pmrf.param_values`, changed with :func:`pmrf.update`, and tied with :func:`pmrf.tie`. For a hands-on walkthrough, see :doc:`/examples/parameter_naming_and_model_manipulation`.
+Every parameter in a model has a name. Names are how parameters are read with :func:`pmrf.params` and :func:`pmrf.values`, changed with :func:`pmrf.update`, and tied with :func:`pmrf.tie`. For a hands-on walkthrough, see :doc:`/examples/parameter_naming_and_model_manipulation`.
 
 .. _parameter-naming-rules:
 

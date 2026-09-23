@@ -21,7 +21,7 @@ from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.modules.base import Module
-from pmrf.parameters import param_values, update
+from pmrf.parameters import values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
 
 
@@ -45,7 +45,7 @@ def _orthogonal_projection(
     """
     if not 0 <= rcond < 1:
         raise ValueError("`rcond` must satisfy 0 <= rcond < 1.")
-    named_values = param_values(model, free_only=True, space="physical")
+    named_values = _values(model, free_only=True, space="physical")
     parameter_names = tuple(named_values)
     parameter_values = tuple(named_values.values())
     if not parameter_values:

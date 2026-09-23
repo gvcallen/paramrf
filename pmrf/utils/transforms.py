@@ -49,7 +49,7 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     Tuple[*Ts]
         A tuple containing the derivatives, one per argument. Each keeps its
         argument's structure with every parameter replaced by its derivative, so
-        :func:`pmrf.param_values` reads the derivatives by name. Non-differentiable
+        :func:`pmrf.values` reads the derivatives by name. Non-differentiable
         leaves are ``None``.
 
     Examples
@@ -68,7 +68,7 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     >>> (d_cap,) = derivative(eval_s21, cap)
     >>>
     >>> # Per pF, the unit the capacitance was declared in
-    >>> print(f"{prf.param_values(d_cap)['C']:.3e}")
+    >>> print(f"{prf.values(d_cap)['C']:.3e}")
     -1.164e-01
     """
     # Imported here: pmrf.parameters imports pmrf.utils.

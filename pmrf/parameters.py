@@ -1555,7 +1555,7 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
     return {name: leaf for name, (_, leaf) in _select(tree, where, free_only).items()}
 
 
-def param_values(
+def values(
     tree,
     where: Selector = '*',
     *,
@@ -1566,7 +1566,7 @@ def param_values(
     Returns the values of a model's parameters by name, in one space.
 
     This is what :func:`update` accepts, so
-    ``prf.update(m, prf.param_values(m, space=s), space=s)`` gives back `m`, with
+    ``prf.update(m, prf.values(m, space=s), space=s)`` gives back `m`, with
     the same structure and jit cache key.
 
     The raw value of a parameter under a joint prior (see :func:`prior`) is its entry
@@ -1594,8 +1594,8 @@ def param_values(
     .. code-block:: python
 
         c = Capacitor(prf.Unconstrained(2.0, scale=1e-12))
-        prf.param_values(c)                      # {'C': 2.0}
-        prf.param_values(c, space='physical')    # {'C': 2e-12}
+        prf.values(c)                      # {'C': 2.0}
+        prf.values(c, space='physical')    # {'C': 2e-12}
     """
     _check_space(space)
     values = {name: _read(leaf, space) for name, leaf in params(tree, where, free_only=free_only).items()}
@@ -2340,7 +2340,7 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     distribution's whitened space, inferred as for a one-dimensional prior: a flow's
     base, the Cholesky-whitened space of a multivariate normal, and so on. Where no
     whitening is known, raw is the distribution's own space. Each parameter's raw
-    value, in :func:`param_values`, :func:`update` and :func:`log_prior`, is its entry
+    value, in :func:`values`, :func:`update` and :func:`log_prior`, is its entry
     in that vector, so optimisers and samplers move in well-conditioned coordinates.
 
     A parameter under a joint prior cannot be fixed or tied, and cannot be under a
@@ -2358,7 +2358,7 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         The prior. See :mod:`pmrf.distributions`.
     space : {'declared', 'physical', 'raw'}, default='declared'
         The space `distribution` is over. ``'raw'`` is the parameters' raw space as
-        it was just before this call, as :func:`param_values` returned it with
+        it was just before this call, as :func:`values` returned it with
         ``space='raw'``. The prior is mapped to declared space, with its
         change-of-variables term, and a prior over raw space keeps the mapping from
         that raw space to declared space. A hypercube sampler maps a mapped
@@ -2499,7 +2499,7 @@ __all__ = [
     "Constrained",
     "Random",
     "params",
-    "param_values",
+    "values",
     "log_prior",
     "update",
     "tie",

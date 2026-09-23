@@ -88,7 +88,7 @@ def test_a_declared_prior_keeps_validity_and_drops_the_range():
     d = _dist(m.w)
     assert isinstance(d, dd.TruncatedNormal)
     assert np.allclose([d.low, d.high], [0.0, np.inf])
-    assert np.allclose(prf.param_values(prf.update(m, {"w": 80.0}))["w"], 80.0)
+    assert np.allclose(prf.values(prf.update(m, {"w": 80.0}))["w"], 80.0)
     with pytest.raises(Exception, match="outside the constraint"):
         prf.update(m, {"w": -1.0})
 
@@ -194,7 +194,7 @@ def test_a_declared_joint_prior_over_ranges_is_accepted():
     assert isinstance(model, Probabilistic)
     # The ranges are replaced, so a value outside them can be written.
     moved = prf.update(model, {"a.R": 80.0})
-    assert np.allclose(prf.param_values(moved)["a.R"], 80.0)
+    assert np.allclose(prf.values(moved)["a.R"], 80.0)
     assert prf.params(model)["a.R"].bounds is None
 
 

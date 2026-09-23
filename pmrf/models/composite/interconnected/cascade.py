@@ -12,7 +12,7 @@ from pmrf.utils import field
 from pmrf.types import ArrayLike
 from pmrf.rf import a2s, s2a, a2mna, s2mna, MNAStamp
 from pmrf.rf import cascade_scattering, cascade_abcd
-from pmrf.parameters import tree_param_names_to_path, param_values, update
+from pmrf.parameters import tree_param_names_to_path, values as _values, update
 
 
 HUB_Z0 = 50.0 + 0.0j
@@ -324,7 +324,7 @@ class RepeatedCascade(Model):
         validation.
         """
         validated = update(self.model, self.values)
-        raw = param_values(validated, list(self.values), space='raw')
+        raw = _values(validated, list(self.values), space='raw')
 
         def section(raw_slice):
             return evaluate(update(self.model, raw_slice, space='raw'))

@@ -70,7 +70,7 @@ def _in_prior_space(parts, model=None):
     """The values of `a.R` and `b.R` of `model`, by default `parts`, possibly batched, in
     the example joint prior's space: the raw space of `parts`, before it was attached."""
     own = prf.params(parts)
-    declared = prf.param_values(parts if model is None else model)
+    declared = prf.values(parts if model is None else model)
     return jnp.stack([own[name].raw_to_declared_bijector.inverse(declared[name]) for name in NAMES], axis=-1)
 
 
@@ -101,7 +101,7 @@ def test_joint_prior_matches_the_closed_form(space):
     parts = _unbounded_parts()
     mean, tril = [50.5, 49.0], [[2.0, 0.0], [1.6, 1.2]]
     model = prf.prior(parts, NAMES, _gaussian(mean, tril), space=space)
-    values = prf.param_values(parts, space=space)
+    values = prf.values(parts, space=space)
     expected = _gaussian_log_prob([values["a.R"], values["b.R"]], mean, tril)
     expected += float(prf.log_prior({"c": parts["c"]}, space=space))
     assert np.allclose(prf.log_prior(model, space=space), expected, rtol=1e-10)
@@ -132,7 +132,7 @@ def test_joint_prior_replaces_the_parameters_own_priors():
 def test_vector_order_follows_explicit_names():
     parts = prf.update(_parts(), {"a.R": 52.0})
     mean = MU + jnp.array([0.2, -0.3])
-    raw = prf.param_values(parts, space="raw")
+    raw = prf.values(parts, space="raw")
     log_det = _log_det_to_declared(parts, _in_prior_space(parts))
     joint = lambda m: prf.log_prior(m) - prf.log_prior({"c": parts["c"]})
     for order in (("a.R", "b.R"), ("b.R", "a.R")):
@@ -233,11 +233,11 @@ def test_raw_values_are_the_whitened_values_in_the_prior_space():
     their values in the prior's space. `c.C` keeps its own raw value."""
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     model = prf.prior(parts, NAMES, _gaussian(MU, L), space="raw")
-    raw = prf.param_values(model, space="raw")
+    raw = prf.values(model, space="raw")
     np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_in_prior_space(parts)), rtol=1e-12)
-    assert np.allclose(raw["c.C"], prf.param_values(parts, space="raw")["c.C"])
+    assert np.allclose(raw["c.C"], prf.values(parts, space="raw")["c.C"])
     # Reading raw values only is unchanged by `where`.
-    assert np.allclose(prf.param_values(model, "b.R", space="raw")["b.R"], raw["b.R"])
+    assert np.allclose(prf.values(model, "b.R", space="raw")["b.R"], raw["b.R"])
 
 
 @pytest.mark.parametrize("space", ["declared", "physical"])
@@ -250,15 +250,15 @@ def test_raw_values_are_whitened_in_every_prior_space(space):
     mean = jnp.array([49.0, 2.2]) if space == "declared" else jnp.array([49.0, 2.2e-12])
     tril = jnp.array([[2.0, 0.0], [0.1, 0.5]]) * (1.0 if space == "declared" else jnp.array([[1.0], [1e-12]]))
     model = prf.prior(parts, names, _gaussian(mean, tril), space=space)
-    values = prf.param_values(parts, space=space)
-    raw = prf.param_values(model, space="raw")
+    values = prf.values(parts, space=space)
+    raw = prf.values(model, space="raw")
     expected = jnp.linalg.solve(tril, jnp.array([values[n] for n in names]) - mean)
     np.testing.assert_allclose([raw[n] for n in names], expected, rtol=1e-10)
 
 
 def test_raw_round_trip_returns_the_model():
     model = _example()
-    again = prf.update(model, prf.param_values(model, space="raw"), space="raw")
+    again = prf.update(model, prf.values(model, space="raw"), space="raw")
     assert jax.tree.structure(again) == jax.tree.structure(model)
     for x, y in zip(jax.tree.leaves(again), jax.tree.leaves(model)):
         np.testing.assert_allclose(x, y, rtol=1e-12, atol=1e-12)
@@ -268,16 +268,16 @@ def test_a_raw_update_moves_one_whitened_coordinate():
     """Writing one raw value keeps the other whitened coordinates, so under a correlated
     prior every parameter under it can move."""
     model = _example()
-    raw = prf.param_values(model, space="raw")
+    raw = prf.values(model, space="raw")
     moved = prf.update(model, {"a.R": raw["a.R"] + 0.5}, space="raw")
-    after = prf.param_values(moved, space="raw")
+    after = prf.values(moved, space="raw")
     np.testing.assert_allclose(after["a.R"], raw["a.R"] + 0.5, rtol=1e-12)
     np.testing.assert_allclose(after["b.R"], raw["b.R"], rtol=1e-12)
     # Their values in the prior's space are `L z + mu`, so both move.
-    before, now = prf.param_values(model), prf.param_values(moved)
+    before, now = prf.values(model), prf.values(moved)
     assert not np.allclose(before["a.R"], now["a.R"]) and not np.allclose(before["b.R"], now["b.R"])
     # A value selector writes the same raw value to every parameter it selects.
-    both = prf.param_values(prf.update(model, "[ab].R", value=0.25, space="raw"), space="raw")
+    both = prf.values(prf.update(model, "[ab].R", value=0.25, space="raw"), space="raw")
     np.testing.assert_allclose([both[name] for name in NAMES], [0.25, 0.25], rtol=1e-12)
 
 
@@ -285,14 +285,14 @@ def _raw_log_prior_matches_declared_through_the_jacobian(model, names):
     """Checks raw = declared + log|det dx/dz| for the parameters `names` under a joint
     prior, with the Jacobian of their declared values `x` in their raw values `z` taken
     by `jax.jacobian`. Other parameters carry their own raw-to-declared Jacobian."""
-    raw = prf.param_values(model, space="raw")
+    raw = prf.values(model, space="raw")
     z0 = jnp.stack([raw[name] for name in names]) + 0.1
 
     def at(z):
         return prf.update(model, dict(zip(names, z)), space="raw")
 
     def declared(z):
-        values = prf.param_values(at(z))
+        values = prf.values(at(z))
         return jnp.stack([values[name] for name in names])
 
     moved = at(z0)
@@ -322,7 +322,7 @@ def test_raw_log_prior_carries_the_jacobian_in_every_prior_space(space):
 def test_raw_log_prior_is_the_base_density_of_a_flow():
     """For a flow, the raw log prior of its parameters is its base density at `z`."""
     parts, model = _parts(), _example()
-    z = jnp.stack([prf.param_values(model, space="raw")[name] for name in NAMES])
+    z = jnp.stack([prf.values(model, space="raw")[name] for name in NAMES])
     base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)))
     expected = base.log_prob(z) + prf.log_prior({"c": parts["c"]}, space="raw")
     np.testing.assert_allclose(prf.log_prior(model, space="raw"), expected, rtol=1e-10)
@@ -333,7 +333,7 @@ def test_raw_log_prior_is_the_base_density_of_a_flow():
 def test_a_multivariate_normal_is_whitened_by_its_cholesky_factor():
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     model = prf.prior(parts, NAMES, dd.MultivariateNormalTri(MU, L), space="raw")
-    raw = prf.param_values(model, space="raw")
+    raw = prf.values(model, space="raw")
     np.testing.assert_allclose([raw[name] for name in NAMES], _whitened(_in_prior_space(parts)), rtol=1e-10)
     _raw_log_prior_matches_declared_through_the_jacobian(model, NAMES)
 
@@ -344,10 +344,10 @@ def test_a_distribution_with_no_known_whitening_keeps_its_own_space():
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
     distribution = dd.Independent(dd.Normal(MU, jnp.array([0.1, 0.2])))
     model = prf.prior(parts, NAMES, distribution, space="raw")
-    before, after = prf.param_values(parts, space="raw"), prf.param_values(model, space="raw")
+    before, after = prf.values(parts, space="raw"), prf.values(model, space="raw")
     assert all(np.allclose(before[name], after[name]) for name in before)
     again = prf.update(model, after, space="raw")
-    assert all(np.allclose(prf.param_values(again)[n], prf.param_values(model)[n]) for n in after)
+    assert all(np.allclose(prf.values(again)[n], prf.values(model)[n]) for n in after)
     _raw_log_prior_matches_declared_through_the_jacobian(model, NAMES)
 
 
@@ -355,8 +355,8 @@ def test_raw_values_of_a_batched_model_are_whitened_per_sample():
     model = _example()
     z = jnp.array([[0.1, -0.2], [0.3, 0.4], [-1.0, 0.5]])
     batched = prf.update(model, {"a.R": z[:, 0], "b.R": z[:, 1]}, space="raw")
-    assert np.shape(prf.param_values(batched)["a.R"]) == (3,)
-    raw = prf.param_values(batched, space="raw")
+    assert np.shape(prf.values(batched)["a.R"]) == (3,)
+    raw = prf.values(batched, space="raw")
     np.testing.assert_allclose(np.stack([raw[name] for name in NAMES], axis=-1), z, rtol=1e-10, atol=1e-12)
 
 
@@ -367,7 +367,7 @@ def test_names_are_kept():
     parts, model = _parts(), _example()
     assert list(prf.params(model)) == list(prf.params(parts)) == ["a.R", "b.R", "c.C"]
     for space in ("raw", "declared", "physical"):
-        before, after = prf.param_values(parts, space=space), prf.param_values(model, space=space)
+        before, after = prf.values(parts, space=space), prf.values(model, space=space)
         assert list(before) == list(after)
         # Raw space is redefined for the parameters under the joint prior only.
         kept = ("c.C",) if space == "raw" else tuple(before)
@@ -392,10 +392,10 @@ def test_update_by_name_writes_through_the_joint_prior():
     moved = prf.update(model, {"a.R": 55.0})
     assert isinstance(moved, Probabilistic)
     assert list(prf.params(moved)) == ["a.R", "b.R", "c.C"]
-    assert np.allclose(prf.param_values(moved)["a.R"], 55.0)
-    raw = prf.param_values(model, space="raw")
+    assert np.allclose(prf.values(moved)["a.R"], 55.0)
+    raw = prf.values(model, space="raw")
     again = prf.update(model, raw, space="raw")
-    assert list(prf.param_values(again, space="raw")) == list(raw)
+    assert list(prf.values(again, space="raw")) == list(raw)
 
 
 def test_joint_prior_across_siblings_leaves_their_parent_unwrapped():
@@ -470,7 +470,7 @@ def test_a_structural_update_cannot_fix_or_drop_a_parameter_under_a_joint_prior(
     with pytest.raises(ValueError, match=r"Cannot update: 'a.R'.*joint prior"):
         prf.update(model, "a.R", fn=prf.freeze)
     replaced = prf.update(model, {"a": Resistor(R=prf.Unconstrained(48.0), name="a")})
-    assert np.allclose(prf.param_values(replaced)["a.R"], 48.0)
+    assert np.allclose(prf.values(replaced)["a.R"], 48.0)
 
 
 def test_tying_a_parameter_under_a_joint_prior_raises():
@@ -553,7 +553,7 @@ def test_map_fit_is_unchanged_by_the_whitening():
         return 0.5 * jnp.sum(((x - target) / sigma) ** 2) - tree_param_log_prob(distributions, m)
 
     fitted, _ = optimize_base.run_minimizer(loss, model, ScipyMinimize(), max_iter=1000)
-    fit = np.array([prf.param_values(fitted)[name] for name in NAMES])
+    fit = np.array([prf.values(fitted)[name] for name in NAMES])
 
     own = prf.params(parts)
     to_declared = [own[name].raw_to_declared_bijector for name in NAMES]
@@ -621,7 +621,7 @@ def test_a_parameter_outside_the_joint_prior_follows_its_own_prior():
     points = {"a.R": jnp.full(3, 0.5), "b.R": jnp.full(3, 0.5), "c.C": jnp.array([0.1, 0.5, 0.9])}
     batched = _cube_draws(_example(), _CubeDraws(points=points))
     own = prx.as_unwrapped(prf.params(_parts())["c.C"].distribution)
-    np.testing.assert_allclose(prf.param_values(batched)["c.C"], own.icdf(points["c.C"]), rtol=1e-5)
+    np.testing.assert_allclose(prf.values(batched)["c.C"], own.icdf(points["c.C"]), rtol=1e-5)
 
 
 def test_cube_draws_land_inside_every_parameters_bounds():
@@ -629,7 +629,7 @@ def test_cube_draws_land_inside_every_parameters_bounds():
     extreme = jnp.array([0.0, 1e-9, 0.5, 1.0 - 1e-9, 1.0])
     points = {name: extreme for name in (*NAMES, "c.C")}
     for batched in (_cube_draws(_example()), _cube_draws(_example(), _CubeDraws(points=points))):
-        values = prf.param_values(batched)
+        values = prf.values(batched)
         for name, node in prf.params(parts).items():
             lower, upper = node.bounds
             assert np.all(np.isfinite(values[name]))
@@ -642,7 +642,7 @@ def test_a_starting_model_maps_to_the_cube_and_back():
     init = prf.update(model, {"a.R": jnp.array([-1.2, 0.5]), "b.R": jnp.array([0.1, 1.7])}, space="raw")
     init = prf.update(init, {"c.C": jnp.array([0.98, 1.05])})
     batched, _ = infer_base.run_sampler(lambda m, a: 0.0, model, _RoundTrip(), jax.random.key(0), init_samples=init)
-    values, start, samples = prf.param_values(batched), prf.param_values(model), prf.param_values(init)
+    values, start, samples = prf.values(batched), prf.values(model), prf.values(init)
     for name in (*NAMES, "c.C"):
         np.testing.assert_allclose(values[name][0], start[name], rtol=1e-6)
         np.testing.assert_allclose(values[name][1:], samples[name], rtol=1e-6)

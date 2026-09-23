@@ -1,4 +1,4 @@
-"""Reading and updating parameters by name: `prf.params`, `prf.param_values`,
+"""Reading and updating parameters by name: `prf.params`, `prf.values`,
 `prf.log_prior` and `prf.update` (ADR-0002, decisions 3 to 5 and 7)."""
 import parax.distributions as dist
 import equinox as eqx
@@ -35,7 +35,7 @@ def _rc():
 def test_params_and_values_are_top_level():
     from pmrf import parameters
     assert prf.params is parameters.params
-    assert prf.param_values is parameters.param_values
+    assert prf.values is parameters.values
     assert prf.log_prior is parameters.log_prior
     assert prf.update is parameters.update
 
@@ -48,38 +48,38 @@ def test_params_returns_param_objects():
 
 
 @pytest.mark.parametrize("space, expected", [("declared", 2.0), ("physical", 2e-12)])
-def test_param_values_spaces(space, expected):
+def test_values_spaces(space, expected):
     rc = RC(R=1.0, C=2.0)
-    assert np.allclose(prf.param_values(rc, space=space)["C"], expected)
+    assert np.allclose(prf.values(rc, space=space)["C"], expected)
 
 
-def test_param_values_raw():
+def test_values_raw():
     m = _rc()
-    raw = prf.param_values(m, space="raw")
+    raw = prf.values(m, space="raw")
     assert np.allclose(raw["R"], m.R.raw_value)
     assert np.allclose(m.R.raw_to_declared_bijector.forward(raw["R"]), 50.0)
 
 
-def test_param_values_default_is_declared():
-    assert np.allclose(prf.param_values(RC(R=1.0, C=2.0))["C"], 2.0)
+def test_values_default_is_declared():
+    assert np.allclose(prf.values(RC(R=1.0, C=2.0))["C"], 2.0)
 
 
-def test_param_values_bad_space_raises():
+def test_values_bad_space_raises():
     with pytest.raises(ValueError, match="space"):
-        prf.param_values(RC(R=1.0, C=2.0), space="unconstrained")
+        prf.values(RC(R=1.0, C=2.0), space="unconstrained")
 
 
 def test_params_free_only():
     rc = RC(R=prf.Fixed(1.0), C=prf.Unconstrained(2.0))
     assert set(prf.params(rc, free_only=True)) == {"C"}
-    assert set(prf.param_values(rc, free_only=True)) == {"C"}
+    assert set(prf.values(rc, free_only=True)) == {"C"}
 
 
 def test_params_on_tuple_and_dict_of_models():
     r = Resistor(R=prf.Unconstrained(50.0), name="r")
     c = Capacitor(C=prf.Unconstrained(1.0), name="c")
     assert set(prf.params((r, c))) == {"r.R", "c.C"}
-    assert set(prf.param_values({"a": r, "b": c})) == {"r.R", "c.C"}
+    assert set(prf.values({"a": r, "b": c})) == {"r.R", "c.C"}
 
 
 def test_params_collision_raises():
@@ -102,7 +102,7 @@ def test_nested_named_modules_join_with_underscore():
 ])
 def test_params_where(where, expected):
     assert set(prf.params(_rc(), where)) == expected
-    assert set(prf.param_values(_rc(), where)) == expected
+    assert set(prf.values(_rc(), where)) == expected
 
 
 def test_params_where_callable_selects_submodule():
@@ -201,7 +201,7 @@ def test_update_mapping():
     assert np.allclose(m.C.value, 2.5) and np.allclose(m.C.physical_value, 2.5e-12)
 
 
-def test_update_mapping_with_param_values():
+def test_update_mapping_with_values():
     other = prf.update(_rc(), {"C": 2.5})
     m = prf.update(_rc(), prf.params(other))
     assert np.allclose(m.C.value, 2.5)
@@ -215,7 +215,7 @@ def test_update_where_value():
 @pytest.mark.parametrize("space", ["declared", "physical", "raw"])
 def test_update_mapping_space(space):
     src = prf.update(_rc(), {"C": 2.5})
-    m = prf.update(_rc(), {"C": prf.param_values(src, space=space)["C"]}, space=space)
+    m = prf.update(_rc(), {"C": prf.values(src, space=space)["C"]}, space=space)
     assert np.allclose(m.C.value, 2.5, atol=1e-5)
 
 
@@ -227,7 +227,7 @@ def test_update_where_value_space(space, v):
 
 def test_update_where_value_raw_space():
     m = _rc()
-    raw = prf.param_values(prf.update(m, {"C": 2.5}), space="raw")["C"]
+    raw = prf.values(prf.update(m, {"C": 2.5}), space="raw")["C"]
     assert np.allclose(prf.update(m, "C", value=raw, space="raw").C.value, 2.5, atol=1e-5)
 
 
@@ -259,7 +259,7 @@ def test_update_on_tuple_of_models():
 def test_update_on_frozen_tree():
     frozen = jax.tree.map(prf.freeze, _rc(), is_leaf=prf.is_param)
     m = prf.update(frozen, {"R": 52.0})
-    assert np.allclose(prf.param_values(m)["R"], 52.0)
+    assert np.allclose(prf.values(m)["R"], 52.0)
     assert prf.params(m, free_only=True) == {}
 
 
@@ -318,7 +318,7 @@ def test_update_out_of_bounds_raises():
 def test_update_out_of_bounds_raises_under_jit():
     @eqx.filter_jit
     def set_value(model, v):
-        return prf.param_values(prf.update(model, {"R": v}))["R"]
+        return prf.values(prf.update(model, {"R": v}))["R"]
 
     assert np.allclose(set_value(_rc(), 51.0), 51.0)
     with pytest.raises(Exception, match="outside the constraint"):
@@ -349,12 +349,12 @@ def test_update_form_mismatch_lists_forms(call):
 
 
 @pytest.mark.parametrize("space", ["declared", "physical", "raw"])
-def test_update_param_values_round_trip_keeps_jit_key(space):
+def test_update_values_round_trip_keeps_jit_key(space):
     m = _rc()
-    same = prf.update(m, prf.param_values(m, space=space), space=space)
+    same = prf.update(m, prf.values(m, space=space), space=space)
     assert_same_jit_key(m, same)
-    for name, v in prf.param_values(m).items():
-        assert np.allclose(prf.param_values(same)[name], v, rtol=1e-5)
+    for name, v in prf.values(m).items():
+        assert np.allclose(prf.values(same)[name], v, rtol=1e-5)
 
 
 @pytest.mark.parametrize("v", [3.0, np.float64(3.0), jnp.asarray(3.0), jnp.asarray(3, dtype=jnp.int32)])

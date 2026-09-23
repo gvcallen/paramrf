@@ -336,7 +336,7 @@ def test_correlated_prior_moves_a_fit(wide_band):
                           ['val', 'other'], _correlated_normal([1.0, 1.0], scale))
         result = fit_minimize(model, ntwk, solver=prf.optimize.ScipyMinimize(),
                               inference='bayesian', max_iter=400)
-        return float(prf.param_values(result.model)['val'])
+        return float(prf.values(result.model)['val'])
 
     assert jnp.allclose(fit(100.0), 10.0, atol=1e-1)   # data wins
     assert fit(0.01) < 5.0                             # prior wins

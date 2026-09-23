@@ -135,7 +135,7 @@ def run_minimizer(
     through the free parameters in raw space, where constraints are enforced by each
     parameter's bijector, so a bounded solver is given infinite bounds. The solver
     receives a name-keyed dict, as from
-    ``prf.param_values(model, free_only=True, space='raw')``; a solver that needs a
+    ``prf.values(model, free_only=True, space='raw')``; a solver that needs a
     1-D vector flattens it itself. The result is written back with
     ``prf.update(model, y, space='raw')``, so fixed parameters, names, scales and
     priors are unchanged.

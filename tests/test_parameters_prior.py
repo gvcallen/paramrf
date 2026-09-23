@@ -30,7 +30,7 @@ def _assert_same_prior(attached, built):
     """`attached` scores and moves exactly as `built`, parameter for parameter."""
     for space in SPACES:
         assert np.allclose(prf.log_prior(attached, space=space), prf.log_prior(built, space=space)), space
-    raw_a, raw_b = prf.param_values(attached, space="raw"), prf.param_values(built, space="raw")
+    raw_a, raw_b = prf.values(attached, space="raw"), prf.values(built, space="raw")
     assert set(raw_a) == set(raw_b)
     for name in raw_a:
         assert np.allclose(raw_a[name], raw_b[name]), name
@@ -107,8 +107,8 @@ def test_prior_keeps_name_scale_metadata_and_fixed_state():
     attached = prf.prior(m, ["R", "C"], Normal(2.0, 1.0))
     assert attached.R.fixed and not attached.C.fixed
     assert attached.C.scale == 1e-12 and attached.C.metadata == {"k": 1}
-    assert np.allclose(prf.param_values(attached)["R"], 40.0)
-    assert np.allclose(prf.param_values(attached)["C"], 2.0)
+    assert np.allclose(prf.values(attached)["R"], 40.0)
+    assert np.allclose(prf.values(attached)["C"], 2.0)
 
 
 def test_prior_in_physical_space():
@@ -117,7 +117,7 @@ def test_prior_in_physical_space():
     built = RC(R=prf.Fixed(1.0), C=prf.Random(Normal(2.0, 0.5), value=2.0))
     for space in SPACES:
         assert np.allclose(prf.log_prior(attached, space=space), prf.log_prior(built, space=space)), space
-    assert np.allclose(prf.param_values(attached)["C"], 2.0)
+    assert np.allclose(prf.values(attached)["C"], 2.0)
     assert _unbounded(attached.C)
 
 
@@ -129,7 +129,7 @@ def test_prior_in_raw_space_is_over_the_raw_space_before_attaching():
     attached = prf.prior(m, "C", prior, space="raw")
     expected = prior.log_prob(z) - old.forward_log_det_jacobian(z)
     assert np.allclose(prf.log_prior(attached), expected)
-    assert np.allclose(prf.param_values(attached)["C"], 2.5)
+    assert np.allclose(prf.values(attached)["C"], 2.5)
     assert np.allclose(attached.C.bounds, (1.0, 3.0))
 
 

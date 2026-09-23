@@ -34,14 +34,14 @@ Each component uses a different naming style. The resistor is a named model, so 
 Reading Parameters
 ~~~~~~~~~~~~~~~~~~
 
-:func:`pmrf.params` returns the :class:`pmrf.Param` objects themselves, whereas :func:`pmrf.param_values` returns just their values. Values are given in the units each parameter was declared in, so the inductor reads back as ``2.0`` nH. To get SI values instead, we can pass ``space='physical'``:
+:func:`pmrf.params` returns the :class:`pmrf.Param` objects themselves, whereas :func:`pmrf.values` returns just their values. Values are given in the units each parameter was declared in, so the inductor reads back as ``2.0`` nH. To get SI values instead, we can pass ``space='physical'``:
 
 .. plot::
    :context:
    :include-source:
 
-   prf.param_values(rlc)                     # {'myR.R': 100.0, 'myL_L_val': 2.0, 'C_global': 1.0}
-   prf.param_values(rlc, space='physical')   # {'myR.R': 100.0, 'myL_L_val': 2e-09, 'C_global': 1e-12}
+   prf.values(rlc)                     # {'myR.R': 100.0, 'myL_L_val': 2.0, 'C_global': 1.0}
+   prf.values(rlc, space='physical')   # {'myR.R': 100.0, 'myL_L_val': 2e-09, 'C_global': 1e-12}
 
 Both functions can also be given a selector, such as a glob, to pick out only some parameters. Since the resistor was passed as a plain float, it is fixed, and ``free_only=True`` leaves it out:
 

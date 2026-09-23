@@ -39,7 +39,7 @@ To differentiate a model's parameters, we can pass any differentiable function t
    
    (derivatives,) = prf.derivative(s21_mag, lpf)
    
-   sensitivities = prf.param_values(derivatives)
+   sensitivities = prf.values(derivatives)
    
    print(f"Sensitivity to C1: {sensitivities['c1.C']:.3f} / pF")
    print(f"Sensitivity to L: {sensitivities['l1.L']:.3f} / nH")

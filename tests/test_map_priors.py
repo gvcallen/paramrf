@@ -42,7 +42,7 @@ def fitted_value(result):
     # These tests compare against a closed form in physical units, so read the
     # physical space. Values are declared by default, which differs by the scale
     # whenever a parameter declares one.
-    values = prf.param_values(result.model, space='physical')
+    values = prf.values(result.model, space='physical')
     return float(np.asarray(list(values.values())[0]).ravel()[0])
 
 
@@ -148,7 +148,7 @@ def test_array_parameter_can_be_fitted():
         inference="bayesian", noise=VARIANCE,
         solver=prf.optimize.ScipyMinimize(method="trust-constr"), max_iter=2000)
 
-    assert np.all(np.isfinite(np.asarray(list(prf.param_values(result.model).values())[0])))
+    assert np.all(np.isfinite(np.asarray(list(prf.values(result.model).values())[0])))
 
 
 # ==========================================

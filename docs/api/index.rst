@@ -27,7 +27,7 @@ Working with Parameters
    :toctree: generated/
 
    pmrf.params
-   pmrf.param_values
+   pmrf.values
    pmrf.log_prior
    pmrf.update
    pmrf.tie
