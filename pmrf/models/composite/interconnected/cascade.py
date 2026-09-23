@@ -4,7 +4,6 @@ Composite models that physically connect ports of other models in series.
 import jax
 import jax.numpy as jnp
 from dataclasses import InitVar
-from functools import partial
 from typing import Literal
 
 from pmrf.models import Model
@@ -42,6 +41,15 @@ class Cascade(Model):
     flatten: bool, default=True
         (experimental) Flattens the cascade into one large cascade if they contain sub-cascades.
 
+    Notes
+    -----
+    The scattering reduction pins junction modes that are singular and
+    unobservable from the external ports, such as the common mode between
+    floating networks, and inverts everything else exactly, so S and its JAX
+    gradients match `Circuit.from_chain`. A resonance is observable and never
+    pinned. A lossless model evaluated exactly at a true resonance frequency
+    is still singular; that is physical. See :func:`pmrf.rf.cascade_two_s`.
+
     Examples
     --------
     Cascading models is most easily done using the `**` operator, which is
@@ -73,9 +81,6 @@ class Cascade(Model):
     
     #: The cascade reduction algorithm method.
     method: Literal['s', 'a'] = field(default='s', kw_only=True, static=True)
-    
-    #: Relative cutoff for singular values in scattering cascade elimination.
-    eps: float = field(default=1e-12, static=True, kw_only=True)
 
     def __post_init__(self):
         for model in self.cascade:
@@ -102,7 +107,7 @@ class Cascade(Model):
             else:
                 merged.append(model)
 
-        return Cascade(merged, method=self.method, eps=self.eps, flatten=False)
+        return Cascade(merged, method=self.method, flatten=False)
 
     # --- DATA EVALUATION ---
 
@@ -133,8 +138,7 @@ class Cascade(Model):
 
         if flat.method == 's':
             s_blocks, z0_blocks = flat._evaluate_scattering(freq, z0)
-            reduce_s = partial(cascade_scattering, eps=flat.eps)
-            run_vmap = jax.vmap(reduce_s, in_axes=(0, 0))
+            run_vmap = jax.vmap(cascade_scattering, in_axes=(0, 0))
             s_cas, z0_cas = run_vmap(s_blocks, z0_blocks)
             return s_cas, z0_cas, 's'
             
@@ -226,10 +230,7 @@ class RepeatedCascade(Model):
     method : {'a', 's'}, default='a'
         The domain the reduction runs in. ABCD needs no reference-impedance
         bookkeeping between sections; scattering is for members whose ABCD form is
-        ill-conditioned.
-    eps : float, default=1e-12
-        Relative cutoff for singular values in the scattering reduction. Unused
-        when `method` is ``'a'``.
+        ill-conditioned. Scattering junctions are handled as in :class:`Cascade`.
 
     Raises
     ------
@@ -261,9 +262,6 @@ class RepeatedCascade(Model):
 
     #: The cascade reduction algorithm method.
     method: Literal['a', 's'] = field(default='a', kw_only=True, static=True)
-
-    #: Relative cutoff for singular values in scattering cascade elimination.
-    eps: float = field(default=1e-12, static=True, kw_only=True)
 
     def __post_init__(self):
         if self.model.nports % 2 != 0:
@@ -354,8 +352,7 @@ class RepeatedCascade(Model):
         """Dispatches data prep and solving across the active vmapped mathematical method."""
         if self.method == 's':
             s_blocks, z0_blocks = self._evaluate_scattering(freq, z0)
-            reduce_s = partial(cascade_scattering, eps=self.eps)
-            s_cas, z0_cas = jax.vmap(reduce_s, in_axes=(0, 0))(s_blocks, z0_blocks)
+            s_cas, z0_cas = jax.vmap(cascade_scattering, in_axes=(0, 0))(s_blocks, z0_blocks)
             return s_cas, z0_cas, 's'
 
         elif self.method == 'a':
