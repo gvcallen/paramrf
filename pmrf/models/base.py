@@ -704,7 +704,8 @@ class Model(Module):
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
         **kwargs
-            Forwarded to :class:`skrf.Network` constructor.
+            Forwarded to :class:`skrf.Network` constructor. ``port_names`` defaults
+            to a :class:`pmrf.models.Circuit`'s Port names, if any Port is named.
 
         Returns
         -------
@@ -720,11 +721,13 @@ class Model(Module):
             model_freq = Frequency.from_skrf(frequency)
             measured_freq = frequency
         
+        defaults = _skrf_defaults(self)
         if z0 is None:
-            z0 = _skrf_defaults(self)['z0']
+            z0 = defaults['z0']
         s_matrix = self.s(model_freq, z0=z0)
         
-        kwargs = kwargs or {}
+        if 'port_names' in defaults:
+            kwargs.setdefault('port_names', defaults['port_names'])
         kwargs.update({
             's': np.array(s_matrix),
             'frequency': measured_freq,
@@ -765,18 +768,27 @@ def _skrf_defaults(model: Model) -> dict[str, Any]:
     ``z0`` is the model's native reference impedance (ADR-0006): each external
     Port's ``z0`` for a :class:`~pmrf.models.Circuit`, and its own ``z0`` for a
     :class:`~pmrf.models.Port`. A model without one gets 50 Ω.
+
+    ``port_names`` is set for a Circuit with at least one named Port: each Port's
+    ``name`` in port order, or its 1-based index for an unnamed Port.
     """
     from pmrf.models.composite.interconnected.circuit.circuit import Circuit
     from pmrf.models.components.ideal import Port
 
     model = unwrap(model)
     if isinstance(model, Circuit):
-        z0 = np.array([np.asarray(port.z0) for port in model.ports])
+        ports = model.ports
+        defaults = {'z0': np.array([np.asarray(port.z0) for port in ports])}
+        if any(port.name is not None for port in ports):
+            defaults['port_names'] = [
+                str(i + 1) if port.name is None else port.name
+                for i, port in enumerate(ports)
+            ]
+        return defaults
     elif isinstance(model, Port):
-        z0 = np.asarray(model.z0)
+        return {'z0': np.asarray(model.z0)}
     else:
-        z0 = 50.0
-    return {'z0': z0}
+        return {'z0': 50.0}
 
 
 def is_model(x: Any) -> TypeGuard[Model]:
