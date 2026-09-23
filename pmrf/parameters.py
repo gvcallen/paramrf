@@ -71,6 +71,14 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
     #: Arbitrary metadata to store alongside the parameter.
     metadata: Any = field(default=None, kw_only=True, static=True)
 
+    #: The constraint the parameter must always satisfy, in declared space: that of
+    #: the model field it was passed to (see :func:`pmrf.param`), or None. Its bounds
+    #: combine it with the range the user gave, which a prior in declared or
+    #: physical space replaces (see :func:`pmrf.prior`).
+    validity: AbstractConstraint | None = eqx.field(
+        converter=lambda c: None if c is None else prx.as_opaque(c), default=None, kw_only=True,
+    )
+
     def __init__(
         self,
         *,
@@ -82,6 +90,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         fixed: bool = False,
         metadata: Any = None,
         variable: Optional[prx.AbstractVariable] = None,
+        validity: Optional[AbstractConstraint] = None,
     ):
         """
         Creates a generic parameter.
@@ -95,7 +104,9 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         distribution : Optional[AbstractDistribution], optional
             The probability distribution, in declared space. See :mod:`pmrf.distributions`.
         constraint : Optional[AbstractConstraint], optional
-            The constraint, in declared space. See :mod:`pmrf.constraints`.
+            The range, in declared space. See :mod:`pmrf.constraints`. It is
+            intersected with `validity`, and `distribution` is truncated to the
+            result and renormalised.
         name : str, optional
             A name for the parameter, by default None.
         scale : float, optional
@@ -113,6 +124,16 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
             ``pmrf.replace(param, value=...)`` work, so
             ``pmrf.replace(param, value=param.value)`` is the identity (up to the
             floating-point round trip through the constraint bijector).
+        validity : Optional[AbstractConstraint], optional
+            The constraint the parameter must always satisfy, in declared space. See
+            :attr:`validity`. With `variable`, it is recorded as given: the variable's
+            constraint must already lie inside it.
+
+        Raises
+        ------
+        ValueError
+            If `distribution` reaches outside the constraint and cannot be truncated
+            to it. Normal and Uniform distributions can be.
         """
         if isinstance(value, prx.AbstractVariable):
             raise ValueError("Got a Parax variable when constructing a parameter")
@@ -123,26 +144,34 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         if variable is not None and value is not None:
             variable = _replace_variable_value(variable, value)
         elif variable is None:
-            distribution, constraint = prx.unwrap(distribution), prx.unwrap(constraint)
-            
+            distribution, constraint, validity = prx.unwrap(distribution), prx.unwrap(constraint), prx.unwrap(validity)
+            bound = _intersect(constraint, validity)
+
             # Error Checking & Value Inference
-            if value is None and distribution is None and constraint is None:
+            if value is None and distribution is None and bound is None:
                 raise ValueError("`value` was None when constructing a parameter but neither a distribution nor a finite Interval constraint was provided")
-            if constraint is not None and value is not None:
-                value = _check_in_constraint(value, constraint)
+            if bound is not None and value is not None:
+                value = _check_in_constraint(value, bound)
+
+            # A prior is truncated to the constraint. Without a range, its own support,
+            # now inside the validity, is the constraint, so raw space is its whitening.
+            if distribution is not None and bound is not None:
+                distribution = _truncated_to(distribution, bound.bounds)
+                if constraint is None:
+                    bound = None
 
             # Cater for none values
             if value is None:
-                if constraint is not None and not jnp.any(jnp.isinf(jnp.asarray(constraint.bounds))):
-                    value = constraint.midpoint()
+                if bound is not None and not jnp.any(jnp.isinf(jnp.asarray(bound.bounds))):
+                    value = bound.midpoint()
                 else:
                     value = distribution.mean()
 
             value = jnp.asarray(value)
             if distribution is not None:
-                variable = prx.Random(distribution, constraint=constraint, value=value)
-            elif constraint is not None:
-                variable = prx.Constrained(constraint, value=value)
+                variable = prx.Random(distribution, constraint=bound, value=value)
+            elif bound is not None:
+                variable = prx.Constrained(bound, value=value)
             else:
                 variable = prx.Real(value)
             raw = variable.raw_value
@@ -159,6 +188,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         self.scale = None if scale is None else float(scale)
         self.name = name
         self.metadata = metadata
+        self.validity = prx.unwrap(validity)
 
     @property
     def fixed(self) -> bool:
@@ -426,6 +456,33 @@ def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Ar
     )
 
 
+#: The rounding, relative to the largest finite bound, up to which :func:`_inside`
+#: still counts bounds as inside others.
+_BOUNDS_RTOL = 1e-10
+
+
+def _inside(inner: tuple[ArrayLike, ArrayLike], outer: tuple[ArrayLike, ArrayLike]) -> bool:
+    """Returns whether the bounds `inner` lie inside the bounds `outer`, up to rounding
+    relative to their largest finite magnitude. Parax infers the support of a truncated
+    distribution through a bijector, which misses its bounds by a few ulps."""
+    bounds = [jnp.asarray(b) for b in (*inner, *outer)]
+    magnitudes = jnp.concatenate([jnp.ravel(jnp.where(jnp.isfinite(b), jnp.abs(b), 0.0)) for b in bounds])
+    tol = _BOUNDS_RTOL * jnp.max(magnitudes)
+    return bool(jnp.all(bounds[0] >= bounds[2] - tol) and jnp.all(bounds[1] <= bounds[3] + tol))
+
+
+def _intersect(a: AbstractConstraint | None, b: AbstractConstraint | None) -> AbstractConstraint | None:
+    """Returns the intersection of two constraints, either of which may be None. One
+    that lies inside the other is returned as it is, keeping its bijector."""
+    if a is None or b is None:
+        return b if a is None else a
+    if _inside(a.bounds, b.bounds):
+        return a
+    if _inside(b.bounds, a.bounds):
+        return b
+    return prx.constraints.intersect(a, b)
+
+
 def _peel_fixed(variable: prx.AbstractVariable) -> prx.AbstractVariable:
     """Returns the variable a `parax.Fixed` holds, or `variable` if it is not fixed."""
     return variable.raw_value if isinstance(variable, prx.Fixed) else variable
@@ -479,15 +536,16 @@ def as_param(
     The incoming value can be an existing parameter or parax variable,
     or any parameter-like object (float, array etc.).
 
-    Constraints are intersected. A parameter's own scale overrides `scale`; the
-    two are never multiplied.
+    `constraint` is the parameter's validity: it is intersected with any validity and
+    range the value already has, and a prior is truncated to the result. A parameter's
+    own scale overrides `scale`; the two are never multiplied.
 
     Parameters
     ----------
     value : Any, optional
         The declared value of the parameter.
     constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter, in declared space. See :mod:`pmrf.constraints`.
+        The parameter's validity, in declared space. See :mod:`pmrf.constraints`.
     scale : float, optional
         The units `value` is written in, used unless `value` is a parameter with its
         own scale. None, the default, leaves the scale unset (acting as 1.0).
@@ -508,7 +566,8 @@ def as_param(
     if as_free and as_fixed:
         raise ValueError("Cannot pass both `as_free=True` and `as_fixed=True`.")
 
-    # Intersect parameter properties
+    # `constraint` is the field's validity, which always holds
+    validity = constraint
     name = None
     metadata = None
     if isinstance(value, Param):
@@ -516,32 +575,28 @@ def as_param(
             scale = value.scale
         name = value.name
         metadata = value.metadata
+        validity = _intersect(value.validity, validity)
         value = value.variable
 
-    # Intersect variable properties
+    # The variable's own constraint is its range, already inside any validity it had
     distribution = None
     fixed = None
+    range_ = None
     if prx.is_variable(value):
         if isinstance(value, prx.Fixed):
             fixed = True
             value = value.raw_value
         else:
             fixed = False
-        
+
         if isinstance(value, prx.Random):
             distribution = value.distribution
-        
         if prx.is_constrained(value):
-            constraints = [constraint] if constraint is not None else []
-            if prx.is_constrained(value):
-                constraints.append(prx.unwrap(value.constraint))
-            if len(constraints) != 0:
-                value = prx.variables.constrain_param(value, *constraints)
-            constraint = value.constraint
-            
+            range_ = value.constraint
+
         if not isinstance(value, prx.Random | prx.Constrained | prx.Real):
             raise ValueError(f"Got unknown type in `as_param`: {value}")
-            
+
         value = jnp.asarray(value)
 
     # Intersect fixed properties
@@ -551,11 +606,12 @@ def as_param(
         else:
             fixed = True
 
-    # Create the new parameter
+    # Create the new parameter, truncating any prior to the new constraint
     p = Param(
         value=value,
         distribution=distribution,
-        constraint=constraint,
+        constraint=range_,
+        validity=validity,
         scale=scale,
         fixed=fixed,
         name=name,
@@ -586,6 +642,10 @@ def param(
     It is used to register the parameter when a model is constructed, so it is listed
     by :func:`pmrf.params`. It can also be used to enforce
     constraints, scaling, bounds and variability within the model itself.
+
+    `constraint` is the parameter's validity, such as a positive width: it always
+    holds. A range the value brings, such as :func:`pmrf.Bounded`, is intersected
+    with it, and a prior is truncated to the result and renormalised.
     
     This simply creates a `pmrf.field` with a `pmrf.as_param` converter.
     
@@ -824,7 +884,7 @@ def Random(
     distribution : AbstractDistribution
         The probability distribution for the parameter.
     constraint : Optional[AbstractConstraint], optional
-        An optional constraint to apply.
+        An optional range. The distribution is truncated to it and renormalised.
     value : Optional[ArrayLike], optional
         The initial declared value. If None, the distribution's mean is used.
     fixed : bool, optional
@@ -845,7 +905,8 @@ def Random(
     Raises
     ------
     ValueError
-        If `value` is None and the distribution does not implement `mean()`.
+        If `value` is None and the distribution does not implement `mean()`, or
+        the distribution reaches outside `constraint` and cannot be truncated to it.
     """
     return Param(value=value, distribution=distribution, constraint=constraint, scale=scale, name=name, fixed=fixed, metadata=metadata)
 
@@ -2173,51 +2234,59 @@ def _support(distribution: AbstractDistribution) -> tuple[Array, Array]:
 def _within_bounds(distribution: AbstractDistribution, bounds: tuple[Array, Array]) -> bool:
     """Returns whether the support of a distribution lies inside `bounds`, so that
     truncating it to them would change nothing."""
-    support = _support(distribution)
-    return bool(jnp.all(support[0] >= bounds[0]) and jnp.all(support[1] <= bounds[1]))
+    return _inside(_support(distribution), bounds)
 
 
-def _bounds_in_space(node, space: str) -> tuple[Array, Array] | None:
-    """Returns the bounds of a parameter or raw array in declared or physical space, or
-    None if it has none."""
-    bounds = _declared_bounds(node)
-    scale = node._scale if is_param(node) else 1.0
-    if bounds is None or space == 'declared' or scale == 1.0:
+def _validity_bounds(node, space: str) -> tuple[Array, Array] | None:
+    """Returns the bounds of the validity of a parameter in declared or physical space,
+    or None if it has none or is a raw array."""
+    if not is_param(node) or node.validity is None:
+        return None
+    bounds = prx.unwrap(node.validity).bounds
+    if space == 'declared' or node._scale == 1.0:
         return bounds
-    return tuple(jnp.sort(jnp.stack([bounds[0] * scale, bounds[1] * scale]), axis=0))
+    return tuple(jnp.sort(jnp.stack([bounds[0] * node._scale, bounds[1] * node._scale]), axis=0))
 
 
 def _truncated_to(distribution: AbstractDistribution, bounds: tuple[Array, Array] | None) -> AbstractDistribution:
-    """Returns `distribution` truncated to `bounds`, or unchanged when the bounds are
-    absent, infinite or already contain its support."""
+    """Returns `distribution` truncated to `bounds` and renormalised, or unchanged when
+    the bounds are absent, infinite or already contain its support. Raises if it cannot
+    be truncated."""
     if bounds is None or bool(jnp.all(jnp.isinf(jnp.asarray(bounds)))) or _within_bounds(distribution, bounds):
         return distribution
-    return truncate(distribution, *bounds)
+    try:
+        return truncate(distribution, *bounds)
+    except ValueError:
+        lower, upper = (jnp.asarray(b).tolist() for b in bounds)
+        raise ValueError(
+            f"A {type(distribution).__name__} prior reaches outside its parameter's bounds "
+            f"[{lower}, {upper}] and cannot be truncated to them, so it would not be normalised. "
+            "Use a prior whose support lies inside the bounds, or a Normal or Uniform, which "
+            "can be truncated."
+        ) from None
 
 
 def _declared_prior(node, distribution: AbstractDistribution, space: str) -> AbstractDistribution:
     """Returns the declared-space prior for `node` of a scalar-event `distribution`
-    over `space`, truncated so that the node's bounds still hold."""
-    bounds = _declared_bounds(node)
-    if space == 'declared':
-        return _truncated_to(distribution, bounds)
+    over `space`. A prior over raw space keeps the node's range; any other is truncated
+    to its validity only, here or when the parameter is built."""
     if space == 'raw':
         # Raw values map into the bounds, so a prior over them cannot leave them.
         to_declared = node.raw_to_declared_bijector if is_param(node) else None
         return distribution if to_declared is None else Transformed(distribution, to_declared)
     scale = node._scale if is_param(node) else 1.0
-    if scale == 1.0:
-        return _truncated_to(distribution, bounds)
-    bounds = _bounds_in_space(node, space)
+    if space == 'declared' or scale == 1.0:
+        return distribution
     to_declared = ScalarAffine(shift=jnp.array(0.0), scale=jnp.array(1.0 / scale))
-    return Transformed(_truncated_to(distribution, bounds), to_declared)
+    return Transformed(_truncated_to(distribution, _validity_bounds(node, space)), to_declared)
 
 
-def _with_prior(node, distribution: AbstractDistribution) -> Param:
+def _with_prior(node, distribution: AbstractDistribution | None) -> Any:
     """Returns `node`, a parameter or raw array, rebuilt as if by :func:`Random` with
-    the declared-space prior `distribution` in place of any prior and constraint."""
+    the declared-space prior `distribution` in place of any prior and range, keeping
+    its validity. With no `distribution`, a raw array is returned as it is."""
     if not is_param(node):
-        return Param(value=node, distribution=distribution)
+        return node if distribution is None else Param(value=node, distribution=distribution)
     return Param(
         value=node.value,
         distribution=distribution,
@@ -2225,6 +2294,7 @@ def _with_prior(node, distribution: AbstractDistribution) -> Param:
         fixed=node.fixed,
         name=node.name,
         metadata=node.metadata,
+        validity=node.validity,
     )
 
 
@@ -2237,9 +2307,9 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
 
     - **Scalar event**: each selected parameter gets its own prior, exactly as if it
       had been built with :func:`Random`. Its raw space becomes the new prior's
-      whitening, and the prior is truncated to the parameter's existing bounds, so the
-      bounds still hold. A prior whose support already lies inside the bounds is kept
-      as given.
+      whitening. The prior is truncated to the parameter's validity and renormalised,
+      so the validity still holds. A prior whose support already lies inside the
+      validity is kept as given.
     - **Event size equal to the number of selected parameters**: a joint prior over
       them. The tree is wrapped, unchanged, in a :class:`pmrf.modules.Probabilistic`
       (inside a :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
@@ -2248,12 +2318,21 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
       glob, or a callable, expands to sorted names.
     - Anything else raises.
 
-    The prior replaces any prior the parameters already had. Their value, scale, name,
-    metadata and fixed state are kept. A joint prior over declared or physical space
-    must have its support inside the parameters' bounds, since it cannot be truncated
-    to them and stay exactly normalised. For a joint prior, :func:`log_prior` scores the
-    parameters jointly in place of their own priors, which stay attached but unused,
-    and a value outside a parameter's bounds scores minus infinity.
+    A parameter's bounds combine its validity, the constraint of the model field it
+    was passed to (see :func:`param`), which always holds, with its range: a
+    :func:`Bounded` interval, a ``constraint`` given to :func:`Random` or
+    :func:`Constrained`, or a :func:`Random` distribution's own support. A range is
+    prior information, so a prior over declared or physical space replaces it, along
+    with any prior the parameters already had, and keeps their validity. A prior over
+    raw space keeps their range, since it reaches declared space through it. Their
+    value, scale, name, metadata and fixed state are kept.
+
+    A joint prior over declared or physical space must have its support inside the
+    parameters' validity, since it cannot be truncated to it and stay exactly
+    normalised. For a joint prior, :func:`log_prior` scores the parameters jointly in
+    place of their own priors: over raw space these stay attached but unused, and
+    otherwise they are dropped with the range. A value outside a parameter's bounds
+    scores minus infinity.
 
     Attaching a joint prior redefines raw space for its parameters as the
     distribution's whitened space, inferred as for a one-dimensional prior: a flow's
@@ -2280,9 +2359,8 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         it was just before this call, as :func:`param_values` returned it with
         ``space='raw'``. The prior is mapped to declared space, with its
         change-of-variables term, and a prior over raw space keeps the mapping from
-        that raw space to declared space. A mapped prior has no inverse CDF, so a
-        hypercube sampler needs `space` to be ``'declared'``, or ``'physical'`` on an
-        unscaled parameter.
+        that raw space to declared space. A hypercube sampler maps a mapped
+        one-dimensional prior through its base's inverse CDF, so the base needs one.
 
     Returns
     -------
@@ -2294,24 +2372,27 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     ValueError
         If a name is unknown, `space` is unknown, the event size is neither scalar
         nor the number of selected parameters, the prior has to be truncated to
-        the bounds and cannot be, or a selected parameter is already under a joint
+        the validity and cannot be, or a selected parameter is already under a joint
         prior. For a joint prior, also if a selected name is not a free parameter
         (a fixed or frozen parameter raises, and a tie's target is not a parameter at
         all), a selected parameter is not a scalar, or, over ``'declared'`` or
         ``'physical'`` space, the distribution's support leaves a selected parameter's
-        bounds. A support Parax cannot determine counts as unbounded.
+        validity. A support Parax cannot determine counts as unbounded.
 
     Examples
     --------
     .. code-block:: python
 
+        from pmrf.constraints import Positive
         from pmrf.distributions import Normal
 
-        cable = Resistor(prf.Bounded(0.0, 100.0, value=40.0), name='cable')
-        model = cable ** Resistor(50.0, name='load')
-        model = prf.prior(model, 'cable.*', Normal(50.0, 10.0))
-        prf.params(model)['cable.R'].distribution   # Normal(50, 10) truncated to [0, 100]
-        prf.params(model)['cable.R'].bounds         # (0.0, 100.0)
+        class Line(prf.Model):
+            w: prf.Param = prf.param(constraint=Positive())   # validity
+
+        line = Line(prf.Bounded(1.0, 5.0, value=2.0), name='line')   # a range
+        model = prf.prior(line, 'w', Normal(2.0, 3.0))
+        prf.params(model)['w'].distribution   # Normal(2, 3) truncated to [0, inf)
+        prf.params(model)['w'].bounds         # (0.0, inf): the range is replaced
 
     A joint prior, here the posterior of an earlier fit over two parameters:
 
@@ -2377,7 +2458,9 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
             f"{', '.join(repr(name) for name in not_scalar)} {'is' if len(not_scalar) == 1 else 'are'} not."
         )
     if space != 'raw':
-        _check_joint_support(names, [resolved[name][1] for name in names], distribution, space)
+        nodes = [resolved[name][1] for name in names]
+        _check_joint_support(names, nodes, distribution, space)
+        tree = _set_paths(tree, [resolved[name][0] for name in names], [_with_prior(node, None) for node in nodes])
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
     joint = Probabilistic(base, distribution, tuple(names), space)
     return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
@@ -2385,21 +2468,21 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
 
 def _check_joint_support(names: list[str], nodes: list, distribution: AbstractDistribution, space: str) -> None:
     """Raises unless the support of a joint prior over declared or physical `space` lies
-    inside its parameters' bounds, taken to that space. Every bound counts as the
-    parameter's validity."""
+    inside its parameters' validity, taken to that space."""
     lower, upper = (jnp.ravel(b) for b in _support(distribution))
     lower, upper = jnp.broadcast_to(lower, (len(names),)), jnp.broadcast_to(upper, (len(names),))
     outside = []
     for i, (name, node) in enumerate(zip(names, nodes)):
-        bounds = _bounds_in_space(node, space)
-        if bounds is not None and not (bool(jnp.all(lower[i] >= bounds[0])) and bool(jnp.all(upper[i] <= bounds[1]))):
+        bounds = _validity_bounds(node, space)
+        if bounds is not None and not _inside((lower[i], upper[i]), bounds):
             outside.append(name)
     if outside:
         raise ValueError(
             f"A joint prior over {space} space must have its support inside its parameters' "
-            f"bounds, but its support leaves the bounds of {', '.join(repr(name) for name in outside)}. "
-            "It cannot be truncated to them and stay exactly normalised. Attach a distribution "
-            "over the parameters' raw values instead, with space='raw', which cannot leave the bounds."
+            f"validity, the constraints of their model fields, but its support leaves the validity "
+            f"of {', '.join(repr(name) for name in outside)}. It cannot be truncated to it and stay "
+            "exactly normalised. Attach a distribution over the parameters' raw values instead, "
+            "with space='raw', which cannot leave their bounds."
         )
 
 
