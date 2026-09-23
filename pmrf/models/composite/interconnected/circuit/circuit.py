@@ -50,7 +50,13 @@ class Circuit(Model):
 
     The external ports follow `Port` declaration order: scanning `connections`
     node by node, left to right, the first `Port` found is port 0. This holds for
-    every solver, nested or flattened.
+    every solver, nested or flattened. :attr:`ports` returns them in that order.
+
+    Each `Port`'s ``z0`` is the circuit's native reference impedance at that port
+    (ADR-0006): :meth:`s` and :meth:`~pmrf.Model.to_skrf` report S-parameters at the
+    Ports' ``z0`` unless an explicit ``z0`` is passed. A parent model, such as a
+    `Cascade` or another `Circuit`, always passes an explicit ``z0``, so the Ports'
+    ``z0`` of a nested circuit do not affect the parent.
 
     Parameters
     ----------
@@ -91,6 +97,8 @@ class Circuit(Model):
     >>> # Create the circuit model
     >>> pi_clc = Circuit(connections)
     """
+    supports_native_z0 = True
+
     #: The connections.
     connections: InitVar[list[list[tuple[Model, int]]]] = None
 
@@ -198,9 +206,14 @@ class Circuit(Model):
         return port_map, sub_conns
 
     @property
+    def ports(self) -> list[Port]:
+        """The circuit's external `Port`\\ s, in port order."""
+        return [model for model in self.circuit if isinstance(model, Port)]
+
+    @property
     def number_of_ports(self) -> int:
         """Computes the number of external ports exposed by this circuit."""
-        return sum(1 for model in self.circuit if isinstance(model, Port))
+        return len(self.ports)
 
     def flattened(self) -> 'Circuit':
         """
@@ -364,11 +377,14 @@ class Circuit(Model):
         dtype = batched_S.dtype
         z0_ports = jnp.full((num_ports,), EVAL_Z0, dtype=dtype)
 
-        # Dynamically extract the specific z0 constraints of the external ports
-        ext_z0_list = [jnp.asarray(c.z0, dtype=dtype) for c in self.circuit if isinstance(c, Port)]
-        z0_ext = jnp.stack(ext_z0_list) if ext_z0_list else jnp.zeros((0,), dtype=dtype)
+        z0_ext = self._port_z0(dtype)
 
         return batched_S, z0_ports, z0_ext
+
+    def _port_z0(self, dtype=jnp.complex128) -> jnp.ndarray:
+        """The native reference impedance: each external `Port`'s ``z0``, in port order."""
+        port_z0 = [jnp.asarray(port.z0, dtype=dtype) for port in self.ports]
+        return jnp.stack(port_z0) if port_z0 else jnp.zeros((0,), dtype=dtype)
 
     def _evaluate_admittance(self, freq: Frequency) -> jnp.ndarray:
         """Evaluates and flattens the admittance matrices of all contained components."""
@@ -435,10 +451,21 @@ class Circuit(Model):
         else:
             raise TypeError(f"Unrecognized solver type: {type(flat.solver)}")
 
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        """Evaluates the composite scattering parameters of the circuit."""
+    def s(self, freq: Frequency, z0: ArrayLike | None = None) -> jnp.ndarray:
+        """Evaluates the composite scattering parameters of the circuit.
+
+        Parameters
+        ----------
+        freq : Frequency
+            Frequency grid.
+        z0 : ArrayLike, optional
+            The reference impedance, scalar or per-port. Defaults to the Ports' ``z0``.
+        """
+        if z0 is None:
+            z0 = self._port_z0()
+
         result = self._solve(freq)
-        
+
         if isinstance(result, ScatteringResult):
             # Renormalize from native port z0 to the requested measurement z0
             return renormalize_s(result.s, z_old=result.z0, z_new=z0)

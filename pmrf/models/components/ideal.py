@@ -103,16 +103,26 @@ class Match(Model):
 
 class Port(Model):
     """
-    Represents a circuit port with a specific characteristic impedance.
-    
+    Represents a circuit port with a reference impedance.
+
     This class serves as a placeholder or marker for external connections
     in a :class:`pmrf.models.Circuit` definition, though can also be used
     as a simple tagged load in other types of models.
+
+    ``z0`` is the port's reference impedance (ADR-0006). In a
+    :class:`pmrf.models.Circuit`, it is the reference the circuit's S-parameters
+    are reported at by default. On its own, a port is a matched load at ``z0``:
+    ``s()`` is zero by default, and a load of impedance ``z0`` when probed at an
+    explicit ``z0``.
     """
-    #: Port characteristic impedance
+    supports_native_z0 = True
+
+    #: Port reference impedance
     z0: Param = param(default=50.0)
 
-    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+    def s(self, freq: Frequency, z0: ArrayLike | None = None) -> jnp.ndarray:
+        if z0 is None:
+            z0 = self.z0
         return Load(gamma=0.0, z0=self.z0).s(freq, z0=z0)
     
 

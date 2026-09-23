@@ -117,7 +117,9 @@ def test_scalar_z0_takes_scalar_path(model, freq):
 
 
 class _RecordsZ0(Model):
-    def s(self, freq: Frequency, z0=50.0):
+    supports_native_z0 = True
+
+    def s(self, freq: Frequency, z0=None):
         _RecordsZ0.seen.append(z0)
         return jnp.zeros((freq.npoints, 1, 1), dtype=jnp.complex128)
 

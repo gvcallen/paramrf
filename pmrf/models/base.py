@@ -2,7 +2,7 @@
 Base class for RF models.
 """
 
-from typing import Any, Callable, TypeVar, Union, TypeGuard
+from typing import Any, Callable, ClassVar, TypeVar, Union, TypeGuard
 import functools
 import inspect
 import warnings
@@ -41,8 +41,9 @@ _BUILD_DEPRECATION_WARNED: set[type] = set()
 def _z0_as_array(method: Callable) -> Callable:
     """Wrap a primary method so an explicit ``z0`` reaches it as an array.
 
-    A list or scalar ``z0`` is converted once, here, for every model; ``None`` is
-    passed through unchanged. A scalar becomes a 0-d array, which ``jnp.isscalar``
+    A list or scalar ``z0`` is converted once, here, for every model. ``None`` is
+    passed through unchanged to a model with a native reference impedance, and
+    raises for any other. A scalar becomes a 0-d array, which ``jnp.isscalar``
     still treats as a scalar.
     """
     # Position of ``z0`` among the arguments after ``self``.
@@ -52,16 +53,23 @@ def _z0_as_array(method: Callable) -> Callable:
         None,
     )
 
-    def as_array(z0):
-        return z0 if z0 is None else jnp.asarray(z0)
+    def as_array(model, z0):
+        if z0 is not None:
+            return jnp.asarray(z0)
+        if not type(model).supports_native_z0:
+            raise ValueError(
+                f"{type(model).__name__} has no native reference impedance, so it cannot "
+                "take z0=None. Pass a z0, such as z0=50.0."
+            )
+        return None
 
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         if 'z0' in kwargs:
-            kwargs['z0'] = as_array(kwargs['z0'])
+            kwargs['z0'] = as_array(self, kwargs['z0'])
         elif z0_index is not None and len(args) > z0_index:
             args = list(args)
-            args[z0_index] = as_array(args[z0_index])
+            args[z0_index] = as_array(self, args[z0_index])
         return method(self, *args, **kwargs)
     return wrapper
 
@@ -169,6 +177,10 @@ class Model(Module):
                 ]).transpose(2, 0, 1)
 
     """
+    #: Whether the model has a native reference impedance, so that ``s()`` accepts
+    #: ``z0=None`` (ADR-0006). A model that sets it defaults to ``z0=None``.
+    supports_native_z0: ClassVar[bool] = False
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -675,7 +687,7 @@ class Model(Module):
     
     # ---- File and conversion utilities  --------------------------------------------------            
     
-    def to_skrf(self, frequency: Frequency | Any, z0: ArrayLike = 50.0, sigma=0.0, **kwargs) -> skrf.Network:
+    def to_skrf(self, frequency: Frequency | Any, z0: ArrayLike | None = None, sigma=0.0, **kwargs) -> skrf.Network:
         """Convert the model at frequencies to an :class:`skrf.Network`.
 
         The active primary property (``self.primary_domain``) is used.
@@ -684,8 +696,11 @@ class Model(Module):
         ----------
         frequency : pmrf.frequency.Frequency | skrf.Frequency
             Frequency grid.
-        z0 : ArrayLike, default=50.0
-            The characteristic impedance.
+        z0 : ArrayLike, optional
+            The reference impedance, scalar or per-port. Defaults to the model's
+            native reference impedance, such as a :class:`pmrf.models.Circuit`'s
+            Port impedances, or to 50 Ω for a model without one. The same value
+            is used for the S-parameters and for ``Network.z0``.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
         **kwargs
@@ -705,6 +720,8 @@ class Model(Module):
             model_freq = Frequency.from_skrf(frequency)
             measured_freq = frequency
         
+        if z0 is None:
+            z0 = _skrf_defaults(self)['z0']
         s_matrix = self.s(model_freq, z0=z0)
         
         kwargs = kwargs or {}
@@ -741,6 +758,26 @@ class Model(Module):
         ntwk = self.to_skrf(frequency, sigma=sigma)
         return ntwk.write_touchstone(filename, **skrf_kwargs)
     
+
+def _skrf_defaults(model: Model) -> dict[str, Any]:
+    """The :class:`skrf.Network` arguments :meth:`Model.to_skrf` derives from a model.
+
+    ``z0`` is the model's native reference impedance (ADR-0006): each external
+    Port's ``z0`` for a :class:`~pmrf.models.Circuit`, and its own ``z0`` for a
+    :class:`~pmrf.models.Port`. A model without one gets 50 Ω.
+    """
+    from pmrf.models.composite.interconnected.circuit.circuit import Circuit
+    from pmrf.models.components.ideal import Port
+
+    model = unwrap(model)
+    if isinstance(model, Circuit):
+        z0 = np.array([np.asarray(port.z0) for port in model.ports])
+    elif isinstance(model, Port):
+        z0 = np.asarray(model.z0)
+    else:
+        z0 = 50.0
+    return {'z0': z0}
+
 
 def is_model(x: Any) -> TypeGuard[Model]:
     """
