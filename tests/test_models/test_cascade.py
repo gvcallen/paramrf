@@ -12,7 +12,8 @@ untouched; there the reference is the ABCD cascade of the resonant channel,
 which has no junction inverse at all.
 
 On floating chains, JAX gradients are checked against central finite
-differences of the same model.
+differences of the same model. `Circuit` stays the reference, for S and
+gradient, on a grounded chain, where its solve is well conditioned.
 """
 import jax
 import jax.numpy as jnp
@@ -22,8 +23,9 @@ import pytest
 
 import pmrf as prf
 from pmrf.models import (
-    Capacitor, Cascade, Circuit, FloatingLine, FloatingTwoPort, GroundExposed,
-    Isolator, Model, RepeatedCascade, RLGCLine, Tee,
+    Capacitor, Cascade, Circuit, FloatingLine, FloatingTwoPort,
+    GlobalScatteringCircuitSolver, GroundExposed, Isolator, Model,
+    RepeatedCascade, RLGCLine, Tee,
 )
 
 FREQ = prf.Frequency(0.05, 3, 301, 'GHz')
@@ -135,8 +137,12 @@ def floating_chain_reference(models, freq, z0=50.0, dps=50):
                         y[2 * b + r, 2 * b + c] += yb[r, c]
 
             sub = lambda rows, cols: mpmath.matrix([[y[r, c] for c in cols] for r in rows])
-            y_ext = sub(external, external) - sub(external, internal) * (
-                mpmath.inverse(sub(internal, internal)) * sub(internal, external))
+            y_ii = sub(internal, internal)
+            y_ii_inv = mpmath.inverse(y_ii)
+            # A floating mode the islands missed would leave this singular to
+            # working precision instead of failing loudly.
+            assert mpmath.mnorm(y_ii, 1) * mpmath.mnorm(y_ii_inv, 1) < mpmath.mpf(10) ** (dps // 2)
+            y_ext = sub(external, external) - sub(external, internal) * (y_ii_inv * sub(internal, external))
             out[k] = np.array(((eye - z0 * y_ext) * mpmath.inverse(eye + z0 * y_ext)).tolist(), dtype=complex)
     return out
 
@@ -216,6 +222,37 @@ def test_repeated_floating_sections_match_cascade_and_reference():
     repeated_loss = lambda x: loss(repeated(x).s(FREQ))
     g_repeated = float(jax.grad(repeated_loss)(1.0))
     assert g_repeated == pytest.approx(central_difference(repeated_loss, 1.0, FD_STEP), rel=FD_REL_TOL)
+
+
+def test_grounded_chain_matches_circuit():
+    """
+    Without a floating mode, `Circuit` is a sound reference for S and gradient.
+
+    The scattering solver without regularisation reads the same block S as
+    `Cascade` and solves a well-conditioned system, so only rounding separates
+    them: over +-30% of the first line's length, at most 8.0e-16 in S and
+    1.9e-13 relative in the gradient. Each bound is about 100 times that. The
+    default nodal solver is not used: `RLGCLine.y` and `RLGCLine.s` differ by up
+    to about 1e-10, which would swamp the comparison.
+    """
+    def chain(length):
+        return (
+            RLGCLine(R=1.0, L=220e-9, G=1e-5, C=90e-12, length=length),
+            Capacitor(1e-12),
+            RLGCLine(R=4.0, L=310e-9, G=4e-5, C=120e-12, length=0.11),
+        )
+
+    solver = GlobalScatteringCircuitSolver(eps=0.0)
+    weights = WEIGHTS[:, :2, :2]
+    cascade = lambda x: loss(Cascade(chain(x)).s(FREQ), weights)
+    circuit = lambda x: loss(Circuit.from_chain(chain(x), solver=solver).s(FREQ), weights)
+
+    s_cascade = Cascade(chain(0.07)).s(FREQ)
+    s_circuit = Circuit.from_chain(chain(0.07), solver=solver).s(FREQ)
+    assert np.abs(s_cascade - s_circuit).max() < 1e-13
+
+    g_cascade = float(jax.grad(cascade)(0.07))
+    assert g_cascade == pytest.approx(float(jax.grad(circuit)(0.07)), rel=2e-11)
 
 
 # ---------------------------------------------------------
