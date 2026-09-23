@@ -9,16 +9,18 @@ import numpy as np
 from jaxtyping import ArrayLike
 
 
-def _junction_inverse(M: jnp.ndarray, out: jnp.ndarray, rtol: float) -> jnp.ndarray:
+def _junction_inverse(M: jnp.ndarray, observed: jnp.ndarray) -> jnp.ndarray:
     """
     Invert a junction matrix with its singular, unobservable directions pinned.
 
-    A direction with ``M y = 0`` and ``out @ y = 0`` leaves the cascade unchanged
-    whatever value it takes, so a rank-k update pins it and everything the
-    external ports can observe is inverted exactly.
+    A direction with ``M y = 0`` and ``observed @ y = 0`` leaves the cascade
+    unchanged whatever value it takes, so a rank-k update pins it and everything
+    the external ports can observe is inverted exactly. `observed` is the block
+    that carries the junction to the external ports.
     """
-    K = jax.lax.stop_gradient(jnp.concatenate((M, out), axis=0))
-    _, sv, Vh = jnp.linalg.svd(K, full_matrices=False)
+    rtol = np.sqrt(np.finfo(M.real.dtype).eps)
+    stacked = jax.lax.stop_gradient(jnp.concatenate((M, observed), axis=0))
+    _, sv, Vh = jnp.linalg.svd(stacked, full_matrices=False)
     R = Vh.conj().T * (sv <= rtol * sv[0])
     return jnp.linalg.inv(M + R @ R.conj().T)
 
@@ -116,9 +118,8 @@ def cascade_two_s(
 
     I = jnp.eye(N, dtype=Smat_A.dtype)
 
-    rtol = np.sqrt(np.finfo(Smat_A.real.dtype).eps)
-    X = _junction_inverse(I - B11 @ A22, A12, rtol)
-    Y = _junction_inverse(I - A22 @ B11, B21, rtol)
+    X = _junction_inverse(I - B11 @ A22, A12)
+    Y = _junction_inverse(I - A22 @ B11, B21)
 
     S11 = A11 + A12 @ X @ B11 @ A21
     S12 = A12 @ X @ B12

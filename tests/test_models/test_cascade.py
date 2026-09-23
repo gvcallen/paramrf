@@ -56,45 +56,34 @@ def floating_chain(length, middle=None):
 # Floating chains
 # ---------------------------------------------------------
 
-def test_floating_chain_matches_circuit():
-    chain = floating_chain(0.07)
+FLOATING_MIDDLES = {
+    'transition': floating_transition,
+    # The pinning argument is shown for reciprocal floating modes; a
+    # non-reciprocal block at the floating junction is covered by regression.
+    'non_reciprocal': lambda: FloatingTwoPort(Isolator(isolation=10.0)),
+}
 
-    s_cascade = Cascade(chain).s(FREQ)
-    s_circuit = Circuit.from_chain(chain).s(FREQ)
+
+@pytest.mark.parametrize('middle', FLOATING_MIDDLES.values(), ids=FLOATING_MIDDLES.keys())
+def test_floating_chain_matches_circuit(middle):
+    chain = lambda x: floating_chain(x, middle=middle())
+
+    s_cascade = Cascade(chain(0.07)).s(FREQ)
+    s_circuit = Circuit.from_chain(chain(0.07)).s(FREQ)
 
     # The pinned common mode is exactly unobservable, so only rounding remains.
     assert np.abs(s_cascade - s_circuit).max() < 1e-9
 
-
-def test_floating_chain_gradient_matches_circuit():
-    cascade = lambda x: loss(Cascade(floating_chain(x)).s(FREQ))
-    circuit = lambda x: loss(Circuit.from_chain(floating_chain(x)).s(FREQ))
+    cascade = lambda x: loss(Cascade(chain(x)).s(FREQ))
+    circuit = lambda x: loss(Circuit.from_chain(chain(x)).s(FREQ))
 
     g_cascade = float(jax.grad(cascade)(0.07))
     g_circuit = float(jax.grad(circuit)(0.07))
     g_fd = central_difference(cascade, 0.07, 1e-6)
 
-    # Before the fix the cascade gradient was about +2e8 against -32.1.
+    # Before the fix the transition chain's gradient was about +2e8 against -32.1.
     assert g_cascade == pytest.approx(g_circuit, rel=1e-7)
     assert g_cascade == pytest.approx(g_fd, rel=1e-6)
-
-
-def test_non_reciprocal_floating_block_matches_circuit():
-    """
-    The pinning argument is shown for reciprocal floating modes; a
-    non-reciprocal block at the floating junction is covered by regression.
-    """
-    chain = lambda x: floating_chain(x, middle=FloatingTwoPort(Isolator(isolation=10.0)))
-    cascade = lambda x: loss(Cascade(chain(x)).s(FREQ))
-    circuit = lambda x: loss(Circuit.from_chain(chain(x)).s(FREQ))
-
-    s_cascade = Cascade(chain(0.07)).s(FREQ)
-    s_circuit = Circuit.from_chain(chain(0.07)).s(FREQ)
-    assert np.abs(s_cascade - s_circuit).max() < 1e-9
-
-    g_cascade = float(jax.grad(cascade)(0.07))
-    assert g_cascade == pytest.approx(float(jax.grad(circuit)(0.07)), rel=1e-7)
-    assert g_cascade == pytest.approx(central_difference(cascade, 0.07, 1e-6), rel=1e-6)
 
 
 def test_repeated_floating_sections_match_cascade_and_circuit():
