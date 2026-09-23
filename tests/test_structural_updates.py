@@ -413,7 +413,7 @@ def test_resolve_without_ties_returns_the_tree_unchanged():
 def test_resolve_keeps_a_joint_prior():
     """A joint prior is not a tie and does not change what its parameters are, so
     `resolve`, which is structural, leaves it standing (ADR-0005)."""
-    import distreqx.distributions as dd
+    import parax.distributions as dd
 
     parts = {"p": _named_resistor(50.0, "p"), "a": _named_resistor(50.0, "a"), "b": _named_resistor(1.0, "b")}
     joint = prf.prior(parts, ["p.R", "a.R"], dd.MultivariateNormalDiag(jnp.array([50.0, 50.0]), jnp.ones(2)))

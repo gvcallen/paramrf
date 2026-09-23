@@ -7,7 +7,7 @@ from typing import Callable
 
 import jax.numpy as jnp
 import equinox as eqx
-from distreqx.distributions import AbstractDistribution, Normal, MultivariateNormalFullCovariance
+from parax.distributions import AbstractDistribution, Normal, MultivariateNormalFullCovariance
 
 from pmrf.parameters import Param
 from pmrf.modules.base import Module

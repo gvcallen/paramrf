@@ -8,7 +8,7 @@ ParamRF builds on top of JAX and Equinox's functional style. If you are coming f
 
 1. **Fork and Clone:** Fork the repository on GitHub and clone it locally.
 2. **Virtual Environment:** Set up a virtual environment using Python 3.11+.
-3. **Install Dependencies:** Install the package in editable mode with the same test environment CI uses, including the pinned `distreqx` fork, PolyChord and blackjax. PolyChord needs Fortran and MPI compilers (like `mpifort` and `mpicxx`):
+3. **Install Dependencies:** Install the package in editable mode with the same test environment CI uses, including PolyChord and blackjax. PolyChord needs Fortran and MPI compilers (like `mpifort` and `mpicxx`):
 
     scripts/install-test-deps.sh
     pip install -e .[docs]

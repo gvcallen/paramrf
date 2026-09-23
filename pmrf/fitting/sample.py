@@ -6,7 +6,7 @@ from typing import Callable, TypeVar
 
 import jax.numpy as jnp
 from jaxtyping import PyTree
-from distreqx.distributions import AbstractDistribution
+from parax.distributions import AbstractDistribution
 
 try:
     import skrf

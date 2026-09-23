@@ -168,7 +168,7 @@ def test_log_prior_is_the_base_plus_the_new_parameters(space):
 def test_joint_prior_on_the_base_still_scores():
     """ADR-0003: a joint prior over a derived model's base scores unchanged, and the
     base's names are the prior's names."""
-    import distreqx.distributions as dd
+    import parax.distributions as dd
 
     cable = _cable()
     attached = prf.prior(cable, ['length'], dd.MultivariateNormalDiag(jnp.array([2.0]), jnp.array([0.1])), space='raw')

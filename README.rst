@@ -81,12 +81,6 @@ Optional dependencies
 ---------------------
 Several additional dependencies are required/recommended for more advanced use-cases.
 
-For Bayesian inference, you may need this fork of *distreqx*:
-
-.. code-block:: bash
-
-   $ pip install git+https://github.com/gvcallen/distreqx
-
 For *BlackJAX*'s Bayesian solvers:
 
 .. code-block:: bash

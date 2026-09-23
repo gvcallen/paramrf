@@ -1,7 +1,7 @@
 """Joint priors attached by name with `prf.prior` (ADR-0005, #193), and the whitened raw
 space of their parameters (#194)."""
-import distreqx.bijectors as db
-import distreqx.distributions as dd
+import parax.bijectors as db
+import parax.distributions as dd
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -27,7 +27,7 @@ def _gaussian(mean, tril):
     """A correlated Gaussian as an affine bijector over a standard-normal base, the
     structure of a trained flow. `Block` sums the shift's log-determinant over the event."""
     n = len(mean)
-    base = dd.Independent(dd.Normal(jnp.zeros(n), jnp.ones(n)), 1)
+    base = dd.Independent(dd.Normal(jnp.zeros(n), jnp.ones(n)))
     return dd.Transformed(base, db.Chain([db.Block(db.Shift(jnp.asarray(mean)), 1), db.TriangularLinear(jnp.asarray(tril))]))
 
 
@@ -185,7 +185,7 @@ def test_a_joint_prior_whose_support_fits_the_bounds_is_accepted():
     }
     # A sigmoid over a standard-normal base, shifted: support (0, 1) x (1, 2).
     squash = db.Chain([db.Block(db.Shift(jnp.array([0.0, 1.0])), 1), db.Block(db.Sigmoid(), 1)])
-    box = dd.Transformed(dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1), squash)
+    box = dd.Transformed(dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2))), squash)
     assert isinstance(prf.prior(bounded, NAMES, box), Probabilistic)
 
 
@@ -305,7 +305,7 @@ def test_raw_log_prior_is_the_base_density_of_a_flow():
     """For a flow, the raw log prior of its parameters is its base density at `z`."""
     parts, model = _parts(), _example()
     z = jnp.stack([prf.param_values(model, space="raw")[name] for name in NAMES])
-    base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1)
+    base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)))
     expected = base.log_prob(z) + prf.log_prior({"c": parts["c"]}, space="raw")
     np.testing.assert_allclose(prf.log_prior(model, space="raw"), expected, rtol=1e-10)
     jitted = eqx.filter_jit(lambda m: prf.log_prior(m, space="raw"))(model)
@@ -324,7 +324,7 @@ def test_a_distribution_with_no_known_whitening_keeps_its_own_space():
     """An independent normal has no registered whitening, so raw stays the space it is
     over, and everything else still works."""
     parts = prf.update(_parts(), {"a.R": 52.0, "b.R": 49.0})
-    distribution = dd.Independent(dd.Normal(MU, jnp.array([0.1, 0.2])), 1)
+    distribution = dd.Independent(dd.Normal(MU, jnp.array([0.1, 0.2])))
     model = prf.prior(parts, NAMES, distribution, space="raw")
     before, after = prf.param_values(parts, space="raw"), prf.param_values(model, space="raw")
     assert all(np.allclose(before[name], after[name]) for name in before)

@@ -9,7 +9,7 @@ from abc import abstractmethod
 import equinox as eqx
 import jax.scipy as jsp
 import jax.numpy as jnp
-import distreqx.distributions as dist
+import parax.distributions as dist
 
 from pmrf.covariance_kernels import gram
 from pmrf.utils import field

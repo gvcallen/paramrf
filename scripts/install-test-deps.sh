@@ -16,7 +16,5 @@ PYTHON="${1:-python}"
 "$PYTHON" -I -c "import pmrf"
 
 # Backend overrides. Pinned so CI behaviour cannot change underneath a commit.
-"$PYTHON" -m pip uninstall -y distreqx
-"$PYTHON" -m pip install "git+https://github.com/gvcallen/distreqx.git@044ea5caf3bb2b92de54b82ea1edc485c657c906"
 "$PYTHON" -m pip install "git+https://github.com/PolyChord/PolyChordLite.git@370f6af5d59a4d3af2ed3333acfba152fdb7a4cf"
 "$PYTHON" -m pip install "git+https://github.com/handley-lab/blackjax.git@v0.1.0-beta"

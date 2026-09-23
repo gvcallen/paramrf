@@ -40,23 +40,22 @@ class Model(Module):
     """
     Base class for RF models.
 
-    Derived from this class to define your own, custom model.
+    Derive from this class to define your own, custom model.
 
     This class should not be instantiated directly. It is created internally in ParamRF when models are
     built compositionally, or can be inherited from. When inheriting, at least one primary matrix method,
-    such as or :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
+    such as :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`, 
     or :meth:`pmrf.Model.primary_matrix`, must be overridden. To implement a
     model by returning another model, inherit from
     :class:`pmrf.models.AbstractBuilder`. Legacy classes may still override
     :meth:`pmrf.Model.build` directly, but that interface is deprecated.
 
-    The model is a Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
+    The model is an Equinox `Module <https://docs.kidger.site/equinox/api/module/module/>`_
     (an immutable dataclass) and a JAX PyTree. Parameters are declared using standard dataclass
     field syntax and should be annotated with type :type:`pmrf.Param` and field specifier :func:`pmrf.param`.
-    For more details in parameter definitions, see :mod:`pmrf.parameters`.
+    For more details on parameter definitions, see :mod:`pmrf.parameters`.
 
-    Note that this class is not marked as "abstract" since it should be treated more like a mix-in
-    than an ABC class with specific methods to implement.
+    This class is not marked abstract: it acts more like a mix-in than an ABC.
 
     Usage
     -----
@@ -144,7 +143,7 @@ class Model(Module):
                 wrapped_method = eqx.filter_jit(unwrap_self(original_method))
                 setattr(cls, name, wrapped_method)        
             
-        # --- Implement dynamic functions (s_mag, s_mn_mag, etc.) ---
+        # Dynamic methods such as s_mag and s_mn_mag
         def make_dynamic_method(prop_name, func):
             def dynamic_method(self, *args, **kwargs):
                 matrix = getattr(self, prop_name)(*args, **kwargs)
@@ -157,7 +156,7 @@ class Model(Module):
                 
                 # Base function (e.g. s_mag)
                 func_name = f"{prop}_{suffix}"
-                if not hasattr(cls, func_name):  # Protect user overrides!
+                if not hasattr(cls, func_name):
                     m = make_dynamic_method(prop, func)
                     m._pmrf_auto = True
                     setattr(cls, func_name, m)
@@ -253,15 +252,13 @@ class Model(Module):
         """
         Expands this model into its internal graph representation for circuit flattening.
 
-        This method is used by graph algorithms (like the solver in `Circuit.flattened`) 
-        to unpack composite models, wrappers, and nested hierarchies into a 
-        single flat netlist. This allows global matrix solves to be used, where desired.
+        Used by `Circuit.flattened` to unpack composite models into a single flat
+        netlist for a global matrix solve.
 
-        :class:`pmrf.models.AbstractBuilder` delegates this method to its built
-        model. The legacy direct ``Model.build()`` override does the same. Most
-        user classes therefore do not need to implement topology expansion
-        manually; it is mainly intended for built-in composite models such as
-        :class:`pmrf.models.Cascade` or :class:`pmrf.models.Renumbered`.
+        :class:`pmrf.models.AbstractBuilder` delegates this to its built model, as
+        does a direct ``Model.build()`` override, so user classes rarely need it.
+        It is mainly for built-in composites such as :class:`pmrf.models.Cascade`
+        and :class:`pmrf.models.Renumbered`.
 
         Returns
         -------
@@ -276,25 +273,12 @@ class Model(Module):
 
         Examples
         --------
-        Imagine a custom 2-port model that internally connects an Inductor and Capacitor 
-        in series. When asked to expand, it exposes the inner components and their wiring:
+        A 2-port model holding an inductor and capacitor in series:
 
         >>> def expand(self):
-        ...     # 1. Grab internal components
         ...     L, C = self.inductor, self.capacitor
-        ...     
-        ...     # 2. Map our external ports to the internal components
-        ...     port_mapping = [
-        ...         (L, 0),  # External port 0 maps to Inductor port 0
-        ...         (C, 1)   # External port 1 maps to Capacitor port 1
-        ...     ]
-        ...     
-        ...     # 3. Define the internal connections (the netlist)
-        ...     # Connect Inductor port 1 to Capacitor port 0
-        ...     internal_connections = [
-        ...         [(L, 1), (C, 0)]
-        ...     ]
-        ...     
+        ...     port_mapping = [(L, 0), (C, 1)]
+        ...     internal_connections = [[(L, 1), (C, 0)]]
         ...     return port_mapping, internal_connections
         """
         if is_overridden(self.__class__, Model, 'build'):
@@ -306,12 +290,12 @@ class Model(Module):
         """The primary matrix (e.g. ``s``, ``a`` etc.) as a function of frequency.
 
         The primary matrix represents the matrix returned by :attr:`pmrf.Model.primary_domain`,
-        which is either overridden by sub-classes, or is the first proprerty directly overriden
+        which is either overridden by sub-classes, or is the first property directly overridden
         out of :meth:`pmrf.Model.s`, :meth:`pmrf.Model.a`, :meth:`pmrf.Model.y`, :meth:`pmrf.Model.z`
         (in that order), unless :meth:``pmrf.Model.build`` is overridden, in which case the primary matrix
         of the built model is returned.
         
-        This method can also be overriden itself in order to to dynamically
+        This method can also be overridden itself in order to dynamically
         implement one of the matrices as opposed to overriding it explicitly. 
         
         If this method is called and `self.primary_domain` is 's',
@@ -322,7 +306,7 @@ class Model(Module):
         freq : Frequency
             Frequency grid.
         kwargs
-            Key-word arguments forwarded to the primary matrix function, such as z0.
+            Keyword arguments forwarded to the primary matrix function, such as z0.
 
         Returns
         -------
@@ -376,10 +360,9 @@ class Model(Module):
         
         To convert between port impedances, use :meth:`pmrf.rf.renormalize_s`.
         
-        Note that, derived classes should use the **power wave** definition of S-parameters
-        when implementing components using S-parameters.
-        If you have a formulation in terms of another definition
-        (such as traveling waves), simply use :meth:`pmrf.rf.s2s`.
+        Derived classes that implement S-parameters should use the **power wave**
+        definition. Convert other definitions (such as traveling waves) with
+        :meth:`pmrf.rf.s2s`.
 
         Parameters
         ----------
@@ -391,16 +374,13 @@ class Model(Module):
         jnp.ndarray
             S-parameter matrix with shape ``(nf, n, n)``.
         """
-        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
             return self.build().s(frequency, z0=z0)
 
-        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return or Convert
         if primary_domain == 's':
             return val
         elif primary_domain == 'a':
@@ -429,16 +409,13 @@ class Model(Module):
         jnp.ndarray
             ABCD matrix with shape ``(nf, 2, 2)``.
         """        
-        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
             return self.build().a(frequency)
 
-        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return or Convert
         if primary_domain == 'a':
             return val
         elif primary_domain == 's':
@@ -467,16 +444,13 @@ class Model(Module):
         jnp.ndarray
             Z matrix with shape ``(nf, n, n)``.
         """
-        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
             return self.build().z(frequency)
 
-        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return or convert
         if primary_domain == 'z':
             return val
         elif primary_domain == 's':
@@ -505,16 +479,13 @@ class Model(Module):
         jnp.ndarray
             Y matrix with shape ``(nf, n, n)``.
         """
-        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
             return self.build().y(frequency)
 
-        # Fetch primary
         primary_domain = self.primary_domain
         kwargs = {'z0': HUB_Z0} if primary_domain == 's' else {}
         val = self.primary_matrix(frequency, **kwargs)
 
-        # Return or convert
         if primary_domain == 'y':
             return val
         elif primary_domain == 's':
@@ -534,12 +505,10 @@ class Model(Module):
 
         Can be overridden in sub-classes.
         
-        If the model does not explicitly define an MNA stamp, this automatically 
-        delegates to the appropriate conversion utility (`s2mna`, `z2mna`, etc.). 
-        Explicitly defined Y-matrices are prioritized to maximize matrix sparsity, 
-        while other domains fall back to auxiliary variables to guarantee stability.
+        Otherwise converts from another domain (`y2mna`, `z2mna`, etc.). Y is
+        preferred because it gives the sparsest stamp; other domains add auxiliary
+        variables.
         """
-        # Direct delegation to build
         if is_overridden(type(self), Model, 'build'):
             return self.build().mna(frequency)
 
@@ -575,18 +544,14 @@ class Model(Module):
         """
         if name.startswith('plot_'):
             def plotter(freq: Frequency, *args, **kwargs):
-                # Convert to scikit-rf Network at the specified frequency
                 ntwk = self.to_skrf(freq)
                 
-                # Check if the generated Network actually supports this plot type
                 if not hasattr(ntwk, name):
                     raise AttributeError(f"scikit-rf Network object has no attribute '{name}'")
                 
-                # Call the scikit-rf plot method with remaining args (e.g. labels, colors)
                 return getattr(ntwk, name)(*args, **kwargs)
             return plotter
             
-        # Standard fallback if the attribute isn't a plot command
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")    
     
     def __pow__(self, other: 'Model') -> 'Model':
@@ -686,7 +651,7 @@ class Model(Module):
         frequency : pmrf.frequency.Frequency | skrf.Frequency
             Frequency grid.
         z0 : ArrayLike, default=50.0
-            The charactestic impedance.
+            The characteristic impedance.
         sigma : float, default=0.0
             If nonzero, add complex Gaussian noise with stdev ``sigma`` to ``s``.
         **kwargs

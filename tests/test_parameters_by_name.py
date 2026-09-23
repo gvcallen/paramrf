@@ -1,6 +1,6 @@
 """Reading and updating parameters by name: `prf.params`, `prf.param_values`,
 `prf.log_prior` and `prf.update` (ADR-0002, decisions 3 to 5 and 7)."""
-import distreqx.distributions as dist
+import parax.distributions as dist
 import equinox as eqx
 import jax
 import jax.numpy as jnp

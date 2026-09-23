@@ -4,8 +4,8 @@ import pytest
 import jax.numpy as jnp
 import equinox as eqx
 
-import distreqx.distributions as dists
-import distreqx.bijectors as bij
+import parax.distributions as dists
+import parax.bijectors as bij
 from parax.constraints import infer_distribution_constraint
 
 import parax as prx

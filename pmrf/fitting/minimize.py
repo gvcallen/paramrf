@@ -8,7 +8,7 @@ except ImportError:
     pass
 
 import numpy as np
-import distreqx.distributions as dist
+import parax.distributions as dist
 
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection

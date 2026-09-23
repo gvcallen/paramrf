@@ -270,7 +270,7 @@ def _joint_prior():
 
     The model is a :class:`pmrf.models.Wrapped`, so solvers see it unwrapped as one, and
     read its parameter through `build()`."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
 
     inner = Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="load")
     return prf.prior(inner, ["R"], dist.MultivariateNormalDiag(jnp.array([0.2]), jnp.array([0.5])), space="raw")

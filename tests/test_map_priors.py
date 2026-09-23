@@ -11,7 +11,6 @@ from pmrf.problems import SummedTerms, PriorPenalized
 from pmrf.parameters import tree_param_distributions, tree_param_log_prob
 from pmrf.terms import as_terms
 from pmrf.utils import unwrap
-from tests._dependency_checks import requires_distreqx_transpose
 
 
 DATA = 5.0 + np.random.default_rng(0).normal(0.0, 0.5, 32)
@@ -57,7 +56,6 @@ def log_prior(model):
 
 @pytest.mark.parametrize("n_points", [4, 32, 256])
 @pytest.mark.parametrize("prior_sd", [0.3, 1.0])
-@requires_distreqx_transpose
 def test_map_matches_closed_form(n_points, prior_sd):
     y = 5.0 + np.random.default_rng(0).normal(0.0, 0.5, n_points)
     frequency = prf.Frequency(1.0, 2.0, n_points, "GHz")
@@ -76,7 +74,6 @@ def test_map_matches_closed_form(n_points, prior_sd):
 # 2. Invariances
 # ==========================================
 
-@requires_distreqx_transpose
 def test_map_is_invariant_to_parameter_scale():
     """The physical answer must not depend on the units a parameter is stored in."""
     values = []
@@ -89,7 +86,6 @@ def test_map_is_invariant_to_parameter_scale():
     assert values == pytest.approx([expected] * 3, rel=1e-4)
 
 
-@requires_distreqx_transpose
 def test_bounded_and_unconstrained_solvers_agree():
     """Both kinds of solver move through the same raw values and must reach the same optimum."""
     from pmrf.optimize.solvers.optimistix import BFGS
@@ -102,14 +98,12 @@ def test_bounded_and_unconstrained_solvers_agree():
     assert bounded == pytest.approx(analytic_map(DATA, VARIANCE, 1.0, 1.0), rel=1e-4)
 
 
-@requires_distreqx_transpose
 def test_flat_prior_reproduces_the_mle():
     """A Uniform is flat, so inside its support the MAP is the MLE."""
     model = Resistor(prf.Random(Uniform(0.0, 20.0), value=3.0))
     assert fitted_value(fit(model)) == pytest.approx(DATA.mean(), rel=1e-3)
 
 
-@requires_distreqx_transpose
 def test_flat_prior_excluding_the_mle_lands_on_the_bound():
     model = Resistor(prf.Random(Uniform(0.0, 4.0), value=2.0))
     assert fitted_value(fit(model)) == pytest.approx(4.0, abs=1e-2)
@@ -145,7 +139,6 @@ def test_map_objective_is_scalar_for_array_parameters():
     assert jnp.asarray(PriorPenalized(SummedTerms(model=model, terms=terms))()).shape == ()
 
 
-@requires_distreqx_transpose
 def test_array_parameter_can_be_fitted():
     model = Resistor(prf.Random(Normal(1.0, 1.0), value=jnp.full((3,), 3.0)))
     frequency = prf.Frequency(1.0, 2.0, len(DATA), "GHz")
@@ -195,7 +188,6 @@ def test_fixed_parameter_contributes_no_prior():
     assert float(log_prior(fixed_random)) == pytest.approx(float(log_prior(plain_fixed)))
 
 
-@requires_distreqx_transpose
 def test_no_free_parameters_reports_why():
     """A tree with nothing to fit should say so, not surface an internal pytree error."""
     model = Resistor(prf.Random(Normal(1.0, 1.0), value=3.0, fixed=True))

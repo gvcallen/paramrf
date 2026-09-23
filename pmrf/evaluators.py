@@ -12,8 +12,8 @@ import parax as prx
 import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree
-import distreqx.distributions as dist
-import distreqx.bijectors as bij
+import parax.distributions as dist
+import parax.bijectors as bij
 from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Index
 
 from pmrf.frequency import Frequency

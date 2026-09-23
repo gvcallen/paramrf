@@ -3,19 +3,23 @@ Probability distribution classes and factories.
 
 Can be used for random parameters in :mod:`pmrf.parameters`.
 
-These are (mostly) re-exports from the `distreqx <https://lockwo.github.io/distreqx>`_ library,
-with the goal of the covering the most common applications. For more advanced use-cases,
-simply use `distreqx` directly instead.
+These are (mostly) re-exports from `parax <https://gvcallen.github.io/parax>`_, which in turn
+takes them from the `distreqx <https://lockwo.github.io/distreqx>`_ library, filling in any that
+the installed version of `distreqx` does not provide. The goal is to cover the most common
+applications; for more advanced use-cases, simply use `distreqx` directly instead.
 """
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
-from distreqx.distributions import (
+from parax.distributions import (
     AbstractDistribution as AbstractDistribution,
-    Normal as Normal,
-    Uniform as Uniform,
     Gamma as Gamma,
+    Joint as Joint,
+    LogNormal as LogNormal,
+    Normal as Normal,
     Transformed as Transformed,
+    TruncatedNormal as TruncatedNormal,
+    Uniform as Uniform,
 )
 
 from parax.probability import truncate_distribution as truncate
@@ -56,8 +60,6 @@ def RelativeTruncatedNormal(
     Create a symmetric Truncated Normal distribution defined by relative standard deviation
     and truncated at a specified number of standard deviations from the mean.
     """
-    from distreqx.distributions import TruncatedNormal
-    
     mean, pct_std, trunc_std = (
         jnp.asarray(mean), 
         jnp.asarray(pct_std), 
@@ -73,30 +75,15 @@ def RelativeTruncatedNormal(
 
 __all__ = [
     "AbstractDistribution",
-    "Normal",
-    "Uniform",
-    "Gamma",
-    "Transformed",
     "CenteredUniform",
+    "Gamma",
+    "Joint",
+    "LogNormal",
+    "Normal",
     "RelativeNormal",
     "RelativeTruncatedNormal",
+    "Transformed",
+    "TruncatedNormal",
+    "Uniform",
     "truncate",
 ]
-
-try:
-    from distreqx.distributions import LogNormal as LogNormal
-    __all__.append('LogNormal')
-except:
-    pass
-
-try:
-    from distreqx.distributions import TruncatedNormal as TruncatedNormal
-    __all__.append('TruncatedNormal')
-except:
-    pass
-
-try:
-    from distreqx.distributions import Joint as Joint
-    __all__.append('Joint')
-except:
-    pass

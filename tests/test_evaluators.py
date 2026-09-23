@@ -4,7 +4,7 @@ import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import distreqx.bijectors as bij
+import parax.bijectors as bij
 import pmrf as prf
 
 from pmrf.frequency import Frequency
@@ -16,9 +16,8 @@ from pmrf.evaluators import (
     Feature, GibbsMarginalLogLikelihood, Goal, MarginalLogLikelihood, Negated,
     TargetLoss, _orthogonal_projection,
 )
-from tests._dependency_checks import requires_distreqx_transpose
 
-dist = pytest.importorskip("distreqx.distributions")
+import parax.distributions as dist
 losses = pytest.importorskip("pmrf.losses")
 
 # ---------------------------------------------------------
@@ -167,7 +166,6 @@ def test_goal_met_zero_loss(model, basic_freq):
 # MarginalLogLikelihood Tests
 # ---------------------------------------------------------
 
-@requires_distreqx_transpose
 def test_marginal_loglikelihood(model, basic_freq):
     """Test probabilistic evaluation and the data/event mapping."""
     # We observe s11_mag data that is exactly 1.0 for all 5 points
@@ -192,7 +190,6 @@ def test_marginal_loglikelihood(model, basic_freq):
     expected = -0.91893853 * 5
     assert jnp.allclose(log_prob, expected)
 
-@requires_distreqx_transpose
 def test_mll_complex_default_event_map(model, basic_freq):
     """Ensure the default event mapper handles complex matrices properly."""
     # Observe an S-matrix

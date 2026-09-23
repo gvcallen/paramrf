@@ -5,23 +5,23 @@ simulation, optimisation, fitting, and inference. Models are Equinox modules —
 dataclasses that are also JAX PyTrees. Built on `jax`, `equinox`, and
 [`parax`](https://gvcallen.github.io/parax) (the parameter/constraint layer).
 
-## Breaking changes are acceptable
+## Breaking changes are fine
 
-The library is pre-1.0 and moves quickly. Do not add backwards-compatibility shims,
-deprecation aliases, or legacy code paths unless explicitly asked. Prefer the clean design,
-within the seam the ticket names.
+Pre-1.0. No backwards-compatibility shims, deprecation aliases or legacy code paths
+unless asked. Prefer the clean design, within the issue's seam.
 
 ## Seams
 
-A ticket names one seam, either a file, a set of files or a folder. If a cross-seam change is needed, implmentation should be stopped and decision left to the human.
+Each issue names one seam: a file, a set of files, or a folder. If the work needs a
+change outside it, stop and ask.
 
-`docs/adr/` and `CONTEXT.md` change in their own commit, by the reviewer. An
-implementation reaching for a word absent from the ticket, the ADR and `CONTEXT.md` has
-reached a decision it does not have: ask.
+`CONTEXT.md` and ADRs (architecture decision records, `docs/adr/`) are edited only by
+the reviewer, in their own commit. If you need a domain term that isn't in the issue,
+an ADR or `CONTEXT.md`, that's a design decision: stop and ask.
 
-Open every PR body with `## Cross-seam`: each file touched outside the ticket's seam,
-with the ADR or issue line sanctioning it, or `DECISION NEEDED`. Write `none` when there
-are none.
+Start every PR body with `## Cross-seam`, listing each file changed outside the issue's
+seam with the ADR or issue line that allows it, or `DECISION NEEDED`. Write `none` if
+there are none.
 
 ## Commands
 
@@ -35,8 +35,7 @@ No linter or formatter is configured. Match the style of surrounding code.
 ## Commits
 
 Do not add yourself as an author. No `Co-Authored-By` trailer, no session link, no
-tool attribution. Every change is reviewed by a human before it lands, so the commit
-belongs to the person who reviewed it.
+tool attribution.
 
 ## Source layout
 
@@ -47,15 +46,14 @@ hit them, but never read or edit them as source.
 
 - `Solver` — reserved for classes that actually solve a system (`GlobalMNACircuitSolver`).
 - `Formulation` — closed-form physics strategy objects.
-- `Abstract` — prefixes an ABC unless it is domain terminology. `Model` is unprefixed; it is closer to a mix-in.
+- `Abstract` — prefixes an ABC unless it is domain terminology. `Model` is the exception.
 
 ## Documentation
 
 Numpydoc docstrings. Maths is written `$$...$$` and rendered by `sphinx-math-dollar`.
 Physics classes carry a `**Mathematical Formulation**` section stating the equations they
-implement and a `References` section citing the source paper — match that, it is the main
-defence against an unattributed formula drifting. Fields are documented with `#:` comments
-directly above them.
+implement and a `References` section citing the source paper; match that. Fields are
+documented with `#:` comments directly above them.
 
 ## Tests
 
@@ -63,15 +61,14 @@ directly above them.
 than against recorded ParamRF output, which only locks in current behaviour. Record
 tolerances per case; do not loosen a global tolerance to make one case pass.
 
-**scikit-rf is guidance, not ground truth.** It makes its own approximations and its own
-modelling choices, and it has been wrong before. When a comparison disagrees, find out
-which side is wrong before touching a tolerance — read the scikit-rf source, not just its
-docstring, and check both implementations against the cited paper. A disagreement is a
-finding either way: if ParamRF is wrong, fix it; if scikit-rf is, or if the two
-deliberately model different things, say so in the test with the reason. Never widen a
-tolerance until the number is explained.
+**scikit-rf is guidance, not ground truth.** It makes its own approximations and
+modelling choices, and it has been wrong before. When a comparison disagrees, read the
+scikit-rf source (not just its docstring) and check both implementations against the
+cited paper. If ParamRF is wrong, fix it; if scikit-rf is, or the two deliberately model
+different things, say so in the test with the reason. Never widen a tolerance until the
+difference is explained.
 
-## Agent skills
+## Issues and docs
 
 ### Issue tracker
 
@@ -80,10 +77,9 @@ Issues live as GitHub issues on `gvcallen/paramrf`, managed with the `gh` CLI. S
 
 ### Triage labels
 
-The five canonical triage roles, each label string equal to its name. See
-`docs/agents/triage-labels.md`.
+See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root, both created lazily. See
+One `CONTEXT.md` and one `docs/adr/` at the repo root; either may not exist yet. See
 `docs/agents/domain.md`.

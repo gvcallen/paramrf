@@ -1545,8 +1545,8 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     """
     Returns the log prior density of a model's parameters, in one space.
 
-    For parameter values $x$ in declared space with priors $p(x)$, scale $s$ and
-    raw values $z$ mapped to declared space by $x = f(z)$:
+    For declared values $x$ with priors $p(x)$, scales $s$, and raw values $z$ mapped
+    to declared space by $x = f(z)$:
 
     $$\\log p_{\\text{declared}} = \\sum_i \\log p_i(x_i)$$
 
@@ -1554,20 +1554,17 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
 
     $$\\log p_{\\text{raw}} = \\log p_{\\text{declared}} + \\sum_i \\log \\left|\\det \\frac{\\partial f_i}{\\partial z_i}\\right| + \\sum_j \\log \\left|\\det \\frac{\\partial x_j}{\\partial z_j}\\right|$$
 
-    where $n_i$ is the number of elements in parameter $i$. The scale and Jacobian
-    terms are the change-of-variables formula for densities. Parameters without a
-    prior add nothing to the first two sums (a flat prior). The scale term covers
-    parameters with a prior; the Jacobian term covers every free, constrained
-    parameter, since those are the coordinates an optimiser or sampler moves. The
-    priors of fixed and frozen parameters are included as constants.
+    where $n_i$ is the number of elements in parameter $i$ and $j$ runs over joint
+    priors. The extra terms are the change-of-variables formula [1]_.
 
-    The parameters under a joint prior (see :func:`prior`) are scored together by it,
-    in place of their own priors: their values are taken to the joint prior's space,
-    with the change-of-variables terms of the maps in between. A value outside a
-    parameter's bounds scores minus infinity. In raw space they are the prior's
-    whitened vector $z_j$ rather than their own raw values, so the first Jacobian sum
-    leaves them out and the second, over joint priors $j$, takes their declared values
-    $x_j$ from $z_j$ through the whitening and back from the prior's space.
+    Parameters without a prior have a flat prior and add no prior or scale term.
+    The first Jacobian sum covers free, constrained parameters only. Fixed and
+    frozen parameters add their prior as a constant.
+
+    Parameters under a joint prior (see :func:`prior`) are scored by it instead of
+    by their own priors, and a value outside a parameter's bounds scores $-\\infty$.
+    In raw space they are represented by the prior's whitened vector $z_j$, so the
+    second Jacobian sum replaces the first for them.
 
     Parameters
     ----------

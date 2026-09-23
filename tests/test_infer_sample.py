@@ -14,7 +14,6 @@ from pmrf.infer.result import InferResult
 from pmrf.infer.base import SampleResult
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from tests._dependency_checks import requires_distreqx_joint
 
 # ==========================================
 # 1. Fixtures & Objectives
@@ -47,7 +46,6 @@ def penalty_ll(model, freq):
 # 2. Higher-Level Wrapper Tests
 # ==========================================
 
-@requires_distreqx_joint
 def test_sample_wrapper_basic(infer_model, basic_freq):
     """Test the higher-level sample API with a single loglikelihood using NUTS."""
     key = jax.random.key(0)
@@ -75,7 +73,6 @@ def test_sample_wrapper_basic(infer_model, basic_freq):
     assert result.best_model.val.ndim == 0
 
 
-@requires_distreqx_joint
 def test_sample_wrapper_list_loglikelihood(infer_model, basic_freq):
     """Test the sample wrapper's ability to sum a list of loglikelihood functions."""
     key = jax.random.key(0)

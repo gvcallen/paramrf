@@ -11,9 +11,6 @@ from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_joint
 from pmrf.fitting.targets import resolve_datasets, union_frequency
-from tests._dependency_checks import (
-    requires_distreqx_transpose,
-)
 
 skrf = pytest.importorskip("skrf")
 
@@ -157,7 +154,7 @@ def test_fit_joint_reports_the_full_span(starting_model, heterogeneous):
 
 def test_map_problem_penalizes_the_prior(wide_band):
     """PriorPenalized is SummedTerms plus the negative log prior of its parameters."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import Random
     from pmrf.problems import SummedTerms, PriorPenalized
     from pmrf.terms import BoundEvaluator
@@ -174,7 +171,7 @@ def test_map_problem_penalizes_the_prior(wide_band):
 
 def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
     """A prior on a term's own hyper-parameter is counted alongside the model's."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import Random, Param
     from pmrf.problems import SummedTerms, PriorPenalized
     from pmrf.terms import AbstractTerm
@@ -198,7 +195,7 @@ def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
 
 def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
     """The bound distributions must not be seen as free parameters."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     import equinox as eqx, jax, parax as prx
     from pmrf.parameters import Random
     from pmrf.problems import SummedTerms, PriorPenalized
@@ -215,10 +212,9 @@ def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
 
     assert count(PriorPenalized(SummedTerms(model=model, terms=(term,)))) == count(SummedTerms(model=model, terms=(term,)))
 
-@requires_distreqx_transpose
 def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
     """The regression: a tight prior must move the estimate away from the MLE."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import Random
     from pmrf.fitting.minimize import fit_minimize
 
@@ -240,7 +236,7 @@ def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
     assert tight < 2.0                              # prior wins
 
 def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import Random
     from pmrf.fitting.minimize import fit_minimize
 
@@ -267,14 +263,14 @@ def _correlated(a=3.0, b=7.0):
 
 def _correlated_normal(mean, scale=1.0):
     """A bivariate normal with correlation 0.8 and standard deviations `scale`."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     cov = scale ** 2 * jnp.array([[1.0, 0.8], [0.8, 1.0]])
     return dist.MultivariateNormalTri(jnp.asarray(mean, dtype=float), jnp.linalg.cholesky(cov))
 
 
 def test_prior_attached_by_name_is_found(wide_band):
     """A distribution attached after construction must be picked up."""
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import tree_param_distributions, tree_param_log_prob
 
     model = prf.prior(_correlated(), 'wide.val', prf.distributions.Normal(3.0, 1.0))
@@ -325,7 +321,6 @@ class _Pair(Model):
         return jnp.ones((freq.npoints, 1, 1), dtype=complex) * self.val
 
 
-@requires_distreqx_transpose
 def test_correlated_prior_moves_a_fit(wide_band):
     """A tight joint prior must pull the fit away from the data's answer.
 
@@ -365,7 +360,7 @@ def test_joint_prior_folds_the_scale_of_its_parameters():
     space scored against them unscaled would land far in its tail. For a non-uniform
     prior that is not a constant offset: the density would be nearly flat.
     """
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.models import Resistor
     from pmrf.parameters import tree_param_distributions, tree_param_log_prob
 
@@ -396,7 +391,7 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     applying, giving MLE results labelled as MAP.
     """
     import equinox as eqx
-    import distreqx.distributions as dist
+    import parax.distributions as dist
     from pmrf.parameters import Random
     from pmrf.problems import SummedTerms, PriorPenalized
     from pmrf.terms import BoundEvaluator
@@ -443,7 +438,6 @@ def test_prior_is_finite_for_a_scaled_parameter(wide_band):
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
     assert jnp.isfinite(PriorPenalized(SummedTerms(model=model, terms=(term,)))())
 
-@requires_distreqx_transpose
 def test_scaled_parameter_still_moves_under_map(wide_band):
     """An infinite prior leaves the optimizer at its starting point."""
     from pmrf.fitting.minimize import fit_minimize

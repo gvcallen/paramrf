@@ -1,5 +1,5 @@
 """Attaching one-dimensional priors by name with `prf.prior` (ADR-0005, #192)."""
-import distreqx.distributions as dist
+import parax.distributions as dist
 import jax
 import jax.numpy as jnp
 import numpy as np
