@@ -3,6 +3,8 @@ Base class for RF models.
 """
 
 from typing import Any, Callable, TypeVar, Union, TypeGuard
+import functools
+import inspect
 import warnings
 
 import numpy as np
@@ -34,7 +36,40 @@ HUB_Z0 = 50.0 + 0.0j
 
 # Classes that have already emitted the direct ``Model.build`` deprecation warning.
 _BUILD_DEPRECATION_WARNED: set[type] = set()
-    
+
+
+def _z0_as_array(method: Callable) -> Callable:
+    """Wrap a primary method so an explicit ``z0`` reaches it as an array.
+
+    A list or scalar ``z0`` is converted once, here, for every model; ``None`` is
+    passed through unchanged. A scalar becomes a 0-d array, which ``jnp.isscalar``
+    still treats as a scalar.
+    """
+    # Position of ``z0`` among the arguments after ``self``.
+    params = list(inspect.signature(method).parameters.values())[1:]
+    z0_index = next(
+        (i for i, p in enumerate(params) if p.name == 'z0' and p.kind == p.POSITIONAL_OR_KEYWORD),
+        None,
+    )
+
+    def as_array(z0):
+        return z0 if z0 is None else jnp.asarray(z0)
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if 'z0' in kwargs:
+            kwargs['z0'] = as_array(kwargs['z0'])
+        elif z0_index is not None and len(args) > z0_index:
+            args = list(args)
+            args[z0_index] = as_array(args[z0_index])
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
+def _wrap_primary(method: Callable) -> Callable:
+    """Wrap a primary method: unwrap ``self``, JIT-compile, and convert ``z0``."""
+    return _z0_as_array(eqx.filter_jit(unwrap_self(method)))
+
 
 class Model(Module):
     """
@@ -140,7 +175,7 @@ class Model(Module):
         for name in PRIMARY_METHODS:
             if name in cls.__dict__:
                 original_method = cls.__dict__[name]
-                wrapped_method = eqx.filter_jit(unwrap_self(original_method))
+                wrapped_method = _wrap_primary(original_method)
                 setattr(cls, name, wrapped_method)        
             
         # Dynamic methods such as s_mag and s_mn_mag
@@ -351,8 +386,7 @@ class Model(Module):
                 return property
         raise NotImplementedError(f"No primary properties in {PRIMARY_DOMAINS} are overridden, which are the only ones supported")     
     
-    @eqx.filter_jit
-    @unwrap_self
+    @_wrap_primary
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Scattering parameter matrix at port impedance z0.
 

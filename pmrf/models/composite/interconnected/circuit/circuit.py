@@ -346,10 +346,14 @@ class Circuit(Model):
             aux_idx=aux_idx
         )
 
-    def _evaluate_scattering(self, freq: Frequency, z0: ArrayLike = 50.0) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        """Evaluates and block-diagonalizes the scattering matrices of all contained components."""
+    def _evaluate_scattering(self, freq: Frequency) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Evaluates and block-diagonalizes the scattering matrices of all contained components.
+
+        Components are evaluated at the fixed internal reference ``EVAL_Z0``, never at the
+        caller's ``z0``, whose port count is the circuit's rather than theirs.
+        """
         scattering_components = [c for c in self.circuit if not isinstance(c, Port)]
-        S_blocks = [c.s(freq, z0=z0) for c in scattering_components] 
+        S_blocks = [c.s(freq, z0=EVAL_Z0) for c in scattering_components]
         
         if S_blocks:
             batched_S = jax.vmap(block_diag)(*S_blocks)
@@ -358,7 +362,7 @@ class Circuit(Model):
             
         num_ports = batched_S.shape[-1]
         dtype = batched_S.dtype
-        z0_ports = jnp.broadcast_to(jnp.asarray(z0, dtype=dtype), (num_ports,))
+        z0_ports = jnp.full((num_ports,), EVAL_Z0, dtype=dtype)
 
         # Dynamically extract the specific z0 constraints of the external ports
         ext_z0_list = [jnp.asarray(c.z0, dtype=dtype) for c in self.circuit if isinstance(c, Port)]
@@ -406,7 +410,7 @@ class Circuit(Model):
 
     # --- SIMULATION & CONVERSION ---
 
-    def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0):
+    def _solve(self, freq: Frequency):
         """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist."""
         if self.flatten:
             flat = self.flattened()
@@ -414,7 +418,7 @@ class Circuit(Model):
             flat = self
         
         if isinstance(flat.solver, AbstractScatteringCircuitSolver):
-            s_bdiag, z0_ports, z0_ext = flat._evaluate_scattering(freq, z0)
+            s_bdiag, z0_ports, z0_ext = flat._evaluate_scattering(freq)
             run_vmap = jax.vmap(flat.solver.run, in_axes=(0, None, None, None))
             return run_vmap(s_bdiag, z0_ports, z0_ext, flat.port_representation)
             
@@ -433,7 +437,7 @@ class Circuit(Model):
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Evaluates the composite scattering parameters of the circuit."""
-        result = self._solve(freq, z0)
+        result = self._solve(freq)
         
         if isinstance(result, ScatteringResult):
             # Renormalize from native port z0 to the requested measurement z0
