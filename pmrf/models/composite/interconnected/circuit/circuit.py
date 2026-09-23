@@ -465,7 +465,7 @@ class Circuit(Model):
             z0 = self._port_z0()
 
         result = self._solve(freq)
-
+        
         if isinstance(result, ScatteringResult):
             # Renormalize from native port z0 to the requested measurement z0
             return renormalize_s(result.s, z_old=result.z0, z_new=z0)

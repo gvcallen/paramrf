@@ -53,7 +53,7 @@ def _z0_as_array(method: Callable) -> Callable:
         None,
     )
 
-    def as_array(model, z0):
+    def resolve_z0(model, z0):
         if z0 is not None:
             return jnp.asarray(z0)
         if not type(model).supports_native_z0:
@@ -66,10 +66,10 @@ def _z0_as_array(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         if 'z0' in kwargs:
-            kwargs['z0'] = as_array(self, kwargs['z0'])
+            kwargs['z0'] = resolve_z0(self, kwargs['z0'])
         elif z0_index is not None and len(args) > z0_index:
             args = list(args)
-            args[z0_index] = as_array(self, args[z0_index])
+            args[z0_index] = resolve_z0(self, args[z0_index])
         return method(self, *args, **kwargs)
     return wrapper
 
