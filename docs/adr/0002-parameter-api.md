@@ -133,16 +133,16 @@ not a replacement: its target is recomputed from its source every time the
 model is unwrapped. A relation that needs a quantity the model does not yet hold
 is a derived model (`prf.derived`, ADR-0003), not a tie.
 
-### 4. Reading: `prf.params` and `prf.param_values`
+### 4. Reading: `prf.params` and `prf.values`
 
 ```python
 prf.params(model, where='*', *, free_only=False)                          # dict[str, Param]
-prf.param_values(model, where='*', *, free_only=False, space='declared')  # dict[str, Array]
+prf.values(model, where='*', *, free_only=False, space='declared')  # dict[str, Array]
 prf.log_prior(model, *, space='declared')                                 # scalar
 ```
 
 A user thinks "the parameters of my model", so `params` returns `Param`
-objects, whose `repr` shows value, bounds and prior. `param_values` is what
+objects, whose `repr` shows value, bounds and prior. `values` is what
 `update` accepts and what optimisers use; a bare `values` was rejected as too
 vague at top level, where it could mean S-parameter data. `named_params`'
 `full_params` and `namespace_separator` are dropped.
@@ -150,7 +150,7 @@ vague at top level, where it could mean S-parameter data. `named_params`'
 The documented identity, which is also the regression test of decision 10:
 
 ```python
-prf.update(m, prf.param_values(m, space=s), space=s)   # same structure, same cache key
+prf.update(m, prf.values(m, space=s), space=s)   # same structure, same cache key
 ```
 
 All functions are defined in `pmrf.parameters` and re-exported at top level.
@@ -165,7 +165,7 @@ All functions are defined in `pmrf.parameters` and re-exported at top level.
 
 `declared` is the default everywhere, and every user-facing surface agrees with
 construction: `Param(value=...)`, bounds, priors, `repr`, `Param.value`,
-`param_values` and `update`. Distributions and bounds are authored in declared
+`values` and `update`. Distributions and bounds are authored in declared
 space.
 
 `Param` gets one property per space: `value` (declared), `physical_value` and
@@ -218,7 +218,7 @@ Raveling to a 1-D vector stays inside the adapters that need it, such as the
 SciPy solver (`pmrf/optimize/solvers/scipy.py`) and non-JAX samplers.
 `prf.flatten` and `FlatParams` (#142) are not added. A public ravel helper, with
 one name per array element, can be added when a non-JAX consumer needs it; it
-would sit on top of `param_values`, not replace it.
+would sit on top of `values`, not replace it.
 
 The substance of #142 is kept: the raw-space log prior with the Jacobian and
 scale terms, name alignment, and a single implementation behind the minimiser

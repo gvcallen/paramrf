@@ -106,7 +106,7 @@ named by its keyword. Used to derive a more complete model from a nominal one
 
 ### Parameter values
 
-`prf.param_values`: a name-keyed dict of arrays in one space, the form values
+`prf.values`: a name-keyed dict of arrays in one space, the form values
 take when crossing ParamRF's boundary. Not flattened; a 1-D vector exists only
 inside adapters that need one.
 

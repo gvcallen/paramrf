@@ -54,7 +54,7 @@ the parameter names and the space: `Probabilistic`, rewritten. The wrapper is
 transparent to the name resolver, as `Tied` is. So:
 
 - Every parameter keeps its name and stays a parameter. `prf.params`,
-  `prf.param_values` and `prf.update` work as before.
+  `prf.values` and `prf.update` work as before.
 - The prior stores names, not paths. With an explicit sequence of names, the
   distribution's vector is in that order; a glob expands to sorted names.
 - Several joint priors may be attached, one wrapper each, over disjoint sets of
@@ -70,7 +70,7 @@ transparent to the name resolver, as `Tied` is. So:
 change-of-variables terms.
 
 `'raw'` means the parameters' raw space as it was just before `prf.prior` was
-called, which is what `prf.param_values(..., space='raw')` returned then. A
+called, which is what `prf.values(..., space='raw')` returned then. A
 distribution over raw space is only meaningful with respect to that raw to
 declared mapping, so the mapping is kept when the prior replaces the
 parameters' own priors, including any whitening their old priors gave it.
