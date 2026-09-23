@@ -26,9 +26,14 @@ there are none.
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest        # full suite
-.venv/bin/python -c "import pmrf" # import smoke check
+.venv/bin/python -m pytest tests/test_x.py  # the tests covering a change, while working
+.venv/bin/python -m pytest -n 4            # local test command: full suite, once before committing
+.venv/bin/python -c "import pmrf"          # import smoke check
 ```
+
+CI runs the full suite on every PR. Compilation dominates test time, so `tests/conftest.py`
+keeps JAX's persistent compilation cache in `.jax_cache/`: the first run fills it (about 4 min
+with `-n 4`) and later runs take about 2 min. Deleting it is always safe.
 
 No linter or formatter is configured. Match the style of surrounding code.
 

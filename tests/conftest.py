@@ -1,8 +1,17 @@
 """Suite-wide pytest configuration."""
 
 import os
+from pathlib import Path
 
+import jax
 import pytest
+
+#: Compilation dominates test time, so compiled programs persist across runs and xdist
+#: workers. JAX_COMPILATION_CACHE_DIR overrides the location.
+if jax.config.jax_compilation_cache_dir is None:
+    jax.config.update("jax_compilation_cache_dir", str(Path(__file__).parents[1] / ".jax_cache"))
+jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
+jax.config.update("jax_compilation_cache_max_size", 1 << 30)
 
 #: When set (as CI does), a skipped test fails the run. Optional-dependency skips exist
 #: for users without the full backend set; the full test environment must run everything.
