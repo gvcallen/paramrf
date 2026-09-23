@@ -3,27 +3,36 @@
 Scattering `Cascade` and `RepeatedCascade` at singular junctions.
 
 Floating multi-conductor networks leave a common mode at each junction that the
-scattering reduction must not invert. `Circuit` has no such junction, so it is
-the reference for S and its JAX gradient. A real resonance must survive the
-same reduction untouched; there the reference is the ABCD cascade of the
-resonant channel, which has no junction inverse at all.
+scattering reduction must not invert. The S reference for floating chains is a
+50-digit nodal reduction of the ideal floating chain (`floating_chain_reference`).
+`Circuit.from_chain` is not: its nodal solve is nearly singular on a floating
+chain, so its 1e-12 GMIN and rounding move S by up to about 1e-8, differently
+on different platforms. A real resonance must survive the same reduction
+untouched; there the reference is the ABCD cascade of the resonant channel,
+which has no junction inverse at all.
 
-JAX gradients are checked against the reference gradient first. Central finite
-differences are only a sanity check: before the fix, S carried noise at about
-1e-5, so finite differences alone could not tell which answer was right.
+On floating chains, JAX gradients are checked against central finite
+differences of the same model. `Circuit` stays the reference, for S and
+gradient, on a grounded chain, where its solve is well conditioned.
 """
 import jax
 import jax.numpy as jnp
+import mpmath
 import numpy as np
 import pytest
 
 import pmrf as prf
 from pmrf.models import (
-    Capacitor, Cascade, Circuit, FloatingLine, FloatingTwoPort, GroundExposed,
-    Isolator, Model, RepeatedCascade, RLGCLine, Tee,
+    Capacitor, Cascade, Circuit, FloatingLine, FloatingTwoPort,
+    GlobalScatteringCircuitSolver, GroundExposed, Isolator, Model,
+    RepeatedCascade, RLGCLine, Tee,
 )
 
 FREQ = prf.Frequency(0.05, 3, 301, 'GHz')
+
+#: Every tenth point of `FREQ`, for the slow high-precision reference. The
+#: floating-mode error is flat in frequency, so the subsample loses nothing.
+REFERENCE_FREQ = prf.Frequency(0.05, 3, 31, 'GHz')
 
 # A fixed, dense linear functional of S, so a gradient sees every entry.
 WEIGHTS = jnp.cos(jnp.arange(301 * 16)).reshape(301, 4, 4)
@@ -53,6 +62,92 @@ def floating_chain(length, middle=None):
 
 
 # ---------------------------------------------------------
+# High-precision floating-chain reference
+# ---------------------------------------------------------
+
+def floating_modes(model):
+    """
+    Terminal sets a block's common mode lives on: each terminal pair of a
+    floating two-port lift, and the whole block otherwise.
+    """
+    if isinstance(model, (FloatingLine, FloatingTwoPort)):
+        return ((0, 1), (2, 3))
+    return ((0, 1, 2, 3),)
+
+
+def floating_chain_reference(models, freq, z0=50.0, dps=50):
+    """
+    S of a chain of floating 4-ports, reduced nodally at `dps` digits.
+
+    Each block's S is evaluated in float64 by the model itself; everything after
+    that is mpmath. The chain's terminals become nodes (ports 2, 3 of one block
+    are ports 0, 1 of the next), and each block's S becomes a nodal admittance.
+
+    The floating modes are made exact rather than regularised. Each block's
+    admittance is projected so its `floating_modes` carry no current. This
+    removes what leaks them in float64: the 1e-12 diagonal nudge in
+    `renormalize_s` inside `FloatingLine.s`, and the 1e-12 GMIN inside the
+    `Circuit` of `floating_transition`. The ideal floating chain then leaves
+    each internal island of terminals at an arbitrary common potential that
+    no port can observe. Grounding one node per island fixes that potential
+    and changes no port quantity, so it is a choice of gauge, not an
+    approximation. The rest of the nodal system is nonsingular and is
+    eliminated exactly.
+
+    None of this shares code or formulation with `Cascade`, which reduces
+    scattering matrices pairwise and pins junction modes by an SVD.
+    """
+    blocks = [np.asarray(m.s(freq)) for m in models]
+    n = 2 * len(models) + 2
+    external = [0, 1, n - 2, n - 1]
+
+    # Internal islands: terminals a floating mode joins, away from any port.
+    island = list(range(n))
+    def root(i):
+        while island[i] != i:
+            i = island[i]
+        return i
+    for b, model in enumerate(models):
+        for mode in floating_modes(model):
+            nodes = [2 * b + t for t in mode]
+            if not set(nodes) & set(external):
+                for node in nodes[1:]:
+                    island[root(node)] = root(nodes[0])
+    grounded = {root(i) for i in range(2, n - 2)}
+    internal = [i for i in range(2, n - 2) if i not in grounded]
+
+    out = np.empty(blocks[0].shape, dtype=complex)
+    with mpmath.workdps(dps):
+        eye = mpmath.eye(4)
+        projectors = []
+        for model in models:
+            p = mpmath.eye(4)
+            for mode in floating_modes(model):
+                v = mpmath.matrix([int(t in mode) for t in range(4)])
+                p -= v * v.T / len(mode)
+            projectors.append(p)
+
+        for k in range(len(out)):
+            y = mpmath.zeros(n)
+            for b, (s, p) in enumerate(zip(blocks, projectors)):
+                s = mpmath.matrix(s[k].tolist())
+                yb = p * (eye - s) * mpmath.inverse(eye + s) * p / z0
+                for r in range(4):
+                    for c in range(4):
+                        y[2 * b + r, 2 * b + c] += yb[r, c]
+
+            sub = lambda rows, cols: mpmath.matrix([[y[r, c] for c in cols] for r in rows])
+            y_ii = sub(internal, internal)
+            y_ii_inv = mpmath.inverse(y_ii)
+            # A floating mode the islands missed would leave this singular to
+            # working precision instead of failing loudly.
+            assert mpmath.mnorm(y_ii, 1) * mpmath.mnorm(y_ii_inv, 1) < mpmath.mpf(10) ** (dps // 2)
+            y_ext = sub(external, external) - sub(external, internal) * (y_ii_inv * sub(internal, external))
+            out[k] = np.array(((eye - z0 * y_ext) * mpmath.inverse(eye + z0 * y_ext)).tolist(), dtype=complex)
+    return out
+
+
+# ---------------------------------------------------------
 # Floating chains
 # ---------------------------------------------------------
 
@@ -63,30 +158,48 @@ FLOATING_MIDDLES = {
     'non_reciprocal': lambda: FloatingTwoPort(Isolator(isolation=10.0)),
 }
 
+#: Bound on max |S_cascade - S_reference|, per middle block.
+#:
+#: The reference is the ideal floating chain. `Cascade` pins each junction
+#: mode of the blocks as given, and those modes are not exactly floating, so
+#: dropping their leak moves S by about the leak. `FloatingLine` leaks through
+#: the 1e-12 diagonal nudge in `renormalize_s`, measured at 5.0e-13 of |Y|;
+#: that alone sets the `non_reciprocal` error, 5.0e-13 at every length within
+#: +-30% of the first line's. `floating_transition` also leaks through its
+#: `Circuit`'s 1e-12 GMIN, which lifts the joint mode's junction singular value
+#: to about 5e-12; the error over the same sweep is at most 1.1e-12. Each bound
+#: is about 200 times its worst case. A pinning regression gives noise near
+#: 1e-5, far above either.
+FLOATING_S_TOL = {'transition': 2e-10, 'non_reciprocal': 1e-10}
 
-@pytest.mark.parametrize('middle', FLOATING_MIDDLES.values(), ids=FLOATING_MIDDLES.keys())
-def test_floating_chain_matches_circuit(middle):
-    chain = lambda x: floating_chain(x, middle=middle())
+#: Four `FloatingLine` sections: three junctions, each leaked only by the
+#: `renormalize_s` nudge. Worst over a +-30% length scale is 5.05e-13.
+REPEATED_S_TOL = 1e-10
 
-    s_cascade = Cascade(chain(0.07)).s(FREQ)
-    s_circuit = Circuit.from_chain(chain(0.07)).s(FREQ)
+#: Relative bound on a JAX gradient against a central difference of step
+#: `FD_STEP`. Truncation, h**2 |f'''| / 6, dominates: at most 7.8e-9 over the
+#: sweeps above, and 100 times that at h = 1e-5, as h**2 predicts. Rounding,
+#: eps |f| / h, is about 1e-9. The bound is over 100 times their sum, and an
+#: unpinned junction mode misses it by orders of magnitude: the transition
+#: chain's gradient was once about +2e8 against -32.1.
+FD_STEP = 1e-6
+FD_REL_TOL = 1e-6
 
-    # The pinned common mode is exactly unobservable, so only rounding remains.
-    assert np.abs(s_cascade - s_circuit).max() < 1e-9
+
+@pytest.mark.parametrize('name', FLOATING_MIDDLES)
+def test_floating_chain_matches_reference(name):
+    chain = lambda x: floating_chain(x, middle=FLOATING_MIDDLES[name]())
+
+    s_cascade = Cascade(chain(0.07)).s(REFERENCE_FREQ)
+    s_reference = floating_chain_reference(chain(0.07), REFERENCE_FREQ)
+    assert np.abs(s_cascade - s_reference).max() < FLOATING_S_TOL[name]
 
     cascade = lambda x: loss(Cascade(chain(x)).s(FREQ))
-    circuit = lambda x: loss(Circuit.from_chain(chain(x)).s(FREQ))
-
     g_cascade = float(jax.grad(cascade)(0.07))
-    g_circuit = float(jax.grad(circuit)(0.07))
-    g_fd = central_difference(cascade, 0.07, 1e-6)
-
-    # Before the fix the transition chain's gradient was about +2e8 against -32.1.
-    assert g_cascade == pytest.approx(g_circuit, rel=1e-7)
-    assert g_cascade == pytest.approx(g_fd, rel=1e-6)
+    assert g_cascade == pytest.approx(central_difference(cascade, 0.07, FD_STEP), rel=FD_REL_TOL)
 
 
-def test_repeated_floating_sections_match_cascade_and_circuit():
+def test_repeated_floating_sections_match_cascade_and_reference():
     section = lambda l: FloatingLine(RLGCLine(R=1.0, L=220e-9, G=1e-5, C=90e-12, length=l))
     member = section(0.05)
     base = jnp.linspace(0.03, 0.07, 4)
@@ -95,17 +208,51 @@ def test_repeated_floating_sections_match_cascade_and_circuit():
         return [section(scale * l) for l in base]
 
     repeated = lambda scale: RepeatedCascade(member, {'floating.length': scale * base}, method='s')
-    reference = lambda scale: Circuit.from_chain(sections(scale))
 
+    # Same junction reductions in the same order, so only rounding separates
+    # them: at most 3.6e-15 over the length sweep.
     s_repeated = repeated(1.0).s(FREQ)
     assert np.abs(s_repeated - Cascade(sections(1.0)).s(FREQ)).max() < 1e-12
-    assert np.abs(s_repeated - reference(1.0).s(FREQ)).max() < 1e-9
 
-    g_repeated = float(jax.grad(lambda x: loss(repeated(x).s(FREQ)))(1.0))
-    g_reference = float(jax.grad(lambda x: loss(reference(x).s(FREQ)))(1.0))
-    g_fd = central_difference(lambda x: loss(repeated(x).s(FREQ)), 1.0, 1e-6)
-    assert g_repeated == pytest.approx(g_reference, rel=1e-7)
-    assert g_repeated == pytest.approx(g_fd, rel=1e-6)
+    # Three junctions, each pinning a `FloatingLine` mode leaked by the
+    # renormalisation nudge, as for `non_reciprocal` above.
+    s_reference = floating_chain_reference(sections(1.0), REFERENCE_FREQ)
+    assert np.abs(repeated(1.0).s(REFERENCE_FREQ) - s_reference).max() < REPEATED_S_TOL
+
+    repeated_loss = lambda x: loss(repeated(x).s(FREQ))
+    g_repeated = float(jax.grad(repeated_loss)(1.0))
+    assert g_repeated == pytest.approx(central_difference(repeated_loss, 1.0, FD_STEP), rel=FD_REL_TOL)
+
+
+def test_grounded_chain_matches_circuit():
+    """
+    Without a floating mode, `Circuit` is a sound reference for S and gradient.
+
+    The scattering solver without regularisation reads the same block S as
+    `Cascade` and solves a well-conditioned system, so only rounding separates
+    them: over +-30% of the first line's length, at most 8.0e-16 in S and
+    1.9e-13 relative in the gradient. Each bound is about 100 times that. The
+    default nodal solver is not used: `RLGCLine.y` and `RLGCLine.s` differ by up
+    to about 1e-10, which would swamp the comparison.
+    """
+    def chain(length):
+        return (
+            RLGCLine(R=1.0, L=220e-9, G=1e-5, C=90e-12, length=length),
+            Capacitor(1e-12),
+            RLGCLine(R=4.0, L=310e-9, G=4e-5, C=120e-12, length=0.11),
+        )
+
+    solver = GlobalScatteringCircuitSolver(eps=0.0)
+    weights = WEIGHTS[:, :2, :2]
+    cascade = lambda x: loss(Cascade(chain(x)).s(FREQ), weights)
+    circuit = lambda x: loss(Circuit.from_chain(chain(x), solver=solver).s(FREQ), weights)
+
+    s_cascade = Cascade(chain(0.07)).s(FREQ)
+    s_circuit = Circuit.from_chain(chain(0.07), solver=solver).s(FREQ)
+    assert np.abs(s_cascade - s_circuit).max() < 1e-13
+
+    g_cascade = float(jax.grad(cascade)(0.07))
+    assert g_cascade == pytest.approx(float(jax.grad(circuit)(0.07)), rel=2e-11)
 
 
 # ---------------------------------------------------------

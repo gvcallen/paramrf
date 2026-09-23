@@ -42,6 +42,7 @@ tests = [
     "filelock",
     "ipython",
     "scikit-rf",
+    "mpmath",
     "anesthetic",
     "mpi4py",
     "blackjax",
