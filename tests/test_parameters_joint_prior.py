@@ -160,24 +160,41 @@ def test_a_value_outside_the_bounds_scores_minus_infinity():
     assert tree_param_log_prob(distributions, outside) == -jnp.inf
 
 
+class _PositiveResistor(prf.Model):
+    """A resistor whose resistance has a validity: it is positive."""
+    R: prf.Param = prf.param(constraint=prf.constraints.Positive())
+
+    def s(self, freq):
+        return jnp.zeros((len(freq), 1, 1), dtype=complex)
+
+
+def _positive_parts():
+    """`a.R` and `b.R` with a positive validity, and ranges inside it."""
+    return {
+        "a": _PositiveResistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
+        "b": _PositiveResistor(R=prf.Random(RTNormal(50.0, 0.1)), name="b"),
+    }
+
+
 @pytest.mark.parametrize("space", ["declared", "physical"])
-def test_a_joint_prior_whose_support_leaves_the_bounds_raises(space):
-    """A correlated Gaussian over declared or physical values reaches outside bounded
+def test_a_joint_prior_whose_support_leaves_validity_raises(space):
+    """A correlated Gaussian over declared or physical values reaches outside positive
     parameters, and cannot be truncated to them exactly."""
     with pytest.raises(ValueError, match=r"'a\.R', 'b\.R'.*space='raw'"):
-        prf.prior(_parts(), NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]), space=space)
+        prf.prior(_positive_parts(), NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]), space=space)
     with pytest.raises(ValueError, match=r"'a\.R', 'b\.R'.*space='raw'"):
-        prf.prior(_parts(), NAMES, dd.MultivariateNormalTri(jnp.array([50.0, 50.0]), jnp.eye(2)), space=space)
+        prf.prior(_positive_parts(), NAMES, dd.MultivariateNormalTri(jnp.array([50.0, 50.0]), jnp.eye(2)), space=space)
 
 
-def test_the_attach_error_names_only_the_parameters_whose_bounds_are_left():
-    parts = {"a": Resistor(R=prf.Unconstrained(50.0), name="a"), "b": _parts()["b"]}
-    with pytest.raises(ValueError, match=r"bounds of 'b\.R'\. "):
+def test_the_attach_error_names_only_the_parameters_whose_validity_is_left():
+    parts = {"a": Resistor(R=prf.Unconstrained(50.0), name="a"), "b": _positive_parts()["b"]}
+    with pytest.raises(ValueError, match=r"validity of 'b\.R'\. "):
         prf.prior(parts, NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]))
 
 
 def test_a_joint_prior_whose_support_fits_the_bounds_is_accepted():
-    """Over unbounded parameters, and over bounded ones for a support inside the bounds."""
+    """Over parameters with only a range, whatever the support, and over bounded ones
+    for a support inside the bounds."""
     model = prf.prior(_unbounded_parts(), NAMES, _gaussian(MU, L))
     assert isinstance(model, Probabilistic)
     bounded = {
