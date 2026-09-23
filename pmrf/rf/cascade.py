@@ -9,12 +9,27 @@ import numpy as np
 from jaxtyping import ArrayLike
 
 
+def _junction_inverse(M: jnp.ndarray, observed: jnp.ndarray) -> jnp.ndarray:
+    """
+    Invert a junction matrix with its singular, unobservable directions pinned.
+
+    A direction with ``M y = 0`` and ``observed @ y = 0`` leaves the cascade
+    unchanged whatever value it takes, so a rank-k update pins it and everything
+    the external ports can observe is inverted exactly. `observed` is the block
+    that carries the junction to the external ports.
+    """
+    rtol = np.sqrt(np.finfo(M.real.dtype).eps)
+    stacked = jax.lax.stop_gradient(jnp.concatenate((M, observed), axis=0))
+    _, sv, Vh = jnp.linalg.svd(stacked, full_matrices=False)
+    R = Vh.conj().T * (sv <= rtol * sv[0])
+    return jnp.linalg.inv(M + R @ R.conj().T)
+
+
 def cascade_two_s(
     s_a: ArrayLike,
     z0_a: ArrayLike,
     s_b: ArrayLike,
     z0_b: ArrayLike,
-    eps: float = 1e-12,
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     r"""
     Combine two 2N-port S-parameter matrices connected end-to-end.
@@ -32,12 +47,24 @@ def cascade_two_s(
     $$S_{21} = B_{21} (I - A_{22} B_{11})^{-1} A_{21}$$
     $$S_{22} = B_{22} + B_{21} (I - A_{22} B_{11})^{-1} A_{22} B_{12}$$
 
-    The two connection matrices are inverted with a Moore-Penrose pseudo-inverse.
-    Floating multi-conductor networks contain an exact common-mode null space; a
-    diagonal nudge turns that unobservable direction into a very large,
-    epsilon-dependent solution. The pseudo-inverse instead eliminates only the
-    observable subspace and is identical to an inverse for full-rank connection
-    matrices.
+    Floating multi-conductor networks leave a common mode at the junction that
+    makes $M = I - B_{11} A_{22}$ singular in theory, but only to rounding in
+    practice. Inverting it, or pseudo-inverting at any fixed cutoff, amplifies
+    that rounding into S and its gradients. Such a direction $y$ is also
+    unobservable from the external ports, $A_{12} y = 0$, so the cascade does not
+    depend on it. With $R$ an orthonormal basis of the directions where
+
+    $$\begin{bmatrix} M \\ A_{12} \end{bmatrix} y \approx 0,$$
+
+    judged by singular value relative to the largest, at a tolerance of
+    $\sqrt{\epsilon}$ for the dtype, the combine inverts $M + R R^H$ exactly.
+    The same applies to $N = I - A_{22} B_{11}$ with $B_{21}$. The basis is found
+    outside autodiff, so gradients never pass through the zero singular values.
+    A resonance is observable from the ports, so it is never pinned; for
+    full-rank $M$ this is the plain inverse.
+
+    A lossless network evaluated exactly at a true resonance frequency is still
+    singular. That is physical, and the result there is not finite.
 
     Parameters
     ----------
@@ -49,8 +76,6 @@ def cascade_two_s(
         S-parameter matrix of the second network, shape (2N, 2N).
     z0_b : ArrayLike
         Port reference impedances of the second network, shape (2N,).
-    eps : float, default=1e-12
-        Relative cutoff for singular values in the pseudo-inverse.
 
     Returns
     -------
@@ -93,17 +118,8 @@ def cascade_two_s(
 
     I = jnp.eye(N, dtype=Smat_A.dtype)
 
-    M = I - B11 @ A22
-    N_mat = I - A22 @ B11
-
-    # Floating multi-conductor networks contain an exact common-mode null
-    # space. A diagonal nudge turns that unobservable direction into a very
-    # large, epsilon-dependent solution. The Moore-Penrose inverse instead
-    # eliminates only the observable subspace and is identical to an inverse
-    # for full-rank connection matrices.
-    rtol = max(eps, np.finfo(Smat_A.real.dtype).eps * 10)
-    X = jnp.linalg.pinv(M, rtol=rtol)
-    Y = jnp.linalg.pinv(N_mat, rtol=rtol)
+    X = _junction_inverse(I - B11 @ A22, A12)
+    Y = _junction_inverse(I - A22 @ B11, B21)
 
     S11 = A11 + A12 @ X @ B11 @ A21
     S12 = A12 @ X @ B12
@@ -120,7 +136,6 @@ def cascade_two_s(
 def cascade_scattering(
     s_stacked: ArrayLike,
     z0_stacked: ArrayLike,
-    eps: float = 1e-12,
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """
     Reduce a stack of 2N-port S-parameter matrices to a single cascaded network.
@@ -135,8 +150,6 @@ def cascade_scattering(
         the input of the cascade to its output.
     z0_stacked : ArrayLike
         Port reference impedances of the sections, shape (M, 2N).
-    eps : float, default=1e-12
-        Relative cutoff for singular values in the pseudo-inverse.
 
     Returns
     -------
@@ -158,7 +171,7 @@ def cascade_scattering(
     def scan_fn(carry, x):
         S_acc, z0_acc = carry
         S_i, z0_i = x
-        S_next, z0_next = cascade_two_s(S_acc, z0_acc, S_i, z0_i, eps=eps)
+        S_next, z0_next = cascade_two_s(S_acc, z0_acc, S_i, z0_i)
         return (S_next, z0_next), None
 
     (S_cas, z0_cas), _ = jax.lax.scan(
