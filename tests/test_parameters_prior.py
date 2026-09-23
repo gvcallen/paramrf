@@ -50,13 +50,19 @@ def test_prior_on_unconstrained_is_random():
     assert attached.R.bounds is None or np.all(np.isinf(np.asarray(attached.R.bounds)))
 
 
-def test_prior_is_truncated_to_bounds():
+def _unbounded(param):
+    return param.bounds is None or np.all(np.isinf(np.asarray(param.bounds)))
+
+
+def test_prior_replaces_the_range():
+    """A range is prior information, so the prior replaces it. Truncation to a field's
+    validity is covered in `test_parameters_validity.py`."""
     m = RC(R=prf.Bounded(0.0, 100.0, value=40.0), C=prf.Bounded(1.0, 3.0, value=2.0, scale=1e-12))
     prior = Normal(50.0, 30.0)
     attached = prf.prior(m, "R", prior)
-    built = RC(R=prf.Random(truncate(prior, 0.0, 100.0), value=40.0), C=m.C)
+    built = RC(R=prf.Random(prior, value=40.0), C=m.C)
     _assert_same_prior(attached, built)
-    assert np.allclose(attached.R.bounds, (0.0, 100.0))
+    assert _unbounded(attached.R)
     assert np.allclose(attached.C.bounds, (1.0, 3.0))
 
 
@@ -64,10 +70,10 @@ def test_prior_replaces_an_existing_prior():
     m = RC(R=prf.Random(Uniform(0.0, 100.0), value=40.0), C=prf.Unconstrained(2.0))
     prior = Normal(50.0, 30.0)
     attached = prf.prior(m, "R", prior)
-    built = RC(R=prf.Random(truncate(prior, 0.0, 100.0), value=40.0), C=prf.Unconstrained(2.0))
+    built = RC(R=prf.Random(prior, value=40.0), C=prf.Unconstrained(2.0))
     _assert_same_prior(attached, built)
-    assert isinstance(prx.as_unwrapped(attached.R.distribution), dist.TruncatedNormal)
-    assert np.allclose(attached.R.bounds, (0.0, 100.0))
+    assert isinstance(prx.as_unwrapped(attached.R.distribution), dist.Normal)
+    assert _unbounded(attached.R)
 
 
 def test_prior_already_within_bounds_is_not_truncated():
@@ -89,7 +95,7 @@ def test_prior_by_glob_gives_each_its_own():
     attached = prf.prior(m, "cable_*", prior)
     built = (
         Resistor(R=prf.Random(prior, value=40.0), name="cable_a")
-        ** Resistor(R=prf.Random(truncate(prior, 0.0, 100.0), value=60.0), name="cable_b")
+        ** Resistor(R=prf.Random(prior, value=60.0), name="cable_b")
         ** load
     )
     _assert_same_prior(attached, built)
@@ -108,11 +114,11 @@ def test_prior_keeps_name_scale_metadata_and_fixed_state():
 def test_prior_in_physical_space():
     m = RC(R=prf.Fixed(1.0), C=prf.Bounded(1.0, 3.0, value=2.0))
     attached = prf.prior(m, "C", Normal(2e-12, 0.5e-12), space="physical")
-    built = RC(R=prf.Fixed(1.0), C=prf.Random(truncate(Normal(2.0, 0.5), 1.0, 3.0), value=2.0))
+    built = RC(R=prf.Fixed(1.0), C=prf.Random(Normal(2.0, 0.5), value=2.0))
     for space in SPACES:
         assert np.allclose(prf.log_prior(attached, space=space), prf.log_prior(built, space=space)), space
     assert np.allclose(prf.param_values(attached)["C"], 2.0)
-    assert np.allclose(attached.C.bounds, (1.0, 3.0))
+    assert _unbounded(attached.C)
 
 
 def test_prior_in_raw_space_is_over_the_raw_space_before_attaching():
@@ -170,7 +176,7 @@ def _loglikelihood(model, args=None):
 
 def _dict_with_attached_priors():
     m = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
-    m = prf.prior(m, "R", Normal(50.0, 30.0))  # truncated to the bounds
+    m = prf.prior(m, "R", truncate(Normal(50.0, 30.0), 0.0, 100.0))  # it replaces the range
     return prf.prior(m, "C", Normal(2.0, 1.0))
 
 
