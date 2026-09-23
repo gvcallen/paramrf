@@ -59,6 +59,13 @@ def test_a_range_is_not_validity():
     assert Resistor(prf.Bounded(1.0, 5.0, value=2.0)).R.validity is None
 
 
+def test_a_parameter_passed_on_to_another_field_intersects_the_validities():
+    w = Width(prf.Bounded(1.0, 5.0, value=2.0)).w
+    m = Unit(w)
+    assert np.allclose(_validity(m.x).bounds, (0.0, 10.0))
+    assert np.allclose(m.x.bounds, (1.0, 5.0))
+
+
 def test_a_range_outside_validity_is_clipped():
     m = Width(prf.Bounded(-5.0, 5.0, value=2.0))
     assert np.allclose(m.w.bounds, (0.0, 5.0))
