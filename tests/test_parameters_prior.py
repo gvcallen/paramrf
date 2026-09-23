@@ -190,3 +190,27 @@ def test_polychord_on_attached_priors(tmp_path):
     batched, results = infer_base.run_sampler(_loglikelihood, _dict_with_attached_priors(), solver, jax.random.key(0))
     assert results.samples["R"].ndim == 1
     assert np.all((batched["R"].value >= 0.0) & (batched["R"].value <= 100.0))
+
+
+def test_hypercube_sampler_on_a_prior_over_raw_space():
+    """A prior over raw space reaches declared space through the raw-to-declared map, so
+    the cube goes through the base's inverse CDF and then that map."""
+    before = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
+    m = prf.prior(prf.prior(before, "R", Normal(0.5, 2.0), space="raw"), "C", Normal(2.0, 1.0))
+    _, results = infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
+    to_declared = prf.params(before)["R"].raw_to_declared_bijector
+    assert np.allclose(results.samples["R"], [50.0, to_declared.forward(Normal(0.5, 2.0).icdf(0.25))], atol=1e-4)
+
+
+def test_hypercube_sampler_on_a_prior_over_physical_space_of_a_scaled_parameter():
+    m = {"R": prf.Unconstrained(50.0), "C": prf.Unconstrained(2.0, scale=1e-12)}
+    m = prf.prior(prf.prior(m, "C", Normal(2e-12, 1e-13), space="physical"), "R", Normal(50.0, 1.0))
+    _, results = infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
+    assert np.allclose(results.samples["C"], [2.0, Normal(2.0, 0.1).icdf(0.25)], atol=1e-4)
+
+
+def test_hypercube_sampler_names_a_mapped_prior_whose_base_has_no_inverse_cdf():
+    m = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
+    m = prf.prior(prf.prior(m, "R", dist.Gamma(2.0, 1.0), space="raw"), "C", Normal(2.0, 1.0))
+    with pytest.raises(ValueError, match=r"'R'.*space='raw' or space='physical'.*Gamma"):
+        infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))

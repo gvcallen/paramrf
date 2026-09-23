@@ -7,7 +7,7 @@ authors = [
     { name = "Gary Allen", email = "gvcallen@gmail.com" }
 ]
 dependencies = [
-    "parax>=0.11.0",
+    "parax>=0.11.1",
     "threadpoolctl",
     "eqxpress",
     "jax",
@@ -43,6 +43,7 @@ tests = [
     "anesthetic",
     "mpi4py",
     "blackjax",
+    "fleqx",
 ]
 
 [project.urls]
