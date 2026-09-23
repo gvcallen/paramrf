@@ -38,6 +38,8 @@ docs = [
 ]
 tests = [
     "pytest",
+    "pytest-xdist",
+    "filelock",
     "ipython",
     "scikit-rf",
     "anesthetic",

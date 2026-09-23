@@ -190,3 +190,6 @@ skills-lock.json
 .secrets/
 *.token
 .env.local
+
+# JAX persistent compilation cache (tests/conftest.py)
+.jax_cache/
