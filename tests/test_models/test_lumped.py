@@ -204,3 +204,42 @@ def test_inductor_at_dc_stamps_a_short():
     freq = Frequency(start=0.0, stop=1.0, npoints=3, unit='GHz')
     s = _two_port(Inductor(L=1e-9), GlobalMNACircuitSolver()).s(freq)
     np.testing.assert_allclose(s[0], [[0, 1], [1, 0]], rtol=0, atol=EXACT_TOL)
+
+
+#: A central difference of scikit-rf in R with h = 1e-3 ohm: S is rational in R with
+#: poles about 100 ohm away, so truncation is of order (h / 100)^2 = 1e-10, and roundoff
+#: of order eps / h = 2e-13; observed 1e-10 (Resistor) and 1.6e-9 (ShuntResistor).
+FD_STEP_R = 1e-3
+FD_RTOL_R = 1e-8
+
+#: Resistors at R = 0, and the same element built in scikit-rf, which is exact there.
+ZERO_RESISTANCE_ELEMENTS = {
+    "Resistor": (lambda R: Resistor(R=R), _MEDIA.resistor),
+    "ShuntResistor": (lambda R: ShuntResistor(R=R), _MEDIA.shunt_resistor),
+}
+
+
+@pytest.mark.parametrize("name", ZERO_RESISTANCE_ELEMENTS)
+def test_resistor_at_zero_matches_scattering_and_skrf(name):
+    """Under MNA, `Resistor(R=0)` substituted 1e-9 ohm, with dS/dR = 0; `ShuntResistor(R=0)` was NaN (#224)."""
+    make_element, network_of = ZERO_RESISTANCE_ELEMENTS[name]
+    s, ds = _s_and_ds(make_element, GlobalMNACircuitSolver())
+    ref_s, ref_ds = _s_and_ds(make_element, GlobalScatteringCircuitSolver())
+    skrf_s = network_of(0.0).s
+    skrf_ds = (network_of(FD_STEP_R).s - network_of(-FD_STEP_R).s) / (2 * FD_STEP_R)
+
+    np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
+    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=SCATTERING_TOL)
+    np.testing.assert_allclose(s, skrf_s, rtol=0, atol=EXACT_TOL)
+    np.testing.assert_allclose(ds, skrf_ds, rtol=0, atol=FD_RTOL_R * np.max(np.abs(skrf_ds)))
+
+
+def test_infinite_resistance_is_absent():
+    """R = inf is closed (Parax ADR 0001): a series resistor is an open, a shunt one a thru."""
+    open_ = np.broadcast_to(np.eye(2), (ZERO_FREQ.npoints, 2, 2))
+    thru = np.broadcast_to(np.array([[0, 1], [1, 0]]), (ZERO_FREQ.npoints, 2, 2))
+    series = _two_port(Resistor(R=jnp.inf), GlobalMNACircuitSolver()).s(ZERO_FREQ)
+    np.testing.assert_allclose(series, open_, rtol=0, atol=EXACT_TOL)
+    for solver in (GlobalMNACircuitSolver(), GlobalScatteringCircuitSolver()):
+        shunt = _two_port(ShuntResistor(R=jnp.inf), solver).s(ZERO_FREQ)
+        np.testing.assert_allclose(shunt, thru, rtol=0, atol=EXACT_TOL)

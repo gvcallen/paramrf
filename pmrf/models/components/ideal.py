@@ -245,20 +245,18 @@ class CentreTappedTransformer(Model):
     tap: Param = param(default=0.5)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        N = self.N
-        tap = self.tap
+        N = jnp.asarray(self.N)
+        tap = jnp.asarray(self.tap) * jnp.ones_like(N)
+        one = jnp.ones_like(tap)
+        zero = jnp.zeros_like(tap)
 
-        # Currents of the two upper and lower primary windings, referred to the secondary
-        upper = tap / N
-        lower = (1.0 - tap) / N
-
-        one = jnp.ones_like(upper)
-        zero = jnp.zeros_like(upper)
-
-        # Each column drives one primary section against the secondary at zero net MMF
+        # The two columns span the terminal currents at zero net MMF. The first
+        # drives the primary sections against each other through the tap, and the
+        # second drives the whole primary against the secondary, scaled by N so
+        # that both stay independent, and finite, at N = 0.
         currents = jnp.stack([
-            jnp.stack([one,  zero, -upper, upper, -one]),
-            jnp.stack([zero, -one, -lower, lower,  one]),
+            jnp.stack([1.0 - tap, tap, zero, zero, -one]),
+            jnp.stack([N, -N, -one, one, zero]),
         ], axis=-1)
 
         return _constraint_s(currents, freq.npoints)

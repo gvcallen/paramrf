@@ -273,3 +273,24 @@ def test_mixed_mode_converter_requires_equal_reference_impedances(basic_freq):
 
     with pytest.raises(eqx.EquinoxRuntimeError, match="must be equal"):
         model.s(basic_freq, z0=[50.0, 75.0, 50.0, 50.0])
+
+
+def test_centre_tapped_transformer_at_zero_turns_ratio():
+    """At N = 0 the primary sections couple only to each other, and the secondary is a short (#224).
+
+    It was NaN there. There is no scikit-rf equivalent, so S and dS/dN are checked against
+    the limit N -> 0: S is smooth in N, so a forward difference with h = 1e-6 has truncation
+    of order h; observed 1.1e-6.
+    """
+    freq = Frequency(start=1.0, stop=10.0, npoints=3, unit='GHz')
+    s_of = lambda N: CentreTappedTransformer(N=N, tap=0.3).s(freq)
+    s, ds = jax.jvp(s_of, (0.0,), (1.0,))
+    h = 1e-6
+    near = np.asarray(s_of(h))
+
+    assert np.all(np.isfinite(s)) and np.all(np.isfinite(ds))
+    np.testing.assert_allclose(s, near, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(ds, (near - s) / h, rtol=0, atol=1e-5)
+    # The secondary terminals 3 and 4 are joined by a short, isolated from the primary.
+    np.testing.assert_allclose(s[:, 2:4, 2:4], np.broadcast_to([[0, 1], [1, 0]], (3, 2, 2)), atol=1e-14)
+    np.testing.assert_allclose(s[:, 2:4, [0, 1, 4]], 0.0, atol=1e-14)
