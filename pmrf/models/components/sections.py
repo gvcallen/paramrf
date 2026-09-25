@@ -7,7 +7,6 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import Param, param
 from pmrf.rf import MNAStamp
-from pmrf.models.components.lumped import series_branch_stamp
 
 class PiSection(Model):
     """
@@ -245,7 +244,11 @@ class BoxSectionCLCC(Model):
             [zero,       -Y4,         -Y2,         Y2 + Y4],
         ]).transpose(2, 0, 1)
 
-        return series_branch_stamp(Y, 1j * w * self.L, 0, 2)
+        # The inductor's branch current flows from port 0 to port 2.
+        nf = freq.npoints
+        B = jnp.broadcast_to(jnp.array([[1.0], [0.0], [-1.0], [0.0]], dtype=complex), (nf, 4, 1))
+        D = -(1j * w * self.L).reshape(nf, 1, 1)
+        return MNAStamp(Y=Y, B=B, C=jnp.swapaxes(B, 1, 2), D=D)
 
 
 class TSectionLCL(Model):

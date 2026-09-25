@@ -1,9 +1,16 @@
 # tests/test_models/test_topologies.py
 import pytest
+import jax
 import jax.numpy as jnp
+import numpy as np
+from skrf.media import DefinedGammaZ0
 
 from pmrf.frequency import Frequency
-from pmrf.models import PiSectionCLC, BoxSectionCLCC, TSectionLCL, LSectionLC
+from pmrf.models import (
+    PiSectionCLC, BoxSectionCLCC, TSectionLCL, LSectionLC,
+    Circuit, Port, Ground, Capacitor, Inductor,
+    GlobalMNACircuitSolver, GlobalScatteringCircuitSolver,
+)
 
 @pytest.fixture
 def basic_freq():
@@ -110,15 +117,6 @@ def test_lsection_thru(basic_freq):
 # ---------------------------------------------------------
 # Exact at zero (ADR-0007, #215, #223)
 # ---------------------------------------------------------
-
-import jax
-import numpy as np
-from skrf.media import DefinedGammaZ0
-
-from pmrf.models import (
-    Circuit, Port, Ground, Capacitor, Inductor,
-    GlobalMNACircuitSolver, GlobalScatteringCircuitSolver,
-)
 
 #: The #215 reproduction's grid.
 ZERO_FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')

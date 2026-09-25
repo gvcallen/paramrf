@@ -12,37 +12,21 @@ from pmrf.constraints import Positive
 from pmrf.rf import MNAStamp
 
 
-def series_branch_stamp(Y: jnp.ndarray, Z: jnp.ndarray, a: int, b: int) -> MNAStamp:
-    r"""
-    An MNA stamp of nodal admittances `Y` with a series impedance `Z` from node `a` to node `b`.
+def _series_stamp(Z: jnp.ndarray) -> MNAStamp:
+    """A 2-port MNA stamp of a series impedance `Z`, stamped as a branch (ADR-0007).
 
-    The impedance is stamped as a branch: one auxiliary current $I$ flowing from `a`
-    to `b`, with $V_a - V_b - Z I = 0$. Unlike an admittance stamp, this is exact
-    when $Z = 0$ (ADR-0007).
-
-    Parameters
-    ----------
-    Y : jnp.ndarray
-        Nodal admittances of the rest of the model, with shape `(nf, n, n)`.
-    Z : jnp.ndarray
-        The branch impedance, with shape `(nf,)`.
-    a, b : int
-        The nodes the branch runs from and to.
-
-    Returns
-    -------
-    MNAStamp
-        The stamp, with one auxiliary variable.
-
-    References
-    ----------
-    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
-    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
+    One auxiliary current $I$ flows from port 1 to port 2, with $V_1 - V_2 - Z I = 0$,
+    which is exact when $Z = 0$.
     """
-    nf, n, _ = Y.shape
-    incidence = jnp.zeros((n, 1), dtype=complex).at[a, 0].set(1.0).at[b, 0].set(-1.0)
-    B = jnp.broadcast_to(incidence, (nf, n, 1))
-    return MNAStamp(Y=Y, B=B, C=jnp.swapaxes(B, 1, 2), D=-Z.reshape(nf, 1, 1).astype(complex))
+    nf = Z.shape[0]
+    B = jnp.broadcast_to(jnp.array([[1.0], [-1.0]], dtype=complex), (nf, 2, 1))
+    return MNAStamp(
+        Y=jnp.zeros((nf, 2, 2), dtype=complex),
+        B=B,
+        C=jnp.swapaxes(B, 1, 2),
+        D=-Z.reshape(nf, 1, 1).astype(complex),
+    )
+
 
 class Resistor(Model):
     """
@@ -314,7 +298,8 @@ class CapacitorQ(Model):
 
     $$Y = \frac{j \omega C}{1 + j/Q},$$
 
-    which is finite, with a finite derivative, at C = 0 and at DC.
+    which is finite, with a finite derivative, at C = 0 and at DC. Q is the ratio of
+    reactance to series resistance.
 
     Parameters
     ----------
@@ -322,6 +307,10 @@ class CapacitorQ(Model):
         The capacitance in Farads
     Q : Param
         The quality factor representing non-ideal losses. Must be positive.
+
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 6.1. Wiley.
     """
     #: Capacitance in Farads
     C: Param = param()
@@ -460,7 +449,7 @@ class Inductor(Model):
 
     def mna(self, freq: Frequency) -> MNAStamp:
         Z = 1j * freq.w * self.L
-        return series_branch_stamp(jnp.zeros((freq.npoints, 2, 2), dtype=complex), Z, 0, 1)
+        return _series_stamp(Z)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         """Y-parameters, undefined (non-finite) at L = 0 and at DC."""
@@ -538,7 +527,7 @@ class InductorQ(Model):
 
     def mna(self, freq: Frequency) -> MNAStamp:
         Z = freq.w * self.L * (1.0 / self.Q + 1j)
-        return series_branch_stamp(jnp.zeros((freq.npoints, 2, 2), dtype=complex), Z, 0, 1)
+        return _series_stamp(Z)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
         """Y-parameters, undefined (non-finite) at L = 0 and at DC."""

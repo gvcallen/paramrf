@@ -1,12 +1,17 @@
 import pytest
+import equinox as eqx
+import jax
 import jax.numpy as jnp
+import numpy as np
+from skrf.media import DefinedGammaZ0
 from pmrf.frequency import Frequency
 
 from pmrf.models import (
     Short, Open, Match,
     Resistor, Capacitor, Inductor,
     ShuntResistor, ShuntCapacitor, ShuntInductor,
-    CapacitorQ, InductorQ
+    CapacitorQ, InductorQ,
+    Circuit, Port, GlobalMNACircuitSolver, GlobalScatteringCircuitSolver,
 )
 
 @pytest.fixture
@@ -84,13 +89,6 @@ def test_q_components_execution(basic_freq):
 # ---------------------------------------------------------
 # Exact at zero (ADR-0007, #215, #223)
 # ---------------------------------------------------------
-
-import equinox as eqx
-import jax
-import numpy as np
-from skrf.media import DefinedGammaZ0
-
-from pmrf.models import Circuit, Port, GlobalMNACircuitSolver, GlobalScatteringCircuitSolver
 
 #: The #215 reproduction's grid.
 ZERO_FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')
