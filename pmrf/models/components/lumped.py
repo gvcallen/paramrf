@@ -8,6 +8,41 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
+from pmrf.constraints import Positive
+from pmrf.rf import MNAStamp
+
+
+def series_branch_stamp(Y: jnp.ndarray, Z: jnp.ndarray, a: int, b: int) -> MNAStamp:
+    r"""
+    An MNA stamp of nodal admittances `Y` with a series impedance `Z` from node `a` to node `b`.
+
+    The impedance is stamped as a branch: one auxiliary current $I$ flowing from `a`
+    to `b`, with $V_a - V_b - Z I = 0$. Unlike an admittance stamp, this is exact
+    when $Z = 0$ (ADR-0007).
+
+    Parameters
+    ----------
+    Y : jnp.ndarray
+        Nodal admittances of the rest of the model, with shape `(nf, n, n)`.
+    Z : jnp.ndarray
+        The branch impedance, with shape `(nf,)`.
+    a, b : int
+        The nodes the branch runs from and to.
+
+    Returns
+    -------
+    MNAStamp
+        The stamp, with one auxiliary variable.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
+    """
+    nf, n, _ = Y.shape
+    incidence = jnp.zeros((n, 1), dtype=complex).at[a, 0].set(1.0).at[b, 0].set(-1.0)
+    B = jnp.broadcast_to(incidence, (nf, n, 1))
+    return MNAStamp(Y=Y, B=B, C=jnp.swapaxes(B, 1, 2), D=-Z.reshape(nf, 1, 1).astype(complex))
 
 class Resistor(Model):
     """
@@ -270,21 +305,29 @@ class Capacitor(Model):
     
 
 class CapacitorQ(Model):
-    """
+    r"""
     A 2-port model of a series capacitor with a finite Quality Factor (Q).
+
+    **Mathematical Formulation**
+
+    The capacitor's impedance is $Z = (1 + j/Q) / (j \omega C)$, so its admittance is
+
+    $$Y = \frac{j \omega C}{1 + j/Q},$$
+
+    which is finite, with a finite derivative, at C = 0 and at DC.
 
     Parameters
     ----------
     C : Param
         The capacitance in Farads
     Q : Param
-        The quality factor representing non-ideal losses. Default is 50.0.
+        The quality factor representing non-ideal losses. Must be positive.
     """
     #: Capacitance in Farads
     C: Param = param()
     
     #: Quality factor
-    Q: Param = param()
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
@@ -317,9 +360,7 @@ class CapacitorQ(Model):
         C = self.C
         Q = self.Q
         
-        Z_scaled = 1.0 + 1j * (1.0 / Q)
-        Z_component = Z_scaled / (1j * w * C)
-        Y = jnp.where(w == 0, 0.0 + 0j, 1.0 / Z_component)
+        Y = 1j * w * C / (1.0 + 1j / Q)
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
         y11 = Y * ones
@@ -373,13 +414,24 @@ class ShuntCapacitor(Model):
 
 
 class Inductor(Model):
-    """
+    r"""
     A 2-port model of a series inductor.
+
+    **Mathematical Formulation**
+
+    The impedance is $Z = j \omega L$. For MNA it is stamped as a branch, with one
+    auxiliary current $I$ and $V_1 - V_2 - Z I = 0$, which is exact at L = 0 and at
+    DC (ADR-0007). Its admittance $1 / Z$, returned by :meth:`y`, is undefined there.
 
     Parameters
     ----------
     L : Param
         The inductance in Henrys.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: Inductance in Henrys
     L: Param = param()
@@ -405,8 +457,13 @@ class Inductor(Model):
         ]).transpose(2, 0, 1)
 
         return s
-    
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        Z = 1j * freq.w * self.L
+        return series_branch_stamp(jnp.zeros((freq.npoints, 2, 2), dtype=complex), Z, 0, 1)
+
     def y(self, freq: Frequency) -> jnp.ndarray:
+        """Y-parameters, undefined (non-finite) at L = 0 and at DC."""
         w = freq.w
         L = self.L
         
@@ -424,21 +481,33 @@ class Inductor(Model):
 
     
 class InductorQ(Model):
-    """
+    r"""
     A 2-port model of a series inductor with a finite Quality Factor (Q).
+
+    **Mathematical Formulation**
+
+    The impedance is $Z = \omega L (1/Q + j)$. For MNA it is stamped as a branch,
+    with one auxiliary current $I$ and $V_1 - V_2 - Z I = 0$, which is exact at
+    L = 0 (ADR-0007). Its admittance $1 / Z$, returned by :meth:`y`, is undefined
+    there.
 
     Parameters
     ----------
     L : Param
         The inductance in Henrys
     Q : Param
-        The quality factor representing non-ideal losses
+        The quality factor representing non-ideal losses. Must be positive.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: Inductance in Henrys
     L: Param = param()
 
     #: Quality factor
-    Q: Param = param()
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
@@ -466,8 +535,13 @@ class InductorQ(Model):
         ]).transpose(2, 0, 1)
 
         return s
-    
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        Z = freq.w * self.L * (1.0 / self.Q + 1j)
+        return series_branch_stamp(jnp.zeros((freq.npoints, 2, 2), dtype=complex), Z, 0, 1)
+
     def y(self, freq: Frequency) -> jnp.ndarray:
+        """Y-parameters, undefined (non-finite) at L = 0 and at DC."""
         w = freq.w
         L = self.L
         Q = self.Q
