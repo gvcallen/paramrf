@@ -1,9 +1,16 @@
 # tests/test_models/test_topologies.py
 import pytest
+import jax
 import jax.numpy as jnp
+import numpy as np
+from skrf.media import DefinedGammaZ0
 
 from pmrf.frequency import Frequency
-from pmrf.models import PiSectionCLC, BoxSectionCLCC, TSectionLCL, LSectionLC
+from pmrf.models import (
+    PiSectionCLC, BoxSectionCLCC, TSectionLCL, LSectionLC,
+    Circuit, Port, Ground, Capacitor, Inductor,
+    GlobalMNACircuitSolver, GlobalScatteringCircuitSolver,
+)
 
 @pytest.fixture
 def basic_freq():
@@ -51,7 +58,7 @@ def test_boxclcc_general(basic_freq):
     assert not jnp.any(jnp.isnan(s))
 
 def test_boxclcc_zero_inductance(basic_freq):
-    """Test the edge case where L is approx 0.0."""
+    """Test the edge case where L = 0."""
     model = BoxSectionCLCC(L=0.0, C1=1e-12, C2=1e-12, C3=1e-12)
     s = model.s(basic_freq)
     
@@ -105,3 +112,104 @@ def test_lsection_thru(basic_freq):
     # An ideal thru-line has S11=0 and S21=1
     assert jnp.allclose(s[:, 0, 0], 0.0 + 0.0j, atol=1e-6)
     assert jnp.allclose(s[:, 1, 0], 1.0 + 0.0j, atol=1e-6)
+
+
+# ---------------------------------------------------------
+# Exact at zero (ADR-0007, #215, #223)
+# ---------------------------------------------------------
+
+#: The #215 reproduction's grid.
+ZERO_FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')
+
+# The scattering solver regularises its own system with eps = 1e-12, which moves S, and
+# dS relative to its size, by about 2e-12. The MNA solver adds GMIN only to internal
+# nodes, so at the ports its only regularisation is eps = 1e-12 on the diagonal of D,
+# which moves S by at most about eps / 2 = 5e-13.
+SCATTERING_TOL = 1e-11
+# MNA against an unregularised reference (scikit-rf, or a closed form): observed 1e-14
+# for a branch stamp, and 9e-13 relative for `PiSectionCLC`, whose `a2mna` rows are not
+# branch equations.
+EXACT_TOL = 1e-11
+# A central difference of scikit-rf with h = 1e-13 H has truncation error of order
+# (w h / 2 Z0)^2 ~ 4e-11 relative, and roundoff of order eps / (h dS/dL) ~ 4e-11;
+# observed 5e-11.
+FD_STEP_L = 1e-13
+FD_RTOL = 1e-9
+
+
+def _loss_and_grad(circuit_of_L, L0=0.0):
+    """The #215 reproduction's loss, Σ|S11|², and its derivative with respect to L."""
+    def f(L):
+        return jnp.sum(jnp.abs(circuit_of_L(L).s(ZERO_FREQ)[:, 0, 0]) ** 2)
+    return jax.value_and_grad(f)(L0)
+
+
+def _skrf_pi_loss_and_grad():
+    """Σ|S11|² of C - L - C in scikit-rf at L = 0, and a central difference in L."""
+    media = DefinedGammaZ0(ZERO_FREQ.to_skrf(), z0=50.0)
+    def f(L):
+        ntwk = media.shunt_capacitor(1e-12) ** media.inductor(L) ** media.shunt_capacitor(1e-12)
+        return np.sum(np.abs(ntwk.s[:, 0, 0]) ** 2)
+    return f(0.0), (f(FD_STEP_L) - f(-FD_STEP_L)) / (2 * FD_STEP_L)
+
+
+def _pi_circuit(L, solver):
+    """The #215 reproduction: `PiSectionCLC` between two 50 ohm Ports."""
+    pi = PiSectionCLC(C1=1e-12, L=L, C2=1e-12)
+    p0, p1 = Port(z0=50.0), Port(z0=50.0)
+    return Circuit([[(p0, 0), (pi, 0)], [(pi, 1), (p1, 0)]], solver=solver)
+
+
+def _box_circuit(L, solver):
+    """`BoxSectionCLCC` with ports 1 and 3 grounded, which is the Pi-section above."""
+    box = BoxSectionCLCC(C1=1e-12, L=L, C2=1e-12, C3=1e-12)
+    p0, p1, g = Port(z0=50.0), Port(z0=50.0), Ground()
+    return Circuit([[(p0, 0), (box, 0)], [(p1, 0), (box, 2)], [(g, 0), (box, 1), (box, 3)]], solver=solver)
+
+
+@pytest.mark.parametrize("circuit", [_pi_circuit, _box_circuit], ids=["PiSectionCLC", "BoxSectionCLCC"])
+def test_clc_at_zero_inductance_matches_scattering_and_skrf(circuit):
+    """Under MNA, `PiSectionCLC(L=0)` was 0.2% off with dL = -2.8e17, and `BoxSectionCLCC(L=0)` had dL = 0."""
+    value, grad = _loss_and_grad(lambda L: circuit(L, GlobalMNACircuitSolver()))
+    ref_value, ref_grad = _loss_and_grad(lambda L: circuit(L, GlobalScatteringCircuitSolver()))
+    skrf_value, skrf_grad = _skrf_pi_loss_and_grad()
+
+    np.testing.assert_allclose(value, ref_value, rtol=SCATTERING_TOL)
+    np.testing.assert_allclose(grad, ref_grad, rtol=SCATTERING_TOL)
+    np.testing.assert_allclose(value, skrf_value, rtol=EXACT_TOL)
+    np.testing.assert_allclose(grad, skrf_grad, rtol=FD_RTOL)
+    # About -4.8e7 here.
+    assert grad < -4e7
+
+
+def _discrete_box(L):
+    """`BoxSectionCLCC` built from discrete elements, in a scattering circuit."""
+    c1, c2, c3, ind = Capacitor(C=1e-12), Capacitor(C=2e-12), Capacitor(C=0.5e-12), Inductor(L=L)
+    ports = [Port(z0=50.0) for _ in range(4)]
+    return Circuit([
+        [(ports[0], 0), (c1, 0), (ind, 0)],
+        [(ports[1], 0), (c1, 1), (c3, 0)],
+        [(ports[2], 0), (c2, 0), (ind, 1)],
+        [(ports[3], 0), (c2, 1), (c3, 1)],
+    ], solver=GlobalScatteringCircuitSolver())
+
+
+@pytest.mark.parametrize("L0", [0.0, 1e-9], ids=["L=0", "L=1nH"])
+def test_boxclcc_matches_discrete_elements(L0):
+    """`BoxSectionCLCC.s()` comes from its MNA stamp, and is exact, with its dS/dL, at L = 0 and DC."""
+    freq = Frequency(start=0.0, stop=1.0, npoints=5, unit='GHz')
+    box_s = lambda L: BoxSectionCLCC(C1=1e-12, L=L, C2=2e-12, C3=0.5e-12).s(freq)
+    s, ds = jax.jvp(box_s, (L0,), (1.0,))
+    ref_s, ref_ds = jax.jvp(lambda L: _discrete_box(L).s(freq), (L0,), (1.0,))
+
+    assert np.all(np.isfinite(s)) and np.all(np.isfinite(ds))
+    np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
+    # dS/dL is zero at DC, so it is compared relative to its largest entry.
+    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=SCATTERING_TOL * np.max(np.abs(ref_ds)))
+
+
+@pytest.mark.parametrize("L", [-1e-9, 0.0, 1e-9])
+def test_boxclcc_is_finite_at_dc(L):
+    freq = Frequency(start=0.0, stop=1.0, npoints=3, unit='GHz')
+    s = BoxSectionCLCC(C1=1e-12, L=L, C2=1e-12, C3=1e-12).s(freq)
+    assert np.all(np.isfinite(s))

@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.parameters import Param, param
+from pmrf.rf import MNAStamp
 
 class PiSection(Model):
     """
@@ -194,7 +195,7 @@ class PiSectionCLC(Model):
 
 
 class BoxSectionCLCC(Model):
-    """
+    r"""
     A 4-port model of a Box-network with a
     Capacitor-Inductor-Capacitor-Capacitor topology.
 
@@ -209,6 +210,18 @@ class BoxSectionCLCC(Model):
 
           L (top)
           C3 (bottom)
+
+    **Mathematical Formulation**
+
+    The capacitors are stamped as admittances $j \omega C$. The inductor is stamped
+    as a branch from port 0 to port 2, with one auxiliary current $I$ and
+    $V_0 - V_2 - j \omega L I = 0$, so the model is exact at L = 0 and at DC
+    (ADR-0007). S-parameters come from the stamp through :func:`pmrf.rf.mna2s`.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
 
     C1: Param = param()
@@ -216,27 +229,27 @@ class BoxSectionCLCC(Model):
     C2: Param = param()
     C3: Param = param()
 
-    def y(self, freq: Frequency) -> jnp.ndarray:
+    def mna(self, freq: Frequency) -> MNAStamp:
         w = freq.w
 
         Y1 = 1j * w * self.C1
         Y2 = 1j * w * self.C2
         Y4 = 1j * w * self.C3
-
-        # A microscopic inductance keeps Y3 massive but strictly finite,
-        # preventing inf * 0 = NaN errors during y2s matrix inversion.
-        L_safe = jnp.where(self.L == 0.0, jnp.finfo(float).eps, self.L)
-        Y3 = 1.0 / (1j * w * L_safe)
-
         zero = jnp.zeros_like(Y1)
 
-        return jnp.array([
-            [Y1 + Y3,    -Y1,         -Y3,         zero],
+        Y = jnp.array([
+            [Y1,         -Y1,         zero,        zero],
             [-Y1,        Y1 + Y4,     zero,        -Y4],
-            [-Y3,        zero,        Y2 + Y3,     -Y2],
+            [zero,       zero,        Y2,          -Y2],
             [zero,       -Y4,         -Y2,         Y2 + Y4],
         ]).transpose(2, 0, 1)
-    
+
+        # The inductor's branch current flows from port 0 to port 2.
+        nf = freq.npoints
+        B = jnp.broadcast_to(jnp.array([[1.0], [0.0], [-1.0], [0.0]], dtype=complex), (nf, 4, 1))
+        D = -(1j * w * self.L).reshape(nf, 1, 1)
+        return MNAStamp(Y=Y, B=B, C=jnp.swapaxes(B, 1, 2), D=D)
+
 
 class TSectionLCL(Model):
     """

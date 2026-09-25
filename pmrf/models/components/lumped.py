@@ -8,6 +8,25 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
+from pmrf.constraints import Positive
+from pmrf.rf import MNAStamp
+
+
+def _series_stamp(Z: jnp.ndarray) -> MNAStamp:
+    """A 2-port MNA stamp of a series impedance `Z`, stamped as a branch (ADR-0007).
+
+    One auxiliary current $I$ flows from port 1 to port 2, with $V_1 - V_2 - Z I = 0$,
+    which is exact when $Z = 0$.
+    """
+    nf = Z.shape[0]
+    B = jnp.broadcast_to(jnp.array([[1.0], [-1.0]], dtype=complex), (nf, 2, 1))
+    return MNAStamp(
+        Y=jnp.zeros((nf, 2, 2), dtype=complex),
+        B=B,
+        C=jnp.swapaxes(B, 1, 2),
+        D=-Z.reshape(nf, 1, 1).astype(complex),
+    )
+
 
 class Resistor(Model):
     """
@@ -270,21 +289,34 @@ class Capacitor(Model):
     
 
 class CapacitorQ(Model):
-    """
+    r"""
     A 2-port model of a series capacitor with a finite Quality Factor (Q).
+
+    **Mathematical Formulation**
+
+    The capacitor's impedance is $Z = (1 + j/Q) / (j \omega C)$, so its admittance is
+
+    $$Y = \frac{j \omega C}{1 + j/Q},$$
+
+    which is finite, with a finite derivative, at C = 0 and at DC. Q is the ratio of
+    reactance to series resistance.
 
     Parameters
     ----------
     C : Param
         The capacitance in Farads
     Q : Param
-        The quality factor representing non-ideal losses. Default is 50.0.
+        The quality factor representing non-ideal losses. Must be positive.
+
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 6.1. Wiley.
     """
     #: Capacitance in Farads
     C: Param = param()
     
     #: Quality factor
-    Q: Param = param()
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
@@ -317,9 +349,7 @@ class CapacitorQ(Model):
         C = self.C
         Q = self.Q
         
-        Z_scaled = 1.0 + 1j * (1.0 / Q)
-        Z_component = Z_scaled / (1j * w * C)
-        Y = jnp.where(w == 0, 0.0 + 0j, 1.0 / Z_component)
+        Y = 1j * w * C / (1.0 + 1j / Q)
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
         y11 = Y * ones
@@ -373,13 +403,24 @@ class ShuntCapacitor(Model):
 
 
 class Inductor(Model):
-    """
+    r"""
     A 2-port model of a series inductor.
+
+    **Mathematical Formulation**
+
+    The impedance is $Z = j \omega L$. For MNA it is stamped as a branch, with one
+    auxiliary current $I$ and $V_1 - V_2 - Z I = 0$, which is exact at L = 0 and at
+    DC (ADR-0007). Its admittance $1 / Z$, returned by :meth:`y`, is undefined there.
 
     Parameters
     ----------
     L : Param
         The inductance in Henrys.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: Inductance in Henrys
     L: Param = param()
@@ -405,8 +446,13 @@ class Inductor(Model):
         ]).transpose(2, 0, 1)
 
         return s
-    
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        Z = 1j * freq.w * self.L
+        return _series_stamp(Z)
+
     def y(self, freq: Frequency) -> jnp.ndarray:
+        """Y-parameters, undefined (non-finite) at L = 0 and at DC."""
         w = freq.w
         L = self.L
         
@@ -424,21 +470,33 @@ class Inductor(Model):
 
     
 class InductorQ(Model):
-    """
+    r"""
     A 2-port model of a series inductor with a finite Quality Factor (Q).
+
+    **Mathematical Formulation**
+
+    The impedance is $Z = \omega L (1/Q + j)$. For MNA it is stamped as a branch,
+    with one auxiliary current $I$ and $V_1 - V_2 - Z I = 0$, which is exact at
+    L = 0 (ADR-0007). Its admittance $1 / Z$, returned by :meth:`y`, is undefined
+    there.
 
     Parameters
     ----------
     L : Param
         The inductance in Henrys
     Q : Param
-        The quality factor representing non-ideal losses
+        The quality factor representing non-ideal losses. Must be positive.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: Inductance in Henrys
     L: Param = param()
 
     #: Quality factor
-    Q: Param = param()
+    Q: Param = param(constraint=Positive())
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         w = freq.w
@@ -466,8 +524,13 @@ class InductorQ(Model):
         ]).transpose(2, 0, 1)
 
         return s
-    
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        Z = freq.w * self.L * (1.0 / self.Q + 1j)
+        return _series_stamp(Z)
+
     def y(self, freq: Frequency) -> jnp.ndarray:
+        """Y-parameters, undefined (non-finite) at L = 0 and at DC."""
         w = freq.w
         L = self.L
         Q = self.Q
