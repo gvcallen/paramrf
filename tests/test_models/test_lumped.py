@@ -93,16 +93,20 @@ def test_q_components_execution(basic_freq):
 #: The #215 reproduction's grid.
 ZERO_FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')
 
-# The MNA solver's GMIN (1e-12 S to every node) moves S by about GMIN * Z0 = 5e-11 at a
-# 50 ohm port; the scattering solver's own eps (1e-12) moves it by about 1e-12.
-REG_ATOL = 1e-10
-# dS/dL at L = 0 is of order w / (2 Z0) ~ 6e7; the regularisation shows up about two
-# orders larger in it than in S.
-GRAD_RTOL = 1e-8
+# The scattering solver regularises its own system with eps = 1e-12, which moves S, and
+# dS relative to its size, by about 2e-12. The MNA solver adds GMIN only to internal
+# nodes, so at the ports its only regularisation is eps = 1e-12 on the diagonal of D,
+# which moves S by at most about eps / 2 = 5e-13.
+SCATTERING_TOL = 1e-11
+# MNA against an unregularised reference (scikit-rf, or a closed form): observed 1e-14
+# for a branch stamp, and 9e-13 relative for `PiSectionCLC`, whose `a2mna` rows are not
+# branch equations.
+EXACT_TOL = 1e-11
 # A central difference of scikit-rf with h = 1e-13 H has truncation error of order
-# (w h / 2 Z0)^2 ~ 1e-10 relative, and roundoff of order eps / (h dS/dL) ~ 1e-11.
+# (w h / 2 Z0)^2 ~ 4e-11 relative, and roundoff of order eps / (h dS/dL) ~ 4e-11;
+# observed 5e-11.
 FD_STEP_L = 1e-13
-FD_RTOL = 1e-7
+FD_RTOL = 1e-9
 
 
 def _two_port(element, solver):
@@ -156,9 +160,9 @@ def test_series_inductor_at_zero_matches_scattering_and_skrf(name):
     skrf_s, skrf_ds = _skrf_s_and_ds(network_of)
 
     assert np.all(np.isfinite(s)) and np.all(np.isfinite(ds))
-    np.testing.assert_allclose(s, ref_s, rtol=0, atol=REG_ATOL)
-    np.testing.assert_allclose(ds, ref_ds, rtol=GRAD_RTOL)
-    np.testing.assert_allclose(s, skrf_s, rtol=0, atol=REG_ATOL)
+    np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
+    np.testing.assert_allclose(ds, ref_ds, rtol=SCATTERING_TOL)
+    np.testing.assert_allclose(s, skrf_s, rtol=0, atol=EXACT_TOL)
     np.testing.assert_allclose(ds, skrf_ds, rtol=FD_RTOL)
 
 
@@ -170,10 +174,10 @@ def test_series_inductor_at_zero_215_loss(name):
     ref_value, ref_grad = _loss_and_grad(make_element, GlobalScatteringCircuitSolver())
 
     # At a thru the loss is quadratic in the regularisation, and its gradient is
-    # 2 Re(S11* dS11/dL), with S11 of order REG_ATOL.
+    # 2 Re(S11* dS11/dL), with S11 of order SCATTERING_TOL.
     _, ds = _s_and_ds(make_element, GlobalScatteringCircuitSolver())
-    grad_atol = 2 * REG_ATOL * np.sum(np.abs(ds[:, 0, 0]))
-    np.testing.assert_allclose(value, ref_value, rtol=0, atol=REG_ATOL**2)
+    grad_atol = 2 * SCATTERING_TOL * np.sum(np.abs(ds[:, 0, 0]))
+    np.testing.assert_allclose(value, ref_value, rtol=0, atol=SCATTERING_TOL**2)
     np.testing.assert_allclose(grad, ref_grad, rtol=0, atol=grad_atol)
 
 
@@ -184,9 +188,8 @@ def test_capacitor_q_at_zero_has_finite_gradient_under_mna():
     ref_s, ref_ds = _s_and_ds(make_element, GlobalScatteringCircuitSolver())
 
     assert np.all(np.isfinite(ds))
-    np.testing.assert_allclose(s, ref_s, rtol=0, atol=REG_ATOL)
-    # dS/dC at C = 0 is of order w Z0 ~ 3e11; GMIN moves it relatively by about GMIN * Z0.
-    np.testing.assert_allclose(ds, ref_ds, rtol=GRAD_RTOL)
+    np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
+    np.testing.assert_allclose(ds, ref_ds, rtol=SCATTERING_TOL)
 
 
 @pytest.mark.parametrize("model", [lambda: InductorQ(L=1e-9, Q=0.0), lambda: CapacitorQ(C=1e-12, Q=0.0)],
@@ -200,4 +203,4 @@ def test_inductor_at_dc_stamps_a_short():
     """At DC an `Inductor` is a short for any L; its stamp stays finite."""
     freq = Frequency(start=0.0, stop=1.0, npoints=3, unit='GHz')
     s = _two_port(Inductor(L=1e-9), GlobalMNACircuitSolver()).s(freq)
-    np.testing.assert_allclose(s[0], [[0, 1], [1, 0]], rtol=0, atol=REG_ATOL)
+    np.testing.assert_allclose(s[0], [[0, 1], [1, 0]], rtol=0, atol=EXACT_TOL)

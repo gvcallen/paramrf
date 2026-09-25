@@ -121,16 +121,20 @@ def test_lsection_thru(basic_freq):
 #: The #215 reproduction's grid.
 ZERO_FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')
 
-# The MNA solver's GMIN (1e-12 S to every node) moves S by about GMIN * Z0 = 5e-11 at a
-# 50 ohm port, and the scattering solver's own eps (1e-12) by about 1e-12.
-REG_ATOL = 1e-10
-# dL is a difference of nearly cancelling terms at a short, so the regularisation shows
-# up about two orders larger in it; observed agreement is ~1e-10 relative.
-GRAD_RTOL = 1e-8
-# A central difference of scikit-rf with h = 1e-13 H: truncation error of order
-# (w h / 2 Z0)^2 ~ 1e-10 relative, and roundoff of order eps / (h dS/dL) ~ 1e-11.
+# The scattering solver regularises its own system with eps = 1e-12, which moves S, and
+# dS relative to its size, by about 2e-12. The MNA solver adds GMIN only to internal
+# nodes, so at the ports its only regularisation is eps = 1e-12 on the diagonal of D,
+# which moves S by at most about eps / 2 = 5e-13.
+SCATTERING_TOL = 1e-11
+# MNA against an unregularised reference (scikit-rf, or a closed form): observed 1e-14
+# for a branch stamp, and 9e-13 relative for `PiSectionCLC`, whose `a2mna` rows are not
+# branch equations.
+EXACT_TOL = 1e-11
+# A central difference of scikit-rf with h = 1e-13 H has truncation error of order
+# (w h / 2 Z0)^2 ~ 4e-11 relative, and roundoff of order eps / (h dS/dL) ~ 4e-11;
+# observed 5e-11.
 FD_STEP_L = 1e-13
-FD_RTOL = 1e-7
+FD_RTOL = 1e-9
 
 
 def _loss_and_grad(circuit_of_L, L0=0.0):
@@ -170,9 +174,9 @@ def test_clc_at_zero_inductance_matches_scattering_and_skrf(circuit):
     ref_value, ref_grad = _loss_and_grad(lambda L: circuit(L, GlobalScatteringCircuitSolver()))
     skrf_value, skrf_grad = _skrf_pi_loss_and_grad()
 
-    np.testing.assert_allclose(value, ref_value, rtol=REG_ATOL)
-    np.testing.assert_allclose(grad, ref_grad, rtol=GRAD_RTOL)
-    np.testing.assert_allclose(value, skrf_value, rtol=REG_ATOL)
+    np.testing.assert_allclose(value, ref_value, rtol=SCATTERING_TOL)
+    np.testing.assert_allclose(grad, ref_grad, rtol=SCATTERING_TOL)
+    np.testing.assert_allclose(value, skrf_value, rtol=EXACT_TOL)
     np.testing.assert_allclose(grad, skrf_grad, rtol=FD_RTOL)
     # About -4.8e7 here.
     assert grad < -4e7
@@ -199,9 +203,9 @@ def test_boxclcc_matches_discrete_elements(L0):
     ref_s, ref_ds = jax.jvp(lambda L: _discrete_box(L).s(freq), (L0,), (1.0,))
 
     assert np.all(np.isfinite(s)) and np.all(np.isfinite(ds))
-    np.testing.assert_allclose(s, ref_s, rtol=0, atol=REG_ATOL)
-    # dS/dL is of order w Z0 ~ 3e11 at 1 GHz; the scattering eps moves it by about eps.
-    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=GRAD_RTOL * np.max(np.abs(ref_ds)))
+    np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
+    # dS/dL is zero at DC, so it is compared relative to its largest entry.
+    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=SCATTERING_TOL * np.max(np.abs(ref_ds)))
 
 
 @pytest.mark.parametrize("L", [-1e-9, 0.0, 1e-9])
