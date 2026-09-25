@@ -1,0 +1,9 @@
+
+
+
+is_sampler
+==========
+
+.. currentmodule:: pmrf.infer
+
+.. autofunction:: is_sampler

@@ -1,0 +1,9 @@
+
+
+
+reduce_to_external
+==================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+
+.. autofunction:: reduce_to_external

@@ -1,0 +1,88 @@
+﻿
+
+
+**materials** (pmrf.materials)
+==============================
+
+.. automodule:: pmrf.materials
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractDielectric
+
+   ConstantDielectric
+
+   DjordjevicSarkarDielectric
+
+   DebyePole
+
+   MultipoleDebyeDielectric
+
+   ColeColeDielectric
+
+   TabulatedDielectric
+
+   DielectricProperties
+
+   ConductorProperties
+
+   AbstractConductor
+
+   AbstractRoughness
+
+   BulkConductor
+
+   HammerstadRoughness
+
+   RoughConductor
+
+   AbstractSurfaceImpedance
+
+   HalfSpaceSurfaceImpedance
+
+   HollowayKuesterSlabSurfaceImpedance
+
+   RootSumSquareSlabSurfaceImpedance
+
+   SchelkunoffRodSurfaceImpedance
+
+   SchelkunoffTubeSurfaceImpedance
+
+   TescheRodSurfaceImpedance
+
+   TescheTubeSurfaceImpedance
+
+   Substrate
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   as_dielectric
+
+   as_conductor
+
+   as_substrate
+
+

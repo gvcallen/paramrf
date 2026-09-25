@@ -1,0 +1,12 @@
+
+
+
+PhaseLine
+=========
+
+.. currentmodule:: pmrf.models.components.lines.ideal
+
+.. autoclass:: PhaseLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

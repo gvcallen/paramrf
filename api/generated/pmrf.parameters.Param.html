@@ -1,0 +1,518 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Param &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="is_param" href="pmrf.parameters.is_param.html" />
+    <link rel="prev" title="parameters (pmrf.parameters)" href="pmrf.parameters.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#working-with-parameters">Working with Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#other-modules">Other Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.constraints.html"><strong>constraints</strong> (pmrf.constraints)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.covariance_kernels.html"><strong>covariance_kernels</strong> (pmrf.covariance_kernels)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.discrepancy_models.html"><strong>discrepancy_models</strong> (pmrf.discrepancy_models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.distributions.html"><strong>distributions</strong> (pmrf.distributions)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.evaluators.html"><strong>evaluators</strong> (pmrf.evaluators)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.problems.html"><strong>problems</strong> (pmrf.problems)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.terms.html"><strong>terms</strong> (pmrf.terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.likelihoods.html"><strong>likelihoods</strong> (pmrf.likelihoods)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.losses.html"><strong>losses</strong> (pmrf.losses)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.math.html"><strong>math</strong> (pmrf.math)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.noise_models.html"><strong>noise_models</strong> (pmrf.noise_models)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Param</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.is_param.html">is_param</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.as_param.html">as_param</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.param.html">param</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.Fixed.html">Fixed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.Unconstrained.html">Unconstrained</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.Bounded.html">Bounded</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.Constrained.html">Constrained</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.Random.html">Random</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.params.html">params</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.values.html">values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.log_prior.html">log_prior</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.update.html">update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.tie.html">tie</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.resolve.html">resolve</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.parameters.prior.html">prior</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.rf.html"><strong>rf</strong> (pmrf.rf)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.serialization.html"><strong>serialization</strong> (pmrf.serialization)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.viz.html"><strong>viz</strong> (pmrf.viz)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+      <li class="breadcrumb-item active">Param</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.parameters.Param.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="param">
+<h1>Param<a class="headerlink" href="#param" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.parameters.Param">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.parameters.</span></span><span class="sig-name descname"><span class="pre">Param</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distribution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="pmrf.distributions.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">constraint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="pmrf.constraints.AbstractConstraint"><span class="pre">AbstractConstraint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractVariable</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractAnnotated</span></code>[<code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>]</p>
+<p>The canonical parameter container for ParamRF.</p>
+<p>Parameters can be created by instantiating this class, or using factories
+in <a class="reference internal" href="pmrf.parameters.html#module-pmrf.parameters" title="pmrf.parameters"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.parameters</span></code></a>, most of which are re-exported at root
+(e.g. <a class="reference internal" href="pmrf.Unconstrained.html#pmrf.Unconstrained" title="pmrf.Unconstrained"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.Unconstrained()</span></code></a>, <a class="reference internal" href="pmrf.Fixed.html#pmrf.Fixed" title="pmrf.Fixed"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.Fixed()</span></code></a>, <a class="reference internal" href="pmrf.Bounded.html#pmrf.Bounded" title="pmrf.Bounded"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.Bounded()</span></code></a>).</p>
+<p>Wraps a <a class="reference external" href="https://gvcallen.github.io/parax">Parax</a> variable,
+applying an optional scale, name and metadata.</p>
+<p>A parameter’s number lives in one of three spaces:</p>
+<ul class="simple">
+<li><p><strong>declared</strong>: the number as written, in the units the scale declares
+(<a class="reference internal" href="#pmrf.parameters.Param.value" title="pmrf.parameters.Param.value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">value</span></code></a>). Construction, bounds and distributions are in declared space.</p></li>
+<li><p><strong>physical</strong>: the declared value times the scale (<a class="reference internal" href="#pmrf.parameters.Param.physical_value" title="pmrf.parameters.Param.physical_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">physical_value</span></code></a>).
+Unwrapping and arithmetic use the physical value.</p></li>
+<li><p><strong>raw</strong>: the latent array an optimiser or sampler moves through
+(<a class="reference internal" href="#pmrf.parameters.Param.raw_value" title="pmrf.parameters.Param.raw_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">raw_value</span></code></a>).</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">p</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+<span class="n">p</span><span class="o">.</span><span class="n">value</span>            <span class="c1"># 2.0</span>
+<span class="n">p</span><span class="o">.</span><span class="n">physical_value</span>   <span class="c1"># 2e-12</span>
+</pre></div>
+</div>
+<p>Creates a generic parameter.</p>
+<p>The incoming value can be any ArrayLike object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>value</strong> (<em>ArrayLike</em><em>, </em><em>optional</em>) – The declared value of the parameter.</p></li>
+<li><p><strong>distribution</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="pmrf.distributions.AbstractDistribution"><em>AbstractDistribution</em></a><em>]</em><em>, </em><em>optional</em>) – The probability distribution, in declared space. See <a class="reference internal" href="pmrf.distributions.html#module-pmrf.distributions" title="pmrf.distributions"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.distributions</span></code></a>.</p></li>
+<li><p><strong>constraint</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="pmrf.constraints.AbstractConstraint"><em>AbstractConstraint</em></a><em>]</em><em>, </em><em>optional</em>) – The range, in declared space. See <a class="reference internal" href="pmrf.constraints.html#module-pmrf.constraints" title="pmrf.constraints"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pmrf.constraints</span></code></a>. It is
+intersected with <cite>validity</cite>, and <cite>distribution</cite> is truncated to the
+result and renormalised.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – A name for the parameter, by default None.</p></li>
+<li><p><strong>scale</strong> (<em>float</em><em>, </em><em>optional</em>) – The units the value is written in. None, the default, acts as 1.0 and
+lets a field declared with <a class="reference internal" href="pmrf.param.html#pmrf.param" title="pmrf.param"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.param()</span></code></a> apply its own scale.</p></li>
+<li><p><strong>fixed</strong> (<em>bool</em><em>, </em><em>optional</em>) – Initializes the parameter as fixed. Defaults to False.</p></li>
+<li><p><strong>metadata</strong> (<em>Any</em><em>, </em><em>optional</em>) – Arbitrary metadata for the parameter, by default None.</p></li>
+<li><p><strong>variable</strong> (<em>Optional</em><em>[</em><em>prx.AbstractVariable</em><em>]</em><em>, </em><em>optional</em>) – The Parax variable to wrap. If <cite>value</cite> is also passed, the variable’s
+declared value is replaced, keeping its distribution, constraint, fixed
+state, and the dtype, shape and <cite>weak_type</cite> of its array, so the jit
+cache key is unchanged. This is what makes
+<code class="docutils literal notranslate"><span class="pre">pmrf.replace(param,</span> <span class="pre">value=...)</span></code> work, so
+<code class="docutils literal notranslate"><span class="pre">pmrf.replace(param,</span> <span class="pre">value=param.value)</span></code> is the identity (up to the
+floating-point round trip through the constraint bijector).</p></li>
+<li><p><strong>validity</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="pmrf.constraints.AbstractConstraint"><em>AbstractConstraint</em></a><em>]</em><em>, </em><em>optional</em>) – The constraint the parameter must always satisfy, in declared space. See
+<a class="reference internal" href="#pmrf.parameters.Param.validity" title="pmrf.parameters.Param.validity"><code class="xref py py-attr docutils literal notranslate"><span class="pre">validity</span></code></a>. With <cite>variable</cite>, it is recorded as given: the variable’s
+constraint must already lie inside it.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>distribution</cite> reaches outside the constraint and cannot be truncated
+    to it. Normal and Uniform distributions can be.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__add__">
+<span class="sig-name descname"><span class="pre">__add__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__add__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__floordiv__">
+<span class="sig-name descname"><span class="pre">__floordiv__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__floordiv__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__getitem__">
+<span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__getitem__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__len__">
+<span class="sig-name descname"><span class="pre">__len__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__len__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__mod__">
+<span class="sig-name descname"><span class="pre">__mod__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__mod__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__mul__">
+<span class="sig-name descname"><span class="pre">__mul__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__mul__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__rmul__">
+<span class="sig-name descname"><span class="pre">__rmul__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__rmul__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__sub__">
+<span class="sig-name descname"><span class="pre">__sub__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__sub__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.__truediv__">
+<span class="sig-name descname"><span class="pre">__truediv__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.parameters.Param.__truediv__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.unwrap">
+<span class="sig-name descname"><span class="pre">unwrap</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.parameters.Param.unwrap" title="Link to this definition"></a></dt>
+<dd><p>Unwraps the parameter to its value in physical space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The physical value, as <a class="reference internal" href="#pmrf.parameters.Param.physical_value" title="pmrf.parameters.Param.physical_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">physical_value</span></code></a>.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jax.Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.as_fixed">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">as_fixed</span></span><a class="headerlink" href="#pmrf.parameters.Param.as_fixed" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.bijector">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">bijector</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractBijector</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.bijector" title="Link to this definition"></a></dt>
+<dd><p>The full bijector mapping the raw value to the physical value.</p>
+<p>Composes <a class="reference internal" href="#pmrf.parameters.Param.raw_to_declared_bijector" title="pmrf.parameters.Param.raw_to_declared_bijector"><code class="xref py py-attr docutils literal notranslate"><span class="pre">raw_to_declared_bijector</span></code></a> with
+<a class="reference internal" href="#pmrf.parameters.Param.declared_to_physical_bijector" title="pmrf.parameters.Param.declared_to_physical_bijector"><code class="xref py py-attr docutils literal notranslate"><span class="pre">declared_to_physical_bijector</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The bijector if a constraint exists, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>AbstractBijector | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.bounds">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">bounds</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.bounds" title="Link to this definition"></a></dt>
+<dd><p>The lower and upper bounds of the parameter, in declared space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple of (lower_bound, upper_bound) if bounds exist, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple[ArrayLike, ArrayLike] | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.constraint">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">constraint</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="parax.constraints.AbstractConstraint"><span class="pre">AbstractConstraint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.constraint" title="Link to this definition"></a></dt>
+<dd><p>The constraint of the parameter, in declared space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The constraint if one exists, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="pmrf.constraints.AbstractConstraint">AbstractConstraint</a> | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.declared_to_physical_bijector">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">declared_to_physical_bijector</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractBijector</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.declared_to_physical_bijector" title="Link to this definition"></a></dt>
+<dd><p>The bijector mapping the declared value to the physical value.</p>
+<p>This is multiplication by the scale. Distributions and bounds are in declared
+space, so this is the step needed to compare them against an unwrapped,
+physical value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The bijector if the parameter is scaled, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>AbstractBijector | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.distribution">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">distribution</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="distreqx.distributions._distribution.AbstractDistribution"><span class="pre">AbstractDistribution</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.distribution" title="Link to this definition"></a></dt>
+<dd><p>The probability distribution of the parameter, in declared space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The distribution if one exists, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="pmrf.distributions.AbstractDistribution.html#pmrf.distributions.AbstractDistribution" title="pmrf.distributions.AbstractDistribution">AbstractDistribution</a> | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.fixed">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fixed</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="headerlink" href="#pmrf.parameters.Param.fixed" title="Link to this definition"></a></dt>
+<dd><p>Indicates whether the parameter is fixed (constant).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if the parameter is fixed, False otherwise.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.metadata" title="Link to this definition"></a></dt>
+<dd><p>Arbitrary metadata to store alongside the parameter.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.name" title="Link to this definition"></a></dt>
+<dd><p>A name for the parameter.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.physical_value">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">physical_value</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.parameters.Param.physical_value" title="Link to this definition"></a></dt>
+<dd><p>the declared value times the scale.</p>
+<p>This is what <a class="reference internal" href="pmrf.unwrap.html#pmrf.unwrap" title="pmrf.unwrap"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.unwrap()</span></code></a> and arithmetic on the parameter use.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The physical value.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jax.Array</p>
+</dd>
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The value in physical space</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.raw_leaf">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">raw_leaf</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.raw_leaf" title="Link to this definition"></a></dt>
+<dd><p>Returns this parameter’s single remaining raw/whitened array leaf,
+without relying on the internal structure of the wrapped Parax
+variable (e.g. <cite>Random</cite>, <cite>Fixed</cite>). Intended for use after masking or
+partitioning has already reduced this parameter’s own metadata (its
+distribution, constraint, etc.) to None, leaving only its own raw
+value behind.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The one remaining leaf, or None if none remain (e.g. this
+parameter was masked out entirely).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jax.Array | None</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If more than one leaf remains, e.g. called before masking.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.raw_to_declared_bijector">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">raw_to_declared_bijector</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractBijector</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.raw_to_declared_bijector" title="Link to this definition"></a></dt>
+<dd><p>The bijector mapping the raw value to the declared value.</p>
+<p>Raw space is what Parax calls unconstrained space. ParamRF calls it raw to
+avoid confusion with <a class="reference internal" href="pmrf.Unconstrained.html#pmrf.Unconstrained" title="pmrf.Unconstrained"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.Unconstrained()</span></code></a>, which creates a parameter
+without bounds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The bijector if a constraint exists, otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>AbstractBijector | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.raw_value">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">raw_value</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.parameters.Param.raw_value" title="Link to this definition"></a></dt>
+<dd><p>the latent array an optimiser or sampler moves through.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The raw array.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jax.Array</p>
+</dd>
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The value in raw space</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.scale" title="Link to this definition"></a></dt>
+<dd><p>physical = declared × scale.
+None means not set, which acts as 1.0 and lets a field’s scale apply.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The units the declared value is written in</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.validity">
+<span class="sig-name descname"><span class="pre">validity</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.constraints.AbstractConstraint.html#pmrf.constraints.AbstractConstraint" title="parax.constraints.AbstractConstraint"><span class="pre">AbstractConstraint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.parameters.Param.validity" title="Link to this definition"></a></dt>
+<dd><p>that of
+the model field it was passed to (see <a class="reference internal" href="pmrf.param.html#pmrf.param" title="pmrf.param"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.param()</span></code></a>), or None. Its bounds
+combine it with the range the user gave, which a prior in declared or
+physical space replaces (see <code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.prior()</span></code>). It is stored frozen, as a
+Parax variable stores its constraint, so it stays out of gradients and
+partitioning: read it through <code class="docutils literal notranslate"><span class="pre">parax.unwrap</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The constraint the parameter must always satisfy, in declared space</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.value">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">value</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.parameters.Param.value" title="Link to this definition"></a></dt>
+<dd><p>the number as written, in the parameter’s units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The declared value.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>jax.Array</p>
+</dd>
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The value in declared space</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.parameters.Param.variable">
+<span class="sig-name descname"><span class="pre">variable</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AbstractVariable</span></span><a class="headerlink" href="#pmrf.parameters.Param.variable" title="Link to this definition"></a></dt>
+<dd><p>The Parax variable holding the declared value, constraint and distribution.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.parameters.html" class="btn btn-neutral float-left" title="parameters (pmrf.parameters)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.parameters.is_param.html" class="btn btn-neutral float-right" title="is_param" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+
+
+MultipoleDebyeDielectric
+========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: MultipoleDebyeDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

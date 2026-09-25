@@ -1,0 +1,9 @@
+
+
+
+problem_terms
+=============
+
+.. currentmodule:: pmrf.problems
+
+.. autofunction:: problem_terms

@@ -1,0 +1,9 @@
+﻿
+
+
+**tie** (pmrf.tie)
+==================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: tie

@@ -1,0 +1,60 @@
+﻿
+
+
+**infer** (pmrf.infer)
+======================
+
+.. automodule:: pmrf.infer
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractJointSampler
+
+   AbstractSplitSampler
+
+   AbstractHypercubeSampler
+
+   InferResult
+
+   SampleResult
+
+   PolyChord
+
+   HMC
+
+   NUTS
+
+   NSS
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   is_sampler
+
+   is_inferer
+
+   sample
+
+

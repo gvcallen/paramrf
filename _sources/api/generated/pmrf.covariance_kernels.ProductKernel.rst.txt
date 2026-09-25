@@ -1,0 +1,12 @@
+
+
+
+ProductKernel
+=============
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: ProductKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

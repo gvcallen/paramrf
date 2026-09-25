@@ -1,0 +1,9 @@
+
+
+
+hinge_loss
+==========
+
+.. currentmodule:: pmrf.math.losses
+
+.. autofunction:: hinge_loss

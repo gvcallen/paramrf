@@ -1,0 +1,12 @@
+
+
+
+AbstractBuilder
+===============
+
+.. currentmodule:: pmrf.models.adapters.delegated
+
+.. autoclass:: AbstractBuilder
+   :members:
+   :show-inheritance:
+   :inherited-members:

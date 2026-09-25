@@ -1,0 +1,203 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>derived (pmrf.derived) &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="models (pmrf.models)" href="pmrf.models.html" />
+    <link rel="prev" title="resolve (pmrf.resolve)" href="pmrf.resolve.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#working-with-parameters">Working with Parameters</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.params.html"><strong>params</strong> (pmrf.params)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.values.html"><strong>values</strong> (pmrf.values)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.log_prior.html"><strong>log_prior</strong> (pmrf.log_prior)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.update.html"><strong>update</strong> (pmrf.update)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.tie.html"><strong>tie</strong> (pmrf.tie)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.resolve.html"><strong>resolve</strong> (pmrf.resolve)</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#"><strong>derived</strong> (pmrf.derived)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#pmrf.derived"><code class="docutils literal notranslate"><span class="pre">derived()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+      <li class="breadcrumb-item active"><strong>derived</strong> (pmrf.derived)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.derived.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="derived-pmrf-derived">
+<h1><strong>derived</strong> (pmrf.derived)<a class="headerlink" href="#derived-pmrf-derived" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="pmrf.derived">
+<span class="sig-prename descclassname"><span class="pre">pmrf.</span></span><span class="sig-name descname"><span class="pre">derived</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.models.base.Model"><span class="pre">Model</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="pmrf.models.adapters.derived.Derived.html#pmrf.models.adapters.derived.Derived" title="pmrf.models.adapters.derived.Derived"><span class="pre">Derived</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.derived" title="Link to this definition"></a></dt>
+<dd><p>Turns a function of a base model and new parameters into a derived model constructor.</p>
+<p>A derived model starts from a nominal model and derives a more complete one that
+captures some artifact (a wet section, degraded copper, a cut). The decorated
+function is called as <code class="docutils literal notranslate"><span class="pre">f(base,</span> <span class="pre">**new)</span></code>: exactly one positional base (a model,
+or any collection of models and parameters) and keyword arguments that are the
+new parameters (a <a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a>, or anything <a class="reference internal" href="pmrf.as_param.html#pmrf.as_param" title="pmrf.as_param"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.as_param()</span></code></a>
+accepts). It returns a <a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a> that holds the base and the new
+parameters once, and calls <cite>fn</cite> on them whenever the model is used.</p>
+<p><cite>fn</cite> receives the base and the new parameters as the model is unwrapped, so
+parameters arrive as physical values, as for <a class="reference internal" href="pmrf.tie.html#pmrf.tie" title="pmrf.tie"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.tie()</span></code></a>. It must return a
+<a class="reference internal" href="pmrf.Model.html#pmrf.Model" title="pmrf.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Model</span></code></a>, must be pure, and its output’s structure and port count must
+not depend on parameter values. Inside <cite>fn</cite>, use <a class="reference internal" href="pmrf.replace.html#pmrf.replace" title="pmrf.replace"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.replace()</span></code></a> for fields
+of the object in hand and <a class="reference internal" href="pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a> for parts reached by name.</p>
+<p><strong>Names.</strong> The base’s parameters keep the names they have on the base, and each
+new parameter is named by its keyword. Nothing produced inside <cite>fn</cite> is named. The
+derived model takes the base’s name unless <code class="docutils literal notranslate"><span class="pre">name=</span></code> is passed, so a container
+prefixes both as usual. A derived model can be the base of another, and names
+accumulate flat; a parameter shared by several parts is expressed by deriving at
+the level that owns it.</p>
+<p><cite>fn</cite> is a static part of the model: two models derived with the same function
+share a jit cache entry. Define it once at module level; a lambda created on every
+call recompiles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fn</strong> (<em>Callable</em>) – <code class="docutils literal notranslate"><span class="pre">fn(base,</span> <span class="pre">**new)</span> <span class="pre">-&gt;</span> <span class="pre">Model</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">constructor(base,</span> <span class="pre">*,</span> <span class="pre">name=None,</span> <span class="pre">**new)</span> <span class="pre">-&gt;</span> <span class="pre">Derived</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – On a call with other than one positional base or with no new parameters, or
+    (when the model is used) if <cite>fn</cite> does not return a model.</p></li>
+<li><p><strong>ValueError</strong> – If a keyword clashes with a parameter name of the base.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>A coaxial cable of total length <code class="docutils literal notranslate"><span class="pre">L</span></code> that is wet for its first <code class="docutils literal notranslate"><span class="pre">wet_length</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@prf</span><span class="o">.</span><span class="n">derived</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wet</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">wet_length</span><span class="p">,</span> <span class="n">wet_ep_r</span><span class="p">):</span>
+    <span class="n">wet</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">wet_length</span><span class="p">,</span>
+                      <span class="n">dielectric</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="o">.</span><span class="n">dielectric</span><span class="p">,</span> <span class="n">ep_r</span><span class="o">=</span><span class="n">wet_ep_r</span><span class="p">))</span>
+    <span class="n">dry</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cable</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">cable</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="n">wet_length</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wet</span> <span class="o">**</span> <span class="n">dry</span>
+
+<span class="n">coax</span> <span class="o">=</span> <span class="n">wet</span><span class="p">(</span><span class="n">coax</span><span class="p">,</span> <span class="n">wet_length</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">Uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">),</span>
+           <span class="n">wet_ep_r</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">Uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">80</span><span class="p">)))</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">coax</span><span class="p">)</span>   <span class="c1"># the cable's names, plus 'wet_length' and 'wet_ep_r'</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.resolve.html" class="btn btn-neutral float-left" title="resolve (pmrf.resolve)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.html" class="btn btn-neutral float-right" title="models (pmrf.models)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+
+
+Autotransformer
+===============
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: Autotransformer
+   :members:
+   :show-inheritance:
+   :inherited-members:

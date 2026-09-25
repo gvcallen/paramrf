@@ -1,0 +1,12 @@
+
+
+
+FloatingTwoPort
+===============
+
+.. currentmodule:: pmrf.models.composite.nodal
+
+.. autoclass:: FloatingTwoPort
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+AbstractPlanarCrossSection
+==========================
+
+.. currentmodule:: pmrf.models.components.lines.planar
+
+.. autoclass:: AbstractPlanarCrossSection
+   :members:
+   :show-inheritance:
+   :inherited-members:

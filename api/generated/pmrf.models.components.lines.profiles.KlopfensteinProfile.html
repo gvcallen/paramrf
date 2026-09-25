@@ -1,0 +1,283 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KlopfensteinProfile &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="LinearProfile" href="pmrf.models.components.lines.profiles.LinearProfile.html" />
+    <link rel="prev" title="ExponentialProfile" href="pmrf.models.components.lines.profiles.ExponentialProfile.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#working-with-parameters">Working with Parameters</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.profiles.html">profiles</a></li>
+      <li class="breadcrumb-item active">KlopfensteinProfile</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.profiles.KlopfensteinProfile.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="klopfensteinprofile">
+<h1>KlopfensteinProfile<a class="headerlink" href="#klopfensteinprofile" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.profiles.KlopfensteinProfile">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.profiles.</span></span><span class="sig-name descname"><span class="pre">KlopfensteinProfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ripple</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.components.lines.profiles.KlopfensteinProfile" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.models.components.lines.profiles.AbstractProfile.html#pmrf.models.components.lines.profiles.AbstractProfile" title="pmrf.models.components.lines.profiles.AbstractProfile"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractProfile</span></code></a></p>
+<p>Klopfenstein’s taper: the shape with the smallest passband reflection for a given
+length.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This is a <strong>design</strong> solution, not a validation reference. Klopfenstein derived
+it from the linearised Riccati equation for a non-uniform line, which assumes
+small local reflections and neglects multiple scattering. It defines a shape
+worth simulating; it is emphatically not a reference the simulator is checked
+against. A ParamRF result that disagrees with the design’s predicted response is
+not by itself evidence that ParamRF is wrong.</p>
+</div>
+<p><strong>Endpoints step</strong></p>
+<p>Unlike <a class="reference internal" href="pmrf.models.components.lines.profiles.LinearProfile.html#pmrf.models.components.lines.profiles.LinearProfile" title="pmrf.models.components.lines.profiles.LinearProfile"><code class="xref py py-class docutils literal notranslate"><span class="pre">LinearProfile</span></code></a> and <a class="reference internal" href="pmrf.models.components.lines.profiles.ExponentialProfile.html#pmrf.models.components.lines.profiles.ExponentialProfile" title="pmrf.models.components.lines.profiles.ExponentialProfile"><code class="xref py py-class docutils literal notranslate"><span class="pre">ExponentialProfile</span></code></a>, this shape does <em>not</em>
+reach <cite>start</cite> and <cite>end</cite>. It steps by <span class="math notranslate nohighlight">\(\Gamma_m\)</span> at each end:
+<span class="math notranslate nohighlight">\(p(0) = p_0 e^{\Gamma_m}\)</span> and <span class="math notranslate nohighlight">\(p(1) = p_1 e^{-\Gamma_m}\)</span>. Those discontinuities are
+the classic signature of the design, not an implementation artefact, and <cite>start</cite> and
+<cite>end</cite> are the <em>terminating</em> values the taper is designed to match, not the values it
+takes.</p>
+<p><strong>Mathematical Formulation</strong></p>
+<p>With <span class="math notranslate nohighlight">\(p_0\)</span> = <cite>start</cite>, <span class="math notranslate nohighlight">\(p_1\)</span> = <cite>end</cite>, <span class="math notranslate nohighlight">\(\rho\)</span> = <cite>ripple</cite> and</p>
+<dl class="simple">
+<dt>$$Gamma_0 = tfrac{1}{2}lnfrac{p_1}{p_0}, qquad</dt><dd><p>Gamma_m = rho,Gamma_0, qquad
+A = operatorname{arccosh}frac{Gamma_0}{Gamma_m} = operatorname{arccosh}frac{1}{rho}$$</p>
+</dd>
+</dl>
+<p>the profile over the body of the taper is</p>
+<dl class="simple">
+<dt>$$ln p(t) = tfrac{1}{2}ln(p_0 p_1)</dt><dd><ul class="simple">
+<li><p>frac{Gamma_0}{cosh A}, A^2 phi(2t - 1, A), qquad 0 leq t leq 1$$</p></li>
+</ul>
+</dd>
+</dl>
+<p>where <span class="math notranslate nohighlight">\(\phi\)</span> is Klopfenstein’s odd function</p>
+<dl class="simple">
+<dt>$$phi(x, A) = int_0^{x} frac{I_1!left(Asqrt{1 - y^2}right)}{Asqrt{1 - y^2}}</dt><dd><p>, mathrm{d}y, qquad <a href="#id1"><span class="problematic" id="id2">|x|</span></a> leq 1$$</p>
+</dd>
+</dl>
+<p>and <span class="math notranslate nohighlight">\(I_1\)</span> is the modified Bessel function of the first kind. <span class="math notranslate nohighlight">\(\phi\)</span> has no closed
+form and is evaluated here by fixed-order Gauss-Legendre quadrature; the integrand is
+analytic in <span class="math notranslate nohighlight">\(y\)</span> on the closed interval, including at <span class="math notranslate nohighlight">\(y = \pm 1\)</span> where the ratio
+tends to <span class="math notranslate nohighlight">\(\tfrac{1}{2}\)</span>, so the rule converges geometrically. The endpoint identity
+<span class="math notranslate nohighlight">\(A^2\phi(1, A) = \cosh A - 1\)</span> is what produces the steps described above.</p>
+<p><span class="math notranslate nohighlight">\(\phi\)</span> is odd, so <span class="math notranslate nohighlight">\(\ln p\)</span> is antisymmetric about <span class="math notranslate nohighlight">\(\tfrac{1}{2}\ln(p_0 p_1)\)</span> and
+<span class="math notranslate nohighlight">\(p(t)\,p(1-t) = p_0 p_1\)</span>. It is <span class="math notranslate nohighlight">\(C^2\)</span> in <span class="math notranslate nohighlight">\(t\)</span> on <span class="math notranslate nohighlight">\([0, 1]\)</span>, endpoints included: the
+first derivative of <span class="math notranslate nohighlight">\(\phi\)</span> is the integrand, which is finite at <span class="math notranslate nohighlight">\(x = \pm 1\)</span>, and the
+second carries a factor <span class="math notranslate nohighlight">\(x\)</span> that cancels the apparent singularity there.</p>
+<p><strong>Ripple</strong></p>
+<p><cite>ripple</cite> is <span class="math notranslate nohighlight">\(\Gamma_m/\Gamma_0\)</span>: the peak passband reflection as a fraction of the
+reflection of the abrupt step the taper replaces. It is parametrised this way, rather
+than as <span class="math notranslate nohighlight">\(\Gamma_m\)</span> directly, because it is then valid on the whole of <span class="math notranslate nohighlight">\((0, 1)\)</span> with
+no condition coupling it to <cite>start</cite> and <cite>end</cite>; an absolute <span class="math notranslate nohighlight">\(\Gamma_m\)</span> exceeding
+<span class="math notranslate nohighlight">\(\Gamma_0\)</span> makes <span class="math notranslate nohighlight">\(A\)</span> complex, which under a fit is a mid-run <cite>nan</cite> rather than a
+rejected value. A design stated as an absolute <span class="math notranslate nohighlight">\(\Gamma_m\)</span> converts with
+<code class="docutils literal notranslate"><span class="pre">ripple</span> <span class="pre">=</span> <span class="pre">gamma_m</span> <span class="pre">/</span> <span class="pre">(0.5</span> <span class="pre">*</span> <span class="pre">log(end</span> <span class="pre">/</span> <span class="pre">start))</span></code>.</p>
+<p>The bound <span class="math notranslate nohighlight">\(\rho = 1\)</span> is excluded, because there the design degenerates: <span class="math notranslate nohighlight">\(A = 0\)</span>, the
+correction term vanishes, and the profile is the constant <span class="math notranslate nohighlight">\(\sqrt{p_0 p_1}\)</span> – the
+abrupt step the taper was meant to replace. The quadrature is written to reach that
+limit as a finite value rather than a <cite>nan</cite>, since a <em>fixed</em> coefficient is not
+range-checked and can be set there.</p>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlopfensteinProfile</span>
+
+<span class="c1"># Pozar Example 5.8: 50 to 100 ohm with a maximum reflection of 0.02.</span>
+<span class="n">gamma_0</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">100.0</span> <span class="o">/</span> <span class="mf">50.0</span><span class="p">)</span>
+<span class="n">taper</span> <span class="o">=</span> <span class="n">KlopfensteinProfile</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">ripple</span><span class="o">=</span><span class="mf">0.02</span> <span class="o">/</span> <span class="n">gamma_0</span><span class="p">)</span>
+<span class="n">taper</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>   <span class="c1"># 70.71, the geometric mean</span>
+</pre></div>
+</div>
+<p class="rubric">References</p>
+<p>Klopfenstein, R. W. (1956). A transmission line taper of improved design.
+Proceedings of the IRE, 44(1), 31-35. doi:10.1109/JRPROC.1956.274847</p>
+<p>Kajfez, D., &amp; Prewitt, J. O. (1973). Correction to “A transmission line taper of
+improved design”. IEEE Transactions on Microwave Theory and Techniques, 21(5), 364.
+doi:10.1109/TMTT.1973.1128003</p>
+<p>Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 5.8. Wiley.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>start</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a>) – Terminating value at the <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code>, port-1 end. Must be positive.</p></li>
+<li><p><strong>end</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a>) – Terminating value at the <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code>, port-2 end. Must be positive.</p></li>
+<li><p><strong>ripple</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=0.05</em>) – Peak passband reflection as a fraction of <span class="math notranslate nohighlight">\(\Gamma_0\)</span>, in <span class="math notranslate nohighlight">\((0, 1)\)</span>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.profiles.KlopfensteinProfile.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></span><a class="headerlink" href="#pmrf.models.components.lines.profiles.KlopfensteinProfile.evaluate" title="Link to this definition"></a></dt>
+<dd><p>Evaluate the profile at a normalised position along the line.</p>
+<p>This is <strong>elementwise</strong>: <code class="docutils literal notranslate"><span class="pre">t</span></code> may be a scalar or an array of any shape, and the
+result has that same shape. A caller sampling many positions, such as a profiled
+line sampling its section midpoints, passes the whole array in one call.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>t</strong> (<em>ArrayLike</em>) – Normalised position along the line, in <span class="math notranslate nohighlight">\([0, 1]\)</span>. <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code> is at port 1 and
+<code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code> is at port 2.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The profiled value at <code class="docutils literal notranslate"><span class="pre">t</span></code>, in the physical units of whatever parameter the
+profile is attached to. Same shape as <code class="docutils literal notranslate"><span class="pre">t</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ArrayLike</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.profiles.KlopfensteinProfile.end">
+<span class="sig-name descname"><span class="pre">end</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><span class="pre">Param</span></a></span><a class="headerlink" href="#pmrf.models.components.lines.profiles.KlopfensteinProfile.end" title="Link to this definition"></a></dt>
+<dd><p>Terminating value at the <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code>, port-2 end</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.profiles.KlopfensteinProfile.ripple">
+<span class="sig-name descname"><span class="pre">ripple</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#pmrf.models.components.lines.profiles.KlopfensteinProfile.ripple" title="Link to this definition"></a></dt>
+<dd><p>Peak passband reflection as a fraction of the abrupt step’s reflection</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.profiles.KlopfensteinProfile.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><span class="pre">Param</span></a></span><a class="headerlink" href="#pmrf.models.components.lines.profiles.KlopfensteinProfile.start" title="Link to this definition"></a></dt>
+<dd><p>Terminating value at the <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code>, port-1 end</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.profiles.ExponentialProfile.html" class="btn btn-neutral float-left" title="ExponentialProfile" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.profiles.LinearProfile.html" class="btn btn-neutral float-right" title="LinearProfile" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,256 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0007: Values at the edge of a domain: zero impedance and parameters on bounds &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0007: Values at the edge of a domain: zero impedance and parameters on bounds</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0007-edge-values.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0007-values-at-the-edge-of-a-domain-zero-impedance-and-parameters-on-bounds">
+<h1>ADR-0007: Values at the edge of a domain: zero impedance and parameters on bounds<a class="headerlink" href="#adr-0007-values-at-the-edge-of-a-domain-zero-impedance-and-parameters-on-bounds" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>#215 reported zero inductance breaking the default <code class="docutils literal notranslate"><span class="pre">GlobalMNACircuitSolver</span></code>, and
+parameters that start exactly on a bound being unable to move. Both are values
+at the edge of a domain, and both failed quietly:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Inductor.y()</span></code> is <code class="docutils literal notranslate"><span class="pre">1/(jωL)</span></code>, which is not finite at L = 0. <code class="docutils literal notranslate"><span class="pre">Model.mna()</span></code>
+stamps from <code class="docutils literal notranslate"><span class="pre">y()</span></code>, so the MNA solve returns NaN.</p></li>
+<li><p>With a finite stamp (<code class="docutils literal notranslate"><span class="pre">PiSectionCLC</span></code> goes through ABCD), the MNA solver still
+returns Y, and two ports joined by a short have no finite Y. The solver
+regularises it to about 1e12, and <code class="docutils literal notranslate"><span class="pre">y2s</span></code> of that Y has a condition number
+around 1e14: |S21|² came out 0.7% wrong and dL wrong by ten orders of
+magnitude, without a warning. Removing the regularisation from the auxiliary
+rows made it worse: the singular block went to a least-squares solve, and
+the short came out as an open.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BoxSectionCLCC</span></code> substitutes eps for L = 0, which fixes the value and zeroes
+the gradient.</p></li>
+<li><p>Parax documents <code class="docutils literal notranslate"><span class="pre">Interval</span></code> and <code class="docutils literal notranslate"><span class="pre">GreaterThan</span></code> as exclusive, but validates them
+as inclusive, and maps them onto open raw spaces. So <code class="docutils literal notranslate"><span class="pre">Bounded(0,</span> <span class="pre">10,</span> <span class="pre">value=0)</span></code>
+is accepted, has raw value −∞, and cannot move. <code class="docutils literal notranslate"><span class="pre">minimize</span></code> rejects it.
+<code class="docutils literal notranslate"><span class="pre">Random(Uniform(0,</span> <span class="pre">10),</span> <span class="pre">value=0)</span></code> is silently moved to 2.2e-15 by a clip in
+parax. <code class="docutils literal notranslate"><span class="pre">minimize</span></code> gives even bounded solvers raw space with infinite bounds,
+so no solver ever sees the box the user wrote.</p></li>
+</ul>
+<p>Engineers expect both to work: an inductor fitted down to 0, and a parameter
+started on, or converging to, the bound they gave it.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading"></a></h2>
+<section id="circuit-solvers-return-s-at-the-probe-reference">
+<h3>Circuit solvers return S at the probe reference<a class="headerlink" href="#circuit-solvers-return-s-at-the-probe-reference" title="Link to this heading"></a></h3>
+<p>A circuit solver that assembles a nodal system loads each external port with
+the probe reference impedance <span class="math notranslate nohighlight">\(Z_r\)</span> (ADR-0006) and drives it through <span class="math notranslate nohighlight">\(Z_r\)</span>. With
+<span class="math notranslate nohighlight">\(H\)</span> the port-voltage response to the drive, it returns power-wave S directly:</p>
+<div class="math notranslate nohighlight">
+\[H = (Y + Z_r^{-1})^{-1} Z_r^{-1}, \qquad
+S = F\,\big(2\,\mathrm{Re}(Z_r)\,Z_r^{-1} H - Z_r^{*} Z_r^{-1}\big)\,F^{-1}, \qquad
+F = \mathrm{diag}\big(1 / (2\sqrt{\mathrm{Re}\,Z_r})\big)\]</div>
+<p>where <span class="math notranslate nohighlight">\(Y + Z_r^{-1}\)</span> is eliminated inside the full MNA system, never formed.
+Loaded ports keep the system non-singular when ports are shorted together, so
+the result is exact there. <span class="math notranslate nohighlight">\(Z_r\)</span> may be complex and per-port. For real <span class="math notranslate nohighlight">\(Z_r\)</span>
+this reduces to <span class="math notranslate nohighlight">\(S = 2\sqrt{G}\,(Y+G)^{-1}\sqrt{G} - I\)</span>; that short form is
+wrong for complex <span class="math notranslate nohighlight">\(Z_r\)</span>.</p>
+<ul class="simple">
+<li><p><strong>One implementation.</strong> <code class="docutils literal notranslate"><span class="pre">pmrf.rf.mna2s(stamp,</span> <span class="pre">z0)</span></code> holds the formula. The
+MNA solver uses it, and so does <code class="docutils literal notranslate"><span class="pre">Model.s()</span></code> for a model whose primary domain
+is MNA.</p></li>
+<li><p><strong>The solve depends on the probe.</strong> <code class="docutils literal notranslate"><span class="pre">Circuit.s(z0=...)</span></code> passes its probe into
+the solve rather than renormalising a probe-free Y afterwards.</p></li>
+<li><p><strong>Regularisation is physical.</strong> GMIN is a conductance from every node to
+ground. Each auxiliary branch gets a +eps Ω series resistance, which resolves
+loops of zero-impedance branches. The system is therefore never singular,
+and the default linear solver is LU (<code class="docutils literal notranslate"><span class="pre">well_posed=True</span></code>): a singular system is
+a bug and shows up as NaN, not as a least-squares answer.</p></li>
+<li><p><strong>Y stays honest.</strong> <code class="docutils literal notranslate"><span class="pre">Circuit.y()</span></code> is <code class="docutils literal notranslate"><span class="pre">s2y</span></code> of S at the native reference, and
+is non-finite for shorted ports. <code class="docutils literal notranslate"><span class="pre">Circuit.mna()</span></code> is <code class="docutils literal notranslate"><span class="pre">s2mna</span></code> of S at the hub
+reference, which stays finite, so nested circuits are exact.</p></li>
+<li><p><strong>Series elements that can short stamp as branches.</strong> An element whose
+impedance can be zero (<code class="docutils literal notranslate"><span class="pre">Inductor</span></code>, <code class="docutils literal notranslate"><span class="pre">InductorQ</span></code>, the inductor in
+<code class="docutils literal notranslate"><span class="pre">BoxSectionCLCC</span></code>) stamps with an auxiliary branch current,
+<span class="math notranslate nohighlight">\(V_1 - V_2 - Z I = 0\)</span>, not from <code class="docutils literal notranslate"><span class="pre">y()</span></code>. Its <code class="docutils literal notranslate"><span class="pre">y()</span></code> is undefined at zero and may
+be non-finite there. No model substitutes eps for a zero value.</p></li>
+<li><p><strong>The nodal solver stays Y-only.</strong> <code class="docutils literal notranslate"><span class="pre">GlobalNodalCircuitSolver</span></code> cannot
+represent a zero impedance and documents it.</p></li>
+</ul>
+</section>
+<section id="bounds-are-open-or-closed-and-solvers-see-the-box">
+<h3>Bounds are open or closed, and solvers see the box<a class="headerlink" href="#bounds-are-open-or-closed-and-solvers-see-the-box" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Each bound is open or closed</strong>, declared by its Parax constraint.
+<code class="docutils literal notranslate"><span class="pre">Positive</span></code> and <code class="docutils literal notranslate"><span class="pre">Negative</span></code> are open; <code class="docutils literal notranslate"><span class="pre">NonNegative</span></code> and <code class="docutils literal notranslate"><span class="pre">NonPositive</span></code> are
+closed; <code class="docutils literal notranslate"><span class="pre">Interval</span></code>, <code class="docutils literal notranslate"><span class="pre">GreaterThan</span></code> and <code class="docutils literal notranslate"><span class="pre">LessThan</span></code> take <code class="docutils literal notranslate"><span class="pre">closed</span></code> and default to
+closed. <code class="docutils literal notranslate"><span class="pre">pmrf.Bounded</span></code> and a <code class="docutils literal notranslate"><span class="pre">Uniform</span></code> support are closed. Where two
+constraints meet at one bound, open wins. Validation respects closedness, so
+a value on an open bound is rejected at construction.</p></li>
+<li><p><strong>A closed bound is part of the model’s domain.</strong> A model evaluates, with a
+finite value and gradient, at every closed bound of its parameters and at
+zero where zero is valid. A value it cannot evaluate gets an open validity
+constraint instead: a line width is <code class="docutils literal notranslate"><span class="pre">Positive()</span></code>, a quality factor is
+<code class="docutils literal notranslate"><span class="pre">Positive()</span></code>. Lumped L, C and R stay unconstrained, because fitted
+equivalent circuits use negative values.</p></li>
+<li><p><strong>Box space</strong> is a fourth space: the box a bounded minimiser searches. It is
+built from a parameter’s bounds, not its prior: the unit box when both bounds
+are finite, declared space otherwise. A closed edge of the box is the bound
+itself; an open edge is inset by δ = 1e-6.</p></li>
+<li><p><strong>Minimisers say whether they honour bounds</strong>, through the minimiser
+interface. <code class="docutils literal notranslate"><span class="pre">SolverView</span></code> hands box space to one that does and raw space to one
+that does not. Nothing in <code class="docutils literal notranslate"><span class="pre">SolverView</span></code> knows about a specific backend.</p></li>
+<li><p><strong>A start on a closed bound is nudged for raw space.</strong> For raw-space
+consumers (unbounded minimisers and samplers), <code class="docutils literal notranslate"><span class="pre">SolverView</span></code> moves a start on a
+closed bound δ = 1e-6 inward in box space before mapping it to raw. The nudge
+is silent: it is the kind of difference engineers expect between optimisers.</p></li>
+<li><p><strong>Raw space is unchanged.</strong> It stays whitened by the prior (ADR-0005).</p></li>
+</ul>
+</section>
+</section>
+<section id="rejected-options">
+<h2>Rejected options<a class="headerlink" href="#rejected-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Keep Y from the MNA solver and detect ill-conditioning.</strong> Wrong answers get
+louder but stay wrong.</p></li>
+<li><p><strong>Substitute eps for zero in models.</strong> It is what <code class="docutils literal notranslate"><span class="pre">BoxSectionCLCC</span></code> did, and
+it zeroes the gradient at exactly the value being fitted.</p></li>
+<li><p><strong>A tanh map for <code class="docutils literal notranslate"><span class="pre">Interval</span></code>.</strong> Any map ending in <code class="docutils literal notranslate"><span class="pre">lower</span> <span class="pre">+</span> <span class="pre">width·u</span></code> has an
+absolute precision of about eps·width. tanh only moves the exact point from
+the lower bound to the midpoint, and loses it at a lower bound of 0, the
+common case.</p></li>
+<li><p><strong>Reject every start on a bound.</strong> Correct, but engineers write bounds they
+mean to include.</p></li>
+<li><p><strong>Nudge by a fixed raw value.</strong> A raw value of −14 is 1e-6 of a sigmoid’s
+width, but 1e-43 of a prior-whitened parameter’s slope. The nudge has to be
+in box space to mean the same thing for every parameter.</p></li>
+<li><p><strong>Track whether a bound came from a range or a validity constraint.</strong>
+Closedness is a property of the constraint; recording it there needs no
+bookkeeping when constraints are intersected.</p></li>
+<li><p><strong>Box space whitened by the prior</strong>, as Parax does for <code class="docutils literal notranslate"><span class="pre">Random</span></code>. A prior is a
+belief, not the shape of the search; a <code class="docutils literal notranslate"><span class="pre">Normal</span></code> prior made the box edges ±∞,
+kept finite only by a clip.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Circuits with shorted ports, and every component at L, C or R = 0, give the
+same S and gradient under MNA and scattering solvers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">value=0</span></code> on a <code class="docutils literal notranslate"><span class="pre">Positive</span></code> field now raises at construction.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">Random</span></code> parameter on a bound has raw value ±∞ once Parax drops its clip,
+and is nudged like any other.</p></li>
+<li><p>Fits run through a minimiser that honours bounds now evaluate the objective
+exactly on closed bounds. A test sweep evaluates every component at its
+closed bounds and at zero so this is safe.</p></li>
+<li><p>A fit that started on a bound gives slightly different results than before.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

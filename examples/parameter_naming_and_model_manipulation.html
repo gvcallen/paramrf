@@ -1,0 +1,243 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parameter Naming and Model Manipulation &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Custom Models" href="custom_models.html" />
+    <link rel="prev" title="Derivatives and Sweeps" href="derivatives_and_sweeps.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cascading_and_terminating.html">Cascading and Terminating</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit_models.html">Circuit Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model_optimization.html">Model Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="derivatives_and_sweeps.html">Derivatives and Sweeps</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Parameter Naming and Model Manipulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#naming-the-model">Naming the Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reading-parameters">Reading Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#updating-parameters">Updating Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#replacing-sub-models">Replacing Sub-models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tying-parameters">Tying Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="custom_models.html">Custom Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="multiple_models_one_parameter_set.html">Fitting Multiple Models from One Parameter Set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shared_substrates.html">Sharing a Substrate Between Traces</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Examples</a></li>
+      <li class="breadcrumb-item active">Parameter Naming and Model Manipulation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/examples/parameter_naming_and_model_manipulation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="parameter-naming-and-model-manipulation">
+<h1>Parameter Naming and Model Manipulation<a class="headerlink" href="#parameter-naming-and-model-manipulation" title="Link to this heading"></a></h1>
+<p>Models are immutable, so a model’s parameters cannot be edited in place (<code class="docutils literal notranslate"><span class="pre">model.R</span> <span class="pre">=</span> <span class="pre">50</span></code> will fail). Instead, ParamRF provides functions that read a model’s parameters by name and return an updated copy. In this example, we build a named RLC network, then read its parameters, change them, swap out a component and tie two parameters together. For the rules behind names and value spaces, see <a class="reference internal" href="../core_concepts/parameter_names.html"><span class="doc">Parameter Names</span></a>.</p>
+<section id="naming-the-model">
+<h2>Naming the Model<a class="headerlink" href="#naming-the-model" title="Link to this heading"></a></h2>
+<p>Let’s define an RLC network, giving names to some of its models and parameters:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resistor</span><span class="p">,</span> <span class="n">Inductor</span><span class="p">,</span> <span class="n">Capacitor</span>
+
+<span class="n">res</span> <span class="o">=</span> <span class="n">Resistor</span><span class="p">(</span><span class="n">R</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'myR'</span><span class="p">)</span>
+<span class="n">ind</span> <span class="o">=</span> <span class="n">Inductor</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-9</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'L_val'</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">'myL'</span><span class="p">)</span>
+<span class="n">cap</span> <span class="o">=</span> <span class="n">Capacitor</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'C_global'</span><span class="p">))</span>
+
+<span class="n">rlc</span> <span class="o">=</span> <span class="n">res</span> <span class="o">**</span> <span class="n">ind</span> <span class="o">**</span> <span class="n">cap</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">rlc</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>['myR.R', 'myL_L_val', 'C_global']
+</pre></div>
+</div>
+<p>Each component uses a different naming style. The resistor is a named model, so its resistance is namespaced as <code class="docutils literal notranslate"><span class="pre">myR.R</span></code>. The inductor is a named parameter inside a named model, so the two names are joined. The capacitor only names its parameter, so <code class="docutils literal notranslate"><span class="pre">C_global</span></code> stands on its own.</p>
+</section>
+<section id="reading-parameters">
+<h2>Reading Parameters<a class="headerlink" href="#reading-parameters" title="Link to this heading"></a></h2>
+<p><a class="reference internal" href="../api/generated/pmrf.params.html#pmrf.params" title="pmrf.params"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.params()</span></code></a> returns the <a class="reference internal" href="../api/generated/pmrf.Param.html#pmrf.Param" title="pmrf.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">pmrf.Param</span></code></a> objects themselves, whereas <a class="reference internal" href="../api/generated/pmrf.values.html#pmrf.values" title="pmrf.values"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.values()</span></code></a> returns just their values. Values are given in the units each parameter was declared in, so the inductor reads back as <code class="docutils literal notranslate"><span class="pre">2.0</span></code> nH. To get SI values instead, we can pass <code class="docutils literal notranslate"><span class="pre">space='physical'</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">rlc</span><span class="p">)</span>                     <span class="c1"># {'myR.R': 100.0, 'myL_L_val': 2.0, 'C_global': 1.0}</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">'physical'</span><span class="p">)</span>   <span class="c1"># {'myR.R': 100.0, 'myL_L_val': 2e-09, 'C_global': 1e-12}</span>
+</pre></div>
+</div>
+<p>Both functions can also be given a selector, such as a glob, to pick out only some parameters. Since the resistor was passed as a plain float, it is fixed, and <code class="docutils literal notranslate"><span class="pre">free_only=True</span></code> leaves it out:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="s1">'myL*'</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="n">free_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>['myL_L_val']
+['myL_L_val', 'C_global']
+</pre></div>
+</div>
+</section>
+<section id="updating-parameters">
+<h2>Updating Parameters<a class="headerlink" href="#updating-parameters" title="Link to this heading"></a></h2>
+<p>To change parameter values, we pass a dictionary of new values to <a class="reference internal" href="../api/generated/pmrf.update.html#pmrf.update" title="pmrf.update"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.update()</span></code></a>, again in declared units. Each parameter keeps its bounds, prior and scale, and the model’s RF methods do not need to be recompiled:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rlc_tuned</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="p">{</span><span class="s1">'myL_L_val'</span><span class="p">:</span> <span class="mf">2.2</span><span class="p">,</span> <span class="s1">'C_global'</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">})</span>   <span class="c1"># 2.2 nH and 0.8 pF</span>
+</pre></div>
+</div>
+<p>A selector can also be used together with a keyword argument, for example to fix or free parameters. Here, a sequence of names fixes the inductor and capacitor, and a single name frees the resistor so that it can be optimized:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rlc_fixed</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="p">[</span><span class="s1">'myL_L_val'</span><span class="p">,</span> <span class="s1">'C_global'</span><span class="p">],</span> <span class="n">fixed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">rlc_free</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="s1">'myR.R'</span><span class="p">,</span> <span class="n">fixed</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="replacing-sub-models">
+<h2>Replacing Sub-models<a class="headerlink" href="#replacing-sub-models" title="Link to this heading"></a></h2>
+<p>Rather than changing values, we can also replace whole parts of the model. A named model is selected by its name, so we can short out the inductor like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Short</span>
+
+<span class="n">rlc_shorted</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="s1">'myL'</span><span class="p">,</span> <span class="n">Short</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">rlc_shorted</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>['myR.R', 'C_global']
+</pre></div>
+</div>
+<p>The same approach replaces a parameter with a new one, for example to give the capacitor bounds. Since the new parameter is put in place exactly as given, it needs its own name and scale:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rlc_bounded</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">rlc</span><span class="p">,</span> <span class="s1">'C_global'</span><span class="p">,</span> <span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'C_global'</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Any later value update to <code class="docutils literal notranslate"><span class="pre">C_global</span></code> is now checked against these bounds.</p>
+</section>
+<section id="tying-parameters">
+<h2>Tying Parameters<a class="headerlink" href="#tying-parameters" title="Link to this heading"></a></h2>
+<p>Finally, <a class="reference internal" href="../api/generated/pmrf.tie.html#pmrf.tie" title="pmrf.tie"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmrf.tie()</span></code></a> derives one parameter from another. Let’s set the resistance to always be 100e12 times the capacitance. The target and source can be given by name, or by callables that select them from the model:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using parameter names</span>
+<span class="n">rlc_tied</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">tie</span><span class="p">(</span><span class="n">rlc</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s1">'myR.R'</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s1">'C_global'</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span> <span class="o">*</span> <span class="mf">100e12</span><span class="p">)</span>
+
+<span class="c1"># Using callables</span>
+<span class="n">rlc_tied</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">tie</span><span class="p">(</span>
+    <span class="n">rlc</span><span class="p">,</span>
+    <span class="n">target</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">R</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">cascade</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">C</span><span class="p">,</span>
+    <span class="n">fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span> <span class="o">*</span> <span class="mf">100e12</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">rlc_tied</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>['myL_L_val', 'C_global']
+</pre></div>
+</div>
+<p>The tie function receives the capacitance in farads, which is why it multiplies by 100e12. The resistance is no longer a parameter, and is instead recomputed from the capacitance whenever the model is evaluated. Updating the capacitor to 2 pF therefore sets the resistor to 200 ohms:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rlc_tied</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rlc_tied</span><span class="p">,</span> <span class="p">{</span><span class="s1">'C_global'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Note that the callables above reach the capacitor through <code class="docutils literal notranslate"><span class="pre">cascade[1].cascade[1]</span></code>, since <code class="docutils literal notranslate"><span class="pre">res</span> <span class="pre">**</span> <span class="pre">ind</span> <span class="pre">**</span> <span class="pre">cap</span></code> nests one cascade inside another. Names do not depend on this structure, which makes them the more robust choice.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="derivatives_and_sweeps.html" class="btn btn-neutral float-left" title="Derivatives and Sweeps" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="custom_models.html" class="btn btn-neutral float-right" title="Custom Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

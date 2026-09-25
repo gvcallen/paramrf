@@ -1,0 +1,12 @@
+
+
+
+AdmittanceResult
+================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.base
+
+.. autoclass:: AdmittanceResult
+   :members:
+   :show-inheritance:
+   :inherited-members:

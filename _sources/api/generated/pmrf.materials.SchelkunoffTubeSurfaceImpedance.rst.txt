@@ -1,0 +1,12 @@
+
+
+
+SchelkunoffTubeSurfaceImpedance
+===============================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: SchelkunoffTubeSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

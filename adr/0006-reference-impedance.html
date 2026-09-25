@@ -1,0 +1,236 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0006: Models are probed at a reference impedance; Ports define a native one &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0006: Models are probed at a reference impedance; Ports define a native one</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0006-reference-impedance.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0006-models-are-probed-at-a-reference-impedance-ports-define-a-native-one">
+<h1>ADR-0006: Models are probed at a reference impedance; Ports define a native one<a class="headerlink" href="#adr-0006-models-are-probed-at-a-reference-impedance-ports-define-a-native-one" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">Model.s(freq,</span> <span class="pre">z0=50.0)</span></code> returns S-parameters at the reference impedance <code class="docutils literal notranslate"><span class="pre">z0</span></code>.
+<code class="docutils literal notranslate"><span class="pre">Port</span></code> also carries a <code class="docutils literal notranslate"><span class="pre">z0</span></code>, but it has no effect on a circuit’s S-parameters
+(#186):</p>
+<ul class="simple">
+<li><p>The nodal and MNA solvers ignore it.</p></li>
+<li><p>The scattering solver uses it as the native reference of its result, then
+renormalises to the <code class="docutils literal notranslate"><span class="pre">z0</span></code> passed to <code class="docutils literal notranslate"><span class="pre">s()</span></code>, which defaults to 50.</p></li>
+</ul>
+<p>So a circuit with a 10 Ω port reports S-parameters at 50 Ω, and <code class="docutils literal notranslate"><span class="pre">to_skrf</span></code>
+labels them 50 Ω. Passing a per-port <code class="docutils literal notranslate"><span class="pre">z0</span></code> works with the nodal solver but
+crashes the scattering solver. The per-port value is also used to evaluate
+every internal component, which has a different number of ports.</p>
+<p>The model is AWR’s. An element such as a transmission line has no reference
+impedance of its own: it is characterised by the impedance you probe it at. A
+schematic’s PORTs are what give its S-parameters a reference.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading"></a></h2>
+<section id="z0-is-a-probe">
+<h3><code class="docutils literal notranslate"><span class="pre">z0</span></code> is a probe<a class="headerlink" href="#z0-is-a-probe" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">z0</span></code> argument of <code class="docutils literal notranslate"><span class="pre">s()</span></code> is the reference impedance the model is probed at.
+It is scalar or per-port. An explicit <code class="docutils literal notranslate"><span class="pre">z0</span></code> always wins: the result is at that
+reference, renormalised if needed.</p>
+</section>
+<section id="some-models-have-a-native-reference">
+<h3>Some models have a native reference<a class="headerlink" href="#some-models-have-a-native-reference" title="Link to this heading"></a></h3>
+<p>A model may have a <strong>native reference impedance</strong>. Such a model accepts
+<code class="docutils literal notranslate"><span class="pre">z0=None</span></code> in <code class="docutils literal notranslate"><span class="pre">s()</span></code>, meaning “at my native reference”. It sets
+<code class="docutils literal notranslate"><span class="pre">supports_native_z0</span> <span class="pre">=</span> <span class="pre">True</span></code>, a class variable on <code class="docutils literal notranslate"><span class="pre">Model</span></code> that defaults to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+<p>Each model declares its default in the signature of its own <code class="docutils literal notranslate"><span class="pre">s()</span></code>:</p>
+<ul class="simple">
+<li><p>A model with a native reference defaults to <code class="docutils literal notranslate"><span class="pre">z0=None</span></code>.</p></li>
+<li><p>A probe-only model defaults to <code class="docutils literal notranslate"><span class="pre">z0=50.0</span></code>.</p></li>
+</ul>
+<p>Passing <code class="docutils literal notranslate"><span class="pre">z0=None</span></code> to a probe-only model raises a clear error, naming the model
+and asking for a <code class="docutils literal notranslate"><span class="pre">z0</span></code>. The raise happens where <code class="docutils literal notranslate"><span class="pre">Model</span></code> wraps the primary
+methods, which is also where an explicit <code class="docutils literal notranslate"><span class="pre">z0</span></code> is converted to an array once for
+every model.</p>
+<p>For now the models with a native reference are:</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Port</span></code></strong>: its own <code class="docutils literal notranslate"><span class="pre">z0</span></code>. <code class="docutils literal notranslate"><span class="pre">Port.s(z0=None)</span></code> is therefore a matched load, S = 0.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Circuit</span></code></strong>: the <code class="docutils literal notranslate"><span class="pre">z0</span></code> of each of its external Ports, in port order.</p></li>
+</ul>
+<p>A Circuit built with default Ports has a native reference of 50 Ω, so its
+results do not change.</p>
+</section>
+<section id="nested-circuits-are-probed">
+<h3>Nested circuits are probed<a class="headerlink" href="#nested-circuits-are-probed" title="Link to this heading"></a></h3>
+<p>A parent model (a Cascade, a Circuit, a Terminated) always passes its child an
+explicit <code class="docutils literal notranslate"><span class="pre">z0</span></code>. A nested Circuit is therefore probed like any other element, and
+its Ports’ <code class="docutils literal notranslate"><span class="pre">z0</span></code> do not matter to the parent. This matches flattening, where a
+sub-circuit’s Ports become virtual.</p>
+<p>A circuit solver evaluates its internal components at a fixed internal
+reference, never at the caller’s <code class="docutils literal notranslate"><span class="pre">z0</span></code>. That reference is an internal detail,
+cancelled by renormalising to the external ports.</p>
+</section>
+<section id="transmission-lines-stay-probe-only">
+<h3>Transmission lines stay probe-only<a class="headerlink" href="#transmission-lines-stay-probe-only" title="Link to this heading"></a></h3>
+<p>A line could report its characteristic impedance as its native reference. It
+does not, because users want a line’s S-parameters at 50 Ω by default, and a
+line probed at its own <code class="docutils literal notranslate"><span class="pre">Zc</span></code> has trivial reflections. A line may opt in later
+under this ADR, but its default stays 50.</p>
+</section>
+<section id="to-skrf-resolves-the-reference">
+<h3><code class="docutils literal notranslate"><span class="pre">to_skrf</span></code> resolves the reference<a class="headerlink" href="#to-skrf-resolves-the-reference" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">Model.to_skrf(frequency,</span> <span class="pre">z0=None)</span></code> resolves <code class="docutils literal notranslate"><span class="pre">None</span></code> to:</p>
+<ul class="simple">
+<li><p>the native reference, for a model that has one;</p></li>
+<li><p>50 Ω, otherwise.</p></li>
+</ul>
+<p>It passes the resolved value to both <code class="docutils literal notranslate"><span class="pre">s()</span></code> and <code class="docutils literal notranslate"><span class="pre">skrf.Network</span></code>, so
+<code class="docutils literal notranslate"><span class="pre">Network.z0</span></code> always describes the data.</p>
+<p>The model-specific parts, currently <code class="docutils literal notranslate"><span class="pre">Circuit</span></code> and <code class="docutils literal notranslate"><span class="pre">Port</span></code>, are special-cased in
+one private helper beside <code class="docutils literal notranslate"><span class="pre">to_skrf</span></code>, using lazy imports. <code class="docutils literal notranslate"><span class="pre">Model</span></code> gains no hook
+for them. The helper also supplies <code class="docutils literal notranslate"><span class="pre">port_names</span></code> for a Circuit, from its Ports’
+<code class="docutils literal notranslate"><span class="pre">name</span></code>:</p>
+<ul class="simple">
+<li><p>If no Port is named, no names are set.</p></li>
+<li><p>Otherwise, unnamed Ports are named by their 1-based index.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">Port</span></code> is a special case for <code class="docutils literal notranslate"><span class="pre">Circuit</span></code>, and <code class="docutils literal notranslate"><span class="pre">Circuit</span></code> is a special case for
+<code class="docutils literal notranslate"><span class="pre">to_skrf</span></code>. Neither implements the special case itself.</p>
+</section>
+</section>
+<section id="rejected-options">
+<h2>Rejected options<a class="headerlink" href="#rejected-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>A model-wide native reference</strong> (every model’s <code class="docutils literal notranslate"><span class="pre">s()</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>,
+with a reference hook on <code class="docutils literal notranslate"><span class="pre">Model</span></code>). This would change every model for the sake
+of two, and blur the difference between a probe and a reference.</p></li>
+<li><p><strong>Removing <code class="docutils literal notranslate"><span class="pre">Port.z0</span></code></strong>, leaving the reference as a call argument only.
+Consistent, but a Port is exactly where an RF user expects to set a
+reference, and it would still be silently ignored if kept for load use.</p></li>
+<li><p><strong>Treating <code class="docutils literal notranslate"><span class="pre">z0=None</span></code> as 50 on probe-only models.</strong> Every model would appear
+to support it, which hides the distinction this ADR is built on.</p></li>
+<li><p><strong>Raising when a Circuit with Ports is given an explicit <code class="docutils literal notranslate"><span class="pre">z0</span></code>.</strong> Parents must
+be able to probe nested circuits.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Model.port_names</span></code> or <code class="docutils literal notranslate"><span class="pre">Circuit.to_skrf</span></code> overrides.</strong> They keep a
+conversion utility’s special cases inside the models; <code class="docutils literal notranslate"><span class="pre">Model</span></code> stays lean.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Circuit.s()</span></code> and <code class="docutils literal notranslate"><span class="pre">circuit.to_skrf()</span></code> report S-parameters at the Ports’
+impedances by default. Any circuit whose Ports set a <code class="docutils literal notranslate"><span class="pre">z0</span></code> other than 50 gives
+different numbers than before, which is the fix.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Circuit</span></code> needs a public accessor for its external Ports in port order. It is
+the single source for both the native reference and the port names.</p></li>
+<li><p>A new model with a native reference must set <code class="docutils literal notranslate"><span class="pre">supports_native_z0</span></code>, default to
+<code class="docutils literal notranslate"><span class="pre">z0=None</span></code>, and be added to the <code class="docutils literal notranslate"><span class="pre">to_skrf</span></code> helper.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

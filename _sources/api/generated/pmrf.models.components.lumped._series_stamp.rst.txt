@@ -1,0 +1,9 @@
+
+
+
+_series_stamp
+=============
+
+.. currentmodule:: pmrf.models.components.lumped
+
+.. autofunction:: _series_stamp

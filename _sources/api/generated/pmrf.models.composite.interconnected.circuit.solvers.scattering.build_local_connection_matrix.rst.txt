@@ -1,0 +1,9 @@
+
+
+
+build_local_connection_matrix
+=============================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+
+.. autofunction:: build_local_connection_matrix

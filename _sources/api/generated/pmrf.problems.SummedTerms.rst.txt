@@ -1,0 +1,12 @@
+
+
+
+SummedTerms
+===========
+
+.. currentmodule:: pmrf.problems
+
+.. autoclass:: SummedTerms
+   :members:
+   :show-inheritance:
+   :inherited-members:

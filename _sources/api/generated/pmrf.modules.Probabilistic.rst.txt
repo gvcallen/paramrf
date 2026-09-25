@@ -1,0 +1,12 @@
+
+
+
+Probabilistic
+=============
+
+.. currentmodule:: pmrf.modules
+
+.. autoclass:: Probabilistic
+   :members:
+   :show-inheritance:
+   :inherited-members:

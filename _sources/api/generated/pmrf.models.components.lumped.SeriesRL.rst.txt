@@ -1,0 +1,12 @@
+
+
+
+SeriesRL
+========
+
+.. currentmodule:: pmrf.models.components.lumped
+
+.. autoclass:: SeriesRL
+   :members:
+   :show-inheritance:
+   :inherited-members:

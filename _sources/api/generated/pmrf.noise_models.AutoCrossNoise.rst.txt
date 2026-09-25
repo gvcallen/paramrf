@@ -1,0 +1,12 @@
+
+
+
+AutoCrossNoise
+==============
+
+.. currentmodule:: pmrf.noise_models
+
+.. autoclass:: AutoCrossNoise
+   :members:
+   :show-inheritance:
+   :inherited-members:

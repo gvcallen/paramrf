@@ -1,0 +1,386 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0002: Parameter API: free functions, one update verb, three value spaces &mdash; paramrf 0.36.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=fc1c62f9"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0002: Parameter API: free functions, one update verb, three value spaces</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0002-parameter-api.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0002-parameter-api-free-functions-one-update-verb-three-value-spaces">
+<h1>ADR-0002: Parameter API: free functions, one update verb, three value spaces<a class="headerlink" href="#adr-0002-parameter-api-free-functions-one-update-verb-three-value-spaces" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-09)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>0.35.0 (#138) made parameter names the key for saved results, ties, free sets
+and external tooling, and added name-keyed operations as <code class="docutils literal notranslate"><span class="pre">Module</span></code> methods:
+<code class="docutils literal notranslate"><span class="pre">values</span></code>, <code class="docutils literal notranslate"><span class="pre">with_values</span></code>, <code class="docutils literal notranslate"><span class="pre">with_free</span></code> and <code class="docutils literal notranslate"><span class="pre">with_fixed</span></code>, next to the existing
+<code class="docutils literal notranslate"><span class="pre">named_params</span></code>, <code class="docutils literal notranslate"><span class="pre">at</span></code>, <code class="docutils literal notranslate"><span class="pre">map</span></code> and <code class="docutils literal notranslate"><span class="pre">tied</span></code>. An older ParamRF had <code class="docutils literal notranslate"><span class="pre">with_*</span></code> methods
+and deprecated them because they inflated the API and cut against a move to a
+functional style. There was no rule for which operations get a method, so the
+surface grew case by case.</p>
+<p>Four problems forced a decision:</p>
+<ul class="simple">
+<li><p><strong>Joint trees.</strong> Fitting and inference increasingly work on collections such
+as <code class="docutils literal notranslate"><span class="pre">(model,</span> <span class="pre">noise_model)</span></code>. A method on <code class="docutils literal notranslate"><span class="pre">Module</span></code> cannot reach them, so every
+method-only operation needs a function as well, and the API grows two
+spellings.</p></li>
+<li><p><strong>Scale.</strong> Construction takes the declared value (<code class="docutils literal notranslate"><span class="pre">prf.param(scale=1e-12)</span></code>
+then <code class="docutils literal notranslate"><span class="pre">RC(1.0,</span> <span class="pre">2.0)</span></code> stores 2 pF), but <code class="docutils literal notranslate"><span class="pre">Param.value</span></code>, <code class="docutils literal notranslate"><span class="pre">values()</span></code>,
+<code class="docutils literal notranslate"><span class="pre">with_values()</span></code> and <code class="docutils literal notranslate"><span class="pre">prf.replace(p,</span> <span class="pre">value=...)</span></code> use the physical, scaled
+value. <code class="docutils literal notranslate"><span class="pre">with_values({'C':</span> <span class="pre">3.0})</span></code> on that model silently sets 3 F. A <code class="docutils literal notranslate"><span class="pre">Param</span></code>
+with its own scale passed into a scaled field multiplies the two scales
+(<code class="docutils literal notranslate"><span class="pre">1e-9</span> <span class="pre">×</span> <span class="pre">1e-12</span></code>).</p></li>
+<li><p><strong>Recompilation (#130).</strong> RF methods are wrapped in <code class="docutils literal notranslate"><span class="pre">eqx.filter_jit</span></code>, so any
+change to a model’s static structure recompiles. Rebuilding a parameter with
+<code class="docutils literal notranslate"><span class="pre">model.at(name).set(prf.Unconstrained(v))</span></code>, as the docs showed, changes its
+scale and constraint and recompiles; for a large circuit that is a minute per
+change. <code class="docutils literal notranslate"><span class="pre">_replace_raw_value</span></code> also flips <code class="docutils literal notranslate"><span class="pre">weak_type</span></code> on the value leaf, so
+<code class="docutils literal notranslate"><span class="pre">with_values</span></code> and <code class="docutils literal notranslate"><span class="pre">prf.replace</span></code> recompile once even though the treedef is
+unchanged.</p></li>
+<li><p><strong>Flattening (#135, #142).</strong> A proposed <code class="docutils literal notranslate"><span class="pre">prf.flatten</span></code> returned a
+<code class="docutils literal notranslate"><span class="pre">FlatParams</span></code> object over a 1-D vector. Flattening that prominent is unusual
+in the JAX ecosystem.</p></li>
+</ul>
+<p>Precedent from other JAX libraries: Equinox’s <code class="docutils literal notranslate"><span class="pre">Module</span></code> has no public methods;
+Flax NNX deprecated <code class="docutils literal notranslate"><span class="pre">Module.iter_modules</span></code> and <code class="docutils literal notranslate"><span class="pre">iter_children</span></code> in favour of free
+functions; Penzai keeps a single <code class="docutils literal notranslate"><span class="pre">.select()</span></code> gateway; NumPyro’s
+<code class="docutils literal notranslate"><span class="pre">initialize_model</span></code> exposes a potential function over a <strong>name-keyed dict</strong> of
+unconstrained values and ravels only inside samplers. scikit-rf, which most
+ParamRF users know, puts RF operations on <code class="docutils literal notranslate"><span class="pre">Network</span></code> as methods.</p>
+</section>
+<section id="decisions">
+<h2>Decisions<a class="headerlink" href="#decisions" title="Link to this heading"></a></h2>
+<section id="a-method-belongs-to-the-class-that-gives-it-meaning">
+<h3>1. A method belongs to the class that gives it meaning<a class="headerlink" href="#a-method-belongs-to-the-class-that-gives-it-meaning" title="Link to this heading"></a></h3>
+<p>If an operation would make equal sense on a plain collection of models and
+parameters, such as a <code class="docutils literal notranslate"><span class="pre">(model,</span> <span class="pre">noise_model)</span></code> tuple, it is a free function and
+never a method. There are no exceptions.</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Model</span></code></strong> keeps RF methods: <code class="docutils literal notranslate"><span class="pre">s</span></code>, <code class="docutils literal notranslate"><span class="pre">a</span></code>, <code class="docutils literal notranslate"><span class="pre">z</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>, <code class="docutils literal notranslate"><span class="pre">mna</span></code>, <code class="docutils literal notranslate"><span class="pre">nports</span></code>,
+<code class="docutils literal notranslate"><span class="pre">port_tuples</span></code>, <code class="docutils literal notranslate"><span class="pre">primary_matrix</span></code>, <code class="docutils literal notranslate"><span class="pre">build</span></code>, <code class="docutils literal notranslate"><span class="pre">expand</span></code>, <code class="docutils literal notranslate"><span class="pre">cascaded</span></code>, <code class="docutils literal notranslate"><span class="pre">flipped</span></code>,
+<code class="docutils literal notranslate"><span class="pre">renumbered</span></code>, <code class="docutils literal notranslate"><span class="pre">terminated</span></code>, <code class="docutils literal notranslate"><span class="pre">**</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;</span></code>, <code class="docutils literal notranslate"><span class="pre">to_skrf</span></code> and <code class="docutils literal notranslate"><span class="pre">export_touchstone</span></code>.
+<code class="docutils literal notranslate"><span class="pre">tied</span></code> leaves; tying is parameterisation, not circuit algebra.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Module</span></code></strong> has no public methods (decision 2).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Param</span></code></strong> keeps read-only properties that describe it (<code class="docutils literal notranslate"><span class="pre">value</span></code>, <code class="docutils literal notranslate"><span class="pre">bounds</span></code>,
+<code class="docutils literal notranslate"><span class="pre">distribution</span></code>, …). <code class="docutils literal notranslate"><span class="pre">as_fixed</span></code>, <code class="docutils literal notranslate"><span class="pre">as_free</span></code> and <code class="docutils literal notranslate"><span class="pre">at</span></code> are removed; <code class="docutils literal notranslate"><span class="pre">wrap</span></code>
+becomes private.</p></li>
+</ul>
+<p>A test asserts that <code class="docutils literal notranslate"><span class="pre">Module</span></code> has no public methods and that <code class="docutils literal notranslate"><span class="pre">Model</span></code>’s public
+methods equal a checked-in allowlist, so adding one is a reviewed decision. The
+methods <code class="docutils literal notranslate"><span class="pre">__init_subclass__</span></code> generates (<code class="docutils literal notranslate"><span class="pre">s_db</span></code>, <code class="docutils literal notranslate"><span class="pre">s_mn_mag</span></code>, …) and the plotting
+names <code class="docutils literal notranslate"><span class="pre">__getattr__</span></code> serves are RF and allowed; the test skips them by pattern
+and says so. Replacing them is out of scope.</p>
+<p>This matches what scikit-rf users expect, where RF operations are methods, and
+what JAX users expect, where tree operations are functions.</p>
+</section>
+<section id="module-is-a-contract-not-a-toolbox">
+<h3>2. <code class="docutils literal notranslate"><span class="pre">Module</span></code> is a contract, not a toolbox<a class="headerlink" href="#module-is-a-contract-not-a-toolbox" title="Link to this heading"></a></h3>
+<p>Without methods, <code class="docutils literal notranslate"><span class="pre">Module</span></code> still does work nothing else does. Its <code class="docutils literal notranslate"><span class="pre">name</span></code> is what
+makes a named module collapse the path to its left into a namespace, which name
+resolution depends on. <code class="docutils literal notranslate"><span class="pre">pmrf.modules.validate</span></code> rejects raw float JAX arrays in
+its fields, which are ambiguous between free and fixed parameters. It carries
+<code class="docutils literal notranslate"><span class="pre">metadata</span></code>, gives the unwrapped <code class="docutils literal notranslate"><span class="pre">repr</span></code>, and is the base of <code class="docutils literal notranslate"><span class="pre">Model</span></code>, losses,
+likelihoods, kernels, materials and evaluators. Subclassing it says the object
+takes part in naming and validation. Its docstring says so.</p>
+</section>
+<section id="one-verb-for-changing-a-model-prf-update">
+<h3>3. One verb for changing a model: <code class="docutils literal notranslate"><span class="pre">prf.update</span></code><a class="headerlink" href="#one-verb-for-changing-a-model-prf-update" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">prf.update</span></code> returns a copy of a model in which the parts a selector picks are
+replaced. Exactly one form says what with:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">{</span><span class="s1">'L1.L'</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s1">'C1.C'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">})</span>      <span class="c1"># parameter values by name</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">{</span><span class="s1">'east'</span><span class="p">:</span> <span class="n">wet</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">east</span><span class="p">),</span> <span class="s1">'west'</span><span class="p">:</span> <span class="n">wet</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">west</span><span class="p">)})</span>  <span class="c1"># sub-models by name</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">'L1.L'</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>               <span class="c1"># parameter fields on a selection</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">'cable.*'</span><span class="p">,</span> <span class="n">fixed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>           <span class="c1"># fixed state</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">'cascade[1]'</span><span class="p">,</span> <span class="n">Short</span><span class="p">())</span>           <span class="c1"># a new sub-model or node</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">'load.*'</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="o">...</span><span class="p">)</span>      <span class="c1"># a function of the old part</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">'raw'</span><span class="p">)</span>                  <span class="c1"># write-back from an optimiser or sampler</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>                       <span class="c1"># selector omitted: the root itself</span>
+</pre></div>
+</div>
+<p>It replaces <code class="docutils literal notranslate"><span class="pre">with_values</span></code>, <code class="docutils literal notranslate"><span class="pre">with_free</span></code>, <code class="docutils literal notranslate"><span class="pre">with_fixed</span></code>, <code class="docutils literal notranslate"><span class="pre">Module.map</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Module.at</span></code>, <code class="docutils literal notranslate"><span class="pre">Param.as_fixed</span></code>, <code class="docutils literal notranslate"><span class="pre">Param.as_free</span></code> and <code class="docutils literal notranslate"><span class="pre">Param.wrap</span></code>.</p>
+<ul class="simple">
+<li><p><strong>Selectors</strong> are parameter names, <code class="docutils literal notranslate"><span class="pre">fnmatch</span></code> globs over them, sequences of
+names, or callables, resolved by the #133 resolver.</p></li>
+<li><p><strong>Two tiers, set by the form, or per entry in a mapping.</strong> The <code class="docutils literal notranslate"><span class="pre">value=</span></code> and
+<code class="docutils literal notranslate"><span class="pre">fixed=</span></code> forms, and mapping entries whose value is an array or <code class="docutils literal notranslate"><span class="pre">Param</span></code>, go
+through each parameter’s constructor: they validate bounds and keep the prior,
+constraint, scale, name and metadata. The node and <code class="docutils literal notranslate"><span class="pre">fn=</span></code> forms, and mapping
+entries whose value is a <code class="docutils literal notranslate"><span class="pre">Model</span></code>, are structural: they bypass converters and
+validation, and the docstring says so.</p></li>
+<li><p><strong>The mapping form</strong> is recognised only as the second positional argument
+with every key a string. A value that is an array or <code class="docutils literal notranslate"><span class="pre">Param</span></code> is keyed by a
+parameter name, and <code class="docutils literal notranslate"><span class="pre">space=</span></code> applies to it. A value that is a <code class="docutils literal notranslate"><span class="pre">Model</span></code> is keyed
+by a sub-model name (<code class="docutils literal notranslate"><span class="pre">'cascade[1]'</span></code>, a named module’s name) and replaces that
+sub-model as the node form does (amended by #168, so several sub-models can be
+replaced in one call). One mapping may mix both; a model for a parameter name,
+or a value for a sub-model name, raises. Any
+other second argument is a selector, and a form mismatch raises an error that
+lists the forms.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">fixed=</span></code></strong> is additive. <code class="docutils literal notranslate"><span class="pre">fixed=False</span></code> frees a parameter even if it was
+created fixed, and parameters the selector does not match are untouched.
+“Only these free” is <code class="docutils literal notranslate"><span class="pre">update(update(m,</span> <span class="pre">'*',</span> <span class="pre">fixed=True),</span> <span class="pre">names,</span> <span class="pre">fixed=False)</span></code>.</p></li>
+<li><p><strong>Value forms keep the jit cache key.</strong> Mappings of values only, and the
+<code class="docutils literal notranslate"><span class="pre">value=</span></code> and <code class="docutils literal notranslate"><span class="pre">space=</span></code> forms, never change the treedef, or any leaf’s dtype, shape or <code class="docutils literal notranslate"><span class="pre">weak_type</span></code>
+(decision 10). Changing <code class="docutils literal notranslate"><span class="pre">fixed=</span></code>, or any structural form, changes the model’s
+structure, and recompiling is expected.</p></li>
+<li><p><strong>Not an optimiser step.</strong> In fitting, “updates” also means Optax gradient
+steps; the docstring says <code class="docutils literal notranslate"><span class="pre">update</span></code> is neither.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">prf.replace</span></code> stays as the plain <code class="docutils literal notranslate"><span class="pre">dataclasses.replace</span></code>: fields of one object,
+unvalidated, able to break a type. Its docstring points to <code class="docutils literal notranslate"><span class="pre">update</span></code> for
+anything name-based.</p>
+<p><code class="docutils literal notranslate"><span class="pre">prf.tie(model,</span> <span class="pre">target,</span> <span class="pre">source,</span> <span class="pre">fn=identity)</span></code> stays a separate verb. A tie is
+not a replacement: its target is recomputed from its source every time the
+model is unwrapped. A relation that needs a quantity the model does not yet hold
+is a derived model (<code class="docutils literal notranslate"><span class="pre">prf.derived</span></code>, ADR-0003), not a tie.</p>
+</section>
+<section id="reading-prf-params-and-prf-values">
+<h3>4. Reading: <code class="docutils literal notranslate"><span class="pre">prf.params</span></code> and <code class="docutils literal notranslate"><span class="pre">prf.values</span></code><a class="headerlink" href="#reading-prf-params-and-prf-values" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">prf</span><span class="o">.</span><span class="n">params</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="s1">'*'</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">free_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>                          <span class="c1"># dict[str, Param]</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="s1">'*'</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">free_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">'declared'</span><span class="p">)</span>  <span class="c1"># dict[str, Array]</span>
+<span class="n">prf</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">'declared'</span><span class="p">)</span>                                 <span class="c1"># scalar</span>
+</pre></div>
+</div>
+<p>A user thinks “the parameters of my model”, so <code class="docutils literal notranslate"><span class="pre">params</span></code> returns <code class="docutils literal notranslate"><span class="pre">Param</span></code>
+objects, whose <code class="docutils literal notranslate"><span class="pre">repr</span></code> shows value, bounds and prior. <code class="docutils literal notranslate"><span class="pre">values</span></code> is what
+<code class="docutils literal notranslate"><span class="pre">update</span></code> accepts and what optimisers use; a bare <code class="docutils literal notranslate"><span class="pre">values</span></code> was rejected as too
+vague at top level, where it could mean S-parameter data. <code class="docutils literal notranslate"><span class="pre">named_params</span></code>’
+<code class="docutils literal notranslate"><span class="pre">full_params</span></code> and <code class="docutils literal notranslate"><span class="pre">namespace_separator</span></code> are dropped.</p>
+<p>The documented identity, which is also the regression test of decision 10:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="n">s</span><span class="p">),</span> <span class="n">space</span><span class="o">=</span><span class="n">s</span><span class="p">)</span>   <span class="c1"># same structure, same cache key</span>
+</pre></div>
+</div>
+<p>All functions are defined in <code class="docutils literal notranslate"><span class="pre">pmrf.parameters</span></code> and re-exported at top level.</p>
+</section>
+<section id="three-value-spaces-raw-declared-physical">
+<h3>5. Three value spaces: <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">declared</span></code>, <code class="docutils literal notranslate"><span class="pre">physical</span></code><a class="headerlink" href="#three-value-spaces-raw-declared-physical" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Space</p></th>
+<th class="head"><p>Meaning</p></th>
+<th class="head"><p>Example (2 pF, <code class="docutils literal notranslate"><span class="pre">scale=1e-12</span></code>)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+<td><p>the latent, unbounded array an optimiser or sampler moves through</p></td>
+<td><p>constraint bijector inverse of 2.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">declared</span></code></p></td>
+<td><p>the number as written, in the units the parameter’s scale declares</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2.0</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">physical</span></code></p></td>
+<td><p>the scaled, SI value</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2e-12</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">declared</span></code> is the default everywhere, and every user-facing surface agrees with
+construction: <code class="docutils literal notranslate"><span class="pre">Param(value=...)</span></code>, bounds, priors, <code class="docutils literal notranslate"><span class="pre">repr</span></code>, <code class="docutils literal notranslate"><span class="pre">Param.value</span></code>,
+<code class="docutils literal notranslate"><span class="pre">values</span></code> and <code class="docutils literal notranslate"><span class="pre">update</span></code>. Distributions and bounds are authored in declared
+space.</p>
+<p><code class="docutils literal notranslate"><span class="pre">Param</span></code> gets one property per space: <code class="docutils literal notranslate"><span class="pre">value</span></code> (declared), <code class="docutils literal notranslate"><span class="pre">physical_value</span></code> and
+<code class="docutils literal notranslate"><span class="pre">raw_value</span></code> (the latent array). <code class="docutils literal notranslate"><span class="pre">unscaled_value</span></code> is removed. The field
+currently named <code class="docutils literal notranslate"><span class="pre">raw_value</span></code>, which holds the Parax variable, is renamed
+<code class="docutils literal notranslate"><span class="pre">variable</span></code>. The bijector properties become <code class="docutils literal notranslate"><span class="pre">raw_to_declared_bijector</span></code> and
+<code class="docutils literal notranslate"><span class="pre">declared_to_physical_bijector</span></code>; “constrained” and “unscaled” are no longer
+used as space names.</p>
+<p><code class="docutils literal notranslate"><span class="pre">log_prior</span></code> supports all three spaces: declared is the density as written,
+physical adds −log|scale| per parameter, and raw adds the constraint bijector’s
+log|det J| as well. Each docstring states its measure.</p>
+<p><strong>Why <code class="docutils literal notranslate"><span class="pre">raw</span></code>, not <code class="docutils literal notranslate"><span class="pre">unconstrained</span></code>.</strong> ParamRF’s users are mostly RF engineers,
+who read “unconstrained” as “a parameter without bounds”, which is what
+<code class="docutils literal notranslate"><span class="pre">prf.Unconstrained</span></code> creates. The code already used “raw” for this reason.
+<strong>Why not <code class="docutils literal notranslate"><span class="pre">unit</span></code>.</strong> In fitting, “unit space” is the unit hypercube nested
+samplers work in, which ParamRF’s hypercube sampler maps to.
+<strong>Why not <code class="docutils literal notranslate"><span class="pre">unscaled</span></code>, <code class="docutils literal notranslate"><span class="pre">normalized</span></code>, <code class="docutils literal notranslate"><span class="pre">per_unit</span></code> or <code class="docutils literal notranslate"><span class="pre">engineering</span></code>.</strong> <code class="docutils literal notranslate"><span class="pre">declared</span></code>
+says what the value is rather than what has not happened to it; <code class="docutils literal notranslate"><span class="pre">normalized</span></code>
+means z = Z/Z₀ in RF and [0, 1] in optimisation; <code class="docutils literal notranslate"><span class="pre">per_unit</span></code> is power-systems
+jargon; “engineering units” means the scaled value in instrumentation.</p>
+</section>
+<section id="scale-is-the-units-a-value-is-written-in">
+<h3>6. Scale is the units a value is written in<a class="headerlink" href="#scale-is-the-units-a-value-is-written-in" title="Link to this heading"></a></h3>
+<p>A field’s scale is a default unit. An explicit scale on the value overrides it;
+the two are never multiplied. The factories and <code class="docutils literal notranslate"><span class="pre">as_param</span></code> take <code class="docutils literal notranslate"><span class="pre">scale=None</span></code>,
+meaning “inherit the field’s”, so <code class="docutils literal notranslate"><span class="pre">prf.Unconstrained(2.0)</span></code> passed into a pF
+field is 2 pF, and <code class="docutils literal notranslate"><span class="pre">prf.Unconstrained(2.0,</span> <span class="pre">scale=1e-9)</span></code> is 2 nF.</p>
+<p>This reverses 0.35.0’s <code class="docutils literal notranslate"><span class="pre">prf.replace(p,</span> <span class="pre">value=...)</span></code>, which took the physical
+value; <code class="docutils literal notranslate"><span class="pre">update(p,</span> <span class="pre">value=...)</span></code> takes the declared one.</p>
+</section>
+<section id="fixed-and-frozen-are-different-things">
+<h3>7. Fixed and frozen are different things<a class="headerlink" href="#fixed-and-frozen-are-different-things" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Fixed</strong> is a parameter state. The parameter is still a <code class="docutils literal notranslate"><span class="pre">Param</span></code>, still named
+and still carries its prior; it is excluded from optimisation.
+<code class="docutils literal notranslate"><span class="pre">update(...,</span> <span class="pre">fixed=)</span></code> toggles it.</p></li>
+<li><p><strong>Frozen</strong> (<code class="docutils literal notranslate"><span class="pre">prf.freeze</span></code>, <code class="docutils literal notranslate"><span class="pre">prf.unfreeze</span></code>) makes a subtree opaque. It is for
+constant data, such as <code class="docutils literal notranslate"><span class="pre">field(converter=prf.freeze)</span></code>, and for hiding whole
+subtrees.</p></li>
+</ul>
+<p>The name-based operations act on fixed, never on frozen.</p>
+</section>
+<section id="no-public-flattening">
+<h3>8. No public flattening<a class="headerlink" href="#no-public-flattening" title="Link to this heading"></a></h3>
+<p>Parameter values cross ParamRF’s boundary as name-keyed dicts, which are
+pytrees that Optax, Optimistix, BlackJAX and <code class="docutils literal notranslate"><span class="pre">jax.grad</span></code> take directly.
+Raveling to a 1-D vector stays inside the adapters that need it, such as the
+SciPy solver (<code class="docutils literal notranslate"><span class="pre">pmrf/optimize/solvers/scipy.py</span></code>) and non-JAX samplers.
+<code class="docutils literal notranslate"><span class="pre">prf.flatten</span></code> and <code class="docutils literal notranslate"><span class="pre">FlatParams</span></code> (#142) are not added. A public ravel helper, with
+one name per array element, can be added when a non-JAX consumer needs it; it
+would sit on top of <code class="docutils literal notranslate"><span class="pre">values</span></code>, not replace it.</p>
+<p>The substance of #142 is kept: the raw-space log prior with the Jacobian and
+scale terms, name alignment, and a single implementation behind the minimiser
+and samplers.</p>
+</section>
+<section id="public-names-describe-the-domain-not-the-data-structure">
+<h3>9. Public names describe the domain, not the data structure<a class="headerlink" href="#public-names-describe-the-domain-not-the-data-structure" title="Link to this heading"></a></h3>
+<p>Public functions have no <code class="docutils literal notranslate"><span class="pre">tree_</span></code> prefix; most users do not know what a pytree
+is and should not need to. <code class="docutils literal notranslate"><span class="pre">tree_*</span></code> names are for private helpers. Docs say “a
+model, or any collection of models and parameters”, and reserve “pytree” for
+an advanced page.</p>
+</section>
+<section id="recompilation-is-prevented-by-keeping-structure-not-by-changing-the-cache">
+<h3>10. Recompilation is prevented by keeping structure, not by changing the cache<a class="headerlink" href="#recompilation-is-prevented-by-keeping-structure-not-by-changing-the-cache" title="Link to this heading"></a></h3>
+<p>The automatic <code class="docutils literal notranslate"><span class="pre">eqx.filter_jit</span></code> on RF methods and its cache key stay as they
+are. Dropping the automatic jit would make <code class="docutils literal notranslate"><span class="pre">model.s(freq)</span></code> slow for the users
+decision 1 keeps methods for; removing <code class="docutils literal notranslate"><span class="pre">name</span></code> and <code class="docutils literal notranslate"><span class="pre">metadata</span></code> from the treedef
+would complicate name resolution for a rare case.</p>
+<p>Instead, the structure-preserving forms of <code class="docutils literal notranslate"><span class="pre">update</span></code> guarantee an unchanged
+cache key, and a test enforces it for every such form: treedef, dtype, shape and
+<code class="docutils literal notranslate"><span class="pre">weak_type</span></code> of every leaf. The docs say plainly that changing a parameter’s
+value never recompiles and rebuilding it does.</p>
+</section>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Breaking, in one minor release.</strong> Removed: <code class="docutils literal notranslate"><span class="pre">Module.named_params</span></code>, <code class="docutils literal notranslate"><span class="pre">values</span></code>,
+<code class="docutils literal notranslate"><span class="pre">with_values</span></code>, <code class="docutils literal notranslate"><span class="pre">with_free</span></code>, <code class="docutils literal notranslate"><span class="pre">with_fixed</span></code>, <code class="docutils literal notranslate"><span class="pre">map</span></code>, <code class="docutils literal notranslate"><span class="pre">at</span></code>, <code class="docutils literal notranslate"><span class="pre">tied</span></code>; <code class="docutils literal notranslate"><span class="pre">Model.tied</span></code>;
+<code class="docutils literal notranslate"><span class="pre">Param.as_fixed</span></code>, <code class="docutils literal notranslate"><span class="pre">as_free</span></code>, <code class="docutils literal notranslate"><span class="pre">at</span></code>, <code class="docutils literal notranslate"><span class="pre">unscaled_value</span></code>; public <code class="docutils literal notranslate"><span class="pre">Param.wrap</span></code>.
+Renamed: the <code class="docutils literal notranslate"><span class="pre">Param.raw_value</span></code> field to <code class="docutils literal notranslate"><span class="pre">variable</span></code>, and the bijector
+properties. Changed: <code class="docutils literal notranslate"><span class="pre">Param.value</span></code> returns the declared value; scales
+override instead of multiplying. No aliases or deprecation shims.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pmrf.utils.optix</span></code>’s lens becomes internal or is deleted; nothing public
+returns a <code class="docutils literal notranslate"><span class="pre">Lens</span></code>.</p></li>
+<li><p>Joint-tree names keep #133’s rules. A named model inside a dict drops its key,
+and a collision raises; top-level dict keys do not become a namespace layer.</p></li>
+<li><p>Saved results keyed by name keep working; results that stored physical
+values need re-reading in declared space.</p></li>
+<li><p>Deferred to their own issues: reducing the top-level and submodule surface
+(including <code class="docutils literal notranslate"><span class="pre">__all__</span></code> listing <code class="docutils literal notranslate"><span class="pre">Topology</span></code> and <code class="docutils literal notranslate"><span class="pre">Initvar</span></code>, which do not exist);
+compile duration for large S-parameter blocks (#130, the per-port
+interpolation loop); the generated <code class="docutils literal notranslate"><span class="pre">s_db</span></code>-style methods; flat vectors for
+non-JAX tools.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

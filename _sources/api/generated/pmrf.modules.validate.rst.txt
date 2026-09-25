@@ -1,0 +1,9 @@
+
+
+
+validate
+========
+
+.. currentmodule:: pmrf.modules
+
+.. autofunction:: validate
