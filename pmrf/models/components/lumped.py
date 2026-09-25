@@ -29,13 +29,24 @@ def _series_stamp(Z: jnp.ndarray) -> MNAStamp:
 
 
 class Resistor(Model):
-    """
+    r"""
     A 2-port model of a series resistor.
+
+    **Mathematical Formulation**
+
+    The impedance is $Z = R$. For MNA it is stamped as a branch, with one auxiliary
+    current $I$ and $V_1 - V_2 - Z I = 0$, which is exact at R = 0 (ADR-0007). Its
+    admittance $1 / R$, returned by :meth:`y`, is undefined there.
 
     Parameters
     ----------
     R : Param
         The resistance in Ohms.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: Resistance in Ohms
     R: Param = param()
@@ -61,12 +72,15 @@ class Resistor(Model):
             [s_c21, s_c22]
         ]).transpose(2, 0, 1)
 
-        return s    
+        return s
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        Z = jnp.asarray(self.R) * jnp.ones(freq.npoints, dtype=jnp.complex128)
+        return _series_stamp(Z)
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        R = self.R
-        R_safe = jnp.where(jnp.abs(R) < 1e-9, jnp.sign(R + 1e-15) * 1e-9, R)
-        Y = 1.0 / R_safe
+        """Y-parameters, undefined (non-finite) at R = 0."""
+        Y = 1.0 / self.R
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
         
         y11 = Y * ones
@@ -85,6 +99,7 @@ class Resistor(Model):
 class ShuntResistor(Model):
     """
     A 2-port model of a shunt resistor shunting to ground.
+    Internally uses Z-formulation to prevent divide-by-zero errors at R=0.
 
     Parameters
     ----------
@@ -96,20 +111,19 @@ class ShuntResistor(Model):
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         R = self.R
-        Y = 1.0 / R
-        
+
         if jnp.isscalar(z0):
             z_in = z_out = z0
         else:
             z_in, z_out = z0[..., 0], z0[..., 1]
 
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
-        
-        denom = z_in + z_out + Y * z_in * z_out
-        
-        s11 = ((z_out - jnp.conj(z_in) - Y * jnp.conj(z_in) * z_out) / denom) * ones
-        s22 = ((z_in - jnp.conj(z_out) - Y * z_in * jnp.conj(z_out)) / denom) * ones
-        s21 = ((2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
+
+        denom = R * (z_in + z_out) + z_in * z_out
+
+        s11 = ((R * (z_out - jnp.conj(z_in)) - jnp.conj(z_in) * z_out) / denom) * ones
+        s22 = ((R * (z_in - jnp.conj(z_out)) - z_in * jnp.conj(z_out)) / denom) * ones
+        s21 = ((R * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
         s = jnp.array([
@@ -675,17 +689,18 @@ class CoupledInductors(Model):
     Parameters
     ----------
     L1 : Param
-        The self-inductance of the first winding in Henrys.
+        The self-inductance of the first winding in Henrys. Must be positive.
     L2 : Param
-        The self-inductance of the second winding in Henrys.
+        The self-inductance of the second winding in Henrys. Must be positive.
     k : Param
         The coupling coefficient, in the range (-1, 1).
     """
-    #: Self-inductance of the first winding in Henrys
-    L1: Param = param()
+    #: Self-inductance of the first winding in Henrys. $M$ is not real for a negative
+    #: winding inductance, and its derivative is infinite at zero.
+    L1: Param = param(constraint=Positive())
 
     #: Self-inductance of the second winding in Henrys
-    L2: Param = param()
+    L2: Param = param(constraint=Positive())
 
     #: Coupling coefficient between the windings
     k: Param = param()

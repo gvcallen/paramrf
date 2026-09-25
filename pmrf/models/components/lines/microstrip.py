@@ -285,7 +285,7 @@ class HammerstadJensenMicrostripFormulation(AbstractMicrostripFormulation):
                 1 + 4 * jnp.e / thickness * jnp.tanh(jnp.sqrt(6.517 * u)) ** 2
             )
 
-        dur = du1 * (1 + 1 / jnp.cosh(jnp.sqrt(ep_r - 1))) / 2
+        dur = du1 * (1 + 1 / _cosh_sqrt(ep_r - 1)) / 2
         u1 = u + du1
         ur = u + dur
 
@@ -812,6 +812,17 @@ class KirschningJansenMicrostripDispersion(AbstractMicrostripDispersion):
         ep_eff = ep_eff_0 + modal_weight * (ep_eff - ep_eff_0)
         zc = zc_0 + modal_weight * (zc - zc_0)
         return ep_eff, zc
+
+
+def _cosh_sqrt(x):
+    r"""$\cosh\sqrt{x}$, which is entire in $x$ although $\sqrt{x}$ is not.
+
+    Near $x = 0$, where the derivative of $\sqrt{x}$ is infinite, it is summed as
+    $\sum_n x^n / (2n)!$, whose first omitted term is below double precision there.
+    """
+    small = jnp.abs(x) < 1e-3
+    series = 1 + x / 2 + x**2 / 24 + x**3 / 720
+    return jnp.where(small, series, jnp.cosh(jnp.sqrt(jnp.where(small, 1.0, x))))
 
 
 def _microstrip_conductance_factor(ep_r, ep_eff, zc):
