@@ -784,6 +784,7 @@ def s2mna(s: ArrayLike, z0: ArrayLike, s_def: str = 'power') -> MNAStamp:
 def mna2s(
     stamp: MNAStamp,
     z0: ArrayLike,
+    *,
     linear_solver: lx.AbstractLinearSolver = lx.AutoLinearSolver(well_posed=True),
 ) -> jnp.ndarray:
     r"""
@@ -830,7 +831,7 @@ def mna2s(
     if Y.ndim == 3:
         nfreqs, nports, _ = Y.shape
         z0_fixed = fix_z0_shape(z0, nfreqs, nports)
-        return jax.vmap(mna2s, in_axes=(0, 0, None))(stamp, z0_fixed, linear_solver)
+        return jax.vmap(lambda st, z: mna2s(st, z, linear_solver=linear_solver))(stamp, z0_fixed)
 
     elif Y.ndim == 2:
         nports = Y.shape[0]

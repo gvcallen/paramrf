@@ -97,6 +97,11 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
 
     Internal nodes join the auxiliary variables, and :func:`pmrf.rf.mna2s` gives S
     from the resulting stamp at the external nodes.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
     #: GMIN to ground on every node, and the series resistance (ohms) of every auxiliary branch.
     eps: float = eqx.field(default=1e-12, static=True)
@@ -151,5 +156,5 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
             C=M_global[np.ix_(full_int_idx, ext_idx)],
             D=M_global[np.ix_(full_int_idx, full_int_idx)],
         )
-        s = mna2s(stamp, z0, self.linear_solver)
+        s = mna2s(stamp, z0, linear_solver=self.linear_solver)
         return ScatteringResult(s=s, z0=z0)

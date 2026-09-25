@@ -473,7 +473,7 @@ class Circuit(Model):
         result = self._solve(freq, z0)
         
         if isinstance(self.solver, AbstractMNACircuitSolver):
-            # Already at the probe reference
+            # Already at the probe reference, so skip an identity renormalisation
             return result.s
         elif isinstance(result, ScatteringResult):
             # Renormalize from native port z0 to the requested measurement z0
