@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 from scipy.constants import c
 
-from pmrf.constraints import GreaterThan, Positive
+from pmrf.constraints import GreaterThan, NonNegative, Positive
 from pmrf.frequency import Frequency
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.parameters import Param, param
@@ -63,13 +63,13 @@ class PhysicalLine(AbstractImmittanceLine):
     ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
     
     #: Conductor loss in dB/m/sqrt(Hz)
-    A: Param = param(default=0.0, constraint=Positive())
+    A: Param = param(default=0.0, constraint=NonNegative())
     
     #: Frequency scaling reference
     f_A: Param = param(default=1.0, constraint=Positive())
     
     #: Dielectric loss tangent
-    tand: Param = param(default=0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=NonNegative())
 
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         f = freq.f
@@ -151,10 +151,10 @@ class DatasheetLine(AbstractImmittanceLine):
     vf: Param = param(default=1.0, constraint=Positive())
     
     #: Skin effect loss factor
-    k1: Param = param(default=0.0, constraint=Positive())
+    k1: Param = param(default=0.0, constraint=NonNegative())
     
     #: Dielectric loss factor
-    k2: Param = param(default=0.0, constraint=Positive())
+    k2: Param = param(default=0.0, constraint=NonNegative())
     
     #: Loss coefficients normalization flag
     loss_coeffs_normalized: bool = field(default=False, static=True)

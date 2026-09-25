@@ -4,7 +4,7 @@ from abc import abstractmethod
 import jax.numpy as jnp
 from scipy.constants import mu_0
 
-from pmrf.constraints import Positive
+from pmrf.constraints import NonNegative
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
@@ -55,7 +55,7 @@ class HammerstadRoughness(AbstractRoughness):
         RMS surface roughness in meters.
     """
     #: RMS surface roughness in meters
-    rms: Param = param(default=0.0, constraint=Positive())
+    rms: Param = param(default=0.0, constraint=NonNegative())
 
     def factor(self, freq: Frequency, sigma, mu_r) -> jnp.ndarray:
         w = jnp.asarray(freq.w)

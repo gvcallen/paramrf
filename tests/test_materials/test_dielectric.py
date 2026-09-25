@@ -1,3 +1,4 @@
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -216,3 +217,81 @@ def test_dielectrics_are_non_magnetic_by_default(freq):
 
 def test_constant_dielectric_carries_permeability(freq):
     assert jnp.allclose(ConstantDielectric(4.3, mu_r=4.0).properties(freq).mu_r, 4.0)
+
+
+# Loss and dispersion parameters that are zero for a lossless, non-conducting
+# or pole-free medium are NonNegative: zero is on a closed bound, so it is in
+# the model's domain (ADR-0007).
+_TABLE_F = jnp.array([1e9, 1e10])
+_TABLE_EP_R = jnp.array([4.3 - 0.01j, 4.2 - 0.02j])
+
+# Each case builds a dielectric with the parameter set to x, and selects that
+# parameter from a coaxial line filled with it.
+_ZERO_VALID = {
+    "ConstantDielectric.tand": (
+        lambda x: ConstantDielectric(ep_r=4.3, tand=x), lambda line: line.dielectric.tand),
+    "ConstantDielectric.sigma": (
+        lambda x: ConstantDielectric(ep_r=4.3, sigma=x), lambda line: line.dielectric.sigma),
+    "DjordjevicSarkarDielectric.tand": (
+        lambda x: DjordjevicSarkarDielectric(ep_r=4.3, tand=x), lambda line: line.dielectric.tand),
+    "DjordjevicSarkarDielectric.sigma": (
+        lambda x: DjordjevicSarkarDielectric(ep_r=4.3, sigma=x), lambda line: line.dielectric.sigma),
+    "DebyePole.dep_r": (
+        lambda x: MultipoleDebyeDielectric(ep_inf=2.0, poles=[DebyePole(dep_r=x)]),
+        lambda line: line.dielectric.poles[0].dep_r),
+    "MultipoleDebyeDielectric.sigma": (
+        lambda x: MultipoleDebyeDielectric(ep_inf=2.0, sigma=x), lambda line: line.dielectric.sigma),
+    "ColeColeDielectric.dep_r": (
+        lambda x: ColeColeDielectric(ep_inf=2.0, dep_r=x, alpha=0.3), lambda line: line.dielectric.dep_r),
+    "ColeColeDielectric.sigma": (
+        lambda x: ColeColeDielectric(ep_inf=2.0, dep_r=1.0, sigma=x), lambda line: line.dielectric.sigma),
+    "TabulatedDielectric.sigma": (
+        lambda x: TabulatedDielectric(_TABLE_F, _TABLE_EP_R, sigma=x), lambda line: line.dielectric.sigma),
+}
+
+
+def test_dielectrics_construct_with_defaults():
+    ConstantDielectric()
+    DjordjevicSarkarDielectric()
+    DebyePole()
+    MultipoleDebyeDielectric()
+    ColeColeDielectric()
+    TabulatedDielectric(_TABLE_F, _TABLE_EP_R)
+
+
+@pytest.mark.parametrize("make, where", _ZERO_VALID.values(), ids=_ZERO_VALID.keys())
+def test_zero_loss_parameter_has_finite_s_and_gradient(make, where, freq):
+    line = prf.models.CoaxialLine(length=0.1, dielectric=make(0.0))
+    assert jnp.all(jnp.isfinite(line.s(freq)))
+
+    # Differentiate the model, not the parameter's raw map, which is -inf at 0.
+    def power(x):
+        return jnp.sum(jnp.abs(eqx.tree_at(where, line, x).s(freq)) ** 2)
+
+    assert jnp.isfinite(jax.grad(power)(0.0))
+
+
+@pytest.mark.parametrize("make, where", _ZERO_VALID.values(), ids=_ZERO_VALID.keys())
+def test_negative_loss_parameter_is_rejected(make, where):
+    with pytest.raises(Exception, match="is not in NonNegative"):
+        make(-1e-3)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: ConstantDielectric(mu_r=0.0),
+    lambda: DjordjevicSarkarDielectric(f_low=0.0),
+    lambda: DjordjevicSarkarDielectric(f_high=0.0),
+    lambda: DjordjevicSarkarDielectric(f_ref=0.0),
+    lambda: DebyePole(f_relax=0.0),
+    lambda: ColeColeDielectric(f_relax=0.0),
+], ids=[
+    "ConstantDielectric.mu_r",
+    "DjordjevicSarkarDielectric.f_low",
+    "DjordjevicSarkarDielectric.f_high",
+    "DjordjevicSarkarDielectric.f_ref",
+    "DebyePole.f_relax",
+    "ColeColeDielectric.f_relax",
+])
+def test_parameters_that_cannot_be_zero_reject_it(make):
+    with pytest.raises(Exception, match="is not in Positive"):
+        make()

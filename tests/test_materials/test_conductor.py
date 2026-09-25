@@ -1,3 +1,4 @@
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -153,3 +154,29 @@ def test_as_conductor_rejects_zero():
     """0 was the old rho idiom for a perfect conductor; as a sigma it means the opposite."""
     with pytest.raises(ValueError, match="ambiguous"):
         as_conductor(0.0)
+
+
+def test_smooth_roughness_is_in_the_domain(freq):
+    """A smooth surface is on the closed bound of `rms` (ADR-0007)."""
+    assert jnp.allclose(HammerstadRoughness().rms, 0.0)
+    line = prf.models.CoaxialLine(length=0.1, conductor=RoughConductor(roughness=0.0))
+    assert jnp.all(jnp.isfinite(line.s(freq)))
+
+    # Differentiate the model, not the parameter's raw map, which is -inf at 0.
+    def power(rms):
+        rough = eqx.tree_at(lambda m: m.conductor.roughness.rms, line, rms)
+        return jnp.sum(jnp.abs(rough.s(freq)) ** 2)
+
+    assert jnp.isfinite(jax.grad(power)(0.0))
+
+
+def test_negative_roughness_is_rejected():
+    with pytest.raises(Exception, match="is not in NonNegative"):
+        HammerstadRoughness(-1e-6)
+
+
+def test_conductor_parameters_that_cannot_be_zero_reject_it():
+    with pytest.raises(Exception, match="is not in Positive"):
+        BulkConductor(sigma=0.0)
+    with pytest.raises(Exception, match="is not in Positive"):
+        BulkConductor(mu_r=0.0)
