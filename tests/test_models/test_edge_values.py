@@ -150,8 +150,8 @@ def test_every_component_is_swept():
 
 
 def test_every_exclusion_is_a_case():
-    """An exclusion that no longer names a case is stale."""
-    assert set(NOT_EVALUATED) <= {case.id for case in _cases()}
+    """An exclusion that no longer names a case the sweep would generate is stale."""
+    assert set(NOT_EVALUATED) <= {case.id for case in _all_cases()}
 
 
 def _params(model):
@@ -190,15 +190,20 @@ def _edge_values(param):
     return values
 
 
-def _cases():
+def _all_cases():
+    """Every (component, parameter, edge value), exclusions included."""
     cases = []
     for cls, make in EXAMPLES.items():
         for path, param in _params(make()):
             for value in _edge_values(param):
                 name = f"{cls.__name__}{jax.tree_util.keystr(path)}={value:g}"
-                marks = [pytest.mark.skip(reason=NOT_EVALUATED[name])] if name in NOT_EVALUATED else []
-                cases.append(pytest.param(cls, path, value, id=name, marks=marks))
+                cases.append(pytest.param(cls, path, value, id=name))
     return cases
+
+
+def _cases():
+    """The cases the sweep evaluates: every case not in `NOT_EVALUATED`."""
+    return [case for case in _all_cases() if case.id not in NOT_EVALUATED]
 
 
 def _at(model, path, x):
