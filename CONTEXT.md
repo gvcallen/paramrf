@@ -26,10 +26,23 @@ Where a parameter's number lives. Every surface defaults to **declared**.
   declares (2.0 for 2 pF). Construction, bounds, priors and `Param.value` are
   in declared space.
 - **physical**: the scaled, SI value (2e-12).
+- **box**: the box a bounded minimiser searches, built from a parameter's
+  bounds, not its prior: the unit box when both bounds are finite, declared
+  space otherwise (ADR-0007).
 
 *Avoid:* "unconstrained space" (reads as a parameter without bounds; that is
 `prf.Unconstrained`), "unscaled" and "constrained" for declared space, "unit
-space" (the unit hypercube).
+space" (the unit hypercube; box space is the unit box only when both bounds are
+finite), "base space" for box space (Parax's name for it, but ADR-0005's "base"
+is a flow's latent, which is raw).
+
+### Open and closed bounds
+
+Each bound of a parameter is **closed** (the bound is a valid value, and a
+model must evaluate there) or **open** (the bound is excluded, and a value on
+it is rejected at construction). Closedness belongs to the constraint:
+`pmrf.Bounded` and a `Uniform` support are closed, `Positive()` is open, and
+where two constraints meet at one bound, open wins (ADR-0007).
 
 ### Scale
 
@@ -184,4 +197,6 @@ paper with no ParamRF objects in sight.
 interface or a default, and `docs/adr/0002-parameter-api.md` before adding a
 method, a public function or a value space. Read
 `docs/adr/0005-priors-by-name.md` before changing how priors are attached or
-scored.
+scored, and `docs/adr/0007-edge-values.md` before changing how a
+circuit solver produces S, how bounds are validated, or which space a solver
+moves through.

@@ -1,6 +1,6 @@
 # ADR-0007: Values at the edge of a domain: zero impedance and parameters on bounds
 
-Status: proposed (2026-09)
+Status: accepted (2026-09)
 
 ## Context
 
@@ -128,4 +128,3 @@ wrong for complex $Z_r$.
   exactly on closed bounds. A test sweep evaluates every component at its
   closed bounds and at zero so this is safe.
 - A fit that started on a bound gives slightly different results than before.
-- `CONTEXT.md` needs **box** under *Space*, and **open** and **closed** bounds.
