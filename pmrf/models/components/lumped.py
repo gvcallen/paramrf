@@ -16,15 +16,18 @@ def _series_stamp(Z: jnp.ndarray) -> MNAStamp:
     """A 2-port MNA stamp of a series impedance `Z`, stamped as a branch (ADR-0007).
 
     One auxiliary current $I$ flows from port 1 to port 2, with $V_1 - V_2 - Z I = 0$,
-    which is exact when $Z = 0$.
+    which is exact when $Z = 0$. Where $Z$ is infinite, the row is divided by it and
+    reads $I = 0$, an open.
     """
     nf = Z.shape[0]
+    Z = Z.reshape(nf, 1, 1).astype(complex)
+    infinite = jnp.isinf(Z)
     B = jnp.broadcast_to(jnp.array([[1.0], [-1.0]], dtype=complex), (nf, 2, 1))
     return MNAStamp(
         Y=jnp.zeros((nf, 2, 2), dtype=complex),
         B=B,
-        C=jnp.swapaxes(B, 1, 2),
-        D=-Z.reshape(nf, 1, 1).astype(complex),
+        C=jnp.where(infinite, 0.0, jnp.swapaxes(B, 1, 2)),
+        D=jnp.where(infinite, -1.0, -jnp.where(infinite, 0.0, Z)),
     )
 
 
@@ -97,20 +100,39 @@ class Resistor(Model):
     
 
 class ShuntResistor(Model):
-    """
+    r"""
     A 2-port model of a shunt resistor shunting to ground.
-    Internally uses Z-formulation to prevent divide-by-zero errors at R=0.
+
+    **Mathematical Formulation**
+
+    With port reference impedances $Z_1$ and $Z_2$, and $R = a / b$, the power-wave
+    S-parameters are
+
+    $$S_{11} = \frac{a (Z_2 - Z_1^*) - b Z_1^* Z_2}{a (Z_1 + Z_2) + b Z_1 Z_2}, \qquad
+    S_{21} = S_{12} = \frac{2 a \sqrt{\mathrm{Re}\,Z_1 \, \mathrm{Re}\,Z_2}}{a (Z_1 + Z_2) + b Z_1 Z_2}$$
+
+    and $S_{22}$ is $S_{11}$ with the ports swapped. Taking $(a, b) = (R, 1)$, or
+    $(1, 0)$ for an infinite $R$, makes them exact at R = 0, where the node is
+    shorted to ground (ADR-0007), and at R = ∞, where the resistor is absent.
 
     Parameters
     ----------
     R : Param
         The resistance in Ohms.
+
+    References
+    ----------
+    K. Kurokawa, "Power waves and the scattering matrix," IEEE Trans. Microw. Theory
+    Techn., vol. 13, no. 2, pp. 194-202, 1965.
     """
     #: Resistance in Ohms
     R: Param = param()
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        R = self.R
+        R = jnp.asarray(self.R)
+        infinite = jnp.isinf(R)
+        a = jnp.where(infinite, 1.0, R)
+        b = jnp.where(infinite, 0.0, 1.0)
 
         if jnp.isscalar(z0):
             z_in = z_out = z0
@@ -119,11 +141,11 @@ class ShuntResistor(Model):
 
         ones = jnp.ones(freq.npoints, dtype=jnp.complex128)
 
-        denom = R * (z_in + z_out) + z_in * z_out
+        denom = a * (z_in + z_out) + b * z_in * z_out
 
-        s11 = ((R * (z_out - jnp.conj(z_in)) - jnp.conj(z_in) * z_out) / denom) * ones
-        s22 = ((R * (z_in - jnp.conj(z_out)) - z_in * jnp.conj(z_out)) / denom) * ones
-        s21 = ((R * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
+        s11 = ((a * (z_out - jnp.conj(z_in)) - b * jnp.conj(z_in) * z_out) / denom) * ones
+        s22 = ((a * (z_in - jnp.conj(z_out)) - b * z_in * jnp.conj(z_out)) / denom) * ones
+        s21 = ((a * 2.0 * (z_in.real * z_out.real)**0.5) / denom) * ones
         s12 = s21
 
         s = jnp.array([
@@ -699,7 +721,7 @@ class CoupledInductors(Model):
     #: winding inductance, and its derivative is infinite at zero.
     L1: Param = param(constraint=Positive())
 
-    #: Self-inductance of the second winding in Henrys
+    #: Self-inductance of the second winding in Henrys. Positive, as for `L1`.
     L2: Param = param(constraint=Positive())
 
     #: Coupling coefficient between the windings

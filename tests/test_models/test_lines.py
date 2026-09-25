@@ -1033,3 +1033,38 @@ def test_negative_line_loss_is_rejected(make, where):
 def test_line_parameters_that_cannot_be_zero_reject_it(make):
     with pytest.raises(Exception, match="is not in Positive"):
         make()
+
+
+def test_hammerstad_jensen_at_air_has_finite_gradient():
+    """`sech(sqrt(ep_r - 1))` gave a NaN d/dep_r at ep_r = 1, even at t = 0 (#224).
+
+    scikit-rf divides by ep_r - 1 in its loss analysis, so it is evaluated just above 1:
+    the value at 1 + 1e-12 (observed 7e-13 relative), and the gradient as a forward
+    difference between 1 + h and 1 + 2h with h = 1e-6, whose truncation is of order h
+    (observed 2e-6 relative).
+    """
+    from skrf.media import MLine
+    from pmrf.models import HammerstadJensenMicrostripFormulation
+
+    freq = Frequency(start=0.1, stop=1.0, npoints=3, unit="GHz")
+    formulation = HammerstadJensenMicrostripFormulation()
+
+    def ours(ep_r):
+        result = formulation.quasi_static(w=1e-3, h=1e-3, t=35e-6, ep_r=jnp.full(freq.npoints, ep_r))
+        return jnp.stack([jnp.broadcast_to(x, (freq.npoints,)) for x in (result.zc, result.ep_eff, result.w_eff)])
+
+    def skrf_(ep_r):
+        media = MLine(
+            freq.to_skrf(), w=1e-3, h=1e-3, t=35e-6, ep_r=ep_r, tand=0.0, rho=1.68e-8,
+            rough=0.0, model="hammerstadjensen", disp="none", diel="frequencyinvariant",
+        )
+        return np.stack([np.broadcast_to(x, (freq.npoints,)) for x in (media.z0_characteristic, media.ep_reff, media.w_eff)])
+
+    value, grad = jax.jvp(ours, (1.0,), (1.0,))
+    h = 1e-6
+    fd = (skrf_(1 + 2 * h) - skrf_(1 + h)) / h
+
+    assert np.all(np.isfinite(grad))
+    np.testing.assert_allclose(value, skrf_(1 + 1e-12), rtol=1e-11)
+    for g, ref in zip(grad, fd):
+        np.testing.assert_allclose(g, ref, rtol=0, atol=1e-5 * np.max(np.abs(ref)))

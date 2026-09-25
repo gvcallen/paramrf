@@ -245,11 +245,8 @@ class CentreTappedTransformer(Model):
     tap: Param = param(default=0.5)
 
     def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
-        N = self.N
-        tap = self.tap
-
-        N = jnp.asarray(N)
-        tap = jnp.asarray(tap) * jnp.ones_like(N)
+        N = jnp.asarray(self.N)
+        tap = jnp.asarray(self.tap) * jnp.ones_like(N)
         one = jnp.ones_like(tap)
         zero = jnp.zeros_like(tap)
 

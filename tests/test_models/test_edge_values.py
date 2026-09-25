@@ -1,4 +1,4 @@
-"""
+r"""
 Every component evaluates at zero and at every closed bound of its parameters (ADR-0007, #224).
 
 A closed bound is part of a model's domain: a minimiser that honours bounds evaluates the
@@ -10,6 +10,26 @@ parameter must be finite, and the MNA and scattering solvers must agree on both.
 Infinite bounds are closed too (Parax ADR 0001: `Positive()` is (0, inf]), but a
 consumer that treats a closed bound as an evaluable point must skip non-finite ones, so
 the sweep does.
+
+Components are found by discovery. Most need constructor arguments, so each has an
+entry in `EXAMPLES`, and a new component fails `test_every_component_is_swept` until it
+has one.
+
+What the sweep found, and what was done (#224):
+
+- `Resistor.R = 0`: fixed. Its MNA stamp came from `y()`, which substituted 1e-9 ohm
+  for zero, so dS/dR was 0. It now stamps as a branch, like `Inductor` (ADR-0007).
+- `ShuntResistor.R = 0`: fixed. S divided by R; it is now written with R in the
+  numerator (tested against scikit-rf in test_lumped.py).
+- `CentreTappedTransformer.N = 0`: fixed. Its current basis divided by N; the new basis
+  spans the same space and stays independent at N = 0 (test_transformers.py).
+- `MicrostripLine` dielectric `ep_r = 1`: fixed. Hammerstad-Jensen's
+  `sech(sqrt(ep_r - 1))` had an infinite d/dep_r at 1; it is now summed as a series
+  there (test_lines.py).
+- `CoupledInductors.L1 = 0`, `L2 = 0`: given an open constraint, `Positive()`.
+  $M = k \sqrt{L_1 L_2}$ has an infinite derivative at zero, and is not real for a
+  negative winding inductance, so negative values never worked.
+- `Load.z0 = 0`, `Port.z0 = 0`: not evaluated; see `NOT_EVALUATED`.
 """
 import inspect
 
