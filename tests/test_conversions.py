@@ -4,13 +4,15 @@ transitivity, and JAX batching functionality.
 """
 
 import pytest
+import numpy as np
 import jax.numpy as jnp
 
 from pmrf.rf.conversions import (
     s2s, a2s, s2a, s2y, y2s, s2z, z2s,
     y2z, z2y, a2y, y2a, a2z, z2a,
-    y2mna, z2mna, a2mna, s2mna, renormalize_s
+    y2mna, z2mna, a2mna, s2mna, mna2s, renormalize_s
 )
+from pmrf.rf import MNAStamp
 
 # --- FIXTURES ---
 
@@ -192,3 +194,46 @@ def test_renormalize_batching(base_s, z0_scalar, z1_scalar):
     
     assert s_renorm_3d.shape == (2, 2, 2)
     assert jnp.allclose(s_renorm_3d[0], renormalize_s(base_s, z0_scalar, z1_scalar), atol=1e-6)
+
+# --- MNA TO S ---
+
+@pytest.fixture
+def random_y():
+    """A random, well-conditioned 3-port admittance matrix (diagonally dominant)."""
+    rng = np.random.default_rng(222)
+    y = (rng.normal(size=(3, 3)) + 1j * rng.normal(size=(3, 3))) * 1e-2
+    return jnp.asarray(y + 0.1 * np.eye(3))
+
+@pytest.mark.parametrize("z0", [
+    50.0,
+    jnp.array([50.0, 10.0 + 5.0j, 75.0 - 20.0j]),
+], ids=["scalar", "complex-per-port"])
+@pytest.mark.parametrize("to_stamp, atol", [
+    (y2mna, 1e-12),
+    # `y2z` inverts Y first, which costs about three digits here.
+    (lambda y: z2mna(y2z(y)), 1e-10),
+], ids=["y2mna", "z2mna"])
+def test_mna2s_matches_y2s(random_y, z0, to_stamp, atol):
+    """`mna2s` of any stamp of Y is `y2s` of Y, including for complex, per-port z0."""
+    expected = y2s(random_y, z0=z0)
+    np.testing.assert_allclose(mna2s(to_stamp(random_y), z0), expected, rtol=0, atol=atol)
+
+def test_mna2s_matches_y2s_two_port_abcd(base_y):
+    """The ABCD stamp, whose auxiliary variables are not all port currents."""
+    z0 = jnp.array([50.0, 10.0 + 5.0j])
+    np.testing.assert_allclose(mna2s(a2mna(y2a(base_y)), z0), y2s(base_y, z0=z0), rtol=0, atol=1e-12)
+
+def test_mna2s_batched(random_y):
+    """A stamp with a leading frequency axis, and per-frequency z0."""
+    y_3d = jnp.stack([random_y, random_y * 1.5])
+    z0 = jnp.array([[50.0, 10.0 + 5.0j, 75.0], [25.0, 50.0, 60.0 + 1.0j]])
+    s = mna2s(y2mna(y_3d), z0)
+    assert s.shape == (2, 3, 3)
+    np.testing.assert_allclose(s, y2s(y_3d, z0=z0), rtol=0, atol=1e-12)
+
+def test_mna2s_short_between_ports():
+    """A zero-impedance branch between two ports, which has no finite Y, is a thru."""
+    # Branch from node 0 to node 1: node currents +I, -I; branch equation V0 - V1 = 0.
+    b = jnp.array([[1.0], [-1.0]], dtype=complex)
+    stamp = MNAStamp(Y=jnp.zeros((2, 2), dtype=complex), B=b, C=b.T, D=jnp.zeros((1, 1), dtype=complex))
+    np.testing.assert_allclose(mna2s(stamp, 50.0), [[0, 1], [1, 0]], rtol=0, atol=1e-15)

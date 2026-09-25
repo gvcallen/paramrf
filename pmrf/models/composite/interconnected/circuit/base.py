@@ -152,10 +152,14 @@ class AbstractMNACircuitSolver(eqx.Module):
         b_flattened: jnp.ndarray,
         c_flattened: jnp.ndarray,
         d_flattened: jnp.ndarray,
+        z0: jnp.ndarray,
         topology: MNARepresentation, 
-    ) -> AdmittanceResult:
+    ) -> ScatteringResult:
         """
         Executes the Modified Nodal Analysis circuit solving algorithm.
+
+        The result is S at the probe reference ``z0``, found by loading each external
+        port with it (ADR-0007), so that ports shorted together stay exact.
 
         Parameters
         ----------
@@ -167,13 +171,15 @@ class AbstractMNACircuitSolver(eqx.Module):
             A 1D array of flattened C-block elements.
         d_flattened : jnp.ndarray
             A 1D array of flattened D-block elements.
+        z0 : jnp.ndarray
+            The probe reference impedance, one per external port. May be complex.
         topology : MNARepresentation
             The static map dictating the MNA assembly and partition logic.
 
         Returns
         -------
-        AdmittanceResult
-            The fully solved external Y-parameter matrix.
+        ScatteringResult
+            The external S-parameters at ``z0``.
         """
         raise NotImplementedError
     

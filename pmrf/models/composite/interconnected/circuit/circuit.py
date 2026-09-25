@@ -10,13 +10,14 @@ from jax.scipy.linalg import block_diag
 import numpy as np
 from dataclasses import InitVar
 
-from pmrf.models.base import Model
+from pmrf.models.base import Model, HUB_Z0
 from pmrf.models.components.ideal import Port, Ground
 from pmrf.frequency import Frequency
 from pmrf.utils import field
 from pmrf.utils.tree import pytree_cached_property
 from pmrf.types import ArrayLike
-from pmrf.rf import y2s, s2y, renormalize_s
+from pmrf.rf import y2s, s2y, s2mna, renormalize_s, MNAStamp
+from pmrf.utils.rf import fix_z0_shape
 
 from pmrf.models.composite.interconnected.circuit.base import (
     AbstractCircuitSolver,
@@ -426,8 +427,12 @@ class Circuit(Model):
 
     # --- SIMULATION & CONVERSION ---
 
-    def _solve(self, freq: Frequency):
-        """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist."""
+    def _solve(self, freq: Frequency, z0: ArrayLike):
+        """Dispatches data prep and solving across the active vmapped solver interface on the flattened netlist.
+
+        ``z0`` is the probe reference impedance. Only the MNA solver uses it: its result
+        is S at ``z0``, while scattering solvers return S at the native reference.
+        """
         if self.flatten:
             flat = self.flattened()
         else:
@@ -445,8 +450,9 @@ class Circuit(Model):
             
         elif isinstance(flat.solver, AbstractMNACircuitSolver):
             y_flat, b_flat, c_flat, d_flat = flat._evaluate_mna(freq)
-            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, 0, 0, 0, None))
-            return run_vmap(y_flat, b_flat, c_flat, d_flat, flat.mna_representation)
+            z0_probe = fix_z0_shape(z0, freq.npoints, flat.nports)
+            run_vmap = jax.vmap(flat.solver.run, in_axes=(0, 0, 0, 0, 0, None))
+            return run_vmap(y_flat, b_flat, c_flat, d_flat, z0_probe, flat.mna_representation)
             
         else:
             raise TypeError(f"Unrecognized solver type: {type(flat.solver)}")
@@ -464,9 +470,12 @@ class Circuit(Model):
         if z0 is None:
             z0 = self._port_z0()
 
-        result = self._solve(freq)
+        result = self._solve(freq, z0)
         
-        if isinstance(result, ScatteringResult):
+        if isinstance(self.solver, AbstractMNACircuitSolver):
+            # Already at the probe reference
+            return result.s
+        elif isinstance(result, ScatteringResult):
             # Renormalize from native port z0 to the requested measurement z0
             return renormalize_s(result.s, z_old=result.z0, z_new=z0)
         elif isinstance(result, AdmittanceResult):
@@ -475,14 +484,23 @@ class Circuit(Model):
             raise ValueError(f"Got unknown circuit solver result type: {result}")
 
     def y(self, freq: Frequency) -> jnp.ndarray:
-        """Evaluates the composite admittance parameters of the circuit."""
-        result = self._solve(freq)
+        """Evaluates the composite admittance parameters of the circuit.
+
+        Under an S-returning solver this is ``s2y`` of S at the native reference. Ports
+        shorted together have no finite Y, so it is non-finite there, or only as finite
+        as the MNA solver's GMIN makes it (ADR-0007). Use :meth:`s` or :meth:`mna` instead.
+        """
+        result = self._solve(freq, self._port_z0())
         if isinstance(result, ScatteringResult):
             return s2y(result.s, z0=result.z0)
         elif isinstance(result, AdmittanceResult):
             return result.y
         else:
             raise ValueError(f"Got unknown circuit solver result type: {result}")
+
+    def mna(self, freq: Frequency) -> MNAStamp:
+        """The MNA stamp of S at the hub reference, which stays finite when ports are shorted together."""
+        return s2mna(self.s(freq, z0=HUB_Z0), z0=HUB_Z0)
 
     @classmethod
     def from_chain(cls, models: tuple[Model, ...], **kwargs):
