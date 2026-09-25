@@ -90,20 +90,23 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
     **Mathematical Formulation**
 
     The global system is regularised physically, so it is never singular: a
-    conductance $G_{min}$ = ``eps`` from every node to ground, and a series
-    resistance of ``eps`` ohms in every auxiliary branch,
+    conductance $G_{min}$ = ``eps`` from every internal node to ground, and a
+    series resistance of ``eps`` ohms in every auxiliary branch,
 
-    $$\begin{bmatrix} Y + G_{min} I & B \\ C & D - \epsilon I \end{bmatrix}.$$
+    $$\begin{bmatrix} Y + G_{min} P_{int} & B \\ C & D - \epsilon I \end{bmatrix},$$
 
-    Internal nodes join the auxiliary variables, and :func:`pmrf.rf.mna2s` gives S
-    from the resulting stamp at the external nodes.
+    where $P_{int}$ is 1 on the diagonal of internal nodes and 0 elsewhere.
+    External nodes need no GMIN: :func:`pmrf.rf.mna2s` loads each with
+    $Z_r^{-1}$, so they never float, and S at the ports carries no regularisation
+    from them. Internal nodes join the auxiliary variables, and
+    :func:`pmrf.rf.mna2s` gives S from the resulting stamp at the external nodes.
 
     References
     ----------
     C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
     analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
-    #: GMIN to ground on every node, and the series resistance (ohms) of every auxiliary branch.
+    #: GMIN to ground on every internal node, and the series resistance (ohms) of every auxiliary branch.
     eps: float = eqx.field(default=1e-12, static=True)
     
     #: The lineax solver for the loaded MNA system. Defaults to LU: the system is never singular.
@@ -137,7 +140,8 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
         D_g = D_g.at[topology.d_r_idx, topology.d_c_idx].add(d_flattened, mode='drop')
 
         if self.eps > 0:
-            Y_g += self.eps * jnp.eye(N, dtype=Y_g.dtype)
+            # External nodes are loaded by the probe in `mna2s`, so only internal nodes get GMIN.
+            Y_g = Y_g.at[topology.int_idx, topology.int_idx].add(self.eps)
             D_g -= self.eps * jnp.eye(K, dtype=D_g.dtype)
 
         M_global = jnp.block([

@@ -488,7 +488,7 @@ class Circuit(Model):
 
         Under an S-returning solver this is ``s2y`` of S at the native reference. Ports
         shorted together have no finite Y, so it is non-finite there, or only as finite
-        as the MNA solver's GMIN makes it (ADR-0007). Use :meth:`s` or :meth:`mna` instead.
+        as the MNA solver's auxiliary eps makes it (ADR-0007). Use :meth:`s` or :meth:`mna` instead.
         """
         result = self._solve(freq, self._port_z0())
         if isinstance(result, ScatteringResult):

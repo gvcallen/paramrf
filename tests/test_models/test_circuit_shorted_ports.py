@@ -20,14 +20,15 @@ from pmrf.rf import MNAStamp
 
 FREQ = Frequency(start=1.0, stop=10.0, npoints=10, unit='GHz')
 
-# The MNA solver's regularisation (GMIN = 1e-12 S to ground on every node, and 1e-12 ohm
-# in series with every auxiliary branch) is physical, and the scattering solver has none.
-# At a 50 ohm port GMIN moves S, and quantities of order one built from it, by about
-# GMIN * Z0 = 5e-11, relative or absolute.
-REG_TOL = 1e-10
-# dL is a difference of nearly cancelling terms at a short, so the regularisation shows
-# up about two orders larger in it; observed agreement is ~1e-11 relative.
-GRAD_RTOL = 1e-8
+# The scattering solver regularises its own system with eps = 1e-12, which moves Σ|S11|²
+# and dL by about 2e-12 relative (with eps=0 the two solvers agree to 1e-16 at 50 ohm).
+# At complex z0 the scattering solver also renormalises from its native 50 ohm, which
+# costs about as much again.
+SCATTERING_RTOL = 1e-11
+# The MNA solver's only regularisation at the ports is eps = 1e-12 on the diagonal of D.
+# For a stamp whose auxiliary rows are not branch equations (`a2mna`, `s2mna`), that
+# perturbs S by about eps / 2 = 5e-13 rather than acting as a pure series resistance.
+AUX_EPS_ATOL = 1e-12
 
 
 def _pi_circuit(L, solver=None, **kwargs):
@@ -54,8 +55,8 @@ def test_shorted_ports_match_scattering(z0):
     ref_value, ref_grad = _s11_power_and_grad(lambda L: _pi_circuit(L, GlobalScatteringCircuitSolver()), z0)
 
     # Before #222 the value was off by 3e-3 and dL by ten orders of magnitude.
-    np.testing.assert_allclose(value, ref_value, rtol=REG_TOL)
-    np.testing.assert_allclose(grad, ref_grad, rtol=GRAD_RTOL)
+    np.testing.assert_allclose(value, ref_value, rtol=SCATTERING_RTOL)
+    np.testing.assert_allclose(grad, ref_grad, rtol=SCATTERING_RTOL)
 
 
 def test_nested_shorted_circuit_matches_flattened():
@@ -68,19 +69,19 @@ def test_nested_shorted_circuit_matches_flattened():
     z0 = jnp.array([50.0, 10.0 + 5.0j])
     nested = outer(0.0, flatten=False).s(FREQ, z0=z0)
     flat = outer(0.0, flatten=True).s(FREQ, z0=z0)
-    # Each level of nesting adds its own GMIN.
-    np.testing.assert_allclose(nested, flat, rtol=0, atol=REG_TOL)
+    # The nested circuit reaches its parent through an `s2mna` stamp.
+    np.testing.assert_allclose(nested, flat, rtol=0, atol=AUX_EPS_ATOL)
 
     value, grad = _s11_power_and_grad(lambda L: outer(L, flatten=False), z0)
     ref_value, ref_grad = _s11_power_and_grad(lambda L: outer(L, flatten=True), z0)
-    np.testing.assert_allclose(value, ref_value, rtol=REG_TOL)
-    np.testing.assert_allclose(grad, ref_grad, rtol=GRAD_RTOL)
+    np.testing.assert_allclose(value, ref_value, rtol=SCATTERING_RTOL)
+    np.testing.assert_allclose(grad, ref_grad, rtol=SCATTERING_RTOL)
 
 
 def test_parallel_zero_impedance_branches_are_a_thru():
     """A loop of two zero-impedance branches is resolved by the auxiliary series resistance.
 
-    GMIN on the port nodes still moves S from the exact thru by about GMIN * Z0.
+    Both branches are `a2mna` stamps, so eps on D moves S from the exact thru by about eps / 2.
     """
     a = PiSectionCLC(C1=0.0, L=0.0, C2=0.0)
     b = PiSectionCLC(C1=0.0, L=0.0, C2=0.0)
@@ -89,14 +90,15 @@ def test_parallel_zero_impedance_branches_are_a_thru():
 
     s = circuit.s(FREQ, z0=50.0)
     thru = np.broadcast_to(np.array([[0, 1], [1, 0]]), s.shape)
-    np.testing.assert_allclose(s, thru, rtol=0, atol=REG_TOL)
+    np.testing.assert_allclose(s, thru, rtol=0, atol=AUX_EPS_ATOL)
 
 
-def test_shorted_ports_y_is_only_as_finite_as_gmin_but_mna_is_well_scaled():
-    """Y of shorted ports is only as finite as GMIN makes it; the stamp at the hub reference is well scaled."""
+def test_shorted_ports_y_is_only_as_finite_as_aux_eps_but_mna_is_well_scaled():
+    """Y of shorted ports is only as finite as the auxiliary eps makes it; the stamp at the hub reference is well scaled."""
     circuit = _pi_circuit(0.0)
-    # `s2y` of a thru, regularised only by GMIN: about 1 / (GMIN * Z0^2).
-    assert np.all(np.abs(circuit.y(FREQ)) > 1e10)
+    # The eps = 1e-12 on D turns the short into a resistance of order eps, so Y is of order
+    # 1 / eps rather than infinite. GMIN is not on the port nodes.
+    assert np.all(np.abs(circuit.y(FREQ)) > 1e11)
 
     stamp = circuit.mna(FREQ)
     for block in (stamp.Y, stamp.B, stamp.C, stamp.D):
@@ -107,7 +109,8 @@ def test_y_matches_scattering_when_finite():
     """Away from the short, `Circuit.y()` agrees across solvers."""
     y = _pi_circuit(1e-9).y(FREQ)
     ref = _pi_circuit(1e-9, GlobalScatteringCircuitSolver()).y(FREQ)
-    np.testing.assert_allclose(y, ref, rtol=0, atol=REG_TOL)
+    # Entries are ~0.15 S; the scattering solver's own eps moves them by ~1e-12 relative.
+    np.testing.assert_allclose(y, ref, rtol=0, atol=1e-11)
 
 
 class _SeriesBranch(Model):
