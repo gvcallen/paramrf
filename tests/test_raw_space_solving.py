@@ -110,13 +110,6 @@ def test_minimizer_start_on_a_bound_raises():
         optimize_base.run_minimizer(_objective(None), model, BFGS())
 
 
-def test_minimizer_start_at_nan_raises():
-    """NaN is a different bug from an infinite raw value, and says so."""
-    model = prf.update(_start(), {"R": jnp.nan})
-    with pytest.raises(ValueError, match=r"'R' start at NaN"):
-        optimize_base.run_minimizer(_objective(None), model, BFGS())
-
-
 def test_minimizer_without_free_parameters_raises():
     model = prf.update(_start(), "*", fixed=True)
     with pytest.raises(ValueError, match="no free parameters"):

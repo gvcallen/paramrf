@@ -17,7 +17,7 @@ import parax as prx
 
 from pmrf.frequency import Frequency
 from pmrf.rf import (
-    a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna,
+    a2s, s2a, s2y, y2s, s2z, z2s, y2z, z2y, a2y, y2a, a2z, z2a, s2mna, y2mna, z2mna, a2mna, mna2s,
     MNAStamp,
 )
 from pmrf.math import CONVERSION_LOOKUP
@@ -402,7 +402,7 @@ class Model(Module):
     def s(self, frequency: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
         """Scattering parameter matrix at port impedance z0.
 
-        If a different parameter type (a, z, y) is primary, this converts it to S.
+        If a different parameter type (a, z, y, mna) is primary, this converts it to S.
         
         To convert between port impedances, use :meth:`pmrf.rf.renormalize_s`.
         
@@ -435,7 +435,9 @@ class Model(Module):
             return z2s(val, z0)
         elif primary_domain == 'y':
             return y2s(val, z0)
-        
+        elif primary_domain == 'mna':
+            return mna2s(val, z0)
+
         raise NotImplementedError(f"Conversion from '{primary_domain}' to 's' is not implemented.")
     
     @eqx.filter_jit

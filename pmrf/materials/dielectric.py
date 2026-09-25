@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import abstractmethod
 
 import jax.numpy as jnp
-from pmrf.constraints import Positive, GreaterThan, Interval
+from pmrf.constraints import Positive, NonNegative, GreaterThan, Interval
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
@@ -89,10 +89,10 @@ class ConstantDielectric(AbstractDielectric):
     ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Dielectric loss tangent
-    tand: Param = param(default=0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=NonNegative())
 
     #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=Positive())
+    sigma: Param = param(default=0.0, constraint=NonNegative())
 
     #: Relative permeability of the medium
     mu_r: Param = param(default=1.0, constraint=Positive())
@@ -155,7 +155,7 @@ class DjordjevicSarkarDielectric(AbstractDielectric):
     ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Dielectric loss tangent at `f_ref`
-    tand: Param = param(default=0.0, constraint=Positive())
+    tand: Param = param(default=0.0, constraint=NonNegative())
 
     #: Lower bound of the relaxation-time distribution
     f_low: Param = param(default=1e3, constraint=Positive())
@@ -167,7 +167,7 @@ class DjordjevicSarkarDielectric(AbstractDielectric):
     f_ref: Param = param(default=1e9, constraint=Positive())
 
     #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=Positive())
+    sigma: Param = param(default=0.0, constraint=NonNegative())
 
     def properties(self, freq: Frequency) -> DielectricProperties:
         f = freq.f
@@ -201,7 +201,7 @@ class DebyePole(Module):
         Relaxation frequency of the pole in Hz.
     """
     #: Permittivity increment of the pole
-    dep_r: Param = param(default=0.0, constraint=Positive())
+    dep_r: Param = param(default=0.0, constraint=NonNegative())
 
     #: Relaxation frequency of the pole
     f_relax: Param = param(default=1e9, constraint=Positive())
@@ -256,7 +256,7 @@ class MultipoleDebyeDielectric(AbstractDielectric):
     poles: tuple[DebyePole, ...] = field(default=(), converter=_as_poles)
 
     #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=Positive())
+    sigma: Param = param(default=0.0, constraint=NonNegative())
 
     def properties(self, freq: Frequency) -> DielectricProperties:
         eps = self.ep_inf * jnp.ones(freq.npoints, dtype=complex)
@@ -300,7 +300,7 @@ class ColeColeDielectric(AbstractDielectric):
     ep_inf: Param = param(default=1.0, constraint=GreaterThan(1.0))
 
     #: Permittivity increment
-    dep_r: Param = param(default=0.0, constraint=Positive())
+    dep_r: Param = param(default=0.0, constraint=NonNegative())
 
     #: Relaxation frequency
     f_relax: Param = param(default=1e9, constraint=Positive())
@@ -309,7 +309,7 @@ class ColeColeDielectric(AbstractDielectric):
     alpha: Param = param(default=0.0, constraint=Interval(0.0, 1.0))
 
     #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=Positive())
+    sigma: Param = param(default=0.0, constraint=NonNegative())
 
     def properties(self, freq: Frequency) -> DielectricProperties:
         # Guard f = 0, where (jf/f_r)**(1-alpha) is a branch point.
@@ -355,7 +355,7 @@ class TabulatedDielectric(AbstractDielectric):
     ep_r: jnp.ndarray = field(converter=lambda x: jnp.asarray(x, dtype=complex))
 
     #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=Positive())
+    sigma: Param = param(default=0.0, constraint=NonNegative())
 
     def __check_init__(self):
         if self.f.ndim != 1 or self.ep_r.ndim != 1:

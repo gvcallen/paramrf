@@ -4,7 +4,7 @@ Ideal transmission lines (phase, constant RLGC)
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.constraints import Positive
+from pmrf.constraints import Positive, NonNegative
 from pmrf.utils import field
 from pmrf.parameters import Param, param
 from pmrf.models.components.lines.base import AbstractUniformLine, AbstractImmittanceLine, ImmittanceResult
@@ -105,13 +105,13 @@ class RLGCLine(AbstractImmittanceLine):
         Capacitance in Farads/m.
     """
     #: Resistance in Ohms/m
-    R: Param = param(default=0.0, constraint=Positive())
+    R: Param = param(default=0.0, constraint=NonNegative())
     
     #: Inductance in Henries/m
     L: Param = param(default=280e-9, constraint=Positive())
     
     #: Conductance in Siemens/m
-    G: Param = param(default=0.0, constraint=Positive())
+    G: Param = param(default=0.0, constraint=NonNegative())
     
     #: Capacitance in Farads/m
     C: Param = param(default=90e-12, constraint=Positive())

@@ -7,6 +7,7 @@ import numpy as np
 # Adjust imports based on your project structure
 from pmrf.models import NodalRepresentation, MNARepresentation
 from pmrf.models import GlobalNodalCircuitSolver, GlobalMNACircuitSolver
+from pmrf.rf import y2s
 
 
 def test_global_nodal_reducer_series_admittances():
@@ -90,17 +91,18 @@ def test_global_mna_reducer_aux_resistor():
         aux_idx=np.array([0])
     )
     
-    result = solver.run(y_vals, b_vals, c_vals, d_vals, topology)
+    z0 = jnp.array([50.0, 10.0 + 5.0j])
+    result = solver.run(y_vals, b_vals, c_vals, d_vals, z0, topology)
     
-    # The Schur complement should automatically condense the 3x3 MNA system 
-    # back into the standard 2x2 Y-matrix of a 5-ohm resistor (Y = 1/5 = 0.2).
+    # The loaded 3x3 MNA system gives S of a 5-ohm series resistor (Y = 1/5 = 0.2).
     expected_y = jnp.array([
         [ 0.2, -0.2],
         [-0.2,  0.2]
     ], dtype=jnp.complex128)
     
-    assert result.y.shape == (2, 2)
-    np.testing.assert_allclose(result.y, expected_y, atol=1e-7)
+    # S at the probe reference; only eps on D (1e-12 ohm against 5 ohm) regularises it.
+    assert result.s.shape == (2, 2)
+    np.testing.assert_allclose(result.s, y2s(expected_y, z0=z0), rtol=0, atol=1e-12)
 
 
 def test_global_mna_reducer_mixed_chain():
@@ -143,12 +145,14 @@ def test_global_mna_reducer_mixed_chain():
         aux_idx=np.array([0]) # K=1 auxiliary variable
     )
     
-    result = solver.run(y_vals, b_vals, c_vals, d_vals, topology)
+    z0 = jnp.array([50.0, 10.0 + 5.0j])
+    result = solver.run(y_vals, b_vals, c_vals, d_vals, z0, topology)
     
     expected_y = jnp.array([
         [ 1.0, -1.0],
         [-1.0,  1.0]
     ], dtype=jnp.complex128)
     
-    assert result.y.shape == (2, 2)
-    np.testing.assert_allclose(result.y, expected_y, atol=1e-7)
+    # S at the probe reference; GMIN on the internal node moves it by about GMIN * |z0| = 5e-11.
+    assert result.s.shape == (2, 2)
+    np.testing.assert_allclose(result.s, y2s(expected_y, z0=z0), rtol=0, atol=1e-10)

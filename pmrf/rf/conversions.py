@@ -4,6 +4,7 @@ RF parameter conversion algorithms.
 
 import jax.numpy as jnp
 import jax
+import lineax as lx
 from jaxtyping import ArrayLike
 
 from pmrf.math import rsolve, nudge_diag
@@ -779,6 +780,85 @@ def s2mna(s: ArrayLike, z0: ArrayLike, s_def: str = 'power') -> MNAStamp:
         return MNAStamp(Y=Y, B=B, C=C, D=D)
     else:
         raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
+
+def mna2s(
+    stamp: MNAStamp,
+    z0: ArrayLike,
+    *,
+    linear_solver: lx.AbstractLinearSolver = lx.AutoLinearSolver(well_posed=True),
+) -> jnp.ndarray:
+    r"""
+    Convert a Modified Nodal Analysis (MNA) stamp to power-wave S-parameters.
+
+    Each port is loaded with, and driven through, its reference impedance
+    $Z_r$. Loaded ports keep the system non-singular when ports are shorted
+    together, which a stamp's Y-parameters cannot represent (ADR-0007).
+
+    **Mathematical Formulation**
+
+    With $H$ the port-voltage response to the drive, found by solving the
+    full MNA system with $Z_r^{-1}$ added to the port rows,
+
+    $$H = (Y + Z_r^{-1})^{-1} Z_r^{-1}, \qquad
+    S = F\,\big(2\,\mathrm{Re}(Z_r)\,Z_r^{-1} H - Z_r^{*} Z_r^{-1}\big)\,F^{-1}, \qquad
+    F = \mathrm{diag}\big(1 / (2\sqrt{\mathrm{Re}\,Z_r})\big)$$
+
+    where $Y$ is the port admittance the stamp implies. $Y + Z_r^{-1}$ is never
+    formed: the auxiliary variables are eliminated inside the solve.
+
+    Parameters
+    ----------
+    stamp : MNAStamp
+        The stamp, with blocks of shape `(n, n)`, `(n, k)`, `(k, n)` and `(k, k)`,
+        or with a leading `nfreqs` axis. Its `n` node rows are the ports.
+    z0 : ArrayLike
+        The reference impedance, scalar, per-port, or `(nfreqs, nports)`. May be complex.
+    linear_solver : lx.AbstractLinearSolver, optional
+        The lineax solver for the loaded MNA system. Defaults to LU.
+
+    Returns
+    -------
+    jnp.ndarray
+        The S-parameter matrix with shape `(nports, nports)` or `(nfreqs, nports, nports)`.
+
+    References
+    ----------
+    K. Kurokawa, "Power Waves and the Scattering Matrix," IEEE Trans. Microwave
+    Theory Tech., vol. 13, no. 2, pp. 194-202, 1965.
+    """
+    Y = jnp.asarray(stamp.Y)
+
+    if Y.ndim == 3:
+        nfreqs, nports, _ = Y.shape
+        z0_fixed = fix_z0_shape(z0, nfreqs, nports)
+        return jax.vmap(lambda st, z: mna2s(st, z, linear_solver=linear_solver))(stamp, z0_fixed)
+
+    elif Y.ndim == 2:
+        nports = Y.shape[0]
+        naux = stamp.D.shape[0]
+        z0_arr = fix_z0_shape(z0, 1, nports)[0]
+        g0 = 1.0 / z0_arr
+
+        M = jnp.block([
+            [Y + jnp.diag(g0), stamp.B],
+            [stamp.C, stamp.D],
+        ]).astype(complex)
+        drive = jnp.concatenate([jnp.diag(g0), jnp.zeros((naux, nports), dtype=complex)])
+
+        operator = lx.MatrixLinearOperator(M)
+        X = jax.vmap(
+            lambda b: lx.linear_solve(operator, b, linear_solver).value,
+            in_axes=1, out_axes=1,
+        )(drive)
+        H = X[:nports]
+
+        # F H F^-1 scales H[i, j] by sqrt(Re z0_j / Re z0_i).
+        sqrt_r = jnp.sqrt(z0_arr.real)
+        scale = sqrt_r[None, :] / sqrt_r[:, None]
+        return scale * (2 * z0_arr.real * g0)[:, None] * H - jnp.diag(jnp.conjugate(z0_arr) * g0)
+
+    else:
+        raise ValueError(f"MNA stamps must be 2D or 3D. Got {Y.ndim}D.")
 
 def renormalize_s(s: jnp.ndarray, z_old: ArrayLike, z_new: ArrayLike, s_def_old='power', s_def_new='power', method='mobius') -> jnp.ndarray:
     """

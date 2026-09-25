@@ -1,6 +1,7 @@
 """pmrf/simulate/solvers/nodal.py"""
 
 import jax
+import numpy as np
 import jax.numpy as jnp
 import equinox as eqx
 import lineax as lx
@@ -10,8 +11,10 @@ from pmrf.models.composite.interconnected.circuit.base import (
     AbstractMNACircuitSolver,
     NodalRepresentation, 
     MNARepresentation,
-    AdmittanceResult
+    AdmittanceResult,
+    ScatteringResult,
 )
+from pmrf.rf import MNAStamp, mna2s
 
 class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
     """
@@ -21,6 +24,10 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
     internal nodes simultaneously via a Schur complement. Highly efficient 
     for pure Y-domain networks, but requires the Modified Nodal approach (MNA) 
     if ideal components (e.g., ideal transformers) are present.
+
+    It returns Y, so it cannot represent a zero impedance: a component whose
+    ``y()`` is not finite, or ports shorted together, give a non-finite or
+    regularised result. Use :class:`GlobalMNACircuitSolver` for those (ADR-0007).
     """
     #: Numerical regularization (equivalent to adding GMIN to ground) to prevent singular matrices.
     eps: float = eqx.field(default=1e-12, static=True)
@@ -70,20 +77,41 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
 
 
 class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
-    """
+    r"""
     Global Modified Nodal Analysis (MNA) circuit solver.
 
     Generalizes standard Nodal Analysis to gracefully handle ideal components 
     by augmenting the Y-matrix with auxiliary variables (currents/voltages).
-    Eliminates all internal nodes and auxiliary variables simultaneously to 
-    yield the pure external Y-parameters of the reduced network.
+    Loads each external port with the probe reference impedance and solves the
+    whole system at once, returning S at that reference (ADR-0007). Ports shorted
+    together have no finite Y, but the loaded system stays non-singular, so their
+    S and its gradient are exact.
+
+    **Mathematical Formulation**
+
+    The global system is regularised physically, so it is never singular: a
+    conductance $G_{min}$ = ``eps`` from every internal node to ground, and a
+    series resistance of ``eps`` ohms in every auxiliary branch,
+
+    $$\begin{bmatrix} Y + G_{min} P_{int} & B \\ C & D - \epsilon I \end{bmatrix},$$
+
+    where $P_{int}$ is 1 on the diagonal of internal nodes and 0 elsewhere.
+    External nodes need no GMIN: :func:`pmrf.rf.mna2s` loads each with
+    $Z_r^{-1}$, so they never float, and S at the ports carries no regularisation
+    from them. Internal nodes join the auxiliary variables, and
+    :func:`pmrf.rf.mna2s` gives S from the resulting stamp at the external nodes.
+
+    References
+    ----------
+    C.-W. Ho, A. E. Ruehli and P. A. Brennan, "The modified nodal approach to network
+    analysis," IEEE Trans. Circuits Syst., vol. 22, no. 6, pp. 504-509, 1975.
     """
-    #: Numerical regularization to prevent singular matrices on floating nodes/aux variables.
+    #: GMIN to ground on every internal node, and the series resistance (ohms) of every auxiliary branch.
     eps: float = eqx.field(default=1e-12, static=True)
     
-    #: The lineax solver to use for the global matrix inversion. Defaults to AutoLinearSolver.
+    #: The lineax solver for the loaded MNA system. Defaults to LU: the system is never singular.
     linear_solver: lx.AbstractLinearSolver = eqx.field(
-        default=lx.AutoLinearSolver(well_posed=None), static=True
+        default=lx.AutoLinearSolver(well_posed=True), static=True
     )
 
     def run(
@@ -92,8 +120,9 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
         b_flattened: jax.Array,
         c_flattened: jax.Array,
         d_flattened: jax.Array,
+        z0: jax.Array,
         topology: MNARepresentation, 
-    ) -> AdmittanceResult:
+    ) -> ScatteringResult:
         
         N = topology.num_nodes
         K = topology.num_aux
@@ -110,39 +139,26 @@ class GlobalMNACircuitSolver(AbstractMNACircuitSolver):
         D_g = jnp.zeros((K, K), dtype=d_flattened.dtype)
         D_g = D_g.at[topology.d_r_idx, topology.d_c_idx].add(d_flattened, mode='drop')
 
-        # Snap the blocks together into the unified MNA matrix
+        if self.eps > 0:
+            # External nodes are loaded by the probe in `mna2s`, so only internal nodes get GMIN.
+            Y_g = Y_g.at[topology.int_idx, topology.int_idx].add(self.eps)
+            D_g -= self.eps * jnp.eye(K, dtype=D_g.dtype)
+
         M_global = jnp.block([
             [Y_g, B_g],
             [C_g, D_g]
         ])
-        
-        # Apply standard GMIN regularization to the entire diagonal
-        if self.eps > 0:
-            M_global += self.eps * jnp.eye(N + K, dtype=M_global.dtype)
-            
-        # --- Identify all rows/cols to eliminate ---
-        aux_idx = jnp.arange(N, N + K, dtype=topology.int_idx.dtype)
-        full_int_idx = jnp.concatenate([topology.int_idx, aux_idx])
-        
-        # --- Sub-matrix Partitioning ---
-        M_ee = M_global[jnp.ix_(topology.ext_idx, topology.ext_idx)]
-        
-        # --- Schur Complement Reduction via lineax ---
-        if full_int_idx.size > 0:
-            M_ei = M_global[jnp.ix_(topology.ext_idx, full_int_idx)]
-            M_ie = M_global[jnp.ix_(full_int_idx, topology.ext_idx)]
-            M_ii = M_global[jnp.ix_(full_int_idx, full_int_idx)]
-            
-            operator_ii = lx.MatrixLinearOperator(M_ii)
-            
-            # vmap over columns (axis=1) of M_ie
-            X = jax.vmap(
-                lambda b: lx.linear_solve(operator_ii, b, self.linear_solver).value,
-                in_axes=1, out_axes=1
-            )(M_ie)
-            
-            y_reduced = M_ee - M_ei @ X
-        else:
-            y_reduced = M_ee
-            
-        return AdmittanceResult(y=y_reduced)
+
+        # Internal nodes are eliminated alongside the auxiliary variables.
+        aux_idx = np.arange(N, N + K, dtype=int)
+        full_int_idx = np.concatenate([topology.int_idx, aux_idx]).astype(int)
+        ext_idx = topology.ext_idx
+
+        stamp = MNAStamp(
+            Y=M_global[np.ix_(ext_idx, ext_idx)],
+            B=M_global[np.ix_(ext_idx, full_int_idx)],
+            C=M_global[np.ix_(full_int_idx, ext_idx)],
+            D=M_global[np.ix_(full_int_idx, full_int_idx)],
+        )
+        s = mna2s(stamp, z0, linear_solver=self.linear_solver)
+        return ScatteringResult(s=s, z0=z0)

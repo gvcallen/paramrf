@@ -977,3 +977,59 @@ def test_stripline_high_impedance_branch_is_selected():
     assert jnp.sqrt(2.2) * jnp.real(wide.zc(freq)) < 120
     # A narrower strip concentrates the current, so it loses more.
     assert jnp.real(narrow.gammaL(freq)) > jnp.real(wide.gammaL(freq)) > 0
+
+
+# -----------------------------------------------------------------------------
+# Loss parameters on the coefficient-driven lines are NonNegative: a lossless
+# line is on a closed bound, so it is in the model's domain (ADR-0007).
+# -----------------------------------------------------------------------------
+
+_ZERO_VALID_LINE = {
+    "RLGCLine.R": (lambda x: RLGCLine(R=x, length=0.1), lambda line: line.R),
+    "RLGCLine.G": (lambda x: RLGCLine(G=x, length=0.1), lambda line: line.G),
+    "PhysicalLine.A": (lambda x: PhysicalLine(A=x, length=0.1), lambda line: line.A),
+    "PhysicalLine.tand": (lambda x: PhysicalLine(tand=x, length=0.1), lambda line: line.tand),
+    "DatasheetLine.k1": (lambda x: DatasheetLine(k1=x, length=0.1), lambda line: line.k1),
+    "DatasheetLine.k2": (lambda x: DatasheetLine(k2=x, length=0.1), lambda line: line.k2),
+}
+
+
+def test_coefficient_lines_construct_with_defaults(basic_freq):
+    for line in (RLGCLine(length=0.1), PhysicalLine(length=0.1), DatasheetLine(length=0.1)):
+        assert jnp.all(jnp.isfinite(line.s(basic_freq)))
+
+
+@pytest.mark.parametrize("make, where", _ZERO_VALID_LINE.values(), ids=_ZERO_VALID_LINE.keys())
+def test_zero_loss_line_has_finite_s_and_gradient(make, where, basic_freq):
+    line = make(0.0)
+    assert jnp.all(jnp.isfinite(line.s(basic_freq)))
+
+    # Differentiate the model, not the parameter's raw map, which is -inf at 0.
+    def power(x):
+        return jnp.sum(jnp.abs(eqx.tree_at(where, line, x).s(basic_freq)) ** 2)
+
+    assert jnp.isfinite(jax.grad(power)(0.0))
+
+
+@pytest.mark.parametrize("make, where", _ZERO_VALID_LINE.values(), ids=_ZERO_VALID_LINE.keys())
+def test_negative_line_loss_is_rejected(make, where):
+    with pytest.raises(Exception, match="is not in NonNegative"):
+        make(-1e-3)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: RLGCLine(L=0.0, length=0.1),
+    lambda: RLGCLine(C=0.0, length=0.1),
+    lambda: RLGCLine(length=0.0),
+    lambda: PhysicalLine(zn=0.0, length=0.1),
+    lambda: PhysicalLine(f_A=0.0, length=0.1),
+    lambda: DatasheetLine(zn=0.0, length=0.1),
+    lambda: DatasheetLine(vf=0.0, length=0.1),
+], ids=[
+    "RLGCLine.L", "RLGCLine.C", "RLGCLine.length",
+    "PhysicalLine.zn", "PhysicalLine.f_A",
+    "DatasheetLine.zn", "DatasheetLine.vf",
+])
+def test_line_parameters_that_cannot_be_zero_reject_it(make):
+    with pytest.raises(Exception, match="is not in Positive"):
+        make()
