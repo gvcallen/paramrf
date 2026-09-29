@@ -450,11 +450,14 @@ def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Ar
     The returned array must be used: under `jax.jit` the check lives only in its graph.
     """
     value_array = jnp.asarray(value)
+    # Escaped so that braces in the constraint's repr are not read as format fields.
+    constraint_text = str(constraint).replace("{", "{{").replace("}", "}}")
     return error_if(
         value_array,
         constraint.is_outside(value_array),
-        f"\n\nA parameter value falls outside the constraint ({value} is not in {constraint}). "
+        f"\n\nA parameter value falls outside the constraint ({{}} is not in {constraint_text}). "
         f"\nMake sure the values match the parameter and model constraints.",
+        value_array,
     )
 
 
