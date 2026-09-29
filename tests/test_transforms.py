@@ -141,6 +141,105 @@ def test_derivative_jacobian_is_per_declared_unit():
     assert jnp.allclose(declared['c1.C'], prf.values(physical)['c1.C'] * 1e-12, rtol=1e-12, atol=0)
 
 
+@pytest.fixture
+def autodiff_calls(monkeypatch):
+    """Records which of `jax.grad`, `jax.jacfwd` and `jax.jacrev` were called."""
+    calls = []
+    for name in ('grad', 'jacfwd', 'jacrev'):
+        original = getattr(jax, name)
+
+        def spy(*args, _name=name, _original=original, **kwargs):
+            calls.append(_name)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(jax, name, spy)
+    return calls
+
+
+def test_derivative_of_a_wide_real_output_uses_forward_mode(autodiff_calls):
+    freq = prf.Frequency(1, 1000, 1000, 'MHz')
+    from pmrf.models import ShuntCapacitor
+    cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+
+    (d_cap,) = prf.derivative(lambda m: m.s_mag(freq)[:, 1, 0], cap)
+
+    assert autodiff_calls == ['jacfwd']
+    assert prf.values(d_cap)['C'].shape == (1000,)
+
+
+def test_derivative_of_a_tall_real_output_uses_reverse_mode(autodiff_calls):
+    x = jnp.linspace(0.0, 1.0, 1000)
+
+    (dx,) = prf.derivative(lambda x: jnp.stack([x.sum(), (x ** 2).sum(), x[0]]), x)
+
+    assert autodiff_calls == ['jacrev']
+    assert dx.shape == (3, 1000)
+    assert jnp.allclose(dx[1], 2 * x)
+
+
+def test_derivative_of_a_scalar_output_uses_grad(autodiff_calls):
+    (dx,) = prf.derivative(lambda x: (x ** 2).sum(), jnp.array([1.0, 2.0]))
+
+    assert autodiff_calls == ['grad']
+    assert jnp.allclose(dx, jnp.array([2.0, 4.0]))
+
+
+def _assert_complex_derivative_is_split_parts(fn, model):
+    (d_complex,) = prf.derivative(fn, model)
+    (d_re,) = prf.derivative(lambda m: fn(m).real, model)
+    (d_im,) = prf.derivative(lambda m: fn(m).imag, model)
+
+    actual, re, im = prf.values(d_complex), prf.values(d_re), prf.values(d_im)
+    assert actual.keys() == re.keys()
+    for name in actual:
+        assert jnp.iscomplexobj(actual[name]), name
+        # The same forward-mode operations on both sides; only reduction order can differ.
+        assert jnp.allclose(actual[name], re[name] + 1j * im[name], rtol=1e-12, atol=0), name
+    return actual
+
+
+def test_derivative_of_a_wide_complex_output(autodiff_calls):
+    from pmrf.models import ShuntCapacitor
+    freq = prf.Frequency(1, 1000, 1000, 'MHz')
+    cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+
+    actual = _assert_complex_derivative_is_split_parts(lambda m: m.s(freq), cap)
+
+    assert actual['C'].shape == (1000, 2, 2)
+    assert autodiff_calls[0] == 'jacfwd'
+
+
+def test_derivative_of_a_tall_complex_output(autodiff_calls):
+    from pmrf.models import Inductor, ShuntCapacitor
+    freq = prf.Frequency(1, 2, 2, 'GHz')
+    model = (
+        _filter()
+        ** Inductor(L=prf.Unconstrained(2.0, scale=1e-9), name='l2')
+        ** ShuntCapacitor(C=prf.Unconstrained(0.5, scale=1e-12), name='c2')
+    )
+
+    # 2 complex outputs (4 reals) against 5 parameters.
+    actual = _assert_complex_derivative_is_split_parts(lambda m: m.s(freq)[:, 1, 0], model)
+
+    assert len(actual) == 5
+    assert actual['c1.C'].shape == (2,)
+    assert autodiff_calls[0] == 'jacfwd'
+
+
+def test_derivative_of_a_complex_scalar_output():
+    fn = lambda x: jnp.exp(1j * x).sum()
+    x = jnp.array([0.3, 0.7])
+
+    (dx,) = prf.derivative(fn, x)
+
+    assert jnp.allclose(dx, 1j * jnp.exp(1j * x), rtol=1e-12, atol=0)
+
+
+def test_derivative_rejects_a_complex_input():
+    with pytest.raises(TypeError, match="Complex-valued inputs are not supported"):
+        prf.derivative(lambda z: jnp.abs(z) ** 2, jnp.array([1.0 + 2.0j]))
+
+
 def test_derivative_rejects_an_unknown_space():
     with pytest.raises(ValueError, match="Unknown space"):
         prf.derivative(lambda x: x ** 2, jnp.array(1.0), space='unscaled')

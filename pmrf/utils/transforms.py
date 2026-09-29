@@ -1,3 +1,5 @@
+import math
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -25,6 +27,9 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     - `grad` (reverse-mode) for scalar outputs.
     - `jacfwd` (forward-mode) for wide Jacobians (output size > input size).
     - `jacrev` (reverse-mode) for tall Jacobians (input size >= output size).
+
+    Complex outputs always use `jacfwd`, since reverse mode requires real outputs;
+    their derivatives are complex. Complex inputs are not supported.
 
     Parameters are differentiated with respect to their value in `space`, so by
     default a derivative is per unit the parameter declares: per pF for a
@@ -104,25 +109,31 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
 
     dynamic, static = eqx.partition(tuple(surrogates), is_inexact_jax_array)
 
+    if any(jnp.iscomplexobj(leaf) for leaf in jax.tree.leaves(dynamic)):
+        raise TypeError(
+            "Complex-valued inputs are not supported by `derivative`; "
+            "pass the real and imaginary parts as separate real arguments."
+        )
+
     def _wrapper(dyn):
         args_tuple = _rebuild(eqx.combine(dyn, static))
         return eval_fn(*args_tuple)
 
-    out_shape = jax.eval_shape(_wrapper, dynamic)
-    leaves = jax.tree.leaves(out_shape)
-    is_scalar = len(leaves) == 1 and getattr(leaves[0], "shape", None) == ()
+    # Output leaves are ShapeDtypeStructs, so they are sized from shape and dtype.
+    out_leaves = [
+        leaf for leaf in jax.tree.leaves(jax.eval_shape(_wrapper, dynamic))
+        if jnp.issubdtype(leaf.dtype, jnp.inexact)
+    ]
 
-    if is_scalar:
+    # jacrev and grad require real outputs; jacfwd takes complex outputs of real inputs.
+    if any(jnp.issubdtype(leaf.dtype, jnp.complexfloating) for leaf in out_leaves):
+        return jax.jacfwd(_wrapper)(dynamic)
+
+    if len(out_leaves) == 1 and out_leaves[0].shape == ():
         return jax.grad(_wrapper)(dynamic)
 
-    def _dynamic_size(tree):
-        return sum(
-            l.size for l in jax.tree.leaves(tree) 
-            if is_inexact_jax_array(l)
-        )
-
-    in_size = _dynamic_size(dynamic)
-    out_size = _dynamic_size(out_shape)
+    in_size = sum(leaf.size for leaf in jax.tree.leaves(dynamic))
+    out_size = sum(math.prod(leaf.shape) for leaf in out_leaves)
 
     if out_size > in_size:
         return jax.jacfwd(_wrapper)(dynamic)
