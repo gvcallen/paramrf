@@ -9,8 +9,8 @@ samplers. Values are read and written through the public :func:`pmrf.values`,
 would with those functions.
 
 Box space is the box a bounded minimiser searches (ADR-0007). Along each parameter it is
-the constraint's Parax base space, built from its bounds and not its prior: the unit box
-between two finite bounds, declared space otherwise. A closed edge of the box is the
+built from the constraint's bounds, not its prior (Parax's ``base_bounds`` and
+``base_bijector``): the unit box between two finite bounds, declared space otherwise. A closed edge of the box is the
 bound itself; an open edge is inset by 1e-6.
 """
 
@@ -37,8 +37,8 @@ _NUDGE = 1e-6
 
 
 def _box_constraint(node: Param | Array) -> prx.constraints.AbstractConstraint | None:
-    """Returns the constraint whose base space is the box of `node`, or None if its box
-    is its declared space: a raw array, or a parameter without bounds."""
+    """Returns the constraint whose bounds give the box of `node`, or None if `node` is
+    a raw array or an unconstrained parameter, whose box is its declared space."""
     return prx.unwrap(node.constraint) if is_param(node) else None
 
 
@@ -98,7 +98,7 @@ def _nudged(param: Param) -> Array | None:
     """Returns the declared value of `param` with each element on a closed bound moved
     1e-6 inward in box space, or None if no element is on one.
 
-    Box space is the constraint's Parax base space: the unit box between two finite
+    Box space is built from the constraint's bounds: the unit box between two finite
     bounds, declared space otherwise. An element also counts as on a bound when it is
     no further from it, in box space, than twice the bound's image through the
     raw-to-declared bijector. A Parax prior whitening clips on the way out of raw

@@ -284,9 +284,9 @@ def test_bounded_whitened_geometry_correlated_starved():
     """
     Test that bounded solvers operate in the latent box space.
 
-    Box space is the constraint's base space, before the correlating bijector. The
-    physical solver requires hundreds of iterations to navigate the ill-conditioned
-    ridge; the whitened box needs only a few.
+    Box space is the box of the untransformed interval, before the correlating
+    bijector. The physical solver requires hundreds of iterations to navigate the
+    ill-conditioned ridge; the whitened box needs only a few.
     """
     # 1. Define a violently correlated Cholesky factor (Condition number ~ 10,000)
     L = jnp.array([

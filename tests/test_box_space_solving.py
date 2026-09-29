@@ -108,6 +108,8 @@ def test_joint_prior_block_gets_the_box_of_its_parameters_bounds():
     assert lower["a.u"] == 0.0 and upper["a.v"] == 1.0
     fitted = view.updated({"a.u": jnp.asarray(1.0), "a.v": jnp.asarray(0.5)}, "box")
     assert prf.values(fitted) == pytest.approx({"a.u": 10.0, "a.v": 2.0})
+    objective = view.objective(lambda m, args: m["a"].u + m["a"].v, "box")
+    assert objective({"a.u": jnp.asarray(1.0), "a.v": jnp.asarray(0.5)}, None) == pytest.approx(12.0)
 
 
 def test_box_objective_is_the_model_objective_with_a_finite_gradient_on_a_bound():
