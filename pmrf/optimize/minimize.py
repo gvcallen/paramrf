@@ -41,9 +41,9 @@ def minimize(
     model : PyTree | None, default=None
         The PyTree containing the parameters to be optimized. Omitted when an
         already-built problem is passed.
-        The solver moves through the free parameters' raw values, so bounds are
-        enforced by each parameter's bijector rather than by the solver. See
-        :func:`pmrf.optimize.base.run_minimizer`.
+        A solver that honours bounds searches the box of the free parameters'
+        bounds; any other moves through their raw values, where each parameter's
+        bijector enforces its bounds. See :func:`pmrf.optimize.base.run_minimizer`.
     frequency : Frequency | None, default=None
         The frequency sweep over which the objective should be evaluated. May be
         omitted only if every objective already carries its own frequency.

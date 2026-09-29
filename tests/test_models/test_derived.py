@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 import pmrf as prf
+from pmrf.constraints import Interval
 from pmrf.distributions import Uniform
 from pmrf.models import Cascade, CoaxialLine, FloatingTwoPort, Resistor
 from tests._jit import assert_same_jit_key
@@ -220,7 +221,9 @@ def test_fit_smoke():
 
     truth = _wet(w=0.5)
     start = prf.update(_wet(w=0.3), '*', fixed=True)
-    start = prf.update(start, 'wet_length', fixed=False)
+    # A bounded minimiser evaluates closed bounds, and the wet part's line cannot take
+    # a length of 0, so the range is open there (ADR-0007).
+    start = prf.update(start, 'wet_length', prf.Constrained(Interval(0.0, 1.0, closed=(False, True)), value=0.3))
     result = fit_minimize(start, np.asarray(truth.s(FREQ)), frequency=FREQ)
     assert isinstance(result.model, type(start))
     np.testing.assert_allclose(prf.values(result.model)['wet_length'], 0.5, atol=1e-3)
