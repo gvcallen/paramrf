@@ -10,8 +10,9 @@ import pytest
 from jax.scipy.stats import norm
 
 import pmrf as prf
-from pmrf.constraints import Interval
-from pmrf.distributions import Uniform
+from pmrf._solver_view import SolverView
+from pmrf.constraints import GreaterThan, Interval
+from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base as infer_base
 from pmrf.models import Resistor
 from pmrf.optimize import base as optimize_base
@@ -104,10 +105,89 @@ def test_jax_native_minimizer_receives_name_keyed_raw_values():
     assert np.allclose(value, _objective(None)(prf.unwrap(model), None))
 
 
-def test_minimizer_start_on_a_bound_raises():
-    model = prf.update(_start(), {"R": 0.0})
-    with pytest.raises(ValueError, match=r"'R' start on a bound"):
-        optimize_base.run_minimizer(_objective(None), model, BFGS())
+# ---- Starts on a closed bound (ADR-0007) -----------------------------------------------
+
+
+class Pair(prf.Model):
+    u: prf.Param = prf.param()
+    v: prf.Param = prf.param()
+
+    def s(self, freq):
+        return jnp.ones((freq.npoints, 1, 1)) * (self.u + self.v)
+
+
+def _on_bounds():
+    """Both parameters start on their lower bound: one through a sigmoid, one through a
+    uniform prior's whitening."""
+    return Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Random(Uniform(0.0, 50.0), value=0.0))
+
+
+def _declared(model, raw):
+    return prf.values(prf.update(model, raw, space="raw"))
+
+
+def test_minimizer_nudges_a_start_on_a_closed_bound():
+    """A start on a closed bound moves 1e-6 of the box inward, here the unit box."""
+    model = _on_bounds()
+    optimize_base.run_minimizer(lambda m, args: m.u + m.v, model, _RecordingMinimizer())
+    y0, value = _RecordingMinimizer.seen
+
+    assert all(np.isfinite(v) for v in y0.values())
+    declared = _declared(model, y0)
+    assert declared["u"] == pytest.approx(1e-6 * 10.0, rel=1e-6)
+    assert declared["v"] == pytest.approx(1e-6 * 50.0, rel=1e-6)
+    assert np.isfinite(value)
+
+
+def test_minimizer_nudges_a_start_on_an_upper_bound_downward():
+    model = Pair(u=prf.Bounded(0.0, 10.0, value=10.0), v=prf.Bounded(0.0, 10.0, value=4.0))
+    optimize_base.run_minimizer(lambda m, args: m.u + m.v, model, _RecordingMinimizer())
+    y0, _ = _RecordingMinimizer.seen
+
+    declared = _declared(model, y0)
+    assert declared["u"] == pytest.approx(10.0 - 1e-6 * 10.0, rel=1e-9)
+    # A start inside the bounds is left where it is.
+    assert np.allclose(y0["v"], prf.values(model, free_only=True, space="raw")["v"])
+
+
+def test_minimizer_moves_a_start_on_a_closed_bound():
+    model = _on_bounds()
+    fitted, _ = optimize_base.run_minimizer(
+        lambda m, args: (m.u - 3.0) ** 2 + (m.v - 20.0) ** 2, model, BFGS(), max_iter=2000,
+    )
+    assert prf.values(fitted)["u"] == pytest.approx(3.0, rel=1e-4)
+    assert prf.values(fitted)["v"] == pytest.approx(20.0, rel=1e-4)
+
+
+def test_start_on_a_bound_keeps_its_declared_value_in_the_model():
+    """The nudge is in the start the solver is given, not in the model."""
+    model = _on_bounds()
+    view = SolverView(model, "optimize")
+
+    assert _declared(model, view.y0)["u"] > 0.0
+    assert prf.values(view.model)["u"] == 0.0
+    assert prf.values(model)["u"] == 0.0
+
+
+@pytest.mark.parametrize(
+    "param, box_width",
+    [
+        (prf.Bounded(0.0, 10.0, value=0.0), 10.0),
+        (prf.Constrained(GreaterThan(0.0), value=0.0), 1.0),
+        (prf.Random(Normal(1.0, 1.0), constraint=Interval(0.0, 5.0), value=0.0), 5.0),
+    ],
+    ids=["sigmoid", "softplus", "prior-whitened"],
+)
+def test_nudged_start_has_a_usable_gradient(param, box_width):
+    """The nudge is in box space, so it is the same distance for every bijector, and the
+    objective has a finite, non-zero gradient in raw space there. Without two finite
+    bounds the box is declared space."""
+    model = Pair(u=param, v=prf.Fixed(0.0))
+    view = SolverView(model, "optimize")
+
+    assert _declared(model, view.y0)["u"] == pytest.approx(1e-6 * box_width, rel=1e-6)
+    grad = jax.grad(view.objective(lambda m, args: m.u))(view.y0, None)["u"]
+    assert np.isfinite(grad) and grad != 0.0
 
 
 def test_minimizer_without_free_parameters_raises():
@@ -241,9 +321,6 @@ def test_hypercube_sampler_accepts_a_start_on_a_bound():
         L=prf.Fixed(0.5),
     )
     assert not np.isfinite(prf.values(model, free_only=True, space="raw")["R"])
-    # The same model is out of bounds for a sampler that does move raw values.
-    with pytest.raises(ValueError, match=r"'R' start on a bound"):
-        infer_base.run_sampler(_loglikelihood, model, _StubJointSampler(), jax.random.key(0))
 
     batched, results = infer_base.run_sampler(_loglikelihood, model, _StubHypercubeSampler(), jax.random.key(0))
     assert np.allclose(results.samples["R"], [0.0, 25.0], atol=1e-4)
@@ -253,6 +330,19 @@ def test_hypercube_sampler_accepts_a_start_on_a_bound():
 def test_hypercube_sampler_names_free_parameters_without_a_prior():
     with pytest.raises(ValueError, match=r"'R'"):
         infer_base.run_sampler(_loglikelihood, _start(), _StubHypercubeSampler(), jax.random.key(0))
+
+
+@pytest.mark.parametrize("sampler", [_StubJointSampler(), _StubSplitSampler()], ids=["joint", "split"])
+def test_sampler_starts_from_a_nudged_start_on_a_closed_bound(sampler):
+    model = _on_bounds()
+    loglik = lambda m, args: -((m.u - 3.0) ** 2 + (m.v - 20.0) ** 2)
+    batched, results = infer_base.run_sampler(loglik, model, sampler, jax.random.key(0))
+
+    start = jax.tree.map(lambda x: x[0], results.samples)
+    declared = _declared(model, start)
+    assert declared["u"] == pytest.approx(1e-6 * 10.0, rel=1e-6)
+    assert declared["v"] == pytest.approx(1e-6 * 50.0, rel=1e-6)
+    assert np.all(np.isfinite(results.fn_values))
 
 
 # ---- Joint priors ---------------------------------------------------------------------
