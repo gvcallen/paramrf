@@ -1,6 +1,8 @@
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
+import numpy as np
+
 
 def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
     """
@@ -9,17 +11,19 @@ def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
     This function evaluates a boolean condition inside JIT-compiled code. If the 
     condition is met (e.g., an unphysical parameter like negative impedance is 
     detected), it outputs the formatted runtime arrays to standard output before 
-    terminating the program. The input data `x` is threaded through the control 
-    flow to enforce strict execution order within the XLA graph.
+    raising. Whether to print is decided on the host, so nothing is printed when
+    the check passes, under any transform. Under `jax.vmap`, the message is printed
+    once for each failing batch element, with that element's values. Without print
+    arguments nothing is printed: the raised error carries `msg`.
 
     Parameters
     ----------
     x : Any
-        The input data (JAX array or PyTree) to pass through. This is required 
-        to maintain computational dependencies in the compiled graph.
+        The input data (JAX array or PyTree) to pass through. The check runs only
+        if the returned value is used.
     pred : bool or jax.Array
-        A boolean condition or boolean array. If any element evaluates to `True`, 
-        execution halts and the debug message is printed.
+        A boolean condition or boolean array. If any element evaluates to `True`,
+        execution halts, printing the message if print arguments are given.
     msg : str
         The format string for the error message and console output. Uses standard 
         Python `{}` formatting to dynamically inject JAX arrays.
@@ -37,8 +41,8 @@ def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
 
     Raises
     ------
-    RuntimeError
-        Triggered if `pred` contains any `True` elements during runtime.
+    equinox.EquinoxRuntimeError
+        At runtime, if `pred` contains any `True` elements.
 
     Examples
     --------
@@ -53,20 +57,27 @@ def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
     ...     z0
     ... )
     """
-    pred_scalar = jnp.any(pred)
-    
-    def print_and_pass():
-        jax.debug.print(msg, *print_args, **print_kwargs)
-        return x
-        
-    def just_pass():
-        return x
+    error_msg = msg
+    if print_args or print_kwargs:
+        # Decided on the host: a `lax.cond` on a batched predicate lowers to `select`
+        # under `vmap`, which runs the print whether or not the check fails. A
+        # `pure_callback` rather than `jax.debug.callback`, so that `eqx.error_if` can
+        # consume its output: that data dependency makes the print precede the raise.
+        def print_if(host_pred, args, kwargs):
+            if np.any(host_pred):
+                print(msg.format(*args, **kwargs))
+            return host_pred
 
-    x_after_cond = jax.lax.cond(pred_scalar, print_and_pass, just_pass)
-    
-    return eqx.error_if(
-        x_after_cond, 
-        pred, 
-        f"{msg} (Check standard output for runtime values)", 
-        on_error=on_error
-    )
+        pred = jnp.asarray(pred)
+        args, kwargs = jax.lax.stop_gradient((print_args, print_kwargs))
+        pred = jax.pure_callback(
+            print_if,
+            jax.ShapeDtypeStruct(pred.shape, pred.dtype),
+            pred,
+            args,
+            kwargs,
+            vmap_method="sequential",
+        )
+        error_msg = f"{msg} (Check standard output for runtime values)"
+
+    return eqx.error_if(x, pred, error_msg, on_error=on_error)
