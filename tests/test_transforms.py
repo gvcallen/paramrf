@@ -245,6 +245,104 @@ def test_derivative_rejects_an_unknown_space():
         prf.derivative(lambda x: x ** 2, jnp.array(1.0), space='unscaled')
 
 
+@pytest.mark.parametrize("space", ["declared", "physical"])
+@pytest.mark.parametrize("k2", [0.0, 1e-6])
+def test_derivative_on_and_near_a_closed_bound(space, k2):
+    """`k2` is NonNegative: at 0 its raw value is -inf, which must not reach the derivative."""
+    from pmrf.models import DatasheetLine
+
+    line = DatasheetLine(length=1.0, zn=50.0, vf=0.8, k1=0.1, k2=k2)
+
+    (d_line,) = prf.derivative(lambda m: 2.0 * m.k2, line, space=space)
+
+    assert prf.values(d_line)['k2'] == 2.0
+
+
+def test_a_closed_bound_is_still_a_valid_value():
+    from pmrf.models import DatasheetLine
+
+    line = DatasheetLine(length=1.0, zn=50.0, vf=0.8, k1=0.1, k2=0.5)
+
+    assert prf.values(prf.update(line, {'k2': 0.0}))['k2'] == 0.0
+    with pytest.raises(Exception, match="outside the constraint"):
+        prf.update(line, {'k2': -1.0})
+
+
+_CLOSED_BOUNDS = {
+    'non_negative': (0.0, prf.constraints.NonNegative()),
+    'greater_than': (2.0, prf.constraints.GreaterThan(2.0)),
+    'interval_upper': (3.0, prf.constraints.Interval(1.0, 3.0)),
+    'less_than': (3.0, prf.constraints.LessThan(3.0)),
+}
+
+
+@pytest.mark.parametrize("n", [1, 50], ids=['tall', 'wide'])
+@pytest.mark.parametrize("space", ["declared", "physical"])
+@pytest.mark.parametrize("bound", list(_CLOSED_BOUNDS))
+def test_derivative_on_a_closed_bound_is_exact_and_confined(bound, space, n):
+    """On a closed bound the derivative is finite and exact, and does not reach the
+    other parameters, whether taken by reverse mode (tall) or forward mode (wide)."""
+    value, constraint = _CLOSED_BOUNDS[bound]
+    scale = 1e-3
+    tree = {
+        'a': prf.Param(value=value, constraint=constraint, scale=scale),
+        'b': prf.Unconstrained(1.5),
+    }
+    x = jnp.linspace(0.0, 1.0, n)
+
+    (d_tree,) = prf.derivative(lambda t: 2.0 * t['a'] + t['b'] * x, tree, space=space)
+
+    per_unit = 1.0 if space == 'physical' else scale
+    assert jnp.array_equal(d_tree['a'], jnp.full(n, 2.0 * per_unit))
+    assert jnp.array_equal(d_tree['b'], x)
+
+
+def test_derivative_in_physical_space_on_a_closed_bound_is_declared_over_scale():
+    tree = {'a': prf.Param(value=0.0, constraint=prf.constraints.NonNegative(), scale=1e-3)}
+    fn = lambda t: jnp.sin(t['a'] + 0.3)
+
+    (declared,) = prf.derivative(fn, tree)
+    (physical,) = prf.derivative(fn, tree, space='physical')
+
+    assert jnp.isfinite(declared['a'])
+    assert jnp.allclose(physical['a'], declared['a'] / 1e-3, rtol=1e-12, atol=0)
+
+
+def _coax_on_a_closed_bound():
+    from pmrf.models import CoaxialLine, SchelkunoffCoaxialFormulation
+    from pmrf.materials import DjordjevicSarkarDielectric, BulkConductor
+
+    # The dielectric's conductivity defaults to 0, the closed bound of NonNegative.
+    return CoaxialLine(
+        length=1.0, d_in=3.124e-3, d_out=8.328e-3,
+        dielectric=DjordjevicSarkarDielectric(ep_r=1.33, tand=1e-4, f_low=1.5e4, f_high=1e11, f_ref=1e8),
+        conductor=BulkConductor(sigma=5.8e7), formulation=SchelkunoffCoaxialFormulation(),
+    )
+
+
+@pytest.mark.parametrize("n", [5, 50], ids=['tall', 'wide'])
+def test_derivative_of_a_line_with_a_parameter_on_a_closed_bound(n):
+    """A parameter on a closed bound gives every parameter a finite derivative, and the
+    others match a reference taken through free parameters inside their bounds."""
+    line = _coax_on_a_closed_bound()
+    freq = prf.Frequency(50, 130, n, 'MHz')
+    fn = lambda m: jnp.abs(m.s(freq)[:, 1, 1])
+
+    (d_line,) = prf.derivative(fn, line)
+    actual = prf.values(d_line)
+
+    assert prf.values(line)['dielectric.sigma'] == 0.0
+    assert all(jnp.isfinite(v).all() for v in actual.values()), actual
+
+    # Fixed parameters stop the gradient through `prf.update`, so the reference frees them.
+    names = ['length', 'd_in', 'd_out', 'dielectric.ep_r', 'dielectric.tand']
+    free = prf.update(line, names, fixed=False)
+    values = prf.values(free, names)
+    expected = jax.jacfwd(lambda v: fn(prf.unwrap(prf.update(free, v))))(values)
+    for name in names:
+        assert jnp.allclose(actual[name], expected[name], rtol=1e-12, atol=0), name
+
+
 def test_sweep_parallel():
     """
     Verifies that a standard sweep correctly vectorizes across the leading 

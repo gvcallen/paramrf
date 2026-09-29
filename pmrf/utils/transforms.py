@@ -1,6 +1,9 @@
+import dataclasses
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+import parax as prx
 from typing import Callable, Any, Tuple, TypeVarTuple
 
 from pmrf.utils.tree import unwrap, batch_axes
@@ -34,6 +37,11 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     capacitance declared with ``scale=1e-12``. A tie is recomputed from its source
     inside the differentiated function, so the source's derivative includes the
     path through the tie. Raw JAX arrays are differentiated as they are.
+
+    In declared and physical space a parameter on a closed bound, such as a
+    ``NonNegative`` loss at 0, has a finite derivative. In raw space it has none:
+    its raw value there is infinite, so a derivative with respect to it has no
+    finite meaning.
 
     Safely handles models as inputs by filtering out non-differentiable
     static fields (like strings, booleans, integers, AND NumPy arrays).
@@ -82,15 +90,15 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     -1.164e-01
     """
     # Imported here: pmrf.parameters imports pmrf.utils.
-    from pmrf.parameters import _check_space, _read, _set_paths, _with_fixed, _write, tree_param_paths
+    from pmrf.parameters import _check_space, _read, _set_paths, _with_fixed, _write, is_param, tree_param_paths
     from pmrf.utils.tree import Pathgetter
 
     _check_space(space)
 
     # Each parameter is replaced by its value in `space`, and rebuilt from it inside
     # the differentiated function, so the derivative is taken with respect to that
-    # value and the chain rule carries it through scale, constraint and ties. Fixed
-    # is an optimisation state, not a zero sensitivity, so parameters are rebuilt free.
+    # value and the chain rule carries it through scale and ties. Fixed is an
+    # optimisation state, not a zero sensitivity, so parameters are rebuilt free.
     rebuilds = []
     surrogates = []
     for arg in args:
@@ -103,12 +111,23 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
         rebuilds.append((paths, nodes))
         surrogates.append(_set_paths(arg, paths, [_read(node, space) for node in nodes]))
 
+    def _rebuild_node(node, value):
+        # In declared and physical space a parameter holds its declared value directly,
+        # as in box space (#226), not through its raw value: on a closed bound that is
+        # infinite, the constraint's bijector gives 0 * inf = NaN, and forward mode
+        # spreads the NaN to every parameter. The value is the one the parameter was
+        # built with, so its bounds need no checking again. A `Real` is free.
+        if not is_param(node) or space == 'raw':
+            return _with_fixed(_write(node, value, space), False)
+        declared = value / node._scale if space == 'physical' and node._scale != 1.0 else value
+        return dataclasses.replace(node, variable=prx.Real(declared))
+
     def _rebuild(surrogate_args):
         rebuilt = []
         for surrogate, (paths, nodes) in zip(surrogate_args, rebuilds):
             values = [Pathgetter(path)(surrogate) for path in paths]
             rebuilt.append(_set_paths(
-                surrogate, paths, [_with_fixed(_write(node, value, space), False) for node, value in zip(nodes, values)]
+                surrogate, paths, [_rebuild_node(node, value) for node, value in zip(nodes, values)]
             ))
         return unwrap(tuple(rebuilt))
 
