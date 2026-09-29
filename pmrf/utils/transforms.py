@@ -1,5 +1,3 @@
-import math
-
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -56,6 +54,13 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
         argument's structure with every parameter replaced by its derivative, so
         :func:`pmrf.values` reads the derivatives by name. Non-differentiable
         leaves are ``None``.
+
+    Raises
+    ------
+    ValueError
+        If `space` is not one of the supported spaces.
+    TypeError
+        If any differentiable input is complex-valued.
 
     Examples
     --------
@@ -133,7 +138,7 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
         return jax.grad(_wrapper)(dynamic)
 
     in_size = sum(leaf.size for leaf in jax.tree.leaves(dynamic))
-    out_size = sum(math.prod(leaf.shape) for leaf in out_leaves)
+    out_size = sum(leaf.size for leaf in out_leaves)
 
     if out_size > in_size:
         return jax.jacfwd(_wrapper)(dynamic)
