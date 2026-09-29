@@ -7,6 +7,12 @@ parameter in turn is set to zero, where its validity constraint allows it, and t
 finite closed bound of that constraint. S and its derivative with respect to that
 parameter must be finite, and the MNA and scattering solvers must agree on both.
 
+dS is taken with a `jax.jvp` through the component's constructor, which never goes
+through `prf.derivative`; that is how #238 shipped, NaN from `derivative` on closed
+bounds where every component passed. So each case also takes `prf.derivative` of S with
+respect to every parameter of the component, the swept one on its edge value, and checks
+it is finite and agrees with dS (#239).
+
 Infinite bounds are closed too (Parax ADR 0001: `Positive()` is (0, inf]), but a
 consumer that treats a closed bound as an evaluable point must skip non-finite ones, so
 the sweep does.
@@ -31,6 +37,7 @@ What the sweep found, and what was done (#224):
   negative winding inductance, so negative values never worked.
 - `Load.z0 = 0`, `Port.z0 = 0`: not evaluated; see `NOT_EVALUATED`.
 """
+import dataclasses
 import inspect
 
 import equinox as eqx
@@ -40,8 +47,10 @@ import numpy as np
 import parax as prx
 import pytest
 
+import pmrf as prf
 import pmrf.models
 from pmrf.frequency import Frequency
+from pmrf.materials import ColeColeDielectric, MultipoleDebyeDielectric, RoughConductor
 from pmrf.parameters import Param
 from pmrf.models import (
     Model, Circuit, Port,
@@ -88,9 +97,17 @@ EXAMPLES = {
     RLGCLine: lambda: RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.07),
     PhysicalLine: lambda: PhysicalLine(zn=50.0, ep_r=2.2, A=0.01, f_A=1e9, tand=0.001, length=1.0),
     DatasheetLine: lambda: DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
-    CoaxialLine: lambda: CoaxialLine(length=0.5),
+    # Dispersive and rough materials, so their loss parameters (dep_r, alpha, rms) are
+    # swept too; MicrostripLine keeps the default ConstantDielectric and BulkConductor.
+    CoaxialLine: lambda: CoaxialLine(
+        length=0.5,
+        dielectric=ColeColeDielectric(ep_inf=2.0, dep_r=0.3, f_relax=1e9, alpha=0.2, sigma=1e-4),
+        conductor=RoughConductor(sigma=5.8e7, roughness=1e-6),
+    ),
     MicrostripLine: lambda: MicrostripLine(length=0.1),
-    StriplineLine: lambda: StriplineLine(length=0.1),
+    StriplineLine: lambda: StriplineLine(
+        length=0.1, dielectric=MultipoleDebyeDielectric(ep_inf=2.0, poles=[(0.3, 1e9)]),
+    ),
     FloatingLine: lambda: FloatingLine(floating=PhaseLine(z0=50.0, theta=90.0, f0=0.5e9)),
     Resistor: lambda: Resistor(R=10.0),
     Capacitor: lambda: Capacitor(C=1e-12),
@@ -226,10 +243,44 @@ def _s_and_ds(cls, path, value, solver):
     return jax.jvp(s_of, (jnp.asarray(value),), (jnp.asarray(1.0),))
 
 
+def _with_param(model, path, x):
+    """`model` with the parameter at `path` kept a parameter, holding the declared value `x`.
+
+    Unlike `_at`, which puts a plain array there, so `prf.derivative` meets the parameter
+    on its bound, constraint and all.
+    """
+    get = _getter(path)
+    param = get(model)
+    declared = jnp.broadcast_to(jnp.asarray(x), jnp.shape(param.value))
+    return eqx.tree_at(get, model, dataclasses.replace(param, value=declared))
+
+
+def _derivative(cls, path, value, solver):
+    """dS with respect to every parameter of the component, by `prf.derivative`.
+
+    Returns the swept parameter's derivative, and every parameter's derivative.
+    """
+    model = _with_param(EXAMPLES[cls](), path, value)
+    s_of = lambda m: _in_circuit(m, solver).s(FREQ)
+    # Forward mode is where a NaN from one parameter reaches every other (#238), so the
+    # derivative must be taken in forward mode. S is complex, which `derivative` always
+    # takes forward, and it has more entries than the component has parameters, so it
+    # would be wide, and taken forward, if it were real.
+    n_params = sum(jnp.size(param.value) for _, param in _params(model))
+    assert jax.eval_shape(s_of, model).size > n_params, "the derivative is not wide"
+    (d_model,) = prf.derivative(s_of, model)
+    param_derivatives = [_getter(p)(d_model) for p, _ in _params(model)]
+    return _getter(path)(d_model), param_derivatives
+
+
 # The scattering solver regularises its own system with eps = 1e-12, which moves S, and
 # dS relative to its size, by about 2e-12 (see test_lumped.py). dS is compared relative
 # to its largest entry, which reaches 6e6 for an inductor at zero.
 SCATTERING_TOL = 1e-11
+
+
+def _ds_atol(ref_ds):
+    return SCATTERING_TOL * max(1.0, np.max(np.abs(ref_ds)))
 
 
 @pytest.mark.parametrize("cls, path, value", _cases())
@@ -242,7 +293,18 @@ def test_component_at_edge_value(cls, path, value):
     assert np.all(np.isfinite(ref_s)), "non-finite S under scattering"
     assert np.all(np.isfinite(ref_ds)), "non-finite dS under scattering"
     np.testing.assert_allclose(s, ref_s, rtol=0, atol=SCATTERING_TOL)
-    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=SCATTERING_TOL * max(1.0, np.max(np.abs(ref_ds))))
+    np.testing.assert_allclose(ds, ref_ds, rtol=0, atol=_ds_atol(ref_ds))
+
+    # `prf.derivative` against the jvp under the same solver: both differentiate the same
+    # computation, so they differ only by rounding, well inside the sweep's dS tolerance.
+    for solver, sweep_ds in [(GlobalMNACircuitSolver(), ds), (GlobalScatteringCircuitSolver(), ref_ds)]:
+        name = type(solver).__name__
+        swept, param_derivatives = _derivative(cls, path, value, solver)
+        assert all(np.all(np.isfinite(d)) for d in param_derivatives), f"non-finite prf.derivative under {name}"
+        np.testing.assert_allclose(
+            np.reshape(swept, np.shape(sweep_ds)), sweep_ds, rtol=0, atol=_ds_atol(sweep_ds),
+            err_msg=f"prf.derivative disagrees with dS under {name}",
+        )
 
 
 @pytest.mark.parametrize("cls, field", [
