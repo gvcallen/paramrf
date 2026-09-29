@@ -95,7 +95,10 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     **Validity**
 
     The conductor circuit interpolates between dc resistance and half-space
-    impedance but omits the exact $1/(2\gamma a)$ curvature term. Use
+    impedance, but its strong-skin limits have the wrong curvature correction;
+    see the Validity sections of
+    :class:`~pmrf.materials.surface_impedance.TescheRodSurfaceImpedance` and
+    :class:`~pmrf.materials.surface_impedance.TescheTubeSurfaceImpedance`. Use
     :class:`SchelkunoffCoaxialFormulation` for the exact cylindrical solution.
     The TEM line model applies below the TE11 cutoff
     $f_c \approx c / \left[\pi (a + b) \sqrt{\varepsilon_r \mu_r}\right]$.

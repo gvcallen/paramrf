@@ -224,11 +224,18 @@ class TescheRodSurfaceImpedance(AbstractSurfaceImpedance):
 
     **Validity**
 
-    This is an interpolation, not an exact finite-frequency solution. Its
-    strong-skin limit is $\zeta_c+R_{dc,sq}$ and omits the
-    $1/(2\gamma a)$ curvature term in the exact
-    :class:`SchelkunoffRodSurfaceImpedance` expansion. Prefer the exact formulation
-    unless Bessel evaluation cost is prohibitive.
+    This is an interpolation, not an exact finite-frequency solution.
+    Expanding for $|\zeta_c/(j\omega L_{int,sq})|\ll1$, with
+    $\zeta_c^2/(j\omega L_{int,sq})=\mu/(\sigma L_{int,sq})$, gives the
+    strong-skin limit
+    $$Z_s\to\zeta_c+R_{dc,sq}-\frac{\mu}{\sigma L_{int,sq}}
+    =\zeta_c-\frac{2}{a\sigma},$$
+    whereas the exact :class:`SchelkunoffRodSurfaceImpedance` tends to
+    $\zeta_c+1/(2a\sigma)$. The curvature correction therefore has the wrong
+    sign and four times the magnitude: the relative surface-resistance error
+    tends to $-\tfrac{5}{2}\delta/a$, and peaks at about $-20\%$ when $a$ is
+    a few skin depths. Prefer the exact formulation unless Bessel evaluation
+    cost is prohibitive.
 
     References
     ----------
@@ -260,8 +267,16 @@ class TescheTubeSurfaceImpedance(AbstractSurfaceImpedance):
 
     **Validity**
 
-    This formulation has the same approximation as :class:`TescheRodSurfaceImpedance`:
-    its strong-skin limit is $\zeta_c+R_{dc,sq}$ rather than $\zeta_c$.
+    This formulation has the same approximation as :class:`TescheRodSurfaceImpedance`.
+    Its strong-skin limit is
+    $$Z_s\to\zeta_c+R_{dc,sq}-\frac{\mu}{\sigma L_{int,sq}}
+    \approx\zeta_c-2R_{dc,sq}\quad(t\ll a),$$
+    whereas the exact :class:`SchelkunoffTubeSurfaceImpedance`, with current
+    on the inner surface, tends to approximately $\zeta_c-1/(2a\sigma)$. As a
+    result, $\Re Z_s$ increases monotonically with $t$ towards
+    $\Re\zeta_c$, so a free wall thickness acts as a conductor-loss knob
+    rather than a geometric parameter. $R_{dc,sq}=1/(t\sigma)$ is Tesche's
+    thin-wall form; the exact value is $2a/(\sigma t(2a+t))$.
     For $t\to\infty$, $R_{dc,sq}\to0$ and $L_{int,sq}\to\infty$, reducing
     the result to :class:`HalfSpaceSurfaceImpedance`. This limit is used by
     :class:`~pmrf.models.components.lines.coaxial.TescheCoaxialFormulation`
