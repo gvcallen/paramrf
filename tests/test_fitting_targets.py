@@ -8,6 +8,7 @@ import pmrf as prf
 from pmrf.models import Model
 from pmrf.parameters import Bounded, Fixed, Param
 from pmrf.frequency import Frequency
+from pmrf.losses import MSELoss
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_joint
 from pmrf.fitting.targets import resolve_datasets, union_frequency
@@ -30,8 +31,6 @@ class CompositeModel(Model):
 
 @pytest.fixture
 def starting_model():
-    # Solvers move through raw values, and a value on a bound has no raw
-    # counterpart the solver can move away from, so start inside the bounds.
     return CompositeModel(
         wide=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
         narrow=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
@@ -130,7 +129,9 @@ def test_union_of_a_shared_grid_is_that_grid(wide_band):
 
 def test_fit_joint_across_bands_recovers_both_targets(starting_model, heterogeneous):
     """The whole point: one solve, two grids, neither truncated to the overlap."""
-    result = fit_joint(starting_model, heterogeneous, solver=prf.optimize.ScipyMinimize())
+    # The RMSE of a constant is its absolute error, whose kink at the optimum stalls
+    # L-BFGS-B; the MSE is smooth there.
+    result = fit_joint(starting_model, heterogeneous, solver=prf.optimize.ScipyMinimize(), loss=MSELoss())
 
     assert jnp.allclose(result.model.wide.val.value, 3.0, atol=1e-3)
     assert jnp.allclose(result.model.narrow.val.value, 7.0, atol=1e-3)

@@ -18,9 +18,18 @@ from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
 
 DEBUG = False
 
+# The methods of :func:`scipy.optimize.minimize` that keep their iterates inside bounds.
+_BOUNDED_METHODS = {'l-bfgs-b', 'tnc', 'slsqp', 'trust-constr', 'powell', 'nelder-mead', 'cobyla', 'cobyqa'}
+
+
 class ScipyMinimize(AbstractBoundedMinimizer):
     """
     A wrapper around SciPy's :func:`scipy.optimize.minimize`.
+
+    Whether it honours bounds depends on `method`: L-BFGS-B, TNC, SLSQP, trust-constr,
+    Powell, Nelder-Mead, COBYLA and COBYQA do, and search box space; any other method,
+    such as BFGS or CG, moves through raw space. The default, None, is L-BFGS-B, which
+    SciPy picks when it is given bounds.
     """
     method: str | None = eqx.field(static=True, default=None)
     tol: float | None = eqx.field(static=True, default=None)
@@ -28,6 +37,11 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     show_progress: bool = eqx.field(static=True, default=True)
     use_grad: bool | None = eqx.field(static=True, default=None)
     # use_hess: bool | None = eqx.field(static=True, default=None)
+
+    @property
+    def honours_bounds(self) -> bool:
+        """Whether `method` keeps its iterates inside bounds. None is L-BFGS-B."""
+        return self.method is None or (isinstance(self.method, str) and self.method.lower() in _BOUNDED_METHODS)
 
     def run(
         self, 
