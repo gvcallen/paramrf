@@ -237,9 +237,10 @@ def run_sampler(
     :func:`pmrf.update`, so fixed parameters, names, scales and priors are unchanged,
     and only free parameters are batched.
 
-    A parameter starting exactly on one of its bounds has an infinite raw value and
-    could not move, so a joint or split sampler raises; start it inside its bounds.
-    A hypercube sampler works in declared space and accepts it.
+    A parameter starting exactly on a closed bound has an infinite raw value, so a
+    joint or split sampler starts it just inside: by 1e-6 of the width between two
+    finite bounds, or 1e-6 in declared units otherwise. A hypercube sampler works in
+    declared space and starts it on the bound.
 
     Parameters
     ----------
@@ -271,7 +272,7 @@ def run_sampler(
     ------
     ValueError
         If `model` has no free parameters, a joint or split sampler is given a
-        parameter starting on a bound, `init_samples` is missing a free parameter, or
+        parameter starting at NaN, `init_samples` is missing a free parameter, or
         a hypercube sampler is given a free parameter without a prior, a prior with no
         inverse CDF, or a joint prior with no independent normal base.
     """

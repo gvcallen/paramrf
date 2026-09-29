@@ -140,8 +140,9 @@ def run_minimizer(
     ``prf.update(model, y, space='raw')``, so fixed parameters, names, scales and
     priors are unchanged.
 
-    A parameter starting exactly on one of its bounds has an infinite raw value and
-    could not move, so it raises; start it inside its bounds.
+    A parameter starting exactly on a closed bound has an infinite raw value, so the
+    solver starts it just inside: by 1e-6 of the width between two finite bounds, or
+    1e-6 in declared units otherwise.
 
     Parameters
     ----------
@@ -166,10 +167,11 @@ def run_minimizer(
     Raises
     ------
     ValueError
-        If `model` has no free parameters, or one starts at NaN or on a bound.
+        If `model` has no free parameters, or one starts at NaN.
     """
     view = SolverView(model, 'optimize')
     # The minimiser moves raw values, so every starting raw value has to be movable.
+    # A start on a closed bound is already nudged inside it.
     view.check_finite()
     if isinstance(solver, AbstractBoundedMinimizer):
         # Raw space is the whole real line; constraints are kept by the bijectors.
