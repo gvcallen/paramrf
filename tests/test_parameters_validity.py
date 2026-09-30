@@ -6,6 +6,8 @@ Every prior is truncated to its parameter's constraint and renormalised.
 """
 import warnings
 
+import equinox as eqx
+import jax
 import jax.numpy as jnp
 import numpy as np
 import parax as prx
@@ -17,7 +19,7 @@ import pmrf as prf
 from pmrf.constraints import Interval, Positive
 from pmrf.distributions import Normal, Uniform
 from pmrf.modules import Probabilistic
-from pmrf.models import Resistor
+from pmrf.models import DatasheetLine, Resistor
 
 
 class Width(prf.Model):
@@ -223,3 +225,78 @@ def test_a_raw_joint_prior_keeps_the_ranges():
     }
     model = prf.prior(parts, ["a.R", "b.R"], _gaussian([0.0, 0.0], [[1.0, 0.0], [0.0, 1.0]]), space="raw")
     assert np.allclose(prf.params(model)["a.R"].bounds, (40.0, 60.0))
+
+
+# ---- Reporting violations (#237) ------------------------------------------------------
+
+
+class _BracedPositive(Positive):
+    """A constraint whose repr contains braces, which must not be read as a format string."""
+
+    def __repr__(self):
+        return "Braced{0}{x}()"
+
+
+class Braced(prf.Model):
+    """A model whose parameter's constraint repr contains braces."""
+    x: prf.Param = prf.param(constraint=_BracedPositive())
+
+    def s(self, freq):
+        return jnp.zeros((len(freq), 1, 1), dtype=complex)
+
+
+def _datasheet_line():
+    return DatasheetLine(length=1.0, zn=50.0, vf=0.8, k1=0.1, k2=0.1)
+
+
+def _datasheet_line_s(zn):
+    return prf.update(_datasheet_line(), {"zn": zn}).s(prf.Frequency(1, 10, 5, "GHz"))
+
+
+def _stdout(capfd):
+    jax.effects_barrier()
+    return capfd.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "transform",
+    [
+        pytest.param(jax.vmap, id="vmap"),
+        pytest.param(lambda f: jax.vmap(jax.jit(f)), id="vmap-jit"),
+        pytest.param(lambda f: jax.jit(jax.vmap(f)), id="jit-vmap"),
+    ],
+)
+def test_valid_values_under_vmap_print_nothing(transform, capfd):
+    transform(_datasheet_line_s)(jnp.array([50.0, 51.0])).block_until_ready()
+    assert _stdout(capfd) == ""
+
+
+def test_a_violation_under_vmap_reports_the_value(capfd):
+    with pytest.raises(eqx.EquinoxRuntimeError) as excinfo:
+        jax.vmap(_datasheet_line_s)(jnp.array([50.0, -1.0])).block_until_ready()
+    report = _stdout(capfd) + str(excinfo.value)
+    assert "-1.0" in report
+    assert "Tracer" not in report
+
+
+def test_a_violation_under_jit_reports_the_value(capfd):
+    # Plain `jax.jit` surfaces Equinox's error as a `JaxRuntimeError`.
+    with pytest.raises(Exception, match="outside the constraint") as excinfo:
+        jax.jit(_datasheet_line_s)(-1.0).block_until_ready()
+    report = _stdout(capfd) + str(excinfo.value)
+    assert "-1.0" in report
+    assert "Tracer" not in report
+
+
+def test_an_invalid_value_at_construction_raises():
+    with pytest.raises(eqx.EquinoxRuntimeError, match="outside the constraint"):
+        DatasheetLine(length=1.0, zn=-1.0, vf=0.8, k1=0.1, k2=0.1)
+
+
+def test_a_constraint_repr_with_braces_is_reported_verbatim(capfd):
+    # Plain `jax.jit` surfaces Equinox's error as a `JaxRuntimeError`.
+    with pytest.raises(Exception, match="outside the constraint"):
+        jax.jit(lambda x: prf.values(prf.update(Braced(1.0), {"x": x}))["x"])(-1.0).block_until_ready()
+    out = _stdout(capfd)
+    assert "Braced{0}{x}()" in out
+    assert "-1.0" in out
