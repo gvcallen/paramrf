@@ -1,0 +1,12 @@
+
+
+
+Uniform
+=======
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: Uniform
+   :members:
+   :show-inheritance:
+   :inherited-members:

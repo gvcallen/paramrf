@@ -1,0 +1,12 @@
+
+
+
+GradientDescent
+===============
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: GradientDescent
+   :members:
+   :show-inheritance:
+   :inherited-members:

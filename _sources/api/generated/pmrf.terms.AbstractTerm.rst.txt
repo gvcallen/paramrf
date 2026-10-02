@@ -1,0 +1,12 @@
+
+
+
+AbstractTerm
+============
+
+.. currentmodule:: pmrf.terms
+
+.. autoclass:: AbstractTerm
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+MixedModeConverter
+==================
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: MixedModeConverter
+   :members:
+   :show-inheritance:
+   :inherited-members:

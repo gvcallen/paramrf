@@ -1,0 +1,9 @@
+
+
+
+CenteredUniform
+===============
+
+.. currentmodule:: pmrf.distributions
+
+.. autofunction:: CenteredUniform

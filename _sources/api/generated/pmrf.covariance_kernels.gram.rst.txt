@@ -1,0 +1,9 @@
+
+
+
+gram
+====
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autofunction:: gram

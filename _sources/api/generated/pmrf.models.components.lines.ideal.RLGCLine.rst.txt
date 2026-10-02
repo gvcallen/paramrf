@@ -1,0 +1,12 @@
+
+
+
+RLGCLine
+========
+
+.. currentmodule:: pmrf.models.components.lines.ideal
+
+.. autoclass:: RLGCLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

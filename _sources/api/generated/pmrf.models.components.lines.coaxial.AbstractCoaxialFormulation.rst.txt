@@ -1,0 +1,12 @@
+
+
+
+AbstractCoaxialFormulation
+==========================
+
+.. currentmodule:: pmrf.models.components.lines.coaxial
+
+.. autoclass:: AbstractCoaxialFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

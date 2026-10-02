@@ -1,0 +1,12 @@
+
+
+
+RBFKernel
+=========
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: RBFKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

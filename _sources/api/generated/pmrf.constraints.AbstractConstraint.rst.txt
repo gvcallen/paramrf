@@ -1,0 +1,12 @@
+
+
+
+AbstractConstraint
+==================
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: AbstractConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:

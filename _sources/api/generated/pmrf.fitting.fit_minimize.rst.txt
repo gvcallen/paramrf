@@ -1,0 +1,9 @@
+
+
+
+fit_minimize
+============
+
+.. currentmodule:: pmrf.fitting
+
+.. autofunction:: fit_minimize

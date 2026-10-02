@@ -1,0 +1,62 @@
+﻿
+
+
+**covariance_kernels** (pmrf.covariance_kernels)
+================================================
+
+.. automodule:: pmrf.covariance_kernels
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractCovarianceKernel
+
+   AutoCrossKernel
+
+   ConstantKernel
+
+   Matern32Kernel
+
+   Matern52Kernel
+
+   PeriodicKernel
+
+   ProductKernel
+
+   RBFKernel
+
+   SharedIndependentKernel
+
+   SumKernel
+
+   WhiteNoiseKernel
+
+   ZeroKernel
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   gram
+
+

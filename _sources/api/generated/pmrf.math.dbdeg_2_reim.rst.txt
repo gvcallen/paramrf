@@ -1,0 +1,9 @@
+
+
+
+dbdeg_2_reim
+============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: dbdeg_2_reim

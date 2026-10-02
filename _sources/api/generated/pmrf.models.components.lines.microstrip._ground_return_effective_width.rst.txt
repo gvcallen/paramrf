@@ -1,0 +1,9 @@
+
+
+
+_ground_return_effective_width
+==============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autofunction:: _ground_return_effective_width

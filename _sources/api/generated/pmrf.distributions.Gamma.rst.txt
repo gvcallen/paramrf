@@ -1,0 +1,12 @@
+
+
+
+Gamma
+=====
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: Gamma
+   :members:
+   :show-inheritance:
+   :inherited-members:

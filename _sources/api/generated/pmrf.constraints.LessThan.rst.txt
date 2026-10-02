@@ -1,0 +1,12 @@
+
+
+
+LessThan
+========
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: LessThan
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+AbstractUnconstrainedMinimizer
+==============================
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: AbstractUnconstrainedMinimizer
+   :members:
+   :show-inheritance:
+   :inherited-members:

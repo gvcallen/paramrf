@@ -1,0 +1,12 @@
+
+
+
+Attenuator
+==========
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: Attenuator
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+as_terms
+========
+
+.. currentmodule:: pmrf.terms
+
+.. autofunction:: as_terms

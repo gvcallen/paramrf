@@ -1,0 +1,58 @@
+
+
+
+static
+======
+
+.. automodule:: pmrf.models.adapters.static
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AModel
+
+   SModel
+
+   SkrfNetwork
+
+   Touchstone
+
+   YModel
+
+   ZModel
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   _cubic_spline_coefficients
+
+   _interpolate_network_data_cubic
+
+   _restore_cubic_spline_coefficients
+
+   interpolate_network_data
+
+   renormalize_network_data
+
+

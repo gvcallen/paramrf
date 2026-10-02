@@ -1,0 +1,9 @@
+
+
+
+k0_over_k1
+==========
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: k0_over_k1

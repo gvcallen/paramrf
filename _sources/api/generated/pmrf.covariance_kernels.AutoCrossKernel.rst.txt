@@ -1,0 +1,12 @@
+
+
+
+AutoCrossKernel
+===============
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: AutoCrossKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

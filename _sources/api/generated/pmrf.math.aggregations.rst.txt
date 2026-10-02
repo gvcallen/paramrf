@@ -1,0 +1,38 @@
+
+
+
+aggregations
+============
+
+.. automodule:: pmrf.math.aggregations
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   aggregate
+
+   convolution_aggregate
+
+   geometric_mean
+
+   log_mean
+
+   weighted_sum
+
+

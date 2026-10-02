@@ -1,0 +1,12 @@
+
+
+
+ColeColeDielectric
+==================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: ColeColeDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

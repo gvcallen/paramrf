@@ -1,0 +1,12 @@
+
+
+
+NonNegative
+===========
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: NonNegative
+   :members:
+   :show-inheritance:
+   :inherited-members:

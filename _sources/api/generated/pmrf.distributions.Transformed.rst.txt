@@ -1,0 +1,12 @@
+
+
+
+Transformed
+===========
+
+.. currentmodule:: pmrf.distributions
+
+.. autoclass:: Transformed
+   :members:
+   :show-inheritance:
+   :inherited-members:

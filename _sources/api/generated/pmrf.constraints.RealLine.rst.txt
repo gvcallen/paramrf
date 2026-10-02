@@ -1,0 +1,12 @@
+
+
+
+RealLine
+========
+
+.. currentmodule:: pmrf.constraints
+
+.. autoclass:: RealLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

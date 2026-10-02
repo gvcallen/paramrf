@@ -1,0 +1,12 @@
+
+
+
+AbstractCovarianceKernel
+========================
+
+.. currentmodule:: pmrf.covariance_kernels
+
+.. autoclass:: AbstractCovarianceKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

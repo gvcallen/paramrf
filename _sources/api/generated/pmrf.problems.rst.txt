@@ -1,0 +1,44 @@
+﻿
+
+
+**problems** (pmrf.problems)
+============================
+
+.. automodule:: pmrf.problems
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractProblem
+
+   PriorPenalized
+
+   SummedTerms
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   problem_terms
+
+

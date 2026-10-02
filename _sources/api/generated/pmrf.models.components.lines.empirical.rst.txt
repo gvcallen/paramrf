@@ -1,0 +1,32 @@
+
+
+
+empirical
+=========
+
+.. automodule:: pmrf.models.components.lines.empirical
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   DatasheetLine
+
+   PhysicalLine
+
+
+
+
+
+

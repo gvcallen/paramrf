@@ -1,0 +1,9 @@
+﻿
+
+
+**resolve** (pmrf.resolve)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: resolve
